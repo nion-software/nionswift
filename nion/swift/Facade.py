@@ -3349,14 +3349,14 @@ class API_1:
 
         return PanelReference()
 
-    def create_specifier(self, item_uuid: uuid_module.UUID, context_uuid: uuid_module.UUID) -> Persistence.PersistentObjectSpecifier:
+    def create_specifier(self, item_uuid: uuid_module.UUID, context_uuid: typing.Optional[uuid_module.UUID] = None) -> Persistence.PersistentObjectSpecifier:
         """Create an item specifier from item_uuid and context_uuid.
 
         .. versionadded:: 2.0
 
         Scriptable: No
         """
-        return Persistence.PersistentObjectSpecifier(item_uuid=item_uuid, context_uuid=context_uuid)
+        return Persistence.PersistentObjectSpecifier(item_uuid=item_uuid)
 
     def create_unary_operation(self, unary_operation_delegate):
         return None

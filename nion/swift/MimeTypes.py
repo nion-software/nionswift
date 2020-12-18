@@ -38,9 +38,9 @@ def mime_data_get_data_source(mime_data: UserInterface.MimeData, document_model:
 
 def mime_data_put_data_source(mime_data: UserInterface.MimeData, display_item: DisplayItem.DisplayItem, graphic: typing.Optional[Graphics.Graphic]) -> None:
     mime_data_content = dict()
-    mime_data_content["display_item_specifier"] = display_item.project.create_specifier(display_item, allow_partial=False).write()
+    mime_data_content["display_item_specifier"] = display_item.project.create_specifier(display_item).write()
     if graphic:
-        mime_data_content["graphic_specifier"] = graphic.project.create_specifier(graphic, allow_partial=False).write()
+        mime_data_content["graphic_specifier"] = graphic.project.create_specifier(graphic).write()
     mime_data.set_data_as_string(DATA_SOURCE_MIME_TYPE, json.dumps(mime_data_content))
 
 
@@ -72,12 +72,12 @@ def mime_data_get_display_items(mime_data: UserInterface.MimeData, document_mode
 
 
 def mime_data_put_display_item(mime_data: UserInterface.MimeData, display_item: DisplayItem.DisplayItem) -> None:
-    mime_data_content = {"display_item_specifier": display_item.project.create_specifier(display_item, allow_partial=False).write()}
+    mime_data_content = {"display_item_specifier": display_item.project.create_specifier(display_item).write()}
     mime_data.set_data_as_string(DISPLAY_ITEM_MIME_TYPE, json.dumps(mime_data_content))
 
 
 def mime_data_put_display_items(mime_data: UserInterface.MimeData, display_items: typing.Sequence[DisplayItem.DisplayItem]) -> None:
-    mime_data_content = [{"display_item_specifier": display_item.project.create_specifier(display_item, allow_partial=False).write()} for display_item in display_items]
+    mime_data_content = [{"display_item_specifier": display_item.project.create_specifier(display_item).write()} for display_item in display_items]
     mime_data.set_data_as_string(DISPLAY_ITEMS_MIME_TYPE, json.dumps(mime_data_content))
 
 
@@ -119,7 +119,7 @@ def mime_data_put_layer(mime_data: UserInterface.MimeData, index: int, display_i
     }
     mime_dict = {
         "legend_data": legend_data,
-        "display_item_specifier": display_item.project.create_specifier(display_item, allow_partial=False).write()
+        "display_item_specifier": display_item.project.create_specifier(display_item).write()
     }
     mime_data.set_data_as_string(LAYER_MIME_TYPE, json.dumps(mime_dict))
 
@@ -138,5 +138,5 @@ def mime_data_get_panel(mime_data: UserInterface.MimeData, document_model: "Docu
 def mime_data_put_panel(mime_data: UserInterface.MimeData, display_item: typing.Optional[DisplayItem.DisplayItem], d: typing.Sequence) -> None:
     if display_item:
         d = dict(d)
-        d["display_item_specifier"] = display_item.project.create_specifier(display_item, allow_partial=False).write()
+        d["display_item_specifier"] = display_item.project.create_specifier(display_item).write()
     mime_data.set_data_as_string(DISPLAY_PANEL_MIME_TYPE, json.dumps(d))

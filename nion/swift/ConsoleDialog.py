@@ -346,7 +346,7 @@ class ConsoleDialog(Dialog.ActionDialog):
         variable_to_item_map = DocumentModel.MappedItemManager().item_map
         for variable_name, data_item in variable_to_item_map.items():
             data_item_specifier = data_item.item_specifier
-            lines.append(f"{variable_name} = api.library.get_item_by_specifier(api.create_specifier(item_uuid=uuid.UUID('{str(data_item_specifier.item_uuid)}'), context_uuid=uuid.UUID('{str(data_item_specifier.context_uuid)}')))")
+            lines.append(f"{variable_name} = api.library.get_item_by_specifier(api.create_specifier(item_uuid=uuid.UUID('{str(data_item_specifier.item_uuid)}')))")
 
         self.__console_widget.interpret_lines(lines)
 
@@ -361,4 +361,4 @@ class ConsoleDialog(Dialog.ActionDialog):
         super().close()
 
     def assign_item_var(self, item_var: str, item: Persistence.PersistentObject) -> None:
-        self.__console_widget.insert_lines([f"{item_var} = api.library.get_item_by_specifier(api.create_specifier(uuid.UUID(\"{item.uuid}\"), None))"])
+        self.__console_widget.insert_lines([f"{item_var} = api.library.get_item_by_specifier(api.create_specifier(uuid.UUID(\"{item.uuid}\")))"])

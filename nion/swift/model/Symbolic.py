@@ -201,7 +201,7 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
         self.define_property("secondary_specifier", secondary_specifier, hidden=True, changed=self.__property_changed)
         self.define_property("property_name", property_name, changed=self.__property_changed)
         self.define_property("control_type", control_type, changed=self.__property_changed)
-        item_specifiers = [DataStructure.get_object_specifier(item.item, item.type, allow_partial=False) if item else None for item in items] if items is not None else None
+        item_specifiers = [DataStructure.get_object_specifier(item.item, item.type) if item else None for item in items] if items is not None else None
         self.define_property("object_specifiers", copy.deepcopy(item_specifiers) if item_specifiers is not None else None, changed=self.__property_changed)
         self.changed_event = Event.Event()
         self.variable_type_changed_event = Event.Event()
@@ -1196,7 +1196,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
 
     @property
     def item_specifier(self) -> Persistence.PersistentObjectSpecifier:
-        return Persistence.PersistentObjectSpecifier(item_uuid=self.uuid, context_uuid=self.project.uuid)
+        return Persistence.PersistentObjectSpecifier(item_uuid=self.uuid)
 
     def read_properties_from_dict(self, d):
         self.__source_proxy.item_specifier = Persistence.PersistentObjectSpecifier.read(d.get("source_uuid", None))
@@ -1220,14 +1220,6 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
 
     def read_from_dict(self, properties):
         super().read_from_dict(properties)
-
-    # override this so it can be short circuited if self.pending_project is available.
-    # this is used to check inputs/outputs for circular dependencies before the computation is added to the project.
-    def _get_related_item(self, item_specifier: Persistence.PersistentObjectSpecifier) -> typing.Optional[Persistence.PersistentObject]:
-        related_item = super()._get_related_item(item_specifier)
-        if related_item is None and self.pending_project:
-            related_item = self.pending_project._get_related_item(item_specifier)
-        return related_item
 
     @property
     def source(self):
@@ -1327,8 +1319,8 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
             self.add_variable(variable)
             return variable
         else:
-            specifier = _item_specifier or DataStructure.get_object_specifier(input_item.item, input_item.type, allow_partial=False)
-            secondary_specifier = DataStructure.get_object_specifier(input_item.secondary_item, allow_partial=False) if input_item.secondary_item else None
+            specifier = _item_specifier or DataStructure.get_object_specifier(input_item.item, input_item.type)
+            secondary_specifier = DataStructure.get_object_specifier(input_item.secondary_item) if input_item.secondary_item else None
             variable = ComputationVariable(name, specifier=specifier, secondary_specifier=secondary_specifier, property_name=property_name, label=label)
             self.add_variable(variable)
             return variable
@@ -1336,7 +1328,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
     def create_output_item(self, name: str, output_item: ComputationItem = None, *, label: str = None, _item_specifier: typing.Dict = None) -> ComputationOutput:
         # Note: _item_specifier is only for testing
         if output_item and output_item.items is not None:
-            specifiers = [DataStructure.get_object_specifier(item.item, allow_partial=False) for item in output_item.items]
+            specifiers = [DataStructure.get_object_specifier(item.item) for item in output_item.items]
             result = ComputationOutput(name, specifiers=specifiers, label=label)
             self.append_item("results", result)
             if self.persistent_object_context:
@@ -1346,7 +1338,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         elif output_item:
             assert not output_item.type
             assert not output_item.secondary_item
-            specifier = _item_specifier or DataStructure.get_object_specifier(output_item.item, allow_partial=False)
+            specifier = _item_specifier or DataStructure.get_object_specifier(output_item.item)
             result = ComputationOutput(name, specifier=specifier, label=label)
             self.append_item("results", result)
             if self.persistent_object_context:
@@ -1360,7 +1352,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
 
     def insert_item_into_objects(self, name: str, index: int, input_item: ComputationItem) -> None:
         variable = self._get_variable(name)
-        specifier = DataStructure.get_object_specifier(input_item.item, input_item.type, allow_partial=False)
+        specifier = DataStructure.get_object_specifier(input_item.item, input_item.type)
         variable.bound_items_model.insert_item(index, self.__resolve_object_specifier(specifier))
 
     def list_item_removed(self, object) -> typing.Optional[typing.Tuple[int, int, dict]]:
@@ -1736,19 +1728,19 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
                 assert input_item.type is None
                 assert input_item.secondary_item is None
                 assert input_item.items is None
-                variable._specifier = DataStructure.get_object_specifier(input_item.item, allow_partial=False)
+                variable._specifier = DataStructure.get_object_specifier(input_item.item)
 
     def set_output_item(self, name:str, output_item: ComputationItem) -> None:
         for result in self.results:
             if result.name == name:
                 if output_item and output_item.items is not None:
-                    result._specifiers = [DataStructure.get_object_specifier(o.item, allow_partial=False) for o in output_item.items]
+                    result._specifiers = [DataStructure.get_object_specifier(o.item) for o in output_item.items]
                 else:
                     if output_item:
                         assert output_item.item
                         assert output_item.type is None
                         assert output_item.secondary_item is None
-                    result._specifier = DataStructure.get_object_specifier(output_item.item, allow_partial=False) if output_item else None
+                    result._specifier = DataStructure.get_object_specifier(output_item.item) if output_item else None
 
     def get_input(self, name: str):
         for variable in self.variables:

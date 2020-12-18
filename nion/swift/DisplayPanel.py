@@ -1467,7 +1467,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
             d["controller_type"] = self.__display_panel_controller.type
             self.__display_panel_controller.save(d)
         if self.__display_item:
-            d["display_item_specifier"] = self.__display_item.project.create_specifier(self.__display_item, allow_partial=False).write()
+            d["display_item_specifier"] = self.__display_item.project.create_specifier(self.__display_item).write()
         if self.__display_panel_controller is None and self.__horizontal_browser_canvas_item.visible:
             d["browser_type"] = "horizontal"
         if self.__display_panel_controller is None and self.__grid_browser_canvas_item.visible:
@@ -1596,7 +1596,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
 
     def set_display_panel_display_item(self, display_item: DisplayItem.DisplayItem, detect_controller: bool=False) -> None:
         if display_item:
-            d = {"type": "image", "display_item_specifier": display_item.project.create_specifier(display_item, allow_partial=False).write()}
+            d = {"type": "image", "display_item_specifier": display_item.project.create_specifier(display_item).write()}
             if detect_controller:
                 data_item = display_item.data_item
                 if display_item == self.document_controller.document_model.get_any_display_item_for_data_item(data_item):
@@ -2225,7 +2225,7 @@ class DisplayPanelManager(metaclass=Utility.Singleton):
     def switch_to_display_content(self, document_controller, display_panel: DisplayPanel, display_panel_type, display_item: DisplayItem.DisplayItem = None):
         d = {"type": "image", "display-panel-type": display_panel_type}
         if display_item and display_panel_type != "empty-display-panel":
-            d["display_item_specifier"] = display_item.project.create_specifier(display_item, allow_partial=False).write()
+            d["display_item_specifier"] = display_item.project.create_specifier(display_item).write()
         command = ReplaceDisplayPanelCommand(document_controller.workspace_controller)
         display_panel.change_display_panel_content(d)
         document_controller.push_undo_command(command)

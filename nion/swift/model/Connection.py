@@ -45,7 +45,7 @@ class Connection(Observable.Observable, Persistence.PersistentObject):
 
     @property
     def item_specifier(self) -> Persistence.PersistentObjectSpecifier:
-        return Persistence.PersistentObjectSpecifier(item_uuid=self.uuid, context_uuid=self.project.uuid)
+        return Persistence.PersistentObjectSpecifier(item_uuid=self.uuid)
 
     def clone(self) -> "Connection":
         connection = copy.deepcopy(self)

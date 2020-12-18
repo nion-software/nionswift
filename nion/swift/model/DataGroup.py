@@ -113,7 +113,7 @@ class DataGroup(Observable.Observable, Persistence.PersistentObject):
 
     @property
     def item_specifier(self) -> Persistence.PersistentObjectSpecifier:
-        return Persistence.PersistentObjectSpecifier(item_uuid=self.uuid, context_uuid=self.project.uuid)
+        return Persistence.PersistentObjectSpecifier(item_uuid=self.uuid)
 
     def __validate_title(self, value):
         return str(value) if value is not None else str()
@@ -153,7 +153,7 @@ class DataGroup(Observable.Observable, Persistence.PersistentObject):
         self.notify_insert_item("display_items", display_item, before_index)
         self.update_counted_display_items(collections.Counter([display_item]))
         display_item_specifiers = self.display_item_specifiers
-        display_item_specifiers.insert(before_index, display_item.project.create_specifier(display_item, allow_partial=False).write())
+        display_item_specifiers.insert(before_index, display_item.project.create_specifier(display_item).write())
         self.display_item_specifiers = display_item_specifiers
         self.notify_property_changed("display_item_specifiers")
 

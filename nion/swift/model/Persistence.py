@@ -256,33 +256,25 @@ class PersistentObjectContext:
 
 class PersistentObjectSpecifier:
 
-    def __init__(self, *, item: PersistentObject = None, item_uuid: uuid.UUID = None, context: PersistentObject = None, context_uuid: uuid.UUID = None):
+    def __init__(self, *, item: PersistentObject = None, item_uuid: uuid.UUID = None):
         self.__item_uuid = item.uuid if item else item_uuid
-        self.__context_uuid = context.uuid if context else context_uuid
         assert (self.__item_uuid is None) or isinstance(self.__item_uuid, uuid.UUID)
 
     def __hash__(self):
-        return hash((self.__context_uuid, self.__item_uuid))
+        return hash(self.__item_uuid)
 
     def __eq__(self, other):
         if isinstance(other, self.__class__):
-            return self.__item_uuid == other.__item_uuid and self.__context_uuid == other.__context_uuid
+            return self.__item_uuid == other.__item_uuid
         return False
 
     @property
     def item_uuid(self) -> typing.Optional[uuid.UUID]:
         return self.__item_uuid
 
-    @property
-    def context_uuid(self) -> typing.Optional[uuid.UUID]:
-        return self.__context_uuid
-
     def write(self) -> typing.Optional[typing.Union[typing.Dict, str]]:
         if self.__item_uuid:
-            if not self.__context_uuid:
-                return str(self.__item_uuid)
-            else:
-                return {"item_uuid": str(self.__item_uuid), "context_uuid": str(self.__context_uuid)}
+            return str(self.__item_uuid)
         return None
 
     @staticmethod
@@ -291,12 +283,10 @@ class PersistentObjectSpecifier:
             return PersistentObjectSpecifier(item_uuid=uuid.UUID(d))
         elif isinstance(d, uuid.UUID):
             return PersistentObjectSpecifier(item_uuid=d)
-        elif isinstance(d, dict) and "item_uuid" in d and "context_uuid" in d:
-            return PersistentObjectSpecifier(item_uuid=uuid.UUID(d["item_uuid"]), context_uuid=uuid.UUID(d["context_uuid"]))
         elif isinstance(d, dict) and "item_uuid" in d:
             return PersistentObjectSpecifier(item_uuid=uuid.UUID(d["item_uuid"]))
         elif isinstance(d, dict) and "uuid" in d:
-            return PersistentObjectSpecifier(item_uuid=uuid.UUID(d["uuid"]), context_uuid=uuid.UUID(d["context_uuid"]) if "context_uuid" in d else None)
+            return PersistentObjectSpecifier(item_uuid=uuid.UUID(d["uuid"]))
         else:
             return None
 
@@ -372,11 +362,12 @@ class PersistentObjectProxy:
 
     def __change_registration(self, registered_object: typing.Optional[PersistentObject], unregistered_object: typing.Optional[PersistentObject]) -> None:
         if registered_object and not self.__item and self.__item_specifier and registered_object.uuid == self.__item_specifier.item_uuid:
-            item = self.__persistent_object._get_related_item(self.__item_specifier)
-            if item:
-                self.__item = item
-                if callable(self.on_item_registered):
-                    self.on_item_registered(registered_object)
+            if self.__persistent_object.persistent_object_context:
+                item = self.__persistent_object.persistent_object_context.get_registered_object(self.__item_specifier)
+                if item:
+                    self.__item = item
+                    if callable(self.on_item_registered):
+                        self.on_item_registered(registered_object)
         if unregistered_object and unregistered_object == self.__item:
             self.__item = None
             if callable(self.on_item_unregistered):
@@ -385,9 +376,10 @@ class PersistentObjectProxy:
     def __persistent_object_context_changed(self) -> None:
         if self.__persistent_object.persistent_object_context:
             if self.__item_specifier and not self.__item:
-                item = self.__persistent_object._get_related_item(self.__item_specifier)
-                if item:
-                    self.__change_registration(item, None)
+                if self.__persistent_object.persistent_object_context:
+                    item = self.__persistent_object.persistent_object_context.get_registered_object(self.__item_specifier)
+                    if item:
+                        self.__change_registration(item, None)
         self.__update_persistent_object_context()
 
 
@@ -614,13 +606,6 @@ class PersistentObject:
                 #     return item_d
                 if item_d.get("uuid") == item_uuid:  # a little dangerous, comparing the uuid str's, significantly faster
                     return item_d
-        return None
-
-    def _get_related_item(self, item_specifier: PersistentObjectSpecifier) -> typing.Optional[PersistentObject]:
-        if self.persistent_object_parent and self.persistent_object_parent.parent:
-            return self.persistent_object_parent.parent._get_related_item(item_specifier)
-        if self.persistent_object_context:
-            return self.persistent_object_context.get_registered_object(item_specifier)
         return None
 
     def define_type(self, type):
@@ -1045,4 +1030,6 @@ class PersistentObject:
 
     def resolve_item_specifier(self, item_specifier: PersistentObjectSpecifier) -> typing.Optional[PersistentObject]:
         """Return the resolve item specifier."""
-        return self._get_related_item(item_specifier)
+        if self.persistent_object_context:
+            return self.persistent_object_context.get_registered_object(item_specifier)
+        return None

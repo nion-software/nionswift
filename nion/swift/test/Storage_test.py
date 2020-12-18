@@ -447,8 +447,8 @@ class TestStorageClass(unittest.TestCase):
                 data_items_type = type(document_controller.document_model.data_items)
                 data_item0 = document_controller.document_model.data_items[0]
                 data_item1 = document_controller.document_model.data_items[1]
-                data_item0_specifier = data_item0.project.create_specifier(data_item0, allow_partial=False)
-                data_item1_specifier = data_item1.project.create_specifier(data_item1, allow_partial=False)
+                data_item0_specifier = data_item0.project.create_specifier(data_item0)
+                data_item1_specifier = data_item1.project.create_specifier(data_item1)
                 data_item0_display_item = document_model.get_display_item_for_data_item(data_item0)
                 data_item0_calibration_len = len(data_item0_display_item.data_item.dimensional_calibrations)
                 data_item1_data_items_len = len(document_controller.document_model.get_dependent_data_items(data_item1))
@@ -485,8 +485,8 @@ class TestStorageClass(unittest.TestCase):
                 dst_data_item = document_model.get_fft_new(src_display_item, src_display_item.data_item)
                 document_model.recompute_all()
                 dst_data_item.created = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
-                src_data_item_specifier = src_data_item.project.create_specifier(src_data_item, allow_partial=False)
-                dst_data_item_specifier = dst_data_item.project.create_specifier(dst_data_item, allow_partial=False)
+                src_data_item_specifier = src_data_item.project.create_specifier(src_data_item)
+                dst_data_item_specifier = dst_data_item.project.create_specifier(dst_data_item)
             document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
                 src_data_item = typing.cast(DataItem.DataItem, document_model.resolve_item_specifier(src_data_item_specifier))
@@ -521,8 +521,7 @@ class TestStorageClass(unittest.TestCase):
             profile_context.data_properties_map["7d3b374e-e48b-460f-91de-7ff4e1a1a63c"]["created"] = "2015-01-22T17:16:12.308003"
             document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
-                new_data_item1_specifier = Persistence.PersistentObjectSpecifier(item_uuid=uuid.UUID("71ab9215-c6ae-4c36-aaf5-92ce78db02b6"),
-                                                                                 context_uuid=document_model._project.uuid)
+                new_data_item1_specifier = Persistence.PersistentObjectSpecifier(item_uuid=uuid.UUID("71ab9215-c6ae-4c36-aaf5-92ce78db02b6"))
                 new_data_item1 = typing.cast(DataItem.DataItem, document_model.resolve_item_specifier(new_data_item1_specifier))
                 new_data_item1_data_items_len = len(document_model.get_dependent_data_items(new_data_item1))
                 self.assertEqual(2, new_data_item1_data_items_len)
@@ -1083,7 +1082,7 @@ class TestStorageClass(unittest.TestCase):
             with contextlib.closing(document_controller):
                 self.save_document(document_controller)
                 read_data_item = document_model.data_items[0]
-                read_data_item_specifier = read_data_item.project.create_specifier(read_data_item, allow_partial=False)
+                read_data_item_specifier = read_data_item.project.create_specifier(read_data_item)
                 read_display_item = document_model.get_display_item_for_data_item(read_data_item)
                 self.assertEqual(len(read_display_item.graphics), 9)  # verify assumptions
             # read it back
@@ -3239,7 +3238,7 @@ class TestStorageClass(unittest.TestCase):
                 document_model._project.migrate_to_latest()
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
-                new_data_item_specifier = data_item.project.create_specifier(data_item, allow_partial=False)
+                new_data_item_specifier = data_item.project.create_specifier(data_item)
             # auto migrate workspace
             document_model = profile_context.create_document_model(auto_close=False)
             # this migrate is not allowed since it is already migrated.
@@ -3248,7 +3247,7 @@ class TestStorageClass(unittest.TestCase):
             with contextlib.closing(document_model):
                 self.assertEqual(2, len(document_model.data_items))
                 self.assertEqual(2, len(document_model.display_items))
-                data_item_specifier = Persistence.PersistentObjectSpecifier(item_uuid=uuid.UUID(src_uuid_str), context_uuid=document_model._project.uuid)
+                data_item_specifier = Persistence.PersistentObjectSpecifier(item_uuid=uuid.UUID(src_uuid_str))
                 self.assertIsNotNone(typing.cast(DataItem.DataItem, document_model.resolve_item_specifier(data_item_specifier)))
                 self.assertIsNotNone(typing.cast(DataItem.DataItem, document_model.resolve_item_specifier(new_data_item_specifier)))
 

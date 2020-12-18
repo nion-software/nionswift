@@ -306,7 +306,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
 
     @property
     def item_specifier(self) -> Persistence.PersistentObjectSpecifier:
-        return Persistence.PersistentObjectSpecifier(item_uuid=self.uuid, context_uuid=self.project.uuid)
+        return Persistence.PersistentObjectSpecifier(item_uuid=self.uuid)
 
     def insert_model_item(self, container, name, before_index, item):
         """Insert a model item. Let this item's container do it if possible; otherwise do it directly.

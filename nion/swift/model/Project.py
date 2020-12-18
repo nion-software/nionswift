@@ -86,11 +86,8 @@ class Project(Observable.Observable, Persistence.PersistentObject):
     def item_specifier(self) -> Persistence.PersistentObjectSpecifier:
         return Persistence.PersistentObjectSpecifier(item_uuid=self.uuid)
 
-    def create_specifier(self, item: Persistence.PersistentObject, *, allow_partial: bool = True) -> Persistence.PersistentObjectSpecifier:
-        if item.project == self and allow_partial:
-            return Persistence.PersistentObjectSpecifier(item=item)
-        else:
-            return Persistence.PersistentObjectSpecifier(item=item, context=item.project)
+    def create_specifier(self, item: Persistence.PersistentObject) -> Persistence.PersistentObjectSpecifier:
+        return Persistence.PersistentObjectSpecifier(item=item)
 
     def insert_model_item(self, container, name, before_index, item) -> None:
         # special handling to pass on to the document model
@@ -101,49 +98,6 @@ class Project(Observable.Observable, Persistence.PersistentObject):
         # special handling to pass on to the document model
         assert callable(self.handle_remove_model_item)
         return self.handle_remove_model_item(container, name, item, safe=safe)
-
-    def _get_related_item(self, item_specifier: Persistence.PersistentObjectSpecifier) -> typing.Optional[Persistence.PersistentObject]:
-        if item_specifier.context_uuid is None or item_specifier.context_uuid == self.uuid:
-            item_uuid = item_specifier.item_uuid
-            data_item = self.get_item_by_uuid("data_items", item_uuid)
-            if data_item:
-                return data_item
-            display_item = self.get_item_by_uuid("display_items", item_uuid)
-            if display_item:
-                return display_item
-            connection = self.get_item_by_uuid("connections", item_uuid)
-            if connection:
-                return connection
-            data_structure = self.get_item_by_uuid("data_structures", item_uuid)
-            if data_structure:
-                return data_structure
-            computation = self.get_item_by_uuid("computations", item_uuid)
-            if computation:
-                return computation
-            for display_item in self.display_items:
-                display_data_channel = display_item.get_item_by_uuid("display_data_channels", item_uuid)
-                if display_data_channel:
-                    return display_data_channel
-                graphic = display_item.get_item_by_uuid("graphics", item_uuid)
-                if graphic:
-                    return graphic
-
-            def check_data_group(data_group: DataGroup.DataGroup, item_specifier: Persistence.PersistentObjectSpecifier) -> typing.Optional[DataGroup.DataGroup]:
-                for data_group in data_group.data_groups:
-                    if data_group.uuid == item_specifier.item_uuid:
-                        return data_group
-                    matching_data_group = check_data_group(data_group, item_specifier)
-                    if matching_data_group:
-                        return matching_data_group
-                return None
-
-            for data_group in self.data_groups:
-                if data_group.uuid == item_uuid:
-                    return data_group
-                matching_data_group = check_data_group(data_group, item_specifier)
-                if matching_data_group:
-                    return matching_data_group
-        return super()._get_related_item(item_specifier)
 
     @property
     def storage_system_path(self) -> pathlib.Path:

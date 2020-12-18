@@ -44,7 +44,7 @@ You do this by clicking either on the display panel containing the display item 
 
 After you have selected the desired display item, press Ctrl+Shift+K (Windows/Linux) or Cmd+Shift+K (macOS). When you do this, Nion Swift will show the variable in the title of the display item shown in the display panel header; it will also print the variable in any Python Console windows that are open at the time. ::
 
-   >>> r01 = api.library.get_item_by_specifier(api.create_specifier(uuid.UUID("647feb15-8407-4693-8b9d-0cec90e94b7c"), None))
+   >>> r01 = api.library.get_item_by_specifier(api.create_specifier(uuid.UUID("647feb15-8407-4693-8b9d-0cec90e94b7c")))
    >>> numpy.amin(r01.data)
 
 The first line above will be added automatically when you press Ctrl/Cmd+Shift+K. Once it appears, you can type the second line, substituting the actual r-variable for ``r01``.

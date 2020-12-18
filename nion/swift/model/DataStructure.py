@@ -92,7 +92,7 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
 
     @property
     def item_specifier(self) -> Persistence.PersistentObjectSpecifier:
-        return Persistence.PersistentObjectSpecifier(item_uuid=self.uuid, context_uuid=self.project.uuid)
+        return Persistence.PersistentObjectSpecifier(item_uuid=self.uuid)
 
     def insert_model_item(self, container, name, before_index, item):
         if self.container:
@@ -215,50 +215,44 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
         return list(referenced_object_proxy.item for referenced_object_proxy in self.__referenced_object_proxies.values())
 
 
-def get_object_specifier(object, object_type: str = None, project=None, *, allow_partial: bool = True) -> typing.Optional[typing.Dict]:
+def get_object_specifier(object, object_type: str = None, project=None) -> typing.Optional[typing.Dict]:
     # project is passed for testing only
     if isinstance(object, DataItem.DataItem):
         project = project or object.project
-        specifier = project.create_specifier(object, allow_partial=allow_partial) if project else None
+        specifier = project.create_specifier(object) if project else None
         specifier_uuid = specifier.item_uuid if specifier else object.uuid
         d = {"version": 1, "type": object_type or "data_item", "uuid": str(specifier_uuid)}
-        if specifier and specifier.context_uuid: d["context_uuid"] = str(specifier.context_uuid)
         return d
     if object and object_type in ("xdata", "display_xdata", "cropped_xdata", "cropped_display_xdata", "filter_xdata", "filtered_xdata"):
         assert isinstance(object, DisplayItem.DisplayDataChannel)
         project = project or object.project
-        specifier = project.create_specifier(object, allow_partial=allow_partial) if project else None
+        specifier = project.create_specifier(object) if project else None
         specifier_uuid = specifier.item_uuid if specifier else object.uuid
         d = {"version": 1, "type": object_type, "uuid": str(specifier_uuid)}
-        if specifier and specifier.context_uuid: d["context_uuid"] = str(specifier.context_uuid)
         return d
     if isinstance(object, DisplayItem.DisplayDataChannel):
         # should be "data_source" but requires file format change
         project = project or object.project
-        specifier = project.create_specifier(object, allow_partial=allow_partial) if project else None
+        specifier = project.create_specifier(object) if project else None
         specifier_uuid = specifier.item_uuid if specifier else object.uuid
         d = {"version": 1, "type": "data_source", "uuid": str(specifier_uuid)}
-        if specifier and specifier.context_uuid: d["context_uuid"] = str(specifier.context_uuid)
         return d
     elif isinstance(object, Graphics.Graphic):
         project = project or object.project
-        specifier = project.create_specifier(object, allow_partial=allow_partial) if project else None
+        specifier = project.create_specifier(object) if project else None
         specifier_uuid = specifier.item_uuid if specifier else object.uuid
         d = {"version": 1, "type": "graphic", "uuid": str(specifier_uuid)}
-        if specifier and specifier.context_uuid: d["context_uuid"] = str(specifier.context_uuid)
         return d
     elif isinstance(object, DataStructure):
         project = project or object.project
-        specifier = project.create_specifier(object, allow_partial=allow_partial) if project else None
+        specifier = project.create_specifier(object) if project else None
         specifier_uuid = specifier.item_uuid if specifier else object.uuid
         d = {"version": 1, "type": "structure", "uuid": str(specifier_uuid)}
-        if specifier and specifier.context_uuid: d["context_uuid"] = str(specifier.context_uuid)
         return d
     elif isinstance(object, DisplayItem.DisplayItem):
         project = project or object.project
-        specifier = project.create_specifier(object, allow_partial=allow_partial) if project else None
+        specifier = project.create_specifier(object) if project else None
         specifier_uuid = specifier.item_uuid if specifier else object.uuid
         d = {"version": 1, "type": "display_item", "uuid": str(specifier_uuid)}
-        if specifier and specifier.context_uuid: d["context_uuid"] = str(specifier.context_uuid)
         return d
     return None
