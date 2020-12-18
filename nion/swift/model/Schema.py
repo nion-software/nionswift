@@ -743,7 +743,7 @@ class EntityType:
         self.__base = base
         self.__version = version
         self.__renames: typing.Dict[str, str] = dict()
-        self.__transforms: EntityTransforms = no_transform, no_transform
+        self.__transforms: EntityTransforms = (no_transform, no_transform)
         self.__field_type_map: typing.Dict[str, FieldType] = dict()
         self.__field_type_map["uuid"] = prop(UUID)
         self.__field_type_map["modified"] = prop(TIMESTAMP)
