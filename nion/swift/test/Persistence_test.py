@@ -13,7 +13,7 @@ from nion.swift.test import TestContext
 class TestPersistentObjectContextClass(unittest.TestCase):
 
     def setUp(self):
-        TestContext.end_leaks(self)
+        TestContext.begin_leaks()
 
     def tearDown(self):
         TestContext.end_leaks(self)
