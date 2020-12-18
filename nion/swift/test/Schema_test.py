@@ -44,6 +44,25 @@ class TestSchemaClass(unittest.TestCase):
         self.assertIsNone(ref._get_field_value("item"))
         self.assertIsNone(item._entity_context)  # context should be unset now
 
+    def test_setting_reference_before_context_works(self):
+        ItemModel = Schema.entity("item", None, None, {"flag": Schema.prop(Schema.BOOLEAN)})
+        RefModel = Schema.entity("ref", None, None, {"item": Schema.reference(ItemModel)})
+        context = Schema.SimpleEntityContext()
+        ref = RefModel.create()
+        item = ItemModel.create()
+        ref._set_field_value("item", item)
+        self.assertEqual(item, ref._get_field_value("item"))  # check that the field value was set
+        self.assertIsNone(item._entity_context)  # setting the item should propagate the context
+        ref._set_entity_context(context)
+        self.assertEqual(item, ref._get_field_value("item"))  # check that the field value was set
+        self.assertIsNotNone(item._entity_context)  # setting the item should propagate the context
+        ref._set_entity_context(None)
+        self.assertEqual(item, ref._get_field_value("item"))  # check that the field value was set
+        self.assertIsNone(item._entity_context)  # setting the item should propagate the context
+        ref._set_field_value("item", None)
+        self.assertIsNone(ref._get_field_value("item"))
+        self.assertIsNone(item._entity_context)  # context should be unset now
+
     def test_setting_reference_triggers_property_changes_event(self):
         ItemModel = Schema.entity("item", None, None, {"flag": Schema.prop(Schema.BOOLEAN)})
         RefModel = Schema.entity("ref", None, None, {"item": Schema.reference(ItemModel)})

@@ -414,6 +414,9 @@ class ReferenceField(Field):
         self.__type = type
         self.__reference: typing.Optional[str] = None
         self.__proxy: typing.Optional[ItemProxy] = None  # proxy is only valid when context is valid
+        self.__shadow_item: typing.Optional[Entity] = None  # used when proxy is None
+        if self._context:
+            self.__proxy = self._context.create_item_proxy()
 
     def close(self) -> None:
         if self.__proxy:
@@ -421,16 +424,18 @@ class ReferenceField(Field):
             self.__proxy = None  # type: ignore
         super().close()
 
-    def __get_proxy(self) -> ItemProxy:
-        # return the proxy, creating a new one if it hasn't been created yet.
-        assert self._context
-        if not self.__proxy:
-            self.__proxy = self._context.create_item_proxy()
-        return self.__proxy
-
     def set_context(self, context: typing.Optional[EntityContext]) -> None:
         super().set_context(context)
-        if not context and self.__proxy:
+        if self._context:
+            self.__proxy = self._context.create_item_proxy()
+            if self.__shadow_item:
+                self.__proxy.item = self.__shadow_item
+                self.__proxy.item._set_entity_context(self._context)
+                self.__shadow_item = None
+        elif self.__proxy:
+            self.__shadow_item = self.__proxy.item
+            if self.__shadow_item:
+                self.__shadow_item._set_entity_context(self._context)
             self.__proxy.close()
             self.__proxy = None
 
@@ -443,21 +448,30 @@ class ReferenceField(Field):
 
     @property
     def field_value(self) -> typing.Any:
-        return self.__get_proxy().item
+        if self.__proxy:
+            return self.__proxy.item
+        else:
+            return self.__shadow_item
 
     def set_field_value(self, container: ItemProxyEntity, value: typing.Any) -> None:
         item = typing.cast(Entity, value)
-        proxy = self.__get_proxy()
         if item:
             item_uuid = item.uuid  # prefer _get_field_value; but use direct accessor for legacy Swift PersistentObject compatibility
             self.__reference = str(item_uuid)
-            proxy.item = item
-            proxy.item._set_entity_context(self._context)
+            if self.__proxy:
+                self.__proxy.item = item
+                self.__proxy.item._set_entity_context(self._context)
+            else:
+                self.__shadow_item = item
         else:
-            if proxy.item:
-                proxy.item._set_entity_context(None)
+            if self.__proxy:
+                item = typing.cast(Entity, self.__proxy.item)
+                if item:
+                    item._set_entity_context(None)
+                    self.__proxy.item = None
+            else:
+                self.__shadow_item = None
             self.__reference = None
-            proxy.item = None
 
 
 class ComponentField(Field):
