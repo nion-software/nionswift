@@ -517,7 +517,7 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
         self.__slice_interval = None
 
         data_item_specifier = Persistence.PersistentObjectSpecifier.read(self.data_item_reference) if self.data_item_reference else None
-        self.__data_item_proxy = self.create_item_proxy(item_specifier=data_item_specifier, item=data_item)
+        self.__data_item_reference = self.create_item_reference(item_specifier=data_item_specifier, item=data_item)
 
         self.__old_data_shape = None
 
@@ -565,15 +565,13 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
             if data_item:
                 data_item.remove_display_data_channel(self)
 
-        self.__data_item_proxy.on_item_registered = connect_data_item
-        self.__data_item_proxy.on_item_unregistered = disconnect_data_item
+        self.__data_item_reference.on_item_registered = connect_data_item
+        self.__data_item_reference.on_item_unregistered = disconnect_data_item
 
-        if self.__data_item_proxy.item:
-            connect_data_item(typing.cast(DataItem.DataItem, self.__data_item_proxy.item))
+        if self.__data_item_reference.item:
+            connect_data_item(typing.cast(DataItem.DataItem, self.__data_item_reference.item))
 
     def close(self) -> None:
-        self.__data_item_proxy.close()
-        self.__data_item_proxy = None
         self.__disconnect_data_item_events()
         super().close()
 
@@ -610,9 +608,9 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
             # so that the new item can be added to the same project. however, it
             # also prevents the item_registered call from happening; so do it
             # explicitly here.
-            display_data_channel.__data_item_proxy.item = self.__data_item
-            if callable(display_data_channel.__data_item_proxy.on_item_registered):
-                display_data_channel.__data_item_proxy.on_item_registered(self.__data_item)
+            display_data_channel.__data_item_reference.item = self.__data_item
+            if callable(display_data_channel.__data_item_reference.on_item_registered):
+                display_data_channel.__data_item_reference.on_item_registered(self.__data_item)
         memo[id(self)] = display_data_channel
         return display_data_channel
 
@@ -659,11 +657,11 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
 
     @property
     def __data_item(self) -> typing.Optional[DataItem.DataItem]:
-        return self.__data_item_proxy.item
+        return self.__data_item_reference.item
 
     def __data_item_reference_changed(self, name: str, data_item_reference: str) -> None:
         item_uuid = uuid.UUID(data_item_reference) if data_item_reference else None
-        self.__data_item_proxy.item_specifier = Persistence.PersistentObjectSpecifier.read(item_uuid)
+        self.__data_item_reference.item_specifier = Persistence.PersistentObjectSpecifier.read(item_uuid)
         self.__current_display_values = None
 
     def __connect_data_item_events(self):

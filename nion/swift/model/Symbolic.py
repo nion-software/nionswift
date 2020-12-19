@@ -1163,7 +1163,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.define_relationship("variables", variable_factory)
         self.define_relationship("results", result_factory)
         self.attributes = dict()  # not persistent, defined by underlying class
-        self.__source_proxy = self.create_item_proxy()
+        self.__source_reference = self.create_item_reference()
         self.__variable_changed_event_listeners = dict()
         self.__variable_needs_rebind_event_listeners = dict()
         self.__result_needs_rebind_event_listeners = dict()
@@ -1183,8 +1183,6 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
     def close(self) -> None:
         if self.__is_bound:
             self.unbind()
-        self.__source_proxy.close()
-        self.__source_proxy = None
         super().close()
 
     @property
@@ -1199,7 +1197,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         return Persistence.PersistentObjectSpecifier(item_uuid=self.uuid)
 
     def read_properties_from_dict(self, d):
-        self.__source_proxy.item_specifier = Persistence.PersistentObjectSpecifier.read(d.get("source_uuid", None))
+        self.__source_reference.item_specifier = Persistence.PersistentObjectSpecifier.read(d.get("source_uuid", None))
         self.original_expression = d.get("original_expression", self.original_expression)
         self.error_text = d.get("error_text", self.error_text)
         self.label = d.get("label", self.label)
@@ -1223,11 +1221,11 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
 
     @property
     def source(self):
-        return self.__source_proxy.item
+        return self.__source_reference.item
 
     @source.setter
     def source(self, source):
-        self.__source_proxy.item = source
+        self.__source_reference.item = source
         self.source_specifier = source.project.create_specifier(source).write() if source else None
 
     def is_valid_with_removals(self, items: typing.Set) -> bool:
@@ -1242,7 +1240,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         return True
 
     def __source_specifier_changed(self, name: str, d: typing.Dict) -> None:
-        self.__source_proxy.item_specifier = Persistence.PersistentObjectSpecifier.read(d)
+        self.__source_reference.item_specifier = Persistence.PersistentObjectSpecifier.read(d)
 
     @property
     def label(self) -> str:

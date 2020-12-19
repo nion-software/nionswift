@@ -216,15 +216,15 @@ class PersistentObjectContext:
     def __init__(self):
         self.__objects = dict()
         self.registration_event = Event.Event()
-        self.__registration_changed_map: typing.Dict[uuid.UUID, typing.Dict[PersistentObjectProxy, typing.Callable[[typing.Optional[PersistentObject], typing.Optional[PersistentObject]], None]]] = dict()
+        self.__registration_changed_map: typing.Dict[uuid.UUID, typing.Dict[typing.Any, typing.Callable[[typing.Optional[PersistentObject], typing.Optional[PersistentObject]], None]]] = dict()
 
-    def unregister_registration_changed_fn(self, uuid_: uuid.UUID, key: PersistentObjectProxy) -> None:
+    def unregister_registration_changed_fn(self, uuid_: uuid.UUID, key: typing.Any) -> None:
         registration_changed_key_map = self.__registration_changed_map.get(uuid_, dict())
         registration_changed_key_map.pop(key)
         if not registration_changed_key_map:
             self.__registration_changed_map.pop(uuid_, None)
 
-    def register_registration_changed_fn(self, uuid_: uuid.UUID, key: PersistentObjectProxy, registration_changed_fn: typing.Callable[[typing.Optional[PersistentObject], typing.Optional[PersistentObject]], None]):
+    def register_registration_changed_fn(self, uuid_: uuid.UUID, key: typing.Any, registration_changed_fn: typing.Callable[[typing.Optional[PersistentObject], typing.Optional[PersistentObject]], None]):
         registration_changed_key_map = self.__registration_changed_map.setdefault(uuid_, dict())
         registration_changed_key_map[key] = registration_changed_fn
 
@@ -299,7 +299,6 @@ class PersistentObjectProxy:
         self.__persistent_object = persistent_object
         self.__item_specifier = item_specifier if item_specifier else PersistentObjectSpecifier(item=item) if item else None
         self.__item = item
-        self.__registration_listener = None
         self.__persistent_object_context = None
         self.__registered_change_uuid = None
         self.on_item_registered = None
@@ -310,9 +309,6 @@ class PersistentObjectProxy:
         self.__persistent_object_context_changed()
 
     def close(self):
-        if self.__registration_listener:
-            self.__registration_listener.close()
-            self.__registration_listener = None
         if self.__persistent_object_context_changed_listener:
             self.__persistent_object_context_changed_listener.close()
             self.__persistent_object_context_changed_listener = None
@@ -330,9 +326,6 @@ class PersistentObjectProxy:
 
     @item.setter
     def item(self, item: typing.Optional[PersistentObject]) -> None:
-        if self.__registration_listener:
-            self.__registration_listener.close()
-            self.__registration_listener = None
         self.__item = item
         self.__item_specifier = PersistentObjectSpecifier(item=item) if item else None
         self.__persistent_object_context_changed()
@@ -343,9 +336,6 @@ class PersistentObjectProxy:
 
     @item_specifier.setter
     def item_specifier(self, item_specifier: PersistentObjectSpecifier) -> None:
-        if self.__registration_listener:
-            self.__registration_listener.close()
-            self.__registration_listener = None
         self.__item_specifier = item_specifier
         self.__item = None
         self.__persistent_object_context_changed()
@@ -376,11 +366,85 @@ class PersistentObjectProxy:
     def __persistent_object_context_changed(self) -> None:
         if self.__persistent_object.persistent_object_context:
             if self.__item_specifier and not self.__item:
-                if self.__persistent_object.persistent_object_context:
-                    item = self.__persistent_object.persistent_object_context.get_registered_object(self.__item_specifier)
-                    if item:
-                        self.__change_registration(item, None)
+                item = self.__persistent_object.persistent_object_context.get_registered_object(self.__item_specifier)
+                if item:
+                    self.__change_registration(item, None)
         self.__update_persistent_object_context()
+
+
+class PersistentObjectReference:
+    count = 0  # useful for detecting leaks in tests
+
+    def __init__(self, persistent_object_context: typing.Optional[PersistentObjectContext], item_specifier: typing.Optional[PersistentObjectSpecifier], item: typing.Optional[PersistentObject]):
+        PersistentObjectReference.count += 1
+        self.__persistent_object_context = None
+        self.__item_specifier = item_specifier if item_specifier else PersistentObjectSpecifier(item=item) if item else None
+        self.__item = item
+        self.__registered_change_uuid = None
+        self.on_item_registered = None
+        self.on_item_unregistered = None
+        self.set_persistent_object_context(persistent_object_context)
+
+    def close(self):
+        self.set_persistent_object_context(None)
+        self.__item = None
+        self.__item_specifier = None
+        self.__persistent_object = None
+        self.on_item_registered = None
+        self.on_item_unregistered = None
+        PersistentObjectReference.count -= 1
+
+    @property
+    def item(self) -> typing.Optional[PersistentObject]:
+        return self.__item
+
+    @item.setter
+    def item(self, item: typing.Optional[PersistentObject]) -> None:
+        self.__item = item
+        self.__item_specifier = PersistentObjectSpecifier(item=item) if item else None
+        self.__persistent_object_context_changed()
+
+    @property
+    def item_specifier(self) -> PersistentObjectSpecifier:
+        return self.__item_specifier
+
+    @item_specifier.setter
+    def item_specifier(self, item_specifier: PersistentObjectSpecifier) -> None:
+        self.__item_specifier = item_specifier
+        self.__item = None
+        self.__persistent_object_context_changed()
+
+    def set_persistent_object_context(self, persistent_object_context: typing.Optional[PersistentObjectContext]) -> None:
+        if self.__persistent_object_context:
+            if self.__registered_change_uuid:  # use 2nd line to satisfy PyCharm type checker
+                self.__persistent_object_context.unregister_registration_changed_fn(self.__registered_change_uuid, self)
+                self.__registered_change_uuid = None
+        self.__persistent_object_context = persistent_object_context
+        if self.__persistent_object_context:
+            if self.__item_specifier:
+                self.__registered_change_uuid = self.__item_specifier.item_uuid
+                self.__persistent_object_context.register_registration_changed_fn(self.__item_specifier.item_uuid, self, self.__change_registration)
+        self.__persistent_object_context_changed()
+
+    def __change_registration(self, registered_object: typing.Optional[PersistentObject], unregistered_object: typing.Optional[PersistentObject]) -> None:
+        if registered_object and not self.__item and self.__item_specifier and registered_object.uuid == self.__item_specifier.item_uuid:
+            if self.__persistent_object_context:
+                item = self.__persistent_object_context.get_registered_object(self.__item_specifier)
+                if item:
+                    self.__item = item
+                    if callable(self.on_item_registered):
+                        self.on_item_registered(registered_object)
+        if unregistered_object and unregistered_object == self.__item:
+            self.__item = None
+            if callable(self.on_item_unregistered):
+                self.on_item_unregistered(unregistered_object)
+
+    def __persistent_object_context_changed(self) -> None:
+        if self.__persistent_object_context:
+            if self.__item_specifier and not self.__item:
+                item = self.__persistent_object_context.get_registered_object(self.__item_specifier)
+                if item:
+                    self.__change_registration(item, None)
 
 
 class PersistentObjectParent:
@@ -456,11 +520,14 @@ class PersistentObject:
         self.__persistent_dict = None
         self.__persistent_storage = None
         self.persistent_object_context_changed_event = Event.Event()
+        self.__item_references: typing.List[PersistentObjectReference] = list()
 
     def close(self) -> None:
         self.about_to_close_event.fire()
         assert not self._closed
         self._closed = True
+        for item_reference in self.__item_references:
+            item_reference.close()
         self.close_items()
         self.close_relationships()
         self.__container_weak_ref = None
@@ -545,6 +612,8 @@ class PersistentObject:
         assert self.__persistent_object_context is None or persistent_object_context is None  # make sure persistent object context is handled cleanly
         old_persistent_object_context = self.__persistent_object_context
         self.__persistent_object_context = persistent_object_context
+        for item_reference in self.__item_references:
+            item_reference.set_persistent_object_context(persistent_object_context)
         for item in self.__items.values():
             if item.value:
                 item.value.persistent_object_context = persistent_object_context
@@ -627,14 +696,16 @@ class PersistentObject:
     def close_items(self) -> None:
         for item in self.__items.values():
             if item.value:
-                item.value.persistent_object_context = None
+                if self.persistent_object_context:  # only clear it if it's been set
+                    item.value.persistent_object_context = None
                 item.value.close()
 
     def close_relationships(self) -> None:
         for relationship in self.__relationships.values():
             for item in reversed(relationship.values):
                 if item:
-                    item.persistent_object_context = None
+                    if self.persistent_object_context:  # only clear it if it's been set
+                        item.persistent_object_context = None
                     item.close()
 
     def undefine_properties(self) -> None:
@@ -899,7 +970,8 @@ class PersistentObject:
         relationship.index[item.uuid] = item
         item.about_to_be_inserted(self)
         item.persistent_object_parent = PersistentObjectParent(self, relationship_name=name)
-        item.persistent_object_context = self.persistent_object_context
+        if self.persistent_object_context:  # when item is not top level, self will not have persistent object context
+            item.persistent_object_context = self.persistent_object_context
         if relationship.insert:
             relationship.insert(name, before_index, item)
 
@@ -947,7 +1019,8 @@ class PersistentObject:
         self.__update_modified(datetime.datetime.utcnow())
         if relationship.remove:
             relationship.remove(name, item_index, item)
-        item.persistent_object_context = None
+        if self.persistent_object_context:  # only clear if self has a context; it won't if it is still being constructed
+            item.persistent_object_context = None
         if self.persistent_object_context:
             self.item_removed(name, item_index, item)  # this will also update item's persistent_object_context
         item.persistent_object_parent = None
@@ -1027,6 +1100,16 @@ class PersistentObject:
         """Create an item proxy by uuid or directly using the item."""
         item_specifier = item_specifier or (PersistentObjectSpecifier(item_uuid=item_uuid) if item_uuid else None)
         return PersistentObjectProxy(self, item_specifier, item)
+
+    def create_item_reference(self, *, item_uuid: uuid.UUID = None, item_specifier: PersistentObjectSpecifier = None, item: PersistentObject = None) -> PersistentObjectReference:
+        """Create an item proxy by uuid or directly using the item."""
+        item_specifier = item_specifier or (PersistentObjectSpecifier(item_uuid=item_uuid) if item_uuid else None)
+        item_reference = PersistentObjectReference(self.persistent_object_context, item_specifier, item)
+        self.__item_references.append(item_reference)
+        return item_reference
+
+    def destroy_item_reference(self, item_reference: PersistentObjectReference) -> None:
+        self.__item_references.remove(item_reference)
 
     def resolve_item_specifier(self, item_specifier: PersistentObjectSpecifier) -> typing.Optional[PersistentObject]:
         """Return the resolve item specifier."""

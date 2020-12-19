@@ -34,7 +34,7 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
         # properties is handled explicitly
         self.data_structure_changed_event = Event.Event()
         self.referenced_objects_changed_event = Event.Event()
-        self.__source_proxy = self.create_item_proxy(item=source)
+        self.__source_reference = self.create_item_reference(item=source)
         self.source_specifier = source.project.create_specifier(source).write() if source else None
         self.__entity: typing.Optional[Schema.Entity] = None
         self.__entity_property_changed_event_listener: typing.Optional[Event.EventListener] = None
@@ -46,8 +46,6 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
             self.__entity_property_changed_event_listener = None
             self.__entity.close()
             self.__entity = None
-        self.__source_proxy.close()
-        self.__source_proxy = None
         for referenced_proxy in self.__referenced_object_proxies.values():
             referenced_proxy.close()
         self.__referenced_object_proxies.clear()
@@ -149,11 +147,11 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
 
     @property
     def source(self):
-        return self.__source_proxy.item
+        return self.__source_reference.item
 
     @source.setter
     def source(self, source):
-        self.__source_proxy.item = source
+        self.__source_reference.item = source
         self.source_specifier = source.project.create_specifier(source).write() if source else None
 
     @property
@@ -165,7 +163,7 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
         self.property_changed_event.fire("structure_type")
 
     def __source_specifier_changed(self, name: str, d: typing.Dict) -> None:
-        self.__source_proxy.item_specifier = Persistence.PersistentObjectSpecifier.read(d)
+        self.__source_reference.item_specifier = Persistence.PersistentObjectSpecifier.read(d)
 
     def set_property_value(self, property: str, value) -> None:
         self.__properties[property] = value

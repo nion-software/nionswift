@@ -538,12 +538,7 @@ class Graphic(Observable.Observable, Persistence.PersistentObject):
         self.graphic_changed_event = Event.Event()
         self.label_padding = 4
         self.label_font = "normal 11px serif"
-        self.__source_proxy = self.create_item_proxy()
-
-    def close(self) -> None:
-        self.__source_proxy.close()
-        self.__source_proxy = None
-        super().close()
+        self.__source_reference = self.create_item_reference()
 
     @property
     def project(self) -> "Project.Project":
@@ -602,15 +597,15 @@ class Graphic(Observable.Observable, Persistence.PersistentObject):
 
     @property
     def source(self):
-        return self.__source_proxy.item
+        return self.__source_reference.item
 
     @source.setter
     def source(self, source):
-        self.__source_proxy.item = source
+        self.__source_reference.item = source
         self.source_specifier = source.project.create_specifier(source).write() if source else None
 
     def __source_specifier_changed(self, name: str, d: typing.Dict) -> None:
-        self.__source_proxy.item_specifier = Persistence.PersistentObjectSpecifier.read(d)
+        self.__source_reference.item_specifier = Persistence.PersistentObjectSpecifier.read(d)
 
     def _property_changed(self, name, value):
         self.notify_property_changed(name)

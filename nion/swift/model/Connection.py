@@ -28,13 +28,8 @@ class Connection(Observable.Observable, Persistence.PersistentObject):
         super().__init__()
         self.define_type(type)
         self.define_property("parent_specifier", changed=self.__parent_specifier_changed, key="parent_uuid")
-        self.__parent_proxy = self.create_item_proxy(item=parent)
+        self.__parent_reference = self.create_item_reference(item=parent)
         self.parent_specifier = parent.project.create_specifier(parent).write() if parent else None
-
-    def close(self) -> None:
-        self.__parent_proxy.close()
-        self.__parent_proxy = None
-        super().close()
 
     @property
     def project(self) -> "Project.Project":
@@ -57,15 +52,15 @@ class Connection(Observable.Observable, Persistence.PersistentObject):
 
     @property
     def parent(self):
-        return self.__parent_proxy.item
+        return self.__parent_reference.item
 
     @parent.setter
     def parent(self, parent):
-        self.__parent_proxy.item = parent
+        self.__parent_reference.item = parent
         self.parent_specifier = parent.project.create_specifier(parent).write() if parent else None
 
     def __parent_specifier_changed(self, name: str, d: typing.Dict) -> None:
-        self.__parent_proxy.item_specifier = Persistence.PersistentObjectSpecifier.read(d)
+        self.__parent_reference.item_specifier = Persistence.PersistentObjectSpecifier.read(d)
 
 
 class PropertyConnection(Connection):
@@ -80,8 +75,8 @@ class PropertyConnection(Connection):
         # these are only set in persistent object context changed
         self.__binding = None
         self.__target_property_changed_listener = None
-        self.__source_proxy = self.create_item_proxy(item=source)
-        self.__target_proxy = self.create_item_proxy(item=target)
+        self.__source_reference = self.create_item_reference(item=source)
+        self.__target_reference = self.create_item_reference(item=target)
         # suppress messages while we're setting source or target
         self.__suppress = False
         # set up the proxies
@@ -103,8 +98,8 @@ class PropertyConnection(Connection):
                 self.__target_property_changed_listener.close()
                 self.__target_property_changed_listener = None
 
-        self.__source_proxy.on_item_registered = lambda x: configure_binding()
-        self.__source_proxy.on_item_unregistered = lambda x: release_binding()
+        self.__source_reference.on_item_registered = lambda x: configure_binding()
+        self.__source_reference.on_item_unregistered = lambda x: release_binding()
 
         def configure_target() -> None:
             def property_changed(target, property_name):
@@ -115,16 +110,16 @@ class PropertyConnection(Connection):
             self.__target_property_changed_listener = self._target.property_changed_event.listen(functools.partial(property_changed, self._target))
             configure_binding()
 
-        self.__target_proxy.on_item_registered = lambda x: configure_target()
-        self.__target_proxy.on_item_unregistered = lambda x: release_binding()
+        self.__target_reference.on_item_registered = lambda x: configure_target()
+        self.__target_reference.on_item_unregistered = lambda x: release_binding()
 
         # but set up if we were passed objects
         if source is not None:
-            self.__source_proxy.item = source
+            self.__source_reference.item = source
         if source_property:
             self.source_property = source_property
         if target is not None:
-            self.__target_proxy.item = target
+            self.__target_reference.item = target
         if target_property:
             self.target_property = target_property
 
@@ -138,10 +133,6 @@ class PropertyConnection(Connection):
         if self.__target_property_changed_listener:
             self.__target_property_changed_listener.close()
             self.__target_property_changed_listener = None
-        self.__source_proxy.close()
-        self.__source_proxy = None
-        self.__target_proxy.close()
-        self.__target_proxy = None
         super().close()
 
     @property
@@ -150,17 +141,17 @@ class PropertyConnection(Connection):
 
     @property
     def _source(self):
-        return self.__source_proxy.item
+        return self.__source_reference.item
 
     @property
     def _target(self):
-        return self.__target_proxy.item
+        return self.__target_reference.item
 
     def __source_specifier_changed(self, name: str, d: typing.Dict) -> None:
-        self.__source_proxy.item_specifier = Persistence.PersistentObjectSpecifier.read(d)
+        self.__source_reference.item_specifier = Persistence.PersistentObjectSpecifier.read(d)
 
     def __target_specifier_changed(self, name: str, d: typing.Dict) -> None:
-        self.__target_proxy.item_specifier = Persistence.PersistentObjectSpecifier.read(d)
+        self.__target_reference.item_specifier = Persistence.PersistentObjectSpecifier.read(d)
 
     def __set_target_from_source(self, value):
         assert not self._closed
@@ -192,8 +183,8 @@ class IntervalListConnection(Connection):
         self.__item_inserted_event_listener = None
         self.__item_removed_event_listener = None
         self.__interval_mutated_listeners = list()
-        self.__source_proxy = self.create_item_proxy(item=display_item)
-        self.__target_proxy = self.create_item_proxy(item=line_profile)
+        self.__source_reference = self.create_item_reference(item=display_item)
+        self.__target_reference = self.create_item_reference(item=line_profile)
 
         def detach():
             for listener in self.__interval_mutated_listeners:
@@ -237,26 +228,19 @@ class IntervalListConnection(Connection):
                 self.__item_removed_event_listener.close()
                 self.__item_removed_event_listener = None
 
-        self.__source_proxy.on_item_registered = source_registered
-        self.__source_proxy.on_item_unregistered = unregistered
+        self.__source_reference.on_item_registered = source_registered
+        self.__source_reference.on_item_unregistered = unregistered
 
-        self.__target_proxy.on_item_registered = target_registered
-        self.__target_proxy.on_item_unregistered = unregistered
+        self.__target_reference.on_item_registered = target_registered
+        self.__target_reference.on_item_unregistered = unregistered
 
         # but setup if we were passed objects
         if display_item is not None:
-            self.__source_proxy.item = display_item
+            self.__source_reference.item = display_item
             source_registered(display_item)
         if line_profile is not None:
-            self.__target_proxy.item = line_profile
+            self.__target_reference.item = line_profile
             target_registered(line_profile)
-
-    def close(self):
-        self.__source_proxy.close()
-        self.__source_proxy = None
-        self.__target_proxy.close()
-        self.__target_proxy = None
-        super().close()
 
     @property
     def connected_items(self) -> typing.List:
@@ -264,17 +248,17 @@ class IntervalListConnection(Connection):
 
     @property
     def _source(self):
-        return self.__source_proxy.item
+        return self.__source_reference.item
 
     @property
     def _target(self):
-        return self.__target_proxy.item
+        return self.__target_reference.item
 
     def __source_specifier_changed(self, name: str, d: typing.Dict) -> None:
-        self.__source_proxy.item_specifier = Persistence.PersistentObjectSpecifier.read(d)
+        self.__source_reference.item_specifier = Persistence.PersistentObjectSpecifier.read(d)
 
     def __target_specifier_changed(self, name: str, d: typing.Dict) -> None:
-        self.__target_proxy.item_specifier = Persistence.PersistentObjectSpecifier.read(d)
+        self.__target_reference.item_specifier = Persistence.PersistentObjectSpecifier.read(d)
 
 
 def connection_factory(lookup_id):
