@@ -253,6 +253,10 @@ class PersistentObjectContext:
         object_weakref = self.__objects.get(item_specifier, None)
         return object_weakref() if object_weakref else None
 
+    def create_item_reference(self, item_uuid: typing.Optional[uuid.UUID] = None, item: typing.Optional[PersistentObject] = None) -> PersistentObjectReference:
+        item_specifier = PersistentObjectSpecifier(item_uuid=item_uuid) if item_uuid else None
+        return PersistentObjectReference(self, item_specifier, item)
+
 
 class PersistentObjectSpecifier:
 

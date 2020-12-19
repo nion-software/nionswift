@@ -102,12 +102,12 @@ class ItemProxy:
 class EntityContext(abc.ABC):
 
     @abc.abstractmethod
-    def create_item_proxy(self) -> ItemProxy: ...
+    def create_item_reference(self, item_uuid: typing.Optional[uuid.UUID] = None) -> ItemProxy: ...
 
 
 class SimpleEntityContext(EntityContext):
 
-    def create_item_proxy(self) -> ItemProxy:
+    def create_item_reference(self, item_uuid: typing.Optional[uuid.UUID] = None) -> ItemProxy:
         return ItemProxy()
 
 
@@ -412,44 +412,42 @@ class ReferenceField(Field):
     def __init__(self, context: typing.Optional[EntityContext], type: EntityType):
         super().__init__(context)
         self.__type = type
-        self.__reference: typing.Optional[str] = None
-        self.__proxy: typing.Optional[ItemProxy] = None  # proxy is only valid when context is valid
+        self.__reference_uuid: typing.Optional[str] = None
+        self.__reference: typing.Optional[ItemProxy] = None  # proxy is only valid when context is valid
         self.__shadow_item: typing.Optional[Entity] = None  # used when proxy is None
         if self._context:
-            self.__proxy = self._context.create_item_proxy()
+            self.__reference = self._context.create_item_reference()
 
     def close(self) -> None:
-        if self.__proxy:
-            self.__proxy.close()
-            self.__proxy = None  # type: ignore
+        if self.__reference:
+            self.__reference.close()
+            self.__reference = None  # type: ignore
         super().close()
 
     def set_context(self, context: typing.Optional[EntityContext]) -> None:
         super().set_context(context)
         if self._context:
-            self.__proxy = self._context.create_item_proxy()
+            if not self.__reference:
+                self.__reference = self._context.create_item_reference(uuid.UUID(self.__reference_uuid) if self.__reference_uuid else None)
             if self.__shadow_item:
-                self.__proxy.item = self.__shadow_item
-                self.__proxy.item._set_entity_context(self._context)
+                self.__reference.item = self.__shadow_item
                 self.__shadow_item = None
-        elif self.__proxy:
-            self.__shadow_item = self.__proxy.item
-            if self.__shadow_item:
-                self.__shadow_item._set_entity_context(self._context)
-            self.__proxy.close()
-            self.__proxy = None
+        elif self.__reference:
+            self.__shadow_item = self.__reference.item
+            self.__reference.close()
+            self.__reference = None
 
     def read(self, dict_value: typing.Any) -> Field:
-        self.__reference = copy.deepcopy(dict_value)
+        self.__reference_uuid = copy.deepcopy(dict_value)
         return self
 
     def write(self) -> DictValue:
-        return copy.deepcopy(self.__reference)
+        return copy.deepcopy(self.__reference_uuid)
 
     @property
     def field_value(self) -> typing.Any:
-        if self.__proxy:
-            return self.__proxy.item
+        if self.__reference:
+            return self.__reference.item
         else:
             return self.__shadow_item
 
@@ -457,21 +455,17 @@ class ReferenceField(Field):
         item = typing.cast(Entity, value)
         if item:
             item_uuid = item.uuid  # prefer _get_field_value; but use direct accessor for legacy Swift PersistentObject compatibility
-            self.__reference = str(item_uuid)
-            if self.__proxy:
-                self.__proxy.item = item
-                self.__proxy.item._set_entity_context(self._context)
+            self.__reference_uuid = str(item_uuid)
+            if self.__reference:
+                self.__reference.item = item
             else:
                 self.__shadow_item = item
         else:
-            if self.__proxy:
-                item = typing.cast(Entity, self.__proxy.item)
-                if item:
-                    item._set_entity_context(None)
-                    self.__proxy.item = None
+            if self.__reference:
+                self.__reference.item = None
             else:
                 self.__shadow_item = None
-            self.__reference = None
+            self.__reference_uuid = None
 
 
 class ComponentField(Field):
@@ -636,6 +630,13 @@ class Entity(Observable.Observable):
 
     def close(self) -> None:
         pass
+
+    def __deepcopy__(self, memo):
+        entity_copy = self.__class__()
+        for k, field in self.__field_dict.items():
+            entity_copy._set_field_value(k, self._get_field_value(k))
+        memo[id(self)] = entity_copy
+        return entity_copy
 
     @property
     def _entity_context(self) -> typing.Optional[EntityContext]:

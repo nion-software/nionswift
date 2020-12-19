@@ -39,7 +39,7 @@ class TestSchemaClass(unittest.TestCase):
         item = ItemModel.create()
         ref._set_field_value("item", item)
         self.assertEqual(item, ref._get_field_value("item"))  # check that the field value was set
-        self.assertIsNotNone(item._entity_context)  # setting the item should propagate the context
+        self.assertIsNone(item._entity_context)  # setting a reference should NOT propagate the context
         ref._set_field_value("item", None)
         self.assertIsNone(ref._get_field_value("item"))
         self.assertIsNone(item._entity_context)  # context should be unset now
@@ -55,7 +55,7 @@ class TestSchemaClass(unittest.TestCase):
         self.assertIsNone(item._entity_context)  # setting the item should propagate the context
         ref._set_entity_context(context)
         self.assertEqual(item, ref._get_field_value("item"))  # check that the field value was set
-        self.assertIsNotNone(item._entity_context)  # setting the item should propagate the context
+        self.assertIsNone(item._entity_context)  # setting a reference item should NOT propagate the context
         ref._set_entity_context(None)
         self.assertEqual(item, ref._get_field_value("item"))  # check that the field value was set
         self.assertIsNone(item._entity_context)  # setting the item should propagate the context
@@ -96,7 +96,7 @@ class TestSchemaClass(unittest.TestCase):
         # test reference
         r_item = ItemModel.create()
         c._append_item("r_items", r_item)
-        self.assertIsNotNone(r_item._entity_context)
+        self.assertIsNone(r_item._entity_context)  # setting a reference should NOT propagate context
         c._remove_item("r_items", r_item)
         self.assertIsNone(r_item._entity_context)
 
