@@ -452,7 +452,7 @@ class TestInspectorClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((2, 32)))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            display_item.add_display_layer(data_index=0, data_row=1)
+            display_item.add_display_layer_for_display_data_channel(display_item.display_data_channels[0], data_row=1)
             display_item.display_type = "line_plot"
             display_panel.set_display_panel_display_item(display_item)
             inspector_panel = typing.cast(Inspector.InspectorPanel, document_controller.find_dock_panel("inspector-panel"))
@@ -1317,17 +1317,23 @@ class TestInspectorClass(unittest.TestCase):
             display_item.append_display_data_channel_for_data_item(data_item2)
             self.assertEqual(2, len(display_item.display_data_channels))
             self.assertEqual(2, len(display_item.display_layers))
+            self.assertEqual(display_item.display_data_channels[0], display_item.display_layers[0].display_data_channel)
+            self.assertEqual(display_item.display_data_channels[1], display_item.display_layers[1].display_data_channel)
             command = Inspector.RemoveDisplayDataChannelCommand(document_controller, display_item, display_item.display_data_channels[1])
             command.perform()
             document_controller.push_undo_command(command)
             self.assertEqual(1, len(display_item.display_data_channels))
             self.assertEqual(1, len(display_item.display_layers))
+            self.assertEqual(display_item.display_data_channels[0], display_item.display_layers[0].display_data_channel)
             command.undo()
             self.assertEqual(2, len(display_item.display_data_channels))
             self.assertEqual(2, len(display_item.display_layers))
+            self.assertEqual(display_item.display_data_channels[0], display_item.display_layers[0].display_data_channel)
+            self.assertEqual(display_item.display_data_channels[1], display_item.display_layers[1].display_data_channel)
             command.redo()
             self.assertEqual(1, len(display_item.display_data_channels))
             self.assertEqual(1, len(display_item.display_layers))
+            self.assertEqual(display_item.display_data_channels[0], display_item.display_layers[0].display_data_channel)
 
     def test_change_display_layer_property_command(self):
         with TestContext.create_memory_context() as test_context:

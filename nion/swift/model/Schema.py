@@ -733,6 +733,43 @@ class Entity(Observable.Observable):
         else:
             raise AttributeError()
 
+    # compatibility functions for persistent object
+
+    def begin_reading(self) -> None:
+        pass
+
+    def read_from_dict(self, properties: typing.Dict) -> None:
+        self.read(properties)
+
+    def finish_reading(self) -> None:
+        pass
+
+    def about_to_be_inserted(self, container: typing.Any) -> None:
+        self._container = container
+
+    def about_to_be_removed(self, container: typing.Any) -> None:
+        self._container = None
+
+    @property
+    def container(self):
+        return self._container
+
+    @property
+    def persistent_object_context(self):
+        return self._entity_context
+
+    @persistent_object_context.setter
+    def persistent_object_context(self, value):
+        self._set_entity_context(value)
+
+    @property
+    def item_names(self) -> typing.List:
+        return list()
+
+    @property
+    def relationship_names(self) -> typing.List:
+        return list()
+
 
 def no_transform(x: typing.Dict) -> typing.Dict:
     return x

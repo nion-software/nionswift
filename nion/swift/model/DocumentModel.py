@@ -500,6 +500,32 @@ class DisplayDataChannelsController(ItemsController):
         display_item.restore_properties(container_properties)
 
 
+class DisplayLayersController(ItemsController):
+    def __init__(self, document_model: "DocumentModel"):
+        self.__document_model = document_model
+
+    def get_container(self, item: Persistence.PersistentObject) -> typing.Optional[Persistence.PersistentObject]:
+        return item.container
+
+    def item_index(self, display_layer: Persistence.PersistentObject) -> int:
+        return display_layer.container.display_layers.index(display_layer)
+
+    def save_item_order(self) -> typing.List[typing.Tuple[Project.Project, Persistence.PersistentObject]]:
+        return list()
+
+    def write_to_dict(self, display_layer: Persistence.PersistentObject) -> typing.Dict:
+        return display_layer.write_to_dict()
+
+    def restore_from_dict(self, item_dict: typing.Dict, index: int, container: typing.Optional[Persistence.PersistentObject], container_properties: typing.Tuple, order: typing.List[typing.Tuple[Project.Project, Persistence.PersistentObject]]) -> None:
+        display_layer = DisplayItem.display_layer_factory(item_dict.get)
+        display_layer.begin_reading()
+        display_layer.read_from_dict(item_dict)
+        display_layer.finish_reading()
+        display_item = typing.cast(DisplayItem.DisplayItem, container)
+        display_item.undelete_display_layer(index, display_layer)
+        display_item.restore_properties(container_properties)
+
+
 class UndeleteItem(Changes.UndeleteBase):
 
     def __init__(self, items_controller: ItemsController, item: Persistence.PersistentObject):
@@ -1044,11 +1070,16 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             else:
                 data_item_copies.append(None)
         for display_data_channel in copy.copy(display_item_copy.display_data_channels):
-            display_item_copy.remove_display_data_channel(display_data_channel)
+            display_item_copy.remove_display_data_channel(display_data_channel).close()
         for data_item_copy, display_data_channel in zip(data_item_copies, display_item.display_data_channels):
             display_data_channel_copy = DisplayItem.DisplayDataChannel(data_item=data_item_copy)
             display_data_channel_copy.copy_display_data_properties_from(display_data_channel)
-            display_item_copy.append_display_data_channel(display_data_channel_copy, display_layer=dict())
+            display_item_copy.append_display_data_channel(display_data_channel_copy)
+        for display_layer in copy.copy(display_item_copy.display_layers):
+            display_item_copy.remove_display_layer(display_layer).close()
+        for i in range(len(display_item.display_layers)):
+            data_index = display_item.display_data_channels.index(display_item.get_display_layer_display_data_channel(i))
+            display_item_copy.add_display_layer_for_display_data_channel(display_item_copy.display_data_channels[data_index], **display_item.get_display_layer_properties(i))
         self.append_display_item(display_item_copy)
         return display_item_copy
 
@@ -1159,6 +1190,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 # delete data items whose only display item channel is being deleted
                 if item.data_item and len(self.get_display_items_for_data_item(item.data_item)) == 1:
                     self.__build_cascade(item.data_item, items, dependencies)
+                for display_layer in item.container.display_layers:
+                    if display_layer.display_data_channel == item:
+                        self.__build_cascade(display_layer, items, dependencies)
             # outputs of a computation are deleted.
             elif isinstance(item, Symbolic.Computation):
                 for output in item._outputs:
@@ -1317,6 +1351,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 elif container and isinstance(item, DisplayItem.DisplayDataChannel):
                     undelete_log.append(UndeleteItem(DisplayDataChannelsController(self), item))
                     container.remove_item("display_data_channels", item)
+                elif container and isinstance(item, DisplayItem.DisplayLayer):
+                    undelete_log.append(UndeleteItem(DisplayLayersController(self), item))
+                    container.remove_item("display_layers", item)
         except Exception as e:
             import sys, traceback
             traceback.print_exc()
@@ -2022,11 +2059,11 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         for data_item_copy, display_data_channel in zip(data_item_copies, display_item.display_data_channels):
             display_data_channel_copy = DisplayItem.DisplayDataChannel(data_item=data_item_copy)
             display_data_channel_copy.copy_display_data_properties_from(display_data_channel)
-            display_item_copy.append_display_data_channel(display_data_channel_copy, display_layer=dict())
+            display_item_copy.append_display_data_channel(display_data_channel_copy, display_layer=DisplayItem.DisplayLayer())
         # the display layers will be disrupted by appending data channels; so just recopy them here
         # this code can be simplified once display layers are objects
         while len(display_item_copy.display_layers):
-            display_item_copy.remove_display_layer(0)
+            display_item_copy.remove_display_layer(0).close()
         for i in range(len(display_item.display_layers)):
             data_index = display_item.display_data_channels.index(display_item.get_display_layer_display_data_channel(i))
             display_item_copy.add_display_layer_for_display_data_channel(display_item_copy.display_data_channels[data_index], **display_item.get_display_layer_properties(i))

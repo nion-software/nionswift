@@ -15,6 +15,7 @@ import uuid
 from nion.swift.model import DataItem
 from nion.swift.model import HDF5Handler
 from nion.swift.model import Migration
+from nion.swift.model import Model
 from nion.swift.model import NDataHandler
 from nion.swift.model import Persistence
 from nion.swift.model import StorageHandler
@@ -545,7 +546,7 @@ class ProjectStorageSystem(PersistentStorageSystem):
         if len(data_items_copy) > 0:
             properties_copy["data_items"] = data_items_copy
 
-        return properties_copy
+        return Model.transform_forward(properties_copy)
 
     # override
     def _write_item_properties(self, item: typing.Optional[Persistence.PersistentObject]) -> None:
@@ -681,7 +682,7 @@ class FileProjectStorageSystem(ProjectStorageSystem):
         return properties
 
     def _write_properties(self) -> None:
-        self.__write_properties_inner(self.get_storage_properties())
+        self.__write_properties_inner(Model.transform_backward(self.get_storage_properties()))
 
     def __write_properties_inner(self, properties: typing.Dict) -> None:
         if self.__project_path:

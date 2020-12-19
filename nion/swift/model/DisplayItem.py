@@ -21,7 +21,9 @@ from nion.swift.model import Changes
 from nion.swift.model import ColorMaps
 from nion.swift.model import DataItem
 from nion.swift.model import Graphics
+from nion.swift.model import Model
 from nion.swift.model import Persistence
+from nion.swift.model import Schema
 from nion.swift.model import Utility
 from nion.utils import Event
 from nion.utils import Observable
@@ -1095,6 +1097,47 @@ def display_data_channel_factory(lookup_id):
     return DisplayDataChannel()
 
 
+class DisplayLayer(Schema.Entity):
+    def __init__(self, display_data_channel: DisplayDataChannel = None):
+        super().__init__(**Model.DisplayLayer.entity_init_kwargs())
+
+    @property
+    def label(self) -> typing.Optional[str]:
+        return self._get_field_value("label")
+
+    @label.setter
+    def label(self, value: typing.Optional[str]) -> None:
+        self._set_field_value("label", value)
+
+    @property
+    def data_row(self) -> typing.Optional[int]:
+        return self._get_field_value("data_row")
+
+    @data_row.setter
+    def data_row(self, value: typing.Optional[int]) -> None:
+        self._set_field_value("data_row", value)
+
+    @property
+    def stroke_color(self) -> typing.Optional[str]:
+        return self._get_field_value("stroke_color")
+
+    @stroke_color.setter
+    def stroke_color(self, value: typing.Optional[str]) -> None:
+        self._set_field_value("stroke_color", value)
+
+    @property
+    def fill_color(self) -> typing.Optional[str]:
+        return self._get_field_value("fill_color")
+
+    @fill_color.setter
+    def fill_color(self, value: typing.Optional[str]) -> None:
+        self._set_field_value("fill_color", value)
+
+
+def display_layer_factory(lookup_id):
+    return DisplayLayer()
+
+
 class DisplayItem(Observable.Observable, Persistence.PersistentObject):
     def __init__(self, item_uuid: uuid.UUID = None, *, data_item: DataItem.DataItem = None):
         super().__init__()
@@ -1108,8 +1151,8 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         self.define_property("session_id", hidden=True, changed=self.__property_changed)
         self.define_property("calibration_style_id", "calibrated", changed=self.__property_changed)
         self.define_property("display_properties", dict(), copy_on_read=True, changed=self.__display_properties_changed)
-        self.define_property("display_layers", list(), copy_on_read=True, changed=self.__display_properties_changed)
         self.define_relationship("graphics", Graphics.factory, insert=self.__insert_graphic, remove=self.__remove_graphic)
+        self.define_relationship("display_layers", display_layer_factory, insert=self.__insert_display_layer, remove=self.__remove_display_layer)
         self.define_relationship("display_data_channels", display_data_channel_factory, insert=self.__insert_display_data_channel, remove=self.__remove_display_data_channel)
 
         self.__display_data_channel_property_changed_event_listeners = list()
@@ -1183,11 +1226,14 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         display_item_copy._set_persistent_property_value("session_id", self._get_persistent_property_value("session_id"))
         display_item_copy._set_persistent_property_value("calibration_style_id", self._get_persistent_property_value("calibration_style_id"))
         display_item_copy._set_persistent_property_value("display_properties", self._get_persistent_property_value("display_properties"))
-        display_item_copy._set_persistent_property_value("display_layers", self._get_persistent_property_value("display_layers"))
         display_item_copy.created = self.created
-        # data items
+        # display data channels
         for display_data_channel in self.display_data_channels:
             display_item_copy.append_display_data_channel(copy.deepcopy(display_data_channel))
+        for i, display_layer in enumerate(self.display_layers):
+            data_index = self.display_data_channels.index(display_layer.display_data_channel)
+            display_data_channel = display_item_copy.display_data_channels[data_index]
+            display_item_copy.add_display_layer_for_display_data_channel(display_data_channel, **self.get_display_layer_properties(i))
         # display
         for graphic in self.graphics:
             display_item_copy.add_graphic(copy.deepcopy(graphic))
@@ -1250,15 +1296,15 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         if self.display_type == "line_plot":
             if self.display_data_shape and len(self.display_data_shape) == 2:
                 while len(self.display_layers) > 0:
-                    self.remove_display_layer(len(self.display_layers) - 1)
-                for data_index, display_data_channel in enumerate(self.display_data_channels):
+                    self.remove_display_layer(len(self.display_layers) - 1).close()
+                for display_data_channel in self.display_data_channels:
                     data_item = display_data_channel.data_item
                     if data_item:
                         for data_row in range(data_item.dimensional_shape[0]):
-                            self.__add_display_layer_auto(dict(), data_index, data_row)
+                            self.__add_display_layer_auto(DisplayLayer(), display_data_channel, data_row)
         else:
             while len(self.display_layers) > 1:
-                self.remove_display_layer(len(self.display_layers) - 1)
+                self.remove_display_layer(len(self.display_layers) - 1).close()
 
     def __property_changed(self, name, value):
         self.notify_property_changed(name)
@@ -1294,7 +1340,9 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         for display_data_channel in self.display_data_channels:
             display_item.append_display_data_channel(copy.deepcopy(display_data_channel))
         # this goes after the display data channels so that the layers don't get adjusted
-        display_item._set_persistent_property_value("display_layers", self._get_persistent_property_value("display_layers"))
+        for i, display_layer in enumerate(self.display_layers):
+            data_index = self.display_data_channels.index(self.get_display_layer_display_data_channel(i))
+            display_item.add_display_layer_for_display_data_channel(display_item.display_data_channels[data_index], **self.get_display_layer_properties(i))
         return display_item
 
     def set_storage_cache(self, storage_cache):
@@ -1386,75 +1434,115 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
                 self.graphics_changed_event.fire(self.graphic_selection)
             self.display_changed_event.fire()
 
-    def get_display_layer_property(self, index: int, property_name: str, default_value=None):
-        display_layers = self.display_layers
-        if 0 <= index < len(display_layers):
-            return display_layers[index].get(property_name, default_value)
-        return None
+    def insert_display_layer(self, before_index: int, display_layer: DisplayLayer) -> None:
+        self.insert_model_item(self, "display_layers", before_index, display_layer)
+
+    def append_display_layer(self, display_layer: DisplayLayer) -> None:
+        self.insert_display_layer(len(self.display_layers), display_layer)
+
+    def __insert_display_layer(self, name, before_index, display_layer: DisplayLayer) -> None:
+        self.notify_insert_item("display_layers", display_layer, before_index)
+        self.auto_display_legend()
+
+    def __remove_display_layer(self, name, index, display_layer: DisplayLayer) -> None:
+        self.notify_remove_item("display_layers", display_layer, index)
+        self.auto_display_legend()
 
     @property
     def display_layers_list(self) -> typing.List[typing.Dict[str, typing.Any]]:
-        return copy.deepcopy(self.display_layers)
+        properties = ["data_row", "fill_color", "stroke_color", "label"]
+        l = list()
+        for display_layer in self.display_layers:
+            d = dict()
+            for property in properties:
+                value = getattr(display_layer, property, None)
+                if value is not None:
+                    d[property] = value
+            if display_layer.display_data_channel:
+                d["data_index"] = self.display_data_channels.index(display_layer.display_data_channel)
+            l.append(d)
+        return l
+
+    @display_layers_list.setter
+    def display_layers_list(self, value: typing.List[typing.Dict[str, typing.Any]]) -> None:
+        assert len(value) == len(self.display_layers)
+        properties = ["data_row", "fill_color", "stroke_color", "label"]
+        for index, (display_layer, display_layer_dict) in enumerate(zip(self.display_layers, value)):
+            for property in properties:
+                if not property in display_layer_dict:
+                    display_layer_dict[property] = None
+            self._set_display_layer_properties(index, **display_layer_dict)
+
+    def get_display_layer_property(self, index: int, property_name: str, default_value=None):
+        return getattr(self.display_layers[index], property_name, default_value)
 
     def _set_display_layer_property(self, index: int, property_name: str, value) -> None:
-        self.display_layers = set_display_layer_property(self.display_layers, index, property_name, value)
+        setattr(self.display_layers[index], property_name, value)
 
     def _set_display_layer_properties(self, index: int, **kwargs) -> None:
-        display_layers = self.display_layers
-        display_layers[index].update(**kwargs)
-        self.display_layers = display_layers
+        for kw, v in kwargs.items():
+            self._set_display_layer_property(index, kw, v)
 
-    def add_display_layer(self, **kwargs) -> None:
-        self.display_layers = add_display_layer(self.display_layers, **kwargs)
+    def remove_display_layer(self, index_or_display_layer: typing.Union[int, DisplayLayer], *, safe: bool=False) -> Changes.UndeleteLog:
+        if isinstance(index_or_display_layer, DisplayLayer):
+            display_layer = index_or_display_layer
+        else:
+            display_layer = self.display_layers[index_or_display_layer]
+        return self.remove_model_item(self, "display_layers", display_layer, safe=safe)
 
-    def insert_display_layer(self, before_index: int, **kwargs) -> None:
-        self.display_layers = insert_display_layer(self.display_layers, before_index, **kwargs)
-
-    def remove_display_layer(self, index: int) -> None:
-        self.display_layers = remove_display_layer(self.display_layers, index)
+    def undelete_display_layer(self, before_index: int, display_layer: DisplayLayer) -> None:
+        self.insert_display_layer(before_index, display_layer)
 
     def move_display_layer_forward(self, index: int) -> None:
-        self.display_layers = move_display_layer_forward(self.display_layers, index)
+        assert 0 <= index < len(self.display_layers)
+        if index > 0:
+            display_layer_copy = copy.deepcopy(self.display_layers[index])
+            self.remove_display_layer(self.display_layers[index]).close()
+            self.insert_display_layer(index - 1, display_layer_copy)
 
     def move_display_layer_backward(self, index: int) -> None:
-        self.display_layers = move_display_layer_backward(self.display_layers, index)
+        assert 0 <= index < len(self.display_layers)
+        if index < len(self.display_layers) - 1:
+            display_layer_copy = copy.deepcopy(self.display_layers[index])
+            self.remove_display_layer(self.display_layers[index]).close()
+            self.insert_display_layer(index + 1, display_layer_copy)
 
     def move_display_layer_at_index_forward(self, index: int) -> None:
-        self.display_layers = move_display_layer_forward(self.display_layers, index)
+        self.move_display_layer_forward(index)
 
     def move_display_layer_at_index_backward(self, index: int) -> None:
-        self.display_layers = move_display_layer_backward(self.display_layers, index)
+        self.move_display_layer_backward(index)
 
     def _add_display_layer_for_data_item(self, data_item: DataItem.DataItem, **kwargs) -> None:
-        kwargs["data_index"] = self.data_items.index(data_item)
-        self.add_display_layer(**kwargs)
+        # note: self.data_items is constructed from self.display_data_channels; so index is valid.
+        display_data_channel = self.display_data_channels[self.data_items.index(data_item)]
+        self.add_display_layer_for_display_data_channel(display_data_channel, **kwargs)
 
     def get_display_layer_display_data_channel(self, index: int) -> typing.Optional[DisplayDataChannel]:
         assert 0 <= index < len(self.display_layers)
-        data_index = self.display_layers[index]["data_index"]
-        if 0 <= data_index < len(self.display_data_channels):
-            return self.display_data_channels[data_index]
-        return None
+        return self.display_layers[index].display_data_channel
 
     def set_display_layer_display_data_channel(self, index: int, display_data_channel: typing.Optional[DisplayDataChannel]) -> None:
         assert 0 <= index < len(self.display_layers)
-        if display_data_channel in self.display_data_channels:
-            self._set_display_layer_property(index, "data_index", self.display_data_channels.index(display_data_channel))
-        else:
-            self._set_display_layer_property(index, "data_index", None)
+        assert display_data_channel is None or display_data_channel in self.display_data_channels
+        self.display_layers[index].display_data_channel = display_data_channel
 
     def insert_display_layer_for_display_data_channel(self, before_index: int, display_data_channel: DisplayDataChannel, **kwargs) -> None:
         assert display_data_channel in self.display_data_channels
-        data_index = self.display_data_channels.index(display_data_channel)
-        self.insert_display_layer(before_index, data_index=data_index, **kwargs)
+        display_layer = DisplayLayer()
+        display_layer.display_data_channel = display_data_channel
+        self.insert_display_layer(before_index, display_layer)
+        self._set_display_layer_properties(before_index, **kwargs)
 
     def add_display_layer_for_display_data_channel(self, display_data_channel: DisplayDataChannel, **kwargs) -> None:
         self.insert_display_layer_for_display_data_channel(len(self.display_layers), display_data_channel, **kwargs)
 
     def get_display_layer_properties(self, index: int) -> typing.Dict:
         assert 0 <= index < len(self.display_layers)
-        display_layer_properties = dict(self.display_layers[index])
-        display_layer_properties.pop("data_index", None)
+        display_layer_properties = self.display_layers[index].write_to_dict()
+        display_layer_properties.pop("uuid", None)
+        display_layer_properties.pop("modified", None)
+        display_layer_properties.pop("display_data_channel", None)
         return display_layer_properties
 
     def display_layers_match(self, display_item: "DisplayItem") -> bool:
@@ -1471,14 +1559,17 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
 
     def append_display_data_channel_for_data_item(self, data_item: DataItem.DataItem) -> None:
         if not data_item in self.data_items:
-            display_data_channel = DisplayDataChannel(data_item)
-            self.append_display_data_channel(display_data_channel, display_layer=dict())
+            try:
+                display_data_channel = DisplayDataChannel(data_item)
+                self.append_display_data_channel(display_data_channel, display_layer=DisplayLayer())
+            except Exception as e:
+                import traceback; traceback.print_exc()
 
     def save_properties(self) -> typing.Tuple:
-        return self.display_properties, self.display_layers, self.calibration_style_id
+        return self.display_properties, self.display_layers_list, self.calibration_style_id
 
     def restore_properties(self, properties: typing.Tuple) -> None:
-        self.display_properties, self.display_layers, self.calibration_style_id = properties
+        self.display_properties, self.display_layers_list, self.calibration_style_id = properties
 
     def display_item_changes(self):
         # return a context manager to batch up a set of changes so that listeners
@@ -1663,22 +1754,6 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
     def __remove_display_data_channel(self, name, index, display_data_channel: DisplayDataChannel) -> None:
         display_data_channel.decrement_display_ref_count(self._display_ref_count)
         self.__disconnect_display_data_channel(display_data_channel, index)
-        # adjust the display layers
-        assert not self._is_reading
-        display_layers = self.display_layers
-        new_display_layers = list()
-        for display_layer in display_layers:
-            data_index = display_layer.get("data_index")
-            if data_index is not None:
-                if data_index < index:
-                    new_display_layers.append(display_layer)
-                elif data_index > index:
-                    display_layer["data_index"] = data_index - 1
-                    new_display_layers.append(display_layer)
-            else:
-                new_display_layers.append(display_layer)
-        self.display_layers = new_display_layers
-        self.auto_display_legend()
 
     def __disconnect_display_data_channel(self, display_data_channel: DisplayDataChannel, index: int) -> None:
         self.__display_data_channel_property_changed_event_listeners[index].close()
@@ -1695,15 +1770,13 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         del self.__display_data_channel_data_item_proxy_changed_event_listeners[index]
         self.notify_remove_item("display_data_channels", display_data_channel, index)
 
-    def append_display_data_channel(self, display_data_channel: DisplayDataChannel, display_layer: typing.Mapping=None) -> None:
+    def append_display_data_channel(self, display_data_channel: DisplayDataChannel, display_layer: typing.Optional[DisplayLayer] = None) -> None:
         self.insert_display_data_channel(len(self.display_data_channels), display_data_channel)
-        if display_layer is not None:
-            display_layer = dict(display_layer)
-            data_index = self.display_data_channels.index(display_data_channel)
-            self.__add_display_layer_auto(display_layer, data_index)
+        if display_layer:
+            self.__add_display_layer_auto(display_layer, display_data_channel)
 
     def __get_unique_display_layer_color(self) -> str:
-        existing_colors = [display_layer_.get("fill_color") for display_layer_ in self.display_layers]
+        existing_colors = {display_layer.fill_color for display_layer in self.display_layers}
         for color in ('#1E90FF', "#F00", "#0F0", "#00F", "#FF0", "#0FF", "#F0F", "#888", "#800", "#080", "#008", "#CCC", "#880", "#088", "#808", "#964B00"):
             if not color in existing_colors:
                 return color
@@ -1715,27 +1788,20 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         elif len(self.display_layers) == 1:
             self.set_display_property("legend_position", None)
 
-    def __add_display_layer_auto(self, display_layer: typing.Dict, data_index: int, data_row: typing.Optional[int] = 0) -> None:
+    def __add_display_layer_auto(self, display_layer: DisplayLayer, display_data_channel: DisplayDataChannel, data_row: typing.Optional[int] = 0) -> None:
         # this fill color code breaks encapsulation. i'm leaving it here as a convenience for now.
         # eventually there should be a connection to a display controller based on the display type which can be
         # used to set defaults for the layers.
-        display_layer["data_index"] = data_index
+        display_layer.display_data_channel = display_data_channel
         if data_row is not None:
-            display_layer["data_row"] = data_row
-        display_layer.setdefault("fill_color", self.__get_unique_display_layer_color())
-        self.add_display_layer(**display_layer)
+            display_layer.data_row = data_row
+        if not display_layer.fill_color:
+            display_layer.fill_color = self.__get_unique_display_layer_color()
+        self.append_display_layer(display_layer)
         self.auto_display_legend()
 
     def insert_display_data_channel(self, before_index: int, display_data_channel: DisplayDataChannel) -> None:
         self.insert_model_item(self, "display_data_channels", before_index, display_data_channel)
-        # adjust the display layers
-        assert not self._is_reading
-        display_layers = self.display_layers
-        for display_layer in display_layers:
-            data_index = display_layer.get("data_index")
-            if data_index is not None and data_index >= before_index:
-                display_layer["data_index"] = data_index + 1
-        self.display_layers = display_layers
 
     def remove_display_data_channel(self, display_data_channel: DisplayDataChannel, *, safe: bool=False) -> Changes.UndeleteLog:
         return self.remove_model_item(self, "display_data_channels", display_data_channel, safe=safe)
@@ -2079,42 +2145,3 @@ def get_default_calibrated_calibration_style():
 
 def get_default_uncalibrated_calibration_style():
     return CalibrationStylePixelsCenter()
-
-
-def set_display_layer_property(display_layers: list, index: int, property_name: str, value) -> list:
-    assert 0 <= index < len(display_layers)
-    if value is not None:
-        display_layers[index][property_name] = value
-    else:
-        display_layers[index].pop(property_name, None)
-    return display_layers
-
-
-def add_display_layer(display_layers: list, **kwargs) -> list:
-    return insert_display_layer(display_layers, len(display_layers), **kwargs)
-
-
-def insert_display_layer(display_layers: list, before_index: int, **kwargs) -> list:
-    display_layers.insert(before_index, kwargs)
-    return display_layers
-
-
-def remove_display_layer(display_layers: list, index: int) -> list:
-    display_layers.pop(index)
-    return display_layers
-
-
-def move_display_layer_forward(display_layers: list, index: int) -> list:
-    assert 0 <= index < len(display_layers)
-    if index > 0:
-        display_layer = display_layers.pop(index)
-        display_layers.insert(index - 1, display_layer)
-    return display_layers
-
-
-def move_display_layer_backward(display_layers: list, index: int) -> list:
-    assert 0 <= index < len(display_layers)
-    if index < len(display_layers) - 1:
-        display_layer = display_layers.pop(index)
-        display_layers.insert(index + 1, display_layer)
-    return display_layers

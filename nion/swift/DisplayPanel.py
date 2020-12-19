@@ -847,7 +847,7 @@ class MoveDisplayLayerCommand(Undo.UndoableCommand):
         new_display_item.insert_display_layer_for_display_data_channel(new_display_layer_index, new_display_data_channel, **old_display_layer_properties)
         if old_display_item == new_display_item and new_display_layer_index <= old_display_layer_index:
             old_display_layer_index += 1
-        old_display_item.remove_display_layer(old_display_layer_index)
+        old_display_item.remove_display_layer(old_display_layer_index).close()
         self.__undelete_logs.append(old_display_item.remove_display_data_channel(old_display_item.display_data_channels[old_display_data_channel_index]))
         # swap for undo
         temp_display_item_proxy = self.__old_display_item_proxy
@@ -921,7 +921,7 @@ class AddDisplayLayerCommand(Undo.UndoableCommand):
     def _undo(self):
         # remove the new display layer and restore properties
         display_item = typing.cast(DisplayItem.DisplayItem, self.__display_item_proxy.item)
-        display_item.remove_display_layer(self.__index)
+        display_item.remove_display_layer(self.__index).close()
         display_item.restore_properties(self.__old_properties)
 
     def _redo(self) -> None:
@@ -937,6 +937,7 @@ class RemoveDisplayLayerCommand(Undo.UndoableCommand):
         self.__old_properties = display_item.save_properties()
         self.__display_item_proxy = display_item.create_proxy()
         self.__index = index
+        self.__undelete_logs = list()
         self.initialize()
 
     def close(self):
@@ -944,12 +945,15 @@ class RemoveDisplayLayerCommand(Undo.UndoableCommand):
         self.__old_properties = None
         self.__display_item_proxy.close()
         self.__display_item_proxy = None
+        for undelete_log in self.__undelete_logs:
+            undelete_log.close()
+        self.__undelete_logs = None
         super().close()
 
     def perform(self):
         # add display data channel and display layer to new display item
         display_item = typing.cast(DisplayItem.DisplayItem, self.__display_item_proxy.item)
-        display_item.remove_display_layer(self.__index)
+        self.__undelete_logs.append(display_item.remove_display_layer(self.__index))
         display_item.auto_display_legend()
 
     def _get_modified_state(self):
@@ -963,8 +967,10 @@ class RemoveDisplayLayerCommand(Undo.UndoableCommand):
     def _undo(self):
         # remove the new display layer and restore properties
         display_item = typing.cast(DisplayItem.DisplayItem, self.__display_item_proxy.item)
-        # TODO: restore the removed layer. implement once display_layers are items.
-        #display_item.restore_display_layer(self.__index)
+        for undelete_log in reversed(self.__undelete_logs):
+            self.__document_model.undelete_all(undelete_log)
+            undelete_log.close()
+        self.__undelete_logs.clear()
         display_item.restore_properties(self.__old_properties)
 
     def _redo(self) -> None:

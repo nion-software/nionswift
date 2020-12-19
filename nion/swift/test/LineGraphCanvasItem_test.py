@@ -371,10 +371,10 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_item.display_type = "line_plot"
             self.assertEqual(8, len(display_item.display_layers))
-            display_item.remove_display_layer(7)
-            display_item.remove_display_layer(6)
-            display_item.remove_display_layer(5)
-            display_item.remove_display_layer(4)
+            display_item.remove_display_layer(7).close()
+            display_item.remove_display_layer(6).close()
+            display_item.remove_display_layer(5).close()
+            display_item.remove_display_layer(4).close()
             self.assertEqual(4, len(display_item.display_layers))
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_display_item(display_item)
