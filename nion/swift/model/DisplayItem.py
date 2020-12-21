@@ -1100,6 +1100,7 @@ def display_data_channel_factory(lookup_id):
 class DisplayLayer(Schema.Entity):
     def __init__(self, display_data_channel: DisplayDataChannel = None):
         super().__init__(**Model.DisplayLayer.entity_init_kwargs())
+        self.persistent_storage = None
 
     @property
     def label(self) -> typing.Optional[str]:
@@ -1132,6 +1133,17 @@ class DisplayLayer(Schema.Entity):
     @fill_color.setter
     def fill_color(self, value: typing.Optional[str]) -> None:
         self._set_field_value("fill_color", value)
+
+    def _field_value_changed(self, name: str, value: typing.Any) -> None:
+        # this is called when a property changes. to be compatible with the older
+        # persistent object structure, check if persistent storage exists and pass
+        # the message along to persistent storage.
+        persistent_storage = getattr(self, "persistent_storage", None)
+        if persistent_storage:
+            if value is not None:
+                self.persistent_storage.set_property(self, name, value)
+            else:
+                self.persistent_storage.clear_property(self, name)
 
 
 def display_layer_factory(lookup_id):

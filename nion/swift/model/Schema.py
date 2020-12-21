@@ -695,9 +695,13 @@ class Entity(Observable.Observable):
         field = self.__get_field(name)
         if field:
             field.set_field_value(self, value)
+            self._field_value_changed(name, field.write())
             self.property_changed_event.fire(name)
         else:
             raise AttributeError()
+
+    def _field_value_changed(self, name: str, value: typing.Any) -> None:
+        pass
 
     def _get_array_item(self, name: str, index: int) -> typing.Any:
         array_field = typing.cast(typing.Optional[ArrayField], self.__get_field(name))

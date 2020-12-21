@@ -1,6 +1,7 @@
 # standard libraries
 import contextlib
 import copy
+import typing
 import unittest
 
 # third party libraries
@@ -18,6 +19,10 @@ from nion.ui import TestUI
 
 
 Facade.initialize()
+
+
+def create_memory_profile_context() -> TestContext.MemoryProfileContext:
+    return TestContext.MemoryProfileContext()
 
 
 class TestDisplayItemClass(unittest.TestCase):
@@ -338,6 +343,59 @@ class TestDisplayItemClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(data_item.data, data[1]))
             self.assertTrue(numpy.array_equal(calibration2.convert_to_calibrated_value(numpy.arange(0, data_item.data.shape[0])), data[2]))
             self.assertTrue(numpy.array_equal(data_item2.data, data[3]))
+
+    def test_display_layer_property_changed(self):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            data_item = DataItem.DataItem(numpy.zeros((8, )))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_layer = typing.cast(DisplayItem.DisplayLayer, display_item.display_layers[0])
+            def property_changed(name: str) -> None:
+                print("PC")
+            with contextlib.closing(display_layer.property_changed_event.listen(property_changed)):
+                display_layer.fill_color = "red"
+
+    def test_display_layer_property_reloads_after_change(self):
+        with create_memory_profile_context() as profile_context:
+            document_model = profile_context.create_document_model(auto_close=False)
+            with contextlib.closing(document_model):
+                data_item = DataItem.DataItem(numpy.zeros((8,)))
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                display_layer = typing.cast(DisplayItem.DisplayLayer, display_item.display_layers[0])
+                display_layer.fill_color = "red"
+                display_item.title = "red"
+            document_model = profile_context.create_document_model(auto_close=False)
+            with contextlib.closing(document_model):
+                data_item = document_model.data_items[0]
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                display_layer = typing.cast(DisplayItem.DisplayLayer, display_item.display_layers[0])
+                self.assertEqual("red", display_layer.fill_color)
+
+    def test_display_layers_reload_after_inserting_and_removing(self):
+        with create_memory_profile_context() as profile_context:
+            document_model = profile_context.create_document_model(auto_close=False)
+            with contextlib.closing(document_model):
+                data_item = DataItem.DataItem(numpy.zeros((8,)))
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                # add a new layer
+                display_item.add_display_layer_for_display_data_channel(display_item.display_data_channels[0])
+                self.assertEqual(2, len(display_item.display_layers))
+            document_model = profile_context.create_document_model(auto_close=False)
+            with contextlib.closing(document_model):
+                data_item = document_model.data_items[0]
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                self.assertEqual(2, len(display_item.display_layers))
+                # now remove a layer
+                display_item.remove_display_layer(display_item.display_layers[1]).close()
+                self.assertEqual(1, len(display_item.display_layers))
+            document_model = profile_context.create_document_model(auto_close=False)
+            with contextlib.closing(document_model):
+                data_item = document_model.data_items[0]
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                self.assertEqual(1, len(display_item.display_layers))
 
     # test_transaction_does_not_cascade_to_data_item_refs
     # test_increment_data_ref_counts_cascades_to_data_item_refs

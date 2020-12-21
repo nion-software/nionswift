@@ -851,12 +851,7 @@ class PersistentObject:
         return properties
 
     def _update_persistent_object_context_property(self, name):
-        """
-            Update the property given by name in the persistent object context.
-
-            Subclasses can override this to provide custom writing behavior, such
-            as delaying write until an appropriate time for performance reasons.
-        """
+        """Update the property given by name in the persistent object context."""
         if self.persistent_object_context:
             properties = dict()
             self.__properties[name].write_to_dict(properties)
