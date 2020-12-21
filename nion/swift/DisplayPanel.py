@@ -570,9 +570,16 @@ class DisplayTracker:
 
         self.__next_calculated_display_values_listeners = list()
 
+        def display_layer_property_changed(name: str) -> None:
+            display_values_changed()
+
         def display_data_channel_inserted(key, value, before_index):
             if key == "display_data_channels":
                 self.__next_calculated_display_values_listeners.insert(before_index, value.add_calculated_display_values_listener(display_values_changed))
+                display_values_changed()
+            if key == "display_layers":
+                display_layer = typing.cast(DisplayItem.DisplayLayer, value)
+                self.__display_layer_property_changed_listeners.insert(before_index, display_layer.property_changed_event.listen(display_layer_property_changed))
                 display_values_changed()
 
         def display_data_channel_removed(key, value, index):
@@ -580,12 +587,20 @@ class DisplayTracker:
                 self.__next_calculated_display_values_listeners[index].close()
                 del self.__next_calculated_display_values_listeners[index]
                 display_values_changed()
+            if key == "display_layers":
+                self.__display_layer_property_changed_listeners.pop(index).close()
+                display_values_changed()
 
         self.__item_inserted_listener = display_item.item_inserted_event.listen(display_data_channel_inserted)
         self.__item_removed_listener = display_item.item_removed_event.listen(display_data_channel_removed)
 
         for index, display_data_channel in enumerate(display_item.display_data_channels):
             display_data_channel_inserted("display_data_channels", display_data_channel, index)
+
+        self.__display_layer_property_changed_listeners = list()
+
+        for index, display_layer in enumerate(display_item.display_layers):
+            display_data_channel_inserted("display_layers", display_layer, index)
 
         self.__display_values_changed_event_listener = display_item.display_values_changed_event.listen(display_values_changed)
         self.__display_data_channel_property_changed_listener = display_item.property_changed_event.listen(display_property_changed)
@@ -628,6 +643,8 @@ class DisplayTracker:
             for next_calculated_display_values_listener in self.__next_calculated_display_values_listeners:
                 next_calculated_display_values_listener.close()
             self.__next_calculated_display_values_listeners = list()
+            for display_layer_property_changed_listener in self.__display_layer_property_changed_listeners:
+                display_layer_property_changed_listener.close()
             self.__item_inserted_listener.close()
             self.__item_inserted_listener = None
             self.__item_removed_listener.close()
