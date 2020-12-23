@@ -351,10 +351,13 @@ class TestDisplayItemClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_layer = typing.cast(DisplayItem.DisplayLayer, display_item.display_layers[0])
+            property_did_change = False
             def property_changed(name: str) -> None:
-                print("PC")
+                nonlocal property_did_change
+                property_did_change = True
             with contextlib.closing(display_layer.property_changed_event.listen(property_changed)):
                 display_layer.fill_color = "red"
+            self.assertTrue(property_did_change)
 
     def test_display_layer_property_reloads_after_change(self):
         with create_memory_profile_context() as profile_context:

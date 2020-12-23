@@ -1557,6 +1557,13 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         display_layer_properties.pop("display_data_channel", None)
         return display_layer_properties
 
+    def get_display_data_channel_layer_use_count(self, display_data_channel: DisplayDataChannel) -> int:
+        count = 0
+        for display_layer in self.display_layers:
+            if display_layer.display_data_channel == display_data_channel:
+                count += 1
+        return count
+
     def display_layers_match(self, display_item: "DisplayItem") -> bool:
         if len(self.display_layers) != len(display_item.display_layers):
             return False

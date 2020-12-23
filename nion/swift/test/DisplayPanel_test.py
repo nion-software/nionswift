@@ -2159,6 +2159,12 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_item4.append_display_data_channel(DisplayItem.DisplayDataChannel(data_item=data_item5), display_layer=DisplayItem.DisplayLayer())
             display_item4.set_display_property("legend_position", None)
             new_legend_position = display_item4.get_display_property("legend_position")
+            self.assertEqual(3, len(display_item1.display_layers))
+            self.assertEqual(3, len(display_item1.display_data_channels))
+            self.assertEqual(data_item2, display_item1.display_data_channels[1].data_item)
+            self.assertEqual(2, len(display_item4.display_layers))
+            self.assertEqual(2, len(display_item4.display_data_channels))
+            self.assertEqual(new_legend_position, display_item4.get_display_property("legend_position"))
             command = DisplayPanel.MoveDisplayLayerCommand(document_model, display_item1, 1, display_item4, 1)
             command.perform()
             document_controller.push_undo_command(command)
@@ -2171,10 +2177,17 @@ class TestDisplayPanelClass(unittest.TestCase):
             command.undo()
             self.assertEqual(3, len(display_item1.display_layers))
             self.assertEqual(3, len(display_item1.display_data_channels))
-            self.assertEqual(data_item2, display_item1.display_data_channels[2].data_item)
+            self.assertEqual(data_item2, display_item1.display_data_channels[1].data_item)
             self.assertEqual(2, len(display_item4.display_layers))
             self.assertEqual(2, len(display_item4.display_data_channels))
             self.assertEqual(new_legend_position, display_item4.get_display_property("legend_position"))
+            command.redo()
+            self.assertEqual(2, len(display_item1.display_layers))
+            self.assertEqual(2, len(display_item1.display_data_channels))
+            self.assertEqual(3, len(display_item4.display_layers))
+            self.assertEqual(3, len(display_item4.display_data_channels))
+            self.assertEqual(data_item2, display_item4.display_data_channels[2].data_item)
+            self.assertEqual(display_item4.display_data_channels[2], display_item4.get_display_layer_display_data_channel(1))
 
     def test_move_display_layer_within_display_undo_redo(self):
         with TestContext.create_memory_context() as test_context:
@@ -2202,6 +2215,86 @@ class TestDisplayPanelClass(unittest.TestCase):
             command.undo()
             self.assertEqual(3, len(display_item1.display_layers))
             self.assertEqual(3, len(display_item1.display_data_channels))
+            command.redo()
+            self.assertEqual(3, len(display_item1.display_layers))
+            self.assertEqual(3, len(display_item1.display_data_channels))
+
+    def test_move_display_layer_with_multi_use_display_data_channel_to_another_display_item(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((8,)))
+            data_item2 = DataItem.DataItem(numpy.zeros((8,)))
+            document_model.append_data_item(data_item)
+            document_model.append_data_item(data_item2)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item2 = document_model.get_display_item_for_data_item(data_item2)
+            # add a new layer
+            display_item.add_display_layer_for_display_data_channel(display_item.display_data_channels[0])
+            # confirm
+            self.assertEqual(2, len(document_model.data_items))
+            self.assertEqual(2, len(document_model.display_items))
+            self.assertEqual(2, len(display_item.display_layers))
+            self.assertEqual(1, len(display_item.display_data_channels))
+            self.assertEqual(1, len(display_item2.display_layers))
+            self.assertEqual(1, len(display_item2.display_data_channels))
+            # move the 2nd display layer to other display item
+            command = DisplayPanel.MoveDisplayLayerCommand(document_controller.document_model, display_item, 1, display_item2, 1)
+            command.perform()
+            document_controller.push_undo_command(command)
+            self.assertEqual(2, len(document_model.data_items))
+            self.assertEqual(2, len(document_model.display_items))
+            self.assertEqual(1, len(display_item.display_layers))
+            self.assertEqual(1, len(display_item.display_data_channels))
+            self.assertEqual(2, len(display_item2.display_layers))
+            self.assertEqual(2, len(display_item2.display_data_channels))
+            command.undo()
+            # tricky because display data channel was created on new display item and needs to be undone properly
+            self.assertEqual(2, len(document_model.data_items))
+            self.assertEqual(2, len(document_model.display_items))
+            self.assertEqual(2, len(display_item.display_layers))
+            self.assertEqual(1, len(display_item.display_data_channels))
+            self.assertEqual(1, len(display_item2.display_layers))
+            self.assertEqual(1, len(display_item2.display_data_channels))
+            command.redo()
+            self.assertEqual(2, len(document_model.data_items))
+            self.assertEqual(2, len(document_model.display_items))
+            self.assertEqual(1, len(display_item.display_layers))
+            self.assertEqual(1, len(display_item.display_data_channels))
+            self.assertEqual(2, len(display_item2.display_layers))
+            self.assertEqual(2, len(display_item2.display_data_channels))
+
+    def test_move_display_layer_with_same_display_data_channel(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((8,)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            # add a new layer
+            display_item.add_display_layer_for_display_data_channel(display_item.display_data_channels[0])
+            self.assertEqual(2, len(display_item.display_layers))
+            self.assertEqual(1, len(display_item.display_data_channels))
+            self.assertEqual(1, len(document_model.data_items))
+            self.assertEqual(1, len(document_model.display_items))
+            # move the 2nd display layer forward
+            command = DisplayPanel.MoveDisplayLayerCommand(document_controller.document_model, display_item, 1, display_item, 0)
+            command.perform()
+            document_controller.push_undo_command(command)
+            self.assertEqual(2, len(display_item.display_layers))
+            self.assertEqual(1, len(display_item.display_data_channels))
+            self.assertEqual(1, len(document_model.data_items))
+            self.assertEqual(1, len(document_model.display_items))
+            command.undo()
+            self.assertEqual(2, len(display_item.display_layers))
+            self.assertEqual(1, len(display_item.display_data_channels))
+            self.assertEqual(1, len(document_model.data_items))
+            self.assertEqual(1, len(document_model.display_items))
+            command.redo()
+            self.assertEqual(2, len(display_item.display_layers))
+            self.assertEqual(1, len(display_item.display_data_channels))
+            self.assertEqual(1, len(document_model.data_items))
+            self.assertEqual(1, len(document_model.display_items))
 
     def test_add_display_layer_undo_redo(self):
         with TestContext.create_memory_context() as test_context:

@@ -852,7 +852,10 @@ class LinePlotDisplayLayersInspectorSection(InspectorSection):
                 self.content_widget.add(stroke_color_row)
                 # complex display type
                 display_data_channel = display_layer.display_data_channel
-                complex_display_type_row, self.__complex_display_type_changed_listener = make_complex_display_type_chooser(document_controller, display_data_channel)
+                if display_data_channel:
+                    complex_display_type_row, self.__complex_display_type_changed_listener = make_complex_display_type_chooser(document_controller, display_data_channel)
+                else:
+                    complex_display_type_row, self.__complex_display_type_changed_listener = None, None
                 if complex_display_type_row:
                     self.content_widget.add(complex_display_type_row)
                 # save for populate

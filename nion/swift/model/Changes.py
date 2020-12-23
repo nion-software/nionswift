@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import abc
 import typing
 
@@ -11,7 +13,7 @@ class UndeleteBase(abc.ABC):
     def close(self) -> None: ...
 
     @abc.abstractmethod
-    def undelete(self, document_model: "DocumentModel.DocumentModel") -> None: ...
+    def undelete(self, document_model: DocumentModel.DocumentModel) -> None: ...
 
 
 class UndeleteLog:
@@ -27,7 +29,7 @@ class UndeleteLog:
     def append(self, item: UndeleteBase) -> None:
         self.__items.append(item)
 
-    def undelete_all(self, document_model: "DocumentModel.DocumentModel") -> None:
+    def undelete_all(self, document_model: DocumentModel.DocumentModel) -> None:
         for entry in reversed(self.__items):
             entry.undelete(document_model)
 

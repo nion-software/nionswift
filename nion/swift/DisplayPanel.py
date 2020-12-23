@@ -23,7 +23,7 @@ from nion.swift import MimeTypes
 from nion.swift import Panel
 from nion.swift import Thumbnails
 from nion.swift import Undo
-from nion.swift import Inspector
+from nion.swift.model import Changes
 from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
@@ -823,6 +823,46 @@ class ChangeDisplayDataChannelCommand(Undo.UndoableCommand):
         return isinstance(command, ChangeDisplayDataChannelCommand) and self.command_id and self.command_id == command.command_id and self.__display_data_channel_proxy.item == command.__display_data_channel_proxy.item
 
 
+class AppendDisplayDataChannelUndo(Changes.UndeleteBase):
+    def __init__(self, display_item: DisplayItem.DisplayItem, display_data_channel: DisplayItem.DisplayDataChannel):
+        self.display_item_proxy = display_item.create_proxy()
+        self.index = display_item.display_data_channels.index(display_data_channel)
+
+    def close(self) -> None:
+        self.display_item_proxy.close()
+
+    def undelete(self, document_model: DocumentModel.DocumentModel) -> None:
+        display_item = typing.cast(DisplayItem.DisplayItem, self.display_item_proxy.item)
+        display_item.remove_display_data_channel(display_item.display_data_channels[self.index]).close()
+
+
+class AppendDisplayLayerUndo(Changes.UndeleteBase):
+    def __init__(self, display_item: DisplayItem.DisplayItem, display_layer: DisplayItem.DisplayLayer):
+        self.display_item_proxy = display_item.create_proxy()
+        self.index = display_item.display_layers.index(display_layer)
+
+    def close(self) -> None:
+        self.display_item_proxy.close()
+
+    def undelete(self, document_model: DocumentModel.DocumentModel) -> None:
+        display_item = typing.cast(DisplayItem.DisplayItem, self.display_item_proxy.item)
+        display_item.remove_display_layer(display_item.display_layers[self.index]).close()
+
+
+class SetDisplayPropertyUndo(Changes.UndeleteBase):
+    def __init__(self, display_item: DisplayItem.DisplayItem, name: str):
+        self.display_item_proxy = display_item.create_proxy()
+        self.name = name
+        self.value = display_item.get_display_property(name)
+
+    def close(self) -> None:
+        self.display_item_proxy.close()
+
+    def undelete(self, document_model: DocumentModel.DocumentModel) -> None:
+        display_item = typing.cast(DisplayItem.DisplayItem, self.display_item_proxy.item)
+        display_item.set_display_property(self.name, self.value)
+
+
 class MoveDisplayLayerCommand(Undo.UndoableCommand):
 
     def __init__(self, document_model,
@@ -837,47 +877,65 @@ class MoveDisplayLayerCommand(Undo.UndoableCommand):
         self.__new_legend_position = new_display_item.get_display_property("legend_position")
         self.__new_display_item_proxy = new_display_item.create_proxy()
         self.__new_display_layer_index = new_display_layer_index
-        self.__undelete_logs = list()
+        self.__undelete_logs: typing.List[Changes.UndeleteLog] = list()
         self.initialize()
 
     def close(self):
         self.__document_model = None
-        for undelete_log in self.__undelete_logs:
-            undelete_log.close()
-        self.__undelete_logs = None
         self.__old_display_item_proxy.close()
         self.__old_display_item_proxy = None
         self.__new_display_item_proxy.close()
         self.__new_display_item_proxy = None
+        for undelete_log in self.__undelete_logs:
+            undelete_log.close()
+        self.__undelete_logs = None
         super().close()
 
-    def __move_display_layer(self) -> None:
+    def perform(self):
         # add display data channel and display layer to new display item
+        # handle the following cases:
+        #   different display item with associated display data channel used only by source display layer
+        #   different display item with associated display data channel used by source display layer and others
+        #   same display item with associated display data channel used only by source display layer
+        #   same display item with associated display data channel used by source display layer and others
+
+        # first get info about the old display layer
         old_display_item = typing.cast(DisplayItem.DisplayItem, self.__old_display_item_proxy.item)
         old_display_layer_index = self.__old_display_layer_index
         old_display_layer_properties = old_display_item.get_display_layer_properties(self.__old_display_layer_index)
         old_display_data_channel_index = old_display_item.display_data_channels.index(old_display_item.get_display_layer_display_data_channel(old_display_layer_index))
-        new_display_item = self.__new_display_item_proxy.item
+        # next get info about the new display layer
+        new_display_item = typing.cast(DisplayItem.DisplayItem, self.__new_display_item_proxy.item)
         new_display_layer_index = self.__new_display_layer_index
-        new_display_data_channel = copy.deepcopy(old_display_item.display_data_channels[old_display_data_channel_index])
-        new_display_item.append_display_data_channel(new_display_data_channel)
+        # save undo info about legend
+        undelete_log = Changes.UndeleteLog()
+        undelete_log.append(SetDisplayPropertyUndo(new_display_item, "legend_position"))
+        undelete_log.append(SetDisplayPropertyUndo(old_display_item, "legend_position"))
+        self.__undelete_logs.append(undelete_log)
+        # create a copy of the old display data channel and add it
+        old_display_data_channel = old_display_item.display_data_channels[old_display_data_channel_index]
+        if old_display_item != new_display_item:
+            new_display_data_channel = copy.deepcopy(old_display_data_channel)
+            new_display_item.append_display_data_channel(new_display_data_channel)
+            undelete_log = Changes.UndeleteLog()
+            undelete_log.append(AppendDisplayDataChannelUndo(new_display_item, new_display_data_channel))
+            self.__undelete_logs.append(undelete_log)
+        else:
+            new_display_data_channel = old_display_data_channel
+        # add a new display layer with the old properties
         new_display_item.insert_display_layer_for_display_data_channel(new_display_layer_index, new_display_data_channel, **old_display_layer_properties)
+        undelete_log = Changes.UndeleteLog()
+        undelete_log.append(AppendDisplayLayerUndo(new_display_item, new_display_item.display_layers[new_display_layer_index]))
+        self.__undelete_logs.append(undelete_log)
+        # adjust indexes if inserting into the same display item
         if old_display_item == new_display_item and new_display_layer_index <= old_display_layer_index:
             old_display_layer_index += 1
-        old_display_item.remove_display_layer(old_display_layer_index).close()
-        self.__undelete_logs.append(old_display_item.remove_display_data_channel(old_display_item.display_data_channels[old_display_data_channel_index]))
-        # swap for undo
-        temp_display_item_proxy = self.__old_display_item_proxy
-        temp_display_layer_index = self.__old_display_layer_index
-        self.__old_display_item_proxy = self.__new_display_item_proxy
-        self.__old_display_layer_index = self.__new_display_layer_index
-        self.__new_display_item_proxy = temp_display_item_proxy
-        self.__new_display_layer_index = temp_display_layer_index
-
-    def perform(self):
-        old_display_item = self.__old_display_item_proxy.item
-        new_display_item = self.__new_display_item_proxy.item
-        self.__move_display_layer()
+        # remove the old display layer
+        self.__undelete_logs.append(old_display_item.remove_display_layer(old_display_layer_index))
+        # remove the old display data channel if it is now unused.
+        if new_display_data_channel != old_display_data_channel and old_display_item.get_display_data_channel_layer_use_count(old_display_data_channel) == 0:
+            self.__undelete_logs.append(old_display_item.remove_display_data_channel(old_display_data_channel))
+        # update the legend
         new_display_item.auto_display_legend()
         old_display_item.auto_display_legend()
 
@@ -896,11 +954,13 @@ class MoveDisplayLayerCommand(Undo.UndoableCommand):
         return state1[0] == state2[0] and state1[1] == state2[1]
 
     def _undo(self):
-        self.__move_display_layer()
-        old_display_item = self.__old_display_item_proxy.item
-        new_display_item = self.__new_display_item_proxy.item
-        old_display_item.set_display_property("legend_position", self.__old_legend_position)
-        new_display_item.set_display_property("legend_position", self.__new_legend_position)
+        for undelete_log in reversed(self.__undelete_logs):
+            self.__document_model.undelete_all(undelete_log)
+            undelete_log.close()
+        self.__undelete_logs.clear()
+
+    def _redo(self) -> None:
+        self.perform()
 
 
 class AddDisplayLayerCommand(Undo.UndoableCommand):

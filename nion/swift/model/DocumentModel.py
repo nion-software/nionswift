@@ -1188,9 +1188,17 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                         self.__build_cascade(data_item, items, dependencies)
             elif isinstance(item, DisplayItem.DisplayDataChannel):
                 # delete data items whose only display item channel is being deleted
-                if item.data_item and len(self.get_display_items_for_data_item(item.data_item)) == 1:
-                    self.__build_cascade(item.data_item, items, dependencies)
-                for display_layer in item.container.display_layers:
+                display_item = typing.cast(DisplayItem.DisplayItem, item.container)
+                data_item = typing.cast(typing.Optional[DataItem.DataItem], item.data_item)
+                if data_item and len(self.get_display_items_for_data_item(data_item)) == 1:
+                    display_data_channels_referring_to_data_item = 0
+                    # only delete data item if it is used by only the one display data channel being deleted
+                    for display_data_channel in display_item.display_data_channels:
+                        if display_data_channel.data_item == data_item:
+                            display_data_channels_referring_to_data_item += 1
+                    if display_data_channels_referring_to_data_item == 1:
+                        self.__build_cascade(data_item, items, dependencies)
+                for display_layer in display_item.display_layers:
                     if display_layer.display_data_channel == item:
                         self.__build_cascade(display_layer, items, dependencies)
             # outputs of a computation are deleted.
