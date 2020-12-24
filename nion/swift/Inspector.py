@@ -776,19 +776,23 @@ class LinePlotDisplayLayersInspectorSection(InspectorSection):
             document_controller.push_undo_command(command)
             data_row_widget.select_all()
 
-        def change_fill_color(color_widget: UserInterface.LineEditWidget, display_layer: DisplayItem.DisplayLayer, color: str) -> None:
+        def change_fill_color(color_widget: Widgets.ColorPushButtonWidget, color_edit: UserInterface.LineEditWidget, display_layer: DisplayItem.DisplayLayer, color: str) -> None:
             index = display_item.display_layers.index(display_layer)
             command = ChangeDisplayLayerPropertyCommand(document_controller.document_model, display_item, index, "fill_color", color)
             command.perform()
             document_controller.push_undo_command(command)
-            color_widget.select_all()
+            color_widget.color = color
+            color_edit.text = color
+            color_edit.select_all()
 
-        def change_stroke_color(color_widget: UserInterface.LineEditWidget, display_layer: DisplayItem.DisplayLayer, color: str) -> None:
+        def change_stroke_color(color_widget: Widgets.ColorPushButtonWidget, color_edit: UserInterface.LineEditWidget, display_layer: DisplayItem.DisplayLayer, color: str) -> None:
             index = display_item.display_layers.index(display_layer)
             command = ChangeDisplayLayerPropertyCommand(document_controller.document_model, display_item, index, "stroke_color", color)
             command.perform()
             document_controller.push_undo_command(command)
-            color_widget.select_all()
+            color_widget.color = color
+            color_edit.text = color
+            color_edit.select_all()
 
         class DisplayLayerWidget(Widgets.CompositeWidgetBase):
             def __init__(self, display_layer: DisplayItem.DisplayLayer):
@@ -830,20 +834,26 @@ class LinePlotDisplayLayersInspectorSection(InspectorSection):
                 display_data_channel_index_widget.on_editing_finished = functools.partial(change_data_index, display_data_channel_index_widget, display_layer)
                 display_data_channel_row_widget.on_editing_finished = functools.partial(change_data_row, display_data_channel_row_widget, display_layer)
                 # display: fill color, stroke color, label
-                fill_color_widget = ui.create_line_edit_widget()
-                fill_color_widget.placeholder_text = _("None")
-                fill_color_row = ui.create_row_widget(properties={"spacing": 12})
-                fill_color_row.add(ui.create_label_widget(_("Fill Color")))
+                fill_color_widget = Widgets.ColorPushButtonWidget(ui)
+                fill_color_edit = ui.create_line_edit_widget(properties={"width": 80})
+                fill_color_edit.placeholder_text = _("None")
+                fill_color_row = ui.create_row_widget(properties={"spacing": 8})
+                fill_color_row.add(ui.create_label_widget(_("Fill Color"), properties={"width": 80}))
                 fill_color_row.add(fill_color_widget)
+                fill_color_row.add(fill_color_edit)
                 fill_color_row.add_stretch()
-                fill_color_widget.on_editing_finished = functools.partial(change_fill_color, fill_color_widget, display_layer)
-                stroke_color_widget = ui.create_line_edit_widget()
-                stroke_color_widget.placeholder_text = _("None")
-                stroke_color_row = ui.create_row_widget(properties={"spacing": 12})
-                stroke_color_row.add(ui.create_label_widget(_("Stroke Color")))
+                fill_color_widget.on_color_changed = functools.partial(change_fill_color, fill_color_widget, fill_color_edit, display_layer)
+                fill_color_edit.on_editing_finished = functools.partial(change_fill_color, fill_color_widget, fill_color_edit, display_layer)
+                stroke_color_widget = Widgets.ColorPushButtonWidget(ui)
+                stroke_color_edit = ui.create_line_edit_widget(properties={"width": 80})
+                stroke_color_edit.placeholder_text = _("None")
+                stroke_color_row = ui.create_row_widget(properties={"spacing": 8})
+                stroke_color_row.add(ui.create_label_widget(_("Stroke Color"), properties={"width": 80}))
                 stroke_color_row.add(stroke_color_widget)
+                stroke_color_row.add(stroke_color_edit)
                 stroke_color_row.add_stretch()
-                stroke_color_widget.on_editing_finished = functools.partial(change_stroke_color, stroke_color_widget, display_layer)
+                stroke_color_widget.on_color_changed = functools.partial(change_stroke_color, stroke_color_widget, stroke_color_edit, display_layer)
+                stroke_color_edit.on_editing_finished = functools.partial(change_stroke_color, stroke_color_widget, stroke_color_edit, display_layer)
                 # build the inner column
                 self.content_widget.add(label_row)
                 self.content_widget.add(button_row)
@@ -863,7 +873,9 @@ class LinePlotDisplayLayersInspectorSection(InspectorSection):
                 self.__display_data_channel_index_widget = display_data_channel_index_widget
                 self.__display_data_channel_row_widget = display_data_channel_row_widget
                 self.__fill_color_widget = fill_color_widget
+                self.__fill_color_edit = fill_color_edit
                 self.__stroke_color_widget = stroke_color_widget
+                self.__stroke_color_edit = stroke_color_edit
 
                 def display_layer_property_changed(name: str) -> None:
                     if name == "display_data_channel":
@@ -874,9 +886,11 @@ class LinePlotDisplayLayersInspectorSection(InspectorSection):
                     elif name == "label":
                         self.__label_edit_widget.text = display_layer.label
                     elif name == "stroke_color":
-                        self.__stroke_color_widget.text = display_layer.stroke_color
+                        self.__stroke_color_widget.color = display_layer.stroke_color
+                        self.__stroke_color_edit.text = display_layer.stroke_color
                     elif name == "fill_color":
-                        self.__fill_color_widget.text = display_layer.fill_color
+                        self.__fill_color_widget.color = display_layer.fill_color
+                        self.__fill_color_edit.text = display_layer.fill_color
                     elif name == "data_row":
                         self.__display_data_channel_row_widget.text = str(display_layer.data_row) if display_layer.data_row is not None else None
 
@@ -893,7 +907,9 @@ class LinePlotDisplayLayersInspectorSection(InspectorSection):
                 self.__display_data_channel_index_widget = None
                 self.__display_data_channel_row_widget = None
                 self.__fill_color_widget = None
+                self.__fill_color_edit = None
                 self.__stroke_color_widget = None
+                self.__stroke_color_edit = None
                 if self.__display_layer_property_changed_listener:
                     self.__display_layer_property_changed_listener.close()
                     self.__display_layer_property_changed_listener = None
