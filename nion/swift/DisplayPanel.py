@@ -922,6 +922,9 @@ class MoveDisplayLayerCommand(Undo.UndoableCommand):
             self.__undelete_logs.append(undelete_log)
         else:
             new_display_data_channel = old_display_data_channel
+        # adjust indexes if inserting into the same display item
+        if old_display_item == new_display_item and new_display_layer_index > old_display_layer_index:
+            new_display_layer_index += 1
         # add a new display layer with the old properties
         new_display_item.insert_display_layer_for_display_data_channel(new_display_layer_index, new_display_data_channel, **old_display_layer_properties)
         undelete_log = Changes.UndeleteLog()
