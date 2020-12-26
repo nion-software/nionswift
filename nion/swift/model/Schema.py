@@ -670,6 +670,12 @@ class Entity(Observable.Observable):
     def entity_type(self) -> EntityType:
         return self.__entity_type
 
+    def _set_modified(self, modified: datetime.datetime) -> None:
+        field = self.__get_field("modified")
+        field.set_field_value(self, modified)
+        if self._container:
+            self._container._set_modified(modified)
+
     def __getattr__(self, name: str) -> typing.Any:
         if name in self.__dict__.get("_Entity__field_type_map", dict()):
             return self._get_field_value(name)
@@ -696,6 +702,7 @@ class Entity(Observable.Observable):
         if field:
             field.set_field_value(self, value)
             self._field_value_changed(name, field.write())
+            self._set_modified(datetime.datetime.utcnow())
             self.property_changed_event.fire(name)
         else:
             raise AttributeError()

@@ -5,6 +5,8 @@ Reference: https://en.wikipedia.org/wiki/Data_modeling
 
 from __future__ import annotations
 
+import copy
+import datetime
 import gettext
 import typing
 import uuid
@@ -307,6 +309,7 @@ def transform_forward(d: typing.Dict) -> typing.Dict:
         for display_layer in display_item.get("display_layers", list()):
             display_layer["type"] = "display_layer"
             display_layer["uuid"] = str(uuid.uuid4())
+            display_layer["modified"] = copy.copy(display_item.get("modified", str(datetime.datetime.utcnow())))
             data_index = display_layer.pop("data_index", None)
             if data_index is not None and 0 <= data_index < len(display_data_channels):
                 display_layer["display_data_channel"] = display_data_channels[data_index]["uuid"]
@@ -320,6 +323,7 @@ def transform_backward(d: typing.Dict) -> typing.Dict:
         for display_layer in display_item.get("display_layers", list()):
             display_layer.pop("type", None)
             display_layer.pop("uuid", None)
+            display_layer.pop("modified", None)
             display_data_channel_uuid = display_layer.pop("display_data_channel", None)
             data_index = display_data_channel_map.get(display_data_channel_uuid, None)
             if data_index is not None:

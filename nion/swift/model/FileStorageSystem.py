@@ -959,7 +959,7 @@ class MemoryProjectStorageSystem(ProjectStorageSystem):
 
     def _write_properties(self) -> None:
         self.__library_properties.clear()
-        self.__library_properties.update(copy.deepcopy(self.get_storage_properties()))
+        self.__library_properties.update(Model.transform_backward(copy.deepcopy(self.get_storage_properties())))
 
     def _get_identifier(self) -> str:
         return "memory"

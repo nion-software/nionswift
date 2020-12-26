@@ -25,6 +25,19 @@ class TestSchemaClass(unittest.TestCase):
         self.assertIn("uuid", d)
         self.assertIn("modified", d)
 
+    def test_entity_updates_modified_and_parent_when_property_changes(self):
+        ItemModel = Schema.entity("item", None, None, {"flag": Schema.prop(Schema.BOOLEAN)})
+        item = ItemModel.create()
+        self.assertIsNotNone(item.uuid)
+        self.assertIsNotNone(item.modified)
+        d = item.write_to_dict()
+        self.assertIn("uuid", d)
+        self.assertIn("modified", d)
+        m = item.modified
+        item._set_field_value("flag", False)
+        item._set_field_value("flag", True)
+        self.assertLess(m, item.modified)
+
     def test_reference_is_initially_none(self):
         ItemModel = Schema.entity("item", None, None, {"flag": Schema.prop(Schema.BOOLEAN)})
         RefModel = Schema.entity("ref", None, None, {"item": Schema.reference(ItemModel)})

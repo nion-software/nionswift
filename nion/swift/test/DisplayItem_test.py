@@ -375,6 +375,7 @@ class TestDisplayItemClass(unittest.TestCase):
                 display_item = document_model.get_display_item_for_data_item(data_item)
                 display_layer = typing.cast(DisplayItem.DisplayLayer, display_item.display_layers[0])
                 self.assertEqual("red", display_layer.fill_color)
+                display_layer.fill_color = "blue"  # should be able to set value after reload. failed once.
 
     def test_display_layers_reload_after_inserting_and_removing(self):
         with create_memory_profile_context() as profile_context:
