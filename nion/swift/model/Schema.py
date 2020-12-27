@@ -672,7 +672,8 @@ class Entity(Observable.Observable):
 
     def _set_modified(self, modified: datetime.datetime) -> None:
         field = self.__get_field("modified")
-        field.set_field_value(self, modified)
+        if field:
+            field.set_field_value(self, modified)
         if self._container:
             self._container._set_modified(modified)
 
