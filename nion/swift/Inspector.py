@@ -685,23 +685,31 @@ class ChangeDisplayLayerDisplayDataChannelCommand(Undo.UndoableCommand):
         self.__document_model = document_model
         self.__display_item_proxy = display_item.create_proxy()
         self.__display_layer_index = display_layer_index
-        self.__display_data_channel_proxy = display_data_channel.create_proxy()
+        self.__display_data_channel_proxy = display_data_channel.create_proxy() if display_data_channel else None
         self.initialize()
 
     def close(self):
         self.__document_model = None
         self.__display_item_proxy.close()
         self.__display_item_proxy = None
-        self.__display_data_channel_proxy.close()
-        self.__display_data_channel_proxy = None
+        if self.__display_data_channel_proxy:
+            self.__display_data_channel_proxy.close()
+            self.__display_data_channel_proxy = None
         super().close()
 
     def perform(self):
         display_item = typing.cast(DisplayItem.DisplayItem, self.__display_item_proxy.item)
-        display_data_channel = typing.cast(DisplayItem.DisplayItem, self.__display_data_channel_proxy.item)
+        display_data_channel = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_data_channel_proxy.item if self.__display_data_channel_proxy else None)
         old_display_data_channel = display_item.get_display_layer_display_data_channel(self.__display_layer_index)
         display_item.set_display_layer_display_data_channel(self.__display_layer_index, display_data_channel)
-        self.__display_data_channel_proxy.item = old_display_data_channel
+        if old_display_data_channel:
+            if not self.__display_data_channel_proxy:
+                self.__display_data_channel_proxy = old_display_data_channel.create_proxy() if old_display_data_channel else None
+            else:
+                self.__display_data_channel_proxy.item = old_display_data_channel
+        elif self.__display_data_channel_proxy:
+            self.__display_data_channel_proxy.close()
+            self.__display_data_channel_proxy = None
 
     def _get_modified_state(self):
         display_item = typing.cast(DisplayItem.DisplayItem, self.__display_item_proxy.item)
@@ -761,6 +769,7 @@ class LinePlotDisplayLayersInspectorSection(InspectorSection):
             document_controller.push_undo_command(command)
 
         def change_data_index(data_index_widget: UserInterface.LineEditWidget, display_layer: DisplayItem.DisplayLayer, data_index: int) -> None:
+            data_index = Converter.IntegerToStringConverter(pass_none=True).convert_back(data_index)
             display_data_channel = display_item.display_data_channels[data_index] if data_index is not None else None
             index = display_item.display_layers.index(display_layer)
             command = ChangeDisplayLayerDisplayDataChannelCommand(document_controller.document_model, display_item, index, display_data_channel)
@@ -769,7 +778,7 @@ class LinePlotDisplayLayersInspectorSection(InspectorSection):
             data_index_widget.select_all()
 
         def change_data_row(data_row_widget: UserInterface.LineEditWidget, display_layer: DisplayItem.DisplayLayer, data_row: str) -> None:
-            data_row = int(data_row) if data_row.isdigit() else 0
+            data_row = Converter.IntegerToStringConverter().convert_back(data_row)
             index = display_item.display_layers.index(display_layer)
             command = ChangeDisplayLayerPropertyCommand(document_controller.document_model, display_item, index, "data_row", data_row)
             command.perform()
@@ -824,6 +833,7 @@ class LinePlotDisplayLayersInspectorSection(InspectorSection):
                 remove_layer_button_widget.on_button_clicked = functools.partial(remove_layer, display_layer)
                 # content: display data channel, row
                 display_data_channel_index_widget = ui.create_line_edit_widget(properties={"width": 36})
+                display_data_channel_index_widget.widget_id = "display_data_channel_index_widget"
                 display_data_channel_row_widget = ui.create_line_edit_widget(properties={"width": 36})
                 content_row = ui.create_row_widget(properties={"spacing": 12})
                 content_row.add(ui.create_label_widget(_("Data Index")))

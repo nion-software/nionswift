@@ -1380,6 +1380,26 @@ class TestInspectorClass(unittest.TestCase):
             command.redo()
             self.assertEqual(display_item.display_data_channels[2], display_item.get_display_layer_display_data_channel(1))
 
+    def test_setting_display_layer_to_no_display_data_channel_and_back(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            display_panel = document_controller.selected_display_panel
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((8,)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_layer = typing.cast(DisplayItem.DisplayLayer, display_item.display_layers[0])
+            display_layer.display_data_channel = None
+            display_panel.set_display_panel_display_item(display_item)
+            document_controller.periodic()
+            inspector_panel = document_controller.find_dock_panel("inspector-panel")
+            display_data_channel_index_widget = inspector_panel.widget.find_widget_by_id("display_data_channel_index_widget")
+            display_data_channel_index_widget.on_editing_finished(None)
+            display_data_channel_index_widget.on_editing_finished(0)
+            display_data_channel_index_widget.on_editing_finished("")
+            display_data_channel_index_widget.on_editing_finished("A")
+            display_data_channel_index_widget.on_editing_finished(0)
+
     def test_graphic_property_binding_handles_removed_graphic(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()

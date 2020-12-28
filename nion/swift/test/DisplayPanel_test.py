@@ -1,6 +1,7 @@
 # standard libraries
 import contextlib
 import logging
+import typing
 import unittest
 import uuid
 import weakref
@@ -11,8 +12,6 @@ import numpy
 # local libraries
 from nion.data import Calibration
 from nion.data import DataAndMetadata
-from nion.swift import Application
-from nion.swift import DocumentController
 from nion.swift import DisplayPanel
 from nion.swift import Facade
 from nion.swift import ImageCanvasItem

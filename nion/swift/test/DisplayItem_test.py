@@ -377,6 +377,22 @@ class TestDisplayItemClass(unittest.TestCase):
                 self.assertEqual("red", display_layer.fill_color)
                 display_layer.fill_color = "blue"  # should be able to set value after reload. failed once.
 
+    def test_display_layer_property_reloads_with_no_display_data_channel(self):
+        with create_memory_profile_context() as profile_context:
+            document_model = profile_context.create_document_model(auto_close=False)
+            with contextlib.closing(document_model):
+                data_item = DataItem.DataItem(numpy.zeros((8,)))
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                display_layer = typing.cast(DisplayItem.DisplayLayer, display_item.display_layers[0])
+                display_layer.display_data_channel = None
+            document_model = profile_context.create_document_model(auto_close=False)
+            with contextlib.closing(document_model):
+                data_item = document_model.data_items[0]
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                display_layer = typing.cast(DisplayItem.DisplayLayer, display_item.display_layers[0])
+                self.assertIsNone(display_layer.display_data_channel)
+
     def test_display_layers_reload_after_inserting_and_removing(self):
         with create_memory_profile_context() as profile_context:
             document_model = profile_context.create_document_model(auto_close=False)
