@@ -4,6 +4,7 @@ import copy
 import gc
 import random
 import time
+import typing
 import unittest
 import uuid
 import weakref
@@ -2353,6 +2354,36 @@ class TestDocumentModelClass(unittest.TestCase):
                 self.assertEqual(1, len(DocumentModel.MappedItemManager().item_map.keys()))
                 document_model.remove_data_item(data_item)
                 self.assertEqual(0, len(DocumentModel.MappedItemManager().item_map.keys()))
+
+    def test_related_items_changed_event_fires_when_new_display_data_channel_added(self):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            data_item1 = DataItem.DataItem(numpy.zeros((2, 2)))
+            data_item2 = DataItem.DataItem(numpy.zeros((2, 2)))
+            document_model.append_data_item(data_item1)
+            document_model.append_data_item(data_item2)
+            display_item1 = document_model.get_display_item_for_data_item(data_item1)
+            line_profile_data_item1 = document_model.get_line_profile_new(display_item1, display_item1.data_item)
+            line_profile_display_item1 = document_model.get_display_item_for_data_item(line_profile_data_item1)
+            display_item2 = document_model.get_display_item_for_data_item(data_item2)
+            line_profile_data_item2 = document_model.get_line_profile_new(display_item2, display_item2.data_item)
+            self.assertEqual([display_item1], document_model.get_source_display_items(line_profile_display_item1))
+            related_items_did_change = False
+
+            def related_items_changed(display_item: DisplayItem.DisplayItem,
+                                      source_display_items: typing.List[DisplayItem.DisplayItem],
+                                      dependent_display_items: typing.List[DisplayItem.DisplayItem]) -> None:
+                nonlocal related_items_did_change
+                related_items_did_change = True
+
+            with contextlib.closing(document_model.related_items_changed.listen(related_items_changed)):
+                line_profile_display_item1.append_display_data_channel_for_data_item(line_profile_data_item2)
+                self.assertEqual([display_item1, display_item2], document_model.get_source_display_items(line_profile_display_item1))
+                self.assertTrue(related_items_did_change)
+                related_items_did_change = False
+                line_profile_display_item1.remove_display_data_channel(line_profile_display_item1.display_data_channels[1]).close()
+                self.assertEqual([display_item1], document_model.get_source_display_items(line_profile_display_item1))
+                self.assertTrue(related_items_did_change)
 
     # solve problem of where to create new elements (same library), generally shouldn't create data items for now?
     # way to configure display for new data items?

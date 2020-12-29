@@ -421,7 +421,7 @@ class RelatedIconsCanvasItem(CanvasItem.CanvasItemComposition):
     def _dependent_thumbnails(self):
         return self.__dependent_thumbnails
 
-    def __related_items_changed(self, display_item, source_display_items, dependent_display_items):
+    def __related_items_changed(self, display_item: DisplayItem.DisplayItem, source_display_items: typing.List[DisplayItem.DisplayItem], dependent_display_items: typing.List[DisplayItem.DisplayItem]) -> None:
         if self.__document_model.are_display_items_equal(display_item, self.__display_item):
             self.__source_thumbnails.remove_all_canvas_items()
             self.__dependent_thumbnails.remove_all_canvas_items()

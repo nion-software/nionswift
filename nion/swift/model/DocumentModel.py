@@ -673,6 +673,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.__data_structures = list()
         self.__computations = list()
         self.__connections = list()
+        self.__display_item_item_inserted_listeners = dict()
+        self.__display_item_item_removed_listeners = dict()
         self.__data_items_to_append_lock = threading.RLock()
         self.__data_items_to_append: typing.List[typing.Tuple[str, DataItem.DataItem]] = list()
         self.session_id = None
@@ -832,6 +834,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.__computation_thread_pool.close()
         self.__transaction_manager.close()
         self.__transaction_manager = None
+
+        for display_item in self.__display_items:
+            self.__display_item_item_inserted_listeners.pop(display_item).close()
+            self.__display_item_item_removed_listeners.pop(display_item).close()
 
         if self.__project_item_inserted_listener:
             self.__project_item_inserted_listener.close()
@@ -1108,6 +1114,18 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         # insert in internal list
         before_index = len(self.__display_items)
         self.__display_items.append(display_item)
+        def item_changed(display_item: DisplayItem.DisplayItem, name: str, value, index: int) -> None:
+            # pass display item because display data channel might be being removed in which case it will have no container.
+            if name == "display_data_channels":
+                # handle cases where a display data channel is added or removed.
+                # update the related items. this is a blunt approach - they may not
+                # have changed, but a display update is relatively cheap.
+                assert display_item
+                source_display_items = self.get_source_display_items(display_item) if display_item else list()
+                dependent_display_items = self.get_dependent_display_items(display_item) if display_item else list()
+                self.related_items_changed.fire(display_item, source_display_items, dependent_display_items)
+        self.__display_item_item_inserted_listeners[display_item] = display_item.item_inserted_event.listen(functools.partial(item_changed, display_item))
+        self.__display_item_item_removed_listeners[display_item] = display_item.item_removed_event.listen(functools.partial(item_changed, display_item))
         # send notifications
         self.notify_insert_item("display_items", display_item, before_index)
 
@@ -1118,6 +1136,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         index = self.__display_items.index(display_item)
         self.notify_remove_item("display_items", display_item, index)
         self.__display_items.remove(display_item)
+        self.__display_item_item_inserted_listeners.pop(display_item).close()
+        self.__display_item_item_removed_listeners.pop(display_item).close()
 
     def __start_project_read(self) -> None:
         pass
