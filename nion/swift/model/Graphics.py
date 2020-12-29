@@ -1120,6 +1120,38 @@ class LineTypeGraphic(Graphic):
     def angle(self, value):
         self.end = Geometry.FloatPoint.make(self.start) + self.length * Geometry.FloatSize(height=-math.sin(value), width=math.cos(value))
 
+    @property
+    def start_x(self):
+        return self.start[1]
+
+    @start_x.setter
+    def start_x(self, value):
+        self.start = self.start[0], value
+
+    @property
+    def start_y(self):
+        return self.start[0]
+
+    @start_y.setter
+    def start_y(self, value):
+        self.start = value, self.start[1]
+
+    @property
+    def end_x(self):
+        return self.end[1]
+
+    @end_x.setter
+    def end_x(self, value):
+        self.end = self.end[0], value
+
+    @property
+    def end_y(self):
+        return self.end[0]
+
+    @end_y.setter
+    def end_y(self, value):
+        self.end = value, self.end[1]
+
     # dependent properties
     def __vector_changed(self, name, value):
         self._property_changed(name, value)

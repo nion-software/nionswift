@@ -1021,8 +1021,8 @@ class GraphicHandler:
                 display_item = graphic.container
                 index = 1 if property == "center_x" else 0
                 graphic_name = "rectangle"
-                center_model = Inspector.GraphicPropertyCommandModel(self.document_controller, display_item, graphic, "center", title=_("Change {} Center").format(graphic_name), command_id="change_" + graphic_name + "_center")
-                return Inspector.CalibratedValueBinding(index, display_item, ClosingTuplePropertyBinding(center_model, "value", index))
+                property_model = Inspector.GraphicPropertyCommandModel(self.document_controller, display_item, graphic, "center", title=_("Change {} Center").format(graphic_name), command_id="change_" + graphic_name + "_center")
+                return Inspector.CalibratedValueBinding(index, display_item, ClosingTuplePropertyBinding(property_model, "value", index))
             elif property in ("width", "height"):
                 graphic = source
                 display_item = graphic.container
@@ -1036,6 +1036,41 @@ class GraphicHandler:
                 graphic_name = "rectangle"
                 rotation_model = Inspector.GraphicPropertyCommandModel(self.document_controller, display_item, graphic, "rotation", title=_("Change {} Rotation").format(graphic_name), command_id="change_" + graphic_name + "_size")
                 return ClosingPropertyBinding(rotation_model, "value", converter=Inspector.RadianToDegreeStringConverter())
+        if isinstance(source, Graphics.LineTypeGraphic):
+            if property in ("start_x", "start_y"):
+                graphic = source
+                display_item = graphic.container
+                index = 1 if property == "start_x" else 0
+                graphic_name = "line_profile"
+                property_model = Inspector.GraphicPropertyCommandModel(self.document_controller, display_item, graphic, "start", title=_("Change {} Start").format(graphic_name), command_id="change_" + graphic_name + "_start")
+                return Inspector.CalibratedValueBinding(index, display_item, ClosingTuplePropertyBinding(property_model, "value", index))
+            if property in ("end_x", "end_y"):
+                graphic = source
+                display_item = graphic.container
+                index = 1 if property == "end_x" else 0
+                graphic_name = "line_profile"
+                property_model = Inspector.GraphicPropertyCommandModel(self.document_controller, display_item, graphic, "end", title=_("Change {} End").format(graphic_name), command_id="change_" + graphic_name + "_end")
+                return Inspector.CalibratedValueBinding(index, display_item, ClosingTuplePropertyBinding(property_model, "value", index))
+            if property == "length":
+                graphic = source
+                display_item = graphic.container
+                graphic_name = "line_profile"
+                property_model1 = Inspector.GraphicPropertyCommandModel(self.document_controller, display_item, graphic, "start", title=_("Change {} Length").format(graphic_name), command_id="change_" + graphic_name + "_length_start")
+                property_model2 = Inspector.GraphicPropertyCommandModel(self.document_controller, display_item, graphic, "end", title=_("Change {} Length").format(graphic_name), command_id="change_" + graphic_name + "_length_end")
+                return Inspector.CalibratedLengthBinding(display_item, ClosingPropertyBinding(property_model1, "value"), ClosingPropertyBinding(property_model2, "value"))
+            if property == "angle":
+                graphic = source
+                display_item = graphic.container
+                graphic_name = "line_profile"
+                property_model = Inspector.GraphicPropertyCommandModel(self.document_controller, display_item, graphic, "angle", title=_("Change {} Angle").format(graphic_name), command_id="change_" + graphic_name + "_angle")
+                return Inspector.CalibratedBinding(display_item, ClosingPropertyBinding(property_model, "value"), Inspector.RadianToDegreeStringConverter())
+        if isinstance(source, Graphics.LineProfileGraphic):
+            if property == "width":
+                graphic = source
+                display_item = graphic.container
+                graphic_name = "line_profile"
+                property_model = Inspector.GraphicPropertyCommandModel(self.document_controller, display_item, graphic, "width", title=_("Change {} Line Width").format(graphic_name), command_id="change_" + graphic_name + "_line_width")
+                return Inspector.CalibratedWidthBinding(display_item, ClosingPropertyBinding(property_model, "value"))
         return None
 
     @classmethod
@@ -1066,7 +1101,31 @@ class GraphicHandler:
                 u.create_label(text=_("Rotation (deg)")),
                 u.create_line_edit(text="@binding(graphic.rotation_deg)", width=90),
                 u.create_stretch(), spacing=12)
-            return u.create_column( position_row, size_row, rotation_row, spacing=8)
+            return u.create_column(position_row, size_row, rotation_row, spacing=8)
+        if isinstance(graphic, Graphics.LineProfileGraphic):
+            start_row = u.create_row(
+                u.create_label(text=_("X0"), width=24),
+                u.create_line_edit(text="@binding(graphic.start_x)", width=90),
+                u.create_label(text=_("Y0"), width=24),
+                u.create_line_edit(text="@binding(graphic.start_y)", width=90),
+                u.create_stretch(), spacing=12)
+            end_row = u.create_row(
+                u.create_label(text=_("X1"), width=24),
+                u.create_line_edit(text="@binding(graphic.end_x)", width=90),
+                u.create_label(text=_("Y1"), width=24),
+                u.create_line_edit(text="@binding(graphic.end_y)", width=90),
+                u.create_stretch(), spacing=12)
+            length_row = u.create_row(
+                u.create_label(text=_("Length"), width=24),
+                u.create_line_edit(text="@binding(graphic.length)", width=90),
+                u.create_label(text=_("Angle"), width=24),
+                u.create_line_edit(text="@binding(graphic.angle)", width=90),
+                u.create_stretch(), spacing=12)
+            line_width_row = u.create_row(
+                u.create_label(text=_("Width"), width=24),
+                u.create_line_edit(text="@binding(graphic.width)", width=90),
+                u.create_stretch(), spacing=12)
+            return u.create_column(start_row, end_row, length_row, line_width_row, spacing=8)
         return u.create_label(text=_("Unsupported Graphic") + f" {graphic.type}")
 
 
