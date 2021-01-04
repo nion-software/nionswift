@@ -33,7 +33,7 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
         self.define_property("source_specifier", changed=self.__source_specifier_changed, key="source_uuid")
         # properties is handled explicitly
         self.data_structure_changed_event = Event.Event()
-        self.referenced_objects_changed_event = Event.Event()
+        self.data_structure_objects_changed_event = Event.Event()
         self.__source_reference = self.create_item_reference(item=source)
         self.source_specifier = source.project.create_specifier(source).write() if source else None
         self.__entity: typing.Optional[Schema.Entity] = None
@@ -200,7 +200,7 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
             self.data_structure_changed_event.fire(property)
             self.property_changed_event.fire(property)
             self._update_persistent_property("properties", self.__properties)
-            self.referenced_objects_changed_event.fire()
+            self.data_structure_objects_changed_event.fire()
 
     def remove_referenced_object(self, property: str) -> None:
         self.remove_property_value(property)

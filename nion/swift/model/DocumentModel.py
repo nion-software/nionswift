@@ -233,11 +233,16 @@ class TransactionManager:
             if isinstance(item, DisplayItem.DisplayItem):
                 for display_data_channel in item.display_data_channels:
                     self.__get_deep_transaction_item_set(display_data_channel, items)
+                for display_layer in item.display_layers:
+                    self.__get_deep_transaction_item_set(display_layer, items)
                 for graphic in item.graphics:
                     self.__get_deep_transaction_item_set(graphic, items)
             if isinstance(item, DisplayItem.DisplayDataChannel):
                 if item.data_item:
                     self.__get_deep_transaction_item_set(item.data_item, items)
+            if isinstance(item, DisplayItem.DisplayLayer):
+                if item.display_data_channel:
+                    self.__get_deep_transaction_item_set(item.display_data_channel, items)
             if isinstance(item, DataItem.DataItem):
                 for display_item in self.__document_model.get_display_items_for_data_item(item):
                     self.__get_deep_transaction_item_set(display_item, items)
@@ -2159,7 +2164,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.__data_structures.append(data_structure)
         # listeners
         def rebuild_transactions(): self.__transaction_manager._rebuild_transactions()
-        self.__data_structure_listeners[data_structure] = data_structure.referenced_objects_changed_event.listen(rebuild_transactions)
+        self.__data_structure_listeners[data_structure] = data_structure.data_structure_objects_changed_event.listen(rebuild_transactions)
         # transactions
         self.__transaction_manager._add_item(data_structure)
         # computation rebinding
