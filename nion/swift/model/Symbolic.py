@@ -606,7 +606,6 @@ class BoundItemBase:
         self.specifier = specifier
         self.changed_event = Event.Event()
         self.needs_rebind_event = Event.Event()
-        self.property_changed_event = Event.Event()
         self.valid = False
 
     def close(self) -> None:
@@ -946,8 +945,6 @@ class BoundDataStructure(BoundItemBase):
 
         def data_structure_changed(property_name):
             self.changed_event.fire()
-            if self.__property_name and property_name in self.__property_name:
-                self.property_changed_event.fire(property_name)
 
         def item_registered(item):
             self.__changed_listener = item.data_structure_changed_event.listen(data_structure_changed)
@@ -1008,8 +1005,6 @@ class BoundGraphic(BoundItemBase):
             # see the test test_adjusting_interval_on_line_profile_does_not_trigger_recompute
             if not property_name in ("interval_descriptors",):
                 self.changed_event.fire()
-                if property_name == self.__property_name:
-                    self.property_changed_event.fire(property_name)
 
         def item_registered(item):
             self.__changed_listener = item.property_changed_event.listen(property_changed)
@@ -1079,7 +1074,6 @@ class BoundList:
         self.changed_event = Event.Event()
         self.needs_rebind_event = Event.Event()
         self.child_removed_event = Event.Event()
-        self.property_changed_event = Event.Event()
         self.is_list = True
         self.__changed_listeners = list()
         self.__needs_rebind_listeners = list()
