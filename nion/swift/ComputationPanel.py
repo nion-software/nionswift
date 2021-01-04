@@ -368,17 +368,19 @@ class ComputationModel:
             self.__update_error_text(error_text)
         self.document_controller.queue_task(update_computation_display)
 
-    def __variable_inserted(self, index: int, variable: Symbolic.ComputationVariable) -> None:
-        self.variable_inserted_event.fire(index, variable)
-        def handle_property_changed(key: str) -> None:
-            self.__update_computation_display()
-            self.variable_property_changed_event.fire(variable)
-        self.__variable_property_changed_event_listeners[variable.uuid] = variable.property_changed_event.listen(handle_property_changed)
+    def __computation_item_inserted(self, name: str, index: int, variable: Symbolic.ComputationVariable) -> None:
+        if name == "variables":
+            self.variable_inserted_event.fire(index, variable)
+            def handle_property_changed(key: str) -> None:
+                self.__update_computation_display()
+                self.variable_property_changed_event.fire(variable)
+            self.__variable_property_changed_event_listeners[variable.uuid] = variable.property_changed_event.listen(handle_property_changed)
 
-    def __variable_removed(self, index: int, variable: Symbolic.ComputationVariable) -> None:
-        self.variable_removed_event.fire(index, variable)
-        self.__variable_property_changed_event_listeners[variable.uuid].close()
-        del self.__variable_property_changed_event_listeners[variable.uuid]
+    def __computation_item_removed(self, name: str, index: int, variable: Symbolic.ComputationVariable) -> None:
+        if name == "variables":
+            self.variable_removed_event.fire(index, variable)
+            self.__variable_property_changed_event_listeners[variable.uuid].close()
+            del self.__variable_property_changed_event_listeners[variable.uuid]
 
     # not thread safe
     def __set_display_item(self, display_item):
@@ -398,7 +400,7 @@ class ComputationModel:
             computation = self.computation
             if computation:
                 for index, variable in enumerate(computation.variables):
-                    self.__variable_removed(0, variable)
+                    self.__computation_item_removed("variables", 0, variable)
             document_model = self.document_controller.document_model
             self.__display_item = display_item
             self.__computation = select_computation(document_model, display_item)
@@ -411,13 +413,13 @@ class ComputationModel:
                     if property == "error_text":
                         self.__update_computation_display()
                 self.__computation_changed_or_mutated_event_listener = document_model.computation_updated_event.listen(computation_updated)
-                self.__computation_variable_inserted_event_listener = computation.variable_inserted_event.listen(self.__variable_inserted)
-                self.__computation_variable_removed_event_listener = computation.variable_removed_event.listen(self.__variable_removed)
+                self.__computation_variable_inserted_event_listener = computation.item_inserted_event.listen(self.__computation_item_inserted)
+                self.__computation_variable_removed_event_listener = computation.item_removed_event.listen(self.__computation_item_removed)
                 self.__computation_property_changed_event_listener = computation.property_changed_event.listen(property_changed)
             self.__update_computation_display()
             if computation:
                 for index, variable in enumerate(computation.variables):
-                    self.__variable_inserted(index, variable)
+                    self.__computation_item_inserted("variables", index, variable)
 
 
 class ChangeVariableBinding(Binding.PropertyBinding):

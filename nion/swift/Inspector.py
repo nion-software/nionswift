@@ -3216,18 +3216,20 @@ class ComputationInspectorSection(InspectorSection):
             self.add_widget_to_content(self._variables_column_widget)
             self.add_widget_to_content(stretch_column)
 
-            def variable_inserted(index: int, variable: Symbolic.ComputationVariable) -> None:
-                widget_wrapper = VariableWidget(document_controller, computation, variable)
-                self._variables_column_widget.insert(widget_wrapper, index)
+            def variable_inserted(name: str, index: int, variable: Symbolic.ComputationVariable) -> None:
+                if name == "variables":
+                    widget_wrapper = VariableWidget(document_controller, computation, variable)
+                    self._variables_column_widget.insert(widget_wrapper, index)
 
-            def variable_removed(index: int, variable: Symbolic.ComputationVariable) -> None:
-                self._variables_column_widget.remove(self._variables_column_widget.children[index])
+            def variable_removed(name: str, index: int, variable: Symbolic.ComputationVariable) -> None:
+                if name == "variables":
+                    self._variables_column_widget.remove(self._variables_column_widget.children[index])
 
-            self.__computation_variable_inserted_event_listener = computation.variable_inserted_event.listen(variable_inserted)
-            self.__computation_variable_removed_event_listener = computation.variable_removed_event.listen(variable_removed)
+            self.__computation_variable_inserted_event_listener = computation.item_inserted_event.listen(variable_inserted)
+            self.__computation_variable_removed_event_listener = computation.item_removed_event.listen(variable_removed)
 
             for index, variable in enumerate(computation.variables):
-                variable_inserted(index, variable)
+                variable_inserted("variables", index, variable)
         else:
             none_label = self.ui.create_label_widget(_("None"))
             none_label.text_font = "italic"

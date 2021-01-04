@@ -1154,7 +1154,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.define_property("error_text", hidden=True, changed=self.__error_changed)
         self.define_property("label", hidden=True, changed=self.__label_changed)
         self.define_property("processing_id")  # see note above
-        self.define_relationship("variables", variable_factory)
+        self.define_relationship("variables", variable_factory, insert=self.__variable_inserted, remove=self.__variable_removed)
         self.define_relationship("results", result_factory)
         self.attributes = dict()  # not persistent, defined by underlying class
         self.__source_reference = self.create_item_reference()
@@ -1165,8 +1165,6 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.needs_update = expression is not None
         self.computation_mutated_event = Event.Event()
         self.computation_output_changed_event = Event.Event()
-        self.variable_inserted_event = Event.Event()
-        self.variable_removed_event = Event.Event()
         self.is_initial_computation_complete = threading.Event()  # helpful for waiting for initial computation
         self._evaluation_count_for_test = 0
         self._inputs = set()  # used by document model for tracking dependencies
@@ -1274,24 +1272,30 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.notify_property_changed(name)
         self.computation_mutated_event.fire()
 
+    def __variable_inserted(self, name: str, before_index: int, variable: ComputationVariable) -> None:
+        assert name == "variables"
+        if not self._is_reading:
+            if self.persistent_object_context:
+                self.__bind_variable(variable)
+            self.computation_mutated_event.fire()
+            self.needs_update = True
+            self.notify_insert_item("variables", variable, before_index)
+
+    def __variable_removed(self, name: str, index: int, variable: ComputationVariable) -> None:
+        assert name == "variables"
+        self.__unbind_variable(variable)
+        self.computation_mutated_event.fire()
+        self.needs_update = True
+        self.notify_remove_item("variables", variable, index)
+
     def add_variable(self, variable: ComputationVariable) -> None:
         self.insert_variable(len(self.variables), variable)
 
     def insert_variable(self, index: int, variable: ComputationVariable) -> None:
         self.insert_item("variables", index, variable)
-        if self.persistent_object_context:
-            self.__bind_variable(variable)
-        self.variable_inserted_event.fire(index, variable)
-        self.computation_mutated_event.fire()
-        self.needs_update = True
 
     def remove_variable(self, variable: ComputationVariable) -> None:
-        self.__unbind_variable(variable)
-        index = self.item_index("variables", variable)
         self.remove_item("variables", variable)
-        self.variable_removed_event.fire(index, variable)
-        self.computation_mutated_event.fire()
-        self.needs_update = True
 
     def create_variable(self, name: str = None, value_type: str = None, value=None, value_default=None, value_min=None,
                         value_max=None, control_type: str = None,
