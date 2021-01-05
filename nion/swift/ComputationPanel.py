@@ -1286,7 +1286,7 @@ class VariableHandler:
             graphic_content = GraphicHandler.make_component_content(graphic)
             label_row = u.create_row(
                 u.create_label(text="@binding(variable.display_label)"),
-                u.create_label(text=f"#{container.items.index(item)}"),
+                u.create_label(text=f"#{container._bound_items.index(item)}"),
                 u.create_stretch(), spacing=8)
             return u.define_component(u.create_column(label_row, graphic_content, spacing=8))
         if resource_id == "structure":
@@ -1340,8 +1340,8 @@ class VariableHandler:
             return u.create_column(label, u.create_component_instance("graphic"), spacing=8)
         elif variable.variable_type == "structure":
             return u.create_column(u.create_component_instance("structure"), spacing=8)
-        elif variable.bound_items_model:
-            return u.create_column(u.create_column(items="variable.bound_items_model.items", item_component_id="graphic_item", spacing=8), spacing=8)
+        elif variable.is_list:
+            return u.create_column(u.create_column(items="variable._bound_items", item_component_id="graphic_item", spacing=8), spacing=8)
         else:
             return u.create_column(label, u.create_label(text=_("Missing") + " " + f"[{variable.variable_type}]"), spacing=8)
 
