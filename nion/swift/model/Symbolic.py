@@ -11,14 +11,12 @@
 import ast
 import contextlib
 import copy
+import difflib
 import functools
 import threading
 import time
 import typing
 import uuid
-
-# third party libraries
-import numpy
 
 # local libraries
 from nion.data import Core
@@ -32,7 +30,6 @@ from nion.swift.model import Persistence
 from nion.utils import Converter
 from nion.utils import Event
 from nion.utils import Geometry
-from nion.utils import ListModel
 from nion.utils import Observable
 
 if typing.TYPE_CHECKING:
@@ -59,6 +56,38 @@ class ComputationVariableType:
         del self.__objects[object.uuid]
 
 
+def create_bound_item(computation: "Computation", specifier: typing.Dict, secondary_specifier: typing.Optional[typing.Dict] = None, property_name: typing.Optional[str] = None) -> typing.Optional["BoundItemBase"]:
+    bound_item = None
+    if specifier and specifier.get("version") == 1:
+        specifier_type = specifier["type"]
+        assert computation
+        project = computation.container or computation.pending_project
+        if specifier_type == "data_source":
+            bound_item = BoundDataSource(project, specifier, secondary_specifier)
+        elif specifier_type == "data_item":
+            bound_item = BoundDataItem(project, specifier)
+        elif specifier_type == "xdata":
+            bound_item = BoundData(project, specifier)
+        elif specifier_type == "display_xdata":
+            bound_item = BoundDisplayData(project, specifier, secondary_specifier)
+        elif specifier_type == "cropped_xdata":
+            bound_item = BoundCroppedData(project, specifier, secondary_specifier)
+        elif specifier_type == "cropped_display_xdata":
+            bound_item = BoundCroppedDisplayData(project, specifier, secondary_specifier)
+        elif specifier_type == "filter_xdata":
+            bound_item = BoundFilterData(project, specifier, secondary_specifier)
+        elif specifier_type == "filtered_xdata":
+            bound_item = BoundFilteredData(project, specifier, secondary_specifier)
+        elif specifier_type == "structure":
+            bound_item = BoundDataStructure(project, specifier, property_name)
+        elif specifier_type == "graphic":
+            bound_item = BoundGraphic(project, specifier, property_name)
+    if bound_item and not bound_item.valid:
+        bound_item.close()
+        bound_item = None
+    return bound_item
+
+
 class ComputationOutput(Observable.Observable, Persistence.PersistentObject):
     """Tracks an output of a computation."""
 
@@ -71,13 +100,17 @@ class ComputationOutput(Observable.Observable, Persistence.PersistentObject):
         self.define_property("specifiers", specifiers, hidden=True, changed=self.__property_changed)
         self.needs_rebind_event = Event.Event()  # an event to be fired when the computation needs to rebind
         self.__bound_item = None
-        self.__needs_rebind_event_listeners = list()
+        self.__bound_item_base_item_inserted_event_listeners = list()
+        self.__bound_item_base_item_removed_event_listeners = list()
 
     def close(self):
         self.bound_item = None
-        for needs_rebind_event_listener in self.__needs_rebind_event_listeners:
-            needs_rebind_event_listener.close()
-        self.__needs_rebind_event_listeners = None
+        for listener in self.__bound_item_base_item_inserted_event_listeners:
+            listener.close()
+        self.__bound_item_base_item_inserted_event_listeners = None
+        for listener in self.__bound_item_base_item_removed_event_listeners:
+            listener.close()
+        self.__bound_item_base_item_removed_event_listeners = None
         super().close()
 
     @property
@@ -111,26 +144,34 @@ class ComputationOutput(Observable.Observable, Persistence.PersistentObject):
     def _specifiers(self, value):
         self._set_persistent_property_value("specifiers", value)
 
-    def __property_changed(self, name, value):
+    def __property_changed(self, name: str, value) -> None:
         self.notify_property_changed(name)
         if name in ("specifier", "specifiers"):
+            if self.container:
+                self.bind(functools.partial(create_bound_item, self.container))
             self.needs_rebind_event.fire()
 
-    def __unbind(self):
+    def __unbind(self) -> None:
         # self.specifier = None
         self.bound_item = None
         self.notify_property_changed("bound_item")
 
     def bind(self, resolve_object_specifier_fn):
+        def m(name: str, value, index: int) -> None:
+            if name == "base_items":
+                self.__unbind()
+
         if self._specifier:
             self.bound_item = resolve_object_specifier_fn(self._specifier)
             if self.bound_item:
-                self.__needs_rebind_event_listeners.append(self.bound_item.needs_rebind_event.listen(self.__unbind))
+                self.__bound_item_base_item_inserted_event_listeners.append(self.bound_item.item_inserted_event.listen(m))
+                self.__bound_item_base_item_removed_event_listeners.append(self.bound_item.item_removed_event.listen(m))
         elif self._specifiers is not None:
             bound_items = [resolve_object_specifier_fn(specifier) for specifier in self._specifiers]
             bound_items = [bound_item for bound_item in bound_items if bound_item is not None]
             for bound_item in bound_items:
-                self.__needs_rebind_event_listeners.append(bound_item.needs_rebind_event.listen(self.__unbind))
+                self.__bound_item_base_item_inserted_event_listeners.append(bound_item.item_inserted_event.listen(m))
+                self.__bound_item_base_item_removed_event_listeners.append(bound_item.item_removed_event.listen(m))
             self.bound_item = bound_items
         else:
             self.bound_item = None
@@ -205,12 +246,12 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
         self.define_property("object_specifiers", copy.deepcopy(item_specifiers) if item_specifiers is not None else None, changed=self.__property_changed)
         self.changed_event = Event.Event()
         self.variable_type_changed_event = Event.Event()
-        self.needs_rebind_event = Event.Event()  # an event to be fired when the computation needs to rebind
         self.needs_rebuild_event = Event.Event()  # an event to be fired when the UI needs a rebuild
         self.__bound_item = None
         self.__bound_item_changed_event_listener = None
-        self.__bound_item_removed_event_listener = None
         self.__bound_item_child_removed_event_listener = None
+        self.__bound_item_base_item_inserted_event_listener = None
+        self.__bound_item_base_item_removed_event_listener = None
 
     def __repr__(self):
         return "{} ({} {} {} {} {})".format(super().__repr__(), self.name, self.label, self.value, self._specifier, self._secondary_specifier)
@@ -255,7 +296,6 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
         self.object_specifiers = object_specifiers
         self.bound_item.item_inserted(index, value)
         self.notify_insert_item("_bound_items", value, index)
-        self.needs_rebind_event.fire()
 
     def _remove_bound_item_from_list(self, index: int) -> None:
         # self.changed_event.fire()  # implicit when setting object_specifiers
@@ -265,7 +305,6 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
         value = self.bound_item.get_items()[index]
         self.bound_item.item_removed(index)
         self.notify_remove_item("_bound_items", value, index)
-        self.needs_rebind_event.fire()
 
     def save_properties(self):
         # used for undo
@@ -384,19 +423,23 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
         if self.__bound_item_changed_event_listener:
             self.__bound_item_changed_event_listener.close()
             self.__bound_item_changed_event_listener = None
-        if self.__bound_item_removed_event_listener:
-            self.__bound_item_removed_event_listener.close()
-            self.__bound_item_removed_event_listener = None
         if self.__bound_item_child_removed_event_listener:
             self.__bound_item_child_removed_event_listener.close()
             self.__bound_item_child_removed_event_listener = None
+        if self.__bound_item_base_item_inserted_event_listener:
+            self.__bound_item_base_item_inserted_event_listener.close()
+            self.__bound_item_base_item_inserted_event_listener = None
+        if self.__bound_item_base_item_removed_event_listener:
+            self.__bound_item_base_item_removed_event_listener.close()
+            self.__bound_item_base_item_removed_event_listener = None
         if self.__bound_item:
             self.__bound_item.close()
         self.__bound_item = bound_item
         self.notify_property_changed("bound_item")
         if self.__bound_item:
             self.__bound_item_changed_event_listener = self.__bound_item.changed_event.listen(self.changed_event.fire)
-            self.__bound_item_removed_event_listener = self.__bound_item.needs_rebind_event.listen(self.needs_rebind_event.fire)
+            self.__bound_item_base_item_inserted_event_listener = self.__bound_item.item_inserted_event.listen(self.item_inserted_event.fire)
+            self.__bound_item_base_item_removed_event_listener = self.__bound_item.item_removed_event.listen(self.item_removed_event.fire)
 
     @property
     def is_list(self) -> bool:
@@ -413,7 +456,8 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
     def __property_changed(self, name, value):
         # rebind first, so that property changed listeners get the right value
         if name in ("specifier", "secondary_specifier"):
-            self.needs_rebind_event.fire()
+            if self.container:
+                self.bound_item = create_bound_item(self.container, self._specifier, self._secondary_specifier, self.property_name)
         # send the primary property changed event
         self.notify_property_changed(name)
         # now send out dependent property changed events
@@ -575,13 +619,16 @@ def result_factory(lookup_id):
     return ComputationOutput()
 
 
-class BoundItemBase:
+class BoundItemBase(Observable.Observable):
+    # note: base objects are different from items temporarily while the notification machinery is put in place
 
     def __init__(self, specifier):
+        super().__init__()
         self.specifier = specifier
         self.changed_event = Event.Event()
-        self.needs_rebind_event = Event.Event()
         self.valid = False
+        self.__base_items: typing.List[Persistence.PersistentObject] = list()
+        self.__aa = False
 
     def close(self) -> None:
         pass
@@ -593,6 +640,50 @@ class BoundItemBase:
     @property
     def base_objects(self) -> typing.Set:
         return set()
+
+    @property
+    def base_items(self) -> typing.List[Persistence.PersistentObject]:
+        return self.__base_items
+
+    def _update_base_items(self, base_items: typing.List[Persistence.PersistentObject]) -> None:
+        assert not self.__aa
+        self.__aa = True
+        try:
+            assert all(bi is not None for bi in base_items)
+            before = copy.copy(self.__base_items)
+            base_items = copy.copy(base_items)
+            s = difflib.SequenceMatcher(None, self.__base_items, base_items)
+            # opcodes will describe how to make first list equal to the second list
+            adjust = 0
+            # print(f"{self} ---")
+            for tag, i1, i2, j1, j2 in s.get_opcodes():
+                # print(f"{self} {tag} {i1}:{i2} {j1}:{j2}")
+                # print(f"{self} < {self.__base_items}")
+                if tag == "delete":
+                    for index in range(i1, i2):
+                        self.notify_remove_item("base_items", self.__base_items.pop(i1 + adjust), i1 + adjust)
+                    adjust -= (i2 - i1)
+                elif tag == "replace":
+                    for index in range(i1, i2):
+                        self.notify_remove_item("base_items", self.__base_items.pop(i1 + adjust), i1 + adjust)
+                    for index in range(j1, j2):
+                        self.__base_items.insert(i1 + adjust + (index - j1), base_items[index])
+                        self.notify_insert_item("base_items", base_items[index], i1 + adjust + (index - j1))
+                    adjust += (j2 - j1) - (i2 - i1)
+                elif tag == "insert":
+                    for index in range(j1, j2):
+                        self.__base_items.insert(i1 + adjust + (index - j1), base_items[index])
+                        self.notify_insert_item("base_items", base_items[index], i1 + adjust + (index - j1))
+                    adjust += (j2 - j1)
+                # print(f"{self} > {self.__base_items}")
+            if self.__base_items != base_items:
+                pass
+                # print(f"{self} {before}")
+                # print(f"{self} {self.__base_items}")
+                # print(f"{self} {base_items}")
+            assert self.__base_items == base_items
+        finally:
+            self.__aa = False
 
 
 class BoundData(BoundItemBase):
@@ -611,13 +702,13 @@ class BoundData(BoundItemBase):
             if item:
                 self.__data_changed_event_listener = item.data_changed_event.listen(self.changed_event.fire)
             self.valid = item is not None
+            self._update_base_items(self._get_base_items())
 
         def item_registered(item):
             maintain_data_source()
 
         def item_unregistered(item):
             maintain_data_source()
-            self.needs_rebind_event.fire()
 
         self.__item_proxy.on_item_registered = item_registered
         self.__item_proxy.on_item_unregistered = item_unregistered
@@ -631,6 +722,9 @@ class BoundData(BoundItemBase):
         self.__item_proxy.close()
         self.__item_proxy = None
         super().close()
+
+    def _get_base_items(self) -> typing.List[Persistence.PersistentObject]:
+        return [self._item] if self._item else list()
 
     @property
     def base_objects(self):
@@ -665,13 +759,13 @@ class BoundDisplayDataChannelBase(BoundItemBase):
             if display_data_channel:
                 self.__display_values_changed_event_listener = display_data_channel.add_calculated_display_values_listener(self.changed_event.fire, send=False)
             self.valid = self.__display_values_changed_event_listener is not None
+            self._update_base_items(self._get_base_items())
 
         def item_registered(item):
             maintain_data_source()
 
         def item_unregistered(item):
             maintain_data_source()
-            self.needs_rebind_event.fire()
 
         self.__item_proxy.on_item_registered = item_registered
         self.__item_proxy.on_item_unregistered = item_unregistered
@@ -690,6 +784,17 @@ class BoundDisplayDataChannelBase(BoundItemBase):
         self.__graphic_proxy.close()
         self.__graphic_proxy = None
         super().close()
+
+    def _get_base_items(self) -> typing.List[Persistence.PersistentObject]:
+        base_items = list()
+        if self._display_data_channel:
+            if self._display_data_channel.container:
+                base_items.append(self._display_data_channel.container)
+            if self._display_data_channel.data_item:
+                base_items.append(self._display_data_channel.data_item)
+        if self._graphic:
+            base_items.append(self._graphic)
+        return base_items
 
     @property
     def base_objects(self):
@@ -724,13 +829,13 @@ class BoundDataSource(BoundItemBase):
             if display_data_channel and display_data_channel.data_item:
                 self.__data_source = DataItem.MonitoredDataSource(display_data_channel, self.__graphic_proxy.item, self.changed_event)
             self.valid = self.__data_source is not None
+            self._update_base_items(self._get_base_items())
 
         def item_registered(item):
             maintain_data_source()
 
         def item_unregistered(item):
             maintain_data_source()
-            self.needs_rebind_event.fire()
 
         self.__item_proxy.on_item_registered = item_registered
         self.__item_proxy.on_item_unregistered = item_unregistered
@@ -753,6 +858,15 @@ class BoundDataSource(BoundItemBase):
     @property
     def value(self):
         return self.__data_source
+
+    def _get_base_items(self) -> typing.List[Persistence.PersistentObject]:
+        base_items = list()
+        if self.__data_source:
+            if self.__data_source.data_item:
+                base_items.append(self.__data_source.data_item)
+            if self.__data_source.graphic:
+                base_items.append(self.__data_source.graphic)
+        return base_items
 
     @property
     def base_objects(self):
@@ -780,11 +894,12 @@ class BoundDataItem(BoundItemBase):
 
         def item_registered(item):
             self.__data_item_changed_event_listener = item.data_item_changed_event.listen(self.changed_event.fire)
+            self._update_base_items(self._get_base_items())
 
         def item_unregistered(item):
             self.__data_item_changed_event_listener.close()
             self.__data_item_changed_event_listener = None
-            self.needs_rebind_event.fire()
+            self._update_base_items(self._get_base_items())
 
         self.__item_proxy.on_item_registered = item_registered
         self.__item_proxy.on_item_unregistered = item_unregistered
@@ -807,13 +922,16 @@ class BoundDataItem(BoundItemBase):
     def value(self):
         return self.__item_proxy.item
 
+    def _get_base_items(self) -> typing.List[Persistence.PersistentObject]:
+        return [self._data_item] if self._data_item else list()
+
     @property
     def base_objects(self):
         return {self.value}
 
     @property
     def _data_item(self) -> typing.Optional[DataItem.DataItem]:
-        return self.__item_proxy.item
+        return self.__item_proxy.item if self.__item_proxy else None
 
 
 class BoundDisplayData(BoundDisplayDataChannelBase):
@@ -851,7 +969,95 @@ class BoundCroppedDisplayData(BoundDisplayDataChannelBase):
         return xdata
 
 
-class BoundFilterData(BoundDisplayDataChannelBase):
+class BoundFilterLikeData(BoundItemBase):
+
+    def __init__(self, project, specifier, secondary_specifier):
+        super().__init__(specifier)
+
+        self.__item_proxy = project.create_item_proxy(item_specifier=Persistence.PersistentObjectSpecifier.read(specifier))
+        self.__display_values_changed_event_listener = None
+        self.__display_item_item_inserted_event_listener = None
+        self.__display_item_item_removed_event_listener = None
+
+        def maintain_data_source():
+            if self.__display_values_changed_event_listener:
+                self.__display_values_changed_event_listener.close()
+                self.__display_values_changed_event_listener = None
+            if self.__display_item_item_inserted_event_listener:
+                self.__display_item_item_inserted_event_listener.close()
+                self.__display_item_item_inserted_event_listener = None
+            if self.__display_item_item_removed_event_listener:
+                self.__display_item_item_removed_event_listener.close()
+                self.__display_item_item_removed_event_listener = None
+            display_data_channel = self._display_data_channel
+            if display_data_channel:
+                self.__display_values_changed_event_listener = display_data_channel.add_calculated_display_values_listener(self.changed_event.fire, send=False)
+                display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], display_data_channel.container)
+                if display_item:
+                    def maintain(name: str, value, index: int) -> None:
+                        if name == "graphics":
+                            maintain_data_source()
+
+                    self.__display_item_item_inserted_event_listener = display_item.item_inserted_event.listen(maintain)
+                    self.__display_item_item_removed_event_listener = display_item.item_removed_event.listen(maintain)
+            self.valid = self.__display_values_changed_event_listener is not None
+            self._update_base_items(self._get_base_items())
+
+        def item_registered(item):
+            maintain_data_source()
+
+        def item_unregistered(item):
+            maintain_data_source()
+
+        self.__item_proxy.on_item_registered = item_registered
+        self.__item_proxy.on_item_unregistered = item_unregistered
+
+        maintain_data_source()
+
+    def close(self):
+        if self.__display_values_changed_event_listener:
+            self.__display_values_changed_event_listener.close()
+            self.__display_values_changed_event_listener = None
+        if self.__display_item_item_inserted_event_listener:
+            self.__display_item_item_inserted_event_listener.close()
+            self.__display_item_item_inserted_event_listener = None
+        if self.__display_item_item_removed_event_listener:
+            self.__display_item_item_removed_event_listener.close()
+            self.__display_item_item_removed_event_listener = None
+        self.__item_proxy.close()
+        self.__item_proxy = None
+        super().close()
+
+    def _get_base_items(self) -> typing.List[Persistence.PersistentObject]:
+        base_items = list()
+        if self._display_data_channel:
+            data_item = self._display_data_channel.data_item
+            display_item = self._display_data_channel.container
+            base_items.append(display_item)
+            base_items.append(data_item)
+            graphics = display_item.graphics if display_item else list()
+            for graphic in graphics:
+                if isinstance(graphic, (Graphics.PointTypeGraphic, Graphics.LineTypeGraphic, Graphics.RectangleTypeGraphic, Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
+                    base_items.append(graphic)
+        return base_items
+
+    @property
+    def base_objects(self):
+        data_item = self._display_data_channel.data_item
+        display_item = self._display_data_channel.container
+        objects = {data_item, display_item}
+        graphics = display_item.graphics if display_item else list()
+        for graphic in graphics:
+            if isinstance(graphic, (Graphics.PointTypeGraphic, Graphics.LineTypeGraphic, Graphics.RectangleTypeGraphic, Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
+                objects.add(graphic)
+        return objects
+
+    @property
+    def _display_data_channel(self) -> typing.Optional[DisplayItem.DisplayDataChannel]:
+        return self.__item_proxy.item if self.__item_proxy else None
+
+
+class BoundFilterData(BoundFilterLikeData):
 
     @property
     def value(self):
@@ -866,19 +1072,8 @@ class BoundFilterData(BoundDisplayDataChannelBase):
             return DataAndMetadata.DataAndMetadata.from_data(mask)
         return None
 
-    @property
-    def base_objects(self):
-        data_item = self._display_data_channel.data_item
-        display_item = self._display_data_channel.container
-        objects = {data_item, display_item}
-        graphics = display_item.graphics if display_item else list()
-        for graphic in graphics:
-            if isinstance(graphic, (Graphics.PointTypeGraphic, Graphics.LineTypeGraphic, Graphics.RectangleTypeGraphic, Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
-                objects.add(graphic)
-        return objects
 
-
-class BoundFilteredData(BoundDisplayDataChannelBase):
+class BoundFilteredData(BoundFilterLikeData):
 
     @property
     def value(self):
@@ -895,17 +1090,6 @@ class BoundFilteredData(BoundDisplayDataChannelBase):
                 return Core.function_fourier_mask(xdata, DataAndMetadata.DataAndMetadata.from_data(mask))
             return xdata
         return None
-
-    @property
-    def base_objects(self):
-        data_item = self._display_data_channel.data_item
-        display_item = self._display_data_channel.container
-        objects = {data_item, display_item}
-        graphics = display_item.graphics if display_item else list()
-        for graphic in graphics:
-            if isinstance(graphic, (Graphics.PointTypeGraphic, Graphics.LineTypeGraphic, Graphics.RectangleTypeGraphic, Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
-                objects.add(graphic)
-        return objects
 
 
 class BoundDataStructure(BoundItemBase):
@@ -924,13 +1108,14 @@ class BoundDataStructure(BoundItemBase):
         def item_registered(item):
             self.__changed_listener = item.data_structure_changed_event.listen(data_structure_changed)
             self.__property_changed_listener = item.property_changed_event.listen(data_structure_changed)
+            self._update_base_items(self._get_base_items())
 
         def item_unregistered(item):
             self.__changed_listener.close()
             self.__changed_listener = None
             self.__property_changed_listener.close()
             self.__property_changed_listener = None
-            self.needs_rebind_event.fire()
+            self._update_base_items(self._get_base_items())
 
         self.__item_proxy.on_item_registered = item_registered
         self.__item_proxy.on_item_unregistered = item_unregistered
@@ -955,13 +1140,16 @@ class BoundDataStructure(BoundItemBase):
             return self.__object.get_property_value(self.__property_name)
         return self.__object
 
+    def _get_base_items(self) -> typing.List[Persistence.PersistentObject]:
+        return [self.__object] if self.__object else list()
+
     @property
     def base_objects(self):
         return {self.__object}
 
     @property
     def __object(self):
-        return self.__item_proxy.item
+        return self.__item_proxy.item if self.__item_proxy else None
 
 
 class BoundGraphic(BoundItemBase):
@@ -983,11 +1171,12 @@ class BoundGraphic(BoundItemBase):
 
         def item_registered(item):
             self.__changed_listener = item.property_changed_event.listen(property_changed)
+            self._update_base_items(self._get_base_items())
 
         def item_unregistered(item):
             self.__changed_listener.close()
             self.__changed_listener = None
-            self.needs_rebind_event.fire()
+            self._update_base_items(self._get_base_items())
 
         self.__item_proxy.on_item_registered = item_registered
         self.__item_proxy.on_item_unregistered = item_unregistered
@@ -1012,17 +1201,20 @@ class BoundGraphic(BoundItemBase):
             return getattr(self.__object, self.__property_name)
         return self.__object
 
+    def _get_base_items(self) -> typing.List[Persistence.PersistentObject]:
+        return [self.__object] if self.__object else list()
+
     @property
     def base_objects(self):
         return {self.__object}
 
     @property
     def __object(self):
-        return self.__item_proxy.item
+        return self.__item_proxy.item if self.__item_proxy else None
 
     @property
     def _graphic(self) -> typing.Optional[Graphics.Graphic]:
-        return self.__item_proxy.item
+        return self.__object
 
 
 class ComputationItem:
@@ -1042,17 +1234,15 @@ def make_item_list(items, *, type: str=None) -> ComputationItem:
     return ComputationItem(items=items)
 
 
-class BoundList:
+class BoundList(BoundItemBase):
 
     def __init__(self, bound_items: typing.List):
+        super().__init__(None)
         self.__bound_items = list()
         self.changed_event = Event.Event()
-        self.needs_rebind_event = Event.Event()
         self.child_removed_event = Event.Event()
         self.is_list = True
         self.__changed_listeners = list()
-        self.__needs_rebind_listeners = list()
-        self.__resolved = True
         for index, bound_item in enumerate(bound_items):
             self.item_inserted(index, bound_item)
 
@@ -1065,7 +1255,16 @@ class BoundList:
 
     @property
     def value(self):
-        return [bound_item.value for bound_item in self.__bound_items] if self.__resolved else None
+        return [bound_item.value if bound_item else None for bound_item in self.__bound_items]
+
+    def _get_base_items(self) -> typing.List[Persistence.PersistentObject]:
+        base_items = list()
+        for bound_item in self.__bound_items:
+            if bound_item:
+                for base_object in bound_item.base_items:
+                    if not base_object in base_items:
+                        base_items.append(base_object)
+        return base_items
 
     @property
     def base_objects(self):
@@ -1084,8 +1283,7 @@ class BoundList:
     def item_inserted(self, index, bound_item):
         self.__bound_items.insert(index, bound_item)
         self.__changed_listeners.insert(index, bound_item.changed_event.listen(self.changed_event.fire) if bound_item else None)
-        self.__needs_rebind_listeners.insert(index, bound_item.needs_rebind_event.listen(functools.partial(self.child_removed_event.fire, index)) if bound_item else None)
-        self.__resolved = self.__resolved and bound_item is not None
+        self._update_base_items(self._get_base_items())
 
     def item_removed(self, index):
         bound_item = self.__bound_items.pop(index)
@@ -1094,9 +1292,7 @@ class BoundList:
         changed_listener = self.__changed_listeners.pop(index)
         if changed_listener:
             changed_listener.close()
-        needs_rebind_listener = self.__needs_rebind_listeners.pop(index)
-        if needs_rebind_listener:
-            needs_rebind_listener.close()
+        self._update_base_items(self._get_base_items())
 
 
 class Computation(Observable.Observable, Persistence.PersistentObject):
@@ -1137,7 +1333,8 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.attributes = dict()  # not persistent, defined by underlying class
         self.__source_reference = self.create_item_reference()
         self.__variable_changed_event_listeners = dict()
-        self.__variable_needs_rebind_event_listeners = dict()
+        self.__variable_base_item_inserted_event_listeners = dict()
+        self.__variable_base_item_removed_event_listeners = dict()
         self.__result_needs_rebind_event_listeners = dict()
         self.last_evaluate_data_time = 0
         self.needs_update = expression is not None
@@ -1561,12 +1758,24 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
 
         self.__variable_changed_event_listeners[variable.uuid] = variable.changed_event.listen(needs_update)
 
-        def rebind():
-            self.needs_update = True
-            self.__unbind_variable(variable)
-            self.__bind_variable(variable)
+        def m(name: str, value, index: int) -> None:
+            # print("m")
+            if name == "base_items":
+                self.needs_update = True
+                if variable.object_specifiers is not None:
+                    # bound_items = list()
+                    # for object_specifier in variable.object_specifiers:
+                    #     bound_item = self.__resolve_object_specifier(object_specifier)
+                    #     bound_items.append(bound_item)
+                    # variable.connect_items(bound_items)
+                    variable.notify_property_changed("bound_item")
+                else:
+                    variable.notify_property_changed("bound_item")
+                # self.__unbind_variable(variable)
+                # self.__bind_variable(variable)
 
-        self.__variable_needs_rebind_event_listeners[variable.uuid] = variable.needs_rebind_event.listen(rebind)
+        self.__variable_base_item_inserted_event_listeners[variable.uuid] = variable.item_inserted_event.listen(m)
+        self.__variable_base_item_removed_event_listeners[variable.uuid] = variable.item_removed_event.listen(m)
 
         if variable.object_specifiers is not None:
             variable.bound_item = BoundList([self.__resolve_object_specifier(object_specifier) for object_specifier in variable.object_specifiers])
@@ -1574,10 +1783,9 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
             variable.bound_item = self.__resolve_object_specifier(variable._variable_specifier, variable._secondary_specifier, variable.property_name)
 
     def __unbind_variable(self, variable: ComputationVariable) -> None:
-        self.__variable_changed_event_listeners[variable.uuid].close()
-        del self.__variable_changed_event_listeners[variable.uuid]
-        self.__variable_needs_rebind_event_listeners[variable.uuid].close()
-        del self.__variable_needs_rebind_event_listeners[variable.uuid]
+        self.__variable_changed_event_listeners.pop(variable.uuid).close()
+        self.__variable_base_item_inserted_event_listeners.pop(variable.uuid).close()
+        self.__variable_base_item_removed_event_listeners.pop(variable.uuid).close()
         variable.bound_item = None
 
     def __bind_result(self, result: ComputationOutput) -> None:
@@ -1587,8 +1795,6 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         # by the result needs rebinding, which must be done from this class.
 
         def rebind():
-            self.__unbind_result(result)
-            self.__bind_result(result)
             self.computation_output_changed_event.fire()
 
         self.__result_needs_rebind_event_listeners[result.uuid] = result.needs_rebind_event.listen(rebind)
@@ -1596,8 +1802,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         result.bind(self.__resolve_object_specifier)
 
     def __unbind_result(self, result: ComputationOutput) -> None:
-        self.__result_needs_rebind_event_listeners[result.uuid].close()
-        del self.__result_needs_rebind_event_listeners[result.uuid]
+        self.__result_needs_rebind_event_listeners.pop(result.uuid).close()
         result.bound_item = None
 
     def bind(self, context) -> None:
@@ -1690,7 +1895,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         return output_items
 
     def set_input_item(self, name: str, input_item: ComputationItem) -> None:
-        for variable in self.variables:
+        for variable in typing.cast(typing.List[ComputationVariable], self.variables):
             if variable.name == name:
                 assert input_item.item
                 assert input_item.type is None
