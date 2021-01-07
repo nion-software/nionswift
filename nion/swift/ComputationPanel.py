@@ -1355,7 +1355,7 @@ class ResultHandler:
     @property
     def display_item(self) -> typing.Optional[DisplayItem.DisplayItem]:
         document_model = self.document_controller.document_model
-        output_item = list(self.result.output_items)[0]
+        output_item = self.result.output_items_list
         if isinstance(output_item, DataItem.DataItem):
             return document_model.get_best_display_item_for_data_item(output_item)
         return None
@@ -1364,7 +1364,7 @@ class ResultHandler:
     def make_component_content(cls, result: Symbolic.ComputationOutput) -> Declarative.UIDescription:
         u = Declarative.DeclarativeUI()
         label = u.create_label(text="@binding(result.label)")
-        result_items = list(result.output_items)
+        result_items = result.output_items_list
         if len(result_items) == 1 and isinstance(result_items[0], DataItem.DataItem):
             data_source_chooser = {
                 "type": "data_source_chooser",
