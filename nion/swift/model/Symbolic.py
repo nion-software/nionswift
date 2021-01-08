@@ -82,32 +82,30 @@ def update_diff_notify(o: Observable.Observable, before_items: typing.List[Persi
     assert before_items == after_items
 
 
-def create_bound_item(computation: "Computation", specifier: typing.Dict, secondary_specifier: typing.Optional[typing.Dict] = None, property_name: typing.Optional[str] = None) -> typing.Optional["BoundItemBase"]:
+def create_bound_item(container: Persistence.PersistentObject, specifier: typing.Dict, secondary_specifier: typing.Optional[typing.Dict] = None, property_name: typing.Optional[str] = None) -> typing.Optional["BoundItemBase"]:
     bound_item = None
     if specifier and specifier.get("version") == 1:
         specifier_type = specifier["type"]
-        assert computation
-        project = computation.container or computation.pending_project
         if specifier_type == "data_source":
-            bound_item = BoundDataSource(project, specifier, secondary_specifier)
+            bound_item = BoundDataSource(container, specifier, secondary_specifier)
         elif specifier_type == "data_item":
-            bound_item = BoundDataItem(project, specifier)
+            bound_item = BoundDataItem(container, specifier)
         elif specifier_type == "xdata":
-            bound_item = BoundData(project, specifier)
+            bound_item = BoundData(container, specifier)
         elif specifier_type == "display_xdata":
-            bound_item = BoundDisplayData(project, specifier, secondary_specifier)
+            bound_item = BoundDisplayData(container, specifier, secondary_specifier)
         elif specifier_type == "cropped_xdata":
-            bound_item = BoundCroppedData(project, specifier, secondary_specifier)
+            bound_item = BoundCroppedData(container, specifier, secondary_specifier)
         elif specifier_type == "cropped_display_xdata":
-            bound_item = BoundCroppedDisplayData(project, specifier, secondary_specifier)
+            bound_item = BoundCroppedDisplayData(container, specifier, secondary_specifier)
         elif specifier_type == "filter_xdata":
-            bound_item = BoundFilterData(project, specifier, secondary_specifier)
+            bound_item = BoundFilterData(container, specifier, secondary_specifier)
         elif specifier_type == "filtered_xdata":
-            bound_item = BoundFilteredData(project, specifier, secondary_specifier)
+            bound_item = BoundFilteredData(container, specifier, secondary_specifier)
         elif specifier_type == "structure":
-            bound_item = BoundDataStructure(project, specifier, property_name)
+            bound_item = BoundDataStructure(container, specifier, property_name)
         elif specifier_type == "graphic":
-            bound_item = BoundGraphic(project, specifier, property_name)
+            bound_item = BoundGraphic(container, specifier, property_name)
     if bound_item and not bound_item.valid:
         bound_item.close()
         bound_item = None
@@ -185,13 +183,13 @@ class ComputationOutput(Observable.Observable, Persistence.PersistentObject):
         self.notify_property_changed(name)
         if name in ("specifier", "specifiers"):
             if self.container:
-                self.bind(functools.partial(create_bound_item, self.container))
+                self.bind()
 
-    def bind(self, resolve_object_specifier_fn):
+    def bind(self) -> None:
         if self._specifier:
-            self.bound_item = resolve_object_specifier_fn(self._specifier)
+            self.bound_item = create_bound_item(self, self._specifier)
         elif self._specifiers is not None:
-            self.bound_item = BoundList([resolve_object_specifier_fn(object_specifier) for object_specifier in self._specifiers])
+            self.bound_item = BoundList([create_bound_item(self, object_specifier) for object_specifier in self._specifiers])
         else:
             self.bound_item = None
 
@@ -670,10 +668,10 @@ class BoundItemBase(Observable.Observable):
 
 class BoundData(BoundItemBase):
 
-    def __init__(self, project, specifier):
+    def __init__(self, container: Persistence.PersistentObject, specifier):
         super().__init__(specifier)
 
-        self.__item_proxy = project.create_item_proxy(item_specifier=Persistence.PersistentObjectSpecifier.read(specifier))
+        self.__item_reference = container.create_item_reference(item_specifier=Persistence.PersistentObjectSpecifier.read(specifier))
         self.__data_changed_event_listener = None
 
         def maintain_data_source():
@@ -692,8 +690,8 @@ class BoundData(BoundItemBase):
         def item_unregistered(item):
             maintain_data_source()
 
-        self.__item_proxy.on_item_registered = item_registered
-        self.__item_proxy.on_item_unregistered = item_unregistered
+        self.__item_reference.on_item_registered = item_registered
+        self.__item_reference.on_item_unregistered = item_unregistered
 
         maintain_data_source()
 
@@ -701,8 +699,8 @@ class BoundData(BoundItemBase):
         if self.__data_changed_event_listener:
             self.__data_changed_event_listener.close()
             self.__data_changed_event_listener = None
-        self.__item_proxy.close()
-        self.__item_proxy = None
+        self.__item_reference.on_item_registered = None
+        self.__item_reference.on_item_unregistered = None
         super().close()
 
     def _get_base_items(self) -> typing.List[Persistence.PersistentObject]:
@@ -714,7 +712,7 @@ class BoundData(BoundItemBase):
 
     @property
     def _item(self):
-        item = self.__item_proxy.item
+        item = self.__item_reference.item
         if isinstance(item, DisplayItem.DisplayDataChannel):
             item = item.data_item
         return item
@@ -722,11 +720,11 @@ class BoundData(BoundItemBase):
 
 class BoundDisplayDataChannelBase(BoundItemBase):
 
-    def __init__(self, project, specifier, secondary_specifier):
+    def __init__(self, container: Persistence.PersistentObject, specifier, secondary_specifier):
         super().__init__(specifier)
 
-        self.__item_proxy = project.create_item_proxy(item_specifier=Persistence.PersistentObjectSpecifier.read(specifier))
-        self.__graphic_proxy = project.create_item_proxy(item_specifier=Persistence.PersistentObjectSpecifier.read(secondary_specifier))
+        self.__item_reference = container.create_item_reference(item_specifier=Persistence.PersistentObjectSpecifier.read(specifier))
+        self.__graphic_reference = container.create_item_reference(item_specifier=Persistence.PersistentObjectSpecifier.read(secondary_specifier))
         self.__display_values_changed_event_listener = None
 
         def maintain_data_source():
@@ -745,11 +743,11 @@ class BoundDisplayDataChannelBase(BoundItemBase):
         def item_unregistered(item):
             maintain_data_source()
 
-        self.__item_proxy.on_item_registered = item_registered
-        self.__item_proxy.on_item_unregistered = item_unregistered
+        self.__item_reference.on_item_registered = item_registered
+        self.__item_reference.on_item_unregistered = item_unregistered
 
-        self.__graphic_proxy.on_item_registered = item_registered
-        self.__graphic_proxy.on_item_unregistered = item_unregistered
+        self.__graphic_reference.on_item_registered = item_registered
+        self.__graphic_reference.on_item_unregistered = item_unregistered
 
         maintain_data_source()
 
@@ -757,10 +755,10 @@ class BoundDisplayDataChannelBase(BoundItemBase):
         if self.__display_values_changed_event_listener:
             self.__display_values_changed_event_listener.close()
             self.__display_values_changed_event_listener = None
-        self.__item_proxy.close()
-        self.__item_proxy = None
-        self.__graphic_proxy.close()
-        self.__graphic_proxy = None
+        self.__item_reference.on_item_registered = None
+        self.__item_reference.on_item_unregistered = None
+        self.__graphic_reference.on_item_registered = None
+        self.__graphic_reference.on_item_unregistered = None
         super().close()
 
     def _get_base_items(self) -> typing.List[Persistence.PersistentObject]:
@@ -776,29 +774,29 @@ class BoundDisplayDataChannelBase(BoundItemBase):
 
     @property
     def _display_data_channel(self):
-        return self.__item_proxy.item
+        return self.__item_reference.item
 
     @property
     def _graphic(self):
-        return self.__graphic_proxy.item
+        return self.__graphic_reference.item
 
 
 class BoundDataSource(BoundItemBase):
 
-    def __init__(self, project, specifier, secondary_specifier):
+    def __init__(self, container: Persistence.PersistentObject, specifier, secondary_specifier):
         super().__init__(specifier)
 
-        self.__item_proxy = project.create_item_proxy(item_specifier=Persistence.PersistentObjectSpecifier.read(specifier))
-        self.__graphic_proxy = project.create_item_proxy(item_specifier=Persistence.PersistentObjectSpecifier.read(secondary_specifier))
+        self.__item_reference = container.create_item_reference(item_specifier=Persistence.PersistentObjectSpecifier.read(specifier))
+        self.__graphic_reference = container.create_item_reference(item_specifier=Persistence.PersistentObjectSpecifier.read(secondary_specifier))
         self.__data_source = None
 
         def maintain_data_source():
             if self.__data_source:
                 self.__data_source.close()
                 self.__data_source = None
-            display_data_channel = self.__item_proxy.item
+            display_data_channel = self.__item_reference.item
             if display_data_channel and display_data_channel.data_item:
-                self.__data_source = DataItem.MonitoredDataSource(display_data_channel, self.__graphic_proxy.item, self.changed_event)
+                self.__data_source = DataItem.MonitoredDataSource(display_data_channel, self.__graphic_reference.item, self.changed_event)
             self.valid = self.__data_source is not None
             self._update_base_items(self._get_base_items())
 
@@ -808,11 +806,11 @@ class BoundDataSource(BoundItemBase):
         def item_unregistered(item):
             maintain_data_source()
 
-        self.__item_proxy.on_item_registered = item_registered
-        self.__item_proxy.on_item_unregistered = item_unregistered
+        self.__item_reference.on_item_registered = item_registered
+        self.__item_reference.on_item_unregistered = item_unregistered
 
-        self.__graphic_proxy.on_item_registered = item_registered
-        self.__graphic_proxy.on_item_unregistered = item_unregistered
+        self.__graphic_reference.on_item_registered = item_registered
+        self.__graphic_reference.on_item_unregistered = item_unregistered
 
         maintain_data_source()
 
@@ -820,10 +818,10 @@ class BoundDataSource(BoundItemBase):
         if self.__data_source:
             self.__data_source.close()
             self.__data_source = None
-        self.__item_proxy.close()
-        self.__item_proxy = None
-        self.__graphic_proxy.close()
-        self.__graphic_proxy = None
+        self.__item_reference.on_item_registered = None
+        self.__item_reference.on_item_unregistered = None
+        self.__graphic_reference.on_item_registered = None
+        self.__graphic_reference.on_item_unregistered = None
         super().close()
 
     @property
@@ -841,19 +839,19 @@ class BoundDataSource(BoundItemBase):
 
     @property
     def _display_data_channel(self) -> typing.Optional[DisplayItem.DisplayDataChannel]:
-        return self.__item_proxy.item
+        return self.__item_reference.item
 
     @property
     def _graphic(self) -> typing.Optional[Graphics.Graphic]:
-        return self.__graphic_proxy.item
+        return self.__graphic_reference.item
 
 
 class BoundDataItem(BoundItemBase):
 
-    def __init__(self, project, specifier):
+    def __init__(self, container: Persistence.PersistentObject, specifier):
         super().__init__(specifier)
 
-        self.__item_proxy = project.create_item_proxy(item_specifier=Persistence.PersistentObjectSpecifier.read(specifier))
+        self.__item_reference = container.create_item_reference(item_specifier=Persistence.PersistentObjectSpecifier.read(specifier))
         self.__data_item_changed_event_listener = None
 
         def item_registered(item):
@@ -865,11 +863,11 @@ class BoundDataItem(BoundItemBase):
             self.__data_item_changed_event_listener = None
             self._update_base_items(self._get_base_items())
 
-        self.__item_proxy.on_item_registered = item_registered
-        self.__item_proxy.on_item_unregistered = item_unregistered
+        self.__item_reference.on_item_registered = item_registered
+        self.__item_reference.on_item_unregistered = item_unregistered
 
-        if self.__item_proxy.item:
-            item_registered(self.__item_proxy.item)
+        if self.__item_reference.item:
+            item_registered(self.__item_reference.item)
             self.valid = True
         else:
             self.valid = False
@@ -878,20 +876,20 @@ class BoundDataItem(BoundItemBase):
         if self.__data_item_changed_event_listener:
             self.__data_item_changed_event_listener.close()
             self.__data_item_changed_event_listener = None
-        self.__item_proxy.close()
-        self.__item_proxy = None
+        self.__item_reference.on_item_registered = None
+        self.__item_reference.on_item_unregistered = None
         super().close()
 
     @property
     def value(self):
-        return self.__item_proxy.item
+        return self.__item_reference.item
 
     def _get_base_items(self) -> typing.List[Persistence.PersistentObject]:
         return [self._data_item] if self._data_item else list()
 
     @property
     def _data_item(self) -> typing.Optional[DataItem.DataItem]:
-        return self.__item_proxy.item if self.__item_proxy else None
+        return self.__item_reference.item if self.__item_reference else None
 
 
 class BoundDisplayData(BoundDisplayDataChannelBase):
@@ -931,10 +929,10 @@ class BoundCroppedDisplayData(BoundDisplayDataChannelBase):
 
 class BoundFilterLikeData(BoundItemBase):
 
-    def __init__(self, project, specifier, secondary_specifier):
+    def __init__(self, container: Persistence.PersistentObject, specifier, secondary_specifier):
         super().__init__(specifier)
 
-        self.__item_proxy = project.create_item_proxy(item_specifier=Persistence.PersistentObjectSpecifier.read(specifier))
+        self.__item_reference = container.create_item_reference(item_specifier=Persistence.PersistentObjectSpecifier.read(specifier))
         self.__display_values_changed_event_listener = None
         self.__display_item_item_inserted_event_listener = None
         self.__display_item_item_removed_event_listener = None
@@ -969,8 +967,8 @@ class BoundFilterLikeData(BoundItemBase):
         def item_unregistered(item):
             maintain_data_source()
 
-        self.__item_proxy.on_item_registered = item_registered
-        self.__item_proxy.on_item_unregistered = item_unregistered
+        self.__item_reference.on_item_registered = item_registered
+        self.__item_reference.on_item_unregistered = item_unregistered
 
         maintain_data_source()
 
@@ -984,8 +982,8 @@ class BoundFilterLikeData(BoundItemBase):
         if self.__display_item_item_removed_event_listener:
             self.__display_item_item_removed_event_listener.close()
             self.__display_item_item_removed_event_listener = None
-        self.__item_proxy.close()
-        self.__item_proxy = None
+        self.__item_reference.on_item_registered = None
+        self.__item_reference.on_item_unregistered = None
         super().close()
 
     def _get_base_items(self) -> typing.List[Persistence.PersistentObject]:
@@ -1003,7 +1001,7 @@ class BoundFilterLikeData(BoundItemBase):
 
     @property
     def _display_data_channel(self) -> typing.Optional[DisplayItem.DisplayDataChannel]:
-        return self.__item_proxy.item if self.__item_proxy else None
+        return self.__item_reference.item if self.__item_reference else None
 
 
 class BoundFilterData(BoundFilterLikeData):
@@ -1043,12 +1041,12 @@ class BoundFilteredData(BoundFilterLikeData):
 
 class BoundDataStructure(BoundItemBase):
 
-    def __init__(self, project, specifier, property_name: str):
+    def __init__(self, container: Persistence.PersistentObject, specifier, property_name: str):
         super().__init__(specifier)
 
         self.__property_name = property_name
 
-        self.__item_proxy = project.create_item_proxy(item_specifier=Persistence.PersistentObjectSpecifier.read(specifier))
+        self.__item_reference = container.create_item_reference(item_specifier=Persistence.PersistentObjectSpecifier.read(specifier))
         self.__changed_listener = None
 
         def data_structure_changed(property_name):
@@ -1066,11 +1064,11 @@ class BoundDataStructure(BoundItemBase):
             self.__property_changed_listener = None
             self._update_base_items(self._get_base_items())
 
-        self.__item_proxy.on_item_registered = item_registered
-        self.__item_proxy.on_item_unregistered = item_unregistered
+        self.__item_reference.on_item_registered = item_registered
+        self.__item_reference.on_item_unregistered = item_unregistered
 
-        if self.__item_proxy.item:
-            item_registered(self.__item_proxy.item)
+        if self.__item_reference.item:
+            item_registered(self.__item_reference.item)
             self.valid = True
         else:
             self.valid = False
@@ -1079,8 +1077,8 @@ class BoundDataStructure(BoundItemBase):
         if self.__changed_listener:
             self.__changed_listener.close()
             self.__changed_listener = None
-        self.__item_proxy.close()
-        self.__item_proxy = None
+        self.__item_reference.on_item_registered = None
+        self.__item_reference.on_item_unregistered = None
         super().close()
 
     @property
@@ -1094,17 +1092,17 @@ class BoundDataStructure(BoundItemBase):
 
     @property
     def __object(self):
-        return self.__item_proxy.item if self.__item_proxy else None
+        return self.__item_reference.item if self.__item_reference else None
 
 
 class BoundGraphic(BoundItemBase):
 
-    def __init__(self, project, specifier, property_name: str):
+    def __init__(self, container: Persistence.PersistentObject, specifier, property_name: str):
         super().__init__(specifier)
 
         self.__property_name = property_name
 
-        self.__item_proxy = project.create_item_proxy(item_specifier=Persistence.PersistentObjectSpecifier.read(specifier))
+        self.__item_reference = container.create_item_reference(item_specifier=Persistence.PersistentObjectSpecifier.read(specifier))
         self.__changed_listener = None
 
         def property_changed(property_name):
@@ -1123,11 +1121,11 @@ class BoundGraphic(BoundItemBase):
             self.__changed_listener = None
             self._update_base_items(self._get_base_items())
 
-        self.__item_proxy.on_item_registered = item_registered
-        self.__item_proxy.on_item_unregistered = item_unregistered
+        self.__item_reference.on_item_registered = item_registered
+        self.__item_reference.on_item_unregistered = item_unregistered
 
-        if self.__item_proxy.item:
-            item_registered(self.__item_proxy.item)
+        if self.__item_reference.item:
+            item_registered(self.__item_reference.item)
             self.valid = True
         else:
             self.valid = False
@@ -1136,8 +1134,8 @@ class BoundGraphic(BoundItemBase):
         if self.__changed_listener:
             self.__changed_listener.close()
             self.__changed_listener = None
-        self.__item_proxy.close()
-        self.__item_proxy = None
+        self.__item_reference.on_item_registered = None
+        self.__item_reference.on_item_unregistered = None
         super().close()
 
     @property
@@ -1151,7 +1149,7 @@ class BoundGraphic(BoundItemBase):
 
     @property
     def __object(self):
-        return self.__item_proxy.item if self.__item_proxy else None
+        return self.__item_reference.item if self.__item_reference else None
 
     @property
     def _graphic(self) -> typing.Optional[Graphics.Graphic]:
@@ -1518,7 +1516,8 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         variable = self.__resolve_variable(specifier)
         if variable:
             return variable.bound_variable
-        return create_bound_item(self, specifier, secondary_specifier, property_name)
+        container = self if self.persistent_object_context else self.pending_project
+        return create_bound_item(container, specifier, secondary_specifier, property_name)
 
     @property
     def expression(self) -> str:
@@ -1698,7 +1697,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         # this method finds that object and stores it into the result. it also sets up
         # a listener to notify this computation that the result or the object referenced
         # by the result needs rebinding, which must be done from this class.
-        result.bind(self.__resolve_object_specifier)
+        result.bind()
 
     def __unbind_result(self, result: ComputationOutput) -> None:
         result.unbind()
