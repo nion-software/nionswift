@@ -424,6 +424,9 @@ class ComputationsController(ItemsController):
         computation.begin_reading()
         computation.read_from_dict(item_dict)
         computation.finish_reading()
+        # if the computation is not resolved, then undelete may require additional items to make it
+        # resolved. so mark it as needing update here. this is a hack.
+        computation.needs_update = not computation.is_resolved
         self.__document_model.insert_computation(index, computation)
         self.__document_model.restore_items_order("computations", order)
 
