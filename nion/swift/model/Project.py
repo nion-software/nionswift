@@ -239,6 +239,7 @@ class Project(Observable.Observable, Persistence.PersistentObject):
                         self.load_item("computations", len(self.computations), computation)
                         # TODO: handle update script and bind after reload in document model
                         computation.update_script(Project._processing_descriptions)
+                        computation.reset()
                     else:
                         computation.close()
                 for item_d in properties.get("connections", list()):

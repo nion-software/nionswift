@@ -12,7 +12,6 @@ import ast
 import contextlib
 import copy
 import difflib
-import functools
 import threading
 import time
 import typing
@@ -194,7 +193,7 @@ class ComputationOutput(Observable.Observable, Persistence.PersistentObject):
         self.bound_item = None
 
     @property
-    def output_items_list(self) -> typing.List:
+    def output_items_list(self) -> typing.List[Persistence.PersistentObject]:
         if isinstance(self.bound_item, BoundList):
             return [item.value for item in self.bound_item.get_items() if item.value is not None]
         elif self.bound_item and self.bound_item.value is not None:
@@ -202,7 +201,7 @@ class ComputationOutput(Observable.Observable, Persistence.PersistentObject):
         return list()
 
     @property
-    def output_items(self) -> typing.Set:
+    def output_items(self) -> typing.Set[Persistence.PersistentObject]:
         return set(self.output_items_list)
 
     @property
@@ -488,7 +487,7 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
         return isinstance(self.bound_item, BoundList)
 
     @property
-    def input_items(self) -> typing.Set:
+    def input_items(self) -> typing.Set[Persistence.PersistentObject]:
         return set(self.bound_item.base_items) if self.bound_item else set()
 
     @property
@@ -1202,6 +1201,8 @@ class BoundList(BoundItemBase):
         self.child_removed_event = Event.Event()
         self.is_list = True
         self.__changed_listeners = list()
+        self.__inserted_listeners = list()
+        self.__removed_listeners = list()
         for index, bound_item in enumerate(bound_items):
             self.item_inserted(index, bound_item)
 
@@ -1211,6 +1212,8 @@ class BoundList(BoundItemBase):
         self.__bound_items = None
         self.__resolved_items = None
         self.__changed_listeners = None
+        self.__inserted_listeners = None
+        self.__removed_listeners = None
 
     @property
     def value(self):
@@ -1230,7 +1233,14 @@ class BoundList(BoundItemBase):
 
     def item_inserted(self, index, bound_item):
         self.__bound_items.insert(index, bound_item)
+
+        def handle_bound_items_changed(name: str, index: int, value) -> None:
+            if name == "base_items":
+                self._update_base_items(self._get_base_items())
+
         self.__changed_listeners.insert(index, bound_item.changed_event.listen(self.changed_event.fire) if bound_item else None)
+        self.__inserted_listeners.insert(index, bound_item.item_inserted_event.listen(handle_bound_items_changed) if bound_item else None)
+        self.__removed_listeners.insert(index, bound_item.item_removed_event.listen(handle_bound_items_changed) if bound_item else None)
         self._update_base_items(self._get_base_items())
 
     def item_removed(self, index):
@@ -1240,6 +1250,12 @@ class BoundList(BoundItemBase):
         changed_listener = self.__changed_listeners.pop(index)
         if changed_listener:
             changed_listener.close()
+        inserted_listener = self.__inserted_listeners.pop(index)
+        if inserted_listener:
+            inserted_listener.close()
+        removed_listener = self.__removed_listeners.pop(index)
+        if removed_listener:
+            removed_listener.close()
         self._update_base_items(self._get_base_items())
 
 
@@ -1280,9 +1296,9 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.define_relationship("results", result_factory, insert=self.__result_inserted, remove=self.__result_removed)
         self.attributes = dict()  # not persistent, defined by underlying class
         self.__source_reference = self.create_item_reference()
-        self.__variable_changed_event_listeners = dict()
-        self.__variable_base_item_inserted_event_listeners = dict()
-        self.__variable_base_item_removed_event_listeners = dict()
+        self.__variable_changed_event_listeners = list()
+        self.__variable_base_item_inserted_event_listeners = list()
+        self.__variable_base_item_removed_event_listeners = list()
         self.__result_base_item_inserted_event_listeners = list()
         self.__result_base_item_removed_event_listeners = list()
         self.last_evaluate_data_time = 0
@@ -1294,12 +1310,6 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self._inputs = set()  # used by document model for tracking dependencies
         self._outputs = set()
         self.pending_project = None  # used for new computations to tell them where they'll end up
-        self.__is_bound = False
-
-    def close(self) -> None:
-        if self.__is_bound:
-            self.unbind()
-        super().close()
 
     @property
     def project(self) -> "Project.Project":
@@ -1417,15 +1427,34 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
 
     def __variable_inserted(self, name: str, before_index: int, variable: ComputationVariable) -> None:
         assert name == "variables"
+
+        def needs_update():
+            self.needs_update = True
+            self.computation_mutated_event.fire()
+
+        self.__variable_changed_event_listeners.insert(before_index, variable.changed_event.listen(needs_update))
+
+        def handle_variable_items_changed(name: str, value, index: int) -> None:
+            if name == "base_items":
+                needs_update()
+                # variable.notify_property_changed("bound_item")
+
+        self.__variable_base_item_inserted_event_listeners.insert(before_index, variable.item_inserted_event.listen(handle_variable_items_changed))
+        self.__variable_base_item_removed_event_listeners.insert(before_index, variable.item_removed_event.listen(handle_variable_items_changed))
+
+        variable.bind()
+
         if not self._is_reading:
-            self.__bind_variable(variable)
             self.computation_mutated_event.fire()
             self.needs_update = True
             self.notify_insert_item("variables", variable, before_index)
 
     def __variable_removed(self, name: str, index: int, variable: ComputationVariable) -> None:
         assert name == "variables"
-        self.__unbind_variable(variable)
+        self.__variable_changed_event_listeners.pop(index).close()
+        self.__variable_base_item_inserted_event_listeners.pop(index).close()
+        self.__variable_base_item_removed_event_listeners.pop(index).close()
+        variable.unbind()
         self.computation_mutated_event.fire()
         self.needs_update = True
         self.notify_remove_item("variables", variable, index)
@@ -1635,10 +1664,6 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
             return str(e) or "Unable to evaluate script."  # a stack trace would be too much information right now
         return None
 
-    def mark_update(self):
-        self.needs_update = True
-        self.computation_mutated_event.fire()
-
     @property
     def is_resolved(self):
         for variable in self.variables:
@@ -1650,69 +1675,9 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         return True
 
     def undelete_variable_item(self, name: str, index: int, specifier: typing.Dict) -> None:
-        for variable in self.variables:
-            if variable.name == name:
-                variable._insert_specifier_in_list(index, specifier)
-
-    def __bind_variable(self, variable: ComputationVariable) -> None:
-        # bind the variable. the variable has a reference to another object in the library.
-        # this method finds that object and stores it into the variable. it also sets up
-        # listeners to notify this computation that the variable or the object referenced
-        # by the variable has changed in a way that the computation needs re-execution,
-        # and that the variable needs rebinding, which must be done from this class.
-
-        def needs_update():
-            self.needs_update = True
-            self.computation_mutated_event.fire()
-
-        self.__variable_changed_event_listeners[variable.uuid] = variable.changed_event.listen(needs_update)
-
-        def handle_variable_items_changed(name: str, value, index: int) -> None:
-            if name == "base_items":
-                self.needs_update = True
-                self.computation_mutated_event.fire()
-                # variable.notify_property_changed("bound_item")
-
-        self.__variable_base_item_inserted_event_listeners[variable.uuid] = variable.item_inserted_event.listen(handle_variable_items_changed)
-        self.__variable_base_item_removed_event_listeners[variable.uuid] = variable.item_removed_event.listen(handle_variable_items_changed)
-
-        variable.bind()
-
-    def __unbind_variable(self, variable: ComputationVariable) -> None:
-        self.__variable_changed_event_listeners.pop(variable.uuid).close()
-        self.__variable_base_item_inserted_event_listeners.pop(variable.uuid).close()
-        self.__variable_base_item_removed_event_listeners.pop(variable.uuid).close()
-        variable.unbind()
-
-    def bind(self, context) -> None:
-        """Bind a context to this computation.
-
-        The context allows the computation to convert object specifiers to actual objects.
-        """
-
-        # make a computation context based on the enclosing context.
-        assert self.persistent_object_context
-
-        # re-bind is not valid. be careful to set the computation after the data item is already in document.
-        # for variable in self.variables:
-        #     assert variable.bound_item is None
-        # for result in self.results:
-        #     assert result.bound_item is None
-
-        # bind the variables
-        for variable in self.variables:
-            self.__bind_variable(variable)
-
-        self.__is_bound = True
-
-    def unbind(self):
-        """Unlisten and close each bound item."""
-        assert self.__is_bound
-
-        for variable in self.variables:
-            self.__unbind_variable(variable)
-
-        self.__is_bound = False
+        variable = self._get_variable(name)
+        if variable:
+            variable._insert_specifier_in_list(index, specifier)
 
     def get_preliminary_input_items(self) -> typing.Set:
         input_items = set()
@@ -1749,104 +1714,97 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         return output_items
 
     @property
-    def input_items(self) -> typing.Set:
+    def input_items(self) -> typing.Set[Persistence.PersistentObject]:
         input_items = set()
         for variable in self.variables:
             input_items.update(variable.input_items)
         return input_items
 
     @property
-    def direct_input_items(self) -> typing.Set:
+    def direct_input_items(self) -> typing.Set[Persistence.PersistentObject]:
         input_items = set()
         for variable in self.variables:
             input_items.update(variable.direct_input_items)
         return input_items
 
     @property
-    def output_items(self) -> typing.Set:
+    def output_items(self) -> typing.Set[Persistence.PersistentObject]:
         output_items = set()
         for result in self.results:
             output_items.update(result.output_items)
         return output_items
 
     def set_input_item(self, name: str, input_item: ComputationItem) -> None:
-        for variable in typing.cast(typing.List[ComputationVariable], self.variables):
-            if variable.name == name:
-                assert input_item.item
-                assert input_item.type is None
-                assert input_item.secondary_item is None
-                assert input_item.items is None
-                variable._specifier = DataStructure.get_object_specifier(input_item.item)
+        variable = self._get_variable(name)
+        if variable:
+            assert input_item.item
+            assert input_item.type is None
+            assert input_item.secondary_item is None
+            assert input_item.items is None
+            variable._specifier = DataStructure.get_object_specifier(input_item.item)
 
     def set_output_item(self, name:str, output_item: ComputationItem) -> None:
-        for result in self.results:
-            if result.name == name:
-                if output_item and output_item.items is not None:
-                    result._specifiers = [DataStructure.get_object_specifier(o.item) for o in output_item.items]
-                else:
-                    if output_item:
-                        assert output_item.item
-                        assert output_item.type is None
-                        assert output_item.secondary_item is None
-                    result._specifier = DataStructure.get_object_specifier(output_item.item) if output_item else None
+        result = self._get_output(name)
+        if result:
+            if output_item and output_item.items is not None:
+                result._specifiers = [DataStructure.get_object_specifier(o.item) for o in output_item.items]
+            else:
+                if output_item:
+                    assert output_item.item
+                    assert output_item.type is None
+                    assert output_item.secondary_item is None
+                result._specifier = DataStructure.get_object_specifier(output_item.item) if output_item else None
 
-    def get_input(self, name: str):
-        for variable in self.variables:
-            if variable.name == name:
-                return variable.bound_item.value if variable.bound_item else None
-        return None
+    def get_input(self, name: str) -> typing.Any:
+        variable = self._get_variable(name)
+        return variable.bound_item.value if variable and variable.bound_item else None
 
-    def get_output(self, name: str):
-        for result in self.results:
-            if result.name == name:
-                if isinstance(result.bound_item, BoundList):
-                    return result.output_items_list
-                elif result.bound_item:
-                    return result.bound_item.value
-                else:
-                    return None
+    def get_output(self, name: str) -> typing.Any:
+        result = self._get_output(name)
+        if result:
+            if isinstance(result.bound_item, BoundList):
+                return result.output_items_list
+            elif result.bound_item:
+                return result.bound_item.value
+            else:
+                return None
         return None
 
     def set_input_value(self, name: str, value) -> None:
+        variable = self._get_variable(name)
+        if variable:
+            variable.value = value
+
+    def get_input_value(self, name: str) -> typing.Any:
+        variable = self._get_variable(name)
+        return variable.bound_variable.value if variable and variable.bound_variable else None
+
+    def get_variable_input_items(self, name: str) -> typing.Set[Persistence.PersistentObject]:
+        variable = self._get_variable(name)
+        return variable.input_items if variable else set()
+
+    def _get_variable(self, name: str) -> typing.Optional[ComputationVariable]:
         for variable in self.variables:
             if variable.name == name:
-                variable.value = value
-
-    def get_input_value(self, name: str):
-        for variable in self.variables:
-            if variable.name == name:
-                return variable.bound_variable.value if variable.bound_variable else None
-        return None
-
-    def get_input_base_items(self, name: str) -> typing.Optional[typing.Set]:
-        for variable in self.variables:
-            if variable.name == name:
-                return set(variable.bound_item.base_items) if variable.bound_item else None
-        return None
-
-    def _get_variable(self, variable_name) -> typing.Optional[ComputationVariable]:
-        for variable in self.variables:
-            if variable.name == variable_name:
                 return variable
         return None
 
-    def _set_variable_value(self, variable_name, value):
-        for variable in self.variables:
-            if variable.name == variable_name:
-                variable.value = value
-
-    def _has_variable(self, variable_name: str) -> bool:
-        for variable in self.variables:
-            if variable.name == variable_name:
-                return True
-        return False
-
-    def _clear_referenced_object(self, name: str) -> None:
+    def _get_output(self, name: str) -> typing.Optional[ComputationOutput]:
         for result in self.results:
             if result.name == name:
-                self.remove_item("results", result)
-                self.computation_mutated_event.fire()
-                self.needs_update = True
+                return result
+        return None
+
+    def _has_variable(self, name: str) -> bool:
+        variable = self._get_variable(name)
+        return variable is not None
+
+    def _clear_referenced_object(self, name: str) -> None:
+        result = self._get_output(name)
+        if result:
+            self.remove_item("results", result)
+            self.computation_mutated_event.fire()
+            self.needs_update = True
 
     def update_script(self, processing_descriptions) -> None:
         processing_id = self.processing_id
@@ -1861,6 +1819,9 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
                 script = xdata_expression(expression)
                 script = script.format(**dict(zip(src_names, src_names)))
                 self._get_persistent_property("original_expression").value = script
+
+    def reset(self) -> None:
+        self.needs_update = False
 
 # for computations
 

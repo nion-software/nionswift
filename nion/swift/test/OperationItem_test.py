@@ -62,7 +62,7 @@ class TestProcessingClass(unittest.TestCase):
         for source_data_item, fn, params in processing_list:
             data_item = fn(self.document_model.get_display_item_for_data_item(source_data_item), source_data_item)
             for name, value in params.items():
-                self.document_model.get_data_item_computation(data_item)._set_variable_value(name, value)
+                self.document_model.get_data_item_computation(data_item).set_input_value(name, value)
             display_item = self.document_model.get_display_item_for_data_item(data_item)
             self.document_model.recompute_all()
             with display_item.data_item.data_ref() as data_ref:
@@ -102,7 +102,7 @@ class TestProcessingClass(unittest.TestCase):
         for source_data_item, fn, params in processing_list:
             data_item = fn(self.document_model.get_display_item_for_data_item(source_data_item), source_data_item)
             for name, value in params.items():
-                self.document_model.get_data_item_computation(data_item)._set_variable_value(name, value)
+                self.document_model.get_data_item_computation(data_item).set_input_value(name, value)
             display_item = self.document_model.get_display_item_for_data_item(data_item)
             self.document_model.recompute_all()
             with display_item.data_item.data_ref() as data_ref:
@@ -130,7 +130,7 @@ class TestProcessingClass(unittest.TestCase):
         for source_data_item, fn, params in processing_list:
             data_item = fn(self.document_model.get_display_item_for_data_item(source_data_item), source_data_item)
             for name, value in params.items():
-                self.document_model.get_data_item_computation(data_item)._set_variable_value(name, value)
+                self.document_model.get_data_item_computation(data_item).set_input_value(name, value)
             display_item = self.document_model.get_display_item_for_data_item(data_item)
             self.document_model.recompute_all()
             with display_item.data_item.data_ref() as data_ref:
@@ -168,7 +168,7 @@ class TestProcessingClass(unittest.TestCase):
         for source_data_item, fn, params in processing_list:
             data_item = fn(self.document_model.get_display_item_for_data_item(source_data_item), source_data_item)
             for name, value in params.items():
-                self.document_model.get_data_item_computation(data_item)._set_variable_value(name, value)
+                self.document_model.get_data_item_computation(data_item).set_input_value(name, value)
             display_item = self.document_model.get_display_item_for_data_item(data_item)
             self.document_model.recompute_all()
             with display_item.data_item.data_ref() as data_ref:
@@ -206,7 +206,7 @@ class TestProcessingClass(unittest.TestCase):
         for source_data_item, fn, params in processing_list:
             data_item = fn(self.document_model.get_display_item_for_data_item(source_data_item), source_data_item)
             for name, value in params.items():
-                self.document_model.get_data_item_computation(data_item)._set_variable_value(name, value)
+                self.document_model.get_data_item_computation(data_item).set_input_value(name, value)
             display_item = self.document_model.get_display_item_for_data_item(data_item)
             self.document_model.recompute_all()
             with display_item.data_item.data_ref() as data_ref:
@@ -231,7 +231,7 @@ class TestProcessingClass(unittest.TestCase):
         for source_data_item, fn, params in processing_list:
             data_item = fn(self.document_model.get_display_item_for_data_item(source_data_item), source_data_item)
             for name, value in params.items():
-                self.document_model.get_data_item_computation(data_item)._set_variable_value(name, value)
+                self.document_model.get_data_item_computation(data_item).set_input_value(name, value)
             display_item = self.document_model.get_display_item_for_data_item(data_item)
             self.document_model.recompute_all()
             with display_item.data_item.data_ref() as data_ref:
@@ -256,7 +256,7 @@ class TestProcessingClass(unittest.TestCase):
         for source_data_item, fn, params in processing_list:
             data_item = fn(self.document_model.get_display_item_for_data_item(source_data_item), source_data_item)
             for name, value in params.items():
-                self.document_model.get_data_item_computation(data_item)._set_variable_value(name, value)
+                self.document_model.get_data_item_computation(data_item).set_input_value(name, value)
             display_item = self.document_model.get_display_item_for_data_item(data_item)
             self.document_model.recompute_all()
             with display_item.data_item.data_ref() as data_ref:
@@ -282,7 +282,7 @@ class TestProcessingClass(unittest.TestCase):
         for source_data_item, fn, params in processing_list:
             data_item = fn(self.document_model.get_display_item_for_data_item(source_data_item), source_data_item)
             for name, value in params.items():
-                self.document_model.get_data_item_computation(data_item)._set_variable_value(name, value)
+                self.document_model.get_data_item_computation(data_item).set_input_value(name, value)
             display_item = self.document_model.get_display_item_for_data_item(data_item)
             self.document_model.recompute_all()
             with display_item.data_item.data_ref() as data_ref:
@@ -375,7 +375,7 @@ class TestProcessingClass(unittest.TestCase):
             if data_item:
                 computation = self.document_model.get_data_item_computation(data_item)
                 for name, value in params.items():
-                    computation._set_variable_value(name, value)
+                    computation.set_input_value(name, value)
                 display_item = self.document_model.get_display_item_for_data_item(data_item)
                 self.document_model.recompute_all()
                 with display_item.data_item.data_ref() as data_ref:
@@ -420,7 +420,7 @@ class TestProcessingClass(unittest.TestCase):
             if data_item:
                 computation = self.document_model.get_data_item_computation(data_item)
                 for name, value in params.items():
-                    computation._set_variable_value(name, value)
+                    computation.set_input_value(name, value)
                 display_item = self.document_model.get_display_item_for_data_item(data_item)
                 self.document_model.recompute_all()
                 with display_item.data_item.data_ref() as data_ref:
@@ -716,7 +716,7 @@ class TestProcessingClass(unittest.TestCase):
                     # modify processing. make sure data and dependent data gets updated.
                     data_changed_ref[0] = False
                     display_changed_ref[0] = False
-                    document_model.get_data_item_computation(blurred_data_item)._set_variable_value("sigma", 0.1)
+                    document_model.get_data_item_computation(blurred_data_item).set_input_value("sigma", 0.1)
                     document_model.recompute_all()
                     self.assertTrue(data_changed_ref[0])
                     self.assertTrue(display_changed_ref[0])

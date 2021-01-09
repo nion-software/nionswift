@@ -1012,7 +1012,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         data_item._document_model = self
         data_item.set_session_manager(self)
         self.notify_insert_item("data_items", data_item, before_index)
-        self.__rebind_computations()  # rebind any unresolved that may now be resolved
         self.__transaction_manager._add_item(data_item)
 
     def __handle_data_item_removed(self, data_item: DataItem.DataItem) -> None:
@@ -1049,14 +1048,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.append_data_item(data_item, auto_display=auto_display)
         insert_item_order(uuid_order, index, data_item)
         self.__data_items = restore_item_order(self._project, uuid_order)
-
-    def __rebind_computations(self):
-        for computation in self.computations:
-            if not computation.is_resolved:
-                computation.unbind()
-                computation.bind(self)
-                if computation.is_resolved:
-                    computation.mark_update()
 
     def remove_data_item(self, data_item: DataItem.DataItem, *, safe: bool=False) -> None:
         self.__cascade_delete(data_item, safe=safe).close()
@@ -1167,10 +1158,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
     def insert_model_item(self, container, name, before_index, item):
         container.insert_item(name, before_index, item)
-        if name == "graphics":
-            # inserting a graphic may cause computations to become bounds
-            # there may be a better place for this
-            self.__rebind_computations()  # rebind any unresolved that may now be resolved
 
     def remove_model_item(self, container, name, item, *, safe: bool=False) -> Changes.UndeleteLog:
         return self.__cascade_delete(item, safe=safe)
@@ -2176,8 +2163,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.__data_structure_listeners[data_structure] = data_structure.data_structure_objects_changed_event.listen(rebuild_transactions)
         # transactions
         self.__transaction_manager._add_item(data_structure)
-        # computation rebinding
-        self.__rebind_computations()  # rebind any unresolved that may now be resolved
         # send notifications
         self.notify_insert_item("data_structures", data_structure, before_index)
 
@@ -2255,7 +2240,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         # insert in internal list
         before_index = len(self.__computations)
         self.__computations.append(computation)
-        computation.bind(self)
         # listeners
         self.__computation_changed_listeners[computation] = computation.computation_mutated_event.listen(functools.partial(self.__computation_changed, computation))
         self.__computation_output_changed_listeners[computation] = computation.computation_output_changed_event.listen(functools.partial(self.__computation_update_dependencies, computation))
@@ -2280,7 +2264,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         if computation_changed_listener: computation_changed_listener.close()
         computation_output_changed_listener = self.__computation_output_changed_listeners.pop(computation, None)
         if computation_output_changed_listener: computation_output_changed_listener.close()
-        # computation.unbind()  # computation will be unbound when closed
         # notifications
         index = self.__computations.index(computation)
         self.notify_remove_item("computations", computation, index)

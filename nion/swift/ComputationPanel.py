@@ -1245,7 +1245,7 @@ class VariableHandler:
         document_model = self.document_controller.document_model
         computation = self.computation
         variable = self.variable
-        base_items = computation.get_input_base_items(variable.name)
+        base_items = computation.get_variable_input_items(variable.name)
         display_item = None
         for base_item in base_items:
             if isinstance(base_item, DataItem.DataItem):
