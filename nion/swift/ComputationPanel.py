@@ -241,7 +241,7 @@ def select_computation(document_model: DocumentModel.DocumentModel, display_item
         match_items.update(display_item.graphics)
         computations = set()
         for computation in document_model.computations:
-            if computation.output_items.intersection(match_items):
+            if set(computation.output_items).intersection(match_items):
                 computations.add(computation)
         return next(iter(computations)) if len(computations) == 1 else None
     return None
@@ -1355,16 +1355,16 @@ class ResultHandler:
     @property
     def display_item(self) -> typing.Optional[DisplayItem.DisplayItem]:
         document_model = self.document_controller.document_model
-        output_item = self.result.output_items_list
-        if isinstance(output_item, DataItem.DataItem):
-            return document_model.get_best_display_item_for_data_item(output_item)
+        result_items = self.result.output_items
+        if len(result_items) == 1 and isinstance(result_items[0], DataItem.DataItem):
+            return document_model.get_best_display_item_for_data_item(result_items[0])
         return None
 
     @classmethod
     def make_component_content(cls, result: Symbolic.ComputationOutput) -> Declarative.UIDescription:
         u = Declarative.DeclarativeUI()
         label = u.create_label(text="@binding(result.label)")
-        result_items = result.output_items_list
+        result_items = result.output_items
         if len(result_items) == 1 and isinstance(result_items[0], DataItem.DataItem):
             data_source_chooser = {
                 "type": "data_source_chooser",

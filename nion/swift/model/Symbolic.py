@@ -193,16 +193,12 @@ class ComputationOutput(Observable.Observable, Persistence.PersistentObject):
         self.bound_item = None
 
     @property
-    def output_items_list(self) -> typing.List[Persistence.PersistentObject]:
+    def output_items(self) -> typing.List[Persistence.PersistentObject]:
         if isinstance(self.bound_item, BoundList):
             return [item.value for item in self.bound_item.get_items() if item.value is not None]
         elif self.bound_item and self.bound_item.value is not None:
             return [self.bound_item.value]
         return list()
-
-    @property
-    def output_items(self) -> typing.Set[Persistence.PersistentObject]:
-        return set(self.output_items_list)
 
     @property
     def is_resolved(self) -> bool:
@@ -487,12 +483,12 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
         return isinstance(self.bound_item, BoundList)
 
     @property
-    def input_items(self) -> typing.Set[Persistence.PersistentObject]:
-        return set(self.bound_item.base_items) if self.bound_item else set()
+    def input_items(self) -> typing.List[Persistence.PersistentObject]:
+        return self.bound_item.base_items if self.bound_item else list()
 
     @property
-    def direct_input_items(self) -> typing.Set:
-        return set(self.bound_item.base_items) if self.bound_item and not getattr(self.bound_item, "is_list", False) else set()
+    def direct_input_items(self) -> typing.List[Persistence.PersistentObject]:
+        return self.bound_item.base_items if self.bound_item and not getattr(self.bound_item, "is_list", False) else list()
 
     def __property_changed(self, name, value):
         # rebind first, so that property changed listeners get the right value
@@ -1714,24 +1710,24 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         return output_items
 
     @property
-    def input_items(self) -> typing.Set[Persistence.PersistentObject]:
-        input_items = set()
+    def input_items(self) -> typing.List[Persistence.PersistentObject]:
+        input_items = list()
         for variable in self.variables:
-            input_items.update(variable.input_items)
+            input_items.extend(variable.input_items)
         return input_items
 
     @property
-    def direct_input_items(self) -> typing.Set[Persistence.PersistentObject]:
-        input_items = set()
+    def direct_input_items(self) -> typing.List[Persistence.PersistentObject]:
+        input_items = list()
         for variable in self.variables:
-            input_items.update(variable.direct_input_items)
+            input_items.extend(variable.direct_input_items)
         return input_items
 
     @property
-    def output_items(self) -> typing.Set[Persistence.PersistentObject]:
-        output_items = set()
+    def output_items(self) -> typing.List[Persistence.PersistentObject]:
+        output_items = list()
         for result in self.results:
-            output_items.update(result.output_items)
+            output_items.extend(result.output_items)
         return output_items
 
     def set_input_item(self, name: str, input_item: ComputationItem) -> None:
@@ -1763,7 +1759,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         result = self._get_output(name)
         if result:
             if isinstance(result.bound_item, BoundList):
-                return result.output_items_list
+                return result.output_items
             elif result.bound_item:
                 return result.bound_item.value
             else:
@@ -1781,7 +1777,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
 
     def get_variable_input_items(self, name: str) -> typing.Set[Persistence.PersistentObject]:
         variable = self._get_variable(name)
-        return variable.input_items if variable else set()
+        return set(variable.input_items) if variable else set()
 
     def _get_variable(self, name: str) -> typing.Optional[ComputationVariable]:
         for variable in self.variables:

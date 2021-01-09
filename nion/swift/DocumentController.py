@@ -774,7 +774,7 @@ class DocumentController(Window.Window):
             match_items.update(display_item.graphics)
             computations_set = set()
             for computation in document_model.computations:
-                if computation.output_items.intersection(match_items):
+                if set(computation.output_items).intersection(match_items):
                     computations_set.add(computation)
             computations = list(computations_set)
             if len(computations) > 1:

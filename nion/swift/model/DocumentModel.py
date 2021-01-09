@@ -1232,7 +1232,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             # this could obviously be optimized.
             if not isinstance(item, Symbolic.Computation):
                 for computation in self.computations:
-                    base_objects = computation.direct_input_items
+                    base_objects = set(computation.direct_input_items)
                     if item in base_objects:
                         targets = computation._outputs
                         for target in targets:
@@ -2296,8 +2296,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         # when a computation output is changed, this function is called to establish dependencies.
         # if other parts of the computation are changed (inputs, values, etc.), the __computation_changed
         # will handle the change (and trigger a new computation).
-        input_items = computation.input_items
-        output_items = computation.output_items
+        input_items = set(computation.input_items)
+        output_items = set(computation.output_items)
         self.__establish_computation_dependencies(computation._inputs, input_items, computation._outputs, output_items)
         computation._inputs = input_items
         computation._outputs = output_items
