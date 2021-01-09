@@ -55,7 +55,7 @@ class ComputationVariableType:
         del self.__objects[object.uuid]
 
 
-def update_diff_notify(o: Observable.Observable, before_items: typing.List[Persistence.PersistentObject], after_items: typing.List[Persistence.PersistentObject]) -> None:
+def update_diff_notify(o: Observable.Observable, name: str, before_items: typing.List[Persistence.PersistentObject], after_items: typing.List[Persistence.PersistentObject]) -> None:
     assert all(bi is not None for bi in after_items)
     after_items = copy.copy(after_items)
     s = difflib.SequenceMatcher(None, before_items, after_items)
@@ -64,19 +64,19 @@ def update_diff_notify(o: Observable.Observable, before_items: typing.List[Persi
     for tag, i1, i2, j1, j2 in s.get_opcodes():
         if tag == "delete":
             for index in range(i1, i2):
-                o.notify_remove_item("base_items", before_items.pop(i1 + adjust), i1 + adjust)
+                o.notify_remove_item(name, before_items.pop(i1 + adjust), i1 + adjust)
             adjust -= (i2 - i1)
         elif tag == "replace":
             for index in range(i1, i2):
-                o.notify_remove_item("base_items", before_items.pop(i1 + adjust), i1 + adjust)
+                o.notify_remove_item(name, before_items.pop(i1 + adjust), i1 + adjust)
             for index in range(j1, j2):
                 before_items.insert(i1 + adjust + (index - j1), after_items[index])
-                o.notify_insert_item("base_items", after_items[index], i1 + adjust + (index - j1))
+                o.notify_insert_item(name, after_items[index], i1 + adjust + (index - j1))
             adjust += (j2 - j1) - (i2 - i1)
         elif tag == "insert":
             for index in range(j1, j2):
                 before_items.insert(i1 + adjust + (index - j1), after_items[index])
-                o.notify_insert_item("base_items", after_items[index], i1 + adjust + (index - j1))
+                o.notify_insert_item(name, after_items[index], i1 + adjust + (index - j1))
             adjust += (j2 - j1)
     assert before_items == after_items
 
@@ -141,22 +141,11 @@ class ComputationOutput(Observable.Observable, Persistence.PersistentObject):
         if self.__bound_item:
             self.__bound_item.close()
         self.__bound_item = bound_item
-
-        def base_item_inserted(name: str, value, index: int) -> None:
-            if name == "base_items":
-                self.notify_insert_item(name, value, index)
-
-        def base_item_removed(name: str, value, index: int) -> None:
-            if name == "base_items":
-                self.notify_remove_item(name, value, index)
-
         if self.__bound_item:
-            self.__bound_item_base_item_inserted_event_listener = self.__bound_item.item_inserted_event.listen(base_item_inserted)
-            self.__bound_item_base_item_removed_event_listener = self.__bound_item.item_removed_event.listen(base_item_removed)
-
+            self.__bound_item_base_item_inserted_event_listener = self.__bound_item.item_inserted_event.listen(self.item_inserted_event.fire)
+            self.__bound_item_base_item_removed_event_listener = self.__bound_item.item_removed_event.listen(self.item_removed_event.fire)
             for index, base_item in enumerate(self.__bound_item.base_items):
-                base_item_inserted("base_items", base_item, index)
-
+                self.notify_insert_item("base_items", base_item, index)
         self.notify_property_changed("bound_item")
 
     @property
@@ -468,6 +457,8 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
             self.__bound_item_changed_event_listener = self.__bound_item.changed_event.listen(self.changed_event.fire)
             self.__bound_item_base_item_inserted_event_listener = self.__bound_item.item_inserted_event.listen(self.item_inserted_event.fire)
             self.__bound_item_base_item_removed_event_listener = self.__bound_item.item_removed_event.listen(self.item_removed_event.fire)
+            for index, base_item in enumerate(self.__bound_item.base_items):
+                self.notify_insert_item("base_items", base_item, index)
         self.notify_property_changed("bound_item")
 
     @property
@@ -678,7 +669,7 @@ class BoundItemBase(Observable.Observable):
         return self.__base_items
 
     def _update_base_items(self, base_items: typing.List[Persistence.PersistentObject]) -> None:
-        update_diff_notify(self, self.__base_items, base_items)
+        update_diff_notify(self, "base_items", self.__base_items, base_items)
 
 
 class BoundData(BoundItemBase):
@@ -1303,6 +1294,9 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.computation_output_changed_event = Event.Event()
         self.is_initial_computation_complete = threading.Event()  # helpful for waiting for initial computation
         self._evaluation_count_for_test = 0
+        self.__input_items = list()
+        self.__direct_input_items = list()
+        self.__output_items = list()
         self._inputs = set()  # used by document model for tracking dependencies
         self._outputs = set()
         self.pending_project = None  # used for new computations to tell them where they'll end up
@@ -1399,27 +1393,49 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.notify_property_changed(name)
         self.computation_mutated_event.fire()
 
+    def __get_output_items(self) -> typing.List[Persistence.PersistentObject]:
+        output_items = list()
+        for result in self.results:
+            output_items.extend(result.output_items)
+        return output_items
+
     def __result_inserted(self, name: str, before_index: int, result: ComputationOutput) -> None:
         assert name == "results"
 
         def handle_result_item_inserted(name: str, value, index: int) -> None:
             if name == "base_items":
+                update_diff_notify(self, "output_items", self.__output_items, self.__get_output_items())
                 self.computation_output_changed_event.fire()
 
         def handle_result_item_removed(name: str, value, index: int) -> None:
             if name == "base_items":
-                pass
+                update_diff_notify(self, "output_items", self.__output_items, self.__get_output_items())
 
         self.__result_base_item_inserted_event_listeners.insert(before_index, result.item_inserted_event.listen(handle_result_item_inserted))
         self.__result_base_item_removed_event_listeners.insert(before_index, result.item_removed_event.listen(handle_result_item_removed))
 
         result.bind()
 
+        update_diff_notify(self, "output_items", self.__output_items, self.__get_output_items())
+
     def __result_removed(self, name: str, index: int, result: ComputationOutput) -> None:
         assert name == "results"
         self.__result_base_item_inserted_event_listeners.pop(index).close()
         self.__result_base_item_removed_event_listeners.pop(index).close()
         result.unbind()
+        update_diff_notify(self, "output_items", self.__output_items, self.__get_output_items())
+
+    def __get_input_items(self) -> typing.List[Persistence.PersistentObject]:
+        input_items = list()
+        for variable in self.variables:
+            input_items.extend(variable.input_items)
+        return input_items
+
+    def __get_direct_input_items(self) -> typing.List[Persistence.PersistentObject]:
+        input_items = list()
+        for variable in self.variables:
+            input_items.extend(variable.direct_input_items)
+        return input_items
 
     def __variable_inserted(self, name: str, before_index: int, variable: ComputationVariable) -> None:
         assert name == "variables"
@@ -1430,13 +1446,20 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
 
         self.__variable_changed_event_listeners.insert(before_index, variable.changed_event.listen(needs_update))
 
-        def handle_variable_items_changed(name: str, value, index: int) -> None:
+        def handle_variable_item_inserted(name: str, value, index: int) -> None:
             if name == "base_items":
+                update_diff_notify(self, "input_items", self.__input_items, self.__get_input_items())
+                update_diff_notify(self, "direct_input_items", self.__direct_input_items, self.__get_direct_input_items())
                 needs_update()
-                # variable.notify_property_changed("bound_item")
 
-        self.__variable_base_item_inserted_event_listeners.insert(before_index, variable.item_inserted_event.listen(handle_variable_items_changed))
-        self.__variable_base_item_removed_event_listeners.insert(before_index, variable.item_removed_event.listen(handle_variable_items_changed))
+        def handle_variable_item_removed(name: str, value, index: int) -> None:
+            if name == "base_items":
+                update_diff_notify(self, "input_items", self.__input_items, self.__get_input_items())
+                update_diff_notify(self, "direct_input_items", self.__direct_input_items, self.__get_direct_input_items())
+                needs_update()
+
+        self.__variable_base_item_inserted_event_listeners.insert(before_index, variable.item_inserted_event.listen(handle_variable_item_inserted))
+        self.__variable_base_item_removed_event_listeners.insert(before_index, variable.item_removed_event.listen(handle_variable_item_removed))
 
         variable.bind()
 
@@ -1444,6 +1467,9 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
             self.computation_mutated_event.fire()
             self.needs_update = True
             self.notify_insert_item("variables", variable, before_index)
+
+        update_diff_notify(self, "input_items", self.__input_items, self.__get_input_items())
+        update_diff_notify(self, "direct_input_items", self.__direct_input_items, self.__get_direct_input_items())
 
     def __variable_removed(self, name: str, index: int, variable: ComputationVariable) -> None:
         assert name == "variables"
@@ -1454,6 +1480,8 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.computation_mutated_event.fire()
         self.needs_update = True
         self.notify_remove_item("variables", variable, index)
+        update_diff_notify(self, "input_items", self.__input_items, self.__get_input_items())
+        update_diff_notify(self, "direct_input_items", self.__direct_input_items, self.__get_direct_input_items())
 
     def add_variable(self, variable: ComputationVariable) -> None:
         self.insert_variable(len(self.variables), variable)
@@ -1711,24 +1739,15 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
 
     @property
     def input_items(self) -> typing.List[Persistence.PersistentObject]:
-        input_items = list()
-        for variable in self.variables:
-            input_items.extend(variable.input_items)
-        return input_items
+        return self.__input_items
 
     @property
     def direct_input_items(self) -> typing.List[Persistence.PersistentObject]:
-        input_items = list()
-        for variable in self.variables:
-            input_items.extend(variable.direct_input_items)
-        return input_items
+        return self.__direct_input_items
 
     @property
     def output_items(self) -> typing.List[Persistence.PersistentObject]:
-        output_items = list()
-        for result in self.results:
-            output_items.extend(result.output_items)
-        return output_items
+        return self.__output_items
 
     def set_input_item(self, name: str, input_item: ComputationItem) -> None:
         variable = self._get_variable(name)
