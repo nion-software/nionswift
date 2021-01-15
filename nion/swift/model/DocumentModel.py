@@ -1326,12 +1326,13 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 # adjust computation bookkeeping to remove deleted items, then delete unused computations
                 items_set = set(items)
                 for computation in copy.copy(self.computations):
+                    input_deleted = not items_set.isdisjoint(computation.direct_input_items)
                     output_deleted = master_item in computation._outputs
                     computation._inputs -= items_set
                     computation._outputs -= items_set
                     if computation not in items and computation != self.__current_computation:
                         # computations are auto deleted if any input or output is deleted.
-                        if output_deleted or not computation._inputs or any(input in items for input in computation._inputs):
+                        if output_deleted or not computation._inputs or input_deleted:
                             self.__build_cascade(computation, items, dependencies)
                             cascaded = True
             # print(list(reversed(items)))
@@ -2186,7 +2187,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
     def get_data_item_computation(self, data_item: DataItem.DataItem) -> typing.Optional[Symbolic.Computation]:
         for computation in self.computations:
-            if computation.source == data_item:
+            if data_item in computation.output_items:
                 target_object = computation.get_output("target")
                 if target_object == data_item:
                     return computation
@@ -2198,7 +2199,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             if old_computation is computation:
                 pass
             elif computation:
-                computation.source = data_item
                 computation.create_output_item("target", Symbolic.make_item(data_item), label=_("Target"))
                 self.append_computation(computation)
             elif old_computation:

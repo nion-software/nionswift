@@ -802,37 +802,6 @@ class TestDocumentModelClass(unittest.TestCase):
             dst_data_item.data = self.__new_data
             TestDocumentModelClass.add2_eval_count += 1
 
-    def test_new_computation_keeps_computation_until_last_input_deleted(self):
-        Symbolic.register_computation_type("add2", self.Add2)
-        with TestContext.create_memory_context() as test_context:
-            document_model = test_context.create_document_model()
-            data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.int))
-            data_item2 = DataItem.DataItem(numpy.ones((2, 2), numpy.int))
-            data_item3 = DataItem.DataItem()
-            document_model.append_data_item(data_item)
-            document_model.append_data_item(data_item2)
-            document_model.append_data_item(data_item3)
-            computation = document_model.create_computation()
-            computation.create_input_item("src1", Symbolic.make_item(data_item))
-            computation.create_input_item("src2", Symbolic.make_item(data_item2))
-            computation.create_output_item("dst", Symbolic.make_item(data_item3))
-            computation.processing_id = "add2"
-            document_model.append_computation(computation)
-            document_model.recompute_all()
-            self.assertEqual(len(document_model.computations), 1)
-            self.assertEqual(len(document_model.data_items), 3)
-            document_model.remove_data_item(data_item)
-            self.assertEqual(len(computation._inputs), 1)
-            self.assertEqual(len(computation._outputs), 0)
-            self.assertEqual(len(document_model.computations), 1)
-            self.assertEqual(len(document_model.data_items), 1)
-            self.assertEqual(len(document_model.get_dependent_items(data_item)), 0)
-            self.assertEqual(len(document_model.get_dependent_items(data_item2)), 0)
-            self.assertEqual(len(document_model.get_dependent_items(data_item3)), 0)
-            document_model.remove_data_item(data_item2)
-            self.assertEqual(len(document_model.computations), 0)
-            self.assertEqual(len(document_model.data_items), 0)
-
     def test_new_computation_becomes_unresolved_when_data_item_input_is_removed_from_document(self):
         Symbolic.register_computation_type("add2", self.Add2)
         with TestContext.create_memory_context() as test_context:
@@ -853,9 +822,9 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.recompute_all()
             self.assertFalse(computation.needs_update)
             document_model.remove_data_item(data_item)
-            self.assertIn(computation, document_model.computations)
-            self.assertFalse(computation.is_resolved)
-            self.assertTrue(computation.needs_update)
+            self.assertEqual(1, len(document_model.data_items))
+            self.assertEqual(1, len(document_model.display_items))
+            self.assertEqual(0, len(document_model.computations))
 
     def test_new_computation_becomes_unresolved_when_data_source_input_is_removed_from_document(self):
         Symbolic.register_computation_type("add2", self.Add2)
@@ -877,9 +846,9 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.recompute_all()
             self.assertFalse(computation.needs_update)
             document_model.remove_data_item(data_item)
-            self.assertIn(computation, document_model.computations)
-            self.assertFalse(computation.is_resolved)
-            self.assertTrue(computation.needs_update)
+            self.assertEqual(1, len(document_model.data_items))
+            self.assertEqual(1, len(document_model.display_items))
+            self.assertEqual(0, len(document_model.computations))
 
     def test_new_computation_becomes_unresolved_when_xdata_input_is_removed_from_document(self):
         Symbolic.register_computation_type("add2", self.Add2)
@@ -902,9 +871,9 @@ class TestDocumentModelClass(unittest.TestCase):
                 document_model.recompute_all()
                 self.assertFalse(computation.needs_update)
                 document_model.remove_data_item(data_item)
-                self.assertIn(computation, document_model.computations)
-                self.assertFalse(computation.is_resolved)
-                self.assertTrue(computation.needs_update)
+                self.assertEqual(1, len(document_model.data_items))
+                self.assertEqual(1, len(document_model.display_items))
+                self.assertEqual(0, len(document_model.computations))
 
     def test_new_computation_becomes_unresolved_when_data_structure_input_is_removed_from_document(self):
         Symbolic.register_computation_type("set_const_struct", self.SetConstDataStruct)
@@ -927,9 +896,9 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.recompute_all()
             self.assertFalse(computation.needs_update)
             document_model.remove_data_structure(data_structure)
-            self.assertIn(computation, document_model.computations)
-            self.assertFalse(computation.is_resolved)
-            self.assertTrue(computation.needs_update)
+            self.assertEqual(1, len(document_model.data_items))
+            self.assertEqual(1, len(document_model.display_items))
+            self.assertEqual(0, len(document_model.computations))
 
     def test_new_computation_becomes_unresolved_when_graphic_input_is_removed_from_document(self):
         Symbolic.register_computation_type("set_const_graphic", self.SetConstGraphic)
@@ -953,9 +922,9 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.recompute_all()
             self.assertFalse(computation.needs_update)
             display_item.remove_graphic(graphic).close()
-            self.assertIn(computation, document_model.computations)
-            self.assertFalse(computation.is_resolved)
-            self.assertTrue(computation.needs_update)
+            self.assertEqual(1, len(document_model.data_items))
+            self.assertEqual(1, len(document_model.display_items))
+            self.assertEqual(0, len(document_model.computations))
 
     def test_new_computation_deletes_computation_when_result_data_item_deleted(self):
         Symbolic.register_computation_type("add2", self.Add2)
@@ -1130,30 +1099,6 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.append_computation(computation)
             self.assertIn(data_item1, computation._inputs)
             self.assertIn(data_item2, computation._inputs)
-
-    def test_new_computation_with_multiple_inputs_unbinds_result_when_one_input_is_removed_and_causes_result_to_be_removed(self):
-        Symbolic.register_computation_type("add2", self.Add2)
-        with TestContext.create_memory_context() as test_context:
-            document_model = test_context.create_document_model()
-            self.app._set_document_model(document_model)  # required to allow API to find document model
-            data_item1 = DataItem.DataItem(numpy.full((2, 2), 1))
-            document_model.append_data_item(data_item1)
-            data_item2 = DataItem.DataItem(numpy.full((2, 2), 2))
-            document_model.append_data_item(data_item2)
-            data_item3 = DataItem.DataItem(numpy.full((2, 2), 3))
-            document_model.append_data_item(data_item3)
-            computation = document_model.create_computation()
-            computation.create_input_item("src1", Symbolic.make_item(data_item1))
-            computation.create_input_item("src2", Symbolic.make_item(data_item2))
-            computation.create_output_item("dst", Symbolic.make_item(data_item3))
-            computation.processing_id = "add2"
-            document_model.append_computation(computation)
-            document_model.recompute_all()  # establish outputs
-            document_model.remove_data_item(data_item2)
-            self.assertEqual(1, len(document_model.computations))
-            self.assertEqual(1, len(document_model.data_items))
-            self.assertEqual(document_model.data_items[0], data_item1)
-            self.assertIsNone(computation.get_output("dst"))
 
     def test_new_computation_with_list_of_data_item_inputs_does_not_remove_outputs_when_item_in_list_is_removed(self):
         Symbolic.register_computation_type("add_n", self.AddN)
@@ -1865,7 +1810,7 @@ class TestDocumentModelClass(unittest.TestCase):
             data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item2)
             display_item2 = document_model.get_display_item_for_data_item(data_item2)
-            data_item3 = document_model.get_cross_correlate_new(display_item1, display_item1.data_item, display_item2, display_item2.data_item)
+            document_model.get_cross_correlate_new(display_item1, display_item1.data_item, display_item2, display_item2.data_item)
             document_model.remove_data_item(data_item2)
             self.assertEqual(1, len(document_model.data_items))
             self.assertEqual(data_item1, document_model.data_items[0])
