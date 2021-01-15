@@ -1119,6 +1119,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         # insert in internal list
         before_index = len(self.__display_items)
         self.__display_items.append(display_item)
+
         def item_changed(display_item: DisplayItem.DisplayItem, name: str, value, index: int) -> None:
             # pass display item because display data channel might be being removed in which case it will have no container.
             if name == "display_data_channels":

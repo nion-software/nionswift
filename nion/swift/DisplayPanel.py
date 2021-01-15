@@ -1680,7 +1680,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         if display_item:
             self.set_display_panel_display_item(display_item, detect_controller)
 
-    def set_display_panel_display_item(self, display_item: DisplayItem.DisplayItem, detect_controller: bool=False) -> None:
+    def set_display_panel_display_item(self, display_item: typing.Optional[DisplayItem.DisplayItem], detect_controller: bool=False) -> None:
         if display_item:
             d = {"type": "image", "display_item_specifier": display_item.project.create_specifier(display_item).write()}
             if detect_controller:
