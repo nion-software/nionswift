@@ -1327,7 +1327,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 items_set = set(items)
                 for computation in copy.copy(self.computations):
                     input_deleted = not items_set.isdisjoint(computation.direct_input_items)
-                    output_deleted = master_item in computation._outputs
+                    output_deleted = not items_set.isdisjoint(computation.output_items)
                     computation._inputs -= items_set
                     computation._outputs -= items_set
                     if computation not in items and computation != self.__current_computation:

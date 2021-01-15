@@ -952,6 +952,42 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(len(document_model.data_items), 2)
             self.assertEqual(len(document_model.computations), 0)
 
+    class Overlay2:
+        def __init__(self, computation, **kwargs):
+            self.computation = computation
+
+        def execute(self, src):
+            pass
+
+        def commit(self):
+            self.computation.set_referenced_data("dst1", numpy.zeros((2, )))
+            self.computation.set_referenced_data("dst2", numpy.zeros((2, )))
+
+    def test_new_computation_deletes_computation_when_any_result_data_item_deleted(self):
+        Symbolic.register_computation_type("overlay2", self.Overlay2)
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            data_item = DataItem.DataItem(numpy.ones((2, )))
+            data_item3 = DataItem.DataItem()
+            data_item4 = DataItem.DataItem()
+            document_model.append_data_item(data_item)
+            document_model.append_data_item(data_item3)
+            document_model.append_data_item(data_item4)
+            computation = document_model.create_computation()
+            computation.create_input_item("src", Symbolic.make_item(data_item))
+            computation.create_output_item("dst1", Symbolic.make_item(data_item3))
+            computation.create_output_item("dst2", Symbolic.make_item(data_item4))
+            computation.processing_id = "overlay2"
+            document_model.append_computation(computation)
+            document_model.recompute_all()
+            self.assertEqual(len(document_model.computations), 1)
+            self.assertEqual(len(document_model.data_items), 3)
+            # NOTE: removing display item which will remove the data item output
+            document_model.remove_display_item(document_model.display_items[-1])
+            self.assertEqual(len(document_model.get_dependent_items(data_item)), 0)
+            self.assertEqual(len(document_model.data_items), 1)
+            self.assertEqual(len(document_model.computations), 0)
+
     def test_new_computation_deleting_computation_deletes_all_results(self):
         Symbolic.register_computation_type("add2", self.Add2)
         with TestContext.create_memory_context() as test_context:
