@@ -642,6 +642,7 @@ class TestStorageClass(unittest.TestCase):
             data_group2b1 = DataGroup.DataGroup()
             data_group2b.append_data_group(data_group2b1)
             data_group2_copy = copy.deepcopy(data_group2)
+            data_group2_copy.close()
 
     def test_adding_data_item_to_document_model_twice_raises_exception(self):
         with TestContext.create_memory_context() as test_context:

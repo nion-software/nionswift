@@ -21,49 +21,53 @@ class TestPersistentObjectContextClass(unittest.TestCase):
     def test_persistent_object_context_does_not_trigger_event_on_already_registered_object(self):
         persistent_object_context = Persistence.PersistentObjectContext()
         object1 = Persistence.PersistentObject()
-        persistent_object_context.register(object1, object1.item_specifier)
-        was_registered = False
-        def registered(registered_item, unregistered_item) -> None:
-            nonlocal was_registered
-            if registered_item:
-                was_registered = True
-        with persistent_object_context.registration_event.listen(registered):
-            self.assertFalse(was_registered)
+        with contextlib.closing(object1):
+            persistent_object_context.register(object1, object1.item_specifier)
+            was_registered = False
+            def registered(registered_item, unregistered_item) -> None:
+                nonlocal was_registered
+                if registered_item:
+                    was_registered = True
+            with persistent_object_context.registration_event.listen(registered):
+                self.assertFalse(was_registered)
 
     def test_persistent_object_context_calls_register_when_object_becomes_registered(self):
         persistent_object_context = Persistence.PersistentObjectContext()
         object1 = Persistence.PersistentObject()
-        was_registered = False
-        def registered(registered_item, unregistered_item) -> None:
-            nonlocal was_registered
-            if registered_item == object1:
-                was_registered = True
-        with persistent_object_context.registration_event.listen(registered):
-            persistent_object_context.register(object1, object1.item_specifier)
-            self.assertTrue(was_registered)
+        with contextlib.closing(object1):
+            was_registered = False
+            def registered(registered_item, unregistered_item) -> None:
+                nonlocal was_registered
+                if registered_item == object1:
+                    was_registered = True
+            with persistent_object_context.registration_event.listen(registered):
+                persistent_object_context.register(object1, object1.item_specifier)
+                self.assertTrue(was_registered)
 
     def test_persistent_object_context_calls_unregister_when_object_becomes_unregistered(self):
         persistent_object_context = Persistence.PersistentObjectContext()
         object1 = Persistence.PersistentObject()
-        was_registered = False
-        def registered(registered_item, unregistered_item) -> None:
-            nonlocal was_registered
-            if registered_item == object1:
-                was_registered = True
-            if unregistered_item == object1:
-                was_registered = False
-        with persistent_object_context.registration_event.listen(registered):
-            item_specifier1 = object1.item_specifier
-            persistent_object_context.register(object1, item_specifier1)
-            self.assertTrue(was_registered)
-            persistent_object_context.unregister(object1, item_specifier1)
-            self.assertFalse(was_registered)
+        with contextlib.closing(object1):
+            was_registered = False
+            def registered(registered_item, unregistered_item) -> None:
+                nonlocal was_registered
+                if registered_item == object1:
+                    was_registered = True
+                if unregistered_item == object1:
+                    was_registered = False
+            with persistent_object_context.registration_event.listen(registered):
+                item_specifier1 = object1.item_specifier
+                persistent_object_context.register(object1, item_specifier1)
+                self.assertTrue(was_registered)
+                persistent_object_context.unregister(object1, item_specifier1)
+                self.assertFalse(was_registered)
 
     def test_persistent_object_context_unregister_without_subscription_works(self):
         # this test will only generate extra output in the failure case, which has been fixed
         persistent_object_context = Persistence.PersistentObjectContext()
         object1 = Persistence.PersistentObject()
         persistent_object_context.register(object1, object1.item_specifier)
+        object1.close()
         object1 = None
 
     def test_persistent_object_proxy_updates_when_registered(self):
@@ -71,7 +75,7 @@ class TestPersistentObjectContextClass(unittest.TestCase):
         object0 = Persistence.PersistentObject()
         object1 = Persistence.PersistentObject()
         object1_proxy = object0.create_item_proxy(item_specifier=Persistence.PersistentObjectSpecifier.read(object1.uuid))
-        with contextlib.closing(object1_proxy):
+        with contextlib.closing(object0), contextlib.closing(object1), contextlib.closing(object1_proxy):
             object0.persistent_object_context = persistent_object_context
             self.assertIsNone(object1_proxy.item)
             object1.persistent_object_context = persistent_object_context
@@ -82,7 +86,7 @@ class TestPersistentObjectContextClass(unittest.TestCase):
         object0 = Persistence.PersistentObject()
         object1 = Persistence.PersistentObject()
         object1_proxy = object0.create_item_proxy(item_specifier=Persistence.PersistentObjectSpecifier.read(object1.uuid))
-        with contextlib.closing(object1_proxy):
+        with contextlib.closing(object0), contextlib.closing(object1), contextlib.closing(object1_proxy):
             object0.persistent_object_context = persistent_object_context
             object1.persistent_object_context = persistent_object_context
             self.assertEqual(object1, object1_proxy.item)
@@ -103,7 +107,7 @@ class TestPersistentObjectContextClass(unittest.TestCase):
         object1_proxy = object0.create_item_proxy(item=object1)
         object1_proxy.on_item_registered = r
         object1_proxy.on_item_unregistered = u
-        with contextlib.closing(object1_proxy):
+        with contextlib.closing(object0), contextlib.closing(object1), contextlib.closing(object1_proxy):
             # register parent and check initial conditions
             object0.persistent_object_context = persistent_object_context
             self.assertEqual(object1, object1_proxy.item)
@@ -130,7 +134,7 @@ class TestPersistentObjectContextClass(unittest.TestCase):
         object0 = Persistence.PersistentObject()
         object1 = Persistence.PersistentObject()
         object1_proxy = object0.create_item_proxy(item_specifier=Persistence.PersistentObjectSpecifier.read(object1.uuid))
-        with contextlib.closing(object1_proxy):
+        with contextlib.closing(object0), contextlib.closing(object1), contextlib.closing(object1_proxy):
             object1_proxy.on_item_registered = r
             object1_proxy.on_item_unregistered = u
             # register parent, but not child
@@ -162,7 +166,7 @@ class TestPersistentObjectContextClass(unittest.TestCase):
         object1.persistent_object_context = persistent_object_context
         # both objects are already registered
         object1_proxy = object0.create_item_proxy(item_specifier=Persistence.PersistentObjectSpecifier.read(object1.uuid))
-        with contextlib.closing(object1_proxy):
+        with contextlib.closing(object0), contextlib.closing(object1), contextlib.closing(object1_proxy):
             object1_proxy.on_item_registered = r
             object1_proxy.on_item_unregistered = u
             # registered should not be called because it was already registered
@@ -186,7 +190,7 @@ class TestPersistentObjectContextClass(unittest.TestCase):
         object0 = Persistence.PersistentObject()
         object1 = Persistence.PersistentObject()
         object1_proxy = object0.create_item_proxy(item_specifier=Persistence.PersistentObjectSpecifier.read(object1.uuid))
-        with contextlib.closing(object1_proxy):
+        with contextlib.closing(object0), contextlib.closing(object1), contextlib.closing(object1_proxy):
             object1_proxy.on_item_registered = r
             object1_proxy.on_item_unregistered = u
             object0.persistent_object_context = persistent_object_context

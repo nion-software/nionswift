@@ -941,10 +941,10 @@ class TestHardwareSourceClass(unittest.TestCase):
             document_model.session_id = "20000630-150201"
             self.__acquire_one(document_controller, hardware_source)
             self.assertEqual(len(document_model.data_items), 2)
-        # reload
-        with contextlib.closing(simple_test_context.create_document_model()) as document_model:
-            self.assertEqual(len(document_model.data_items), len(set([d.uuid for d in document_model.data_items])))
-            self.assertEqual(len(document_model.data_items), 2)
+            # reload
+            with contextlib.closing(simple_test_context.create_document_model(auto_close=False)) as document_model:
+                self.assertEqual(len(document_model.data_items), len(set([d.uuid for d in document_model.data_items])))
+                self.assertEqual(len(document_model.data_items), 2)
 
     def test_single_frame_acquisition_generates_single_canvas_repaint_event_for_image(self):
         with self.__simple_test_context() as simple_test_context:

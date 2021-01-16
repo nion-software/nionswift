@@ -501,9 +501,11 @@ class PersistentObject:
         After reading, an object may immediately update itself to a newer version using the persistent object
         context.
     """
+    count = 0  # useful for detecting leaks in tests
 
     def __init__(self):
         super().__init__()
+        PersistentObject.count += 1
         self.__type = None
         self.__properties = dict()
         self.__items = dict()
@@ -539,6 +541,7 @@ class PersistentObject:
         self.undefine_properties()
         self.undefine_items()
         self.undefine_relationships()
+        PersistentObject.count -= 1
 
     def __deepcopy__(self, memo):
         deepcopy = self.__class__()

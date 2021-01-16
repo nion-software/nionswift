@@ -1099,6 +1099,7 @@ class DocumentController(Window.Window):
             self.__data_group_properties = data_group.write_to_dict()
             self.__data_group_proxy: typing.Optional[Persistence.PersistentObjectProxy] = None
             self.initialize()
+            data_group.close()  # clean up
 
         def close(self):
             if self.__data_group_proxy:

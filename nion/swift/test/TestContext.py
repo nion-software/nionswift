@@ -23,6 +23,7 @@ def begin_leaks() -> None:
     HDF5Handler.HDF5Handler.count = 0
     Persistence.PersistentObjectProxy.count = 0
     Persistence.PersistentObjectReference.count = 0
+    Persistence.PersistentObject.count = 0
 
 
 def end_leaks(test_case: unittest.TestCase) -> None:
@@ -32,6 +33,7 @@ def end_leaks(test_case: unittest.TestCase) -> None:
     test_case.assertEqual(0, len(DocumentModel.MappedItemManager().item_map.items()))
     test_case.assertEqual(0, Persistence.PersistentObjectProxy.count)
     test_case.assertEqual(0, Persistence.PersistentObjectReference.count)
+    test_case.assertEqual(0, Persistence.PersistentObject.count)
 
 
 class MemoryProfileContext:

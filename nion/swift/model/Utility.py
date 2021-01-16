@@ -351,6 +351,28 @@ def sample_stack_all(count=10, interval=0.1):
     threading.Thread(target=do_sample).start()
 
 
+class TraceCloseable:
+    all = list()
+
+    def __init__(self):
+        self.__tb = traceback.extract_stack()
+        TraceCloseable.all.append(self)
+
+    def close(self) -> None:
+        TraceCloseable.all.remove(self)
+
+    @classmethod
+    def print_leftovers(cls):
+        import sys
+        for x in TraceCloseable.all:
+            print("**************************")
+            print(f"LEAKED {x}")
+            print(f"ALLOCATED HERE")
+            for line in traceback.StackSummary.from_list(x.__tb).format():
+                print(line, file=sys.stderr, end="")
+            print("^^^^^^^^^^^^^^^^^^^^^^^^^^")
+
+
 class TestEventLoop:
     def __init__(self, event_loop: asyncio.AbstractEventLoop = None):
         logging.disable(logging.CRITICAL)  # suppress new_event_loop debug message

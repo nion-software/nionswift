@@ -77,5 +77,6 @@ class TestProjectClass(unittest.TestCase):
                 project_reference.project_uuid = document_model._project.uuid
                 with self.assertRaises(Exception):
                     profile_context.profile.append_project_reference(project_reference)
+                project_reference.close()
 
     # do not import same project (by uuid) twice

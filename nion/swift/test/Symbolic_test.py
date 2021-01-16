@@ -997,20 +997,20 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(DocumentModel.evaluate_data(computation2).data, src_data + 5))
 
     def test_computation_variable_writes_and_reads(self):
-        variable = Symbolic.ComputationVariable("x", value_type="integral", value=5)
-        self.assertEqual(variable.name, "x")
-        self.assertEqual(variable.value, 5)
-        data_node_dict = variable.write_to_dict()
-        variable2 = Symbolic.ComputationVariable()
-        variable2.read_from_dict(data_node_dict)
-        self.assertEqual(variable.name, variable2.name)
-        self.assertEqual(variable.value, variable2.value)
+        with contextlib.closing(Symbolic.ComputationVariable("x", value_type="integral", value=5)) as variable:
+            self.assertEqual(variable.name, "x")
+            self.assertEqual(variable.value, 5)
+            data_node_dict = variable.write_to_dict()
+            with contextlib.closing(Symbolic.ComputationVariable()) as variable2:
+                variable2.read_from_dict(data_node_dict)
+                self.assertEqual(variable.name, variable2.name)
+                self.assertEqual(variable.value, variable2.value)
 
     def test_computation_variable_change_type(self):
-        variable = Symbolic.ComputationVariable("x", value_type="integral", value=5)
-        variable.variable_type = "data_item"
-        variable = Symbolic.ComputationVariable("x", value_type="integral", value=5)
-        variable.variable_type = "graphic"
+        with contextlib.closing(Symbolic.ComputationVariable("x", value_type="integral", value=5)) as variable:
+            variable.variable_type = "data_item"
+        with contextlib.closing(Symbolic.ComputationVariable("x", value_type="integral", value=5)) as variable:
+            variable.variable_type = "graphic"
 
     def test_computation_reparsing_keeps_variables(self):
         with TestContext.create_memory_context() as test_context:

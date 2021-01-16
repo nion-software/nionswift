@@ -28,6 +28,7 @@ class TestDataGroupClass(unittest.TestCase):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
             data_group = DataGroup.DataGroup()
+            document_model.append_data_group(data_group)
             data_item1 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item1)
             data_group.append_display_item(document_model.get_display_item_for_data_item(data_item1))
@@ -35,6 +36,7 @@ class TestDataGroupClass(unittest.TestCase):
             data_group.append_data_group(data_group2)
             # attempt to copy
             data_group_copy = copy.deepcopy(data_group)
+            document_model.append_data_group(data_group_copy)
             # make sure data_groups are not shared
             self.assertNotEqual(data_group.data_groups[0], data_group_copy.data_groups[0])
 
@@ -42,11 +44,13 @@ class TestDataGroupClass(unittest.TestCase):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
             data_group = DataGroup.DataGroup()
+            document_model.append_data_group(data_group)
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             data_group.append_display_item(display_item)
             data_group_copy = copy.deepcopy(data_group)
+            document_model.append_data_group(data_group_copy)
             display_item_specifier = Persistence.PersistentObjectSpecifier.read(data_group_copy.display_item_specifiers[0])
             self.assertEqual(display_item, document_model.resolve_item_specifier(display_item_specifier))
 

@@ -475,6 +475,7 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
                 self.read_project(project_reference)
             return project_reference
         else:
+            project_reference.close()
             if load:
                 existing_project_reference.load_project(self.profile_context)
             return existing_project_reference
