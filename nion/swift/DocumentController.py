@@ -780,9 +780,10 @@ class DocumentController(Window.Window):
             match_items.update(display_item.data_items)
             match_items.update(display_item.graphics)
             computations_set = set()
-            computation: typing.Optional[Symbolic.Computation] = None  # for typing
             for computation in document_model.computations:
                 if set(computation.output_items).intersection(match_items):
+                    computations_set.add(computation)
+                if set(computation.input_items).intersection(match_items):
                     computations_set.add(computation)
             computations = list(computations_set)
             if len(computations) > 1:
