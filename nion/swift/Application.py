@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # standard libraries
 import asyncio
 import copy
@@ -9,6 +11,8 @@ import logging
 import operator
 import os
 import pathlib
+import pkgutil
+import re
 import sys
 import typing
 import uuid
@@ -40,6 +44,7 @@ from nion.swift.model import HardwareSource
 from nion.swift.model import PlugInManager
 from nion.swift.model import Profile
 from nion.ui import Application as UIApplication
+from nion.ui import CanvasItem
 from nion.ui import Declarative
 from nion.ui import Dialog
 from nion.ui import UserInterface
@@ -555,6 +560,71 @@ class Application(UIApplication.BaseApplication):
             self.open_project_window(project_reference)
         except Exception:
             self.show_ok_dialog(_("Error Opening Project"), _("Unable to open project."), completion_fn=self.show_choose_project_dialog)
+
+    @classmethod
+    def get_nion_swift_version_info(cls) -> typing.List[typing.Tuple[str, str, str]]:
+        info = list()
+        conda_path = pathlib.Path(sys.base_prefix) / "conda-meta"
+        if conda_path.is_dir():
+            for package in sorted(path.stem for path in conda_path.glob("*.json")):
+                m = re.match("(.*)-(\d+\.\d+.*\d*)-.+", package)
+                g = m.groups() if m else list()
+                if len(g) >= 2:
+                    package_name = g[0]
+                    package_version = g[1]
+                    if package_name.startswith("nion") or package_name in ("python", "scipy", "numpy", "h5py"):
+                        info.append((package, package_name, package_version))
+        return info
+
+    def show_about_box(self, parent_window: UIWindow.Window) -> None:
+        class AboutDialog(Dialog.OkCancelDialog):
+            def __init__(self, ui: UserInterface.UserInterface, parent_window: UIWindow.Window, version_str: str):
+                super().__init__(ui, include_cancel=False, parent_window=parent_window)
+                row = self.ui.create_row_widget()
+                logo_column = self.ui.create_column_widget()
+                logo_button = self.ui.create_push_button_widget()
+                logo_button.icon = CanvasItem.load_rgba_data_from_bytes(
+                    pkgutil.get_data(__name__, "resources/logo3.png"))
+                logo_column.add_spacing(26)
+                logo_column.add(logo_button)
+                logo_column.add_stretch()
+                column = self.ui.create_column_widget()
+
+                def make_label_row(label: str):
+                    row_one = self.ui.create_row_widget()
+                    row_one.add_spacing(13)
+                    row_one.add(self.ui.create_label_widget(label))
+                    row_one.add_spacing(13)
+                    row_one.add_stretch()
+                    return row_one
+
+                column.add_spacing(26)
+                column.add(make_label_row(f"Nion Swift {version_str}"))
+                column.add(make_label_row("Copyright 2012-2021 Nion Company. All Rights Reserved."))
+                column.add_spacing(26)
+                column.add(make_label_row(sys.base_prefix))
+                package_name_column = self.ui.create_column_widget()
+                package_version_column = self.ui.create_column_widget()
+                for _, package_name, package_version in Application.get_nion_swift_version_info():
+                    package_name_column.add(self.ui.create_label_widget(package_name))
+                    package_version_column.add(self.ui.create_label_widget(package_version))
+                version_columns = self.ui.create_row_widget()
+                version_columns.add_spacing(13)
+                version_columns.add(package_name_column)
+                version_columns.add_spacing(8)
+                version_columns.add(package_version_column)
+                version_columns.add_spacing(13)
+                version_columns.add_stretch()
+                column.add_spacing(13)
+                column.add(version_columns)
+                column.add_spacing(13)
+                column.add_stretch()
+                row.add(logo_column)
+                row.add(column)
+                self.content.add(row)
+
+        about_dialog = AboutDialog(self.ui, parent_window, self.version_str)
+        about_dialog.show()
 
     def run_all_tests(self):
         Test.run_all_tests()
