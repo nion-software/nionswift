@@ -12,7 +12,6 @@ import operator
 import os.path
 import pathlib
 import pkgutil
-import sys
 import threading
 import time
 import traceback
@@ -272,53 +271,7 @@ class DocumentController(Window.Window):
         return getattr(self, "_" + menu_id)
 
     def show_about_box(self):
-        version_str = self.app.version_str if self.app else str()
-        root_dir = os.path.dirname((os.path.dirname(os.path.abspath(__file__))))
-        path_ascend_count = 2
-        for i in range(path_ascend_count):
-            root_dir = os.path.dirname(root_dir)
-        class AboutDialog(Dialog.OkCancelDialog):
-            def __init__(self, ui: UserInterface.UserInterface, parent_window: Window.Window):
-                super().__init__(ui, include_cancel=False, parent_window=parent_window)
-                row = self.ui.create_row_widget()
-                logo_column = self.ui.create_column_widget()
-                logo_button = self.ui.create_push_button_widget()
-                logo_button.icon = CanvasItem.load_rgba_data_from_bytes(pkgutil.get_data(__name__, "resources/logo3.png"))
-                logo_column.add_spacing(26)
-                logo_column.add(logo_button)
-                logo_column.add_stretch()
-                column = self.ui.create_column_widget()
-
-                def make_label_row(label: str):
-                    row_one = self.ui.create_row_widget()
-                    row_one.add_spacing(13)
-                    row_one.add(self.ui.create_label_widget(label))
-                    row_one.add_spacing(13)
-                    row_one.add_stretch()
-                    return row_one
-
-                column.add_spacing(26)
-                column.add(make_label_row("Nion Swift {0} {1}".format(version_str, root_dir)))
-                column.add(make_label_row("Copyright 2012-2019 Nion Co. All Rights Reserved."))
-                column.add_spacing(26)
-                column.add(make_label_row(sys.base_prefix))
-                conda_path = pathlib.Path(sys.base_prefix) / "conda-meta"
-                if conda_path.is_dir():
-                    needs_spacing = True
-                    for package in sorted(path.stem for path in conda_path.glob("*.json")):
-                        if any(s in package for s in ["nion", "python", "scipy", "numpy", "pytz", "h5py"]):
-                            if needs_spacing:
-                                column.add_spacing(26)
-                                needs_spacing = False
-                            column.add(make_label_row(package))
-                column.add_spacing(26)
-                column.add_stretch()
-                row.add(logo_column)
-                row.add(column)
-                self.content.add(row)
-
-        about_dialog = AboutDialog(self.ui, self)
-        about_dialog.show()
+        typing.cast(typing.Any, self.app).show_about_box(self)
 
     def find_dock_panel(self, dock_panel_id) -> typing.Optional[UserInterface.DockWidget]:
         """ Return the dock widget by id. """
