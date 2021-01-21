@@ -19,6 +19,7 @@ from nion.swift import DataItemThumbnailWidget
 from nion.swift import Inspector
 from nion.swift import MimeTypes
 from nion.swift import Undo
+from nion.swift.model import Changes
 from nion.swift.model import DataItem
 from nion.swift.model import DataStructure
 from nion.swift.model import DisplayItem
@@ -1376,6 +1377,51 @@ class ResultHandler:
         return u.create_column(label)
 
 
+class RemoveComputationCommand(Undo.UndoableCommand):
+
+    def __init__(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation):
+        super().__init__(_("Remove Computation"))
+        self.__document_controller = document_controller
+        self.__old_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
+        self.__new_workspace_layout = None
+        self.__computation_index = document_controller.document_model.computations.index(computation)
+        self.__undelete_logs: typing.List[Changes.UndeleteLog] = list()
+        self.initialize()
+
+    def close(self):
+        self.__document_controller = None
+        self.__old_workspace_layout = None
+        self.__new_workspace_layout = None
+        self.__computation_index = None
+        for undelete_log in self.__undelete_logs:
+            undelete_log.close()
+        self.__undelete_logs = None  # type: ignore
+        super().close()
+
+    def perform(self):
+        document_model = self.__document_controller.document_model
+        computation = document_model.computations[self.__computation_index]
+        self.__undelete_logs.append(document_model.remove_computation_with_log(computation))
+
+    def _get_modified_state(self):
+        return self.__document_controller.document_model.modified_state
+
+    def _set_modified_state(self, modified_state) -> None:
+        self.__document_controller.document_model.modified_state = modified_state
+
+    def _undo(self):
+        self.__new_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
+        for undelete_log in reversed(self.__undelete_logs):
+            self.__document_controller.document_model.undelete_all(undelete_log)
+            undelete_log.close()
+        self.__undelete_logs.clear()
+        self.__document_controller.workspace_controller.reconstruct(self.__old_workspace_layout)
+
+    def _redo(self):
+        self.perform()
+        self.__document_controller.workspace_controller.reconstruct(self.__new_workspace_layout)
+
+
 class ComputationHandler:
     def __init__(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation):
         self.document_controller = document_controller
@@ -1385,12 +1431,25 @@ class ComputationHandler:
         self.computation_parameters_model = ListModel.FilteredListModel(container=computation, master_items_key="variables")
         self.computation_parameters_model.filter = ListModel.PredicateFilter(lambda v: v.variable_type not in Symbolic.Computation.data_source_types)
         self.is_custom = computation.expression is not None
+        self.delete_state_model = Model.PropertyModel(0)
 
     def close(self) -> None:
         self.computation_inputs_model.close()
         self.computation_inputs_model = None
         self.computation_parameters_model.close()
         self.computation_parameters_model = None
+
+    def handle_delete(self, widget: Declarative.UIWidget) -> None:
+        self.delete_state_model.value = 1
+
+    def handle_confirm_delete(self, widget: Declarative.UIWidget) -> None:
+        command = RemoveComputationCommand(self.document_controller, self.computation)
+        command.perform()
+        self.document_controller.push_undo_command(command)
+        self.delete_state_model.value = 0
+
+    def handle_cancel_delete(self, widget: Declarative.UIWidget) -> None:
+        self.delete_state_model.value = 0
 
     def create_handler(self, component_id: str, container=None, item=None, **kwargs):
         if component_id == "variable":
@@ -1462,7 +1521,7 @@ class InspectComputationDialog(Declarative.WindowHandler):
 
     def __run_inspector(self, parent_window: Window) -> None:
         u = Declarative.DeclarativeUI()
-        main_page = u.create_column(u.create_component_instance("@binding(stack_page_model.value)"), min_width=320 - 24)
+        main_page = u.create_column(u.create_component_instance("@binding(stack_page_model.value)"), u.create_stretch(), min_width=320 - 24)
         window = u.create_window(main_page, title=_("Computation"), margin=12, window_style="tool")
         self.run(window, parent_window=parent_window, persistent_id="computation_inspector")
         self.__document_controller.register_dialog(self.window)
@@ -1470,26 +1529,35 @@ class InspectComputationDialog(Declarative.WindowHandler):
     def get_resource(self, resource_id: str, container=None, item=None) -> typing.Optional[Declarative.UIDescription]:
         if resource_id == "empty":
             u = Declarative.DeclarativeUI()
-            content = u.create_column(u.create_label(text=_("No computation.")), u.create_stretch())
+            content = u.create_column(u.create_label(text=_("No computation.")))
             component = u.define_component(content=content)
             return component
         if resource_id == "single":
             computation = self.computation_model.value
             u = Declarative.DeclarativeUI()
             label = u.create_label(text=computation.label)
-            inputs = u.create_column(items="computation_inputs_model.items", item_component_id="variable", spacing=8)
-            results = u.create_column(items="computation.results", item_component_id="result", spacing=8)
-            row = u.create_row(
+            inputs = u.create_column(items="computation_inputs_model.items", item_component_id="variable", spacing=8, size_policy_vertical="expanding")
+            results = u.create_column(items="computation.results", item_component_id="result", spacing=8, size_policy_vertical="expanding")
+            input_output_row = u.create_row(
                 u.create_column(inputs),
                 u.create_column(results),
                 spacing=12,
+                size_policy_vertical="expanding"
             )
             parameters = u.create_column(items="computation_parameters_model.items", item_component_id="variable", spacing=8)
             if sys.platform == "darwin":
-                note = u.create_row(u.create_label(text=_("Use Command+Shift+E to edit data item script.")), u.create_stretch(), visible="@binding(is_custom)")
+                note = u.create_row(u.create_label(text=_("Use Command+Shift+E to edit data item script.")), visible="@binding(is_custom)")
             else:
-                note = u.create_row(u.create_label(text=_("Use Ctrl+Shift+E to edit data item script.")), u.create_stretch(), visible="@binding(is_custom)")
-            component = u.define_component(content=u.create_column(label, row, parameters, note, spacing=12))
+                note = u.create_row(u.create_label(text=_("Use Ctrl+Shift+E to edit data item script.")), visible="@binding(is_custom)")
+            delete_row = u.create_row(u.create_stretch(), u.create_push_button(text=_("Delete"), spacing=12, on_clicked="handle_delete"))
+            delete_confirm_row = u.create_row(u.create_stretch(),
+                                              u.create_label(text=_("Are you sure?")),
+                                              u.create_push_button(text=_("Delete"), on_clicked="handle_confirm_delete"),
+                                              u.create_push_button(text=_("Cancel"), on_clicked="handle_cancel_delete"),
+                                              spacing=12)
+            delete_control_row = u.create_row(u.create_stack(delete_row, delete_confirm_row, current_index="@binding(delete_state_model.value)"))
+            controls = u.create_row(u.create_column(note, delete_control_row, u.create_stretch(), spacing=12), u.create_stretch())
+            component = u.define_component(content=u.create_column(label, u.create_column(input_output_row, parameters, controls, spacing=12), spacing=12))
             return component
         return None
 

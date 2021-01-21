@@ -285,6 +285,35 @@ class TestComputationPanelClass(unittest.TestCase):
             with contextlib.closing(ComputationPanel.InspectComputationDialog(document_controller, computation)):
                 display_item.remove_graphic(interval).close()
 
+    def test_remove_computation_undo_redo_cycle(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((2, 2)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            fft_display_item = document_model.get_fft_new(display_item, data_item)
+            self.assertEqual(2, len(document_model.data_items))
+            self.assertEqual(2, len(document_model.display_items))
+            self.assertEqual(1, len(document_model.computations))
+            # remove computation
+            command = ComputationPanel.RemoveComputationCommand(document_controller, document_model.computations[0])
+            command.perform()
+            document_controller.push_undo_command(command)
+            self.assertEqual(1, len(document_model.data_items))
+            self.assertEqual(1, len(document_model.display_items))
+            self.assertEqual(0, len(document_model.computations))
+            # undo and check
+            document_controller.handle_undo()
+            self.assertEqual(2, len(document_model.data_items))
+            self.assertEqual(2, len(document_model.display_items))
+            self.assertEqual(1, len(document_model.computations))
+            # redo and check
+            document_controller.handle_redo()
+            self.assertEqual(1, len(document_model.data_items))
+            self.assertEqual(1, len(document_model.display_items))
+            self.assertEqual(0, len(document_model.computations))
+
     def disabled_test_expression_updates_when_variable_is_assigned(self):
         raise Exception()
 
