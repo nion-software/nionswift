@@ -894,6 +894,19 @@ class TestStorageClass(unittest.TestCase):
             with contextlib.closing(document_model):
                 self.assertTrue(numpy.array_equal(document_model.data_items[0].data, zeros))
 
+    def test_data_changes_reserves_non_large_format_file(self):
+        with create_temp_profile_context() as profile_context:
+            document_model = profile_context.create_document_model(auto_close=False)
+            with contextlib.closing(document_model):
+                data_item = DataItem.DataItem()
+                document_model.append_data_item(data_item)
+                data_item.reserve_data(data_shape=(8, 8), data_dtype=numpy.dtype(numpy.float32), data_descriptor=DataAndMetadata.DataDescriptor(False, 0, 2))
+                self.assertTrue(numpy.array_equal(numpy.zeros((8, 8)), data_item.data))
+                with data_item.data_ref() as dr:
+                    dr.data[:] = 1.0
+                    dr.data_updated()
+                self.assertTrue(numpy.array_equal(numpy.ones((8, 8)), data_item.data))
+
     def test_data_large_format_does_not_rewrite_partial_updates(self):
         with create_temp_profile_context() as profile_context:
             zeros = DataAndMetadata.new_data_and_metadata(numpy.zeros((8, 8), numpy.uint32))

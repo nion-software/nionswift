@@ -316,6 +316,13 @@
                 "type": "separator"
             },
             {
+                "type": "item",
+                "action_id": "window.generate_data_dialog"
+            },
+            {
+                "type": "separator"
+            },
+            {
                 "type": "sub_menu",
                 "menu_id": "processing_transform",
                 "title": "Transform",

@@ -450,7 +450,7 @@ class NDataHandler(StorageHandler.StorageHandler):
             os.utime(absolute_file_path, (time.time(), timestamp))
 
     def reserve_data(self, data_shape: typing.Tuple[int, ...], data_dtype: numpy.dtype, file_datetime) -> None:
-        pass
+        self.write_data(numpy.zeros(data_shape, data_dtype), file_datetime)
 
     def write_properties(self, properties, file_datetime):
         """

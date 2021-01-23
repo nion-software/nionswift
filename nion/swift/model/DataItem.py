@@ -1051,6 +1051,8 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
             if self.persistent_object_context:
                 self.reserve_external_data("data", data_shape, data_dtype)
                 data = self.__load_data()
+                if data is None:
+                    data = numpy.zeros(data_shape, data_dtype)
                 data_shape_and_dtype = data_shape, data_dtype
                 timezone = Utility.get_local_timezone()
                 timezone_offset = Utility.TimezoneMinutesToStringConverter().convert(Utility.local_utcoffset_minutes())

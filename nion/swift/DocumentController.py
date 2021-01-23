@@ -26,6 +26,7 @@ from nion.swift import DisplayEditorPanel
 from nion.swift import DisplayPanel
 from nion.swift import ExportDialog
 from nion.swift import FilterPanel
+from nion.swift import GeneratorDialog
 from nion.swift import MimeTypes
 from nion.swift import RecorderPanel
 from nion.swift import ScriptsDialog
@@ -43,7 +44,6 @@ from nion.swift.model import Persistence
 from nion.swift.model import Processing
 from nion.swift.model import Project
 from nion.swift.model import Symbolic
-from nion.ui import CanvasItem
 from nion.ui import Dialog
 from nion.ui import PreferencesDialog
 from nion.ui import Window
@@ -2469,7 +2469,8 @@ class DataItemRecorderAction(Window.Action):
     action_name = _("Data Item Recorder...")
 
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        context.window.new_recorder_dialog()
+        window = typing.cast(DocumentController, context.window)
+        window.new_recorder_dialog()
         return Window.ActionResult.FINISHED
 
 
@@ -2478,7 +2479,8 @@ class EditComputationAction(Window.Action):
     action_name = _("Edit Computation")
 
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        context.window.new_inspect_computation_dialog()
+        window = typing.cast(DocumentController, context.window)
+        window.new_inspect_computation_dialog()
         return Window.ActionResult.FINISHED
 
 
@@ -2487,7 +2489,8 @@ class EditDataItemScriptAction(Window.Action):
     action_name = _("Edit Data Item Scripts")
 
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        context.window.new_edit_computation_dialog()
+        window = typing.cast(DocumentController, context.window)
+        window.new_edit_computation_dialog()
         return Window.ActionResult.FINISHED
 
 
@@ -2496,7 +2499,18 @@ class EditDisplayScriptAction(Window.Action):
     action_name = _("Edit Display Script")
 
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        context.window.new_display_editor_dialog()
+        window = typing.cast(DocumentController, context.window)
+        window.new_display_editor_dialog()
+        return Window.ActionResult.FINISHED
+
+
+class GenerateDataAction(Window.Action):
+    action_id = "window.generate_data_dialog"
+    action_name = _("Generate Data...")
+
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+        window = typing.cast(DocumentController, context.window)
+        dialog = GeneratorDialog.GenerateDataDialog(window)
         return Window.ActionResult.FINISHED
 
 
@@ -2505,7 +2519,8 @@ class OpenConsoleAction(Window.Action):
     action_name = _("Python Console...")
 
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        context.window.new_console_dialog()
+        window = typing.cast(DocumentController, context.window)
+        window.new_console_dialog()
         return Window.ActionResult.FINISHED
 
 
@@ -2523,7 +2538,8 @@ class OpenRunScriptsAction(Window.Action):
     action_name = _("Scripts...")
 
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        context.window.new_interactive_script_dialog()
+        window = typing.cast(DocumentController, context.window)
+        window.new_interactive_script_dialog()
         return Window.ActionResult.FINISHED
 
 
@@ -2532,7 +2548,8 @@ class ToggleFilterAction(Window.Action):
     action_name = _("Filter")
 
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        context.window.toggle_filter()
+        window = typing.cast(DocumentController, context.window)
+        window.toggle_filter()
         return Window.ActionResult.FINISHED
 
 
@@ -2540,6 +2557,7 @@ Window.register_action(DataItemRecorderAction())
 Window.register_action(EditComputationAction())
 Window.register_action(EditDataItemScriptAction())
 Window.register_action(EditDisplayScriptAction())
+Window.register_action(GenerateDataAction())
 Window.register_action(OpenConsoleAction())
 Window.register_action(OpenProjectDialogAction())
 Window.register_action(OpenRunScriptsAction())

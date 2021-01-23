@@ -1510,7 +1510,11 @@ class InspectComputationDialog(Declarative.WindowHandler):
 
         self.__computation_about_to_be_removed_event_listener = computation.about_to_be_removed_event.listen(remove_computation) if computation else None
 
-        self.__run_inspector(document_controller)
+        u = Declarative.DeclarativeUI()
+        main_page = u.create_column(u.create_component_instance("@binding(stack_page_model.value)"), u.create_stretch(), min_width=320 - 24)
+        window = u.create_window(main_page, title=_("Computation"), margin=12, window_style="tool")
+        self.run(window, parent_window=document_controller, persistent_id="computation_inspector")
+        self.__document_controller.register_dialog(self.window)
 
     def close(self) -> None:
         if self.__computation_about_to_be_removed_event_listener:
@@ -1518,13 +1522,6 @@ class InspectComputationDialog(Declarative.WindowHandler):
             self.__computation_about_to_be_removed_event_listener = None
         self.__document_controller._computation_inspector = None
         super().close()
-
-    def __run_inspector(self, parent_window: Window) -> None:
-        u = Declarative.DeclarativeUI()
-        main_page = u.create_column(u.create_component_instance("@binding(stack_page_model.value)"), u.create_stretch(), min_width=320 - 24)
-        window = u.create_window(main_page, title=_("Computation"), margin=12, window_style="tool")
-        self.run(window, parent_window=parent_window, persistent_id="computation_inspector")
-        self.__document_controller.register_dialog(self.window)
 
     def get_resource(self, resource_id: str, container=None, item=None) -> typing.Optional[Declarative.UIDescription]:
         if resource_id == "empty":
