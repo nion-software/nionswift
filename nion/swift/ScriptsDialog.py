@@ -5,26 +5,23 @@ import contextlib
 import copy
 import functools
 import gettext
+import importlib
+import locale
 import os
+import pathlib
+import re
+import subprocess
 import threading
 import traceback
 import typing
-import re
-import locale
-from importlib import reload
 import sys
-import json
-import subprocess
-import functools
-
-# typing
-from typing import AbstractSet
 
 # third part imports
 import numpy
 
 # local libraries
 from nion.swift.model import PlugInManager
+from nion.swift.model import Profile
 from nion.swift.model import Utility
 from nion.swift import FacadeQueued
 from nion.swift import Panel
@@ -125,14 +122,13 @@ def pose_confirmation_message_box(ui, message_column, caption, accepted_fn, reje
 
 
 class ScriptListItem:
-    __version__ = "2"
-
     def __init__(self, full_path: str, indent: int = 0, indent_level: int = 0, show_dirname: bool = True):
         self.__full_path = os.path.abspath(full_path)
-        self._exists = None
+        self._exists = False
         self.indent = indent
         self.indent_level = indent_level
         self.show_dirname = show_dirname
+        self.script_item: typing.Optional[Profile.ScriptItem] = None
 
     @property
     def full_path(self) -> str:
@@ -150,39 +146,9 @@ class ScriptListItem:
     def exists(self) -> bool:
         return self._exists
 
-    def check_existance(self) -> bool:
+    def check_existence(self) -> bool:
         self._exists = os.path.exists(self.full_path)
         return self._exists
-
-    def to_dict(self) -> dict:
-        return {"__version__": ScriptListItem.__version__,
-                "__type__": "ScriptListItem",
-                "full_path": self.full_path,
-                "indent": self.indent,
-                "indent_level": self.indent_level,
-                "show_dirname": self.show_dirname,
-                "_exists": self._exists}
-
-    @classmethod
-    def from_dict(cls, cls_dict: dict) -> "ScriptListItem":
-        version = cls_dict.pop("__version__")
-        if version != cls.__version__:
-            raise ValueError(f"Cannot read the dictionary provided. Dictionary version '{version}' != implemented version '{cls.__version__}'.")
-        instance = cls(cls_dict.pop("full_path"))
-        for key, value in cls_dict.items():
-            attr_name = key
-            if key.startswith("__"):
-                attr_name = "_" + cls.__name__ + key
-            if hasattr(instance, attr_name):
-                setattr(instance, attr_name, value)
-        return instance
-
-    def to_json_string(self) -> str:
-        return json.dumps(self.to_dict())
-
-    @classmethod
-    def from_json_string(cls, json_string: str) -> "ScriptListItem":
-        return cls.from_dict(json.loads(json_string))
 
     # Used by "sort"
     def __lt__(self, other) -> bool:
@@ -195,7 +161,8 @@ class ScriptListItem:
 
 class FolderListItem(ScriptListItem):
 
-    def __init__(self, full_path: str, content: typing.Optional[typing.List[ScriptListItem]] = None, indent: int = 0, indent_level: int = 0, show_dirname: bool = True):
+    def __init__(self, full_path: str, content: typing.Optional[typing.List[ScriptListItem]] = None, indent: int = 0,
+                 indent_level: int = 0, show_dirname: bool = True):
         super().__init__(full_path, indent=indent, indent_level=indent_level, show_dirname=show_dirname)
         self.__content = content if content is not None else list()
         self.folder_closed = True
@@ -211,26 +178,9 @@ class FolderListItem(ScriptListItem):
             for item in dirlist:
                 if filter_pattern is None or re.search(filter_pattern, item):
                     indent_level = self.indent_level + 1
-                    filtered_items.append(ScriptListItem(os.path.join(self.full_path, item), indent=indent_level*20, indent_level=indent_level, show_dirname=False))
+                    filtered_items.append(ScriptListItem(os.path.join(self.full_path, item), indent=indent_level * 20,
+                                                         indent_level=indent_level, show_dirname=False))
             self.__content = filtered_items
-
-    def to_dict(self) -> dict:
-        return {"__version__": FolderListItem.__version__,
-                "__type__": "FolderListItem",
-                "full_path": self.full_path,
-                "indent": self.indent,
-                "indent_level": self.indent_level,
-                "show_dirname": self.show_dirname,
-                "_exists": self._exists,
-                "__content": [item.to_dict() for item in self.content],
-                "folder_closed": self.folder_closed}
-
-    @classmethod
-    def from_dict(cls, cls_dict: dict) -> "FolderListItem":
-        content = cls_dict.pop("__content", list())
-        instance = super(FolderListItem, cls).from_dict(cls_dict)
-        instance._FolderListItem__content = [ScriptListItem.from_dict(item) for item in content]
-        return instance
 
     # Used by "sort"
     def __lt__(self, other) -> bool:
@@ -241,39 +191,20 @@ class FolderListItem(ScriptListItem):
         return NotImplemented
 
 
-def _upgrade_item_dict_to_version_2(item_dict):
-    if "__content" in item_dict:
-        [_upgrade_item_dict_to_version_2(content_dict) for content_dict in item_dict["__content"]]
-    if item_dict["__version__"] == "2":
-        return item_dict
-    if item_dict.get("indent") > 0:
-        item_dict["indent_level"] = 1
-    else:
-        item_dict["indent_level"] = 0
-    item_dict["__version__"] = "2"
-    return item_dict
-
-
-def _create_list_item_from_dict(item_dict) -> ScriptListItem:
-    type_ = item_dict.pop("__type__")
-    item_dict = _upgrade_item_dict_to_version_2(item_dict)
-    return globals()[type_].from_dict(item_dict)
-
-
 def _build_sorted_scripts_list(scripts_list: typing.List[ScriptListItem]) -> typing.List[ScriptListItem]:
-        filtered_items = []
-        for item in scripts_list:
-            if item.indent_level == 0:
-                filtered_items.append(item)
-        filtered_items.sort()
-        set_items = []
-        for item in filtered_items:
-            set_items.append(item)
-            if isinstance(item, FolderListItem):
-                if not item.folder_closed:
-                    for content_item in item.content:
-                        set_items.append(content_item)
-        return set_items
+    filtered_items = []
+    for item in scripts_list:
+        if item.indent_level == 0:
+            filtered_items.append(item)
+    filtered_items.sort()
+    set_items = []
+    for item in filtered_items:
+        set_items.append(item)
+        if isinstance(item, FolderListItem):
+            if not item.folder_closed:
+                for content_item in item.content:
+                    set_items.append(content_item)
+    return set_items
 
 
 def open_location(location: str) -> None:
@@ -298,8 +229,8 @@ class ScriptListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
         if sys.platform == "win32":
             triangle = "\N{BLACK MEDIUM RIGHT-POINTING TRIANGLE CENTRED} "
         else:
-            triangle = f"\N{BLACK RIGHT-POINTING TRIANGLE} "
-        return triangle, f"\N{FILE FOLDER} "
+            triangle = "\N{BLACK RIGHT-POINTING TRIANGLE} "
+        return triangle, "\N{FILE FOLDER} "
 
     @staticmethod
     def _open_folder_icon_strings() -> typing.Tuple[str, str]:
@@ -307,11 +238,11 @@ class ScriptListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
             triangle = "\N{BLACK MEDIUM DOWN-POINTING TRIANGLE CENTRED} "
         else:
             triangle = "\N{BLACK DOWN-POINTING TRIANGLE} "
-        return triangle, f"\N{OPEN FILE FOLDER} "
+        return triangle, "\N{OPEN FILE FOLDER} "
 
     @staticmethod
     def _file_icon_string() -> str:
-        return f"\N{PAGE FACING UP} "
+        return "\N{PAGE FACING UP} "
 
     @staticmethod
     def _major_font_size() -> str:
@@ -329,14 +260,13 @@ class ScriptListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
     def _minor_font_color() -> str:
         return "#888"
 
-    def close(self):
-        ...
-
     def mouse_pressed_in_item(self, mouse_index: int, pos: Geometry.IntPoint, modifiers) -> bool:
         display_item = self.items[mouse_index]
         width = self.__ui.get_font_metrics(self._major_font_size(), self._closed_folder_icon_strings()[0]).width
         if isinstance(display_item, FolderListItem) and display_item.indent - 4 < pos.x < display_item.indent + width + 2:
             display_item.folder_closed = not display_item.folder_closed
+            if display_item.script_item:
+                display_item.script_item.is_closed = not display_item.script_item.is_closed
             self.__update_list_fn()
             return True
         return False
@@ -399,12 +329,15 @@ class RunScriptDialog(Dialog.ActionDialog):
 
     def __init__(self, document_controller: "DocumentController.DocumentController"):
         ui = document_controller.ui
-        super().__init__(ui, _("Interactive Dialog"), parent_window=document_controller, persistent_id="ScriptsDialog")
+        super().__init__(ui, _("Scripts"), parent_window=document_controller, persistent_id="ScriptsDialog")
 
         self.ui = ui
         self.document_controller = document_controller
 
-        self.script_filter_pattern = "\.py$"
+        app = typing.cast(typing.Any, self.document_controller.app)  # trick typing
+        self.__profile: typing.Optional[Profile.Profile] = app.profile if app else None
+
+        self.script_filter_pattern = "\\.py$"
 
         self._create_menus()
 
@@ -424,19 +357,19 @@ class RunScriptDialog(Dialog.ActionDialog):
 
         self.__message_column.add(self.__make_cancel_row())
 
-        # Load the list of known scripts. Upgrade from old storage system ("interactive_scripts_0")
+        # load the list of script items
         items = []
-        items_str = self.ui.get_persistent_string("interactive_scripts_1", "")
-        if items_str:
-            for item_dict in json.loads(items_str):
-                items.append(_create_list_item_from_dict(item_dict))
-        else:
-            items_old = self.ui.get_persistent_object("interactive_scripts_0", list())
-            for item in items_old:
-                items.append(ScriptListItem(item))
-        if items:
-            items = _build_sorted_scripts_list(items)
-            self.ui.set_persistent_string("interactive_scripts_1", json.dumps([item.to_dict() for item in items]))
+        if self.__profile:
+            for script_item in self.__profile.script_items:
+                if isinstance(script_item, Profile.FileScriptItem):
+                    script_list_item = ScriptListItem(str(script_item.path))
+                    script_list_item.script_item = script_item
+                    items.append(script_list_item)
+                elif isinstance(script_item, Profile.FolderScriptItem):
+                    folder_list_item = FolderListItem(str(script_item.folder_path))
+                    folder_list_item.script_item = script_item
+                    folder_list_item.folder_closed = script_item.is_closed
+                    items.append(folder_list_item)
 
         self.__new_path_entries = []
 
@@ -444,49 +377,62 @@ class RunScriptDialog(Dialog.ActionDialog):
             if isinstance(item, FolderListItem):
                 full_path = item.full_path
                 self.__new_path_entries.append(full_path)
-                if not full_path in sys.path:
+                if full_path not in sys.path:
                     sys.path.append(full_path)
 
-        def selected_changed(indexes: AbstractSet[int]) -> None:
+        def selected_changed(indexes: typing.AbstractSet[int]) -> None:
             run_button_widget.enabled = len(indexes) == 1
 
         def add_clicked() -> None:
+            assert self.__profile
             add_dir = self.ui.get_persistent_string("import_directory", "")
             file_paths, filter_str, directory = self.get_file_paths_dialog(_("Add Scripts"), add_dir, "Python Files (*.py)", "Python Files (*.py)")
             self.ui.set_persistent_string("import_directory", directory)
             items = self.scripts_list_widget.items
-            items.extend([ScriptListItem(file_path) for file_path in file_paths])
+            for file_path_str in file_paths:
+                script_item = Profile.FileScriptItem(pathlib.Path(file_path_str))
+                self.__profile.append_script_item(script_item)
+                script_list_item = ScriptListItem(file_path_str)
+                script_list_item.script_item = script_item
+                items.append(script_list_item)
             self.update_scripts_list(items)
 
         def add_folder_clicked() -> None:
+            assert self.__profile
             add_dir = self.ui.get_persistent_string("import_directory", "")
             existing_directory, directory = self.ui.get_existing_directory_dialog(_("Add Scripts Folder"), add_dir)
             if existing_directory:
-                new_folder = FolderListItem(existing_directory)
-                new_folder.update_content_from_file_system(filter_pattern=self.script_filter_pattern)
-                full_path = new_folder.full_path
-                if not full_path in sys.path:
+                folder_list_item = FolderListItem(existing_directory)
+                folder_list_item.update_content_from_file_system(filter_pattern=self.script_filter_pattern)
+                full_path = folder_list_item.full_path
+                if full_path not in sys.path:
                     sys.path.append(full_path)
                     self.__new_path_entries.append(full_path)
                 items = self.scripts_list_widget.items
-                items.append(new_folder)
+                script_item = Profile.FolderScriptItem(pathlib.Path(existing_directory))
+                self.__profile.append_script_item(script_item)
+                folder_list_item.script_item = script_item
+                items.append(folder_list_item)
                 self.update_scripts_list(items)
             else:
                 self.rebuild_scripts_list()
 
         def remove_clicked() -> None:
+            assert self.__profile
             indexes = list(self.scripts_list_widget.selected_items)
             new_items = []
             for i, item in enumerate(self.scripts_list_widget.items):
-                if not i in indexes:
+                if i not in indexes:
                     new_items.append(item)
+                elif item.script_item:
+                    self.__profile.remove_script_item(item.script_item)
             self.update_scripts_list(new_items)
 
         def run_clicked() -> None:
             indexes = self.scripts_list_widget.selected_items
             if len(indexes) == 1:
                 script_item = self.scripts_list_widget.items[list(indexes)[0]]
-                script_item.check_existance()
+                script_item.check_existence()
                 # Use "type" instead of "isinstance" to exclude subclasses from matching
                 if type(script_item) is ScriptListItem and script_item.exists:
                     script_path = script_item.full_path
@@ -496,7 +442,12 @@ class RunScriptDialog(Dialog.ActionDialog):
             run_clicked()
             return True
 
-        self.scripts_list_widget = Widgets.ListWidget(ui, ScriptListCanvasItemDelegate(ui, document_controller, self.rebuild_scripts_list), items=items, selection_style=Selection.Style.single_or_none, border_color="#888", properties={"min-height": 200, "min-width": 560, "size-policy-vertical": "expanding"})
+        self.scripts_list_widget = Widgets.ListWidget(ui, ScriptListCanvasItemDelegate(ui, document_controller,
+                                                                                       self.rebuild_scripts_list),
+                                                      items=items, selection_style=Selection.Style.single_or_none,
+                                                      border_color="#888",
+                                                      properties={"min-height": 200, "min-width": 560,
+                                                                  "size-policy-vertical": "expanding"})
         self.scripts_list_widget.on_selection_changed = selected_changed
         self.scripts_list_widget.on_item_selected = item_selected
         self.rebuild_scripts_list()
@@ -552,12 +503,12 @@ class RunScriptDialog(Dialog.ActionDialog):
 
         self.content.add(self.__stack)
 
-        self.__sync_events = set()
+        self.__sync_events: typing.Set[threading.Event] = set()
 
         self.__lock = threading.RLock()
 
-        self.__q = collections.deque()
-        self.__output_queue = collections.deque()
+        self.__q: typing.Deque[typing.Callable[[], None]] = collections.deque()
+        self.__output_queue: typing.Deque[str] = collections.deque()
 
         self.__is_closed = False
 
@@ -583,9 +534,8 @@ class RunScriptDialog(Dialog.ActionDialog):
                 item.update_content_from_file_system(filter_pattern=self.script_filter_pattern)
         items = _build_sorted_scripts_list(new_scripts_list)
         for item in items:
-            item.check_existance()
+            item.check_existence()
         self.scripts_list_widget.items = items
-        self.ui.set_persistent_string("interactive_scripts_1", json.dumps([item.to_dict() for item in self.scripts_list_widget.items]))
 
     def rebuild_scripts_list(self):
         self.update_scripts_list(self.scripts_list_widget.items)
@@ -614,8 +564,8 @@ class RunScriptDialog(Dialog.ActionDialog):
                 else:
                     try:
                         if do_reload:
-                            reload(module)
-                    except:
+                            importlib.reload(module)
+                    except Exception:
                         self.print(traceback.format_exc())
                         self.__stack.current_index = 1
                         self.continue_after_parse_error(script_path)
@@ -666,12 +616,14 @@ class RunScriptDialog(Dialog.ActionDialog):
                     if Utility.compare_versions(version, actual_version) > 0:
                         raise NotImplementedError("API requested version %s is greater than %s." % (version, actual_version))
                     return interactive_session
+
                 def get_api(self, version, ui_version=None):
                     ui_version = ui_version if ui_version else "~1.0"
                     api = PlugInManager.api_broker_fn(version, ui_version)
                     queued_api = FacadeQueued.API(api, None)
                     queued_api._queue_task = api.queue_task
                     return queued_api
+
                 def get_ui(self, version):
                     actual_version = "1.0.0"
                     if Utility.compare_versions(version, actual_version) > 0:
@@ -684,14 +636,18 @@ class RunScriptDialog(Dialog.ActionDialog):
                 g["input"] = self.get_string
 
                 print_fn = self.print
-                self.__cancelled = False # Reset cancelled flag to make "Run again" work after a script was cancelled
+                self.__cancelled = False  # Reset cancelled flag to make "Run again" work after a script was cancelled
+
                 class StdoutCatcher:
                     def __init__(self):
                         pass
+
                     def write(self, stuff):
                         print_fn(stuff.rstrip())
+
                     def flush(self):
                         pass
+
                 stdout = StdoutCatcher()
                 with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stdout):
                     exec(compiled, g)
@@ -793,17 +749,17 @@ class RunScriptDialog(Dialog.ActionDialog):
             raise Exception("Cancel")
         return result
 
-    def get_integer(self, prompt: str, default_value: int=0) -> int:
+    def get_integer(self, prompt: str, default_value: int = 0) -> int:
         converter = Converter.IntegerToStringConverter()
         result = self.get_string(prompt, converter.convert(default_value))
         return converter.convert_back(result)
 
-    def get_float(self, prompt: str, default_value: float=0, format_str: str=None) -> float:
+    def get_float(self, prompt: str, default_value: float = 0, format_str: str = None) -> float:
         converter = Converter.FloatToStringConverter(format_str)
         result = self.get_string(prompt, converter.convert(default_value))
         return converter.convert_back(result)
 
-    def show_ndarray(self, data: numpy.ndarray, title:str = None) -> None:
+    def show_ndarray(self, data: numpy.ndarray, title: str = None) -> None:
         with self.sync_event() as accept_event:
 
             def perform():
@@ -853,7 +809,7 @@ class RunScriptDialog(Dialog.ActionDialog):
 
                 self.__message_column.remove_all()
                 pose_confirmation_message_box(self.ui, self.__message_column, prompt, accepted, rejected, accepted_text, rejected_text, display_rejected)
-                #self.__message_column.add(self.__make_cancel_row())
+                # self.__message_column.add(self.__make_cancel_row())
 
             with self.__lock:
                 self.__q.append(perform)

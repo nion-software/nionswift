@@ -41,16 +41,24 @@ jobs:
     - name: Test
       run: |
         python -m unittest discover -p '*_test.py'
-        mypy --namespace-packages --ignore-missing-imports --follow-imports=silent nion/swift/DataPanel.py
-        mypy --namespace-packages --ignore-missing-imports --follow-imports=silent nion/swift/DocumentController.py
-        mypy --namespace-packages --ignore-missing-imports --follow-imports=silent nion/swift/GeneratorDialog.py
-        mypy --namespace-packages --ignore-missing-imports --follow-imports=silent nion/swift/model/FileStorageSystem.py
-        mypy --namespace-packages --ignore-missing-imports --follow-imports=silent nion/swift/model/HDF5Handler.py
-        mypy --namespace-packages --ignore-missing-imports --follow-imports=silent nion/swift/model/NDataHandler.py
-        mypy --namespace-packages --ignore-missing-imports --follow-imports=silent nion/swift/model/Schema.py
-        mypy --namespace-packages --ignore-missing-imports --follow-imports=silent nion/swift/model/StorageHandler.py
-        flake8 --max-line-length=160 nion/swift/GeneratorDialog.py
-        flake8 --max-line-length=160 nion/swift/model/FileStorageSystem.py
+        mypy --namespace-packages --ignore-missing-imports --follow-imports=silent \
+          nion/swift/DataPanel.py \
+          nion/swift/DocumentController.py \
+          nion/swift/GeneratorDialog.py \
+          nion/swift/ScriptsDialog.py \
+          nion/swift/model/FileStorageSystem.py \
+          nion/swift/model/HDF5Handler.py \
+          nion/swift/model/Model.py \
+          nion/swift/model/NDataHandler.py \
+          nion/swift/model/Profile.py \
+          nion/swift/model/Schema.py \
+          nion/swift/model/StorageHandler.py
+        flake8 --max-line-length=160 \
+          nion/swift/GeneratorDialog.py \
+          nion/swift/ScriptsDialog.py \
+          nion/swift/model/FileStorageSystem.py \
+          nion/swift/model/Model.py \
+          nion/swift/model/Profile.py
     - name: Upload Artifacts
       uses: actions/upload-artifact@v2
       if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.8'

@@ -352,11 +352,24 @@ FolderProjectReference = Schema.entity("project_folder", ProjectReference, None,
 MemoryProjectReference = Schema.entity("project_memory", ProjectReference, None, {
 })
 
+ScriptItem = Schema.entity("script_item", None, None, {
+})
+
+FileScriptItem = Schema.entity("file_script_item", ScriptItem, None, {
+    "path": Schema.prop(Schema.PATH),
+})
+
+FolderScriptItem = Schema.entity("folder_script_item", ScriptItem, None, {
+    "folder_path": Schema.prop(Schema.PATH),
+    "is_closed": Schema.prop(Schema.BOOLEAN),
+})
+
 Profile = Schema.entity("profile", None, 2, {
     "project_references": Schema.array(Schema.component(ProjectReference)),
     "last_project_reference": Schema.reference(ProjectReference),
     "work_project": Schema.reference(ProjectReference),
     "closed_items": Schema.prop(Schema.SET),
+    "script_items": Schema.array(Schema.component(ScriptItem)),
 })
 
 Profile.rename("target_project", "target_project_reference_uuid")

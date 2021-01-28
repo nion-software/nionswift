@@ -180,6 +180,35 @@ class Application(UIApplication.BaseApplication):
             profile, is_created = self.__establish_profile(profile_path)
         self.__profile = profile
 
+        # test code to reset script items
+        # self.__profile.script_items_updated = False
+        # while self.__profile.script_items:
+        #     self.__profile.remove_script_item(self.__profile.script_items[-1])
+
+        # migrate the interactive scripts persistent object
+        if not self.__profile.script_items_updated:
+            items_str = self.ui.get_persistent_string("interactive_scripts_1")
+            if items_str:
+                for item_dict in json.loads(items_str):
+                    item_type = item_dict.get("__type__", None)
+                    if item_type == "FolderListItem":
+                        folder_path_str = item_dict.get("full_path", None)
+                        folder_path = pathlib.Path(folder_path_str) if folder_path_str else None
+                        if folder_path and folder_path.exists() and folder_path.is_dir():
+                            profile.append_script_item(Profile.FolderScriptItem(pathlib.Path(folder_path)))
+                    elif item_type == "ScriptListItem" and item_dict.get("indent_level", None) == 0:
+                        script_path_str = item_dict.get("full_path", None)
+                        script_path = pathlib.Path(script_path_str) if script_path_str else None
+                        if script_path and script_path.exists():
+                            profile.append_script_item(Profile.FileScriptItem(pathlib.Path(script_path)))
+            else:
+                items_old = self.ui.get_persistent_object("interactive_scripts_0", list())
+                for script_path_str in items_old:
+                    script_path = pathlib.Path(script_path_str) if script_path_str else None
+                    if script_path and script_path.exists():
+                        profile.append_script_item(Profile.FileScriptItem(pathlib.Path(script_path)))
+            self.__profile.script_items_updated = True
+
         # configure the document model object.
         DocumentModel.DocumentModel.computation_min_period = 0.1
         DocumentModel.DocumentModel.computation_min_factor = 1.0

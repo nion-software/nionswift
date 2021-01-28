@@ -16,9 +16,11 @@ from nion.swift.model import Cache
 from nion.swift.model import Changes
 from nion.swift.model import DocumentModel
 from nion.swift.model import FileStorageSystem
+from nion.swift.model import Model
 from nion.swift.model import Observer
 from nion.swift.model import Persistence
 from nion.swift.model import Project
+from nion.swift.model import Schema
 from nion.utils import Converter
 from nion.utils import Observable
 
@@ -37,11 +39,13 @@ class ProjectReference(Observable.Observable, Persistence.PersistentObject):
         self.define_property("project_uuid", converter=Converter.UuidToStringConverter())
         self.define_property("last_used", None, converter=Converter.DatetimeToStringConverter())
         self.__has_project_info_been_read = False
-        self.__project_version = None
+        self.__project_version: typing.Optional[int] = None
         self.__project_state = "invalid"
         self.__document_model: typing.Optional[DocumentModel.DocumentModel] = None
         self.__document_model_about_to_close_listener = None
         self.storage_cache = None
+        self.project_uuid: typing.Optional[uuid.UUID] = None  # satisfy type checker
+        self.last_used: typing.Optional[datetime.datetime] = None  # satisfy type checker
 
     def close(self) -> None:
         if self.__document_model_about_to_close_listener:
@@ -68,7 +72,7 @@ class ProjectReference(Observable.Observable, Persistence.PersistentObject):
         else:
             container.insert_item(name, before_index, item)
 
-    def remove_model_item(self, container, name, item, *, safe: bool=False) -> Changes.UndeleteLog:
+    def remove_model_item(self, container, name, item, *, safe: bool = False) -> Changes.UndeleteLog:
         """Remove a model item. Let this item's container do it if possible; otherwise do it directly.
 
         Passing responsibility to this item's container allows the library to easily track dependencies.
@@ -85,7 +89,7 @@ class ProjectReference(Observable.Observable, Persistence.PersistentObject):
         self.establish_last_used()
 
     def establish_last_used(self) -> None:
-        if not self.last_used:
+        if self.last_used is None:
             self.last_used = self._get_last_used()
 
     def _get_last_used(self) -> datetime.datetime:
@@ -172,12 +176,12 @@ class ProjectReference(Observable.Observable, Persistence.PersistentObject):
                     self.__document_model_about_to_close_listener = None
                     self.__document_model = None
 
-                self.project.prepare_read_project()  # sets up the uuid, used next.
+                project.prepare_read_project()  # sets up the uuid, used next.
 
-                self.update_item_context(self.project)
-                self.project.about_to_be_inserted(self)
+                self.update_item_context(project)
+                project.about_to_be_inserted(self)
                 self.notify_property_changed("project")  # before reading, so document model has a chance to set up
-                self.project.read_project()
+                project.read_project()
 
                 self.__document_model_about_to_close_listener = self.__document_model.about_to_close_event.listen(document_window_close)
             else:
@@ -188,7 +192,8 @@ class ProjectReference(Observable.Observable, Persistence.PersistentObject):
         if self.project:
             self.project.unmount()
             self.project.about_to_be_removed(self)
-            self.project.persistent_object_context = None
+            self.project.persistent_object_context = typing.cast(Persistence.PersistentObjectContext, None)
+            assert self.__document_model
             self.__document_model.close()
             self.__document_model = None
             self.notify_property_changed("project")
@@ -282,6 +287,7 @@ class FolderProjectReference(ProjectReference):
 
 project_reference_factory_hook = None
 
+
 def project_reference_factory(lookup_id: typing.Callable[[str], str]) -> typing.Optional[ProjectReference]:
     type = lookup_id("type")
     if type == IndexProjectReference.type:
@@ -290,6 +296,79 @@ def project_reference_factory(lookup_id: typing.Callable[[str], str]) -> typing.
         return FolderProjectReference()
     if callable(project_reference_factory_hook):
         return project_reference_factory_hook(type)
+    return None
+
+
+class ScriptItem(Schema.Entity):
+    def __init__(self, entity_type: Schema.EntityType):
+        super().__init__(**entity_type.entity_init_kwargs())
+        self.persistent_storage = None
+
+    @property
+    def is_closed(self) -> bool:
+        return self._get_field_value("is_closed")
+
+    @is_closed.setter
+    def is_closed(self, value: bool) -> None:
+        self._set_field_value("is_closed", value)
+
+    # standard overrides from entity to fit within persistent object architecture
+
+    def _field_value_changed(self, name: str, value: typing.Any) -> None:
+        # this is called when a property changes. to be compatible with the older
+        # persistent object structure, check if persistent storage exists and pass
+        # the message along to persistent storage.
+        persistent_storage = getattr(self, "persistent_storage", None)
+        if persistent_storage:
+            if value is not None:
+                persistent_storage.set_property(self, name, value)
+            else:
+                persistent_storage.clear_property(self, name)
+
+
+class FileScriptItem(ScriptItem):
+    def __init__(self, path: typing.Optional[pathlib.Path] = None):
+        super().__init__(Model.FileScriptItem)
+        if path:
+            self.path = path
+
+    @property
+    def path(self) -> typing.Optional[pathlib.Path]:
+        path_str = self._get_field_value("path")
+        if path_str:
+            return pathlib.Path(path_str)
+        return None
+
+    @path.setter
+    def path(self, value: typing.Optional[pathlib.Path]) -> None:
+        self._set_field_value("path", value)
+
+
+class FolderScriptItem(ScriptItem):
+    def __init__(self, folder_path: typing.Optional[pathlib.Path] = None, is_closed: bool = True):
+        super().__init__(Model.FolderScriptItem)
+        if folder_path:
+            self.folder_path = folder_path
+        self.is_closed = is_closed
+
+    @property
+    def folder_path(self) -> typing.Optional[pathlib.Path]:
+        path_str = self._get_field_value("folder_path")
+        if path_str:
+            return pathlib.Path(path_str)
+        return None
+
+    @folder_path.setter
+    def folder_path(self, value: typing.Optional[pathlib.Path]) -> None:
+        self._set_field_value("folder_path", value)
+
+
+def script_item_factory(lookup_id: typing.Callable[[str], str]) -> typing.Optional[ScriptItem]:
+    type = lookup_id("type")
+    if type == Model.FileScriptItem.entity_id:
+        return FileScriptItem()
+    if type == Model.FolderScriptItem.entity_id:
+        return FolderScriptItem()
     return None
 
 
@@ -302,22 +381,26 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
 
         self.define_root_context()
         self.define_type("profile")
-        self.define_relationship("project_references", project_reference_factory, insert=self.__insert_project_reference, remove=self.__remove_project_reference)
         self.define_property("last_project_reference", converter=Converter.UuidToStringConverter())
         self.define_property("work_project_reference_uuid", converter=Converter.UuidToStringConverter())
         self.define_property("closed_items", list())
+        self.define_property("script_items_updated", False, changed=self.__property_changed)
+        self.define_relationship("project_references", project_reference_factory,
+                                 insert=self.__insert_project_reference, remove=self.__remove_project_reference)
+        self.define_relationship("script_items", script_item_factory)
 
         self.storage_system = storage_system or FileStorageSystem.MemoryPersistentStorageSystem()
         self.storage_system.load_properties()
 
-        self.storage_cache = storage_cache or Cache.DictStorageCache()  # need to deallocate
+        self.storage_cache: typing.Any = storage_cache or Cache.DictStorageCache()  # need to deallocate
         self.set_storage_system(self.storage_system)
 
         self.profile_context = None
 
         # helper object to produce the projects sequence
         oo = Observer.ObserverBuilder()
-        oo.source(self).ordered_sequence_from_array("project_references").map(oo.x.prop("project")).filter(lambda x: x is not None).trampoline(self, "projects")
+        oo.source(typing.cast(Observer.ItemValue, self)).ordered_sequence_from_array("project_references").map(
+            oo.x.prop("project")).filter(lambda x: x is not None).trampoline(self, "projects")
         self.__projects_observer = oo.make_observable()
 
         if profile_context:
@@ -330,7 +413,7 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         self.storage_system.close()
         self.storage_system = None
         self.__projects_observer.close()
-        self.__projects_observer = None
+        self.__projects_observer = typing.cast(Observer.AbstractItemSource, None)
         self.profile_context = None
         self.__class__.count -= 1
         super().close()
@@ -362,6 +445,24 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
     def projects(self) -> typing.List[Project.Project]:
         return typing.cast(typing.List[Project.Project], self.__projects_observer.item)
 
+    def insert_script_item(self, before_index: int, script_item: ScriptItem) -> None:
+        """Insert a script_item before the index, but do it through the container, so dependencies can be tracked."""
+        self.insert_model_item(self, "script_items", before_index, script_item)
+
+    def append_script_item(self, script_item: ScriptItem) -> None:
+        """Append a script_item, but do it through the container, so dependencies can be tracked."""
+        self.insert_model_item(self, "script_items", self.item_count("script_items"), script_item)
+
+    def remove_script_item(self, script_item: ScriptItem, *, safe: bool = False) -> Changes.UndeleteLog:
+        """Remove a script_item, but do it through the container, so dependencies can be tracked."""
+        return self.remove_model_item(self, "script_items", script_item, safe=safe)
+
+    def __insert_script_item(self, name: str, before_index: int, script_item: ScriptItem) -> None:
+        self.notify_insert_item("script_items", script_item, before_index)
+
+    def __remove_script_item(self, name: str, index: int, script_item: ScriptItem) -> None:
+        self.notify_remove_item("script_items", script_item, index)
+
     @property
     def _profile_storage_system(self) -> FileStorageSystem.PersistentStorageSystem:
         return self.storage_system
@@ -377,7 +478,7 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         else:
             container.insert_item(name, before_index, item)
 
-    def remove_model_item(self, container, name, item, *, safe: bool=False) -> Changes.UndeleteLog:
+    def remove_model_item(self, container, name, item, *, safe: bool = False) -> Changes.UndeleteLog:
         """Remove a model item. Let this item's container do it if possible; otherwise do it directly.
 
         Passing responsibility to this item's container allows the library to easily track dependencies.
@@ -434,7 +535,8 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
         project_path = project_dir / project_name.with_suffix(".nsproj")
         project_dir.mkdir(parents=True, exist_ok=True)
         project_uuid = uuid.uuid4()
-        project_data_json = json.dumps({"version": FileStorageSystem.PROJECT_VERSION, "uuid": str(project_uuid), "project_data_folders": [str(project_data_path)]})
+        project_data_json = json.dumps({"version": FileStorageSystem.PROJECT_VERSION, "uuid": str(project_uuid),
+                                        "project_data_folders": [str(project_data_path)]})
         project_path.write_text(project_data_json, "utf-8")
         project_reference = IndexProjectReference()
         project_reference.project_path = project_path
@@ -457,7 +559,7 @@ class Profile(Observable.Observable, Persistence.PersistentObject):
 
     def append_project_reference(self, project_reference: ProjectReference) -> None:
         assert not self.get_item_by_uuid("project_references", project_reference.uuid)
-        assert not project_reference.project_uuid in {project_reference.project_uuid for project_reference in self.project_references}
+        assert project_reference.project_uuid not in {project_reference.project_uuid for project_reference in self.project_references}
         self.append_item("project_references", project_reference)
 
     def remove_project_reference(self, project_reference: ProjectReference) -> None:

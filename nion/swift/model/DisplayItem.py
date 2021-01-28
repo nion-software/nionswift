@@ -1134,6 +1134,8 @@ class DisplayLayer(Schema.Entity):
     def fill_color(self, value: typing.Optional[str]) -> None:
         self._set_field_value("fill_color", value)
 
+    # standard overrides from entity to fit within persistent object architecture
+
     def _field_value_changed(self, name: str, value: typing.Any) -> None:
         # this is called when a property changes. to be compatible with the older
         # persistent object structure, check if persistent storage exists and pass

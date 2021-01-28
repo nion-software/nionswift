@@ -573,7 +573,7 @@ class ArrayType(FieldType):
 
 
 class MapType(FieldType):
-    def __init__(self, key: FieldType, value: FieldType, optional: bool):
+    def __init__(self, key: str, value: FieldType, optional: bool):
         super().__init__(MapField, key, value, optional)
         self.key = key
         self.value = value
@@ -873,7 +873,7 @@ def record(field_type_map: typing.Dict[str, FieldType]) -> RecordType:
 def array(type: FieldType, optional: bool = False) -> ArrayType:
     return ArrayType(type, optional)
 
-def map(key: FieldType, value: FieldType, optional: bool = False) -> MapType:
+def map(key: str, value: FieldType, optional: bool = False) -> MapType:
     return MapType(key, value, optional)
 
 def reference(type: typing.Optional[EntityType] = None) -> ReferenceType:
