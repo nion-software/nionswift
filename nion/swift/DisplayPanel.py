@@ -41,6 +41,7 @@ from nion.utils import ListModel
 from nion.utils import Selection
 
 if typing.TYPE_CHECKING:
+    import numpy
     from nion.swift import DocumentController
     from nion.swift import Workspace
 
@@ -1341,7 +1342,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         # changed since the last time the display_items_changed_event was fired.
         self.__display_items = list()
 
-        def data_list_drag_started(mime_data, thumbnail_data):
+        def data_list_drag_started(mime_data, thumbnail_data: typing.Optional[numpy.ndarray]) -> None:
             self.content_canvas_item.drag(mime_data, thumbnail_data)
 
         def key_pressed(key):

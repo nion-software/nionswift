@@ -284,7 +284,7 @@ class DataListController:
         self.selected_indexes = list()
         self.on_context_menu_event : typing.Optional[typing.Callable[[typing.Optional[DisplayItem.DisplayItem], int, int, int, int], bool]] = None
         self.on_focus_changed : typing.Optional[typing.Callable[[bool], None]] = None
-        self.on_drag_started : typing.Optional[typing.Callable[[UserInterface.MimeData, numpy.ndarray], None]] = None
+        self.on_drag_started : typing.Optional[typing.Callable[[UserInterface.MimeData, typing.Optional[numpy.ndarray]], None]] = None
 
         # changed display items keep track of items whose content has changed
         # the content changed messages may come from a thread so have to be
@@ -375,7 +375,7 @@ class DataListController:
             MimeTypes.mime_data_put_display_items(mime_data, [display_item_adapter.display_item for display_item_adapter in display_item_adapters if display_item_adapter.display_item])
             thumbnail_data = self.__display_item_adapters[anchor_index].calculate_thumbnail_data()
         if mime_data:
-            if self.on_drag_started:
+            if callable(self.on_drag_started):
                 self.on_drag_started(mime_data, thumbnail_data)
 
     def __display_item_adapter_needs_update(self) -> None:
@@ -446,7 +446,7 @@ class DataGridController:
         self.on_display_item_adapter_double_clicked : typing.Optional[typing.Callable[[DisplayItemAdapter], bool]] = None
         self.on_context_menu_event : typing.Optional[typing.Callable[[typing.Optional[DisplayItem.DisplayItem], int, int, int, int], bool]] = None
         self.on_focus_changed : typing.Optional[typing.Callable[[bool], None]] = None
-        self.on_drag_started : typing.Optional[typing.Callable[[UserInterface.MimeData, numpy.ndarray], None]] = None
+        self.on_drag_started : typing.Optional[typing.Callable[[UserInterface.MimeData, typing.Optional[numpy.ndarray]], None]] = None
 
         self.__display_item_adapters : typing.List[DisplayItemAdapter] = list()
         self.__display_item_adapter_needs_update_listeners : typing.List = list()
@@ -663,7 +663,7 @@ class DataListWidget(Widgets.CompositeWidgetBase):
         data_list_widget.canvas_item.add_canvas_item(data_list_controller.canvas_item)
         self.content_widget.add(data_list_widget)
 
-        def data_list_drag_started(mime_data: UserInterface.MimeData, thumbnail_data: numpy.ndarray) -> None:
+        def data_list_drag_started(mime_data: UserInterface.MimeData, thumbnail_data: typing.Optional[numpy.ndarray]) -> None:
             self.drag(mime_data, thumbnail_data)
 
         data_list_controller.on_drag_started = data_list_drag_started
@@ -683,7 +683,7 @@ class DataGridWidget(Widgets.CompositeWidgetBase):
         data_grid_widget.canvas_item.add_canvas_item(data_grid_controller.canvas_item)
         self.content_widget.add(data_grid_widget)
 
-        def data_list_drag_started(mime_data: UserInterface.MimeData, thumbnail_data: numpy.ndarray) -> None:
+        def data_list_drag_started(mime_data: UserInterface.MimeData, thumbnail_data: typing.Optional[numpy.ndarray]) -> None:
             self.drag(mime_data, thumbnail_data)
 
         data_grid_controller.on_drag_started = data_list_drag_started

@@ -72,7 +72,7 @@ class DataItemStorageAdapter:
         file_datetime = item.created_local
         self.__storage_handler.reserve_data(data_shape, data_dtype, file_datetime)
 
-    def load_data(self, item: Persistence.PersistentObject) -> numpy.ndarray:
+    def load_data(self, item: Persistence.PersistentObject) -> typing.Optional[numpy.ndarray]:
         return self.__storage_handler.read_data()
 
 
@@ -923,7 +923,7 @@ class MemoryStorageHandler(StorageHandler.StorageHandler):
     def read_properties(self) -> typing.Dict:
         return copy.deepcopy(self.__data_properties_map.get(self.__uuid, dict()))
 
-    def read_data(self) -> numpy.ndarray:
+    def read_data(self) -> typing.Optional[numpy.ndarray]:
         self.__data_read_event.fire(self.__uuid)
         return self.__data_map.get(self.__uuid)
 
