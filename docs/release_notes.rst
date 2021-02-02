@@ -5,6 +5,15 @@
 Release Notes
 =============
 
+Version 0.15.4 (UNRELEASED)
+---------------------------
+* (2021-01-22) Add dialog to generate data, useful for testing and experiments.
+* (2021-01-20) Allow computations to be deleted directly from computation editor.
+* (2021-01-18) Allow computation editor to show dependent computations in addition to source computations.
+* (2020-12-28) Minor improvements to computation editor panel.
+* (2020-12-23) Add color wells for editing line plot layer colors in inspector.
+* (2020-12-20) Improve line plot layers to be more robust during adding/removing/undo.
+
 Version 0.15.3 (2020-12-10)
 ---------------------------
 * (2020-12-09) Fix regression (0.15.2) of drawing composite line plot layers in reverse order.
