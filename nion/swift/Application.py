@@ -593,16 +593,17 @@ class Application(UIApplication.BaseApplication):
     @classmethod
     def get_nion_swift_version_info(cls) -> typing.List[typing.Tuple[str, str, str]]:
         info = list()
-        conda_path = pathlib.Path(sys.base_prefix) / "conda-meta"
-        if conda_path.is_dir():
-            for package in sorted(path.stem for path in conda_path.glob("*.json")):
-                m = re.match("(.*)-(\d+\.\d+.*\d*)-.+", package)
-                g = m.groups() if m else list()
-                if len(g) >= 2:
-                    package_name = g[0]
-                    package_version = g[1]
-                    if package_name.startswith("nion") or package_name in ("python", "scipy", "numpy", "h5py"):
-                        info.append((package, package_name, package_version))
+        for path_str in sys.path:
+            if path_str.endswith("site-packages"):
+                site_packages_path = pathlib.Path(path_str)
+                for package in sorted(path.stem for path in site_packages_path.glob("*dist-info")):
+                    m = re.match("(.*)-(\\d+\\.\\d+.*\\d*)", package)
+                    g = m.groups() if m else list()
+                    if len(g) >= 2:
+                        package_name = g[0]
+                        package_version = g[1]
+                        if package_name.startswith("nion") or package_name in ("python", "scipy", "numpy", "h5py"):
+                            info.append((package, package_name, package_version))
         return info
 
     def show_about_box(self, parent_window: UIWindow.Window) -> None:
@@ -630,8 +631,11 @@ class Application(UIApplication.BaseApplication):
                 column.add_spacing(26)
                 column.add(make_label_row(f"Nion Swift {version_str}"))
                 column.add(make_label_row("Copyright 2012-2021 Nion Company. All Rights Reserved."))
-                column.add_spacing(26)
-                column.add(make_label_row(sys.base_prefix))
+                column.add_spacing(13)
+                column.add(make_label_row(f"Python {sys.version}"))
+                if sys.base_prefix:
+                    column.add_spacing(13)
+                    column.add(make_label_row(sys.base_prefix))
                 package_name_column = self.ui.create_column_widget()
                 package_version_column = self.ui.create_column_widget()
                 for _, package_name, package_version in Application.get_nion_swift_version_info():

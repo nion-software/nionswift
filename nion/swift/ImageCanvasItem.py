@@ -7,7 +7,6 @@ import typing
 
 # third party libraries
 import numpy
-import scipy.ndimage
 
 # local libraries
 from nion.data import Calibration
