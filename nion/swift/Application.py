@@ -194,18 +194,18 @@ class Application(UIApplication.BaseApplication):
                     if item_type == "FolderListItem":
                         folder_path_str = item_dict.get("full_path", None)
                         folder_path = pathlib.Path(folder_path_str) if folder_path_str else None
-                        if folder_path and folder_path.exists() and folder_path.is_dir():
+                        if folder_path:
                             profile.append_script_item(Profile.FolderScriptItem(pathlib.Path(folder_path)))
                     elif item_type == "ScriptListItem" and item_dict.get("indent_level", None) == 0:
                         script_path_str = item_dict.get("full_path", None)
                         script_path = pathlib.Path(script_path_str) if script_path_str else None
-                        if script_path and script_path.exists():
+                        if script_path:
                             profile.append_script_item(Profile.FileScriptItem(pathlib.Path(script_path)))
             else:
                 items_old = self.ui.get_persistent_object("interactive_scripts_0", list())
                 for script_path_str in items_old:
                     script_path = pathlib.Path(script_path_str) if script_path_str else None
-                    if script_path and script_path.exists():
+                    if script_path:
                         profile.append_script_item(Profile.FileScriptItem(pathlib.Path(script_path)))
             self.__profile.script_items_updated = True
 
