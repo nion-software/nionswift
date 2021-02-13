@@ -1223,6 +1223,14 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 for display_layer in display_item.display_layers:
                     if display_layer.display_data_channel == item:
                         self.__build_cascade(display_layer, items, dependencies)
+            elif isinstance(item, DisplayItem.DisplayLayer):
+                # delete display data channels whose only referencing display layer is being deleted
+                display_layer = typing.cast(DisplayItem.DisplayLayer, item)
+                display_data_channel = display_layer.display_data_channel
+                display_item = typing.cast(DisplayItem.DisplayItem, item.container)
+                reference_count = display_item.get_display_data_channel_layer_use_count(display_layer.display_data_channel)
+                if reference_count == 1:
+                    self.__build_cascade(display_data_channel, items, dependencies)
             # outputs of a computation are deleted.
             elif isinstance(item, Symbolic.Computation):
                 for output in item._outputs:
@@ -1389,6 +1397,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             import sys, traceback
             traceback.print_exc()
             traceback.format_exception(*sys.exc_info())
+            raise
         finally:
             # check whether this call of __cascade_delete is the top level one that will finish the computation
             # changed messages.

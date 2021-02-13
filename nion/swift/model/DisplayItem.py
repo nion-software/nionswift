@@ -1309,8 +1309,9 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         self.graphics_changed_event.fire(self.graphic_selection)
         if self.used_display_type == "line_plot":
             if self.display_data_shape and len(self.display_data_shape) == 2:
-                while len(self.display_layers) > 0:
-                    self.remove_display_layer(len(self.display_layers) - 1).close()
+                for display_layer in self.display_layers:
+                    # use the version of remove that does not cascade
+                    self.remove_item("display_layers", display_layer)
                 for display_data_channel in self.display_data_channels:
                     data_item = display_data_channel.data_item
                     if data_item:
@@ -1318,7 +1319,8 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
                             self.__add_display_layer_auto(DisplayLayer(), display_data_channel, data_row)
         else:
             while len(self.display_layers) > 1:
-                self.remove_display_layer(len(self.display_layers) - 1).close()
+                # use the version of remove that does not cascade
+                self.remove_item("display_layers", self.display_layers[-1])
 
     def __property_changed(self, name, value):
         self.notify_property_changed(name)
@@ -1472,7 +1474,10 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
                 value = getattr(display_layer, property, None)
                 if value is not None:
                     d[property] = value
-            if display_layer.display_data_channel:
+            # the check for display data channel still being in display data channels is a hack needed because the
+            # removal of a display layer can cascade remove a display data channel and leave the display data channel
+            # of the display layer dangling during the cascade. hack it here.
+            if display_layer.display_data_channel and display_layer.display_data_channel in self.display_data_channels:
                 d["data_index"] = self.display_data_channels.index(display_layer.display_data_channel)
             l.append(d)
         return l
@@ -1511,14 +1516,16 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         assert 0 <= index < len(self.display_layers)
         if index > 0:
             display_layer_copy = copy.deepcopy(self.display_layers[index])
-            self.remove_display_layer(self.display_layers[index]).close()
+            # use the version of remove that does not cascade
+            self.remove_item("display_layers", self.display_layers[index])
             self.insert_display_layer(index - 1, display_layer_copy)
 
     def move_display_layer_backward(self, index: int) -> None:
         assert 0 <= index < len(self.display_layers)
         if index < len(self.display_layers) - 1:
             display_layer_copy = copy.deepcopy(self.display_layers[index])
-            self.remove_display_layer(self.display_layers[index]).close()
+            # use the version of remove that does not cascade
+            self.remove_item("display_layers", self.display_layers[index])
             self.insert_display_layer(index + 1, display_layer_copy)
 
     def move_display_layer_at_index_forward(self, index: int) -> None:

@@ -834,7 +834,8 @@ class AppendDisplayDataChannelUndo(Changes.UndeleteBase):
 
     def undelete(self, document_model: DocumentModel.DocumentModel) -> None:
         display_item = typing.cast(DisplayItem.DisplayItem, self.display_item_proxy.item)
-        display_item.remove_display_data_channel(display_item.display_data_channels[self.index]).close()
+        # use the version of remove that does not cascade
+        display_item.remove_item("display_data_channels", display_item.display_data_channels[self.index])
 
 
 class AppendDisplayLayerUndo(Changes.UndeleteBase):
@@ -847,7 +848,8 @@ class AppendDisplayLayerUndo(Changes.UndeleteBase):
 
     def undelete(self, document_model: DocumentModel.DocumentModel) -> None:
         display_item = typing.cast(DisplayItem.DisplayItem, self.display_item_proxy.item)
-        display_item.remove_display_layer(display_item.display_layers[self.index]).close()
+        # use the version of remove that does not cascade
+        display_item.remove_item("display_layers", display_item.display_layers[self.index])
 
 
 class SetDisplayPropertyUndo(Changes.UndeleteBase):
@@ -936,9 +938,9 @@ class MoveDisplayLayerCommand(Undo.UndoableCommand):
             old_display_layer_index += 1
         # remove the old display layer
         self.__undelete_logs.append(old_display_item.remove_display_layer(old_display_layer_index))
-        # remove the old display data channel if it is now unused.
-        if new_display_data_channel != old_display_data_channel and old_display_item.get_display_data_channel_layer_use_count(old_display_data_channel) == 0:
-            self.__undelete_logs.append(old_display_item.remove_display_data_channel(old_display_data_channel))
+        # old display data channels will be removed when the last referencing display layer is removed by cascade.
+        # if new_display_data_channel != old_display_data_channel and old_display_item.get_display_data_channel_layer_use_count(old_display_data_channel) == 0:
+        #     self.__undelete_logs.append(old_display_item.remove_display_data_channel(old_display_data_channel))
         # update the legend
         new_display_item.auto_display_legend()
         old_display_item.auto_display_legend()

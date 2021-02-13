@@ -2387,6 +2387,8 @@ class TestDisplayPanelClass(unittest.TestCase):
             document_model.append_data_item(data_item2)
             display_item1 = document_model.get_display_item_for_data_item(data_item1)
             display_item1.append_display_data_channel(DisplayItem.DisplayDataChannel(data_item=data_item2), display_layer=DisplayItem.DisplayLayer())
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_item(display_item1)
             self.assertEqual(2, len(display_item1.display_layers))
             self.assertEqual(2, len(display_item1.display_data_channels))
             self.assertEqual(display_item1.display_data_channels[0], display_item1.get_display_layer_display_data_channel(0))
@@ -2395,7 +2397,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             command.perform()
             document_controller.push_undo_command(command)
             self.assertEqual(1, len(display_item1.display_layers))
-            self.assertEqual(2, len(display_item1.display_data_channels))
+            self.assertEqual(1, len(display_item1.display_data_channels))
             self.assertEqual(display_item1.display_data_channels[0], display_item1.get_display_layer_display_data_channel(0))
             command.undo()
             self.assertEqual(2, len(display_item1.display_layers))
@@ -2404,7 +2406,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             self.assertEqual(display_item1.display_data_channels[1], display_item1.get_display_layer_display_data_channel(1))
             command.redo()
             self.assertEqual(1, len(display_item1.display_layers))
-            self.assertEqual(2, len(display_item1.display_data_channels))
+            self.assertEqual(1, len(display_item1.display_data_channels))
             self.assertEqual(display_item1.display_data_channels[0], display_item1.get_display_layer_display_data_channel(0))
 
     def test_selection_updated_when_filter_is_updated(self):
