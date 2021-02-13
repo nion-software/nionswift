@@ -395,6 +395,22 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             display_item.display_type = None
             display_panel.display_canvas_item.layout_immediate((640, 480))
 
+    def test_line_plot_handles_composite_layers_when_display_type_is_line_plot(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item1 = DataItem.DataItem(numpy.ones((100,), float))
+            data_item2 = DataItem.DataItem(numpy.ones((100,), float))
+            document_model.append_data_item(data_item1)
+            document_model.append_data_item(data_item2)
+            display_item1 = document_model.get_display_item_for_data_item(data_item1)
+            display_item1.append_display_data_channel_for_data_item(data_item2)
+            self.assertEqual(2, len(display_item1.display_layers))
+            display_item1.display_type = "line_plot"
+            self.assertEqual(2, len(display_item1.display_layers))
+            display_item1.display_type = None
+            self.assertEqual(2, len(display_item1.display_layers))
+
     def test_check_exponents(self):
         e = LineGraphCanvasItem.Exponenter()
         e.add_label("5e+05")

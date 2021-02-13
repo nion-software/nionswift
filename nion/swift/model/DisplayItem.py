@@ -1192,7 +1192,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         self.__dimensional_calibrations = None
         self.__intensity_calibration = None
         self.__dimensional_shape = None
-        self.__scales = None
+        self.__scales: typing.Optional[typing.Tuple[float, ...]] = None
 
         self.__graphic_changed_listeners = list()
         self.__display_item_change_count = 0
@@ -1307,7 +1307,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         self.display_values_changed_event.fire()
         self.display_changed_event.fire()
         self.graphics_changed_event.fire(self.graphic_selection)
-        if self.display_type == "line_plot":
+        if self.used_display_type == "line_plot":
             if self.display_data_shape and len(self.display_data_shape) == 2:
                 while len(self.display_layers) > 0:
                     self.remove_display_layer(len(self.display_layers) - 1).close()
@@ -1687,7 +1687,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
                 self.__dimensional_calibrations = dimensional_calibrations
                 self.__intensity_calibration = xdata_list[0].intensity_calibration
                 self.__scales = mn, mx
-                self.__dimensional_shape = (mx - mn, )
+                self.__dimensional_shape = (int(mx - mn), )
         else:
             self.__dimensional_calibrations = None
             self.__intensity_calibration = None
@@ -1886,7 +1886,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
     @property
     def display_data_shape(self) -> typing.Optional[typing.Tuple[int, ...]]:
         if not self.display_data_channel:
-            return self.displayed_dimensional_scales if self.__is_composite_data else None
+            return self.__dimensional_shape if self.__is_composite_data else None
         return self.display_data_channel.display_data_shape
 
     @property
