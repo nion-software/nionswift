@@ -67,11 +67,11 @@ class TestImportExportManagerClass(unittest.TestCase):
             ImportExportManager.update_data_item_from_data_element(data_item, data_element)
             self.assertEqual(data_item.dimensional_shape, (8, 8))
             self.assertEqual(data_item.data_dtype, numpy.double)
-            data_element["data"] = numpy.zeros((8, 8), dtype=numpy.float)
+            data_element["data"] = numpy.zeros((8, 8), dtype=float)
             data_element["sub_area"] = ((0,0), (4, 8))
             ImportExportManager.update_data_item_from_data_element(data_item, data_element)
             self.assertEqual(data_item.dimensional_shape, (8, 8))
-            self.assertEqual(data_item.data_dtype, numpy.float)
+            self.assertEqual(data_item.data_dtype, float)
 
     def test_ndata_write_to_then_read_from_temp_file(self):
         with TestContext.create_memory_context() as test_context:
@@ -120,7 +120,7 @@ class TestImportExportManagerClass(unittest.TestCase):
             self.assertEqual(len(writers), 0)
 
     def test_get_writers_for_float_2d_data_item_returns_valid_list(self):
-        data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.float))
+        data_item = DataItem.DataItem(numpy.zeros((8, 8), float))
         with contextlib.closing(data_item):
             writers = ImportExportManager.ImportExportManager().get_writers_for_data_item(data_item)
             self.assertTrue(len(writers) > 0)
@@ -177,7 +177,7 @@ class TestImportExportManagerClass(unittest.TestCase):
             self.assertEqual(data_item.xdata.datum_dimension_count, 2)
 
     def test_data_element_to_extended_data_conversion(self):
-        data = numpy.ones((8, 6), numpy.int)
+        data = numpy.ones((8, 6), int)
         intensity_calibration = Calibration.Calibration(offset=1, scale=1.1, units="one")
         dimensional_calibrations = [Calibration.Calibration(offset=2, scale=2.1, units="two"), Calibration.Calibration(offset=3, scale=2.2, units="two")]
         metadata = {"hardware_source": {"one": 1, "two": "b"}}
@@ -210,7 +210,7 @@ class TestImportExportManagerClass(unittest.TestCase):
 
     def test_extended_data_to_data_element_includes_time_zone(self):
         # extended data timestamp is utc; timezone is specified in metadata/description/time_zone
-        data = numpy.ones((8, 6), numpy.int)
+        data = numpy.ones((8, 6), int)
         metadata = {"description": {"time_zone": {"tz": "+0300", "dst": "+60"}}}
         timestamp = datetime.datetime(2013, 11, 18, 14, 5, 4, 0)
         xdata = DataAndMetadata.new_data_and_metadata(data, metadata=metadata, timestamp=timestamp)
@@ -237,7 +237,7 @@ class TestImportExportManagerClass(unittest.TestCase):
 
     def test_time_zone_in_extended_data_to_data_element_to_data_item_conversion(self):
         # test the whole path, redundant?
-        data = numpy.ones((8, 6), numpy.int)
+        data = numpy.ones((8, 6), int)
         metadata = {"description": {"time_zone": {"tz": "+0300", "dst": "+60"}}, "hardware_source": {"one": 1, "two": "b"}}
         timestamp = datetime.datetime(2013, 11, 18, 14, 5, 4, 1)
         xdata = DataAndMetadata.new_data_and_metadata(data, metadata=metadata, timestamp=timestamp)
@@ -323,7 +323,7 @@ class TestImportExportManagerClass(unittest.TestCase):
                 self.assertTrue(data_item.large_format)
 
     def test_importing_rgb_does_not_set_large_format(self):
-        data_item = DataItem.DataItem(numpy.zeros((8, 8, 4), dtype=numpy.float))
+        data_item = DataItem.DataItem(numpy.zeros((8, 8, 4), dtype=float))
         with contextlib.closing(data_item):
             data_item_rgb = DataItem.DataItem(numpy.zeros((8, 8, 4), dtype=numpy.uint8))
             with contextlib.closing(data_item_rgb):

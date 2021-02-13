@@ -45,7 +45,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
         for data_in, data_out in test_ranges:
             data_min, data_max = data_in
             expected_uncalibrated_data_min, expected_uncalibrated_data_max = data_out
-            data = numpy.zeros((16, 16), dtype=numpy.float64)
+            data = numpy.zeros((16, 16), dtype=float)
             irow, icol = numpy.ogrid[0:16, 0:16]
             data[:] = data_min + (data_max - data_min) * (irow / 15.0)
             # auto on min/max
@@ -274,10 +274,10 @@ class TestLineGraphCanvasItem(unittest.TestCase):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
             document_model = document_controller.document_model
-            data_item = DataItem.DataItem(numpy.ones((8,), numpy.float))
+            data_item = DataItem.DataItem(numpy.ones((8,), float))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            display_item.data_item.set_xdata(DataAndMetadata.DataAndMetadata(lambda: None, ((8, 0), numpy.float)))
+            display_item.data_item.set_xdata(DataAndMetadata.DataAndMetadata(lambda: None, ((8, 0), float)))
             display_item.display_type = "line_plot"
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_display_item(display_item)
@@ -354,7 +354,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
             document_model = document_controller.document_model
-            data_item = DataItem.DataItem(numpy.ones((100,100), numpy.float))
+            data_item = DataItem.DataItem(numpy.ones((100,100), float))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_item.display_type = "line_plot"
@@ -366,7 +366,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
             document_model = document_controller.document_model
-            data_item = DataItem.DataItem(numpy.ones((8,100), numpy.float))
+            data_item = DataItem.DataItem(numpy.ones((8,100), float))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_item.display_type = "line_plot"
@@ -384,7 +384,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
             document_model = document_controller.document_model
-            data_item = DataItem.DataItem(numpy.ones((8,100), numpy.float))
+            data_item = DataItem.DataItem(numpy.ones((8,100), float))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel = document_controller.selected_display_panel

@@ -786,7 +786,7 @@ class TestProcessingClass(unittest.TestCase):
         # the bug was that slice processing returned the wrong number of dimensions
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            data_item = DataItem.DataItem(numpy.zeros((32, 32, 16), numpy.float))
+            data_item = DataItem.DataItem(numpy.zeros((32, 32, 16), float))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             slice_data_item = document_model.get_slice_sum_new(display_item, display_item.data_item)

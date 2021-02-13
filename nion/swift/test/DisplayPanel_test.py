@@ -52,7 +52,7 @@ class TestGraphicSelectionClass(unittest.TestCase):
 
 
 def create_1d_data(length=1024, data_min=0.0, data_max=1.0):
-    data = numpy.zeros((length, ), dtype=numpy.float64)
+    data = numpy.zeros((length, ), dtype=float)
     irow = numpy.ogrid[0:length]
     data[:] = data_min + (data_max - data_min) * (irow / float(length))
     return data
@@ -1310,7 +1310,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             document_controller = test_context.create_document_controller()
             document_model = document_controller.document_model
             display_panel = document_controller.selected_display_panel
-            data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float))
+            data_item = DataItem.DataItem(numpy.ones((8, 8), float))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel.set_display_panel_display_item(display_item)
@@ -1409,7 +1409,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             document_controller = test_context.create_document_controller()
             document_model = document_controller.document_model
             display_panel = document_controller.selected_display_panel
-            data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float))
+            data_item = DataItem.DataItem(numpy.ones((8, 8), float))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel.set_display_panel_display_item(display_item)
@@ -1435,7 +1435,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             header_height = display_panel.header_canvas_item.header_height
             display_panel.root_container.layout_immediate(Geometry.IntSize(1000 + header_height, 1000))
             document_controller.periodic()
-            data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float))
+            data_item = DataItem.DataItem(numpy.ones((8, 8), float))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel.set_display_panel_display_item(display_item)
@@ -1450,7 +1450,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             document_controller = test_context.create_document_controller()
             document_model = document_controller.document_model
             display_panel = document_controller.selected_display_panel
-            data_item1 = DataItem.DataItem(numpy.ones((8, 8), numpy.float))
+            data_item1 = DataItem.DataItem(numpy.ones((8, 8), float))
             document_model.append_data_item(data_item1)
             display_item1 = document_model.get_display_item_for_data_item(data_item1)
             data_item = document_model.get_crop_new(display_item1, display_item1.data_item)

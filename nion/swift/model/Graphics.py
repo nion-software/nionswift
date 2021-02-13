@@ -2122,7 +2122,7 @@ class RingGraphic(Graphic):
 
     def get_mask(self, data_shape: typing.Tuple[int], calibrated_origin: Geometry.FloatPoint = None):
         calibrated_origin = calibrated_origin or Geometry.FloatPoint(y=data_shape[0] * 0.5 + 0.5, x=data_shape[1] * 0.5 + 0.5)
-        mask = numpy.zeros(data_shape, dtype=numpy.float)
+        mask = numpy.zeros(data_shape, dtype=float)
         bounds_int = ((0, 0), (int(data_shape[0]), int(data_shape[1])))
         a, b = calibrated_origin.y, calibrated_origin.x
         y, x = numpy.ogrid[-a:data_shape[0] - a, -b:data_shape[1] - b]

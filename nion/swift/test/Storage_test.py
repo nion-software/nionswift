@@ -1381,7 +1381,7 @@ class TestStorageClass(unittest.TestCase):
             document_controller = profile_context.create_document_controller(auto_close=False)
             document_model = document_controller.document_model
             with contextlib.closing(document_controller):
-                data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float))
+                data_item = DataItem.DataItem(numpy.ones((8, 8), float))
                 document_model.append_data_item(data_item)
                 crop_region = Graphics.RectangleGraphic()
                 crop_region.bounds = ((0.25, 0.25), (0.5, 0.5))
@@ -1405,7 +1405,7 @@ class TestStorageClass(unittest.TestCase):
         with create_memory_profile_context() as profile_context:
             document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
-                data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float))
+                data_item = DataItem.DataItem(numpy.ones((8, 8), float))
                 document_model.append_data_item(data_item)
                 display_item = document_model.get_display_item_for_data_item(data_item)
                 document_model.get_invert_new(display_item, display_item.data_item)
@@ -1421,7 +1421,7 @@ class TestStorageClass(unittest.TestCase):
         with create_temp_profile_context() as profile_context:
             document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
-                data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float))
+                data_item = DataItem.DataItem(numpy.ones((8, 8), float))
                 document_model.append_data_item(data_item)
                 display_item = document_model.get_display_item_for_data_item(data_item)
                 document_model.get_invert_new(display_item, display_item.data_item)
@@ -1439,7 +1439,7 @@ class TestStorageClass(unittest.TestCase):
             document_model = profile_context.create_document_model(auto_close=False)
             modifieds = dict()
             with contextlib.closing(document_model):
-                data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float))
+                data_item = DataItem.DataItem(numpy.ones((8, 8), float))
                 document_model.append_data_item(data_item)
                 display_item = document_model.get_display_item_for_data_item(data_item)
                 crop_region = Graphics.RectangleGraphic()
@@ -1471,7 +1471,7 @@ class TestStorageClass(unittest.TestCase):
         with create_memory_profile_context() as profile_context:
             document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
-                data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float))
+                data_item = DataItem.DataItem(numpy.ones((8, 8), float))
                 document_model.append_data_item(data_item)
                 display_item = document_model.get_display_item_for_data_item(data_item)
                 line_profile_data_item = document_model.get_line_profile_new(display_item, display_item.data_item)
@@ -1488,7 +1488,7 @@ class TestStorageClass(unittest.TestCase):
         with create_memory_profile_context() as profile_context:
             document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
-                data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float))
+                data_item = DataItem.DataItem(numpy.ones((8, 8), float))
                 document_model.append_data_item(data_item)
                 display_item = document_model.get_display_item_for_data_item(data_item)
                 crop_region = Graphics.RectangleGraphic()
@@ -1507,7 +1507,7 @@ class TestStorageClass(unittest.TestCase):
         with create_memory_profile_context() as profile_context:
             document_model = profile_context.create_document_model(auto_close=False)
             with contextlib.closing(document_model):
-                data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float))
+                data_item = DataItem.DataItem(numpy.ones((8, 8), float))
                 document_model.append_data_item(data_item)
                 display_item = document_model.get_display_item_for_data_item(data_item)
                 crop_region = Graphics.RectangleGraphic()

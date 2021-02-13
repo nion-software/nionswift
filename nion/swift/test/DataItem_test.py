@@ -313,7 +313,7 @@ class TestDataItemClass(unittest.TestCase):
     def test_thumbnail_2d_handles_nan_data(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            data = numpy.zeros((16, 16), numpy.float)
+            data = numpy.zeros((16, 16), float)
             data[:] = numpy.nan
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
@@ -325,7 +325,7 @@ class TestDataItemClass(unittest.TestCase):
     def test_thumbnail_2d_handles_inf_data(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            data = numpy.zeros((16, 16), numpy.float)
+            data = numpy.zeros((16, 16), float)
             data[:] = numpy.inf
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
@@ -347,7 +347,7 @@ class TestDataItemClass(unittest.TestCase):
     def test_thumbnail_1d_handles_nan_data(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            data = numpy.zeros((256), numpy.float)
+            data = numpy.zeros((256), float)
             data[:] = numpy.nan
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
@@ -359,7 +359,7 @@ class TestDataItemClass(unittest.TestCase):
     def test_thumbnail_1d_handles_inf_data(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            data = numpy.zeros((256), numpy.float)
+            data = numpy.zeros((256), float)
             data[:] = numpy.inf
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
@@ -558,7 +558,7 @@ class TestDataItemClass(unittest.TestCase):
     def test_bool_data_has_int_display_range_and_limits(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.bool))
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), bool))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_item.display_data_channels[0].auto_display_limits()

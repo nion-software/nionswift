@@ -67,7 +67,7 @@ class TestDisplayClass(unittest.TestCase):
     def test_display_range_with_partial_display_limits_is_complete(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            data_item = DataItem.DataItem(numpy.zeros((2, 2), numpy.float64))
+            data_item = DataItem.DataItem(numpy.zeros((2, 2), float))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_data_channel = display_item.display_data_channels[0]
@@ -84,7 +84,7 @@ class TestDisplayClass(unittest.TestCase):
     def test_display_produces_valid_preview_when_viewing_3d_data_set(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            data_item = DataItem.DataItem(numpy.zeros((16, 16, 16), numpy.float64))
+            data_item = DataItem.DataItem(numpy.zeros((16, 16, 16), float))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             self.assertIsNotNone(display_item.display_data_channels[0].get_calculated_display_values(True).display_data_and_metadata)
@@ -92,7 +92,7 @@ class TestDisplayClass(unittest.TestCase):
     def test_preview_2d_shape_of_3d_data_set_has_correct_dimensions(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            data_item = DataItem.DataItem(numpy.zeros((16, 16, 64), numpy.float64))
+            data_item = DataItem.DataItem(numpy.zeros((16, 16, 64), float))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             self.assertEqual(display_item.display_data_channels[0].display_data_shape, (16, 16))
@@ -104,7 +104,7 @@ class TestDisplayClass(unittest.TestCase):
             dim0_calibration = Calibration.Calibration(units="A")
             dim1_calibration = Calibration.Calibration(units="B")
             dim2_calibration = Calibration.Calibration(units="C")
-            data_item = DataItem.DataItem(numpy.zeros((16, 16, 64), numpy.float64))
+            data_item = DataItem.DataItem(numpy.zeros((16, 16, 64), float))
             data_item.set_intensity_calibration(intensity_calibration)
             data_item.set_dimensional_calibrations([dim0_calibration, dim1_calibration, dim2_calibration])
             document_model.append_data_item(data_item)
@@ -197,7 +197,7 @@ class TestDisplayClass(unittest.TestCase):
     def test_data_item_copy_initialized_display_data_range(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            source_data_item = DataItem.DataItem(numpy.zeros((16, 16, 16), numpy.float64))
+            source_data_item = DataItem.DataItem(numpy.zeros((16, 16, 16), float))
             document_model.append_data_item(source_data_item)
             data_item = copy.deepcopy(source_data_item)
             document_model.append_data_item(data_item)
@@ -207,7 +207,7 @@ class TestDisplayClass(unittest.TestCase):
     def test_data_item_setting_slice_width_validates_when_invalid(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            data_item = DataItem.DataItem(numpy.ones((4, 4, 16), numpy.float64))
+            data_item = DataItem.DataItem(numpy.ones((4, 4, 16), float))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_data_channel = display_item.display_data_channels[0]
@@ -222,7 +222,7 @@ class TestDisplayClass(unittest.TestCase):
     def test_data_item_setting_slice_center_validates_when_invalid(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            data_item = DataItem.DataItem(numpy.ones((4, 4, 16), numpy.float64))
+            data_item = DataItem.DataItem(numpy.ones((4, 4, 16), float))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_data_channel = display_item.display_data_channels[0]
@@ -304,7 +304,7 @@ class TestDisplayClass(unittest.TestCase):
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            self.assertEqual(display_item.display_data_channels[0].get_calculated_display_values(True).display_data_and_metadata.data_dtype, numpy.float64)
+            self.assertEqual(display_item.display_data_channels[0].get_calculated_display_values(True).display_data_and_metadata.data_dtype, float)
 
     def test_display_data_is_scalar_for_2d_complex(self):
         with TestContext.create_memory_context() as test_context:
@@ -314,7 +314,7 @@ class TestDisplayClass(unittest.TestCase):
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            self.assertEqual(display_item.display_data_channels[0].get_calculated_display_values(True).display_data_and_metadata.data_dtype, numpy.float64)
+            self.assertEqual(display_item.display_data_channels[0].get_calculated_display_values(True).display_data_and_metadata.data_dtype, float)
 
     def test_display_data_is_rgba_for_2d_rgba(self):
         with TestContext.create_memory_context() as test_context:
@@ -344,13 +344,13 @@ class TestDisplayClass(unittest.TestCase):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
             document_model = document_controller.document_model
-            d = numpy.ones((16, 16, 8), numpy.float64)
+            d = numpy.ones((16, 16, 8), float)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_data_channel = display_item.display_data_channels[0]
             self.assertEqual(display_data_channel.get_calculated_display_values(True).display_data_and_metadata.data_shape, (16, 16))
-            self.assertEqual(display_data_channel.get_calculated_display_values(True).display_data_and_metadata.data_dtype, numpy.float64)
+            self.assertEqual(display_data_channel.get_calculated_display_values(True).display_data_and_metadata.data_dtype, float)
 
     def test_display_data_is_2d_scalar_for_3d_complex(self):
         with TestContext.create_memory_context() as test_context:
@@ -362,16 +362,16 @@ class TestDisplayClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_data_channel = display_item.display_data_channels[0]
             self.assertEqual(display_data_channel.get_calculated_display_values(True).display_data_and_metadata.data_shape, (16, 16))
-            self.assertEqual(display_data_channel.get_calculated_display_values(True).display_data_and_metadata.data_dtype, numpy.float64)
+            self.assertEqual(display_data_channel.get_calculated_display_values(True).display_data_and_metadata.data_dtype, float)
 
     def test_image_with_no_data_displays_gracefully(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
             document_model = document_controller.document_model
-            data_item = DataItem.DataItem(numpy.ones((8,), numpy.float))
+            data_item = DataItem.DataItem(numpy.ones((8,), float))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            display_item.data_item.set_xdata(DataAndMetadata.DataAndMetadata(lambda: None, ((8, 0), numpy.float)))
+            display_item.data_item.set_xdata(DataAndMetadata.DataAndMetadata(lambda: None, ((8, 0), float)))
             display_item.display_type = "image"
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_display_item(display_item)
@@ -380,7 +380,7 @@ class TestDisplayClass(unittest.TestCase):
     def test_setting_color_map_id_to_none_works(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.float64))
+            data_item = DataItem.DataItem(numpy.ones((16, 16), float))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_data_channel = display_item.display_data_channels[0]
@@ -391,7 +391,7 @@ class TestDisplayClass(unittest.TestCase):
     def test_setting_color_map_id_to_valid_value_works(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.float64))
+            data_item = DataItem.DataItem(numpy.ones((16, 16), float))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_data_channel = display_item.display_data_channels[0]
@@ -402,7 +402,7 @@ class TestDisplayClass(unittest.TestCase):
     def test_setting_color_map_id_to_invalid_value_works(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.float64))
+            data_item = DataItem.DataItem(numpy.ones((16, 16), float))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_data_channel = display_item.display_data_channels[0]
@@ -413,7 +413,7 @@ class TestDisplayClass(unittest.TestCase):
     def test_reset_display_limits_resets_display_limits_to_none(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.float))
+            data_item = DataItem.DataItem(numpy.ones((16, 16), float))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_data_channel = display_item.display_data_channels[0]
@@ -427,7 +427,7 @@ class TestDisplayClass(unittest.TestCase):
     def test_display_rgba_for_various_data_types_is_valid(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            dtypes = (numpy.uint16, numpy.int16, numpy.uint32, numpy.int32, numpy.uint64, numpy.int64, numpy.float32, numpy.float64, numpy.complex64, numpy.complex128)
+            dtypes = (numpy.uint16, numpy.int16, numpy.uint32, numpy.int32, numpy.uint64, numpy.int64, numpy.float32, float, numpy.complex64, numpy.complex128)
             for dtype in dtypes:
                 data_item = DataItem.DataItem(numpy.ones((16, 16), dtype))
                 document_model.append_data_item(data_item)
@@ -441,7 +441,7 @@ class TestDisplayClass(unittest.TestCase):
     def test_reset_display_limits_on_various_value_types_write_to_clean_json(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            dtypes = (numpy.float32, numpy.float64, numpy.complex64, numpy.complex128, numpy.int16, numpy.uint16, numpy.int32, numpy.uint32)
+            dtypes = (numpy.float32, float, numpy.complex64, numpy.complex128, numpy.int16, numpy.uint16, numpy.int32, numpy.uint32)
             for dtype in dtypes:
                 data_item = DataItem.DataItem(numpy.ones((16, 16), dtype))
                 document_model.append_data_item(data_item)
@@ -502,7 +502,7 @@ class TestDisplayClass(unittest.TestCase):
     def test_display_range_is_recalculated_with_new_data(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.float))
+            data_item = DataItem.DataItem(numpy.ones((16, 16), float))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_data_channel = display_item.display_data_channels[0]
@@ -527,12 +527,12 @@ class TestDisplayClass(unittest.TestCase):
     def test_display_range_is_correct_on_complex_data_display_as_log_absolute(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            complex_data = numpy.array(range(10)).astype(numpy.complex)
+            complex_data = numpy.array(range(10)).astype(complex)
             data_item = DataItem.DataItem(complex_data)
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_data_channel = display_item.display_data_channels[0]
-            min_ = numpy.log(numpy.abs(0).astype(numpy.float64) + numpy.nextafter(0,1))
+            min_ = numpy.log(numpy.abs(0).astype(float) + numpy.nextafter(0,1))
             self.assertAlmostEqual(display_data_channel.get_calculated_display_values(True).display_range[0], min_)
             self.assertAlmostEqual(display_data_channel.get_calculated_display_values(True).display_range[1], math.log(9))
 
@@ -540,42 +540,42 @@ class TestDisplayClass(unittest.TestCase):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
             document_model = document_controller.document_model
-            data_and_metadata = DataAndMetadata.new_data_and_metadata(numpy.ones((4, 16, 16), numpy.float64), data_descriptor=DataAndMetadata.DataDescriptor(True, 0, 2))
-            data_item = DataItem.DataItem(numpy.ones((8,), numpy.float))
+            data_and_metadata = DataAndMetadata.new_data_and_metadata(numpy.ones((4, 16, 16), float), data_descriptor=DataAndMetadata.DataDescriptor(True, 0, 2))
+            data_item = DataItem.DataItem(numpy.ones((8,), float))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_item.data_item.set_xdata(data_and_metadata)
             display_data_channel = display_item.display_data_channels[0]
             self.assertEqual(display_data_channel.get_calculated_display_values(True).display_data_and_metadata.data_shape, (16, 16))
-            self.assertEqual(display_data_channel.get_calculated_display_values(True).display_data_and_metadata.data_dtype, numpy.float64)
+            self.assertEqual(display_data_channel.get_calculated_display_values(True).display_data_and_metadata.data_dtype, float)
             self.assertEqual(display_data_channel.display_data_shape, (16, 16))
 
     def test_display_data_is_2d_for_2d_collection_with_2d_datum(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
             document_model = document_controller.document_model
-            data_and_metadata = DataAndMetadata.new_data_and_metadata(numpy.ones((2, 2, 8, 8), numpy.float64), data_descriptor=DataAndMetadata.DataDescriptor(False, 2, 2))
-            data_item = DataItem.DataItem(numpy.ones((8,), numpy.float))
+            data_and_metadata = DataAndMetadata.new_data_and_metadata(numpy.ones((2, 2, 8, 8), float), data_descriptor=DataAndMetadata.DataDescriptor(False, 2, 2))
+            data_item = DataItem.DataItem(numpy.ones((8,), float))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_item.data_item.set_xdata(data_and_metadata)
             display_data_channel = display_item.display_data_channels[0]
             self.assertEqual(display_data_channel.get_calculated_display_values(True).display_data_and_metadata.data_shape, (8, 8))
-            self.assertEqual(display_data_channel.get_calculated_display_values(True).display_data_and_metadata.data_dtype, numpy.float64)
+            self.assertEqual(display_data_channel.get_calculated_display_values(True).display_data_and_metadata.data_dtype, float)
             self.assertEqual(display_data_channel.display_data_shape, (8, 8))
 
     def test_display_data_is_2d_for_sequence_of_2d_collection_with_2d_datum(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
             document_model = document_controller.document_model
-            data_and_metadata = DataAndMetadata.new_data_and_metadata(numpy.ones((3, 2, 2, 8, 8), numpy.float64), data_descriptor=DataAndMetadata.DataDescriptor(True, 2, 2))
-            data_item = DataItem.DataItem(numpy.ones((8,), numpy.float))
+            data_and_metadata = DataAndMetadata.new_data_and_metadata(numpy.ones((3, 2, 2, 8, 8), float), data_descriptor=DataAndMetadata.DataDescriptor(True, 2, 2))
+            data_item = DataItem.DataItem(numpy.ones((8,), float))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_item.data_item.set_xdata(data_and_metadata)
             display_data_channel = display_item.display_data_channels[0]
             self.assertEqual(display_data_channel.get_calculated_display_values(True).display_data_and_metadata.data_shape, (8, 8))
-            self.assertEqual(display_data_channel.get_calculated_display_values(True).display_data_and_metadata.data_dtype, numpy.float64)
+            self.assertEqual(display_data_channel.get_calculated_display_values(True).display_data_and_metadata.data_dtype, float)
             self.assertEqual(display_data_channel.display_data_shape, (8, 8))
 
     def test_display_data_is_1d_for_collection_of_1d_datum(self):
@@ -583,13 +583,13 @@ class TestDisplayClass(unittest.TestCase):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
             document_model = document_controller.document_model
-            data_and_metadata = DataAndMetadata.new_data_and_metadata(numpy.ones((2, 8), numpy.float64), data_descriptor=DataAndMetadata.DataDescriptor(False, 1, 1))
+            data_and_metadata = DataAndMetadata.new_data_and_metadata(numpy.ones((2, 8), float), data_descriptor=DataAndMetadata.DataDescriptor(False, 1, 1))
             data_item = DataItem.new_data_item(data_and_metadata)
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_data_channel = display_item.display_data_channels[0]
             self.assertEqual((8,), display_data_channel.get_calculated_display_values(True).display_data_and_metadata.data_shape)
-            self.assertEqual(numpy.float64, display_data_channel.get_calculated_display_values(True).display_data_and_metadata.data_dtype)
+            self.assertEqual(float, display_data_channel.get_calculated_display_values(True).display_data_and_metadata.data_dtype)
             self.assertEqual((8,), display_data_channel.display_data_shape)
             self.assertEqual(1, len(display_data_channel.get_datum_calibrations(data_item.dimensional_calibrations)))
 
