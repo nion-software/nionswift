@@ -48,6 +48,8 @@ The installer may also give you an option to make this the default Python for yo
 
 You can usually use the default location for the installation; however, make a note of wherever you choose to install it so that that location can be used in the steps below.
 
+Nion Swift can also be installed from the command line using PyPI and standard Python or from the ``conda-forge`` channel of either Anaconda or Miniconda. See the `Installing Nion Swift from PyPI or Conda Forge`_ section below.
+
 Windows
 -------
 
@@ -136,6 +138,18 @@ Launch Nion Swift from your Terminal conda environment using::
 Troubleshooting Linux Installation
 ++++++++++++++++++++++++++++++++++
 Nion Swift running with `nionswift-tool` requires a PATH environment variable that does not include directories containing Qt libraries. As a workaround or if you cannot remove the other Qt installation from your PATH environment variable, you can uninstall `nionswift-tool` and install PyQt5 using `conda install pyqt5` and try running Nion Swift again.
+
+Installing Nion Swift from PyPI or Conda Forge
+----------------------------------------------
+If you have an active Python environment that is not based on the Conda distribution, you can install Nion Swift from PyPI using these commands.::
+
+    $ python -m pip install nionswift nionswift-tool
+
+You can also install Python using the ``conda-forge`` channel in the Conda distribution using these commands.::
+
+    $ source /path/to/python/Scripts/activate root
+    $ conda create -n nionswift-conda-forge -c conda-forge nionswift nionswift-tool
+    $ conda activate nionswift-conda-forge
 
 Installing Nion Swift Extensions
 --------------------------------
