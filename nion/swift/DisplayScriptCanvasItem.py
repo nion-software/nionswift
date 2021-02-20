@@ -32,7 +32,7 @@ class DisplayScriptCanvasItemDelegate:
     def tool_mode(self) -> str: return str()
 
 
-class DisplayScriptCanvasItem(CanvasItem.LayerCanvasItem):
+class DisplayScriptCanvasItem(CanvasItem.CanvasItemComposition):
     """Display a custom display using a script.
 
     Callers are expected to pass in a font metrics function and a delegate.
@@ -89,15 +89,7 @@ class DisplayScriptCanvasItem(CanvasItem.LayerCanvasItem):
         # enter key has been pressed
         return False
 
-    def _inserted(self, container):
-        # make sure we get 'prepare_render' calls
-        self.register_prepare_canvas_item(self)
-
-    def _removed(self, container):
-        # turn off 'prepare_render' calls
-        self.unregister_prepare_canvas_item(self)
-
-    def prepare_render(self):
+    def _prepare_render(self):
         data_and_metadata = self.__display_data
         display_script = self.__display_script
         if data_and_metadata:
@@ -131,10 +123,6 @@ class DisplayScriptCanvasItem(CanvasItem.LayerCanvasItem):
 
                     with self.__drawing_context_lock:
                         self.__drawing_context = drawing_context
-
-    def _update_self_layout(self, canvas_origin, canvas_size, *, immediate=False):
-        super()._update_self_layout(canvas_origin, canvas_size, immediate=immediate)
-        self.prepare_render()
 
     def _repaint(self, drawing_context):
         super()._repaint(drawing_context)

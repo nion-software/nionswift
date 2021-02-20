@@ -372,7 +372,7 @@ def calculate_origin_and_size(canvas_size, data_shape, image_canvas_mode, image_
     return image_canvas_origin, image_canvas_size
 
 
-class ImageCanvasItem(CanvasItem.LayerCanvasItem):
+class ImageCanvasItem(CanvasItem.CanvasItemComposition):
     """A canvas item to paint an image.
 
     Callers are expected to pass in a delegate.
@@ -1194,15 +1194,10 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                 pos_2d = self.map_widget_to_image(self.__last_mouse)
             self.delegate.cursor_changed(pos_2d)
 
-    def _inserted(self, container):
-        # make sure we get 'prepare_render' calls
-        self.register_prepare_canvas_item(self)
-
-    def _removed(self, container):
-        # turn off 'prepare_render' calls
-        self.unregister_prepare_canvas_item(self)
-
-    def prepare_render(self):
+    def _prepare_render(self):
+        # this is called before layout and repainting. it gives this display item a chance
+        # to update anything required for layout and trigger a layout before a repaint if
+        # anything has changed.
         self.prepare_display()
 
     def _repaint(self, drawing_context):

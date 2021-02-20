@@ -96,7 +96,7 @@ class LinePlotCanvasItemDelegate:
     def get_document_model(self) -> DocumentModel.DocumentModel: ...
 
 
-class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
+class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
     """Display a line plot.
 
     The layout is dependent on the axes due to the dependence on the width of the text labels in the vertical axis. The
@@ -580,15 +580,10 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             self.__line_graph_xdata_list = list()
             self.__update_canvas_items(LineGraphCanvasItem.LineGraphAxes(), None, None, None)
 
-    def _inserted(self, container):
-        # make sure we get 'prepare_render' calls
-        self.register_prepare_canvas_item(self)
-
-    def _removed(self, container):
-        # turn off 'prepare_render' calls
-        self.unregister_prepare_canvas_item(self)
-
-    def prepare_render(self):
+    def _prepare_render(self):
+        # this is called before layout and repainting. it gives this display item a chance
+        # to update anything required for layout and trigger a layout before a repaint if
+        # anything has changed.
         self.prepare_display()
 
     def _repaint(self, drawing_context):

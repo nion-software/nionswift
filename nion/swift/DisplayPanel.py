@@ -1206,7 +1206,7 @@ class FixedUISettings(UISettings.UISettings):
         return 5
 
 
-class DisplayPanel(CanvasItem.CanvasItemComposition):
+class DisplayPanel(CanvasItem.LayerCanvasItem):
     """A canvas item to display a library item. Allows library item to be changed."""
 
     def __init__(self, document_controller, d, new_uuid: uuid.UUID=None):
@@ -2350,6 +2350,7 @@ def preview(ui_settings: UISettings.UISettings, display_item: DisplayItem.Displa
             display_canvas_item.update_graphics_coordinate_system(display_item.graphics, DisplayItem.GraphicSelection(), display_calibration_info)
             with drawing_context.saver():
                 frame_width, frame_height = width, int(width / display_canvas_item.default_aspect_ratio)
+                display_canvas_item._prepare_render()
                 display_canvas_item.repaint_immediate(drawing_context, Geometry.IntSize(height=frame_height, width=frame_width))
                 shape = Geometry.IntSize(height=frame_height, width=frame_width)
     return drawing_context, shape

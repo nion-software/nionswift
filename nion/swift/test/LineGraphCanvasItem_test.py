@@ -113,7 +113,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel.set_display_panel_display_item(display_item)
-            display_panel.display_canvas_item.layout_immediate((800, 1000))
+            display_panel.layout_immediate((640, 480))
             # run test
             self.assertEqual(document_controller.tool_mode, "pointer")
             for tool_mode in ["interval"]:
@@ -135,7 +135,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel.set_display_panel_display_item(display_item)
-            display_panel.display_canvas_item.layout_immediate((640, 480))
+            display_panel.layout_immediate((640, 480))
             # test
             document_controller.tool_mode = "pointer"
             display_panel.display_canvas_item.simulate_drag((240, 160), (240, 480))
@@ -156,7 +156,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             region.end = 0.95
             display_item.add_graphic(region)
             display_panel.set_display_panel_display_item(display_item)
-            display_panel.display_canvas_item.layout_immediate((640, 480))
+            display_panel.layout_immediate((640, 480))
             # test
             document_controller.tool_mode = "pointer"
             display_panel.display_canvas_item.simulate_drag((240, 160), (240, 480))
@@ -177,8 +177,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             region.end = 0.9
             display_item.add_graphic(region)
             display_panel.set_display_panel_display_item(display_item)
-            display_panel.display_canvas_item.layout_immediate((640, 480))
-            display_panel.display_canvas_item.prepare_display()  # force layout
+            display_panel.layout_immediate((640, 480))
             # test
             document_controller.tool_mode = "pointer"
             display_panel.display_canvas_item.simulate_click((240, 320))
@@ -199,7 +198,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel.set_display_panel_display_item(display_item)
-            display_panel.display_canvas_item.layout_immediate((640, 480))
+            display_panel.layout_immediate((640, 480))
             axes = display_panel.display_canvas_item._axes
             self.assertAlmostEqual(axes.calibrated_data_min, 0.0)
             self.assertAlmostEqual(axes.calibrated_data_max, 80.0)
@@ -218,7 +217,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel.set_display_panel_display_item(display_item)
-            display_panel.display_canvas_item.layout_immediate((640, 480))
+            display_panel.layout_immediate((640, 480))
             axes = display_panel.display_canvas_item._axes
             self.assertAlmostEqual(axes.calibrated_data_min, 0.0)
             self.assertAlmostEqual(axes.calibrated_data_max, 40.0)
@@ -236,7 +235,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel.set_display_panel_display_item(display_item)
-            display_panel.display_canvas_item.layout_immediate((640, 480))
+            display_panel.layout_immediate((640, 480))
             axes = display_panel.display_canvas_item._axes
             drawing_context = DrawingContext.DrawingContext()
             calibrated_data_min = axes.calibrated_data_min
@@ -258,7 +257,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_item.set_display_property("y_style", "log")
             display_panel.set_display_panel_display_item(display_item)
-            display_panel.display_canvas_item.layout_immediate((640, 480))
+            display_panel.layout_immediate((640, 480))
             axes = display_panel.display_canvas_item._axes
             self.assertEqual(axes.data_style, "log")
             drawing_context = DrawingContext.DrawingContext()
@@ -281,7 +280,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             display_item.display_type = "line_plot"
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_display_item(display_item)
-            display_panel.display_canvas_item.layout_immediate((640, 480))
+            display_panel.layout_immediate((640, 480))
 
     def test_line_plot_calculates_calibrated_vs_uncalibrated_display_y_values(self):
         with TestContext.create_memory_context() as test_context:
@@ -293,10 +292,10 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             display_item.display_type = "line_plot"
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_display_item(display_item)
-            display_panel.display_canvas_item.layout_immediate((640, 480))
+            display_panel.layout_immediate((640, 480))
             self.assertTrue(numpy.array_equal(display_panel.display_canvas_item.line_graph_canvas_item.calibrated_xdata.data, numpy.full((8, ), 10)))
             display_item.calibration_style_id = "pixels-top-left"
-            display_panel.display_canvas_item.layout_immediate((640, 480))
+            display_panel.layout_immediate((640, 480))
             self.assertTrue(numpy.array_equal(display_panel.display_canvas_item.line_graph_canvas_item.calibrated_xdata.data, numpy.ones((8, ))))
 
     def test_line_plot_handles_calibrated_vs_uncalibrated_display(self):
@@ -309,10 +308,10 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             display_item.display_type = "line_plot"
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_display_item(display_item)
-            display_panel.display_canvas_item.layout_immediate((640, 480))
+            display_panel.layout_immediate((640, 480))
             self.assertEqual(display_panel.display_canvas_item.line_graph_canvas_item.calibrated_xdata.dimensional_calibrations[-1].units, "nm")
             display_item.calibration_style_id = "pixels-top-left"
-            display_panel.display_canvas_item.layout_immediate((640, 480))
+            display_panel.layout_immediate((640, 480))
             self.assertFalse(display_panel.display_canvas_item.line_graph_canvas_item.calibrated_xdata.dimensional_calibrations[-1].units)
 
     def test_line_plot_with_no_data_handles_clicks(self):
@@ -324,7 +323,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             display_item.display_type = "line_plot"
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_display_item(display_item)
-            display_panel.display_canvas_item.layout_immediate((640, 480))
+            display_panel.layout_immediate((640, 480))
             display_panel.display_canvas_item.simulate_click((240, 16))
 
     def test_narrow_line_plot_with_nans_is_drawn_properly(self):
@@ -339,7 +338,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel.set_display_panel_display_item(display_item)
-            display_panel.display_canvas_item.layout_immediate((100, 480))
+            display_panel.layout_immediate((640, 480))
             axes = display_panel.display_canvas_item._axes
             drawing_context = DrawingContext.DrawingContext()
             calibrated_data_min = axes.calibrated_data_min
@@ -360,7 +359,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             display_item.display_type = "line_plot"
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_display_item(display_item)
-            display_panel.display_canvas_item.layout_immediate((640, 480))
+            display_panel.layout_immediate((640, 480))
 
     def test_line_plot_with_too_few_layers_displays_gracefully(self):
         with TestContext.create_memory_context() as test_context:
@@ -378,7 +377,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             self.assertEqual(4, len(display_item.display_layers))
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_display_item(display_item)
-            display_panel.display_canvas_item.layout_immediate((640, 480))
+            display_panel.layout_immediate((640, 480))
 
     def test_line_plot_displays_gracefully_when_switching_layers(self):
         with TestContext.create_memory_context() as test_context:
@@ -389,11 +388,11 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_display_item(display_item)
-            display_panel.display_canvas_item.layout_immediate((640, 480))
+            display_panel.layout_immediate((640, 480))
             display_item.display_type = "line_plot"
-            display_panel.display_canvas_item.layout_immediate((640, 480))
+            display_panel.layout_immediate((640, 480))
             display_item.display_type = None
-            display_panel.display_canvas_item.layout_immediate((640, 480))
+            display_panel.layout_immediate((640, 480))
 
     def test_line_plot_handles_composite_layers_when_display_type_is_line_plot(self):
         with TestContext.create_memory_context() as test_context:
