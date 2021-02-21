@@ -1775,8 +1775,13 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         if self.__display_item:
             self.__display_item.graphics_changed_event.fire(self.__display_item.graphic_selection)
 
-        # update the related icons canvas item with the new display.
-        self.__related_icons_canvas_item.set_display_item(display_item)
+        # update the related icons canvas item with the new display if it changed.
+        # setting the related icons canvas item is costly and can cause stuttering in operations
+        # as simple as dragging a background selection in a background subtracted line plot as it
+        # recalculates thumbnails on the main thread.
+        if did_display_change:
+            self.__related_icons_canvas_item.set_display_item(display_item)
+
         self.__update_title()
 
         # update want mouse and selected status.
