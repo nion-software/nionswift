@@ -42,8 +42,10 @@ from nion.swift.model import Graphics
 from nion.swift.model import ImportExportManager
 from nion.swift.model import Persistence
 from nion.swift.model import Processing
+from nion.swift.model import Profile
 from nion.swift.model import Project
 from nion.swift.model import Symbolic
+from nion.swift.model import WorkspaceLayout
 from nion.ui import Dialog
 from nion.ui import PreferencesDialog
 from nion.ui import Window
@@ -66,8 +68,11 @@ class DocumentController(Window.Window):
     """Manage a document window."""
     count = 0  # useful for detecting leaks in tests
 
-    def __init__(self, ui: UserInterface.UserInterface, document_model: DocumentModel.DocumentModel, workspace_id: str = None, app: Application.Application = None):
+    def __init__(self, ui: UserInterface.UserInterface, document_model: DocumentModel.DocumentModel,
+                 workspace_id: str = None, app: Application.Application = None,
+                 project_reference: typing.Optional[Profile.ProjectReference] = None):
         super().__init__(ui, app)
+        self.__project_reference = project_reference
         self.__class__.count += 1
 
         self.__undo_stack = Undo.UndoStack()
@@ -90,6 +95,8 @@ class DocumentController(Window.Window):
         self.document_model = document_model
         self.document_model.add_ref()
         self.title = _("Nion Swift")
+        if project_reference:
+            self.window_file_path = project_reference.path
         self.__workspace_controller = None
         self.replaced_display_panel_content = None  # used to facilitate display panel functionality to exchange displays
         self.__weak_selected_display_panel: typing.Optional[weakref.ReferenceType[DisplayPanel.DisplayPanel]] = None
@@ -352,6 +359,15 @@ class DocumentController(Window.Window):
     @property
     def workspace(self):
         return self.__workspace_controller
+
+    def _workspace_changed(self, workspace: WorkspaceLayout.WorkspaceLayout) ->  None:
+        title = _("Nion Swift")
+        project_title = self.__project_reference.title if self.__project_reference else None
+        if project_title:
+            title += " - " + project_title
+        if workspace and workspace.name:
+            title += ": " + workspace.name
+        self.title = title
 
     def refocus_widget(self, widget):
         display_panel = self.selected_display_panel

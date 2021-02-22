@@ -308,7 +308,7 @@ class Application(UIApplication.BaseApplication):
         document_model.start_dispatcher()
 
         # create the document controller
-        document_controller = self.create_document_controller(document_model, "library")
+        document_controller = self.create_document_controller(document_model, "library", project_reference=project_reference)
 
         self.__profile.last_project_reference = project_reference.uuid
         project_reference.last_used = datetime.datetime.now()
@@ -476,9 +476,10 @@ class Application(UIApplication.BaseApplication):
         workspace_history = self.ui.get_persistent_object("workspace_history", list())
         return [pathlib.Path(file_path) for file_path in workspace_history if os.path.exists(file_path)]
 
-    def create_document_controller(self, document_model, workspace_id, display_item=None):
+    def create_document_controller(self, document_model: DocumentModel.DocumentModel, workspace_id: str, display_item=None, project_reference: typing.Optional[Profile.ProjectReference] = None) -> DocumentController.DocumentController:
         self._set_document_model(document_model)  # required to allow API to find document model
-        document_controller = DocumentController.DocumentController(self.ui, document_model, workspace_id=workspace_id, app=self)
+        document_controller = DocumentController.DocumentController(self.ui, document_model, workspace_id=workspace_id,
+                                                                    app=self, project_reference=project_reference)
         self.document_model_available_event.fire(document_model)
         # attempt to set data item / group
         if display_item:

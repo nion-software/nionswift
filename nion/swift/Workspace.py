@@ -341,6 +341,7 @@ class Workspace:
                 self.image_row.add(canvas_widget)
         self.document_controller.selected_display_panel = selected_display_panel
         self.document_controller.project.workspace_uuid = workspace.uuid
+        self.document_controller._workspace_changed(workspace)
 
     def restore(self, workspace_uuid: uuid.UUID) -> None:
         """
