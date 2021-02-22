@@ -273,12 +273,18 @@ class Application(UIApplication.BaseApplication):
 
         project_reference = project_reference or profile.get_project_reference(profile.last_project_reference)
 
+        update_last_project_reference = True
+
+        if self.ui.get_keyboard_modifiers(True).shift:  # pass True since there has been no event yet
+            project_reference = None
+            update_last_project_reference = False
+
         # for backwards compatibility for beta versions. remove after limited beta sites updated.
         project_reference = project_reference or profile.get_project_reference(profile.work_project_reference_uuid)
 
         if project_reference:
             try:
-                document_controller = self.open_project_window(project_reference)
+                document_controller = self.open_project_window(project_reference, update_last_project_reference)
             except Exception:
                 self.show_ok_dialog(_("Error Opening Project"), _("Unable to open default project."), completion_fn=self.show_choose_project_dialog)
                 return True
@@ -300,7 +306,8 @@ class Application(UIApplication.BaseApplication):
             project_dialog = ProjectPanel.ProjectDialog(self.ui, self)
             project_dialog.show()
 
-    def open_project_window(self, project_reference: Profile.ProjectReference) -> DocumentController.DocumentController:
+    def open_project_window(self, project_reference: Profile.ProjectReference,
+                            update_last_project_reference: bool = True) -> DocumentController.DocumentController:
         self.__profile.read_project(project_reference)
 
         document_model = project_reference.document_model
@@ -310,7 +317,9 @@ class Application(UIApplication.BaseApplication):
         # create the document controller
         document_controller = self.create_document_controller(document_model, "library", project_reference=project_reference)
 
-        self.__profile.last_project_reference = project_reference.uuid
+        if update_last_project_reference:
+            self.__profile.last_project_reference = project_reference.uuid
+
         project_reference.last_used = datetime.datetime.now()
 
         def window_closed():
