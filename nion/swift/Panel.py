@@ -225,7 +225,7 @@ class HeaderCanvasItem(CanvasItem.CanvasItemComposition):
         self.__display_close_control = display_close_control
         self.__metrics = metrics
         self.__set_default_style()
-        self.sizing.set_fixed_height(self.header_height)
+        self.update_sizing(self.sizing.with_fixed_height(self.header_height))
         self.on_select_pressed = None
         self.on_drag_pressed = None
         self.on_close_clicked = None

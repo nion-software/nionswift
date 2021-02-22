@@ -759,8 +759,8 @@ class DataPanel(Panel.Panel):
         list_icon_button = CanvasItem.BitmapButtonCanvasItem(CanvasItem.load_rgba_data_from_bytes(pkgutil.get_data(__name__, "resources/list_icon_20.png")))
         grid_icon_button = CanvasItem.BitmapButtonCanvasItem(CanvasItem.load_rgba_data_from_bytes(pkgutil.get_data(__name__, "resources/grid_icon_20.png")))
 
-        list_icon_button.sizing.set_fixed_size(Geometry.IntSize(20, 20))
-        grid_icon_button.sizing.set_fixed_size(Geometry.IntSize(20, 20))
+        list_icon_button.update_sizing(list_icon_button.sizing.with_fixed_size(Geometry.IntSize(20, 20)))
+        grid_icon_button.update_sizing(grid_icon_button.sizing.with_fixed_size(Geometry.IntSize(20, 20)))
 
         button_row = CanvasItem.CanvasItemComposition()
         button_row.layout = CanvasItem.CanvasItemRowLayout(spacing=4)

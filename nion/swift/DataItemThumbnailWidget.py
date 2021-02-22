@@ -145,8 +145,8 @@ class ThumbnailCanvasItem(CanvasItem.CanvasItemComposition):
         bitmap_canvas_item = CanvasItem.BitmapCanvasItem(background_color="#CCC", border_color="#444")
         bitmap_overlay_canvas_item.add_canvas_item(bitmap_canvas_item)
         if size is not None:
-            bitmap_canvas_item.sizing.set_fixed_size(size)
-            thumbnail_source.overlay_canvas_item.sizing.set_fixed_size(size)
+            bitmap_canvas_item.update_sizing(bitmap_canvas_item.sizing.with_fixed_size(size))
+            thumbnail_source.overlay_canvas_item.update_sizing(thumbnail_source.overlay_canvas_item.sizing.with_fixed_size(size))
         bitmap_overlay_canvas_item.add_canvas_item(thumbnail_source.overlay_canvas_item)
         self.__thumbnail_source = thumbnail_source
         self.on_drag = None

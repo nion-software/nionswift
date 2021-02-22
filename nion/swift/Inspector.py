@@ -3330,7 +3330,7 @@ class TextPushButtonWidget(Widgets.CompositeWidgetBase):
         font = "normal 11px serif"
         font_metrics = ui.get_font_metrics(font, text)
         text_button_canvas_item = TextButtonCanvasItem(text)
-        text_button_canvas_item.sizing.set_fixed_size(Geometry.IntSize(height=font_metrics.height + 6, width=font_metrics.width + 6))
+        text_button_canvas_item.update_sizing(text_button_canvas_item.sizing.with_fixed_size(Geometry.IntSize(height=font_metrics.height + 6, width=font_metrics.width + 6)))
 
         def button_clicked():
             if callable(self.on_button_clicked):

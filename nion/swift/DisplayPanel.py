@@ -396,7 +396,7 @@ class RelatedIconsCanvasItem(CanvasItem.CanvasItemComposition):
         self.__dependent_thumbnails.layout = CanvasItem.CanvasItemRowLayout(spacing=8)
         self.__thumbnail_size = Geometry.IntSize(height=24, width=24)
         row = CanvasItem.CanvasItemComposition()
-        row.sizing.set_fixed_height(self.__thumbnail_size.height)
+        row.update_sizing(row.sizing.with_fixed_height(self.__thumbnail_size.height))
         row.layout = CanvasItem.CanvasItemRowLayout()
         row.add_spacing(12)
         row.add_canvas_item(self.__source_thumbnails)
@@ -1243,7 +1243,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
 
         self.__footer_canvas_item = CanvasItem.CanvasItemComposition()
         self.__footer_canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
-        self.__footer_canvas_item.sizing.collapsible = True
+        self.__footer_canvas_item.update_sizing(self.__footer_canvas_item.sizing.with_collapsible(True))
 
         self.layout = CanvasItem.CanvasItemColumnLayout()
         self.add_canvas_item(self.__header_canvas_item)
@@ -1400,7 +1400,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         self.__grid_data_grid_controller.on_key_pressed = key_pressed
 
         self.__horizontal_browser_canvas_item = self.__horizontal_data_grid_controller.canvas_item
-        self.__horizontal_browser_canvas_item.sizing.set_fixed_height(80)
+        self.__horizontal_browser_canvas_item.update_sizing(self.__horizontal_browser_canvas_item.sizing.with_fixed_height(80))
         self.__horizontal_browser_canvas_item.visible = False
 
         self.__grid_browser_canvas_item = self.__grid_data_grid_controller.canvas_item

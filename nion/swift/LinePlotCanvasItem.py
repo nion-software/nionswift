@@ -192,7 +192,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
 
         # draw the background
         line_graph_background_canvas_item = CanvasItem.CanvasItemComposition()
-        #line_graph_background_canvas_item.sizing.minimum_aspect_ratio = 1.5  # note: no maximum aspect ratio; line plot looks nice wider.
+        #line_graph_background_canvas_item.update_sizing(line_graph_background_canvas_item.size.with_minimum_aspect_ratio(1.5))  # note: no maximum aspect ratio; line plot looks nice wider.
         line_graph_background_canvas_item.add_canvas_item(CanvasItem.BackgroundCanvasItem("#FFF"))
         line_graph_background_canvas_item.add_canvas_item(line_graph_group_canvas_item)
 

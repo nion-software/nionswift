@@ -159,7 +159,7 @@ class ColorMapCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def __init__(self):
         super().__init__()
-        self.sizing.set_fixed_height(4)
+        self.update_sizing(self.sizing.with_fixed_height(4))
         self.__color_map_data = None
 
     @property
