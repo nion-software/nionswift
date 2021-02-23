@@ -275,7 +275,8 @@ class Application(UIApplication.BaseApplication):
 
         update_last_project_reference = True
 
-        if self.ui.get_keyboard_modifiers(True).shift:  # pass True since there has been no event yet
+        keyboard_modifiers = self.ui.get_keyboard_modifiers(True)
+        if keyboard_modifiers and keyboard_modifiers.shift:  # pass True since there has been no event yet
             project_reference = None
             update_last_project_reference = False
 
