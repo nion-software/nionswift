@@ -2336,6 +2336,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         if requirement_type == "is_sequence":
             if not data_item.is_sequence:
                 return False
+        if requirement_type == "is_navigable":
+            if not data_item.is_sequence and not data_item.is_collection:
+                return False
         if requirement_type == "bool":
             operator = requirement["operator"]
             for operand in requirement["operands"]:
@@ -2590,8 +2593,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             requirement_4d = {"type": "dimensionality", "min": 4, "max": 4}
             requirement_2d_to_3d = {"type": "dimensionality", "min": 2, "max": 3}
             requirement_2d_to_4d = {"type": "dimensionality", "min": 2, "max": 4}
+            requirement_2d_to_5d = {"type": "dimensionality", "min": 2, "max": 5}
             requirement_is_rgb_type = {"type": "is_rgb_type"}
             requirement_is_sequence = {"type": "is_sequence"}
+            requirement_is_navigable = {"type": "is_navigable"}
             requirement_is_not_sequence = {"type": "bool", "operator": "not", "operands": [requirement_is_sequence]}
             requirement_4d_if_sequence_else_3d = {"type": "bool", "operator": "or",
                                                   "operands": [{"type": "bool", "operator": "and",
@@ -2707,9 +2712,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             vs["sequence-register"] = {"title": _("Shifts"), "expression": "xd.sequence_squeeze_measurement(xd.sequence_measure_relative_translation({src}.xdata, {src}.xdata[numpy.unravel_index(0, {src}.xdata.navigation_dimension_shape)], 100))",
                 "sources": [{"name": "src", "label": _("Source"), "requirements": [requirement_2d_to_3d]}]}
             vs["sequence-align"] = {"title": _("Alignment"), "expression": "xd.sequence_align({src}.xdata, 100)",
-                "sources": [{"name": "src", "label": _("Source"), "requirements": [requirement_2d_to_3d, requirement_is_sequence]}]}
+                "sources": [{"name": "src", "label": _("Source"), "requirements": [requirement_2d_to_5d, requirement_is_navigable]}]}
             vs["sequence-fourier-align"] = {"title": _("Alignment"), "expression": "xd.sequence_fourier_align({src}.xdata, 100)",
-                "sources": [{"name": "src", "label": _("Source"), "requirements": [requirement_2d_to_3d, requirement_is_sequence]}]}
+                "sources": [{"name": "src", "label": _("Source"), "requirements": [requirement_2d_to_5d, requirement_is_navigable]}]}
             vs["sequence-integrate"] = {"title": _("Integrate"), "expression": "xd.sequence_integrate({src}.xdata)",
                 "sources": [{"name": "src", "label": _("Source"), "requirements": [requirement_is_sequence]}]}
             trim_start_param = {"name": "start", "label": _("Start"), "type": "integral", "value": 0, "value_default": 0, "value_min": 0}

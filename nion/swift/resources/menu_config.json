@@ -514,13 +514,9 @@
             },
             {
                 "type": "sub_menu",
-                "menu_id": "processing_sequence",
-                "title": "Sequence",
+                "menu_id": "processing_align",
+                "title": "Align",
                 "items": [
-                    {
-                        "type": "item",
-                        "action_id": "processing.sequence_measure_shifts"
-                    },
                     {
                         "type": "item",
                         "action_id": "processing.sequence_align_spline_1"
@@ -528,6 +524,17 @@
                     {
                         "type": "item",
                         "action_id": "processing.sequence_align_fourier"
+                    }
+                ]
+            },
+            {
+                "type": "sub_menu",
+                "menu_id": "processing_sequence",
+                "title": "Sequence",
+                "items": [
+                    {
+                        "type": "item",
+                        "action_id": "processing.sequence_measure_shifts"
                     },
                     {
                         "type": "item",

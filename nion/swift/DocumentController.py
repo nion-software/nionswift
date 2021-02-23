@@ -3329,7 +3329,7 @@ class ScalarAction(ProcessingAction):
 
 class SequenceAlignFourierAction(ProcessingAction):
     action_id = "processing.sequence_align_fourier"
-    action_name = _("Align (Fourier)")
+    action_name = _("Align Sequence/Collection (Fourier)")
 
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         self.invoke_processing(context, context.window.document_model.get_sequence_fourier_align_new)
@@ -3338,7 +3338,7 @@ class SequenceAlignFourierAction(ProcessingAction):
 
 class SequenceAlignSplineAction(ProcessingAction):
     action_id = "processing.sequence_align_spline_1"
-    action_name = _("Align (Spline 1st Order)")
+    action_name = _("Align Sequence/Collection (Spline 1st Order)")
 
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         self.invoke_processing(context, context.window.document_model.get_sequence_align_new)
