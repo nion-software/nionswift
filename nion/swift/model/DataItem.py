@@ -873,7 +873,8 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
                     dimensional_calibrations.pop(-1)
             metadata = data_and_metadata.metadata if data_and_metadata else None
             timestamp = None  # always update when the data is modified
-            self.set_data_and_metadata(DataAndMetadata.DataAndMetadata.from_data(data, intensity_calibration, dimensional_calibrations, metadata, timestamp), data_modified)
+            data_descriptor = data_and_metadata.data_descriptor
+            self.set_data_and_metadata(DataAndMetadata.DataAndMetadata.from_data(data, intensity_calibration, dimensional_calibrations, metadata, timestamp, data_descriptor), data_modified)
 
     @property
     def intensity_calibration(self) -> Calibration.Calibration:

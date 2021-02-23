@@ -555,6 +555,18 @@ class TestDataItemClass(unittest.TestCase):
                 data_ref.data_updated()
             self.assertEqual(display_item.display_data_channels[0].get_calculated_display_values(True).data_range, (1, 1))
 
+    def test_data_descriptor_is_correct_after_data_ref_data_updated(self):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            data_descriptor = DataAndMetadata.DataDescriptor(True, 2, 2)
+            data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(numpy.zeros((6, 5, 4, 3, 2)), data_descriptor=data_descriptor))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            with data_item.data_ref() as data_ref:
+                data_ref.data[:] = 1
+                data_ref.data_updated()
+            self.assertEqual(data_descriptor, data_item.xdata.data_descriptor)
+
     def test_bool_data_has_int_display_range_and_limits(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
