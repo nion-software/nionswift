@@ -99,7 +99,7 @@ class DocumentController(Window.Window):
             self.window_file_path = project_reference.path
         self.__workspace_controller = None
         self.replaced_display_panel_content = None  # used to facilitate display panel functionality to exchange displays
-        self.__weak_selected_display_panel: typing.Optional[weakref.ReferenceType[DisplayPanel.DisplayPanel]] = None
+        self.__selected_display_panel: typing.Optional[DisplayPanel.DisplayPanel] = None
         self.__tool_mode = "pointer"
         self.__weak_periodic_listeners: typing.List[weakref.ref] = []
         self.__weak_periodic_listeners_mutex = threading.RLock()
@@ -573,14 +573,13 @@ class DocumentController(Window.Window):
 
     @property
     def selected_display_panel(self) -> typing.Optional[DisplayPanel.DisplayPanel]:
-        return self.__weak_selected_display_panel() if self.__weak_selected_display_panel else None
+        return self.__selected_display_panel
 
     @selected_display_panel.setter
     def selected_display_panel(self, selected_display_panel: typing.Optional[DisplayPanel.DisplayPanel]) -> None:
-        weak_selected_display_panel = weakref.ref(selected_display_panel) if selected_display_panel else None
-        if weak_selected_display_panel != self.__weak_selected_display_panel:
+        if selected_display_panel != self.__selected_display_panel:
             # save the selected panel
-            self.__weak_selected_display_panel = weak_selected_display_panel
+            self.__selected_display_panel = selected_display_panel
             # tell the workspace the selected image panel changed so that it can update the focus/selected rings
             self.workspace_controller.selected_display_panel_changed(self.selected_display_panel)
             # update the selected display items
