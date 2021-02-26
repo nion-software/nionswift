@@ -2662,6 +2662,20 @@ class WorkspaceSplitVerticalAction(Window.Action):
         return Window.ActionResult.FINISHED
 
 
+class WorkspaceSplit2x2Action(Window.Action):
+    action_id = "workspace.split_2x2"
+    action_name = _("Split Panel Into 2x2")
+
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        workspace_controller = window.workspace_controller
+        if workspace_controller:
+            command = workspace_controller.insert_display_panel(context.display_panel, "right")
+            window.push_undo_command(command)
+        return Window.ActionResult.FINISHED
+
+
 Window.register_action(WorkspaceCloneAction())
 Window.register_action(WorkspaceNewAction())
 Window.register_action(WorkspaceNextAction())

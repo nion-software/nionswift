@@ -1,12 +1,9 @@
 from __future__ import annotations
 
-from __future__ import annotations
-
 # standard libraries
 import copy
 import functools
 import gettext
-import json
 import random
 import string
 import typing
@@ -26,7 +23,12 @@ from nion.ui import CanvasItem
 from nion.ui import UserInterface
 
 if typing.TYPE_CHECKING:
+    from nion.swift import DocumentController
+    from nion.swift import FilterPanel
     from nion.swift import Panel
+    from nion.swift.model import DisplayItem
+    from nion.swift.model import DocumentModel
+    from nion.swift.model import Project
 
 
 _ = gettext.gettext
@@ -35,8 +37,303 @@ _ = gettext.gettext
 def create_image_desc():
     return {"type": "image", "identifier": "".join([random.choice(string.ascii_uppercase) for _ in range(2)]), "uuid": str(uuid.uuid4())}
 
+
 def create_splitter_desc(orientation: str, splits, children):
     return {"type": "splitter", "orientation": orientation, "splits": copy.copy(splits), "children": children}
+
+
+class SplitDisplayPanelCommand(Undo.UndoableCommand):
+    def __init__(self, workspace_controller: Workspace, workspace_layout: WorkspaceLayout.WorkspaceLayout,
+                 modified_state: typing.Any, display_panel: DisplayPanel.DisplayPanel, region_id: str,
+                 display_item: typing.Optional[DisplayItem.DisplayItem], old_splits: typing.Optional[typing.List[int]],
+                 new_display_panel: DisplayPanel.DisplayPanel):
+        super().__init__("Split Display Panel")
+        self.__workspace_controller = workspace_controller
+        self.__workspace_layout_uuid = workspace_layout.uuid
+        self.__display_panel_uuid = display_panel.uuid
+        self.__region_id = region_id
+        self.__display_item_proxy = display_item.create_proxy() if display_item else None
+        self.__d = None
+        self.__old_splits = old_splits
+        self.__new_display_panel_uuid = new_display_panel.uuid
+        self.__uuid = new_display_panel.uuid
+        self.initialize(modified_state)
+
+    def close(self) -> None:
+        self.__workspace_controller = None  # type: ignore
+        self.__workspace_layout_uuid = None  # type: ignore
+        self.__display_panel_uuid = None  # type: ignore
+        self.__region_id = None  # type: ignore
+        if self.__display_item_proxy:
+            self.__display_item_proxy.close()
+            self.__display_item_proxy = None  # type: ignore
+        self.__d = None  # type: ignore
+        self.__old_splits = None  # type: ignore
+        self.__new_display_panel_uuid = None  # type: ignore
+        self.__uuid = None  # type: ignore
+        super().close()
+
+    def _get_modified_state(self) -> typing.Any:
+        workspace_layout = self.__workspace_controller.get_workspace_layout_by_uuid(self.__workspace_layout_uuid)
+        assert workspace_layout
+        return workspace_layout.modified_state, self.__workspace_controller._project.modified_state
+
+    def _set_modified_state(self, modified_state: typing.Any) -> None:
+        workspace_layout = self.__workspace_controller.get_workspace_layout_by_uuid(self.__workspace_layout_uuid)
+        assert workspace_layout
+        workspace_layout.modified_state, self.__workspace_controller._project.modified_state = modified_state
+
+    def _compare_modified_states(self, state1: typing.Any, state2: typing.Any) -> bool:
+        # override to allow the undo command to track state; but only use part of the state for comparison
+        return state1[0] == state2[0]
+
+    @property
+    def _old_splits(self) -> typing.Optional[typing.List[int]]:
+        return self.__old_splits
+
+    def _undo(self) -> None:
+        new_display_panel = self.__workspace_controller.get_display_panel_by_uuid(self.__new_display_panel_uuid)
+        assert new_display_panel
+        self.__d = new_display_panel.save_contents()
+        self.__workspace_controller._remove_display_panel(new_display_panel, self.__old_splits)
+        if self.__display_item_proxy:
+            self.__display_item_proxy.close()
+            self.__display_item_proxy = None
+
+    def _redo(self) -> None:
+        display_item = typing.cast(DisplayItem.DisplayItem, self.__display_item_proxy.item) if self.__display_item_proxy else None
+        display_panel = self.__workspace_controller.get_display_panel_by_uuid(self.__display_panel_uuid)
+        assert display_panel
+        _, new_display_panel = self.__workspace_controller._insert_display_panel(display_panel, self.__region_id, display_item, self.__d, self.__uuid)
+        assert new_display_panel
+        self.__new_display_panel_uuid = new_display_panel.uuid
+
+
+class RemoveDisplayPanelCommand(Undo.UndoableCommand):
+
+    def __init__(self, workspace_controller: Workspace, workspace_layout: WorkspaceLayout.WorkspaceLayout,
+                 modified_state: typing.Any, old_display_panel: DisplayPanel.DisplayPanel, region: str, d: dict,
+                 old_uuid: uuid.UUID, old_splits: typing.Optional[typing.List[int]]):
+        super().__init__("Remove Display Panel")
+        self.__workspace_controller = workspace_controller
+        self.__workspace_layout_uuid = workspace_layout.uuid
+        self.__old_display_panel = old_display_panel  # canvas_item: always valid even in redo/undo
+        self.__region = region
+        self.__d = d
+        self.__old_uuid = old_uuid
+        self.__old_splits = old_splits
+        self.__new_splits: typing.Optional[typing.List[int]] = None
+        self.__new_display_panel_uuid: typing.Optional[uuid.UUID] = None
+        self.initialize(modified_state)
+
+    def close(self) -> None:
+        self.__workspace_controller = None  # type: ignore
+        self.__workspace_layout_uuid = None  # type: ignore
+        self.__old_display_panel = None  # type: ignore
+        self.__region = None  # type: ignore
+        self.__d = None  # type: ignore
+        self.__old_uuid = None  # type: ignore
+        self.__old_splits = None  # type: ignore
+        self.__new_splits = None  # type: ignore
+        self.__new_display_panel_uuid = None  # type: ignore
+        super().close()
+
+    def _get_modified_state(self) -> typing.Any:
+        workspace_layout = self.__workspace_controller.get_workspace_layout_by_uuid(self.__workspace_layout_uuid)
+        assert workspace_layout
+        return workspace_layout.modified_state, self.__workspace_controller._project.modified_state
+
+    def _set_modified_state(self, modified_state: typing.Any) -> None:
+        workspace_layout = self.__workspace_controller.get_workspace_layout_by_uuid(self.__workspace_layout_uuid)
+        assert workspace_layout
+        workspace_layout.modified_state, self.__workspace_controller._project.modified_state = modified_state
+
+    def _compare_modified_states(self, state1: typing.Any, state2: typing.Any) -> bool:
+        # override to allow the undo command to track state; but only use part of the state for comparison
+        return state1[0] == state2[0]
+
+    def _undo(self) -> None:
+        assert self.__old_display_panel
+        old_splits, new_display_panel = self.__workspace_controller._insert_display_panel(self.__old_display_panel, self.__region, None, self.__d, self.__old_uuid, self.__old_splits)
+        assert new_display_panel
+        self.__new_splits = old_splits
+        self.__new_display_panel_uuid = new_display_panel.uuid
+
+    def _redo(self) -> None:
+        assert self.__new_display_panel_uuid
+        new_display_panel = self.__workspace_controller.get_display_panel_by_uuid(self.__new_display_panel_uuid)
+        assert new_display_panel
+        old_display_panel, _, _ = self.__workspace_controller._remove_display_panel(new_display_panel, self.__new_splits)
+        assert old_display_panel
+        self.__old_display_panel = old_display_panel
+
+
+class CreateWorkspaceCommand(Undo.UndoableCommand):
+    def __init__(self, workspace_controller: Workspace, name: str):
+        super().__init__("Create Workspace")
+        self.__workspace_controller = workspace_controller
+        self.__workspace_layout_uuid = workspace_controller._workspace.uuid
+        self.__new_name = name
+        self.__new_layout = None
+        self.__new_workspace_id = None
+        self.initialize()
+
+    def _get_modified_state(self) -> typing.Any:
+        return self.__workspace_controller._project.modified_state
+
+    def _set_modified_state(self, modified_state: typing.Any) -> None:
+        self.__workspace_controller._project.modified_state = modified_state
+
+    def perform(self) -> None:
+        new_workspace = self.__workspace_controller.new_workspace(name=self.__new_name, layout=self.__new_layout, workspace_id=self.__new_workspace_id)
+        self.__workspace_controller._change_workspace(new_workspace)
+
+    def _undo(self) -> None:
+        new_workspace = self.__workspace_controller._workspace
+        workspace_layout = self.__workspace_controller.get_workspace_layout_by_uuid(self.__workspace_layout_uuid)
+        assert workspace_layout
+        self.__new_layout = self.__workspace_controller._workspace.layout
+        self.__new_workspace_id = self.__workspace_controller._workspace.workspace_id
+        self.__workspace_controller._change_workspace(workspace_layout)
+        self.__workspace_controller._project.remove_item("workspaces", new_workspace)
+
+    def _redo(self) -> None:
+        self.perform()
+
+
+class RemoveWorkspaceCommand(Undo.UndoableCommand):
+    def __init__(self, workspace_controller: Workspace):
+        super().__init__("Remove Workspace")
+        self.__workspace_controller = workspace_controller
+        self.__old_name = workspace_controller._workspace.name
+        self.__old_layout = workspace_controller._workspace.layout
+        self.__old_workspace_id = workspace_controller._workspace.workspace_id
+        self.__old_workspace_index = workspace_controller._project.workspaces.index(workspace_controller._workspace)
+        self.initialize()
+
+    def _get_modified_state(self) -> typing.Any:
+        return self.__workspace_controller._project.modified_state
+
+    def _set_modified_state(self, modified_state: typing.Any) -> None:
+        self.__workspace_controller._project.modified_state = modified_state
+
+    def perform(self) -> None:
+        assert len(self.__workspace_controller._project.workspaces) > 1
+        old_workspace = self.__workspace_controller._workspace
+        self.__workspace_controller.change_to_previous_workspace()
+        self.__workspace_controller._project.remove_item("workspaces", old_workspace)
+
+    def _undo(self) -> None:
+        new_workspace = self.__workspace_controller.new_workspace(name=self.__old_name, layout=self.__old_layout, workspace_id=self.__old_workspace_id, index=self.__old_workspace_index)
+        self.__workspace_controller._change_workspace(new_workspace)
+
+    def _redo(self) -> None:
+        self.perform()
+
+
+class RenameWorkspaceCommand(Undo.UndoableCommand):
+    def __init__(self, workspace_controller: Workspace, name: str):
+        super().__init__("Rename Workspace")
+        self.__workspace_controller = workspace_controller
+        self.__old_name = workspace_controller._workspace.name
+        self.__new_name = name
+        self.initialize()
+
+    def _get_modified_state(self) -> typing.Any:
+        return self.__workspace_controller._project.modified_state
+
+    def _set_modified_state(self, modified_state: typing.Any) -> None:
+        self.__workspace_controller._project.modified_state = modified_state
+
+    def perform(self) -> None:
+        self.__workspace_controller._workspace.name = self.__new_name
+
+    def _undo(self) -> None:
+        self.__workspace_controller._workspace.name = self.__old_name
+
+    def _redo(self) -> None:
+        self.perform()
+
+
+class CloneWorkspaceCommand(Undo.UndoableCommand):
+    def __init__(self, workspace_controller: Workspace, name: str):
+        super().__init__("Clone Workspace")
+        self.__workspace_controller = workspace_controller
+        self.__workspace_layout_uuid = workspace_controller._workspace.uuid
+        self.__new_name = name
+        self.__new_layout = workspace_controller._workspace.layout
+        self.__new_workspace_id = None
+        self.initialize()
+
+    def _get_modified_state(self) -> typing.Any:
+        return self.__workspace_controller._project.modified_state
+
+    def _set_modified_state(self, modified_state: typing.Any) -> None:
+        self.__workspace_controller._project.modified_state = modified_state
+
+    def perform(self) -> None:
+        new_workspace = self.__workspace_controller.new_workspace(name=self.__new_name, layout=self.__new_layout, workspace_id=self.__new_workspace_id)
+        self.__workspace_controller._change_workspace(new_workspace)
+
+    def _undo(self) -> None:
+        new_workspace = self.__workspace_controller._workspace
+        workspace_layout = self.__workspace_controller.get_workspace_layout_by_uuid(self.__workspace_layout_uuid)
+        assert workspace_layout
+        self.__new_layout = self.__workspace_controller._workspace.layout
+        self.__new_workspace_id = self.__workspace_controller._workspace.workspace_id
+        self.__workspace_controller._change_workspace(workspace_layout)
+        self.__workspace_controller._project.remove_item("workspaces", new_workspace)
+
+    def _redo(self) -> None:
+        self.perform()
+
+
+class ChangeWorkspaceCommand(Undo.UndoableCommand):
+    def __init__(self, workspace_controller: Workspace, workspace: WorkspaceLayout.WorkspaceLayout):
+        super().__init__("Change Workspace")
+        self.__workspace_controller = workspace_controller
+        self.__old_workspace_uuid = workspace_controller._workspace.uuid
+        self.__new_workspace = workspace
+        self.initialize()
+
+    def _get_modified_state(self) -> typing.Any:
+        return self.__workspace_controller._project.modified_state
+
+    def _set_modified_state(self, modified_state: typing.Any) -> None:
+        self.__workspace_controller._project.modified_state = modified_state
+
+    def perform(self) -> None:
+        self.__workspace_controller._change_workspace(self.__new_workspace)
+
+    def _undo(self) -> None:
+        old_workspace = self.__workspace_controller.get_workspace_layout_by_uuid(self.__old_workspace_uuid)
+        assert old_workspace
+        self.__workspace_controller._change_workspace(old_workspace)
+
+    def _redo(self) -> None:
+        self.perform()
+
+
+class ChangeContentsWorkspaceCommand(Undo.UndoableCommand):
+    def __init__(self, workspace_controller: Workspace):
+        super().__init__("Change Workspace Contents")
+        self.__workspace_controller = workspace_controller
+        self.__old_workspace_layout = workspace_controller.deconstruct()
+        self.__new_workspace_layout = typing.cast(dict, None)
+        self.initialize()
+
+    def _get_modified_state(self) -> typing.Any:
+        return self.__workspace_controller._project.modified_state
+
+    def _set_modified_state(self, modified_state: typing.Any) -> None:
+        self.__workspace_controller._project.modified_state = modified_state
+
+    def _undo(self) -> None:
+        self.__new_workspace_layout = self.__workspace_controller.deconstruct()
+        self.__workspace_controller.reconstruct(self.__old_workspace_layout)
+
+    def _redo(self) -> None:
+        self.__workspace_controller.reconstruct(self.__new_workspace_layout)
 
 
 class Workspace:
@@ -52,7 +349,7 @@ class Workspace:
         from its original size/shape when saved.
     """
 
-    def __init__(self, document_controller, workspace_id):
+    def __init__(self, document_controller: DocumentController.DocumentController, workspace_id: str):
         self.__document_controller_weakref = weakref.ref(document_controller)
 
         self.ui = self.document_controller.ui
@@ -61,8 +358,8 @@ class Workspace:
 
         self.workspace_id = workspace_id
 
-        self.dock_panels = []
-        self.display_panels = []
+        self.dock_panels: typing.List[Panel.Panel] = []
+        self.display_panels: typing.List[DisplayPanel.DisplayPanel] = []
 
         self.__canvas_item = None
 
@@ -79,7 +376,7 @@ class Workspace:
         self.filter_row.visible = False
         root_widget.add(self.__content_column)
 
-        self.__message_boxes = dict()
+        self.__message_boxes: typing.Dict[str, UserInterface.BoxWidget] = dict()
 
         # configure the document window (central widget)
         document_controller.attach_widget(root_widget)
@@ -90,11 +387,11 @@ class Workspace:
 
         self.create_panels(visible_panels)
 
-        self.__workspace = None
-        self.__change_splitter_command = None
+        self.__workspace: typing.Optional[WorkspaceLayout.WorkspaceLayout] = None
+        self.__change_splitter_command: typing.Optional[Undo.UndoableCommand] = None
         self.__change_splitter_splits = None
 
-    def close(self):
+    def close(self) -> None:
         for message_box_widget in copy.copy(list(self.__message_boxes.values())):
             self.message_column.remove(message_box_widget)
         self.__message_boxes.clear()
@@ -111,32 +408,35 @@ class Workspace:
         self.document_controller.detach_widget()
 
     @property
-    def dock_widgets(self) -> typing.Sequence:
+    def dock_widgets(self) -> typing.List[UserInterface.DockWidget]:
         if self.dock_panels:
             return list(dock_panel.dock_widget for dock_panel in self.dock_panels)
         return list()
 
-    def periodic(self):
+    def periodic(self) -> None:
         for dock_panel in self.dock_panels:
             dock_panel.periodic()
 
-    def restore_geometry_state(self):
+    def restore_geometry_state(self) -> typing.Tuple[str, str]:
         geometry = self.ui.get_persistent_string("Workspace/%s/Geometry" % self.workspace_id)
         state = self.ui.get_persistent_string("Workspace/%s/State" % self.workspace_id)
         return geometry, state
 
-    def save_geometry_state(self, geometry, state):
+    def save_geometry_state(self, geometry: str, state: str) -> None:
         # ugh. this has the side effect of saving the layout when the geometry state is saved.
         self.__sync_layout()
         self.ui.set_persistent_string("Workspace/%s/Geometry" % self.workspace_id, geometry)
         self.ui.set_persistent_string("Workspace/%s/State" % self.workspace_id, state)
 
     @property
-    def document_controller(self):
-        return self.__document_controller_weakref()
+    def document_controller(self) -> DocumentController.DocumentController:
+        document_controller = self.__document_controller_weakref()
+        assert document_controller
+        return document_controller
 
     @property
-    def document_model(self):
+    def document_model(self) -> DocumentModel.DocumentModel:
+        assert self.document_controller
         return self.document_controller.document_model
 
     @property
@@ -144,16 +444,16 @@ class Workspace:
         return self.document_controller.project
 
     @property
-    def _canvas_item(self):
+    def _canvas_item(self) -> typing.Optional[CanvasItem.CanvasItemComposition]:
         return self.__canvas_item
 
-    def _find_dock_panel(self, dock_panel_id) -> typing.Optional[UserInterface.DockWidget]:
+    def _find_dock_panel(self, dock_panel_id: str) -> typing.Optional[Panel.Panel]:
         for dock_panel in self.dock_panels:
             if dock_panel.panel_id == dock_panel_id:
                 return dock_panel
         return None
 
-    def create_panels(self, visible_panels=None):
+    def create_panels(self, visible_panels: typing.Optional[typing.List[str]] = None) -> None:
         # get the document controller
         document_controller = self.document_controller
 
@@ -168,7 +468,8 @@ class Workspace:
                     else:
                         dock_panel.hide()
 
-    def create_panel(self, document_controller, panel_id, title, positions, position, properties) -> Panel.Panel:
+    def create_panel(self, document_controller: DocumentController.DocumentController, panel_id: str, title: str,
+                     positions: typing.Sequence[str], position: str, properties: dict) -> typing.Optional[Panel.Panel]:
         try:
             panel = self.workspace_manager.create_panel_content(document_controller, panel_id, title, positions, position, properties)
             assert panel is not None, "panel is None [%s]" % panel_id
@@ -188,7 +489,7 @@ class Workspace:
                 display_panel.set_display_panel_display_item(display_item)
                 self.__sync_layout()
 
-    def _construct(self, desc, display_panels):
+    def _construct(self, desc: dict, display_panels: typing.List[DisplayPanel.DisplayPanel]) -> typing.Tuple[typing.Optional[CanvasItem.AbstractCanvasItem], typing.Optional[DisplayPanel.DisplayPanel]]:
         selected_display_panel = None
         type = desc["type"]
         container = None
@@ -223,12 +524,14 @@ class Workspace:
         return item, selected_display_panel
 
     def deconstruct(self) -> dict:
+        assert self.__canvas_item
         return self._deconstruct(self.__canvas_item.canvas_items[0])
 
-    def reconstruct(self, d) -> DisplayPanel.DisplayPanel:
+    def reconstruct(self, d: dict) -> typing.Optional[DisplayPanel.DisplayPanel]:
+        assert self.__canvas_item
         return self._reconstruct(d, self.__canvas_item.canvas_items[0])
 
-    def _reconstruct(self, d, canvas_item):
+    def _reconstruct(self, d: dict, canvas_item: CanvasItem.AbstractCanvasItem) -> typing.Optional[DisplayPanel.DisplayPanel]:
         selected_display_panel = None
         type = d["type"]
         container = None
@@ -255,7 +558,7 @@ class Workspace:
             return selected_display_panel
         return selected_display_panel
 
-    def __get_display_panel_by_canvas_item(self, canvas_item):
+    def __get_display_panel_by_canvas_item(self, canvas_item: CanvasItem.AbstractCanvasItem) -> typing.Optional[DisplayPanel.DisplayPanel]:
         for display_panel in self.display_panels:
             if display_panel == canvas_item:
                 return display_panel
@@ -267,7 +570,7 @@ class Workspace:
                 return display_panel
         return None
 
-    def _deconstruct(self, canvas_item):
+    def _deconstruct(self, canvas_item: CanvasItem.AbstractCanvasItem) -> dict:
         if isinstance(canvas_item, CanvasItem.SplitterCanvasItem):
             children = [self._deconstruct(child_canvas_item) for child_canvas_item in canvas_item.canvas_items]
             d = create_splitter_desc(canvas_item.orientation, canvas_item.splits, children)
@@ -279,18 +582,19 @@ class Workspace:
                 d["selected"] = True
             d.update(display_panel.save_contents())
             return d
-        return None
+        return dict()
 
     @property
     def _workspace(self) -> WorkspaceLayout.WorkspaceLayout:
+        assert self.__workspace
         return self.__workspace
 
     @property
-    def _workspace_layout(self):
-        return self._deconstruct(self.__canvas_item.canvas_items[0])
+    def _workspace_layout(self) -> dict:
+        return self.deconstruct()
 
     def change_workspace(self, workspace: WorkspaceLayout.WorkspaceLayout) -> None:
-        command = Workspace.ChangeWorkspaceCommand(self, workspace)
+        command = ChangeWorkspaceCommand(self, workspace)
         command.perform()
         self.document_controller.push_undo_command(command)
 
@@ -314,6 +618,7 @@ class Workspace:
         # self.__canvas_item.focusable = True
         # now construct the workspace
         selected_display_panel = None  # avoids warning
+        display_panels: typing.List[DisplayPanel.DisplayPanel]
         try:
             display_panels = list()  # to be populated by _construct
             canvas_item, selected_display_panel = self._construct(workspace.layout, display_panels)
@@ -321,6 +626,7 @@ class Workspace:
             if canvas_item:
                 self.__workspace = workspace
                 self.display_panels.extend(display_panels)
+                assert self.__canvas_item  # for type checking
                 self.__canvas_item.add_canvas_item(canvas_item)
                 self.image_row.add(canvas_widget)
         except Exception as e:
@@ -337,6 +643,7 @@ class Workspace:
             if canvas_item:
                 self.__workspace = workspace
                 self.display_panels.extend(display_panels)
+                assert self.__canvas_item  # for type checking
                 self.__canvas_item.add_canvas_item(canvas_item)
                 self.image_row.add(canvas_widget)
         self.document_controller.selected_display_panel = selected_display_panel
@@ -368,7 +675,9 @@ class Workspace:
         workspace_index = (workspace_index + 1) % len(self._project.workspaces)
         self.change_workspace(self._project.workspaces[workspace_index])
 
-    def new_workspace(self, name=None, layout=None, workspace_id=None, index=None) -> WorkspaceLayout.WorkspaceLayout:
+    def new_workspace(self, name: typing.Optional[str] = None, layout: typing.Optional[dict] = None,
+                      workspace_id: typing.Optional[str] = None,
+                      index: typing.Optional[int] = None) -> WorkspaceLayout.WorkspaceLayout:
         """ Create a new workspace, insert into document_model, and return it. """
         workspace = WorkspaceLayout.WorkspaceLayout()
         self._project.insert_item("workspaces", index if index is not None else len(self._project.workspaces), workspace)
@@ -380,7 +689,7 @@ class Workspace:
             workspace.workspace_id = workspace_id
         return workspace
 
-    def ensure_workspace(self, name, layout, workspace_id):
+    def ensure_workspace(self, name: str, layout: dict, workspace_id: str) -> None:
         """Looks for a workspace with workspace_id.
 
         If none is found, create a new one, add it, and change to it.
@@ -396,171 +705,12 @@ class Workspace:
                 return workspace_layout
         return None
 
-    class CreateWorkspaceCommand(Undo.UndoableCommand):
-        def __init__(self, workspace_controller: "Workspace", name: str):
-            super().__init__("Create Workspace")
-            self.__workspace_controller = workspace_controller
-            self.__workspace_layout_uuid = workspace_controller._workspace.uuid
-            self.__new_name = name
-            self.__new_layout = None
-            self.__new_workspace_id = None
-            self.initialize()
-
-        def _get_modified_state(self):
-            return self.__workspace_controller._project.modified_state
-
-        def _set_modified_state(self, modified_state) -> None:
-            self.__workspace_controller._project.modified_state = modified_state
-
-        def perform(self) -> None:
-            new_workspace = self.__workspace_controller.new_workspace(name=self.__new_name, layout=self.__new_layout, workspace_id=self.__new_workspace_id)
-            self.__workspace_controller._change_workspace(new_workspace)
-
-        def _undo(self) -> None:
-            new_workspace = self.__workspace_controller._workspace
-            workspace_layout = self.__workspace_controller.get_workspace_layout_by_uuid(self.__workspace_layout_uuid)
-            self.__new_layout = self.__workspace_controller._workspace.layout
-            self.__new_workspace_id = self.__workspace_controller._workspace.workspace_id
-            self.__workspace_controller._change_workspace(workspace_layout)
-            self.__workspace_controller._project.remove_item("workspaces", new_workspace)
-
-        def _redo(self) -> None:
-            self.perform()
-
-    class RemoveWorkspaceCommand(Undo.UndoableCommand):
-        def __init__(self, workspace_controller: "Workspace"):
-            super().__init__("Remove Workspace")
-            self.__workspace_controller = workspace_controller
-            self.__old_name = workspace_controller._workspace.name
-            self.__old_layout = workspace_controller._workspace.layout
-            self.__old_workspace_id = workspace_controller._workspace.workspace_id
-            self.__old_workspace_index = workspace_controller._project.workspaces.index(workspace_controller._workspace)
-            self.initialize()
-
-        def _get_modified_state(self):
-            return self.__workspace_controller._project.modified_state
-
-        def _set_modified_state(self, modified_state) -> None:
-            self.__workspace_controller._project.modified_state = modified_state
-
-        def perform(self) -> None:
-            assert len(self.__workspace_controller._project.workspaces) > 1
-            old_workspace = self.__workspace_controller._workspace
-            self.__workspace_controller.change_to_previous_workspace()
-            self.__workspace_controller._project.remove_item("workspaces", old_workspace)
-
-        def _undo(self) -> None:
-            new_workspace = self.__workspace_controller.new_workspace(name=self.__old_name, layout=self.__old_layout, workspace_id=self.__old_workspace_id, index=self.__old_workspace_index)
-            self.__workspace_controller._change_workspace(new_workspace)
-
-        def _redo(self) -> None:
-            self.perform()
-
-    class RenameWorkspaceCommand(Undo.UndoableCommand):
-        def __init__(self, workspace_controller: "Workspace", name: str):
-            super().__init__("Rename Workspace")
-            self.__workspace_controller = workspace_controller
-            self.__old_name = workspace_controller._workspace.name
-            self.__new_name = name
-            self.initialize()
-
-        def _get_modified_state(self):
-            return self.__workspace_controller._project.modified_state
-
-        def _set_modified_state(self, modified_state) -> None:
-            self.__workspace_controller._project.modified_state = modified_state
-
-        def perform(self) -> None:
-            self.__workspace_controller._workspace.name = self.__new_name
-
-        def _undo(self) -> None:
-            self.__workspace_controller._workspace.name = self.__old_name
-
-        def _redo(self) -> None:
-            self.perform()
-
-    class CloneWorkspaceCommand(Undo.UndoableCommand):
-        def __init__(self, workspace_controller: "Workspace", name: str):
-            super().__init__("Clone Workspace")
-            self.__workspace_controller = workspace_controller
-            self.__workspace_layout_uuid = workspace_controller._workspace.uuid
-            self.__new_name = name
-            self.__new_layout = workspace_controller._workspace.layout
-            self.__new_workspace_id = None
-            self.initialize()
-
-        def _get_modified_state(self):
-            return self.__workspace_controller._project.modified_state
-
-        def _set_modified_state(self, modified_state) -> None:
-            self.__workspace_controller._project.modified_state = modified_state
-
-        def perform(self) -> None:
-            new_workspace = self.__workspace_controller.new_workspace(name=self.__new_name, layout=self.__new_layout, workspace_id=self.__new_workspace_id)
-            self.__workspace_controller._change_workspace(new_workspace)
-
-        def _undo(self) -> None:
-            new_workspace = self.__workspace_controller._workspace
-            workspace_layout = self.__workspace_controller.get_workspace_layout_by_uuid(self.__workspace_layout_uuid)
-            self.__new_layout = self.__workspace_controller._workspace.layout
-            self.__new_workspace_id = self.__workspace_controller._workspace.workspace_id
-            self.__workspace_controller._change_workspace(workspace_layout)
-            self.__workspace_controller._project.remove_item("workspaces", new_workspace)
-
-        def _redo(self) -> None:
-            self.perform()
-
-    class ChangeWorkspaceCommand(Undo.UndoableCommand):
-        def __init__(self, workspace_controller: "Workspace", workspace: WorkspaceLayout.WorkspaceLayout):
-            super().__init__("Change Workspace")
-            self.__workspace_controller = workspace_controller
-            self.__old_workspace_uuid = workspace_controller._workspace.uuid
-            self.__new_workspace = workspace
-            self.initialize()
-
-        def _get_modified_state(self):
-            return self.__workspace_controller._project.modified_state
-
-        def _set_modified_state(self, modified_state) -> None:
-            self.__workspace_controller._project.modified_state = modified_state
-
-        def perform(self) -> None:
-            self.__workspace_controller._change_workspace(self.__new_workspace)
-
-        def _undo(self) -> None:
-            old_workspace = self.__workspace_controller.get_workspace_layout_by_uuid(self.__old_workspace_uuid)
-            self.__workspace_controller._change_workspace(old_workspace)
-
-        def _redo(self) -> None:
-            self.perform()
-
-    class ChangeContentsWorkspaceCommand(Undo.UndoableCommand):
-        def __init__(self, workspace_controller: "Workspace"):
-            super().__init__("Change Workspace Contents")
-            self.__workspace_controller = workspace_controller
-            self.__old_workspace_layout = workspace_controller.deconstruct()
-            self.__new_workspace_layout = None
-            self.initialize()
-
-        def _get_modified_state(self):
-            return self.__workspace_controller._project.modified_state
-
-        def _set_modified_state(self, modified_state) -> None:
-            self.__workspace_controller._project.modified_state = modified_state
-
-        def _undo(self) -> None:
-            self.__new_workspace_layout = self.__workspace_controller.deconstruct()
-            self.__workspace_controller.reconstruct(self.__old_workspace_layout)
-
-        def _redo(self) -> None:
-            self.__workspace_controller.reconstruct(self.__new_workspace_layout)
-
     def create_workspace(self) -> None:
         """ Pose a dialog to name and create a workspace. """
 
-        def create_clicked(text):
+        def create_clicked(text: str) -> None:
             if text:
-                command = Workspace.CreateWorkspaceCommand(self, text)
+                command = CreateWorkspaceCommand(self, text)
                 command.perform()
                 self.document_controller.push_undo_command(command)
 
@@ -570,10 +720,11 @@ class Workspace:
 
     def rename_workspace(self) -> None:
         """ Pose a dialog to rename the workspace. """
+        assert self.__workspace
 
-        def rename_clicked(text):
+        def rename_clicked(text: str) -> None:
             if len(text) > 0:
-                command = Workspace.RenameWorkspaceCommand(self, text)
+                command = RenameWorkspaceCommand(self, text)
                 command.perform()
                 self.document_controller.push_undo_command(command)
 
@@ -583,10 +734,11 @@ class Workspace:
 
     def remove_workspace(self) -> None:
         """ Pose a dialog to confirm removal then remove workspace. """
+        assert self.__workspace
 
-        def confirm_clicked():
+        def confirm_clicked() -> None:
             if len(self._project.workspaces) > 1:
-                command = Workspace.RemoveWorkspaceCommand(self)
+                command = RemoveWorkspaceCommand(self)
                 command.perform()
                 self.document_controller.push_undo_command(command)
 
@@ -596,10 +748,11 @@ class Workspace:
 
     def clone_workspace(self) -> None:
         """ Pose a dialog to name and clone a workspace. """
+        assert self.__workspace
 
-        def clone_clicked(text):
+        def clone_clicked(text: str) -> None:
             if text:
-                command = Workspace.CloneWorkspaceCommand(self, text)
+                command = CloneWorkspaceCommand(self, text)
                 command.perform()
                 self.document_controller.push_undo_command(command)
 
@@ -607,7 +760,11 @@ class Workspace:
                                          accepted_fn=clone_clicked, accepted_text=_("Clone"),
                                          message_box_id="clone_workspace")
 
-    def pose_get_string_message_box(self, caption, text, accepted_fn, rejected_fn=None, accepted_text=None, rejected_text=None, message_box_id=None):
+    def pose_get_string_message_box(self, caption: str, text: str, accepted_fn: typing.Callable[[str], None],
+                                    rejected_fn: typing.Optional[typing.Callable[[], None]] = None,
+                                    accepted_text: typing.Optional[str] = None,
+                                    rejected_text: typing.Optional[str] = None,
+                                    message_box_id: typing.Optional[str] = None) -> typing.Optional[UserInterface.Widget]:
         message_box_id = message_box_id if message_box_id else str(uuid.uuid4())
         if message_box_id in self.__message_boxes:
             return None
@@ -662,7 +819,11 @@ class Workspace:
         self.__message_boxes[message_box_id] = message_box_widget
         return message_box_widget
 
-    def pose_confirmation_message_box(self, caption, accepted_fn, rejected_fn=None, accepted_text=None, rejected_text=None, display_rejected=True, message_box_id=None):
+    def pose_confirmation_message_box(self, caption: str, accepted_fn: typing.Callable[[], None],
+                                      rejected_fn: typing.Optional[typing.Callable[[], None]] = None,
+                                      accepted_text: typing.Optional[str] = None,
+                                      rejected_text: typing.Optional[str] = None, display_rejected: bool = True,
+                                      message_box_id: typing.Optional[str] = None) -> typing.Optional[UserInterface.Widget]:
         message_box_id = message_box_id if message_box_id else str(uuid.uuid4())
         if message_box_id in self.__message_boxes:
             return None
@@ -700,7 +861,7 @@ class Workspace:
         self.__message_boxes[message_box_id] = message_box_widget
         return message_box_widget
 
-    def pose_tool_tip_box(self, caption, timeout, message_box_id=None):
+    def pose_tool_tip_box(self, caption: str, timeout: float, message_box_id: typing.Optional[str]=None) -> typing.Optional[UserInterface.Widget]:
         import threading
         import time
         message_box_id = message_box_id if message_box_id else str(uuid.uuid4())
@@ -739,7 +900,7 @@ class Workspace:
         message_box_widget.remove_now = remove_box
         return message_box_widget
 
-    def handle_drag_enter(self, display_panel, mime_data: UserInterface.MimeData) -> str:
+    def handle_drag_enter(self, display_panel: DisplayPanel.DisplayPanel, mime_data: UserInterface.MimeData) -> str:
         if mime_data.has_format(MimeTypes.DISPLAY_ITEM_MIME_TYPE):
             return "copy"
         if mime_data.has_format("text/uri-list"):
@@ -748,10 +909,10 @@ class Workspace:
             return "copy"
         return "ignore"
 
-    def handle_drag_leave(self, display_panel):
+    def handle_drag_leave(self, display_panel: DisplayPanel.DisplayPanel) -> bool:
         return False
 
-    def handle_drag_move(self, display_panel, mime_data: UserInterface.MimeData, x: int, y: int) -> str:
+    def handle_drag_move(self, display_panel: DisplayPanel.DisplayPanel, mime_data: UserInterface.MimeData, x: int, y: int) -> str:
         if mime_data.has_format(MimeTypes.DISPLAY_ITEM_MIME_TYPE):
             return "copy"
         if mime_data.has_format("text/uri-list"):
@@ -760,10 +921,10 @@ class Workspace:
             return "copy"
         return "ignore"
 
-    def should_handle_drag_for_mime_data(self, mime_data):
+    def should_handle_drag_for_mime_data(self, mime_data: UserInterface.MimeData) -> bool:
         return mime_data.has_format(MimeTypes.DISPLAY_ITEM_MIME_TYPE) or mime_data.has_format("text/uri-list") or mime_data.has_format(MimeTypes.DISPLAY_PANEL_MIME_TYPE)
 
-    def handle_drop(self, display_panel, mime_data: UserInterface.MimeData, region, x: int, y: int) -> str:
+    def handle_drop(self, display_panel: DisplayPanel.DisplayPanel, mime_data: UserInterface.MimeData, region, x: int, y: int) -> str:
         document_model = self.document_model
         if mime_data.has_format(MimeTypes.DISPLAY_PANEL_MIME_TYPE):
             display_item, d = MimeTypes.mime_data_get_panel(mime_data, self.document_model)
@@ -793,10 +954,14 @@ class Workspace:
             return "copy"
         return "ignore"
 
-    def _replace_displayed_display_item(self, display_panel, display_item, d=None) -> Undo.UndoableCommand:
+    def _replace_displayed_display_item(self, display_panel: DisplayPanel.DisplayPanel,
+                                        display_item: typing.Optional[DisplayItem.DisplayItem],
+                                        d: typing.Optional[dict] = None) -> Undo.UndoableCommand:
         return self.__replace_displayed_display_item(display_panel, display_item, d)
 
-    def __replace_displayed_display_item(self, display_panel, display_item, d=None) -> Undo.UndoableCommand:
+    def __replace_displayed_display_item(self, display_panel: DisplayPanel.DisplayPanel,
+                                         display_item: typing.Optional[DisplayItem.DisplayItem],
+                                         d: typing.Optional[dict] = None) -> Undo.UndoableCommand:
         """ Used in drag/drop support. """
         self.document_controller.replaced_display_panel_content = display_panel.save_contents()
         command = DisplayPanel.ReplaceDisplayPanelCommand(self)
@@ -808,119 +973,20 @@ class Workspace:
         self.__sync_layout()
         return command
 
-    class SplitDisplayPanelCommand(Undo.UndoableCommand):
-        def __init__(self, workspace_controller, workspace_layout, modified_state, display_panel, region_id: str, display_item, d: dict, old_splits, new_display_panel):
-            super().__init__("Split Display Panel")
-            self.__workspace_controller = workspace_controller
-            self.__workspace_layout_uuid = workspace_layout.uuid
-            self.__display_panel_uuid = display_panel.uuid
-            self.__region_id = region_id
-            self.__display_item_proxy = display_item.create_proxy() if display_item else None
-            self.__d = d
-            self.__old_splits = old_splits
-            self.__new_display_panel_uuid = new_display_panel.uuid
-            self.__uuid = new_display_panel.uuid
-            self.initialize(modified_state)
-
-        def close(self):
-            self.__workspace_controller = None
-            self.__workspace_layout_uuid = None
-            self.__display_panel_uuid = None
-            self.__region_id = None
-            if self.__display_item_proxy:
-                self.__display_item_proxy.close()
-                self.__display_item_proxy = None
-            self.__d = None
-            self.__old_splits = None
-            self.__new_display_panel_uuid = None
-            self.__uuid = None
-            super().close()
-
-        def _get_modified_state(self):
-            workspace_layout = self.__workspace_controller.get_workspace_layout_by_uuid(self.__workspace_layout_uuid)
-            return workspace_layout.modified_state, self.__workspace_controller._project.modified_state
-
-        def _set_modified_state(self, modified_state) -> None:
-            workspace_layout = self.__workspace_controller.get_workspace_layout_by_uuid(self.__workspace_layout_uuid)
-            workspace_layout.modified_state, self.__workspace_controller._project.modified_state = modified_state
-
-        def _compare_modified_states(self, state1, state2) -> bool:
-            # override to allow the undo command to track state; but only use part of the state for comparison
-            return state1[0] == state2[0]
-
-        @property
-        def _old_splits(self):
-            return self.__old_splits
-
-        def _undo(self) -> None:
-            new_display_panel = self.__workspace_controller.get_display_panel_by_uuid(self.__new_display_panel_uuid)
-            self.__d = new_display_panel.save_contents()
-            self.__workspace_controller._remove_display_panel(new_display_panel, self.__old_splits)
-            if self.__display_item_proxy:
-                self.__display_item_proxy.close()
-                self.__display_item_proxy = None
-
-        def _redo(self) -> None:
-            display_item = self.__display_item_proxy.item if self.__display_item_proxy else None
-            display_panel = self.__workspace_controller.get_display_panel_by_uuid(self.__display_panel_uuid)
-            _, new_display_panel = self.__workspace_controller._insert_display_panel(display_panel, self.__region_id, display_item, self.__d, self.__uuid)
-            self.__new_display_panel_uuid = new_display_panel.uuid
-
-    class RemoveDisplayPanelCommand(Undo.UndoableCommand):
-
-        def __init__(self, workspace_controller, workspace_layout, modified_state, old_display_panel, region, d, old_uuid, old_splits):
-            super().__init__("Remove Display Panel")
-            self.__workspace_controller = workspace_controller
-            self.__workspace_layout_uuid = workspace_layout.uuid
-            self.__old_display_panel = old_display_panel  # canvas_item: always valid even in redo/undo
-            self.__region = region
-            self.__d = d
-            self.__old_uuid = old_uuid
-            self.__old_splits = old_splits
-            self.__new_splits = None
-            self.__new_display_panel_uuid = None
-            self.initialize(modified_state)
-
-        def close(self):
-            self.__workspace_controller = None
-            self.__workspace_layout_uuid = None
-            self.__old_display_panel = None
-            self.__region = None
-            self.__d = None
-            self.__old_uuid = None
-            self.__old_splits = None
-            self.__new_splits = None
-            self.__new_display_panel_uuid = None
-            super().close()
-
-        def _get_modified_state(self):
-            workspace_layout = self.__workspace_controller.get_workspace_layout_by_uuid(self.__workspace_layout_uuid)
-            return workspace_layout.modified_state, self.__workspace_controller._project.modified_state
-
-        def _set_modified_state(self, modified_state) -> None:
-            workspace_layout = self.__workspace_controller.get_workspace_layout_by_uuid(self.__workspace_layout_uuid)
-            workspace_layout.modified_state, self.__workspace_controller._project.modified_state = modified_state
-
-        def _compare_modified_states(self, state1, state2) -> bool:
-            # override to allow the undo command to track state; but only use part of the state for comparison
-            return state1[0] == state2[0]
-
-        def _undo(self) -> None:
-            old_splits, new_display_panel = self.__workspace_controller._insert_display_panel(self.__old_display_panel, self.__region, None, self.__d, self.__old_uuid, self.__old_splits)
-            self.__new_splits = old_splits
-            self.__new_display_panel_uuid = new_display_panel.uuid
-
-        def _redo(self) -> None:
-            new_display_panel = self.__workspace_controller.get_display_panel_by_uuid(self.__new_display_panel_uuid)
-            old_display_panel, _, _ = self.__workspace_controller._remove_display_panel(new_display_panel, self.__new_splits)
-            self.__old_display_panel = old_display_panel
-
-    def insert_display_panel(self, display_panel, region, display_item=None, d=None, new_uuid=None, new_splits=None) -> Undo.UndoableCommand:
+    def insert_display_panel(self, display_panel: DisplayPanel.DisplayPanel, region: str,
+                             display_item: typing.Optional[DisplayItem.DisplayItem] = None,
+                             d: typing.Optional[dict] = None, new_uuid: typing.Optional[uuid.UUID] = None,
+                             new_splits: typing.Optional[typing.List[int]] = None) -> Undo.UndoableCommand:
+        assert self.__workspace
         modified_state = self.__workspace.modified_state, self._project.modified_state
         old_splits, new_display_panel = self._insert_display_panel(display_panel, region, display_item, d, new_uuid, new_splits)
-        return Workspace.SplitDisplayPanelCommand(self, self.__workspace, modified_state, display_panel, region, display_item, d, old_splits, new_display_panel)
+        assert new_display_panel
+        return SplitDisplayPanelCommand(self, self.__workspace, modified_state, display_panel, region, display_item, old_splits, new_display_panel)
 
-    def _insert_display_panel(self, display_panel, region, display_item, d, new_uuid, new_splits=None) -> typing.Tuple[typing.Optional[list], typing.Optional[DisplayPanel.DisplayPanel]]:
+    def _insert_display_panel(self, display_panel: DisplayPanel.DisplayPanel, region: str,
+                              display_item: typing.Optional[DisplayItem.DisplayItem], d: typing.Optional[dict],
+                              new_uuid: typing.Optional[uuid.UUID],
+                              new_splits: typing.Optional[typing.List[int]] = None) -> typing.Tuple[typing.Optional[typing.List[int]], typing.Optional[DisplayPanel.DisplayPanel]]:
         assert isinstance(display_panel, DisplayPanel.DisplayPanel)
         orientation = "vertical" if region in ("left", "right") else "horizontal"
         new_display_panel = None
@@ -961,19 +1027,23 @@ class Workspace:
         self.__sync_layout()
         return old_splits, new_display_panel
 
-    def remove_display_panel(self, display_panel, splits=None) -> Undo.UndoableCommand:
+    def remove_display_panel(self, display_panel: DisplayPanel.DisplayPanel,
+                             splits: typing.Optional[typing.List[int]] = None) -> Undo.UndoableCommand:
         # save the old display panel
+        assert self.__workspace
         d = display_panel.save_contents()
         modified_state = self.__workspace.modified_state, self._project.modified_state
         old_display_panel, old_splits, region_id = self._remove_display_panel(display_panel, splits)
-        return Workspace.RemoveDisplayPanelCommand(self, self.__workspace, modified_state, old_display_panel, region_id, d, display_panel.uuid, old_splits)
+        assert old_display_panel
+        return RemoveDisplayPanelCommand(self, self.__workspace, modified_state, old_display_panel, region_id, d, display_panel.uuid, old_splits)
 
-    def _remove_display_panel(self, display_panel, splits):
+    def _remove_display_panel(self, display_panel: DisplayPanel.DisplayPanel,
+                              splits: typing.Optional[typing.List[int]]) -> typing.Tuple[typing.Optional[DisplayPanel.DisplayPanel], typing.Optional[typing.List[int]], str]:
         # first make sure the display panel has no content
         display_panel.change_display_panel_content({"type": "image", "display-panel-type": "empty-display-panel"})
         # now remove it
         container = display_panel.container
-        region_id = None
+        region_id = str()
         old_display_panel = None
         old_splits = None
         if isinstance(container, CanvasItem.SplitterCanvasItem):
@@ -998,15 +1068,15 @@ class Workspace:
         self.__sync_layout()
         return old_display_panel, old_splits, region_id
 
-    def selected_display_panel_changed(self, selected_display_panel):
+    def selected_display_panel_changed(self, selected_display_panel: DisplayPanel.DisplayPanel) -> None:
         for display_panel in self.display_panels:
             display_panel.set_selected(display_panel == selected_display_panel)
 
-    def _splits_will_change(self, splitter_canvas_item):
+    def _splits_will_change(self, splitter_canvas_item: CanvasItem.SplitterCanvasItem) -> None:
         self.__change_splitter_splits = splitter_canvas_item.splits
-        self.__change_splitter_command = Workspace.ChangeContentsWorkspaceCommand(self)
+        self.__change_splitter_command = ChangeContentsWorkspaceCommand(self)
 
-    def _splits_did_change(self, splitter_canvas_item):
+    def _splits_did_change(self, splitter_canvas_item: CanvasItem.SplitterCanvasItem) -> None:
         self.__sync_layout()
         if self.__change_splitter_command:
             if splitter_canvas_item.splits != self.__change_splitter_splits:
@@ -1016,8 +1086,10 @@ class Workspace:
             self.__change_splitter_command = None
             self.__change_splitter_splits = None
 
-    def __sync_layout(self):
+    def __sync_layout(self) -> None:
         # ensure that the layout is written to persistent storage
+        assert self.__workspace
+        assert self.__canvas_item
         self.__workspace.layout = self._deconstruct(self.__canvas_item.canvas_items[0])
 
 
@@ -1030,14 +1102,15 @@ class WorkspaceManager(metaclass=Utility.Singleton):
     def __init__(self):
         self.__panel_tuples = {}
 
-    def register_panel(self, panel_class, panel_id, name, positions, position, properties=None):
+    def register_panel(self, panel_class, panel_id: str, name: str, positions: typing.List[str], position: str, properties: typing.Optional[dict]=None) -> None:
         panel_tuple = panel_class, panel_id, name, positions, position, properties
         self.__panel_tuples[panel_id] = panel_tuple
 
-    def unregister_panel(self, panel_id):
+    def unregister_panel(self, panel_id: str) -> None:
         del self.__panel_tuples[panel_id]
 
-    def create_panel_content(self, document_controller, panel_id, title, positions, position, properties) -> typing.Optional[Panel.Panel]:
+    def create_panel_content(self, document_controller: DocumentController.DocumentController, panel_id: str,
+                             title: str, positions: typing.Sequence[str], position: str, properties: dict) -> typing.Optional[Panel.Panel]:
         if panel_id in self.__panel_tuples:
             tuple = self.__panel_tuples[panel_id]
             cls = tuple[0]
@@ -1053,17 +1126,18 @@ class WorkspaceManager(metaclass=Utility.Singleton):
                 traceback.print_stack()
         return None
 
-    def register_filter_panel(self, filter_panel_class):
+    def register_filter_panel(self, filter_panel_class: typing.Optional[typing.Callable[[DocumentController.DocumentController], FilterPanel.FilterPanel]]) -> None:
         self.__filter_panel_class = filter_panel_class
 
-    def create_filter_panel(self, document_controller):
-        return self.__filter_panel_class(document_controller) if self.__filter_panel_class else None
+    def create_filter_panel(self, document_controller: DocumentController.DocumentController) -> FilterPanel.FilterPanel:
+        assert self.__filter_panel_class
+        return self.__filter_panel_class(document_controller)
 
-    def get_panel_info(self, panel_id):
+    def get_panel_info(self, panel_id: str) -> typing.Tuple:
         assert panel_id in self.__panel_tuples
         tuple = self.__panel_tuples[panel_id]
         return tuple[2], tuple[3], tuple[4], tuple[5]
 
     @property
-    def panel_ids(self):
+    def panel_ids(self) -> typing.List[str]:
         return list(self.__panel_tuples.keys())
