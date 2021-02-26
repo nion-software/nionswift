@@ -46,6 +46,7 @@ jobs:
           nion/swift/DocumentController.py \
           nion/swift/GeneratorDialog.py \
           nion/swift/ScriptsDialog.py \
+          nion/swift/Workspace.py \
           nion/swift/model/FileStorageSystem.py \
           nion/swift/model/HDF5Handler.py \
           nion/swift/model/Model.py \

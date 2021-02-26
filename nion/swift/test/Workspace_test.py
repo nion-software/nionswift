@@ -620,7 +620,7 @@ class TestWorkspaceClass(unittest.TestCase):
             old_workspace_uuid = document_controller.workspace_controller._workspace.uuid
             old_workspace_layout = workspace_controller._workspace_layout
             # perform create command
-            command = Workspace.Workspace.CreateWorkspaceCommand(workspace_controller, "NEW")
+            command = Workspace.CreateWorkspaceCommand(workspace_controller, "NEW")
             command.perform()
             document_controller.push_undo_command(command)
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
@@ -652,7 +652,7 @@ class TestWorkspaceClass(unittest.TestCase):
             # save info
             old_name = document_controller.project.workspaces[0].name
             # perform command
-            command = Workspace.Workspace.RenameWorkspaceCommand(workspace_controller, "NEW")
+            command = Workspace.RenameWorkspaceCommand(workspace_controller, "NEW")
             command.perform()
             document_controller.push_undo_command(command)
             # check things
@@ -674,14 +674,14 @@ class TestWorkspaceClass(unittest.TestCase):
             display_panel = workspace_controller.display_panels[0]
             workspace_controller.insert_display_panel(display_panel, "bottom").close()
             # perform create command
-            command = Workspace.Workspace.CreateWorkspaceCommand(workspace_controller, "NEW")
+            command = Workspace.CreateWorkspaceCommand(workspace_controller, "NEW")
             command.perform()
             document_controller.push_undo_command(command)
             # save info
             self.assertEqual(2, len(document_controller.project.workspaces))
             old_workspace_layout = workspace_controller._workspace_layout
             # perform remove command
-            command = Workspace.Workspace.RemoveWorkspaceCommand(workspace_controller)
+            command = Workspace.RemoveWorkspaceCommand(workspace_controller)
             command.perform()
             document_controller.push_undo_command(command)
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
@@ -711,7 +711,7 @@ class TestWorkspaceClass(unittest.TestCase):
             old_workspace_uuid = document_controller.workspace_controller._workspace.uuid
             old_workspace_layout = workspace_controller._workspace_layout
             # perform create command
-            command = Workspace.Workspace.CloneWorkspaceCommand(workspace_controller, "NEW")
+            command = Workspace.CloneWorkspaceCommand(workspace_controller, "NEW")
             command.perform()
             document_controller.push_undo_command(command)
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
