@@ -64,6 +64,15 @@ if typing.TYPE_CHECKING:
 _ = gettext.gettext
 
 
+def is_graphic_valid_crop_for_data_item(data_item: typing.Optional[DataItem.DataItem], graphic: typing.Optional[Graphics.Graphic]) -> bool:
+    if data_item and graphic:
+        if data_item.is_datum_1d and isinstance(graphic, Graphics.IntervalGraphic):
+            return True
+        elif data_item.is_datum_2d and isinstance(graphic, Graphics.RectangleTypeGraphic):
+            return True
+    return False
+
+
 class DocumentController(Window.Window):
     """Manage a document window."""
     count = 0  # useful for detecting leaks in tests
@@ -1725,16 +1734,10 @@ class DocumentController(Window.Window):
             self.__data_menu_actions.append(action)
 
     def _get_crop_graphic(self, display_item: typing.Optional[DisplayItem.DisplayItem]) -> typing.Optional[Graphics.Graphic]:
-        crop_graphic: typing.Optional[Graphics.Graphic] = None
         data_item = display_item.data_item if display_item else None
         current_index = display_item.graphic_selection.current_index if display_item else None
         graphic = display_item.graphics[current_index] if display_item and (current_index is not None) else None
-        if data_item and graphic:
-            if data_item.is_datum_1d and isinstance(graphic, Graphics.IntervalGraphic):
-                crop_graphic = graphic
-            elif data_item.is_datum_2d and isinstance(graphic, Graphics.RectangleTypeGraphic):
-                crop_graphic = graphic
-        return crop_graphic
+        return graphic if is_graphic_valid_crop_for_data_item(data_item, graphic) else None
 
     def __get_mask_graphics(self, display_item: typing.Optional[DisplayItem.DisplayItem]) -> typing.List[Graphics.Graphic]:
         mask_graphics = list()
@@ -1997,46 +2000,28 @@ class DocumentController(Window.Window):
         self.show_display_item(new_display_item)
         return data_item
 
-    def _get_two_data_sources(self):
-        """Get two sensible data sources, which may be the same."""
+    def _get_n_data_sources(self, n: int) -> typing.Tuple[typing.Tuple[DisplayItem.DisplayItem, typing.Optional[Graphics.Graphic]], ...]:
+        """Get n sensible data sources, which may be the same."""
         selected_display_items = self.selected_display_items
-        if len(selected_display_items) < 2:
-            selected_display_items = list()
-            display_item = self.selected_display_item
-            if display_item:
-                selected_display_items.append(display_item)
         if len(selected_display_items) == 1:
             display_item = selected_display_items[0]
-            data_item = display_item.data_item if display_item else None
-            if display_item and len(display_item.graphic_selection.indexes) == 2:
+            if display_item and len(display_item.graphic_selection.indexes) == n:
+                data_item = display_item.data_item if display_item else None
                 index1 = display_item.graphic_selection.anchor_index
-                index2 = list(display_item.graphic_selection.indexes.difference({index1}))[0]
-                graphic1 = display_item.graphics[index1]
-                graphic2 = display_item.graphics[index2]
-                if data_item:
-                    if data_item.is_datum_1d and isinstance(graphic1, Graphics.IntervalGraphic) and isinstance(graphic2, Graphics.IntervalGraphic):
-                        crop_graphic1 = graphic1
-                        crop_graphic2 = graphic2
-                    elif data_item.is_datum_2d and isinstance(graphic1, Graphics.RectangleTypeGraphic) and isinstance(graphic2, Graphics.RectangleTypeGraphic):
-                        crop_graphic1 = graphic1
-                        crop_graphic2 = graphic2
-                    else:
-                        crop_graphic1 = self._get_crop_graphic(display_item)
-                        crop_graphic2 = crop_graphic1
-                else:
-                    crop_graphic1 = self._get_crop_graphic(display_item)
-                    crop_graphic2 = crop_graphic1
+                graphics: typing.List[Graphics.Graphic] = [display_item.graphics[index1]]
+                for index in list(display_item.graphic_selection.indexes.difference({index1})):
+                    graphics.append(display_item.graphics[index])
+                crop_graphics = [graphic if is_graphic_valid_crop_for_data_item(data_item, graphic) else None for graphic in graphics]
             else:
-                crop_graphic1 = self._get_crop_graphic(display_item)
-                crop_graphic2 = crop_graphic1
-            return (display_item, crop_graphic1), (display_item, crop_graphic2)
-        if len(selected_display_items) == 2:
-            display_item1 = selected_display_items[0]
-            crop_graphic1 = self._get_crop_graphic(display_item1)
-            display_item2 = selected_display_items[1]
-            crop_graphic2 = self._get_crop_graphic(display_item2)
-            return (display_item1, crop_graphic1), (display_item2, crop_graphic2)
-        return None
+                crop_graphics = [self._get_crop_graphic(display_item) for _ in range(n)]
+            return tuple(zip((display_item, ) * n, crop_graphics))
+        if len(selected_display_items) == n:
+            return tuple(zip(selected_display_items, (self._get_crop_graphic(display_item) for display_item in selected_display_items)))
+        return tuple()
+
+    def _get_two_data_sources(self):
+        """Get two sensible data sources, which may be the same."""
+        return self._get_n_data_sources(2)
 
     def _perform_processing2(self, display_item1: DisplayItem.DisplayItem, data_item1: DataItem.DataItem, display_item2: DisplayItem.DisplayItem, data_item2: DataItem.DataItem, crop_graphic1: typing.Optional[Graphics.Graphic], crop_graphic2: typing.Optional[Graphics.Graphic], fn) -> typing.Optional[DataItem.DataItem]:
         def process() -> DataItem.DataItem:
@@ -3078,19 +3063,35 @@ Window.register_action(RemoveGraphicFromMaskAction())
 class ProcessingAction(Window.Action):
 
     def invoke_processing(self, context: Window.ActionContext, fn) -> None:
+        context = typing.cast(DocumentController.ActionContext, context)
         if context.display_item:
-            typing.cast(DocumentController, context.window)._perform_processing_select(context.display_item, context.crop_graphic, fn)
+            typing.cast(DocumentController, context.window)._perform_processing_select(context.display_item,
+                                                                                       context.crop_graphic, fn)
 
     def invoke_processing2(self, context: Window.ActionContext, fn) -> None:
         data_sources = typing.cast(DocumentController, context.window)._get_two_data_sources()
         if data_sources:
             (display_item1, crop_graphic1), (display_item2, crop_graphic2) = data_sources
-            typing.cast(DocumentController, context.window)._perform_processing2(display_item1, display_item1.data_item, display_item2, display_item2.data_item, crop_graphic1, crop_graphic2, fn)
+            data_item1 = display_item1.data_item
+            data_item2 = display_item2.data_item
+            if data_item1 and data_item2:
+                typing.cast(DocumentController, context.window)._perform_processing2(display_item1, data_item1,
+                                                                                     display_item2, data_item2,
+                                                                                     crop_graphic1, crop_graphic2, fn)
 
     def invoke_processing3(self, context: Window.ActionContext, fn) -> None:
-        if context.display_item:
-            display_item, crop_graphic = context.display_item, context.crop_graphic
-            typing.cast(DocumentController, context.window)._perform_processing3(display_item, display_item.data_item, display_item, display_item.data_item, display_item, display_item.data_item, crop_graphic, crop_graphic, crop_graphic, fn)
+        data_sources = typing.cast(DocumentController, context.window)._get_n_data_sources(3)
+        if data_sources:
+            (display_item1, crop_graphic1), (display_item2, crop_graphic2), (display_item3, crop_graphic3) = data_sources
+            data_item1 = display_item1.data_item
+            data_item2 = display_item2.data_item
+            data_item3 = display_item3.data_item
+            if data_item1 and data_item2 and data_item3:
+                typing.cast(DocumentController, context.window)._perform_processing3(display_item1, data_item1,
+                                                                                     display_item2, data_item2,
+                                                                                     display_item3, data_item3,
+                                                                                     crop_graphic1, crop_graphic2,
+                                                                                     crop_graphic3, fn)
 
 
 class AddAction(ProcessingAction):

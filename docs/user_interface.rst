@@ -15,9 +15,11 @@ You can drag external files into display panels to import them.
 
 You can drag items from the data panel to the display panels to show them.
 
+You can select one or more display panels for processing by clicking to select one or shift-clicking to select multiple.
+
 If you do processing or acquisition which produces new data, its associated display item will be displayed in an empty display panel if available.
 
-See :ref:`_display-panels`.
+See :ref:`display-panels`.
 
 Data Panel
 ----------

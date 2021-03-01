@@ -839,22 +839,22 @@ class TestProcessingClass(unittest.TestCase):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
             document_model = document_controller.document_model
-            self.assertIsNone(document_controller._get_two_data_sources())
+            self.assertFalse(document_controller._get_two_data_sources())
             data = ((numpy.abs(numpy.random.randn(8)) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
-            self.assertIsNone(document_controller._get_two_data_sources())
+            self.assertFalse(document_controller._get_two_data_sources())
 
     def test_get_two_data_sources_handles_one_selected_data_item(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
             document_model = document_controller.document_model
-            self.assertIsNone(document_controller._get_two_data_sources())
+            self.assertFalse(document_controller._get_two_data_sources())
             data = ((numpy.abs(numpy.random.randn(8)) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            self.assertIsNone(document_controller._get_two_data_sources())
+            self.assertFalse(document_controller._get_two_data_sources())
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_display_item(display_item)
             data_sources = document_controller._get_two_data_sources()
@@ -867,13 +867,13 @@ class TestProcessingClass(unittest.TestCase):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
             document_model = document_controller.document_model
-            self.assertIsNone(document_controller._get_two_data_sources())
+            self.assertFalse(document_controller._get_two_data_sources())
             data = ((numpy.abs(numpy.random.randn(8)) + 1) * 10).astype(numpy.uint32)
             data_item1 = DataItem.DataItem(data)
             document_model.append_data_item(data_item1)
             data_item2 = DataItem.DataItem(numpy.random.randn(8))
             document_model.append_data_item(data_item2)
-            self.assertIsNone(document_controller._get_two_data_sources())
+            self.assertFalse(document_controller._get_two_data_sources())
             document_controller.selected_display_panel = None  # use data panel selection
             document_controller.select_data_items_in_data_panel([data_item1, data_item2])
             data_sources = document_controller._get_two_data_sources()
@@ -891,13 +891,13 @@ class TestProcessingClass(unittest.TestCase):
                 data_item = DataItem.DataItem(numpy.random.randn(8))
                 document_model.append_data_item(data_item)
             document_controller.select_data_items_in_data_panel(document_model.data_items)
-            self.assertIsNone(document_controller._get_two_data_sources())
+            self.assertFalse(document_controller._get_two_data_sources())
 
     def test_get_two_data_sources_handles_one_selected_data_item_and_one_crop_graphic(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
             document_model = document_controller.document_model
-            self.assertIsNone(document_controller._get_two_data_sources())
+            self.assertFalse(document_controller._get_two_data_sources())
             data = ((numpy.abs(numpy.random.randn(8, 8)) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
@@ -919,7 +919,7 @@ class TestProcessingClass(unittest.TestCase):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
             document_model = document_controller.document_model
-            self.assertIsNone(document_controller._get_two_data_sources())
+            self.assertFalse(document_controller._get_two_data_sources())
             data = ((numpy.abs(numpy.random.randn(8, 8)) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
@@ -946,7 +946,7 @@ class TestProcessingClass(unittest.TestCase):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
             document_model = document_controller.document_model
-            self.assertIsNone(document_controller._get_two_data_sources())
+            self.assertFalse(document_controller._get_two_data_sources())
             data = ((numpy.abs(numpy.random.randn(8, 8)) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
