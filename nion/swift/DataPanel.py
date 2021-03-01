@@ -282,7 +282,7 @@ class DataListController:
 
         self.__selection_changed_listener = self.__selection.changed_event.listen(selection_changed)
         self.selected_indexes = list()
-        self.on_context_menu_event : typing.Optional[typing.Callable[[typing.Optional[DisplayItem.DisplayItem], int, int, int, int], bool]] = None
+        self.on_context_menu_event : typing.Optional[typing.Callable[[typing.Optional[DisplayItem.DisplayItem], typing.List[DisplayItem.DisplayItem], int, int, int, int], bool]] = None
         self.on_focus_changed : typing.Optional[typing.Callable[[bool], None]] = None
         self.on_drag_started : typing.Optional[typing.Callable[[UserInterface.MimeData, typing.Optional[numpy.ndarray]], None]] = None
 
@@ -360,7 +360,12 @@ class DataListController:
         if callable(self.on_context_menu_event):
             display_item_adapter = self.__display_item_adapters[index] if index is not None else None
             display_item = display_item_adapter.display_item if display_item_adapter else None
-            return self.on_context_menu_event(display_item, x, y, gx, gy)
+            display_items = list()
+            for display_item_adapter in self.selected_display_item_adapters:
+                display_item = display_item_adapter.display_item
+                if display_item:
+                    display_items.append(display_item)
+            return self.on_context_menu_event(display_item, display_items, x, y, gx, gy)
         return False
 
     def drag_started(self, index: int, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> None:
@@ -444,7 +449,7 @@ class DataGridController:
         self.on_delete_display_item_adapters : typing.Optional[typing.Callable[[typing.List[DisplayItemAdapter]], None]] = None
         self.on_key_pressed : typing.Optional[typing.Callable[[UserInterface.Key], bool]] = None
         self.on_display_item_adapter_double_clicked : typing.Optional[typing.Callable[[DisplayItemAdapter], bool]] = None
-        self.on_context_menu_event : typing.Optional[typing.Callable[[typing.Optional[DisplayItem.DisplayItem], int, int, int, int], bool]] = None
+        self.on_context_menu_event : typing.Optional[typing.Callable[[typing.Optional[DisplayItem.DisplayItem], typing.List[DisplayItem.DisplayItem], int, int, int, int], bool]] = None
         self.on_focus_changed : typing.Optional[typing.Callable[[bool], None]] = None
         self.on_drag_started : typing.Optional[typing.Callable[[UserInterface.MimeData, typing.Optional[numpy.ndarray]], None]] = None
 
@@ -609,7 +614,8 @@ class DataGridController:
         if callable(self.on_context_menu_event):
             display_item_adapter = self.__display_item_adapters[index] if index is not None else None
             display_item = display_item_adapter.display_item if display_item_adapter else None
-            return self.on_context_menu_event(display_item, x, y, gx, gy)
+            display_items = [display_item_adapter.display_item for display_item_adapter in self.selected_display_item_adapters]
+            return self.on_context_menu_event(display_item, display_items, x, y, gx, gy)
         return False
 
     def drag_started(self, index: int, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> None:
@@ -701,10 +707,10 @@ class DataPanel(Panel.Panel):
 
         ui = document_controller.ui
 
-        def show_context_menu(display_item: typing.Optional[DisplayItem.DisplayItem], x: int, y: int, gx: int, gy: int) -> bool:
+        def show_context_menu(display_item: typing.Optional[DisplayItem.DisplayItem], display_items: typing.List[DisplayItem.DisplayItem], x: int, y: int, gx: int, gy: int) -> bool:
             document_controller = self.document_controller
             menu = document_controller.create_context_menu()
-            action_context = document_controller._get_action_context_for_display_items([display_item] if display_item else [], None)
+            action_context = document_controller._get_action_context_for_display_items(display_items, None)
             document_controller.populate_context_menu(menu, action_context)
             menu.add_separator()
             document_controller.add_action_to_menu(menu, "item.delete", action_context)
@@ -728,14 +734,6 @@ class DataPanel(Panel.Panel):
             self.__notify_focus_changed()
 
         self.__selection_changed_event_listener = self.__selection.changed_event.listen(selection_changed)
-
-        def display_item_adapter_selection_changed(display_item_adapters: typing.List[DisplayItemAdapter]) -> None:
-            indexes = set()
-            for index, display_item_adapter in enumerate(self.__filtered_display_item_adapters_model.display_item_adapters):
-                if display_item_adapter in display_item_adapters:
-                    indexes.add(index)
-            self.__selection.set_multiple(indexes)
-            self.__notify_focus_changed()
 
         def focus_changed(focused: bool) -> None:
             self.focused = focused

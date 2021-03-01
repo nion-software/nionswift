@@ -2021,7 +2021,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         # this handles the context menu when display panel is empty
         return self.__show_context_menu([], gx, gy)
 
-    def __handle_context_menu_for_display(self, display_item: typing.Optional[DisplayItem.DisplayItem], x: int, y: int, gx: int, gy: int) -> bool:
+    def __handle_context_menu_for_display(self, display_item: typing.Optional[DisplayItem.DisplayItem], display_items: typing.List[DisplayItem.DisplayItem], x: int, y: int, gx: int, gy: int) -> bool:
         # this handles the context menu when requested from the thumbnail/grid browser
         return self.__show_context_menu(self.__document_controller.selected_display_items, gx, gy)
 
