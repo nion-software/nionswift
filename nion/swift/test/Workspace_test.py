@@ -388,17 +388,17 @@ class TestWorkspaceClass(unittest.TestCase):
             # insert a new display
             command = workspace_controller.insert_display_panel(display_panel, "bottom")
             document_controller.push_undo_command(command)
-            document_controller.selected_display_panel = display_panel
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             # record the new layout
             new_workspace_layout = copy.deepcopy(workspace_controller._workspace_layout)
             # undo the insert
             document_controller.handle_undo()
-            document_controller.selected_display_panel = display_panel
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             # compare against old layout
             self.assertEqual(old_workspace_layout, workspace_controller._workspace_layout)
             # now redo
             document_controller.handle_redo()
-            document_controller.selected_display_panel = display_panel
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             # compare against new layout
             self.assertEqual(new_workspace_layout, workspace_controller._workspace_layout)
 
@@ -417,17 +417,17 @@ class TestWorkspaceClass(unittest.TestCase):
             # insert a new display
             command = workspace_controller.insert_display_panel(display_panel, "bottom")
             document_controller.push_undo_command(command)
-            document_controller.selected_display_panel = display_panel
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             # record the new layout
             new_workspace_layout = copy.deepcopy(workspace_controller._workspace_layout)
             # undo the insert
             document_controller.handle_undo()
-            document_controller.selected_display_panel = display_panel
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             # compare against old layout
             self.assertEqual(old_workspace_layout, workspace_controller._workspace_layout)
             # now redo
             document_controller.handle_redo()
-            document_controller.selected_display_panel = display_panel
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             # compare against new layout
             self.assertEqual(new_workspace_layout, workspace_controller._workspace_layout)
 

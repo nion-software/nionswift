@@ -1207,33 +1207,6 @@ class ChangeGraphicsCommand(Undo.UndoableCommand):
         return isinstance(command, ChangeGraphicsCommand) and self.command_id and self.command_id == command.command_id and self.__display_item_proxy.item == command.__display_item_proxy.item and self.__graphic_indexes == command.__graphic_indexes
 
 
-class ReplaceDisplayPanelCommand(Undo.UndoableCommand):
-
-    def __init__(self, workspace_controller: Workspace.Workspace, old_workspace_layout=None):
-        super().__init__("Replace Display Panel")
-        self.__workspace_controller = workspace_controller
-        self.__old_workspace_layout = old_workspace_layout if old_workspace_layout else workspace_controller.deconstruct()
-        self.__new_workspace_layout = None
-        self.initialize()
-
-    @property
-    def _old_workspace_layout(self):
-        return self.__old_workspace_layout
-
-    def _get_modified_state(self):
-        return self.__workspace_controller._project.modified_state
-
-    def _set_modified_state(self, modified_state) -> None:
-        self.__workspace_controller._project.modified_state = modified_state
-
-    def _undo(self) -> None:
-        self.__new_workspace_layout = self.__workspace_controller.deconstruct()
-        self.__workspace_controller.reconstruct(self.__old_workspace_layout)
-
-    def _redo(self) -> None:
-        self.__workspace_controller.reconstruct(self.__new_workspace_layout)
-
-
 class DisplayPanelUISettings(UISettings.UISettings):
     def __init__(self, ui: UserInterface.UserInterface):
         self.__ui = ui
@@ -1478,7 +1451,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
 
         self.__display_changed = False  # put this at end of init to avoid transient initialization states
 
-        self.__change_display_panel_content(document_controller, d)
+        self.__change_display_panel_content(d)
 
         self.__mapped_item_listener = DocumentModel.MappedItemManager().changed_event.listen(self.__update_title)
 
@@ -1676,16 +1649,9 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
                 return True
         return False
 
-    def _drag_finished(self, document_controller, action):
-        if action == "move" and document_controller.replaced_display_panel_content is not None:
-            d = document_controller.replaced_display_panel_content
-            self.__change_display_panel_content(document_controller, d)
-            last_command = document_controller.last_undo_command
-            if isinstance(last_command, ReplaceDisplayPanelCommand):
-                command = ReplaceDisplayPanelCommand(document_controller.workspace_controller, last_command._old_workspace_layout)
-                document_controller.pop_undo_command()
-                document_controller.push_undo_command(command)
-        document_controller.replaced_display_panel_content = None
+    def _drag_finished(self, document_controller: DocumentController.DocumentController, action: str) -> None:
+        if action == "move":
+            document_controller.display_panel_finish_drag(self)
 
     def image_clicked(self, image_position: Geometry.FloatPoint, modifiers: CanvasItem.KeyboardModifiers) -> bool:
         return DisplayPanelManager().image_display_clicked(self, self.__display_item, image_position, modifiers)
@@ -1756,10 +1722,9 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         self.change_display_panel_content(d)
 
     def change_display_panel_content(self, d):
-        assert self.__document_controller is not None
-        self.__change_display_panel_content(self.__document_controller, d)
+        self.__change_display_panel_content(d)
 
-    def __change_display_panel_content(self, document_controller, d):
+    def __change_display_panel_content(self, d):
         is_selected = self._is_selected()
         is_focused = self._is_focused()
 

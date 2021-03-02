@@ -583,6 +583,19 @@ class DocumentController(Window.Window):
         if self.selected_display_panel == display_panel:
             self.selected_display_panel = None
 
+    def display_panel_finish_drag(self, display_panel: DisplayPanel.DisplayPanel) -> None:
+        if self.replaced_display_panel_content is not None:
+            d = self.replaced_display_panel_content
+            display_panel.change_display_panel_content(d)
+            last_command = self.last_undo_command
+            if isinstance(last_command, Workspace.ChangeWorkspaceContentsCommand):
+                command = Workspace.ChangeWorkspaceContentsCommand(self.workspace_controller,
+                                                                   _("Replace Display Panel"),
+                                                                   last_command._old_workspace_layout)
+                self.pop_undo_command()
+                self.push_undo_command(command)
+        self.replaced_display_panel_content = None
+
     @property
     def selected_display_panel(self) -> typing.Optional[DisplayPanel.DisplayPanel]:
         return self.__selected_display_panel
