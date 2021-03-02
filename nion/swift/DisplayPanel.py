@@ -2390,14 +2390,6 @@ class DisplayPanelManager(metaclass=Utility.Singleton):
                 return display_panel_controller
         return None
 
-    def switch_to_display_content(self, document_controller, display_panel: DisplayPanel, display_panel_type, display_item: DisplayItem.DisplayItem = None):
-        d = {"type": "image", "display-panel-type": display_panel_type}
-        if display_item and display_panel_type != "empty-display-panel":
-            d["display_item_specifier"] = display_item.project.create_specifier(display_item).write()
-        command = ReplaceDisplayPanelCommand(document_controller.workspace_controller)
-        display_panel.change_display_panel_content(d)
-        document_controller.push_undo_command(command)
-
     def build_menu(self, display_type_menu, document_controller, display_panel):
         """Build the dynamic menu for the selected display panel.
 

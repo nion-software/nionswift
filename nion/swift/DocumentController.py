@@ -2734,8 +2734,9 @@ class DisplayPanelClearAction(Window.Action):
 
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
         display_panel = context.display_panel
-        DisplayPanel.DisplayPanelManager().switch_to_display_content(context.window, display_panel, "empty-display-panel", display_panel.display_item)
+        window.workspace_controller.switch_to_display_content(display_panel, "empty-display-panel", display_panel.display_item)
         return Window.ActionResult.FINISHED
 
 
@@ -2776,8 +2777,9 @@ class DisplayPanelShowItemAction(Window.Action):
 
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
         display_panel = context.display_panel
-        DisplayPanel.DisplayPanelManager().switch_to_display_content(context.window, display_panel, "data-display-panel", display_panel.display_item)
+        window.workspace_controller.switch_to_display_content(display_panel, "data-display-panel", display_panel.display_item)
         return Window.ActionResult.FINISHED
 
     def is_checked(self, context: Window.ActionContext) -> bool:
@@ -2792,8 +2794,9 @@ class DisplayPanelShowGridBrowserAction(Window.Action):
 
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
         display_panel = context.display_panel
-        DisplayPanel.DisplayPanelManager().switch_to_display_content(context.window, display_panel, "browser-display-panel", display_panel.display_item)
+        window.workspace_controller.switch_to_display_content(display_panel, "browser-display-panel", display_panel.display_item)
         return Window.ActionResult.FINISHED
 
     def is_checked(self, context: Window.ActionContext) -> bool:
@@ -2808,8 +2811,9 @@ class DisplayPanelShowThumbnailBrowserAction(Window.Action):
 
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
         display_panel = context.display_panel
-        DisplayPanel.DisplayPanelManager().switch_to_display_content(context.window, display_panel, "thumbnail-browser-display-panel", display_panel.display_item)
+        window.workspace_controller.switch_to_display_content(display_panel, "thumbnail-browser-display-panel", display_panel.display_item)
         return Window.ActionResult.FINISHED
 
     def is_checked(self, context: Window.ActionContext) -> bool:

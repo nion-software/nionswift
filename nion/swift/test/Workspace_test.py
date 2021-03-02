@@ -310,7 +310,6 @@ class TestWorkspaceClass(unittest.TestCase):
     def test_workspace_saves_contents_immediately_following_adjustment(self):
         with create_memory_profile_context() as profile_context:
             document_controller = profile_context.create_document_controller(auto_close=False)
-            document_model = document_controller.document_model
             with contextlib.closing(document_controller):
                 workspace_controller = document_controller.workspace_controller
                 workspace_2x1 = workspace_controller.new_workspace(*get_layout("2x1"))
@@ -323,7 +322,6 @@ class TestWorkspaceClass(unittest.TestCase):
                 display_panel.container.on_splits_changed()
             # reload with the storage copied before the document closes
             document_controller = profile_context.create_document_controller(auto_close=False)
-            document_model = document_controller.document_model
             with contextlib.closing(document_controller):
                 workspace_controller = document_controller.workspace_controller
                 display_panel = workspace_controller.display_panels[0]
@@ -507,7 +505,7 @@ class TestWorkspaceClass(unittest.TestCase):
             root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             workspace_controller = document_controller.workspace_controller
             display_panel = workspace_controller.display_panels[0]
-            DisplayPanel.DisplayPanelManager().switch_to_display_content(document_controller, display_panel, "empty-display-panel")
+            document_controller.workspace_controller.switch_to_display_content(display_panel, "empty-display-panel")
             root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             workspace_2x1 = document_controller.workspace_controller.new_workspace(*get_layout("2x1"))
             old_workspace_layout = copy.deepcopy(workspace_controller._workspace_layout)
@@ -533,7 +531,7 @@ class TestWorkspaceClass(unittest.TestCase):
             # save the original layout
             old_workspace_layout = copy.deepcopy(workspace_controller._workspace_layout)
             # change the display
-            DisplayPanel.DisplayPanelManager().switch_to_display_content(document_controller, display_panel, "empty-display-panel")
+            document_controller.workspace_controller.switch_to_display_content(display_panel, "empty-display-panel")
             document_controller.selected_display_panel = workspace_controller.display_panels[0]  # display_panel will have changed now
             root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             # record the new layout

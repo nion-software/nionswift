@@ -315,8 +315,8 @@ class ChangeWorkspaceCommand(Undo.UndoableCommand):
 
 
 class ChangeWorkspaceContentsCommand(Undo.UndoableCommand):
-    def __init__(self, workspace_controller: Workspace):
-        super().__init__("Change Workspace Contents")
+    def __init__(self, workspace_controller: Workspace, title: str):
+        super().__init__(title)
         self.__workspace_controller = workspace_controller
         self.__old_workspace_layout = workspace_controller.deconstruct()
         self.__new_workspace_layout = typing.cast(dict, None)
@@ -593,13 +593,21 @@ class Workspace:
     def _workspace_layout(self) -> dict:
         return self.deconstruct()
 
-    def change_workspace(self, workspace: WorkspaceLayout.WorkspaceLayout) -> None:
-        command = ChangeWorkspaceCommand(self, workspace)
+    def switch_to_display_content(self, display_panel: DisplayPanel, display_panel_type, display_item: DisplayItem.DisplayItem = None) -> None:
+        d = {"type": "image", "display-panel-type": display_panel_type}
+        if display_item and display_panel_type != "empty-display-panel":
+            d["display_item_specifier"] = display_item.project.create_specifier(display_item).write()
+        command = DisplayPanel.ReplaceDisplayPanelCommand(self)
+        display_panel.change_display_panel_content(d)
+        self.document_controller.push_undo_command(command)
+
+    def change_workspace(self, workspace_layout: WorkspaceLayout.WorkspaceLayout) -> None:
+        command = ChangeWorkspaceCommand(self, workspace_layout)
         command.perform()
         self.document_controller.push_undo_command(command)
 
-    def _change_workspace(self, workspace: WorkspaceLayout.WorkspaceLayout) -> None:
-        assert workspace is not None
+    def _change_workspace(self, workspace_layout: WorkspaceLayout.WorkspaceLayout) -> None:
+        assert workspace_layout is not None
         # save the current workspace
         if self.__workspace:
             self.__sync_layout()
@@ -621,10 +629,10 @@ class Workspace:
         display_panels: typing.List[DisplayPanel.DisplayPanel]
         try:
             display_panels = list()  # to be populated by _construct
-            canvas_item, selected_display_panel = self._construct(workspace.layout, display_panels)
+            canvas_item, selected_display_panel = self._construct(workspace_layout.layout, display_panels)
             # store the new workspace
             if canvas_item:
-                self.__workspace = workspace
+                self.__workspace = workspace_layout
                 self.display_panels.extend(display_panels)
                 assert self.__canvas_item  # for type checking
                 self.__canvas_item.add_canvas_item(canvas_item)
@@ -636,19 +644,19 @@ class Workspace:
         if self.__workspace == None:  # handle error condition by creating known simple workspace and replacing bad one
             d = create_image_desc()
             d["selected"] = True
-            workspace.layout = d
+            workspace_layout.layout = d
             display_panels = list()  # to be populated by _construct
-            canvas_item, selected_display_panel = self._construct(workspace.layout, display_panels)
+            canvas_item, selected_display_panel = self._construct(workspace_layout.layout, display_panels)
             # store the new workspace
             if canvas_item:
-                self.__workspace = workspace
+                self.__workspace = workspace_layout
                 self.display_panels.extend(display_panels)
                 assert self.__canvas_item  # for type checking
                 self.__canvas_item.add_canvas_item(canvas_item)
                 self.image_row.add(canvas_widget)
         self.document_controller.selected_display_panel = selected_display_panel
-        self.document_controller.project.workspace_uuid = workspace.uuid
-        self.document_controller._workspace_changed(workspace)
+        self.document_controller.project.workspace_uuid = workspace_layout.uuid
+        self.document_controller._workspace_changed(workspace_layout)
 
     def restore(self, workspace_uuid: uuid.UUID) -> None:
         """
@@ -1070,7 +1078,7 @@ class Workspace:
 
     def _splits_will_change(self, splitter_canvas_item: CanvasItem.SplitterCanvasItem) -> None:
         self.__change_splitter_splits = splitter_canvas_item.splits
-        self.__change_splitter_command = ChangeWorkspaceContentsCommand(self)
+        self.__change_splitter_command = ChangeWorkspaceContentsCommand(self, _("Change Workspace Contents"))
 
     def _splits_did_change(self, splitter_canvas_item: CanvasItem.SplitterCanvasItem) -> None:
         self.__sync_layout()
