@@ -500,6 +500,24 @@ class TestWorkspaceClass(unittest.TestCase):
             # compare against new layout
             self.assertEqual(new_workspace_layout, workspace_controller._workspace_layout)
 
+    def test_workspace_change_workspace_undo_redo(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+            workspace_controller = document_controller.workspace_controller
+            display_panel = workspace_controller.display_panels[0]
+            DisplayPanel.DisplayPanelManager().switch_to_display_content(document_controller, display_panel, "empty-display-panel")
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+            workspace_2x1 = document_controller.workspace_controller.new_workspace(*get_layout("2x1"))
+            old_workspace_layout = copy.deepcopy(workspace_controller._workspace_layout)
+            document_controller.workspace_controller.change_workspace(workspace_2x1)
+            document_controller.handle_undo()
+            self.assertEqual(old_workspace_layout, workspace_controller._workspace_layout)
+            document_controller.handle_redo()
+            document_controller.handle_undo()
+            self.assertEqual(old_workspace_layout, workspace_controller._workspace_layout)
+
     def test_workspace_replace_display_panel_undo_and_redo_works_cleanly(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
