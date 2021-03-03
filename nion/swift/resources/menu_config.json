@@ -636,6 +636,40 @@
             {
                 "type": "item",
                 "action_id": "workspace.split_vertical"
+            },
+            {
+                "type": "separator"
+            },
+            {
+                "type": "sub_menu",
+                "menu_id": "workspace_split",
+                "title": "Display Panel Split",
+                "items": [
+                    {
+                        "type": "item",
+                        "action_id": "workspace.split_2x2"
+                    },
+                    {
+                        "type": "item",
+                        "action_id": "workspace.split_3x2"
+                    },
+                    {
+                        "type": "item",
+                        "action_id": "workspace.split_3x3"
+                    },
+                    {
+                        "type": "item",
+                        "action_id": "workspace.split_4x3"
+                    },
+                    {
+                        "type": "item",
+                        "action_id": "workspace.split_4x4"
+                    },
+                    {
+                        "type": "item",
+                        "action_id": "workspace.split_5x4"
+                    }
+                ]
             }
         ]
     },
