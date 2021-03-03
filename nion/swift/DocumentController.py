@@ -2316,13 +2316,11 @@ class DocumentController(Window.Window):
         return menu
 
     def populate_context_menu(self, menu: UserInterface.Menu, action_context: DocumentController.ActionContext) -> None:
-        self.add_action_to_menu(menu, "display.reveal", action_context)
-        self.add_action_to_menu(menu, "file.export", action_context)
+        self.add_action_to_menu_if_enabled(menu, "display.reveal", action_context)
+        self.add_action_to_menu_if_enabled(menu, "file.export", action_context)
 
         data_item = action_context.data_item
-
         if data_item:
-
             source_data_items = self.document_model.get_source_data_items(data_item)
             if len(source_data_items) > 0:
                 menu.add_separator()
@@ -2330,10 +2328,10 @@ class DocumentController(Window.Window):
                     def show_source_data_item(data_item):
                         self.select_data_item_in_data_panel(data_item)
 
-                    truncated_title = self.ui.truncate_string_to_width(str(), source_data_item.title, 280, UserInterface.TruncateModeType.MIDDLE)
+                    truncated_title = self.ui.truncate_string_to_width(str(), source_data_item.title, 280,
+                                                                       UserInterface.TruncateModeType.MIDDLE)
                     menu.add_menu_item("{0} \"{1}\"".format(_("Go to Source "), truncated_title),
                                        functools.partial(show_source_data_item, source_data_item))
-
             dependent_data_items = self.document_model.get_dependent_data_items(data_item)
             if len(dependent_data_items) > 0:
                 menu.add_separator()
@@ -2341,7 +2339,8 @@ class DocumentController(Window.Window):
                     def show_dependent_data_item(data_item):
                         self.select_data_item_in_data_panel(data_item)
 
-                    truncated_title = self.ui.truncate_string_to_width(str(), dependent_data_item.title, 280, UserInterface.TruncateModeType.MIDDLE)
+                    truncated_title = self.ui.truncate_string_to_width(str(), dependent_data_item.title, 280,
+                                                                       UserInterface.TruncateModeType.MIDDLE)
                     menu.add_menu_item("{0} \"{1}\"".format(_("Go to Dependent "), truncated_title),
                                        functools.partial(show_dependent_data_item, dependent_data_item))
 

@@ -670,6 +670,13 @@
                         "action_id": "workspace.split_5x4"
                     }
                 ]
+            },
+            {
+                "type": "separator"
+            },
+            {
+                "type": "item",
+                "action_id": "display_panel.close"
             }
         ]
     },
