@@ -2346,10 +2346,30 @@ class DocumentController(Window.Window):
                                        functools.partial(show_dependent_data_item, dependent_data_item))
 
     class ActionContext(Window.ActionContext):
-        def __init__(self, application: Application.Application,
+        """Action contact.
+
+        The display_panel field is set if a single display panel has keyboard focus and there are no secondary selected
+        display panels. This is used for actions that apply to a single display panel but not multiple.
+
+        The display_panels field is the list of primary and secondary display panels this is used for actions that apply
+        to a list of display panels actions can check the length of display_panels for specific cases
+
+        The display_item field is set if a single display item is selected in a display panel, display panel browser,
+        display panel browser, or data panel browser.
+
+        The display_items field is set if multiple display items are selected in a in a display panel browser, or if
+        multiple display panels are selected with display items, etc.
+
+        The data_item field is set if the display_item field is set and the display_item contains a single data item.
+
+        The data_items field is set with the data items present in the display_items field.
+        """
+        def __init__(self,
+                     application: Application.Application,
                      window: DocumentController,
                      focus_widget: typing.Optional[UserInterface.Widget],
                      display_panel: typing.Optional[DisplayPanel.DisplayPanel],
+                     display_panels: typing.List[DisplayPanel.DisplayPanel],
                      model: DocumentModel.DocumentModel,
                      display_item: typing.Optional[DisplayItem.DisplayItem],
                      display_items: typing.Sequence[DisplayItem.DisplayItem],
@@ -2358,6 +2378,7 @@ class DocumentController(Window.Window):
                      data_items: typing.Sequence[DataItem.DataItem]):
             super().__init__(application, window, focus_widget)
             self.display_panel = display_panel
+            self.display_panels = display_panels
             self.model = model
             self.display_item = display_item
             self.display_items = display_items
@@ -2367,24 +2388,60 @@ class DocumentController(Window.Window):
 
     def _get_action_context(self) -> ActionContext:
         focus_widget = self.focus_widget
-        display_panel = self.selected_display_panel
+        display_panel = self.selected_display_panel if not self.__secondary_display_panels else None
+        display_panels = ([self.__selected_display_panel] if self.__selected_display_panel else list()) + self.__secondary_display_panels
         model = self.document_model
         display_item = self.selected_display_item
         display_items = self.selected_display_items
         crop_graphic = self._get_crop_graphic(display_item)
         data_item = display_item.data_item if display_item else None
-        data_items = self.selected_data_items
-        return DocumentController.ActionContext(typing.cast("Application.Application", self.app), self, focus_widget, display_panel, model, display_item, display_items, crop_graphic, data_item, data_items)
+        data_items = list()
+        for display_item_1 in display_items:
+            for data_item_1 in display_item_1.data_items:
+                if not data_item_1 in data_items:
+                    data_items.append(data_item_1)
+        return DocumentController.ActionContext(typing.cast("Application.Application", self.app), self, focus_widget,
+                                                display_panel, display_panels, model, display_item, display_items,
+                                                crop_graphic, data_item, data_items)
 
     def _get_action_context_for_display_items(self, display_items: typing.Sequence[DisplayItem.DisplayItem], display_panel: typing.Optional[DisplayPanel.DisplayPanel]) -> ActionContext:
         focus_widget = self.focus_widget
-        display_panel = display_panel
         model = self.document_model
-        display_item = display_items[0] if len(display_items) == 1 else None
-        crop_graphic = self._get_crop_graphic(display_item)
-        data_item = display_item.data_item if display_item else None
-        data_items = display_item.data_items if display_item else list()
-        return DocumentController.ActionContext(typing.cast("Application.Application", self.app), self, focus_widget, display_panel, model, display_item, display_items, crop_graphic, data_item, data_items)
+        # the logic here is if a single display panel is focused and the user context clicks on another one, then use
+        # the one that was context clicked. if multiple display panels are selected and the user context clicks on one
+        # of the selected ones, use the selected ones. if multiple display panels are selected and the user context
+        # clicks on an unselected one, then there is no display panel selected.
+        used_display_panel = None
+        used_display_panels: typing.List[DisplayPanel.DisplayPanel] = list()
+        if display_panel:
+            if self.__secondary_display_panels:
+                if display_panel == self.__selected_display_panel or display_panel in self.__secondary_display_panels:
+                    used_display_panels = [self.__selected_display_panel] if self.__selected_display_panel else list()
+                    used_display_panels.extend(self.__secondary_display_panels)
+            else:
+                used_display_panel = display_panel
+        # the logic here is if no display panel is passed in or if a single display panel is selected, use the display
+        # items that are passed in. otherwise, use the aggregate display items from the selected display panels.
+        used_display_item = None
+        used_display_items: typing.List[DisplayItem.DisplayItem] = list()
+        if not display_panel or used_display_panel:
+            used_display_items = list(display_items)
+            used_display_item = used_display_items[0] if len(used_display_items) == 1 else None
+        else:
+            for display_panel_1 in used_display_panels:
+                display_item_1 = display_panel_1.display_item
+                if display_item_1 and display_item_1 not in used_display_items:
+                    used_display_items.append(display_item_1)
+        crop_graphic = self._get_crop_graphic(used_display_item)
+        used_data_item = used_display_item.data_item if used_display_item else None
+        used_data_items = list()
+        for display_item_1 in used_display_items:
+            for data_item_1 in display_item_1.data_items:
+                if not data_item_1 in used_data_items:
+                    used_data_items.append(data_item_1)
+        return DocumentController.ActionContext(typing.cast("Application.Application", self.app), self, focus_widget,
+                                                used_display_panel, used_display_panels, model, used_display_item,
+                                                used_display_items, crop_graphic, used_data_item, used_data_items)
 
     def perform_display_panel_command(self, key) -> bool:
         action_id = Window.get_action_id_for_key("display_panel", key)
@@ -2401,8 +2458,10 @@ class DeleteItemAction(Window.Action):
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
         window = typing.cast(DocumentController, context.window)
-        selected_display_items = context.display_items
-        window.delete_display_items(selected_display_items)
+        if context.display_item:
+            window.delete_display_items([context.display_item])
+        else:
+            window.delete_display_items(context.display_items)
         return Window.ActionResult.FINISHED
 
     def is_enabled(self, context: Window.ActionContext) -> bool:
@@ -2429,12 +2488,15 @@ class DeleteDataItemAction(Window.Action):
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
         window = typing.cast(DocumentController, context.window)
-        window.delete_data_items(context.data_items)
+        if context.data_item:
+            window.delete_data_items([context.data_item])
+        else:
+            window.delete_data_items(context.data_items)
         return Window.ActionResult.FINISHED
 
     def is_enabled(self, context: Window.ActionContext) -> bool:
         context = typing.cast(DocumentController.ActionContext, context)
-        return len(context.data_items) > 0
+        return len(context.data_items) > 0 or context.data_item is not None
 
     def get_action_name(self, context: Window.ActionContext) -> str:
         context = typing.cast(DocumentController.ActionContext, context)
@@ -2457,8 +2519,6 @@ class ExportAction(Window.Action):
         selected_display_items = context.display_items
         if len(selected_display_items) > 1:
             window.export_files(selected_display_items)
-        elif len(selected_display_items) == 1:
-            window.export_file(selected_display_items[0])
         elif selected_display_item:
             window.export_file(selected_display_item)
         return Window.ActionResult.FINISHED
@@ -2676,6 +2736,10 @@ class WorkspaceSplitHorizontalAction(Window.Action):
             window.push_undo_command(command)
         return Window.ActionResult.FINISHED
 
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return context.display_panel is not None
+
 
 class WorkspaceSplitVerticalAction(Window.Action):
     action_id = "workspace.split_vertical"
@@ -2690,6 +2754,10 @@ class WorkspaceSplitVerticalAction(Window.Action):
             window.push_undo_command(command)
         return Window.ActionResult.FINISHED
 
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return context.display_panel is not None
+
 
 class WorkspaceSplit2x2Action(Window.Action):
     action_id = "workspace.split_2x2"
@@ -2703,6 +2771,10 @@ class WorkspaceSplit2x2Action(Window.Action):
             command = workspace_controller.insert_display_panel(context.display_panel, "right")
             window.push_undo_command(command)
         return Window.ActionResult.FINISHED
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return context.display_panel is not None
 
 
 Window.register_action(WorkspaceCloneAction())
@@ -2752,6 +2824,10 @@ class DisplayPanelClearAction(Window.Action):
         window.workspace_controller.switch_to_display_content(display_panel, "empty-display-panel", display_panel.display_item)
         return Window.ActionResult.FINISHED
 
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return context.display_item is not None
+
 
 class DisplayPanelFillViewAction(Window.Action):
     action_id = "display_panel.fill_view"
@@ -2761,6 +2837,10 @@ class DisplayPanelFillViewAction(Window.Action):
         context = typing.cast(DocumentController.ActionContext, context)
         context.display_panel.perform_action("set_fill_mode")
         return Window.ActionResult.FINISHED
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return context.display_item is not None and context.display_item.used_display_type == "image"
 
 
 class DisplayPanelFitToViewAction(Window.Action):
@@ -2772,6 +2852,10 @@ class DisplayPanelFitToViewAction(Window.Action):
         context.display_panel.perform_action("set_fit_mode")
         return Window.ActionResult.FINISHED
 
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return context.display_item is not None and context.display_item.used_display_type == "image"
+
 
 class DisplayPanelOneViewAction(Window.Action):
     action_id = "display_panel.1_view"
@@ -2781,6 +2865,10 @@ class DisplayPanelOneViewAction(Window.Action):
         context = typing.cast(DocumentController.ActionContext, context)
         context.display_panel.perform_action("set_one_to_one_mode")
         return Window.ActionResult.FINISHED
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return context.display_item is not None and context.display_item.used_display_type == "image"
 
 
 class DisplayPanelShowItemAction(Window.Action):
@@ -2799,6 +2887,10 @@ class DisplayPanelShowItemAction(Window.Action):
         context = typing.cast(DocumentController.ActionContext, context)
         return context.display_panel and context.display_panel.display_panel_type == "data_item"
 
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return context.display_panel is not None
+
 
 class DisplayPanelShowGridBrowserAction(Window.Action):
 
@@ -2815,6 +2907,10 @@ class DisplayPanelShowGridBrowserAction(Window.Action):
     def is_checked(self, context: Window.ActionContext) -> bool:
         context = typing.cast(DocumentController.ActionContext, context)
         return context.display_panel and context.display_panel.display_panel_type == "grid"
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return context.display_panel is not None
 
 
 class DisplayPanelShowThumbnailBrowserAction(Window.Action):
@@ -2833,6 +2929,10 @@ class DisplayPanelShowThumbnailBrowserAction(Window.Action):
         context = typing.cast(DocumentController.ActionContext, context)
         return context.display_panel and context.display_panel.display_panel_type == "horizontal"
 
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return context.display_panel is not None
+
 
 class DisplayPanelTwoViewAction(Window.Action):
     action_id = "display_panel.2_view"
@@ -2842,6 +2942,10 @@ class DisplayPanelTwoViewAction(Window.Action):
         context = typing.cast(DocumentController.ActionContext, context)
         context.display_panel.perform_action("set_two_to_one_mode")
         return Window.ActionResult.FINISHED
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return context.display_item is not None and context.display_item.used_display_type == "image"
 
 
 class DisplayRemoveAction(Window.Action):
@@ -2856,7 +2960,7 @@ class DisplayRemoveAction(Window.Action):
 
     def is_enabled(self, context: Window.ActionContext) -> bool:
         context = typing.cast(DocumentController.ActionContext, context)
-        return len(context.display_items) >= 1
+        return len(context.display_items) > 0 or context.display_item is not None
 
     def get_action_name(self, context: Window.ActionContext) -> str:
         context = typing.cast(DocumentController.ActionContext, context)
@@ -2910,6 +3014,10 @@ class AssignVariableReference(Window.Action):
             for console in window.consoles:
                 console.assign_item_var(r_var, display_item)
         return Window.ActionResult.FINISHED
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return context.display_item is not None
 
 
 class CopyItemUUIDAction(Window.Action):
@@ -3206,8 +3314,14 @@ class FourierFilterAction(ProcessingAction):
     action_name = _("Fourier Filter")
 
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        context.window._perform_processing_select(context.display_item, None, context.model.get_fourier_filter_new)
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        window._perform_processing_select(context.display_item, None, context.model.get_fourier_filter_new)
         return Window.ActionResult.FINISHED
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return context.data_item is not None
 
 
 class FFTAction(ProcessingAction):
@@ -3500,13 +3614,20 @@ class UniformFilterAction(ProcessingAction):
 
 class ProcessingComponentAction(ProcessingAction):
     def __init__(self, processing_id: str, title: str):
+        super().__init__()
         self.action_id = "processing." + processing_id
         self.action_name = title
         self.__processing_id = processing_id
 
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        context.window._perform_processing_select(context.display_item, None, functools.partial(context.model.get_processing_new, self.__processing_id))
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        window._perform_processing_select(context.display_item, None, functools.partial(context.model.get_processing_new, self.__processing_id))
         return Window.ActionResult.FINISHED
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return context.data_item is not None
 
 
 Window.register_action(AddAction())
