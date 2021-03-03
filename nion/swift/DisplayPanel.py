@@ -134,15 +134,18 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
             on_key_released(key)
     """
 
-    def __init__(self):
+    def __init__(self, get_font_metrics_fn: typing.Callable[[str, str], UISettings.FontMetrics]):
         super().__init__()
         self.wants_drag_events = True
+        self.__get_font_metrics = get_font_metrics_fn
         self.__is_dragging = False
         self.__drop_region = "none"
         self.__focused = False
         self.__selected = False
         self.__selected_style = "#CCC"  # TODO: platform dependent
-        self.__focused_style = "#3876D6"  # TODO: platform dependent
+        self.__focused_style = "#4682B4"  # steel blue. TODO: platform dependent
+        self.__selection_number = None
+        self.__line_dash = None
         self.__drop_regions_map = dict()
         self.on_context_menu_event = None
         self.on_drag_enter = None
@@ -152,6 +155,7 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
         self.on_drop = None
         self.on_key_pressed = None
         self.on_key_released = None
+        self.on_adjust_secondary_focus = None
 
     def close(self):
         self.on_context_menu_event = None
@@ -161,6 +165,7 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
         self.on_drop = None
         self.on_key_pressed = None
         self.on_key_released = None
+        self.on_adjust_secondary_focus = None
         self.on_select_all = None
         super().close()
 
@@ -190,7 +195,9 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
 
     @selected_style.setter
     def selected_style(self, selected_style):
-        self.__selected_style = selected_style
+        if self.__selected_style != selected_style:
+            self.__selected_style = selected_style
+            self.update()
 
     @property
     def focused_style(self):
@@ -198,7 +205,29 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
 
     @focused_style.setter
     def focused_style(self, focused_style):
-        self.__focused_style = focused_style
+        if self.__focused_style != focused_style:
+            self.__focused_style = focused_style
+            self.update()
+
+    @property
+    def line_dash(self) -> typing.Optional[int]:
+        return self.__line_dash
+
+    @line_dash.setter
+    def line_dash(self, value: typing.Optional[int]) -> None:
+        if self.__line_dash != value:
+            self.__line_dash = value
+            self.update()
+
+    @property
+    def selection_number(self) -> typing.Optional[int]:
+        return self.__selection_number
+
+    @selection_number.setter
+    def selection_number(self, value: typing.Optional[int]) -> None:
+        if self.__selection_number != value:
+            self.__selection_number = value
+            self.update()
 
     @property
     def drop_regions_map(self):
@@ -213,7 +242,7 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
             self.__drop_region = drop_region
             self.update()
 
-    def _repaint(self, drawing_context):
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
         super()._repaint(drawing_context)
 
         # canvas size
@@ -259,7 +288,25 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
                     drawing_context.line_join = "miter"
                     drawing_context.stroke_style = stroke_style
                     drawing_context.line_width = 4.0
+                    if self.__line_dash:
+                        with drawing_context.saver():
+                            drawing_context.stroke_style = "#CCC"
+                            drawing_context.stroke()
+                        drawing_context.line_dash = self.__line_dash
                     drawing_context.stroke()
+                if self.__selection_number:
+                    with drawing_context.saver():
+                        font = "bold 12px serif"
+                        selection_number_text = "+" + str(self.__selection_number)
+                        font_metrics = self.__get_font_metrics(font, selection_number_text)
+                        with drawing_context.saver():
+                            drawing_context.fill_style = "rgba(192, 192, 192, 0.75)"
+                            drawing_context.begin_path()
+                            drawing_context.rect(6, 6, font_metrics.width + 4, font_metrics.height + 4)
+                            drawing_context.fill()
+                        drawing_context.font = font
+                        drawing_context.fill_style = stroke_style
+                        drawing_context.fill_text(selection_number_text, 6, 4 + font_metrics.height)
 
     def context_menu_event(self, x, y, gx, gy):
         if super().context_menu_event(x, y, gx, gy):
@@ -320,13 +367,13 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
         return "ignore"
 
     def key_pressed(self, key):
-        if self.on_key_pressed:
+        if callable(self.on_key_pressed):
             if self.on_key_pressed(key):
                 return True
         return super().key_pressed(key)
 
     def key_released(self, key):
-        if self.on_key_released:
+        if callable(self.on_key_released):
             if self.on_key_released(key):
                 return True
         return super().key_released(key)
@@ -335,6 +382,11 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
         if callable(self.on_select_all):
             return self.on_select_all()
         return False
+
+    def adjust_secondary_focus(self, p: Geometry.IntPoint, modifiers: UserInterface.KeyboardModifiers) -> None:
+        if modifiers.any_modifier:
+            if callable(self.on_adjust_secondary_focus):
+                self.on_adjust_secondary_focus(modifiers)
 
 
 def create_display_canvas_item(display_item: DisplayItem.DisplayItem, ui_settings: UISettings.UISettings, delegate, event_loop, draw_background: bool=True):
@@ -1221,7 +1273,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
 
         self.on_contents_changed = None  # useful for writing changes to disk quickly
 
-        self.__content_canvas_item = DisplayPanelOverlayCanvasItem()
+        self.__content_canvas_item = DisplayPanelOverlayCanvasItem(self.ui.get_font_metrics)
         self.__content_canvas_item.wants_mouse_events = True  # only when display_canvas_item is None
         self.__content_canvas_item.focusable = True
         self.__content_canvas_item.on_focus_changed = self.set_focused
@@ -1291,6 +1343,12 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
                 return workspace_controller.handle_drop(self, mime_data, region, x, y)
             return "ignore"
 
+        def adjust_secondary_focus(modifiers: UserInterface.KeyboardModifiers) -> None:
+            if modifiers.only_shift:
+                self.__document_controller.add_secondary_display_panel(self)
+            elif modifiers.only_control:
+                self.__document_controller.toggle_secondary_display_panel(self)
+
         # list to the content_canvas_item messages and pass them along to listeners of this class.
         self.__content_canvas_item.on_drag_enter = drag_enter
         self.__content_canvas_item.on_drag_leave = drag_leave
@@ -1300,6 +1358,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         self.__content_canvas_item.on_key_pressed = self._handle_key_pressed
         self.__content_canvas_item.on_key_released = self._handle_key_released
         self.__content_canvas_item.on_select_all = self.select_all
+        self.__content_canvas_item.on_adjust_secondary_focus = adjust_secondary_focus
 
         def close():
             if len(workspace_controller.display_panels) > 1:
@@ -1807,13 +1866,28 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
     # having focus. this can happen, for instance, when the user switches focus
     # to the data panel.
 
-    def set_selected(self, selected):
+    def set_selected(self, selected: bool) -> None:
         if self.__content_canvas_item:  # may be closed
             self.__content_canvas_item.selected = selected
+            if selected:
+                self.__content_canvas_item.focused_style = "#4682B4"  # steel blue
+                self.__content_canvas_item.selection_number = None
+                self.__content_canvas_item.line_dash = None
 
     def _is_selected(self):
         """ Used for testing. """
         return self.__content_canvas_item.selected
+
+    def set_secondary_index(self, secondary_index: typing.Optional[int]) -> None:
+        if self.__content_canvas_item:  # may be closed
+            if secondary_index is not None:
+                self.__content_canvas_item.selected = True
+                self.__content_canvas_item.selected_style = "#4682B4"  # steel blue
+                self.__content_canvas_item.selection_number = secondary_index + 1
+                self.__content_canvas_item.line_dash = 4
+            else:
+                self.__content_canvas_item.selection_number = None
+                self.__content_canvas_item.line_dash = None
 
     # this message comes from the canvas items via the on_focus_changed when their focus changes
     # if the display panel is receiving focus, tell the window (document_controller) about it so

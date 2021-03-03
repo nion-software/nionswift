@@ -1040,7 +1040,8 @@ class TestDisplayPanelClass(unittest.TestCase):
     def test_drop_on_overlay_middle_triggers_replace_data_item_in_panel_action(self):
         width, height = 640, 480
         display_panel = TestDisplayPanel()
-        overlay = DisplayPanel.DisplayPanelOverlayCanvasItem()
+        def get_font_metrics(a, b): return UserInterface.FontMetrics(0, 0, 0, 0, 0)
+        overlay = DisplayPanel.DisplayPanelOverlayCanvasItem(get_font_metrics)
         overlay.on_drag_enter = display_panel.handle_drag_enter
         overlay.on_drag_move = display_panel.handle_drag_move
         overlay.on_drop = display_panel.handle_drop
@@ -1063,7 +1064,8 @@ class TestDisplayPanelClass(unittest.TestCase):
     def test_drop_on_overlay_edge_triggers_split_image_panel_action(self):
         width, height = 640, 480
         display_panel = TestDisplayPanel()
-        overlay = DisplayPanel.DisplayPanelOverlayCanvasItem()
+        def get_font_metrics(a, b): return UserInterface.FontMetrics(0, 0, 0, 0, 0)
+        overlay = DisplayPanel.DisplayPanelOverlayCanvasItem(get_font_metrics)
         overlay.on_drag_enter = display_panel.handle_drag_enter
         overlay.on_drag_move = display_panel.handle_drag_move
         overlay.on_drop = display_panel.handle_drop

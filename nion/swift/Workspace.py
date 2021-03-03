@@ -1068,10 +1068,6 @@ class Workspace:
         self.__sync_layout()
         return old_display_panel, old_splits, region_id
 
-    def selected_display_panel_changed(self, selected_display_panel: DisplayPanel.DisplayPanel) -> None:
-        for display_panel in self.display_panels:
-            display_panel.set_selected(display_panel == selected_display_panel)
-
     def _splits_will_change(self, splitter_canvas_item: CanvasItem.SplitterCanvasItem) -> None:
         self.__change_splitter_splits = splitter_canvas_item.splits
         self.__change_splitter_command = ChangeWorkspaceContentsCommand(self)

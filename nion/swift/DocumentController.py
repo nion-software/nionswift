@@ -100,6 +100,7 @@ class DocumentController(Window.Window):
         self.__workspace_controller = None
         self.replaced_display_panel_content = None  # used to facilitate display panel functionality to exchange displays
         self.__selected_display_panel: typing.Optional[DisplayPanel.DisplayPanel] = None
+        self.__secondary_display_panels: typing.List[DisplayPanel.DisplayPanel] = list()
         self.__tool_mode = "pointer"
         self.__weak_periodic_listeners: typing.List[weakref.ref] = []
         self.__weak_periodic_listeners_mutex = threading.RLock()
@@ -486,6 +487,8 @@ class DocumentController(Window.Window):
         display_panel = self.selected_display_panel
         if display_panel:
             self.__selected_display_items = list(display_panel.display_items)
+            for secondary_display_panel in self.__secondary_display_panels:
+                self.__selected_display_items.extend(list(secondary_display_panel.display_items))
         else:
             self.__selected_display_items = list()
             display_items = self.__filtered_display_items_model.display_items
@@ -580,15 +583,44 @@ class DocumentController(Window.Window):
         if selected_display_panel != self.__selected_display_panel:
             # save the selected panel
             self.__selected_display_panel = selected_display_panel
+            self.__secondary_display_panels.clear()
             # tell the workspace the selected image panel changed so that it can update the focus/selected rings
-            self.workspace_controller.selected_display_panel_changed(self.selected_display_panel)
-            # update the selected display items
+            self.__update_display_panels()
             self.__update_selected_display_items()
         self.__selection_changed_listener.close()
         if self.selected_display_panel:
             self.__selection_changed_listener = self.selected_display_panel.display_items_changed_event.listen(self.__update_selected_display_items)
         else:
             self.__selection_changed_listener = self.selection.changed_event.listen(self.__update_selected_display_items)
+
+    def add_secondary_display_panel(self, display_panel: DisplayPanel.DisplayPanel) -> None:
+        if display_panel not in self.__secondary_display_panels:
+            self.__secondary_display_panels.append(display_panel)
+            self.__update_display_panels()
+            self.__update_selected_display_items()
+
+    def remove_secondary_display_panel(self, display_panel: DisplayPanel.DisplayPanel) -> None:
+        if display_panel in self.__secondary_display_panels:
+            self.__secondary_display_panels.remove(display_panel)
+            self.__update_display_panels()
+            self.__update_selected_display_items()
+
+    def toggle_secondary_display_panel(self, display_panel: DisplayPanel.DisplayPanel) -> None:
+        if display_panel in self.__secondary_display_panels:
+            self.__secondary_display_panels.remove(display_panel)
+        else:
+            self.__secondary_display_panels.append(display_panel)
+        self.__update_display_panels()
+        self.__update_selected_display_items()
+
+    def __update_display_panels(self):
+        selected_display_panel = self.selected_display_panel
+        for display_panel in self.workspace.display_panels:
+            display_panel.set_selected(display_panel == selected_display_panel)
+            if display_panel in self.__secondary_display_panels:
+                display_panel.set_secondary_index(self.__secondary_display_panels.index(display_panel))
+            else:
+                display_panel.set_secondary_index(None)
 
     def data_panel_focused(self) -> None:
         # the data panel will call this when it gets keyboard focus.
