@@ -314,7 +314,7 @@ class ChangeWorkspaceCommand(Undo.UndoableCommand):
         self.perform()
 
 
-class ChangeContentsWorkspaceCommand(Undo.UndoableCommand):
+class ChangeWorkspaceContentsCommand(Undo.UndoableCommand):
     def __init__(self, workspace_controller: Workspace):
         super().__init__("Change Workspace Contents")
         self.__workspace_controller = workspace_controller
@@ -1074,7 +1074,7 @@ class Workspace:
 
     def _splits_will_change(self, splitter_canvas_item: CanvasItem.SplitterCanvasItem) -> None:
         self.__change_splitter_splits = splitter_canvas_item.splits
-        self.__change_splitter_command = ChangeContentsWorkspaceCommand(self)
+        self.__change_splitter_command = ChangeWorkspaceContentsCommand(self)
 
     def _splits_did_change(self, splitter_canvas_item: CanvasItem.SplitterCanvasItem) -> None:
         self.__sync_layout()
