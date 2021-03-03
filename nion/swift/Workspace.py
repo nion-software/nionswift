@@ -453,6 +453,20 @@ class Workspace:
     def _workspace_layout(self) -> dict:
         return self.deconstruct()
 
+    def close_display_panels(self, display_panels: typing.Sequence[DisplayPanel.DisplayPanel]) -> None:
+        command = ChangeWorkspaceContentsCommand(self, _("Close Display Panel"))
+        for display_panel in display_panels:
+            if len(self.display_panels) > 1:
+                self._remove_display_panel(display_panel, None)
+        self.document_controller.push_undo_command(command)
+
+    def clear_display_panels(self, display_panels: typing.Sequence[DisplayPanel.DisplayPanel]) -> None:
+        command = ChangeWorkspaceContentsCommand(self, _("Clear Display Panel Contents"))
+        d = {"type": "image", "display-panel-type": "empty-display-panel"}
+        for display_panel in display_panels:
+            display_panel.change_display_panel_content(d)
+        self.document_controller.push_undo_command(command)
+
     def switch_to_display_content(self, display_panel: DisplayPanel.DisplayPanel, display_panel_type, display_item: DisplayItem.DisplayItem = None) -> None:
         d = {"type": "image", "display-panel-type": display_panel_type}
         if display_item and display_panel_type != "empty-display-panel":

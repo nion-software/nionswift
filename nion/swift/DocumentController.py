@@ -2815,18 +2815,39 @@ class DisplayCopyAction(Window.Action):
 class DisplayPanelClearAction(Window.Action):
 
     action_id = "display_panel.clear"
-    action_name = _("Clear Display Panel")
+    action_name = _("Clear Display Panel Contents")
 
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
         window = typing.cast(DocumentController, context.window)
-        display_panel = context.display_panel
-        window.workspace_controller.switch_to_display_content(display_panel, "empty-display-panel", display_panel.display_item)
+        if context.display_panel:
+            window.workspace_controller.clear_display_panels([context.display_panel])
+        else:
+            window.workspace_controller.clear_display_panels(context.display_panels)
         return Window.ActionResult.FINISHED
 
     def is_enabled(self, context: Window.ActionContext) -> bool:
         context = typing.cast(DocumentController.ActionContext, context)
-        return context.display_item is not None
+        return len(context.display_items) > 0 or context.display_item is not None
+
+
+class DisplayPanelCloseAction(Window.Action):
+
+    action_id = "display_panel.close"
+    action_name = _("Close Display Panel")
+
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        if context.display_panel:
+            window.workspace_controller.close_display_panels([context.display_panel])
+        else:
+            window.workspace_controller.close_display_panels(context.display_panels)
+        return Window.ActionResult.FINISHED
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return len(context.display_panels) > 0 or context.display_panel is not None
 
 
 class DisplayPanelFillViewAction(Window.Action):
@@ -2989,6 +3010,7 @@ class DisplayRevealAction(Window.Action):
 
 Window.register_action(DisplayCopyAction())
 Window.register_action(DisplayPanelClearAction())
+Window.register_action(DisplayPanelCloseAction())
 Window.register_action(DisplayPanelFitToViewAction())
 Window.register_action(DisplayPanelFillViewAction())
 Window.register_action(DisplayPanelOneViewAction())
