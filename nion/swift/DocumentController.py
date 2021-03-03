@@ -2761,14 +2761,104 @@ class WorkspaceSplitVerticalAction(Window.Action):
 
 class WorkspaceSplit2x2Action(Window.Action):
     action_id = "workspace.split_2x2"
-    action_name = _("Split Panel Into 2x2")
+    action_name = _("Split Panel 2x2")
 
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
         window = typing.cast(DocumentController, context.window)
         workspace_controller = window.workspace_controller
         if workspace_controller:
-            command = workspace_controller.insert_display_panel(context.display_panel, "right")
+            command = workspace_controller.apply_layout(context.display_panel, 2, 2)
+            window.push_undo_command(command)
+        return Window.ActionResult.FINISHED
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return context.display_panel is not None
+
+
+class WorkspaceSplit3x2Action(Window.Action):
+    action_id = "workspace.split_3x2"
+    action_name = _("Split Panel 3x2")
+
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        workspace_controller = window.workspace_controller
+        if workspace_controller:
+            command = workspace_controller.apply_layout(context.display_panel, 3, 2)
+            window.push_undo_command(command)
+        return Window.ActionResult.FINISHED
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return context.display_panel is not None
+
+
+class WorkspaceSplit3x3Action(Window.Action):
+    action_id = "workspace.split_3x3"
+    action_name = _("Split Panel 3x3")
+
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        workspace_controller = window.workspace_controller
+        if workspace_controller:
+            command = workspace_controller.apply_layout(context.display_panel, 3, 3)
+            window.push_undo_command(command)
+        return Window.ActionResult.FINISHED
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return context.display_panel is not None
+
+
+class WorkspaceSplit4x3Action(Window.Action):
+    action_id = "workspace.split_4x3"
+    action_name = _("Split Panel 4x3")
+
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        workspace_controller = window.workspace_controller
+        if workspace_controller:
+            command = workspace_controller.apply_layout(context.display_panel, 4, 3)
+            window.push_undo_command(command)
+        return Window.ActionResult.FINISHED
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return context.display_panel is not None
+
+
+class WorkspaceSplit4x4Action(Window.Action):
+    action_id = "workspace.split_4x4"
+    action_name = _("Split Panel 4x4")
+
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        workspace_controller = window.workspace_controller
+        if workspace_controller:
+            command = workspace_controller.apply_layout(context.display_panel, 4, 4)
+            window.push_undo_command(command)
+        return Window.ActionResult.FINISHED
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return context.display_panel is not None
+
+
+class WorkspaceSplit5x4Action(Window.Action):
+    action_id = "workspace.split_5x4"
+    action_name = _("Split Panel 5x4")
+
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        workspace_controller = window.workspace_controller
+        if workspace_controller:
+            command = workspace_controller.apply_layout(context.display_panel, 5, 4)
             window.push_undo_command(command)
         return Window.ActionResult.FINISHED
 
@@ -2785,6 +2875,12 @@ Window.register_action(WorkspaceRemoveAction())
 Window.register_action(WorkspaceRenameAction())
 Window.register_action(WorkspaceSplitHorizontalAction())
 Window.register_action(WorkspaceSplitVerticalAction())
+Window.register_action(WorkspaceSplit2x2Action())
+Window.register_action(WorkspaceSplit3x2Action())
+Window.register_action(WorkspaceSplit3x3Action())
+Window.register_action(WorkspaceSplit4x3Action())
+Window.register_action(WorkspaceSplit4x4Action())
+Window.register_action(WorkspaceSplit5x4Action())
 
 
 class AddGroupAction(Window.Action):
