@@ -686,6 +686,9 @@ class NewProjectAction(UIWindow.Action):
     action_id = "project.new_project"
     action_name = _("New Project...")
 
+    def execute(self, context: UIWindow.ActionContext) -> UIWindow.ActionResult:
+        raise NotImplementedError()
+
     def invoke(self, context: UIWindow.ActionContext) -> UIWindow.ActionResult:
         context = typing.cast(DocumentController.DocumentController.ActionContext, context)
 
@@ -791,29 +794,35 @@ class NewProjectAction(UIWindow.Action):
         new_project_dialog = NewProjectDialog(application.ui, application, application.event_loop, application.profile)
         new_project_dialog.show()
 
-        return UIWindow.ActionResult.FINISHED
+        return UIWindow.ActionResult(UIWindow.ActionStatus.FINISHED)
 
 
 class OpenProjectAction(UIWindow.Action):
     action_id = "project.open_project"
     action_name = _("Open Project...")
 
+    def execute(self, context: UIWindow.ActionContext) -> UIWindow.ActionResult:
+        raise NotImplementedError()
+
     def invoke(self, context_: UIWindow.ActionContext) -> UIWindow.ActionResult:
         context = typing.cast(DocumentController.DocumentController.ActionContext, context_)
         application = typing.cast(Application, context.application)
         application.show_open_project_dialog()
-        return UIWindow.ActionResult.FINISHED
+        return UIWindow.ActionResult(UIWindow.ActionStatus.FINISHED)
 
 
 class ChooseProjectAction(UIWindow.Action):
     action_id = "project.choose_project"
     action_name = _("Choose Project...")
 
+    def execute(self, context: UIWindow.ActionContext) -> UIWindow.ActionResult:
+        raise NotImplementedError()
+
     def invoke(self, context_: UIWindow.ActionContext) -> UIWindow.ActionResult:
         context = typing.cast(DocumentController.DocumentController.ActionContext, context_)
         application = typing.cast(Application, context.application)
         application.show_choose_project_dialog()
-        return UIWindow.ActionResult.FINISHED
+        return UIWindow.ActionResult(UIWindow.ActionStatus.FINISHED)
 
 
 UIWindow.register_action(NewProjectAction())

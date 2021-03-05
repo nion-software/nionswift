@@ -2430,14 +2430,14 @@ class DeleteItemAction(Window.Action):
     action_id = "item.delete"
     action_name = _("Delete Item")
 
-    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
         window = typing.cast(DocumentController, context.window)
         if context.display_item:
             window.delete_display_items([context.display_item])
         else:
             window.delete_display_items(context.display_items)
-        return Window.ActionResult.FINISHED
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
     def is_enabled(self, context: Window.ActionContext) -> bool:
         context = typing.cast(DocumentController.ActionContext, context)
@@ -2460,14 +2460,14 @@ class DeleteDataItemAction(Window.Action):
     action_id = "item.delete_data_item"
     action_name = _("Delete Data Item")
 
-    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
         window = typing.cast(DocumentController, context.window)
         if context.data_item:
             window.delete_data_items([context.data_item])
         else:
             window.delete_data_items(context.data_items)
-        return Window.ActionResult.FINISHED
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
     def is_enabled(self, context: Window.ActionContext) -> bool:
         context = typing.cast(DocumentController.ActionContext, context)
@@ -2487,6 +2487,9 @@ class ExportAction(Window.Action):
     action_id = "file.export"
     action_name = _("Export...")
 
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        raise NotImplementedError()
+
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
         window = typing.cast(DocumentController, context.window)
@@ -2496,7 +2499,7 @@ class ExportAction(Window.Action):
             window.export_files(selected_display_items)
         elif selected_display_item:
             window.export_file(selected_display_item)
-        return Window.ActionResult.FINISHED
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
     def is_enabled(self, context: Window.ActionContext) -> bool:
         context = typing.cast(DocumentController.ActionContext, context)
@@ -2507,32 +2510,41 @@ class ExportSVGAction(Window.Action):
     action_id = "file.export_svg"
     action_name = _("Export SVG...")
 
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        raise NotImplementedError()
+
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         window = typing.cast(DocumentController, context.window)
         selected_display_item = window.selected_display_item
         if selected_display_item:
             window.export_svg(selected_display_item)
-        return Window.ActionResult.FINISHED
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
 class ImportDataAction(Window.Action):
     action_id = "file.import_data"
     action_name = _("Import Data...")
 
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        raise NotImplementedError()
+
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         window = typing.cast(DocumentController, context.window)
         window.import_file()
-        return Window.ActionResult.FINISHED
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
 class ImportFolderAction(Window.Action):
     action_id = "file.import_folder"
     action_name = _("Import Folder...")
 
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        raise NotImplementedError()
+
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         window = typing.cast(DocumentController, context.window)
         window._import_folder()
-        return Window.ActionResult.FINISHED
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
 Window.register_action(DeleteItemAction())
@@ -2548,89 +2560,110 @@ class DataItemRecorderAction(Window.Action):
     action_id = "window.data_item_recorder"
     action_name = _("Data Item Recorder...")
 
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        raise NotImplementedError()
+
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         window = typing.cast(DocumentController, context.window)
         window.new_recorder_dialog()
-        return Window.ActionResult.FINISHED
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
 class EditComputationAction(Window.Action):
     action_id = "window.edit_computation"
     action_name = _("Edit Computation")
 
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        raise NotImplementedError()
+
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         window = typing.cast(DocumentController, context.window)
         window.new_inspect_computation_dialog()
-        return Window.ActionResult.FINISHED
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
 class EditDataItemScriptAction(Window.Action):
     action_id = "window.edit_data_item_script"
     action_name = _("Edit Data Item Scripts")
 
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        raise NotImplementedError()
+
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         window = typing.cast(DocumentController, context.window)
         window.new_edit_computation_dialog()
-        return Window.ActionResult.FINISHED
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
 class EditDisplayScriptAction(Window.Action):
     action_id = "window.edit_display_script"
     action_name = _("Edit Display Script")
 
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        raise NotImplementedError()
+
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         window = typing.cast(DocumentController, context.window)
         window.new_display_editor_dialog()
-        return Window.ActionResult.FINISHED
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
 class GenerateDataAction(Window.Action):
     action_id = "window.generate_data_dialog"
     action_name = _("Generate Data...")
 
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        raise NotImplementedError()
+
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         window = typing.cast(DocumentController, context.window)
         dialog = GeneratorDialog.GenerateDataDialog(window)
-        return Window.ActionResult.FINISHED
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
 class OpenConsoleAction(Window.Action):
     action_id = "window.open_console"
     action_name = _("Python Console...")
 
-    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         window = typing.cast(DocumentController, context.window)
         window.new_console_dialog()
-        return Window.ActionResult.FINISHED
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
 class OpenProjectDialogAction(Window.Action):
     action_id = "window.open_project_dialog"
     action_name = _("Project Manager")
 
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        raise NotImplementedError()
+
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context.application.open_project_manager()
-        return Window.ActionResult.FINISHED
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
 class OpenRunScriptsAction(Window.Action):
     action_id = "window.open_run_scripts"
     action_name = _("Scripts...")
 
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        raise NotImplementedError()
+
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         window = typing.cast(DocumentController, context.window)
         window.new_interactive_script_dialog()
-        return Window.ActionResult.FINISHED
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
 class ToggleFilterAction(Window.Action):
     action_id = "window.toggle_filter"
     action_name = _("Filter")
 
-    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         window = typing.cast(DocumentController, context.window)
         window.toggle_filter()
-        return Window.ActionResult.FINISHED
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
 Window.register_action(DataItemRecorderAction())
@@ -2660,7 +2693,7 @@ class WorkspaceCloneAction(Window.Action):
             command = Workspace.CloneWorkspaceCommand(workspace_controller, text)
             command.perform()
             window.push_undo_command(command)
-        return Window.ActionResult.FINISHED
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
@@ -2675,7 +2708,7 @@ class WorkspaceCloneAction(Window.Action):
                                                              text=workspace_controller._workspace.name,
                                                              accepted_fn=clone_clicked, accepted_text=_("Clone"),
                                                              message_box_id="clone_workspace")
-        return Window.ActionResult.FINISHED
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
 class WorkspaceNewAction(Window.Action):
@@ -2695,7 +2728,7 @@ class WorkspaceNewAction(Window.Action):
             command = Workspace.CreateWorkspaceCommand(workspace_controller, text)
             command.perform()
             window.push_undo_command(command)
-        return Window.ActionResult.FINISHED
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
@@ -2710,7 +2743,7 @@ class WorkspaceNewAction(Window.Action):
                                                              text=_("Workspace"),
                                                              accepted_fn=create_clicked, accepted_text=_("Create"),
                                                              message_box_id="create_workspace")
-        return Window.ActionResult.FINISHED
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
 class WorkspaceNextAction(Window.Action):
@@ -2723,7 +2756,7 @@ class WorkspaceNextAction(Window.Action):
         workspace_controller = window.workspace_controller
         if workspace_controller:
             workspace_controller.change_to_next_workspace()
-        return Window.ActionResult.FINISHED
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
 class WorkspacePreviousAction(Window.Action):
@@ -2736,7 +2769,7 @@ class WorkspacePreviousAction(Window.Action):
         workspace_controller = window.workspace_controller
         if workspace_controller:
             workspace_controller.change_to_previous_workspace()
-        return Window.ActionResult.FINISHED
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
 class WorkspaceRemoveAction(Window.Action):
@@ -2751,7 +2784,7 @@ class WorkspaceRemoveAction(Window.Action):
             command = Workspace.RemoveWorkspaceCommand(workspace_controller)
             command.perform()
             window.push_undo_command(command)
-        return Window.ActionResult.FINISHED
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
@@ -2765,7 +2798,7 @@ class WorkspaceRemoveAction(Window.Action):
             workspace_controller.pose_confirmation_message_box(caption, confirm_clicked,
                                                                accepted_text=_("Remove Workspace"),
                                                                message_box_id="remove_workspace")
-        return Window.ActionResult.FINISHED
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
 class WorkspaceRenameAction(Window.Action):
@@ -2784,7 +2817,7 @@ class WorkspaceRenameAction(Window.Action):
             command = Workspace.RenameWorkspaceCommand(workspace_controller, text)
             command.perform()
             window.push_undo_command(command)
-        return Window.ActionResult.FINISHED
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
@@ -2799,7 +2832,7 @@ class WorkspaceRenameAction(Window.Action):
                                                              text=workspace_controller._workspace.name,
                                                              accepted_fn=rename_clicked, accepted_text=_("Rename"),
                                                              message_box_id="rename_workspace")
-        return Window.ActionResult.FINISHED
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
 class WorkspaceSplitHorizontalAction(Window.Action):
@@ -2813,7 +2846,7 @@ class WorkspaceSplitHorizontalAction(Window.Action):
         if workspace_controller:
             command = workspace_controller.insert_display_panel(context.display_panel, "right")
             window.push_undo_command(command)
-        return Window.ActionResult.FINISHED
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
     def is_enabled(self, context: Window.ActionContext) -> bool:
         context = typing.cast(DocumentController.ActionContext, context)
@@ -2831,7 +2864,7 @@ class WorkspaceSplitVerticalAction(Window.Action):
         if workspace_controller:
             command = workspace_controller.insert_display_panel(context.display_panel, "bottom")
             window.push_undo_command(command)
-        return Window.ActionResult.FINISHED
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
     def is_enabled(self, context: Window.ActionContext) -> bool:
         context = typing.cast(DocumentController.ActionContext, context)
@@ -2857,7 +2890,7 @@ class WorkspaceSplitAction(Window.Action):
             v = max(1, min(8, v))
             command = workspace_controller.apply_layout(context.display_panel, h, v)
             window.push_undo_command(command)
-        return Window.ActionResult.FINISHED
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
     def is_enabled(self, context: Window.ActionContext) -> bool:
         context = typing.cast(DocumentController.ActionContext, context)
@@ -2951,11 +2984,11 @@ class AddGroupAction(Window.Action):
     action_id = "project.add_group"
     action_name = _("Add Group")
 
-    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         if context.window:
             window = typing.cast(DocumentController, context.window)
             window.add_group()
-        return Window.ActionResult.FINISHED
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
 Window.register_action(AddGroupAction())
@@ -2965,11 +2998,11 @@ class DisplayCopyAction(Window.Action):
     action_id = "display.copy_display"
     action_name = _("Duplicate Display Item")
 
-    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
         window = typing.cast(DocumentController, context.window)
         window.processing_display_copy()
-        return Window.ActionResult.FINISHED
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
 class DisplayPanelClearAction(Window.Action):
@@ -2977,14 +3010,14 @@ class DisplayPanelClearAction(Window.Action):
     action_id = "display_panel.clear"
     action_name = _("Clear Display Panel Contents")
 
-    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
         window = typing.cast(DocumentController, context.window)
         if context.display_panel:
             window.workspace_controller.clear_display_panels([context.display_panel])
         else:
             window.workspace_controller.clear_display_panels(context.display_panels)
-        return Window.ActionResult.FINISHED
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
     def is_enabled(self, context: Window.ActionContext) -> bool:
         context = typing.cast(DocumentController.ActionContext, context)
@@ -2996,14 +3029,14 @@ class DisplayPanelCloseAction(Window.Action):
     action_id = "display_panel.close"
     action_name = _("Close Display Panel")
 
-    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
         window = typing.cast(DocumentController, context.window)
         if context.display_panel:
             window.workspace_controller.close_display_panels([context.display_panel])
         else:
             window.workspace_controller.close_display_panels(context.display_panels)
-        return Window.ActionResult.FINISHED
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
     def is_enabled(self, context: Window.ActionContext) -> bool:
         context = typing.cast(DocumentController.ActionContext, context)
@@ -3014,10 +3047,10 @@ class DisplayPanelFillViewAction(Window.Action):
     action_id = "display_panel.fill_view"
     action_name = _("Fill View")
 
-    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
         context.display_panel.perform_action("set_fill_mode")
-        return Window.ActionResult.FINISHED
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
     def is_enabled(self, context: Window.ActionContext) -> bool:
         context = typing.cast(DocumentController.ActionContext, context)
@@ -3028,10 +3061,10 @@ class DisplayPanelFitToViewAction(Window.Action):
     action_id = "display_panel.fit_view"
     action_name = _("Fit to View")
 
-    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
         context.display_panel.perform_action("set_fit_mode")
-        return Window.ActionResult.FINISHED
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
     def is_enabled(self, context: Window.ActionContext) -> bool:
         context = typing.cast(DocumentController.ActionContext, context)
@@ -3042,10 +3075,10 @@ class DisplayPanelOneViewAction(Window.Action):
     action_id = "display_panel.1_view"
     action_name = _("1:1 View")
 
-    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
         context.display_panel.perform_action("set_one_to_one_mode")
-        return Window.ActionResult.FINISHED
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
     def is_enabled(self, context: Window.ActionContext) -> bool:
         context = typing.cast(DocumentController.ActionContext, context)
@@ -3057,12 +3090,12 @@ class DisplayPanelShowItemAction(Window.Action):
     action_id = "display_panel.show_item"
     action_name = _("Display Item")
 
-    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
         window = typing.cast(DocumentController, context.window)
         display_panel = context.display_panel
         window.workspace_controller.switch_to_display_content(display_panel, "data-display-panel", display_panel.display_item)
-        return Window.ActionResult.FINISHED
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
     def is_checked(self, context: Window.ActionContext) -> bool:
         context = typing.cast(DocumentController.ActionContext, context)
@@ -3078,12 +3111,12 @@ class DisplayPanelShowGridBrowserAction(Window.Action):
     action_id = "display_panel.show_grid_browser"
     action_name = _("Grid Browser")
 
-    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
         window = typing.cast(DocumentController, context.window)
         display_panel = context.display_panel
         window.workspace_controller.switch_to_display_content(display_panel, "browser-display-panel", display_panel.display_item)
-        return Window.ActionResult.FINISHED
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
     def is_checked(self, context: Window.ActionContext) -> bool:
         context = typing.cast(DocumentController.ActionContext, context)
@@ -3099,12 +3132,12 @@ class DisplayPanelShowThumbnailBrowserAction(Window.Action):
     action_id = "display_panel.show_thumbnail_browser"
     action_name = _("Thumbnail Browser")
 
-    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
         window = typing.cast(DocumentController, context.window)
         display_panel = context.display_panel
         window.workspace_controller.switch_to_display_content(display_panel, "thumbnail-browser-display-panel", display_panel.display_item)
-        return Window.ActionResult.FINISHED
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
     def is_checked(self, context: Window.ActionContext) -> bool:
         context = typing.cast(DocumentController.ActionContext, context)
@@ -3119,10 +3152,10 @@ class DisplayPanelTwoViewAction(Window.Action):
     action_id = "display_panel.2_view"
     action_name = _("2:1 View")
 
-    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
         context.display_panel.perform_action("set_two_to_one_mode")
-        return Window.ActionResult.FINISHED
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
     def is_enabled(self, context: Window.ActionContext) -> bool:
         context = typing.cast(DocumentController.ActionContext, context)
@@ -3133,11 +3166,11 @@ class DisplayRemoveAction(Window.Action):
     action_id = "display.remove_display"
     action_name = _("Delete Display Item")
 
-    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
         window = typing.cast(DocumentController, context.window)
         window.processing_display_remove()
-        return Window.ActionResult.FINISHED
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
     def is_enabled(self, context: Window.ActionContext) -> bool:
         context = typing.cast(DocumentController.ActionContext, context)
@@ -3157,11 +3190,11 @@ class DisplayRevealAction(Window.Action):
     action_id = "display.reveal"
     action_name = _("Reveal in Data Panel")
 
-    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
         window = typing.cast(DocumentController, context.window)
         window.select_display_items_in_data_panel([context.display_item])
-        return Window.ActionResult.FINISHED
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
     def is_enabled(self, context: Window.ActionContext) -> bool:
         context = typing.cast(DocumentController.ActionContext, context)
@@ -3186,7 +3219,7 @@ class AssignVariableReference(Window.Action):
     action_id = "item.assign_variable_reference"
     action_name = _("Assign Variable Reference")
 
-    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
         window = typing.cast(DocumentController, context.window)
         display_item = context.display_item
@@ -3195,7 +3228,7 @@ class AssignVariableReference(Window.Action):
             logging.debug("{} = Display Item with UUID {}".format(r_var, display_item.uuid))
             for console in window.consoles:
                 console.assign_item_var(r_var, display_item)
-        return Window.ActionResult.FINISHED
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
     def is_enabled(self, context: Window.ActionContext) -> bool:
         context = typing.cast(DocumentController.ActionContext, context)
@@ -3206,36 +3239,36 @@ class CopyItemUUIDAction(Window.Action):
     action_id = "item.copy_uuid"
     action_name = _("Copy Item UUID")
 
-    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context.window.copy_uuid()
-        return Window.ActionResult.FINISHED
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
 class CreateDataItemAction(Window.Action):
     action_id = "item.create_data_item"
     action_name = _("Create New Data Item")
 
-    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context.window.create_empty_data_item()
-        return Window.ActionResult.FINISHED
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
 class DuplicateAction(Window.Action):
     action_id = "item.duplicate"
     action_name = _("Duplicate")
 
-    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context.window.processing_duplicate()
-        return Window.ActionResult.FINISHED
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
 class SnapshotAction(Window.Action):
     action_id = "item.snapshot"
     action_name = _("Snapshot")
 
-    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context.window.processing_snapshot()
-        return Window.ActionResult.FINISHED
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
 Window.register_action(AssignVariableReference())
@@ -3249,108 +3282,108 @@ class AddLineGraphicAction(Window.Action):
     action_id = "graphics.add_line_graphic"
     action_name = _("Add Line Graphic")
 
-    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context.window.add_line_graphic()
-        return Window.ActionResult.FINISHED
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
 class AddEllipseGraphicAction(Window.Action):
     action_id = "graphics.add_ellipse_graphic"
     action_name = _("Add Ellipse Graphic")
 
-    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context.window.add_ellipse_graphic()
-        return Window.ActionResult.FINISHED
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
 class AddRectangleGraphicAction(Window.Action):
     action_id = "graphics.add_rectangle_graphic"
     action_name = _("Add Rectangle Graphic")
 
-    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context.window.add_rectangle_graphic()
-        return Window.ActionResult.FINISHED
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
 class AddPointGraphicAction(Window.Action):
     action_id = "graphics.add_point_graphic"
     action_name = _("Add Point Graphic")
 
-    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context.window.add_point_graphic()
-        return Window.ActionResult.FINISHED
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
 class AddIntervalGraphicAction(Window.Action):
     action_id = "graphics.add_interval_graphic"
     action_name = _("Add Interval Graphic")
 
-    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context.window.add_interval_graphic()
-        return Window.ActionResult.FINISHED
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
 class AddChannelGraphicAction(Window.Action):
     action_id = "graphics.add_channel_graphic"
     action_name = _("Add Channel Graphic")
 
-    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context.window.add_channel_graphic()
-        return Window.ActionResult.FINISHED
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
 class AddGraphicToMaskAction(Window.Action):
     action_id = "graphics.add_graphic_mask"
     action_name = _("Add to Mask")
 
-    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context.window.add_graphic_mask()
-        return Window.ActionResult.FINISHED
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
 class AddSpotGraphicAction(Window.Action):
     action_id = "graphics.add_spot_graphic"
     action_name = _("Add Spot Filter")
 
-    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context.window.add_spot_graphic()
-        return Window.ActionResult.FINISHED
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
 class AddAngleGraphicAction(Window.Action):
     action_id = "graphics.add_angle_graphic"
     action_name = _("Add Angle Filter")
 
-    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context.window.add_angle_graphic()
-        return Window.ActionResult.FINISHED
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
 class AddBandPassGraphicAction(Window.Action):
     action_id = "graphics.add_band_pass_graphic"
     action_name = _("Add Band Pass Filter")
 
-    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context.window.add_band_pass_graphic()
-        return Window.ActionResult.FINISHED
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
 class AddLatticeGraphicAction(Window.Action):
     action_id = "graphics.add_lattice_graphic"
     action_name = _("Add Lattice Filter")
 
-    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context.window.add_lattice_graphic()
-        return Window.ActionResult.FINISHED
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
 class RemoveGraphicFromMaskAction(Window.Action):
     action_id = "graphics.remove_graphic_mask"
     action_name = _("Remove from Mask")
 
-    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context.window.remove_graphic_mask()
-        return Window.ActionResult.FINISHED
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
 Window.register_action(AddLineGraphicAction())
@@ -3369,13 +3402,25 @@ Window.register_action(RemoveGraphicFromMaskAction())
 
 class ProcessingAction(Window.Action):
 
-    def invoke_processing(self, context: Window.ActionContext, fn) -> None:
+    def execute_processing(self, context: Window.ActionContext, fn) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        if context.display_item and context.data_item:
+            typing.cast(DocumentController, context.window)._perform_processing(context.display_item,
+                                                                                context.data_item,
+                                                                                context.crop_graphic, fn)
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
+
+    def invoke_processing(self, context: Window.ActionContext, fn) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
         if context.display_item:
             typing.cast(DocumentController, context.window)._perform_processing_select(context.display_item,
                                                                                        context.crop_graphic, fn)
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
-    def invoke_processing2(self, context: Window.ActionContext, fn) -> None:
+    def execute_processing2(self, context: Window.ActionContext, fn) -> Window.ActionResult:
+        return self.invoke_processing2(context, fn)
+
+    def invoke_processing2(self, context: Window.ActionContext, fn) -> Window.ActionResult:
         data_sources = typing.cast(DocumentController, context.window)._get_two_data_sources()
         if data_sources:
             (display_item1, crop_graphic1), (display_item2, crop_graphic2) = data_sources
@@ -3385,8 +3430,12 @@ class ProcessingAction(Window.Action):
                 typing.cast(DocumentController, context.window)._perform_processing2(display_item1, data_item1,
                                                                                      display_item2, data_item2,
                                                                                      crop_graphic1, crop_graphic2, fn)
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
-    def invoke_processing3(self, context: Window.ActionContext, fn) -> None:
+    def execute_processing3(self, context: Window.ActionContext, fn) -> Window.ActionResult:
+        return self.invoke_processing3(context, fn)
+
+    def invoke_processing3(self, context: Window.ActionContext, fn) -> Window.ActionResult:
         data_sources = typing.cast(DocumentController, context.window)._get_n_data_sources(3)
         if data_sources:
             (display_item1, crop_graphic1), (display_item2, crop_graphic2), (display_item3, crop_graphic3) = data_sources
@@ -3399,107 +3448,155 @@ class ProcessingAction(Window.Action):
                                                                                      display_item3, data_item3,
                                                                                      crop_graphic1, crop_graphic2,
                                                                                      crop_graphic3, fn)
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
 class AddAction(ProcessingAction):
     action_id = "processing.add"
     action_name = _("Add")
 
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.execute_processing2(context, context.model.get_add_new)
+
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        self.invoke_processing2(context, context.model.get_add_new)
-        return Window.ActionResult.FINISHED
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.invoke_processing2(context, context.model.get_add_new)
 
 
 class AutoCorrelateAction(ProcessingAction):
     action_id = "processing.auto_correlate"
     action_name = _("Auto Correlate")
 
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.execute_processing(context, context.model.get_auto_correlate_new)
+
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        self.invoke_processing(context, context.model.get_auto_correlate_new)
-        return Window.ActionResult.FINISHED
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.invoke_processing(context, context.model.get_auto_correlate_new)
 
 
 class CropAction(ProcessingAction):
     action_id = "processing.crop"
     action_name = _("Crop")
 
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.execute_processing(context, context.model.get_crop_new)
+
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        self.invoke_processing(context, context.model.get_crop_new)
-        return Window.ActionResult.FINISHED
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.invoke_processing(context, context.model.get_crop_new)
 
 
 class CrossCorrelateAction(ProcessingAction):
     action_id = "processing.cross_correlate"
     action_name = _("Cross Correlate")
 
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.execute_processing2(context, context.model.get_cross_correlate_new)
+
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        self.invoke_processing2(context, context.model.get_cross_correlate_new)
-        return Window.ActionResult.FINISHED
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.invoke_processing2(context, context.model.get_cross_correlate_new)
 
 
 class DivideAction(ProcessingAction):
     action_id = "processing.divide"
     action_name = _("Divide")
 
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.execute_processing2(context, context.model.get_divide_new)
+
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        self.invoke_processing2(context, context.model.get_divide_new)
-        return Window.ActionResult.FINISHED
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.invoke_processing2(context, context.model.get_divide_new)
 
 
 class ExtractAlphaAction(ProcessingAction):
     action_id = "processing.rgb_alpha"
     action_name = _("Extract Alpha Channel")
 
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.execute_processing3(context, context.model.get_rgb_alpha_new)
+
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        self.invoke_processing3(context, context.model.get_rgb_alpha_new)
-        return Window.ActionResult.FINISHED
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.invoke_processing3(context, context.model.get_rgb_alpha_new)
 
 
 class ExtractBlueAction(ProcessingAction):
     action_id = "processing.rgb_blue"
     action_name = _("Extract Blue Channel")
 
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.execute_processing(context, context.model.get_rgb_blue_new)
+
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        self.invoke_processing(context, context.model.get_rgb_blue_new)
-        return Window.ActionResult.FINISHED
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.invoke_processing(context, context.model.get_rgb_blue_new)
 
 
 class ExtractGreenAction(ProcessingAction):
     action_id = "processing.rgb_green"
     action_name = _("Extract Green Channel")
 
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.execute_processing(context, context.model.get_rgb_green_new)
+
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        self.invoke_processing(context, context.model.get_rgb_green_new)
-        return Window.ActionResult.FINISHED
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.invoke_processing(context, context.model.get_rgb_green_new)
 
 
 class ExtractLuminanceAction(ProcessingAction):
     action_id = "processing.rgb_luminance"
     action_name = _("Extract Luminance")
 
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.execute_processing(context, context.model.get_rgb_luminance_new)
+
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        self.invoke_processing(context, context.model.get_rgb_luminance_new)
-        return Window.ActionResult.FINISHED
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.invoke_processing(context, context.model.get_rgb_luminance_new)
 
 
 class ExtractRedAction(ProcessingAction):
     action_id = "processing.rgb_red"
     action_name = _("Extract Red Channel")
 
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.execute_processing(context, context.model.get_rgb_red_new)
+
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        self.invoke_processing(context, context.model.get_rgb_red_new)
-        return Window.ActionResult.FINISHED
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.invoke_processing(context, context.model.get_rgb_red_new)
 
 
 class FourierFilterAction(ProcessingAction):
     action_id = "processing.fourier_filter"
     action_name = _("Fourier Filter")
 
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        if context.display_item and context.data_item:
+            window._perform_processing(context.display_item, context.data_item, None, context.model.get_fourier_filter_new)
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
+
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
         window = typing.cast(DocumentController, context.window)
         window._perform_processing_select(context.display_item, None, context.model.get_fourier_filter_new)
-        return Window.ActionResult.FINISHED
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
     def is_enabled(self, context: Window.ActionContext) -> bool:
         context = typing.cast(DocumentController.ActionContext, context)
@@ -3510,288 +3607,416 @@ class FFTAction(ProcessingAction):
     action_id = "processing.fft"
     action_name = _("FFT")
 
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.execute_processing(context, context.model.get_fft_new)
+
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        self.invoke_processing(context, context.window.document_model.get_fft_new)
-        return Window.ActionResult.FINISHED
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.invoke_processing(context, context.model.get_fft_new)
 
 
 class GaussianFilterAction(ProcessingAction):
     action_id = "processing.gaussian_filter"
     action_name = _("Gaussian Filter")
 
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.execute_processing(context, context.model.get_gaussian_blur_new)
+
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        self.invoke_processing(context, context.model.get_gaussian_blur_new)
-        return Window.ActionResult.FINISHED
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.invoke_processing(context, context.model.get_gaussian_blur_new)
 
 
 class HistogramAction(ProcessingAction):
     action_id = "processing.histogram"
     action_name = _("Histogram")
 
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.execute_processing(context, context.model.get_histogram_new)
+
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        self.invoke_processing(context, context.window.document_model.get_histogram_new)
-        return Window.ActionResult.FINISHED
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.invoke_processing(context, context.model.get_histogram_new)
 
 
 class InverseFFTAction(ProcessingAction):
     action_id = "processing.inverse_fft"
     action_name = _("Inverse FFT")
 
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.execute_processing(context, context.model.get_ifft_new)
+
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        self.invoke_processing(context, context.window.document_model.get_ifft_new)
-        return Window.ActionResult.FINISHED
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.invoke_processing(context, context.model.get_ifft_new)
 
 
 class LaplaceFilterAction(ProcessingAction):
     action_id = "processing.laplace_filter"
     action_name = _("Laplace Filter")
 
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.execute_processing(context, context.model.get_laplace_new)
+
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        self.invoke_processing(context, context.model.get_laplace_new)
-        return Window.ActionResult.FINISHED
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.invoke_processing(context, context.model.get_laplace_new)
 
 
 class LineProfileAction(ProcessingAction):
     action_id = "processing.line_profile"
     action_name = _("Line Profile")
 
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.execute_processing(context, context.model.get_line_profile_new)
+
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        self.invoke_processing(context, context.window.document_model.get_line_profile_new)
-        return Window.ActionResult.FINISHED
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.invoke_processing(context, context.model.get_line_profile_new)
 
 
 class MaskAction(ProcessingAction):
     action_id = "processing.mask"
     action_name = _("Mask")
 
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.execute_processing(context, context.model.get_mask_new)
+
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        self.invoke_processing(context, context.model.get_mask_new)
-        return Window.ActionResult.FINISHED
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.invoke_processing(context, context.model.get_mask_new)
 
 
 class MaskedAction(ProcessingAction):
     action_id = "processing.masked"
     action_name = _("Masked")
 
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.execute_processing(context, context.model.get_masked_new)
+
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        self.invoke_processing(context, context.model.get_masked_new)
-        return Window.ActionResult.FINISHED
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.invoke_processing(context, context.model.get_masked_new)
 
 
 class MedianFilterAction(ProcessingAction):
     action_id = "processing.median_filter"
     action_name = _("Median Filter")
 
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.execute_processing(context, context.model.get_median_filter_new)
+
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        self.invoke_processing(context, context.model.get_median_filter_new)
-        return Window.ActionResult.FINISHED
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.invoke_processing(context, context.model.get_median_filter_new)
 
 
 class MultiplyAction(ProcessingAction):
     action_id = "processing.multiply"
     action_name = _("Multiply")
 
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.execute_processing2(context, context.model.get_multiply_new)
+
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        self.invoke_processing2(context, context.model.get_multiply_new)
-        return Window.ActionResult.FINISHED
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.invoke_processing2(context, context.model.get_multiply_new)
 
 
 class NegateAction(ProcessingAction):
     action_id = "processing.negate"
     action_name = _("Negate")
 
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.execute_processing(context, context.model.get_invert_new)
+
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        self.invoke_processing(context, context.model.get_invert_new)
-        return Window.ActionResult.FINISHED
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.invoke_processing(context, context.model.get_invert_new)
 
 
 class PickAction(ProcessingAction):
     action_id = "processing.pick"
     action_name = _("Pick")
 
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.execute_processing(context, context.model.get_pick_new)
+
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        self.invoke_processing(context, context.window.document_model.get_pick_new)
-        return Window.ActionResult.FINISHED
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.invoke_processing(context, context.model.get_pick_new)
 
 
 class PickAverageAction(ProcessingAction):
     action_id = "processing.pick_average"
     action_name = _("Pick (Average)")
 
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.execute_processing(context, context.model.get_pick_region_average_new)
+
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        self.invoke_processing(context, context.window.document_model.get_pick_region_average_new)
-        return Window.ActionResult.FINISHED
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.invoke_processing(context, context.model.get_pick_region_average_new)
 
 
 class PickSumAction(ProcessingAction):
     action_id = "processing.pick_sum"
     action_name = _("Pick (Sum)")
 
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.execute_processing(context, context.model.get_pick_region_new)
+
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        self.invoke_processing(context, context.window.document_model.get_pick_region_new)
-        return Window.ActionResult.FINISHED
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.invoke_processing(context, context.model.get_pick_region_new)
 
 
 class ProjectionSumAction(ProcessingAction):
     action_id = "processing.projection_sum"
     action_name = _("Projection (Sum)")
 
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.execute_processing(context, context.model.get_projection_new)
+
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        self.invoke_processing(context, context.window.document_model.get_projection_new)
-        return Window.ActionResult.FINISHED
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.invoke_processing(context, context.model.get_projection_new)
 
 
 class RebinAction(ProcessingAction):
     action_id = "processing.rebin"
     action_name = _("Rebin")
 
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.execute_processing(context, context.model.get_rebin_new)
+
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        self.invoke_processing(context, context.model.get_rebin_new)
-        return Window.ActionResult.FINISHED
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.invoke_processing(context, context.model.get_rebin_new)
 
 
 class ResampleAction(ProcessingAction):
     action_id = "processing.resample"
     action_name = _("Resample")
 
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.execute_processing(context, context.model.get_resample_new)
+
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        self.invoke_processing(context, context.model.get_resample_new)
-        return Window.ActionResult.FINISHED
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.invoke_processing(context, context.model.get_resample_new)
 
 
 class ResizeAction(ProcessingAction):
     action_id = "processing.resize"
     action_name = _("Resize")
 
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.execute_processing(context, context.model.get_resize_new)
+
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        self.invoke_processing(context, context.model.get_resize_new)
-        return Window.ActionResult.FINISHED
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.invoke_processing(context, context.model.get_resize_new)
 
 
 class RGBAction(ProcessingAction):
     action_id = "processing.make_rgb"
     action_name = _("Make RGB")
 
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.execute_processing3(context, context.model.get_rgb_new)
+
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        self.invoke_processing3(context, context.model.get_rgb_new)
-        return Window.ActionResult.FINISHED
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.invoke_processing3(context, context.model.get_rgb_new)
 
 
 class ScalarAction(ProcessingAction):
     action_id = "processing.scalar"
     action_name = _("Convert to Scalar")
 
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.execute_processing(context, context.model.get_convert_to_scalar_new)
+
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        self.invoke_processing(context, context.model.get_convert_to_scalar_new)
-        return Window.ActionResult.FINISHED
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.invoke_processing(context, context.model.get_convert_to_scalar_new)
 
 
 class SequenceAlignFourierAction(ProcessingAction):
     action_id = "processing.sequence_align_fourier"
     action_name = _("Align Sequence/Collection (Fourier)")
 
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.execute_processing(context, context.model.get_sequence_fourier_align_new)
+
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        self.invoke_processing(context, context.window.document_model.get_sequence_fourier_align_new)
-        return Window.ActionResult.FINISHED
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.invoke_processing(context, context.model.get_sequence_fourier_align_new)
 
 
 class SequenceAlignSplineAction(ProcessingAction):
     action_id = "processing.sequence_align_spline_1"
     action_name = _("Align Sequence/Collection (Spline 1st Order)")
 
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.execute_processing(context, context.model.get_sequence_align_new)
+
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        self.invoke_processing(context, context.window.document_model.get_sequence_align_new)
-        return Window.ActionResult.FINISHED
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.invoke_processing(context, context.model.get_sequence_align_new)
 
 
 class SequenceExtractAction(ProcessingAction):
     action_id = "processing.sequence_extract"
     action_name = _("Extract")
 
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.execute_processing(context, context.model.get_sequence_extract_new)
+
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        self.invoke_processing(context, context.window.document_model.get_sequence_extract_new)
-        return Window.ActionResult.FINISHED
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.invoke_processing(context, context.model.get_sequence_extract_new)
 
 
 class SequenceIntegrateAction(ProcessingAction):
     action_id = "processing.sequence_integrate"
     action_name = _("Integrate")
 
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.execute_processing(context, context.model.get_sequence_integrate_new)
+
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        self.invoke_processing(context, context.window.document_model.get_sequence_integrate_new)
-        return Window.ActionResult.FINISHED
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.invoke_processing(context, context.model.get_sequence_integrate_new)
 
 
 class SequenceMeasureShiftsAction(ProcessingAction):
     action_id = "processing.sequence_measure_shifts"
     action_name = _("Measure Shifts")
 
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.execute_processing(context, context.model.get_sequence_measure_shifts_new)
+
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        self.invoke_processing(context, context.window.document_model.get_sequence_measure_shifts_new)
-        return Window.ActionResult.FINISHED
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.invoke_processing(context, context.model.get_sequence_measure_shifts_new)
 
 
 class SequenceTrimAction(ProcessingAction):
     action_id = "processing.sequence_trim"
     action_name = _("Trim")
 
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.execute_processing(context, context.model.get_sequence_trim_new)
+
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        self.invoke_processing(context, context.window.document_model.get_sequence_trim_new)
-        return Window.ActionResult.FINISHED
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.invoke_processing(context, context.model.get_sequence_trim_new)
 
 
 class SliceSumAction(ProcessingAction):
     action_id = "processing.slice_sum"
     action_name = _("Slice Sum")
 
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.execute_processing(context, context.model.get_slice_sum_new)
+
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        self.invoke_processing(context, context.window.document_model.get_slice_sum_new)
-        return Window.ActionResult.FINISHED
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.invoke_processing(context, context.model.get_slice_sum_new)
 
 
 class SobelFilterAction(ProcessingAction):
     action_id = "processing.sobel_filter"
     action_name = _("Sobel Filter")
 
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.execute_processing(context, context.model.get_sobel_new)
+
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        self.invoke_processing(context, context.model.get_sobel_new)
-        return Window.ActionResult.FINISHED
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.invoke_processing(context, context.model.get_sobel_new)
 
 
 class SubtractAction(ProcessingAction):
     action_id = "processing.subtract"
     action_name = _("Subtract")
 
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.execute_processing2(context, context.model.get_subtract_new)
+
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        self.invoke_processing2(context, context.model.get_subtract_new)
-        return Window.ActionResult.FINISHED
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.invoke_processing2(context, context.model.get_subtract_new)
 
 
 class SubtractAverageAction(ProcessingAction):
     action_id = "processing.subtract_average"
     action_name = _("Subtract Region Average")
 
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.execute_processing(context, context.model.get_subtract_region_average_new)
+
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        self.invoke_processing(context, context.model.get_subtract_region_average_new)
-        return Window.ActionResult.FINISHED
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.invoke_processing(context, context.model.get_subtract_region_average_new)
 
 
 class TransformAction(ProcessingAction):
     action_id = "processing.transform"
     action_name = _("Transpose and Flip")
 
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.execute_processing(context, context.model.get_transpose_flip_new)
+
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        self.invoke_processing(context, context.model.get_transpose_flip_new)
-        return Window.ActionResult.FINISHED
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.invoke_processing(context, context.model.get_transpose_flip_new)
 
 
 class UniformFilterAction(ProcessingAction):
     action_id = "processing.uniform_filter"
     action_name = _("Uniform Filter")
 
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.execute_processing(context, context.model.get_uniform_filter_new)
+
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        self.invoke_processing(context, context.model.get_uniform_filter_new)
-        return Window.ActionResult.FINISHED
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.invoke_processing(context, context.model.get_uniform_filter_new)
 
 
 class ProcessingComponentAction(ProcessingAction):
@@ -3801,11 +4026,18 @@ class ProcessingComponentAction(ProcessingAction):
         self.action_name = title
         self.__processing_id = processing_id
 
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        if context.display_item and context.data_item:
+            window._perform_processing(context.display_item, context.data_item, None, functools.partial(context.model.get_processing_new, self.__processing_id))
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
+
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
         window = typing.cast(DocumentController, context.window)
         window._perform_processing_select(context.display_item, None, functools.partial(context.model.get_processing_new, self.__processing_id))
-        return Window.ActionResult.FINISHED
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
     def is_enabled(self, context: Window.ActionContext) -> bool:
         context = typing.cast(DocumentController.ActionContext, context)
