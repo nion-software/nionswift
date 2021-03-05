@@ -3115,6 +3115,24 @@ class DisplayPanelOneViewAction(Window.Action):
         return context.display_item is not None and context.display_item.used_display_type == "image"
 
 
+class DisplayPanelSelectSiblings(Window.Action):
+    action_id = "display_panel.select_siblings"
+    action_name = _("Select More Display Panels")
+
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        if context.display_panel:
+            window.workspace_controller.select_sibling_display_panels([context.display_panel])
+        else:
+            window.workspace_controller.select_sibling_display_panels(context.display_panels)
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return len(context.display_panels) > 0 or context.display_panel is not None
+
+
 class DisplayPanelShowItemAction(Window.Action):
 
     action_id = "display_panel.show_item"
@@ -3237,6 +3255,7 @@ Window.register_action(DisplayPanelCloseAction())
 Window.register_action(DisplayPanelFitToViewAction())
 Window.register_action(DisplayPanelFillViewAction())
 Window.register_action(DisplayPanelOneViewAction())
+Window.register_action(DisplayPanelSelectSiblings())
 Window.register_action(DisplayPanelShowItemAction())
 Window.register_action(DisplayPanelShowGridBrowserAction())
 Window.register_action(DisplayPanelShowThumbnailBrowserAction())

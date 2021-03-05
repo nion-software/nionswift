@@ -1969,6 +1969,9 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         if self.__document_controller.is_action_enabled("display_panel.clear", action_context):
             menu.add_separator()
             self.__document_controller.add_action_to_menu(menu, "display_panel.clear", action_context)
+        if self.__document_controller.is_action_enabled("display_panel.select_siblings", action_context):
+            menu.add_separator()
+            self.__document_controller.add_action_to_menu(menu, "display_panel.select_siblings", action_context)
         if action_context.display_panel:
             menu.add_separator()
             self.__document_controller.add_action_to_menu(menu, "workspace.split_vertical", action_context)

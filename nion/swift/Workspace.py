@@ -467,6 +467,39 @@ class Workspace:
             display_panel.change_display_panel_content(d)
         self.document_controller.push_undo_command(command)
 
+    def select_sibling_display_panels(self, display_panels: typing.Sequence[DisplayPanel.DisplayPanel]) -> None:
+        select_display_panels = list(display_panels)
+
+        def append_child_display_panels(splitter_canvas_item: CanvasItem.SplitterCanvasItem,
+                                        display_panels: typing.List[DisplayPanel.DisplayPanel]) -> None:
+            for canvas_item in splitter_canvas_item.canvas_items:
+                if isinstance(canvas_item, DisplayPanel.DisplayPanel):
+                    if canvas_item not in display_panels:
+                        display_panels.append(canvas_item)
+                elif isinstance(canvas_item, CanvasItem.SplitterCanvasItem):
+                    append_child_display_panels(canvas_item, display_panels)
+
+        def get_ancestor_splitter(display_panel: DisplayPanel.DisplayPanel, display_panels: typing.Sequence[DisplayPanel.DisplayPanel]) -> typing.Optional[CanvasItem.SplitterCanvasItem]:
+            container = display_panel.container
+            while isinstance(container, CanvasItem.SplitterCanvasItem):
+                descendent_display_panels = list()
+                append_child_display_panels(container, descendent_display_panels)
+                # check if all descendents are in the initial set of display panels
+                if set(descendent_display_panels) - set(display_panels):
+                    # not all descendent are selected
+                    return container
+                container = container.container
+            return None
+
+        for display_panel in display_panels:
+            splitter_canvas_item = get_ancestor_splitter(display_panel, display_panels)
+            if splitter_canvas_item:
+                append_child_display_panels(splitter_canvas_item, select_display_panels)
+
+        for display_panel in select_display_panels:
+            if display_panel != self.document_controller.selected_display_panel:
+                self.document_controller.add_secondary_display_panel(display_panel)
+
     def switch_to_display_content(self, display_panel: DisplayPanel.DisplayPanel, display_panel_type, display_item: DisplayItem.DisplayItem = None) -> None:
         d = {"type": "image", "display-panel-type": display_panel_type}
         if display_item and display_panel_type != "empty-display-panel":
