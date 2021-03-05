@@ -891,21 +891,25 @@ class Workspace:
         self.__sync_layout()
         return old_display_panel, old_splits, region_id
 
-    def apply_layout(self, display_panel: DisplayPanel.DisplayPanel, w: int, h: int) -> Undo.UndoableCommand:
+    def apply_layout(self, display_panel: DisplayPanel.DisplayPanel, w: int, h: int) -> typing.List[DisplayPanel.DisplayPanel]:
         assert isinstance(display_panel, DisplayPanel.DisplayPanel)
         assert self.__workspace
         change_workspace_contents_command = ChangeWorkspaceContentsCommand(self, _("Change Workspace Contents"))
+
+        new_display_panels = list()
 
         # insert the rows
         row_splitter_canvas_item = CanvasItem.SplitterCanvasItem(orientation="horizontal")
         row_splitter_canvas_item.on_splits_will_change = functools.partial(self._splits_will_change, row_splitter_canvas_item)
         row_splitter_canvas_item.on_splits_changed = functools.partial(self._splits_did_change, row_splitter_canvas_item)
         display_panel.container.wrap_canvas_item(display_panel, row_splitter_canvas_item)
+        new_display_panels.append(display_panel)
         dest_index = self.display_panels.index(display_panel)
         for row in range(h):
             if row > 0:
                 row_display_panel = DisplayPanel.DisplayPanel(self.document_controller, dict())
                 self.display_panels.insert(dest_index + 1, row_display_panel)
+                new_display_panels.append(row_display_panel)
                 dest_index += 1
                 row_splitter_canvas_item.insert_canvas_item(row + 1, row_display_panel)
             else:
@@ -918,6 +922,7 @@ class Workspace:
             row_display_panel.container.wrap_canvas_item(row_display_panel, column_splitter_canvas_item)
             for column in range(1, w):
                 column_display_panel = DisplayPanel.DisplayPanel(self.document_controller, dict())
+                new_display_panels.append(column_display_panel)
                 self.display_panels.insert(dest_index + 1, column_display_panel)
                 dest_index += 1
                 column_splitter_canvas_item.insert_canvas_item(column + 1, column_display_panel)
@@ -928,7 +933,9 @@ class Workspace:
         self.__sync_layout()
         display_panel.request_focus()
 
-        return change_workspace_contents_command
+        self.document_controller.push_undo_command(change_workspace_contents_command)
+
+        return new_display_panels
 
     def _splits_will_change(self, splitter_canvas_item: CanvasItem.SplitterCanvasItem) -> None:
         self.__change_splitter_splits = splitter_canvas_item.splits
@@ -943,6 +950,9 @@ class Workspace:
                 self.__change_splitter_command.close()
             self.__change_splitter_command = None
             self.__change_splitter_splits = None
+
+    def _sync_layout(self) -> None:
+        self.__sync_layout()
 
     def __sync_layout(self) -> None:
         # ensure that the layout is written to persistent storage

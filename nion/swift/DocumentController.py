@@ -46,6 +46,7 @@ from nion.swift.model import Profile
 from nion.swift.model import Project
 from nion.swift.model import Symbolic
 from nion.swift.model import WorkspaceLayout
+from nion.ui import CanvasItem
 from nion.ui import Dialog
 from nion.ui import PreferencesDialog
 from nion.ui import Window
@@ -2677,6 +2678,32 @@ Window.register_action(OpenRunScriptsAction())
 Window.register_action(ToggleFilterAction())
 
 
+class WorkspaceChangeSplits(Window.Action):
+    # this is for internal testing only. since it requires passing the splitter and splits,
+    # it is a non-standard action.
+
+    action_id = "workspace.set_splits"
+    action_name = _("Change Splits")
+
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        workspace_controller = window.workspace_controller
+        print(f"{workspace_controller=}")
+        if workspace_controller:
+            splitter_canvas_item = typing.cast(CanvasItem.SplitterCanvasItem, context.parameters["splitter"])
+            splits = context.parameters["splits"]
+            command = Workspace.ChangeWorkspaceContentsCommand(workspace_controller, _("Change Splits"))
+            splitter_canvas_item.splits = splits
+            workspace_controller._sync_layout()
+            window.push_undo_command(command)
+            return Window.ActionResult(Window.ActionStatus.FINISHED)
+        raise ValueError("Missing workspace controller")
+
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+        raise NotImplementedError()
+
+
 class WorkspaceCloneAction(Window.Action):
     action_id = "workspace.clone"
     action_name = _("Clone Workspace")
@@ -2888,9 +2915,11 @@ class WorkspaceSplitAction(Window.Action):
             v = self.get_int_property(context, "vertical_count")
             h = max(1, min(8, h))
             v = max(1, min(8, v))
-            command = workspace_controller.apply_layout(context.display_panel, h, v)
-            window.push_undo_command(command)
-        return Window.ActionResult(Window.ActionStatus.FINISHED)
+            display_panels = workspace_controller.apply_layout(context.display_panel, h, v)
+            action_result = Window.ActionResult(Window.ActionStatus.FINISHED)
+            action_result.results["display_panels"] = list(display_panels)
+            return action_result
+        raise ValueError("Missing workspace controller")
 
     def is_enabled(self, context: Window.ActionContext) -> bool:
         context = typing.cast(DocumentController.ActionContext, context)
@@ -2963,6 +2992,7 @@ class WorkspaceSplit5x4Action(WorkspaceSplitAction):
         return super().execute(context)
 
 
+Window.register_action(WorkspaceChangeSplits())
 Window.register_action(WorkspaceCloneAction())
 Window.register_action(WorkspaceNewAction())
 Window.register_action(WorkspaceNextAction())
