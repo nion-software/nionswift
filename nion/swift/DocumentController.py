@@ -2689,7 +2689,6 @@ class WorkspaceChangeSplits(Window.Action):
         context = typing.cast(DocumentController.ActionContext, context)
         window = typing.cast(DocumentController, context.window)
         workspace_controller = window.workspace_controller
-        print(f"{workspace_controller=}")
         if workspace_controller:
             splitter_canvas_item = typing.cast(CanvasItem.SplitterCanvasItem, context.parameters["splitter"])
             splits = context.parameters["splits"]
