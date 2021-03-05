@@ -2098,30 +2098,6 @@ class DocumentController(Window.Window):
             Dialog.pose_select_item_pop_up(display_item.data_items, functools.partial(perform, display_item),
                                            item_getter=operator.attrgetter("title"), window=self)
 
-    def _change_to_previous_workspace(self):
-        if self.workspace_controller:
-            self.workspace_controller.change_to_previous_workspace()
-
-    def _change_to_next_workspace(self):
-        if self.workspace_controller:
-            self.workspace_controller.change_to_next_workspace()
-
-    def _create_workspace(self):
-        if self.workspace_controller:
-            self.workspace_controller.create_workspace()
-
-    def _rename_workspace(self):
-        if self.workspace_controller:
-            self.workspace_controller.rename_workspace()
-
-    def _remove_workspace(self):
-        if self.workspace_controller:
-            self.workspace_controller.remove_workspace()
-
-    def _clone_workspace(self):
-        if self.workspace_controller:
-            self.workspace_controller.clone_workspace()
-
     def toggle_filter(self):
         if self.workspace_controller.filter_row.visible:
             self.__last_display_filter = self.display_filter
@@ -2671,18 +2647,69 @@ Window.register_action(ToggleFilterAction())
 class WorkspaceCloneAction(Window.Action):
     action_id = "workspace.clone"
     action_name = _("Clone Workspace")
+    action_parameters = [
+        Window.ActionStringProperty("name")
+    ]
+
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        workspace_controller = window.workspace_controller
+        text = self.get_string_property(context, "name")
+        if text:
+            command = Workspace.CloneWorkspaceCommand(workspace_controller, text)
+            command.perform()
+            window.push_undo_command(command)
+        return Window.ActionResult.FINISHED
 
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        context.window._clone_workspace()
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        workspace_controller = window.workspace_controller
+        if workspace_controller:
+            def clone_clicked(text: str) -> None:
+                if text:
+                    self.set_string_property(context, "name", text)
+                    self.execute(context)
+            workspace_controller.pose_get_string_message_box(caption=_("Enter name for the workspace"),
+                                                             text=workspace_controller._workspace.name,
+                                                             accepted_fn=clone_clicked, accepted_text=_("Clone"),
+                                                             message_box_id="clone_workspace")
         return Window.ActionResult.FINISHED
 
 
 class WorkspaceNewAction(Window.Action):
+    """Create a new workspace in the project."""
     action_id = "workspace.new"
     action_name = _("New Workspace")
+    action_parameters = [
+        Window.ActionStringProperty("name")
+    ]
+
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        workspace_controller = window.workspace_controller
+        text = self.get_string_property(context, "name")
+        if text:
+            command = Workspace.CreateWorkspaceCommand(workspace_controller, text)
+            command.perform()
+            window.push_undo_command(command)
+        return Window.ActionResult.FINISHED
 
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        context.window._create_workspace()
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        workspace_controller = window.workspace_controller
+        if workspace_controller:
+            def create_clicked(text: str) -> None:
+                if text:
+                    self.set_string_property(context, "name", text)
+                    self.execute(context)
+            workspace_controller.pose_get_string_message_box(caption=_("Enter name for the workspace"),
+                                                             text=_("Workspace"),
+                                                             accepted_fn=create_clicked, accepted_text=_("Create"),
+                                                             message_box_id="create_workspace")
         return Window.ActionResult.FINISHED
 
 
@@ -2690,8 +2717,12 @@ class WorkspaceNextAction(Window.Action):
     action_id = "workspace.next"
     action_name = _("Next Workspace")
 
-    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        context.window._change_to_next_workspace()
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        workspace_controller = window.workspace_controller
+        if workspace_controller:
+            workspace_controller.change_to_next_workspace()
         return Window.ActionResult.FINISHED
 
 
@@ -2699,8 +2730,12 @@ class WorkspacePreviousAction(Window.Action):
     action_id = "workspace.previous"
     action_name = _("Previous Workspace")
 
-    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        context.window._change_to_previous_workspace()
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        workspace_controller = window.workspace_controller
+        if workspace_controller:
+            workspace_controller.change_to_previous_workspace()
         return Window.ActionResult.FINISHED
 
 
@@ -2708,17 +2743,62 @@ class WorkspaceRemoveAction(Window.Action):
     action_id = "workspace.remove"
     action_name = _("Remove Workspace")
 
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        workspace_controller = window.workspace_controller
+        if len(workspace_controller._project.workspaces) > 1:
+            command = Workspace.RemoveWorkspaceCommand(workspace_controller)
+            command.perform()
+            window.push_undo_command(command)
+        return Window.ActionResult.FINISHED
+
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        context.window._remove_workspace()
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        workspace_controller = window.workspace_controller
+        if workspace_controller:
+            def confirm_clicked() -> None:
+                self.execute(context)
+
+            caption = _(f"Remove workspace '{workspace_controller._workspace.name}'?")
+            workspace_controller.pose_confirmation_message_box(caption, confirm_clicked,
+                                                               accepted_text=_("Remove Workspace"),
+                                                               message_box_id="remove_workspace")
         return Window.ActionResult.FINISHED
 
 
 class WorkspaceRenameAction(Window.Action):
     action_id = "workspace.rename"
     action_name = _("Rename Workspace")
+    action_parameters = [
+        Window.ActionStringProperty("name")
+    ]
+
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        workspace_controller = window.workspace_controller
+        text = self.get_string_property(context, "name")
+        if text:
+            command = Workspace.RenameWorkspaceCommand(workspace_controller, text)
+            command.perform()
+            window.push_undo_command(command)
+        return Window.ActionResult.FINISHED
 
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        context.window._rename_workspace()
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        workspace_controller = window.workspace_controller
+        if workspace_controller:
+            def rename_clicked(text: str) -> None:
+                if text:
+                    self.set_string_property(context, "name", text)
+                    self.execute(context)
+            workspace_controller.pose_get_string_message_box(caption=_("Enter new name for workspace"),
+                                                             text=workspace_controller._workspace.name,
+                                                             accepted_fn=rename_clicked, accepted_text=_("Rename"),
+                                                             message_box_id="rename_workspace")
         return Window.ActionResult.FINISHED
 
 
@@ -2726,7 +2806,7 @@ class WorkspaceSplitHorizontalAction(Window.Action):
     action_id = "workspace.split_horizontal"
     action_name = _("Split Panel Into Left and Right")
 
-    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
         window = typing.cast(DocumentController, context.window)
         workspace_controller = window.workspace_controller
@@ -2744,7 +2824,7 @@ class WorkspaceSplitVerticalAction(Window.Action):
     action_id = "workspace.split_vertical"
     action_name = _("Split Panel Into Top and Bottom")
 
-    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
         window = typing.cast(DocumentController, context.window)
         workspace_controller = window.workspace_controller
@@ -2758,112 +2838,96 @@ class WorkspaceSplitVerticalAction(Window.Action):
         return context.display_panel is not None
 
 
-class WorkspaceSplit2x2Action(Window.Action):
+class WorkspaceSplitAction(Window.Action):
+    action_id = "workspace.split"
+    action_name = _("Split Display Panel")
+    action_parameters = [
+        Window.ActionIntegerProperty("horizontal_count"),
+        Window.ActionIntegerProperty("vertical_count")
+    ]
+
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        workspace_controller = window.workspace_controller
+        if workspace_controller:
+            h = self.get_int_property(context, "horizontal_count")
+            v = self.get_int_property(context, "vertical_count")
+            h = max(1, min(8, h))
+            v = max(1, min(8, v))
+            command = workspace_controller.apply_layout(context.display_panel, h, v)
+            window.push_undo_command(command)
+        return Window.ActionResult.FINISHED
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return context.display_panel is not None
+
+
+class WorkspaceSplit2x2Action(WorkspaceSplitAction):
     action_id = "workspace.split_2x2"
     action_name = _("Split Panel 2x2")
 
-    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
-        window = typing.cast(DocumentController, context.window)
-        workspace_controller = window.workspace_controller
-        if workspace_controller:
-            command = workspace_controller.apply_layout(context.display_panel, 2, 2)
-            window.push_undo_command(command)
-        return Window.ActionResult.FINISHED
-
-    def is_enabled(self, context: Window.ActionContext) -> bool:
-        context = typing.cast(DocumentController.ActionContext, context)
-        return context.display_panel is not None
+        self.set_int_property(context, "horizontal_count", 2)
+        self.set_int_property(context, "vertical_count", 2)
+        return super().execute(context)
 
 
-class WorkspaceSplit3x2Action(Window.Action):
+class WorkspaceSplit3x2Action(WorkspaceSplitAction):
     action_id = "workspace.split_3x2"
     action_name = _("Split Panel 3x2")
 
-    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
-        window = typing.cast(DocumentController, context.window)
-        workspace_controller = window.workspace_controller
-        if workspace_controller:
-            command = workspace_controller.apply_layout(context.display_panel, 3, 2)
-            window.push_undo_command(command)
-        return Window.ActionResult.FINISHED
-
-    def is_enabled(self, context: Window.ActionContext) -> bool:
-        context = typing.cast(DocumentController.ActionContext, context)
-        return context.display_panel is not None
+        self.set_int_property(context, "horizontal_count", 3)
+        self.set_int_property(context, "vertical_count", 2)
+        return super().execute(context)
 
 
-class WorkspaceSplit3x3Action(Window.Action):
+class WorkspaceSplit3x3Action(WorkspaceSplitAction):
     action_id = "workspace.split_3x3"
     action_name = _("Split Panel 3x3")
 
-    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
-        window = typing.cast(DocumentController, context.window)
-        workspace_controller = window.workspace_controller
-        if workspace_controller:
-            command = workspace_controller.apply_layout(context.display_panel, 3, 3)
-            window.push_undo_command(command)
-        return Window.ActionResult.FINISHED
-
-    def is_enabled(self, context: Window.ActionContext) -> bool:
-        context = typing.cast(DocumentController.ActionContext, context)
-        return context.display_panel is not None
+        self.set_int_property(context, "horizontal_count", 3)
+        self.set_int_property(context, "vertical_count", 3)
+        return super().execute(context)
 
 
-class WorkspaceSplit4x3Action(Window.Action):
+class WorkspaceSplit4x3Action(WorkspaceSplitAction):
     action_id = "workspace.split_4x3"
     action_name = _("Split Panel 4x3")
 
-    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
-        window = typing.cast(DocumentController, context.window)
-        workspace_controller = window.workspace_controller
-        if workspace_controller:
-            command = workspace_controller.apply_layout(context.display_panel, 4, 3)
-            window.push_undo_command(command)
-        return Window.ActionResult.FINISHED
-
-    def is_enabled(self, context: Window.ActionContext) -> bool:
-        context = typing.cast(DocumentController.ActionContext, context)
-        return context.display_panel is not None
+        self.set_int_property(context, "horizontal_count", 4)
+        self.set_int_property(context, "vertical_count", 3)
+        return super().execute(context)
 
 
-class WorkspaceSplit4x4Action(Window.Action):
+class WorkspaceSplit4x4Action(WorkspaceSplitAction):
     action_id = "workspace.split_4x4"
     action_name = _("Split Panel 4x4")
 
-    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
-        window = typing.cast(DocumentController, context.window)
-        workspace_controller = window.workspace_controller
-        if workspace_controller:
-            command = workspace_controller.apply_layout(context.display_panel, 4, 4)
-            window.push_undo_command(command)
-        return Window.ActionResult.FINISHED
-
-    def is_enabled(self, context: Window.ActionContext) -> bool:
-        context = typing.cast(DocumentController.ActionContext, context)
-        return context.display_panel is not None
+        self.set_int_property(context, "horizontal_count", 4)
+        self.set_int_property(context, "vertical_count", 4)
+        return super().execute(context)
 
 
-class WorkspaceSplit5x4Action(Window.Action):
+class WorkspaceSplit5x4Action(WorkspaceSplitAction):
     action_id = "workspace.split_5x4"
     action_name = _("Split Panel 5x4")
 
-    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
-        window = typing.cast(DocumentController, context.window)
-        workspace_controller = window.workspace_controller
-        if workspace_controller:
-            command = workspace_controller.apply_layout(context.display_panel, 5, 4)
-            window.push_undo_command(command)
-        return Window.ActionResult.FINISHED
-
-    def is_enabled(self, context: Window.ActionContext) -> bool:
-        context = typing.cast(DocumentController.ActionContext, context)
-        return context.display_panel is not None
+        self.set_int_property(context, "horizontal_count", 5)
+        self.set_int_property(context, "vertical_count", 4)
+        return super().execute(context)
 
 
 Window.register_action(WorkspaceCloneAction())
@@ -2874,6 +2938,7 @@ Window.register_action(WorkspaceRemoveAction())
 Window.register_action(WorkspaceRenameAction())
 Window.register_action(WorkspaceSplitHorizontalAction())
 Window.register_action(WorkspaceSplitVerticalAction())
+Window.register_action(WorkspaceSplitAction())
 Window.register_action(WorkspaceSplit2x2Action())
 Window.register_action(WorkspaceSplit3x2Action())
 Window.register_action(WorkspaceSplit3x3Action())

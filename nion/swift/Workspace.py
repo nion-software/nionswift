@@ -587,61 +587,6 @@ class Workspace:
                 return workspace_layout
         return None
 
-    def create_workspace(self) -> None:
-        """ Pose a dialog to name and create a workspace. """
-
-        def create_clicked(text: str) -> None:
-            if text:
-                command = CreateWorkspaceCommand(self, text)
-                command.perform()
-                self.document_controller.push_undo_command(command)
-
-        self.pose_get_string_message_box(caption=_("Enter a name for the workspace"), text=_("Workspace"),
-                                         accepted_fn=create_clicked, accepted_text=_("Create"),
-                                         message_box_id="create_workspace")
-
-    def rename_workspace(self) -> None:
-        """ Pose a dialog to rename the workspace. """
-        assert self.__workspace
-
-        def rename_clicked(text: str) -> None:
-            if len(text) > 0:
-                command = RenameWorkspaceCommand(self, text)
-                command.perform()
-                self.document_controller.push_undo_command(command)
-
-        self.pose_get_string_message_box(caption=_("Enter new name for workspace"), text=self.__workspace.name,
-                                         accepted_fn=rename_clicked, accepted_text=_("Rename"),
-                                         message_box_id="rename_workspace")
-
-    def remove_workspace(self) -> None:
-        """ Pose a dialog to confirm removal then remove workspace. """
-        assert self.__workspace
-
-        def confirm_clicked() -> None:
-            if len(self._project.workspaces) > 1:
-                command = RemoveWorkspaceCommand(self)
-                command.perform()
-                self.document_controller.push_undo_command(command)
-
-        caption = _("Remove workspace named '{0}'?").format(self.__workspace.name)
-        self.pose_confirmation_message_box(caption, confirm_clicked, accepted_text=_("Remove Workspace"),
-                                           message_box_id="remove_workspace")
-
-    def clone_workspace(self) -> None:
-        """ Pose a dialog to name and clone a workspace. """
-        assert self.__workspace
-
-        def clone_clicked(text: str) -> None:
-            if text:
-                command = CloneWorkspaceCommand(self, text)
-                command.perform()
-                self.document_controller.push_undo_command(command)
-
-        self.pose_get_string_message_box(caption=_("Enter a name for the workspace"), text=self.__workspace.name,
-                                         accepted_fn=clone_clicked, accepted_text=_("Clone"),
-                                         message_box_id="clone_workspace")
-
     def pose_get_string_message_box(self, caption: str, text: str, accepted_fn: typing.Callable[[str], None],
                                     rejected_fn: typing.Optional[typing.Callable[[], None]] = None,
                                     accepted_text: typing.Optional[str] = None,
