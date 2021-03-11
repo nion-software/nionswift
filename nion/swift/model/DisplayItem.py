@@ -894,7 +894,7 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
 
     def __validate_slice_center_for_width(self, value, slice_width):
         data_metadata = self._get_data_metadata()
-        if data_metadata and data_metadata.dimensional_shape is not None:
+        if data_metadata and len(data_metadata.dimensional_shape) > 0:
             depth = data_metadata.dimensional_shape[-1]
             mn = max(int(slice_width * 0.5), 0)
             mx = min(int(depth - slice_width * 0.5), depth - 1)
@@ -906,7 +906,7 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
 
     def __validate_slice_width(self, value):
         data_metadata = self._get_data_metadata()
-        if data_metadata and data_metadata.dimensional_shape is not None:
+        if data_metadata and len(data_metadata.dimensional_shape) > 0:
             depth = data_metadata.dimensional_shape[-1]  # signal_index
             slice_center = self.slice_center
             mn = 1
@@ -939,7 +939,7 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
     @property
     def slice_interval(self):
         data_metadata = self._get_data_metadata()
-        if data_metadata and data_metadata.dimensional_shape is not None:
+        if data_metadata and len(data_metadata.dimensional_shape) > 0:
             depth = data_metadata.dimensional_shape[-1]  # signal_index
             if depth > 0:
                 slice_interval_start = round(self.slice_center - self.slice_width * 0.5)
@@ -951,7 +951,7 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
     @slice_interval.setter
     def slice_interval(self, slice_interval):
         data_metadata = self._get_data_metadata()
-        if data_metadata.dimensional_shape is not None:
+        if len(data_metadata.dimensional_shape) > 0:
             depth = data_metadata.dimensional_shape[-1]  # signal_index
             if depth > 0:
                 slice_interval_center = round(((slice_interval[0] + slice_interval[1]) * 0.5) * depth)
@@ -1672,7 +1672,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         for display_data_channel in self.display_data_channels:
             display_data_channel.update_display_data()
         xdata_list = [data_item.xdata if data_item else None for data_item in self.data_items]
-        if len(xdata_list) > 0 and xdata_list[0]:
+        if len(xdata_list) > 0 and xdata_list[0] and len(xdata_list[0].dimensional_calibrations) > 0:
             dimensional_calibrations = xdata_list[0].dimensional_calibrations
             if len(dimensional_calibrations) > 1:
                 self.__dimensional_calibrations = dimensional_calibrations
@@ -2064,7 +2064,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         else:
             return str(value)
 
-    def get_value_and_position_text(self, pos: typing.Optional[typing.Tuple[int]]) -> (str, str):
+    def get_value_and_position_text(self, pos: typing.Optional[typing.Tuple[int]]) -> typing.Tuple[str, str]:
         display_data_channel = self.display_data_channel
         dimensional_calibrations = self.displayed_dimensional_calibrations
         intensity_calibration = self.displayed_intensity_calibration
