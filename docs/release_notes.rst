@@ -5,7 +5,31 @@
 Release Notes
 =============
 
-Version 0.15.4 (UNRELEASED)
+Note: In order to release bug fixes in a timely manner, we try to publish Nion Swift releases on
+a regular basis. Sometimes, though, as a consequence, bug fix releases will also include new features
+that are only partial steps towards their final form. Instead of disabling these new partial features
+in bug fix releases, we choose to include them for evaluation and feedback. If you encounter an issue
+or have feedback about these types of new features, please contact us or file issues at
+https://github.com/nion-software/nionswift/issues.
+
+Version 0.15.5 (UNRELEASED)
+---------------------------
+* (2021-03-05) Add menu item to select sibling display panels, useful for clearing/closing.
+* (2021-03-04) Restructure context menu to only show options available for selected display panel(s).
+* (2021-03-04) Add menu items for common n x m layouts, applied to a selected display panel.
+* (2021-03-02) Add ability to select secondary display panels using Shift or Control/Command key.
+* (2021-03-02) Update various processing menu items to utilize multiple selected display panels.
+* (2021-03-02) Right click Export using data panel now exports all selected data panel items.
+* (2021-02-22) Generalize align sequences to operate on collections too.
+* (2021-02-22) Fix issue with new generate data dialog when using sequences.
+* (2021-02-22) Add ability to bypass opening default project by holding Shift at launch.
+* (2021-02-22) Change window title to display current project and workspace.
+* (2021-02-21) Improve performance on composite line plots by minimizing thumbnail recalculation.
+* (2021-02-13) Improve handling of line plot data when removing a display layer.
+* (2021-02-13) Improve handling of line plot displaying 2D with 16+ rows.
+* (2021-02-03) Improve About Box to show more installation info.
+
+Version 0.15.4 (2021-02-02)
 ---------------------------
 * (2021-01-22) Add dialog to generate data, useful for testing and experiments.
 * (2021-01-20) Allow computations to be deleted directly from computation editor.

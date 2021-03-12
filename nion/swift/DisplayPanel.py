@@ -1437,7 +1437,6 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
 
         self.__grid_browser_canvas_item = self.__grid_data_grid_controller.canvas_item
         self.__grid_browser_canvas_item.visible = False
-        self.__grid_browser_canvas_item._tt = True
 
         # the column composition layout permits displaying data item and horizontal browser simultaneously and also the
         # data item and grid as the only items just by selecting hiding/showing individual canvas items.
@@ -1997,9 +1996,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
             self.__document_controller.add_action_to_menu(menu, "display_panel.show_thumbnail_browser", action_context)
             self.__document_controller.add_action_to_menu(menu, "display_panel.show_grid_browser", action_context)
             menu.add_separator()
-            display_panel_type_menu = self.document_controller.create_sub_menu()
-            menu.add_sub_menu(_("Display Panel Type"), display_panel_type_menu)
-            DisplayPanelManager().build_menu(display_panel_type_menu, self.__document_controller, self)
+            DisplayPanelManager().build_menu(menu, self.__document_controller, self)
         menu.popup(gx, gy)
         return True
 
