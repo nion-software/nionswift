@@ -12,7 +12,7 @@ in bug fix releases, we choose to include them for evaluation and feedback. If y
 or have feedback about these types of new features, please contact us or file issues at
 https://github.com/nion-software/nionswift/issues.
 
-Version 0.15.5 (UNRELEASED)
+Version 0.15.5 (2021-03-12)
 ---------------------------
 * (2021-03-05) Add menu item to select sibling display panels, useful for clearing/closing.
 * (2021-03-04) Restructure context menu to only show options available for selected display panel(s).
