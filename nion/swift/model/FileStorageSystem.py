@@ -14,6 +14,7 @@ import uuid
 
 from nion.swift.model import DataItem
 from nion.swift.model import HDF5Handler
+from nion.swift.model import ZarrHandler
 from nion.swift.model import Migration
 from nion.swift.model import Model
 from nion.swift.model import NDataHandler
@@ -653,7 +654,7 @@ class ProjectStorageSystem(PersistentStorageSystem):
 
 class FileProjectStorageSystem(ProjectStorageSystem):
 
-    _file_handlers = [NDataHandler.NDataHandler, HDF5Handler.HDF5Handler]
+    _file_handlers = [NDataHandler.NDataHandler, HDF5Handler.HDF5Handler, ZarrHandler.ZarrHandler]
 
     def __init__(self, project_path: pathlib.Path, project_data_path: pathlib.Path = None):
         super().__init__()
@@ -717,7 +718,7 @@ class FileProjectStorageSystem(ProjectStorageSystem):
         return self.__find_storage_handlers(self.__project_data_path)
 
     def _is_storage_handler_large_format(self, storage_handler: StorageHandler.StorageHandler) -> bool:
-        return isinstance(storage_handler, HDF5Handler.HDF5Handler)
+        return isinstance(storage_handler, (HDF5Handler.HDF5Handler, ZarrHandler.ZarrHandler))
 
     def _remove_storage_handler(self, storage_handler: StorageHandler.StorageHandler, *, safe: bool = False) -> None:
         assert self.__project_data_path is not None
@@ -752,7 +753,7 @@ class FileProjectStorageSystem(ProjectStorageSystem):
                             os.makedirs(os.path.dirname(new_file_path), exist_ok=True)
                             shutil.move(old_file_path, new_file_path)
                         self._make_storage_handler(data_item, file_handler=None).close()  # what's this line for?
-                        properties["__large_format"] = isinstance(storage_handler, HDF5Handler.HDF5Handler)
+                        properties["__large_format"] = isinstance(storage_handler, (HDF5Handler.HDF5Handler, ZarrHandler.ZarrHandler))
                         return properties
         finally:
             for storage_handler in storage_handlers:
@@ -767,7 +768,14 @@ class FileProjectStorageSystem(ProjectStorageSystem):
                 # we just delete anything in the trash at startup. future version may have an index file for
                 # tracking items in the trash. when items are again retained in the trash, update the disabled
                 # test_delete_and_undelete_from_file_storage_system_restores_data_item_after_reload
-                file_path.unlink()
+                try:
+                    file_path.unlink()
+                except PermissionError:
+                    try:
+                        shutil.rmtree(file_path)
+                    except:
+                        import traceback
+                        traceback.print_exc()
 
     @property
     def _trash_dir(self) -> pathlib.Path:
