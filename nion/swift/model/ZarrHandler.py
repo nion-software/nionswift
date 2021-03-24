@@ -169,7 +169,8 @@ class ZarrHandler(StorageHandler.StorageHandler):
         #   2 - 'data' exists but is a different size (delete, then require_dataset)
         #   3 - 'data' exists and is the same size (overwrite)
         try:
-            self.__array = zarr.Array(self.__store)
+            if self.__array is None:
+                self.__array = zarr.Array(self.__store)
         except zarr.errors.ArrayNotFoundError:
             # case 1
             chunks = get_write_chunk_shape_for_data(data.shape, data.dtype)
@@ -193,7 +194,8 @@ class ZarrHandler(StorageHandler.StorageHandler):
         json_properties = None
         # first read existing properties and then close existing data set and file.
         try:
-            self.__array = zarr.Array(self.__store)
+            if self.__array is None:
+                self.__array = zarr.Array(self.__store)
         except zarr.errors.ArrayNotFoundError:
             pass
         else:

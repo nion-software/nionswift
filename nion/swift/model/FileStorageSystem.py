@@ -800,7 +800,10 @@ class FileProjectStorageSystem(ProjectStorageSystem):
             with contextlib.closing(self._make_storage_handler(old_data_item, file_handler)) as target_storage_handler:
                 if target_storage_handler and storage_handler.reference != target_storage_handler.reference:
                     os.makedirs(os.path.dirname(target_storage_handler.reference), exist_ok=True)
-                    shutil.copyfile(storage_handler.reference, target_storage_handler.reference)
+                    try:
+                        shutil.copyfile(storage_handler.reference, target_storage_handler.reference)
+                    except PermissionError:
+                        shutil.copytree(storage_handler.reference, target_storage_handler.reference, dirs_exist_ok=True)
                     target_storage_handler.write_properties(Migration.transform_from_latest(copy.deepcopy(properties)), datetime.datetime.now())
                     logging.getLogger("migration").info(f"Copying data item ({index + 1}/{count}) {data_item_uuid} to new library.")
                     return ReaderInfo(properties, [False], self._is_storage_handler_large_format(target_storage_handler),
