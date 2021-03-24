@@ -770,7 +770,7 @@ class FileProjectStorageSystem(ProjectStorageSystem):
                 # test_delete_and_undelete_from_file_storage_system_restores_data_item_after_reload
                 try:
                     file_path.unlink()
-                except PermissionError:
+                except (PermissionError, IsADirectoryError):
                     try:
                         shutil.rmtree(file_path)
                     except:
@@ -802,7 +802,7 @@ class FileProjectStorageSystem(ProjectStorageSystem):
                     os.makedirs(os.path.dirname(target_storage_handler.reference), exist_ok=True)
                     try:
                         shutil.copyfile(storage_handler.reference, target_storage_handler.reference)
-                    except PermissionError:
+                    except (PermissionError, IsADirectoryError):
                         shutil.copytree(storage_handler.reference, target_storage_handler.reference, dirs_exist_ok=True)
                     target_storage_handler.write_properties(Migration.transform_from_latest(copy.deepcopy(properties)), datetime.datetime.now())
                     logging.getLogger("migration").info(f"Copying data item ({index + 1}/{count}) {data_item_uuid} to new library.")
