@@ -155,7 +155,7 @@ class ScriptListItem:
         if isinstance(other, FolderListItem):
             return False
         if isinstance(other, ScriptListItem):
-            return locale.strxfrm(self.basename) < locale.strxfrm(other.basename)
+            return locale.strxfrm(self.basename.casefold()) < locale.strxfrm(other.basename.casefold())
         return NotImplemented
 
 
@@ -185,7 +185,7 @@ class FolderListItem(ScriptListItem):
     # Used by "sort"
     def __lt__(self, other) -> bool:
         if isinstance(other, FolderListItem):
-            return locale.strxfrm(self.basename) < locale.strxfrm(other.basename)
+            return locale.strxfrm(self.basename.casefold()) < locale.strxfrm(other.basename.casefold())
         if isinstance(other, ScriptListItem):
             return True
         return NotImplemented
@@ -202,7 +202,7 @@ def _build_sorted_scripts_list(scripts_list: typing.List[ScriptListItem]) -> typ
         set_items.append(item)
         if isinstance(item, FolderListItem):
             if not item.folder_closed:
-                for content_item in item.content:
+                for content_item in sorted(item.content):
                     set_items.append(content_item)
     return set_items
 
