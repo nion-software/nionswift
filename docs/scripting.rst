@@ -21,15 +21,16 @@ If you're new to Nion Swift Python scripts, start here.
 
 Where to Go Next
 ++++++++++++++++
-1. Review the :ref:`concepts-guide`.
-2. Follow the :ref:`scripting-guide` if you haven't already done so.
+1. Follow the :ref:`scripting-guide` if you haven't already done so.
+2. Review the :ref:`concepts-guide` for some low level details.
 3. Read about :ref:`xdata-guide`.
-4. Explore the :ref:`hardware-guide`.
+4. Explore the :ref:`hardware-guide` and `Nion Swift Instrumentation <https://nionswift-instrumentation.readthedocs.io/en/latest/>`_ documentation.
 5. See the list of classes, methods, properties :ref:`api-quick`.
 6. Write interactive scripts :ref:`interactive-guide`.
 7. Write your own plug-in using :ref:`plugins-guide`.
-8. Browse the :ref:`api-reference`.
-9. Develop with :ref:`userinterface-guide`.
+8. Read about the `NionUI and the Declarative UI <https://nionui.readthedocs.io/en/latest/>`_.
+9. Browse the :ref:`api-reference`.
+10. Develop with :ref:`userinterface-guide`.
 
 Getting Help
 ++++++++++++
