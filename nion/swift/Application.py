@@ -625,7 +625,7 @@ class Application(UIApplication.BaseApplication):
                 logo_column = self.ui.create_column_widget()
                 logo_button = self.ui.create_push_button_widget()
                 logo_button.icon = CanvasItem.load_rgba_data_from_bytes(
-                    pkgutil.get_data(__name__, "resources/logo3.png"))
+                    pkgutil.get_data(__name__, "resources/Logo3.png"))
                 logo_column.add_spacing(26)
                 logo_column.add(logo_button)
                 logo_column.add_stretch()
