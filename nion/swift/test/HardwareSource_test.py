@@ -1211,6 +1211,22 @@ class TestHardwareSourceClass(unittest.TestCase):
                 Utility.local_timezone_override = None
                 Utility.local_utcoffset_override = None
 
+    def test_data_item_created_during_acquisition_is_write_delayed_during_and_not_after(self):
+        with self.__simple_test_context() as simple_test_context:
+            hardware_source = simple_test_context.hardware_source
+            document_controller = simple_test_context.document_controller
+            document_model = simple_test_context.document_model
+            hardware_source.start_playing()
+            try:
+                time.sleep(0.6)
+                document_controller.periodic()
+                self.assertEqual(1, len(document_model.data_items))
+                self.assertTrue(document_model.data_items[0].is_write_delayed)
+            finally:
+                hardware_source.stop_playing(sync_timeout=3.0)
+                document_controller.periodic()
+            self.assertFalse(document_model.data_items[0].is_write_delayed)
+
 
 if __name__ == '__main__':
     unittest.main()
