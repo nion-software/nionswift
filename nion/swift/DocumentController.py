@@ -27,7 +27,9 @@ from nion.swift import DisplayPanel
 from nion.swift import ExportDialog
 from nion.swift import FilterPanel
 from nion.swift import GeneratorDialog
+from nion.swift import Inspector
 from nion.swift import MimeTypes
+from nion.swift import Panel
 from nion.swift import RecorderPanel
 from nion.swift import ScriptsDialog
 from nion.swift import Task
@@ -87,8 +89,8 @@ class DocumentController(Window.Window):
 
         self.__undo_stack = Undo.UndoStack()
 
-        if not app:
-            self.event_loop.has_no_pulse = True
+        if not app:  # for testing
+            setattr(self.event_loop, "has_no_pulse", True)
 
         self.__closed = False  # debugging
 
@@ -291,7 +293,7 @@ class DocumentController(Window.Window):
     def show_about_box(self):
         typing.cast(typing.Any, self.app).show_about_box(self)
 
-    def find_dock_panel(self, dock_panel_id) -> typing.Optional[UserInterface.DockWidget]:
+    def find_dock_panel(self, dock_panel_id) -> typing.Optional[Panel.Panel]:
         """ Return the dock widget by id. """
         return self.workspace_controller._find_dock_panel(dock_panel_id)
 
@@ -1601,8 +1603,8 @@ class DocumentController(Window.Window):
                 result_display_panel.request_focus()
         self.select_display_items_in_data_panel([display_item])
         if request_focus:
-            inspector_panel = self.find_dock_panel("inspector-panel")
-            if inspector_panel is not None:
+            inspector_panel = typing.cast(typing.Optional[Inspector.InspectorPanel], self.find_dock_panel("inspector-panel"))
+            if inspector_panel:
                 inspector_panel.request_focus = True
 
     def _perform_redimension(self, display_item: DisplayItem.DisplayItem, data_descriptor: DataAndMetadata.DataDescriptor) -> None:
@@ -1845,7 +1847,7 @@ class DocumentController(Window.Window):
             new_data_item.title = _("Clone of ") + data_item.title
             new_data_item.category = data_item.category
             self.select_data_item_in_data_panel(new_data_item)
-            inspector_panel = self.find_dock_panel("inspector-panel")
+            inspector_panel = typing.cast(typing.Optional[Inspector.InspectorPanel], self.find_dock_panel("inspector-panel"))
             if inspector_panel is not None:
                 inspector_panel.request_focus = True
             display_item = self.document_model.get_display_item_for_data_item(new_data_item)
@@ -2640,7 +2642,9 @@ class OpenProjectDialogAction(Window.Action):
         raise NotImplementedError()
 
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        context.application.open_project_manager()
+        context = typing.cast(DocumentController.ActionContext, context)
+        application = typing.cast(Application.Application, context.application)
+        application.open_project_manager()
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
@@ -3078,7 +3082,8 @@ class DisplayPanelFillViewAction(Window.Action):
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
-        context.display_panel.perform_action("set_fill_mode")
+        if context.display_panel:
+            context.display_panel.perform_action("set_fill_mode")
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
     def is_enabled(self, context: Window.ActionContext) -> bool:
@@ -3092,7 +3097,8 @@ class DisplayPanelFitToViewAction(Window.Action):
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
-        context.display_panel.perform_action("set_fit_mode")
+        if context.display_panel:
+            context.display_panel.perform_action("set_fit_mode")
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
     def is_enabled(self, context: Window.ActionContext) -> bool:
@@ -3106,7 +3112,8 @@ class DisplayPanelOneViewAction(Window.Action):
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
-        context.display_panel.perform_action("set_one_to_one_mode")
+        if context.display_panel:
+            context.display_panel.perform_action("set_one_to_one_mode")
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
     def is_enabled(self, context: Window.ActionContext) -> bool:
@@ -3141,12 +3148,13 @@ class DisplayPanelShowItemAction(Window.Action):
         context = typing.cast(DocumentController.ActionContext, context)
         window = typing.cast(DocumentController, context.window)
         display_panel = context.display_panel
-        window.workspace_controller.switch_to_display_content(display_panel, "data-display-panel", display_panel.display_item)
+        if display_panel:
+            window.workspace_controller.switch_to_display_content(display_panel, "data-display-panel", display_panel.display_item)
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
     def is_checked(self, context: Window.ActionContext) -> bool:
         context = typing.cast(DocumentController.ActionContext, context)
-        return context.display_panel and context.display_panel.display_panel_type == "data_item"
+        return context.display_panel is not None and context.display_panel.display_panel_type == "data_item"
 
     def is_enabled(self, context: Window.ActionContext) -> bool:
         context = typing.cast(DocumentController.ActionContext, context)
@@ -3162,12 +3170,13 @@ class DisplayPanelShowGridBrowserAction(Window.Action):
         context = typing.cast(DocumentController.ActionContext, context)
         window = typing.cast(DocumentController, context.window)
         display_panel = context.display_panel
-        window.workspace_controller.switch_to_display_content(display_panel, "browser-display-panel", display_panel.display_item)
+        if display_panel:
+            window.workspace_controller.switch_to_display_content(display_panel, "browser-display-panel", display_panel.display_item)
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
     def is_checked(self, context: Window.ActionContext) -> bool:
         context = typing.cast(DocumentController.ActionContext, context)
-        return context.display_panel and context.display_panel.display_panel_type == "grid"
+        return context.display_panel is not None and context.display_panel.display_panel_type == "grid"
 
     def is_enabled(self, context: Window.ActionContext) -> bool:
         context = typing.cast(DocumentController.ActionContext, context)
@@ -3183,12 +3192,13 @@ class DisplayPanelShowThumbnailBrowserAction(Window.Action):
         context = typing.cast(DocumentController.ActionContext, context)
         window = typing.cast(DocumentController, context.window)
         display_panel = context.display_panel
-        window.workspace_controller.switch_to_display_content(display_panel, "thumbnail-browser-display-panel", display_panel.display_item)
+        if display_panel:
+            window.workspace_controller.switch_to_display_content(display_panel, "thumbnail-browser-display-panel", display_panel.display_item)
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
     def is_checked(self, context: Window.ActionContext) -> bool:
         context = typing.cast(DocumentController.ActionContext, context)
-        return context.display_panel and context.display_panel.display_panel_type == "horizontal"
+        return context.display_panel is not None and context.display_panel.display_panel_type == "horizontal"
 
     def is_enabled(self, context: Window.ActionContext) -> bool:
         context = typing.cast(DocumentController.ActionContext, context)
@@ -3201,7 +3211,8 @@ class DisplayPanelTwoViewAction(Window.Action):
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
-        context.display_panel.perform_action("set_two_to_one_mode")
+        if context.display_panel:
+            context.display_panel.perform_action("set_two_to_one_mode")
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
     def is_enabled(self, context: Window.ActionContext) -> bool:
@@ -3226,7 +3237,7 @@ class DisplayRemoveAction(Window.Action):
     def get_action_name(self, context: Window.ActionContext) -> str:
         context = typing.cast(DocumentController.ActionContext, context)
         display_item = context.display_item
-        if context.display_item:
+        if display_item:
             return _("Delete Display Item") + f" \"{display_item.title}\""
         elif context.display_items:
             return _("Delete Display Items") + f" ({len(context.display_items)})"
@@ -3240,7 +3251,8 @@ class DisplayRevealAction(Window.Action):
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
         window = typing.cast(DocumentController, context.window)
-        window.select_display_items_in_data_panel([context.display_item])
+        if context.display_panel and context.display_item:
+            window.select_display_items_in_data_panel([context.display_item])
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
     def is_enabled(self, context: Window.ActionContext) -> bool:
@@ -3288,7 +3300,9 @@ class CopyItemUUIDAction(Window.Action):
     action_name = _("Copy Item UUID")
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
-        context.window.copy_uuid()
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        window.copy_uuid()
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
@@ -3297,7 +3311,9 @@ class CreateDataItemAction(Window.Action):
     action_name = _("Create New Data Item")
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
-        context.window.create_empty_data_item()
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        window.create_empty_data_item()
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
@@ -3306,7 +3322,9 @@ class DuplicateAction(Window.Action):
     action_name = _("Duplicate")
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
-        context.window.processing_duplicate()
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        window.processing_duplicate()
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
@@ -3315,7 +3333,9 @@ class SnapshotAction(Window.Action):
     action_name = _("Snapshot")
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
-        context.window.processing_snapshot()
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        window.processing_snapshot()
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
@@ -3331,7 +3351,9 @@ class AddLineGraphicAction(Window.Action):
     action_name = _("Add Line Graphic")
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
-        context.window.add_line_graphic()
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        window.add_line_graphic()
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
@@ -3340,7 +3362,9 @@ class AddEllipseGraphicAction(Window.Action):
     action_name = _("Add Ellipse Graphic")
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
-        context.window.add_ellipse_graphic()
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        window.add_ellipse_graphic()
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
@@ -3349,7 +3373,9 @@ class AddRectangleGraphicAction(Window.Action):
     action_name = _("Add Rectangle Graphic")
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
-        context.window.add_rectangle_graphic()
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        window.add_rectangle_graphic()
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
@@ -3358,7 +3384,9 @@ class AddPointGraphicAction(Window.Action):
     action_name = _("Add Point Graphic")
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
-        context.window.add_point_graphic()
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        window.add_point_graphic()
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
@@ -3367,7 +3395,9 @@ class AddIntervalGraphicAction(Window.Action):
     action_name = _("Add Interval Graphic")
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
-        context.window.add_interval_graphic()
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        window.add_interval_graphic()
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
@@ -3376,7 +3406,9 @@ class AddChannelGraphicAction(Window.Action):
     action_name = _("Add Channel Graphic")
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
-        context.window.add_channel_graphic()
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        window.add_channel_graphic()
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
@@ -3385,7 +3417,9 @@ class AddGraphicToMaskAction(Window.Action):
     action_name = _("Add to Mask")
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
-        context.window.add_graphic_mask()
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        window.add_graphic_mask()
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
@@ -3394,7 +3428,9 @@ class AddSpotGraphicAction(Window.Action):
     action_name = _("Add Spot Filter")
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
-        context.window.add_spot_graphic()
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        window.add_spot_graphic()
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
@@ -3403,7 +3439,9 @@ class AddAngleGraphicAction(Window.Action):
     action_name = _("Add Angle Filter")
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
-        context.window.add_angle_graphic()
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        window.add_angle_graphic()
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
@@ -3412,7 +3450,9 @@ class AddBandPassGraphicAction(Window.Action):
     action_name = _("Add Band Pass Filter")
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
-        context.window.add_band_pass_graphic()
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        window.add_band_pass_graphic()
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
@@ -3421,7 +3461,9 @@ class AddLatticeGraphicAction(Window.Action):
     action_name = _("Add Lattice Filter")
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
-        context.window.add_lattice_graphic()
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        window.add_lattice_graphic()
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
@@ -3430,7 +3472,9 @@ class RemoveGraphicFromMaskAction(Window.Action):
     action_name = _("Remove from Mask")
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
-        context.window.remove_graphic_mask()
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        window.remove_graphic_mask()
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
@@ -3643,7 +3687,8 @@ class FourierFilterAction(ProcessingAction):
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
         window = typing.cast(DocumentController, context.window)
-        window._perform_processing_select(context.display_item, None, context.model.get_fourier_filter_new)
+        if context.display_item:
+            window._perform_processing_select(context.display_item, None, context.model.get_fourier_filter_new)
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
     def is_enabled(self, context: Window.ActionContext) -> bool:
@@ -4084,7 +4129,8 @@ class ProcessingComponentAction(ProcessingAction):
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
         window = typing.cast(DocumentController, context.window)
-        window._perform_processing_select(context.display_item, None, functools.partial(context.model.get_processing_new, self.__processing_id))
+        if context.display_item:
+            window._perform_processing_select(context.display_item, None, functools.partial(context.model.get_processing_new, self.__processing_id))
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
     def is_enabled(self, context: Window.ActionContext) -> bool:

@@ -15,6 +15,7 @@ import weakref
 
 # local libraries
 from nion.swift import DisplayPanel
+from nion.swift import FilterPanel
 from nion.swift import MimeTypes
 from nion.swift import Undo
 from nion.swift.model import Utility
@@ -24,7 +25,6 @@ from nion.ui import UserInterface
 
 if typing.TYPE_CHECKING:
     from nion.swift import DocumentController
-    from nion.swift import FilterPanel
     from nion.swift import Panel
     from nion.swift.model import DisplayItem
     from nion.swift.model import DocumentModel
@@ -213,7 +213,7 @@ class Workspace:
         self.dock_panels: typing.List[Panel.Panel] = []
         self.display_panels: typing.List[DisplayPanel.DisplayPanel] = []
 
-        self.__canvas_item = None
+        self.__canvas_item = typing.cast(CanvasItem.CanvasItemComposition, None)
 
         # create the root element
         root_widget = self.ui.create_column_widget(properties={"min-width": 640, "min-height": 480})
@@ -241,7 +241,7 @@ class Workspace:
 
         self.__workspace: typing.Optional[WorkspaceLayout.WorkspaceLayout] = None
         self.__change_splitter_command: typing.Optional[Undo.UndoableCommand] = None
-        self.__change_splitter_splits = None
+        self.__change_splitter_splits: typing.List[int] = list()
 
     def close(self) -> None:
         for message_box_widget in copy.copy(list(self.__message_boxes.values())):
@@ -250,13 +250,13 @@ class Workspace:
         if self.__workspace:
             self.__sync_layout()
         self.display_panels = []
-        self.__canvas_item = None
+        self.__canvas_item = typing.cast(CanvasItem.CanvasItemComposition, None)
         self.__workspace = None
         for dock_panel in self.dock_panels:
             dock_panel.close()
-        self.__content_column = None
-        self.filter_row = None
-        self.image_row = None
+        self.__content_column = typing.cast(UserInterface.BoxWidget, None)
+        self.filter_row = typing.cast(FilterPanel.FilterPanel, None)
+        self.image_row = typing.cast(UserInterface.BoxWidget, None)
         self.document_controller.detach_widget()
 
     @property
@@ -296,7 +296,7 @@ class Workspace:
         return self.document_controller.project
 
     @property
-    def _canvas_item(self) -> typing.Optional[CanvasItem.CanvasItemComposition]:
+    def _canvas_item(self) -> CanvasItem.CanvasItemComposition:
         return self.__canvas_item
 
     def _find_dock_panel(self, dock_panel_id: str) -> typing.Optional[Panel.Panel]:
@@ -374,12 +374,10 @@ class Workspace:
         return item, selected_display_panel
 
     def deconstruct(self) -> dict:
-        assert self.__canvas_item
         return self._deconstruct(self.__canvas_item.canvas_items[0])
 
     def reconstruct(self, d: dict) -> None:
-        assert self.__canvas_item
-        display_panels = list()
+        display_panels: typing.List[DisplayPanel.DisplayPanel] = list()
         selected_display_panel = self._reconstruct(d, self.__canvas_item, self.__canvas_item.canvas_items[0], display_panels)
         self.display_panels = display_panels
         self.document_controller.selected_display_panel = selected_display_panel
@@ -757,7 +755,7 @@ class Workspace:
         self.message_column.add(message_box_widget)
         self.__message_boxes[message_box_id] = message_box_widget
         threading.Thread(target=wait_for_timeout, daemon=True).start()
-        message_box_widget.remove_now = remove_box
+        setattr(message_box_widget, "remove_now", remove_box)  # argh. type checking.
         return message_box_widget
 
     def handle_drag_enter(self, display_panel: DisplayPanel.DisplayPanel, mime_data: UserInterface.MimeData) -> str:
@@ -900,8 +898,8 @@ class Workspace:
         # now remove it
         container = display_panel.container
         region_id = str()
-        old_display_panel = None
-        old_splits = None
+        old_display_panel: typing.Optional[DisplayPanel.DisplayPanel] = None
+        old_splits: typing.Optional[typing.List[int]] = None
         if isinstance(container, CanvasItem.SplitterCanvasItem):
             old_splits = container.splits
             if display_panel in container.canvas_items:
@@ -909,10 +907,10 @@ class Workspace:
                     # configure the redo
                     display_panel_index = container.canvas_items.index(display_panel)
                     if display_panel_index > 0:
-                        old_display_panel = container.canvas_items[display_panel_index - 1]
+                        old_display_panel = typing.cast(DisplayPanel.DisplayPanel, container.canvas_items[display_panel_index - 1])
                         region_id = "right" if container.orientation == "vertical" else "bottom"
                     else:
-                        old_display_panel = container.canvas_items[1]
+                        old_display_panel = typing.cast(DisplayPanel.DisplayPanel, container.canvas_items[1])
                         region_id = "left" if container.orientation == "vertical" else "top"
                 self.display_panels.remove(display_panel)
                 container.remove_canvas_item(display_panel)
@@ -959,9 +957,9 @@ class Workspace:
                 self.display_panels.insert(dest_index + 1, column_display_panel)
                 dest_index += 1
                 column_splitter_canvas_item.insert_canvas_item(column + 1, column_display_panel)
-            column_splitter_canvas_item.splits = [1/w] * w
+            column_splitter_canvas_item.splits = [1//w] * w
 
-        row_splitter_canvas_item.splits = [1/h] * h
+        row_splitter_canvas_item.splits = [1//h] * h
 
         self.__sync_layout()
         display_panel.request_focus()
@@ -982,7 +980,7 @@ class Workspace:
             else:
                 self.__change_splitter_command.close()
             self.__change_splitter_command = None
-            self.__change_splitter_splits = None
+            self.__change_splitter_splits = list()
 
     def _sync_layout(self) -> None:
         self.__sync_layout()
@@ -990,7 +988,6 @@ class Workspace:
     def __sync_layout(self) -> None:
         # ensure that the layout is written to persistent storage
         assert self.__workspace
-        assert self.__canvas_item
         self.__workspace.layout = self._deconstruct(self.__canvas_item.canvas_items[0])
 
 

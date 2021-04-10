@@ -440,7 +440,7 @@ class DataGridController:
         (method) drag_started(ui, x, y, modifiers), returns mime_data, thumbnail_data
     """
 
-    def __init__(self, event_loop: asyncio.AbstractEventLoop, ui, display_item_adapters_model, selection, direction=GridCanvasItem.Direction.Row, wrap=True):
+    def __init__(self, event_loop: asyncio.AbstractEventLoop, ui: UserInterface.UserInterface, display_item_adapters_model, selection, direction=GridCanvasItem.Direction.Row, wrap=True):
         super().__init__()
         self.__event_loop = event_loop
         self.__pending_tasks : typing.List = list()
@@ -754,8 +754,12 @@ class DataPanel(Panel.Panel):
         data_list_widget = DataListWidget(ui, self.data_list_controller)
         data_grid_widget = DataGridWidget(ui, self.data_grid_controller)
 
-        list_icon_button = CanvasItem.BitmapButtonCanvasItem(CanvasItem.load_rgba_data_from_bytes(pkgutil.get_data(__name__, "resources/list_icon_20.png")))
-        grid_icon_button = CanvasItem.BitmapButtonCanvasItem(CanvasItem.load_rgba_data_from_bytes(pkgutil.get_data(__name__, "resources/grid_icon_20.png")))
+        list_icon_20_bytes = pkgutil.get_data(__name__, "resources/list_icon_20.png")
+        grid_icon_20_bytes = pkgutil.get_data(__name__, "resources/grid_icon_20.png")
+        list_icon_20_bytes = list_icon_20_bytes or bytes()
+        grid_icon_20_bytes = grid_icon_20_bytes or bytes()
+        list_icon_button = CanvasItem.BitmapButtonCanvasItem(CanvasItem.load_rgba_data_from_bytes(list_icon_20_bytes))
+        grid_icon_button = CanvasItem.BitmapButtonCanvasItem(CanvasItem.load_rgba_data_from_bytes(grid_icon_20_bytes))
 
         list_icon_button.update_sizing(list_icon_button.sizing.with_fixed_size(Geometry.IntSize(20, 20)))
         grid_icon_button.update_sizing(grid_icon_button.sizing.with_fixed_size(Geometry.IntSize(20, 20)))
@@ -814,7 +818,7 @@ class DataPanel(Panel.Panel):
         self.__filtered_display_item_adapters_model = typing.cast(ListModel.MappedListModel, None)
         # button group
         self.__view_button_group.close()
-        self.__view_button_group = None
+        self.__view_button_group = typing.cast(CanvasItem.RadioButtonGroup, None)
 
     def __notify_focus_changed(self) -> None:
         # this is called when the keyboard focus for the data panel is changed.

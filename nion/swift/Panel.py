@@ -15,6 +15,7 @@ import weakref
 # local libraries
 from nion.ui import Application
 from nion.ui import CanvasItem
+from nion.ui import UserInterface
 from nion.utils import Geometry
 from nion.utils import Process
 
@@ -50,8 +51,8 @@ class Panel:
         self.ui = document_controller.ui
         self.panel_id = panel_id
         self.display_name = display_name
-        self.widget = None  # gets closed by the dock widget
-        self.dock_widget = None
+        self.widget = typing.cast(UserInterface.Widget, None)  # gets closed by the dock widget
+        self.dock_widget = typing.cast(UserInterface.DockWidget, None)
         # useful for many panels.
         self.__periodic_task_queue = Process.TaskQueue()
         self.__periodic_task_set = Process.TaskSet()
@@ -60,7 +61,7 @@ class Panel:
     def close(self) -> None:
         if self.dock_widget:  # sometimes encountered during tests
             self.dock_widget.close()
-        self.widget = None  # closed by the dock_widget
+        self.widget = typing.cast(UserInterface.Widget, None)  # closed by the dock_widget
         Panel.count -= 1
 
     def create_dock_widget(self, title: str, positions: typing.Sequence[str], position: str) -> None:
