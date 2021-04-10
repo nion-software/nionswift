@@ -571,7 +571,7 @@ class RunScriptDialog(Dialog.ActionDialog):
                         self.continue_after_parse_error(script_path)
                         return
 
-        self.__output_widget.text = None
+        self.__output_widget.text = str()
 
         script_name = os.path.basename(script_path)
 
