@@ -1810,9 +1810,16 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             self.__data_item_proxy = None
 
         def set_data_item_specifier(self, project: Project.Project, data_item_specifier: Persistence.PersistentObjectSpecifier) -> None:
-            self.__stop()  # data item is changing; close existing one.
-            self.__data_item_proxy.close()
-            self.__data_item_proxy = project.create_item_proxy(item_specifier=data_item_specifier)
+            data_item_proxy = project.create_item_proxy(item_specifier=data_item_specifier)
+            if data_item_proxy.item != self.__data_item:
+                assert self.__starts == 0
+                assert self.__pending_starts == 0
+                assert not self.__data_item_transaction
+                self.__stop()  # data item is changing; close existing one.
+                self.__data_item_proxy.close()
+                self.__data_item_proxy = data_item_proxy
+            else:
+                data_item_proxy.close()
 
         @property
         def __data_item(self) -> typing.Optional[DataItem.DataItem]:
