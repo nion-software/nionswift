@@ -417,6 +417,8 @@ def create_data_element_from_data_item(data_item, include_data=True):
                 timezone = time_zone_dict.get("timezone")
         if tz_value is not None:
             tz_minutes = (int(tz_value[1:3]) * 60 + int(tz_value[3:5])) * (-1 if tz_value[0] == '-' else 1)
+        else:
+            tz_minutes = None
         data_element["datetime_modified"] = Utility.get_datetime_item_from_utc_datetime(data_item.created, tz_minutes, dst_minutes, timezone)
         data_element["datetime_original"] = Utility.get_datetime_item_from_utc_datetime(data_item.created, tz_minutes, dst_minutes, timezone)
         data_element["uuid"] = str(data_item.uuid)
