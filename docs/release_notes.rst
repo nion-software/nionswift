@@ -12,6 +12,14 @@ in bug fix releases, we choose to include them for evaluation and feedback. If y
 or have feedback about these types of new features, please contact us or file issues at
 https://github.com/nion-software/nionswift/issues.
 
+Version 0.15.6 (2021-04-12)
+---------------------------
+* (2021-04-12) Fix export issue resulting in incomplete or corrupt data after export of fresh scan data.
+* (2021-04-09) Fix performance issue when data item created during acquisition.
+* (2021-03-27) Fix logo display in about box on Linux.
+* (2021-03-25) Improve sorting in run scripts dialog.
+
+
 Version 0.15.5 (2021-03-12)
 ---------------------------
 * (2021-03-05) Add menu item to select sibling display panels, useful for clearing/closing.
