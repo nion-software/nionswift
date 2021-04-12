@@ -169,6 +169,8 @@ def clean_item(i):
         return i
     elif itype == int:
         return i
+    elif itype == numpy.bool_:
+        return bool(i)
     elif itype == bool:
         return i
     elif itype == type(None):
