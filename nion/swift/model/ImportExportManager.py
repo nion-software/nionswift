@@ -382,7 +382,7 @@ def create_data_element_from_data_item(data_item, include_data=True):
     data_element["version"] = 1
     data_element["reader_version"] = 1
     if data_item.has_data:
-        data_element["large_format"] = data_item.large_format
+        data_element["large_format"] = bool(data_item.large_format)
         if include_data:
             data_element["data"] = data_item.data
         dimensional_calibrations = data_item.dimensional_calibrations
