@@ -21,8 +21,6 @@ class DisplayEditorDialog(Dialog.ActionDialog):
         self.ui = ui
         self.document_controller = document_controller
 
-        self._create_menus()
-
         # sizing in widget space (Qt) is difficult to get right and there seems to be bugs.
         # in this case, two different elements are used to effectively make a minimum window
         # size -- the text edit widget for the height and the error row for the width.

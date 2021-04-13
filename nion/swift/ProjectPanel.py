@@ -613,8 +613,6 @@ class ProjectDialog(Dialog.ActionDialog):
     def __init__(self, ui: UserInterface.UserInterface, app: Application.Application):
         super().__init__(ui, _("Project Manager"), app=app, window_style="window", persistent_id="ProjectsDialog")
 
-        self._create_menus()
-
         projects_section = ProjectTreeWidget(self, app.profile)
 
         column = ui.create_column_widget()

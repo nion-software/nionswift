@@ -254,8 +254,6 @@ class RecorderDialog(Dialog.ActionDialog):
 
         self.__data_item = data_item
 
-        self._create_menus()
-
         self.__record_button = ui.create_push_button_widget(_("Record"))
 
         def thumbnail_widget_drag(mime_data, thumbnail, hot_spot_x, hot_spot_y):

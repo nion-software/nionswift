@@ -339,8 +339,6 @@ class RunScriptDialog(Dialog.ActionDialog):
 
         self.script_filter_pattern = "\\.py$"
 
-        self._create_menus()
-
         self.__cancelled = False
 
         self.__thread = None

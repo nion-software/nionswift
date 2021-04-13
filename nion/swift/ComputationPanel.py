@@ -768,8 +768,6 @@ class EditComputationDialog(Dialog.ActionDialog):
         self.ui = ui
         self.document_controller = document_controller
 
-        self._create_menus()
-
         self.__computation_model = ComputationModel(document_controller)
 
         self.__sections = list()

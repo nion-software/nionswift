@@ -697,8 +697,6 @@ class NewProjectAction(UIWindow.Action):
             def __init__(self, ui, app: Application, event_loop: asyncio.AbstractEventLoop, profile: Profile.Profile):
                 super().__init__(ui, title=_("New Project"), app=app, persistent_id="new_project_dialog")
 
-                self._create_menus()
-
                 self.directory = self.ui.get_persistent_string("project_directory", self.ui.get_document_location())
 
                 project_base_name = _("Nion Swift Project") + " " + datetime.datetime.now().strftime("%Y%m%d")
