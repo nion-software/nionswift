@@ -1825,6 +1825,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         def __data_item(self) -> typing.Optional[DataItem.DataItem]:
             return self.__data_item_proxy.item
 
+        @property
+        def is_started(self) -> bool:
+            return self.__starts > 0
+
         def start(self):
             """Start using the data item reference. Must call stop a matching number of times.
 
@@ -1963,6 +1967,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         if data_item_reference:
             return data_item_reference
         return self.__data_item_references.setdefault(key, DocumentModel.DataItemReference(self, key, self._project))
+
+    def is_data_item_reference(self, display_item: DisplayItem.DisplayItem) -> bool:
+        return any(data_item_reference.display_item == display_item for data_item_reference in self.__data_item_references.values() if data_item_reference.is_started)
 
     def setup_channel(self, data_item_reference_key: str, data_item: DataItem.DataItem) -> None:
         data_item_reference = self.get_data_item_reference(data_item_reference_key)
