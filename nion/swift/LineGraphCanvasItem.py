@@ -337,7 +337,6 @@ def draw_vertical_grid_lines(drawing_context, plot_height, plot_origin_y, x_tick
         drawing_context.stroke_style = '#DDD'
         drawing_context.stroke()
 
-
 def draw_line_graph(drawing_context, plot_height, plot_width, plot_origin_y, plot_origin_x, calibrated_xdata, calibrated_data_min, calibrated_data_range, calibrated_left_channel, calibrated_right_channel, x_calibration, fill_color: str, stroke_color: str, rebin_cache, data_style: str):
     # calculate how the data is displayed
     xdata_calibration = calibrated_xdata.dimensional_calibrations[-1]
@@ -352,10 +351,10 @@ def draw_line_graph(drawing_context, plot_height, plot_width, plot_origin_y, plo
         displayed_calibrated_right_channel = min(calibrated_right_channel, xdata_calibration.convert_to_calibrated_value(calibrated_xdata.dimensional_shape[-1]))
         if displayed_calibrated_left_channel >= calibrated_right_channel or displayed_calibrated_right_channel <= calibrated_left_channel:
             return  # data is outside drawing area
-    data_left_channel = int(xdata_calibration.convert_from_calibrated_value(displayed_calibrated_left_channel))
-    data_right_channel = int(xdata_calibration.convert_from_calibrated_value(displayed_calibrated_right_channel))
-    left = int((displayed_calibrated_left_channel - calibrated_left_channel) / (calibrated_right_channel - calibrated_left_channel) * plot_width + plot_origin_x)
-    right = int((displayed_calibrated_right_channel - calibrated_left_channel) / (calibrated_right_channel - calibrated_left_channel) * plot_width + plot_origin_x)
+    data_left_channel = round(xdata_calibration.convert_from_calibrated_value(displayed_calibrated_left_channel))
+    data_right_channel = round(xdata_calibration.convert_from_calibrated_value(displayed_calibrated_right_channel))
+    left = round((displayed_calibrated_left_channel - calibrated_left_channel) / (calibrated_right_channel - calibrated_left_channel) * plot_width + plot_origin_x)
+    right = round((displayed_calibrated_right_channel - calibrated_left_channel) / (calibrated_right_channel - calibrated_left_channel) * plot_width + plot_origin_x)
 
     # update input parameters, then fall back to old algorithm
     plot_width = right - left
