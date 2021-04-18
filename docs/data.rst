@@ -1,6 +1,6 @@
 :orphan:
 
-.. _data_items:
+.. _data-items:
 
 Data and Displays
 =================

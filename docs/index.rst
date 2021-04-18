@@ -10,6 +10,16 @@ Windows, Linux, and macOS.
   :width: 640
   :alt: The Swift Workspace
 
+Key Features
+
+- Data handling of 1D plots, 2D images, 1D and 2D collections of plots and images, and sequences.
+- Live computations that can be chained during acquisition or live parameter adjustment.
+- Open source, cross platform (macOS, Windows, Linux), and Python based scientific data processing.
+- Low latency, high throughput data acquisition platform.
+
+Who Uses Nion Swift?
+--------------------
+
 Nion Swift has been primarily developed for the operation of Nion electron microscopes and also as an offline tool to
 visualize, process, and analyze scientific data from electron microscopes, other instrumentation, and other scientific
 fields.

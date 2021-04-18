@@ -5,6 +5,8 @@
 User Interface
 ==============
 
+.. _user-interface-workspace:
+
 Workspaces
 ----------
 The workspace is the area where you can view your data.
