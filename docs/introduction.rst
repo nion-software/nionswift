@@ -1,12 +1,11 @@
-:orphan:
-
+.. include:: defs.rst
 .. _introduction:
 
 Overview
 ========
-Nion Swift is open source scientific image processing software integrating hardware control, data acquisition, visualization, processing, and analysis using Python. Nion Swift is easily extended using Python. It runs on Windows, Linux, and macOS.
+|AppName| is open source scientific image processing software integrating hardware control, data acquisition, visualization, processing, and analysis using Python. |AppName| is easily extended using Python. It runs on Windows, Linux, and macOS.
 
-Nion Swift is intended to provide an extensible platform to acquire scientific data from a variety of microscopes and other instruments, be intuitive and easy to use, and allow sophisticated data visualization, processing, and analysis.
+|AppName| is intended to provide an extensible platform to acquire scientific data from a variety of microscopes and other instruments, be intuitive and easy to use, and allow sophisticated data visualization, processing, and analysis.
 
 Key Features
 
@@ -17,9 +16,9 @@ Key Features
 
 Data Items and Display Items
 ----------------------------
-Nion Swift operates on data arrays, which include 2D images and 1D spectra, which are generally called *Data Items*.
+|AppName| operates on data arrays, which include 2D images and 1D spectra, which are generally called *Data Items*.
 
-Data items represent data arrays with anywhere from one to five dimensions. They can be 1D or 2D data arrays, 1D or 2D collections of 1D or 2D data, or sequences of any of those.
+Data items represent data arrays with anywhere from one to five dimensions. The data array associated with a data item can be 1D or 2D data and then organized into 1D or 2D collections or 1D sequences.
 
 A spectrum image would be a 2D collection of 1D data. This would be typical data acquired from a STEM microscope spectrum imaging acquisition.
 

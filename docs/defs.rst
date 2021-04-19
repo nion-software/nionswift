@@ -1,0 +1,1 @@
+.. |AppName| replace:: Nion Swift
