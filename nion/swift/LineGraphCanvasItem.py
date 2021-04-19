@@ -675,7 +675,7 @@ class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
                                 drawing_context.move_to(x, py - 3)
                                 drawing_context.line_to(x, py - 13)
                                 drawing_context.line_width = 1
-                                drawing_context.stroke_style = '#F00'
+                                drawing_context.stroke_style = region.color
                                 if not region_selected:
                                     drawing_context.line_dash = 2
                                 drawing_context.stroke()
@@ -683,7 +683,7 @@ class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
                                 label = region.label
                                 if label:
                                     drawing_context.line_dash = 0
-                                    drawing_context.fill_style = '#F00'
+                                    drawing_context.fill_style = region.color
                                     drawing_context.font = "{0:d}px".format(self.font_size)
                                     drawing_context.text_align = "center"
                                     drawing_context.text_baseline = "bottom"
@@ -709,7 +709,7 @@ class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
                         drawing_context.line_to(right, plot_origin_y + plot_height)
 
                         drawing_context.line_width = 1
-                        drawing_context.stroke_style = '#F00'
+                        drawing_context.stroke_style = region.color
                         if not region_selected:
                             drawing_context.line_dash = 2
                         drawing_context.stroke()
@@ -722,8 +722,8 @@ class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
                         drawing_context.stroke()
                         drawing_context.line_dash = 0
                         if region_selected:
-                            draw_marker(drawing_context, (level, mid_x), fill='#F00', stroke='#F00')
-                            drawing_context.fill_style = '#F00'
+                            draw_marker(drawing_context, (level, mid_x), fill=region.color, stroke=region.color)
+                            drawing_context.fill_style = region.color
                             drawing_context.font = "{0:d}px".format(self.font_size)
                             left_text = region.left_text
                             right_text = region.right_text
@@ -741,12 +741,12 @@ class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
                                 drawing_context.text_baseline = "center"
                                 drawing_context.fill_text(right_text, right + 4, level)
                         else:
-                            draw_marker(drawing_context, (level, mid_x), stroke='#F00')
+                            draw_marker(drawing_context, (level, mid_x), stroke=region.color)
 
                         label = region.label
                         if label:
                             drawing_context.line_dash = 0
-                            drawing_context.fill_style = '#F00'
+                            drawing_context.fill_style = region.color
                             drawing_context.font = "{0:d}px".format(self.font_size)
                             drawing_context.text_align = "center"
                             drawing_context.text_baseline = "top"
