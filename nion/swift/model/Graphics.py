@@ -539,6 +539,8 @@ class Graphic(Observable.Observable, Persistence.PersistentObject):
         self.label_padding = 4
         self.label_font = "normal 11px serif"
         self.__source_reference = self.create_item_reference()
+        self._default_stroke_color = "#F80"
+
 
     @property
     def project(self) -> "Project.Project":
@@ -590,8 +592,8 @@ class Graphic(Observable.Observable, Persistence.PersistentObject):
 
     def read_properties_from_dict(self, d: typing.Mapping):
         d = dict(d)
-        stroke_color = d.pop("color", "#F80")
-        if stroke_color != "#F80":
+        stroke_color = d.pop("color", self._default_stroke_color)
+        if stroke_color != self._default_stroke_color:
             d["stroke_color"] = stroke_color
         self.read_from_mime_data(d)
 
@@ -622,7 +624,7 @@ class Graphic(Observable.Observable, Persistence.PersistentObject):
             return "#F08"
         elif self.used_role == "mask":
             return "#00F"
-        return "#F80"
+        return self._default_stroke_color
 
     @property
     def used_fill_style(self) -> typing.Optional[str]:
@@ -1487,6 +1489,7 @@ class PointGraphic(PointTypeGraphic):
 class IntervalGraphic(Graphic):
     def __init__(self):
         super().__init__("interval-graphic")
+        self._default_stroke_color = "#F00"
         self.title = _("Interval")
         # start and end points are stored in channel normalized coordinates
         def read_interval(persistent_property, properties):
@@ -1507,16 +1510,6 @@ class IntervalGraphic(Graphic):
 
         # interval is stored in image normalized coordinates
         self.define_property("interval", (0.0, 1.0), changed=self.__interval_changed, reader=read_interval, writer=write_interval, validate=validate_interval)
-
-    @property
-    def used_stroke_style(self) -> typing.Optional[str]:
-        if self.stroke_color:
-            return self.stroke_color
-        if self.used_role == "fourier_mask":
-            return "#F08"
-        elif self.used_role == "mask":
-            return "#00F"
-        return "#F00"
 
     def mime_data_dict(self) -> dict:
         d = super().mime_data_dict()
@@ -1611,16 +1604,6 @@ class ChannelGraphic(Graphic):
         self.title = _("Channel")
         # channel is stored in image normalized coordinates
         self.define_property("position", 0.5, changed=self.__channel_changed, validate=lambda value: float(value))
-
-    @property
-    def used_stroke_style(self) -> typing.Optional[str]:
-        if self.stroke_color:
-            return self.stroke_color
-        if self.used_role == "fourier_mask":
-            return "#F08"
-        elif self.used_role == "mask":
-            return "#00F"
-        return "#F00"
 
     def mime_data_dict(self) -> dict:
         d = super().mime_data_dict()
