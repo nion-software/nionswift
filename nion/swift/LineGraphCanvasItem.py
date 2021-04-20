@@ -621,7 +621,6 @@ class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
             self.update()
 
     def _repaint(self, drawing_context):
-
         # draw the data, if any
         axes = self.__axes
         data = self.__calibrated_data
@@ -665,7 +664,8 @@ class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
                     if region.style == "tag" and data is not None:
                         if calibrated_data_range != 0.0:
                             channel = (left_channel + right_channel) / 2
-                            data_value = data[int(channel * data.shape[0])]
+                            data_index = int(channel * data.shape[0])
+                            data_value = data[data_index] if 0 <= data_index < data.shape[0] else 0
                             py = plot_origin_y + plot_height - (plot_height * (data_value - calibrated_data_min) / calibrated_data_range)
                             py = max(plot_origin_y, py)
                             py = min(plot_origin_y + plot_height, py)
