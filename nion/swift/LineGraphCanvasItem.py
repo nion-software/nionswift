@@ -620,47 +620,44 @@ class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
             self.__regions = regions
             self.update()
 
-    def _repaint(self, drawing_context):
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
         # draw the data, if any
-        axes = self.__axes
+        canvas_size = self.canvas_size
         data = self.__calibrated_data
         regions = self.__regions
+        font_size = self.font_size
+
+        if data is not None and len(data.shape) > 1:
+            data = data[0, ...]
+
+        axes = self.__axes
         if axes and axes.is_valid:
-
-            plot_rect = self.canvas_bounds
-            plot_height = int(plot_rect[1][0]) - 1
-            plot_origin_y = int(plot_rect[0][0])
-
             # extract the data we need for drawing y-axis
             calibrated_data_min = axes.calibrated_data_min
             calibrated_data_max = axes.calibrated_data_max
-            calibrated_data_range = calibrated_data_max - calibrated_data_min
-
-            if data is not None and len(data.shape) > 1:
-                data = data[0, ...]
-
             data_left = axes.drawn_left_channel
             data_right = axes.drawn_right_channel
-
             data_scale = axes.data_scale
 
             if data_right <= data_left:
                 return
 
-            def convert_coordinate_to_pixel(c):
-                px = c * data_scale
-                return plot_rect.width * (px - data_left) / (data_right - data_left)
+            plot_height = canvas_size.height - 1
+            plot_origin_y = 0
 
-            canvas_width = self.canvas_size.width
-            canvas_height = self.canvas_size.height
+            calibrated_data_range = calibrated_data_max - calibrated_data_min
+
+            def convert_coordinate_to_pixel(c: float, data_scale: float, data_left: float, data_right: float) -> float:
+                px = c * data_scale
+                return canvas_size.width * (px - data_left) / (data_right - data_left)
 
             for region in regions:
                 left_channel, right_channel = region.channels
                 region_selected = region.selected
                 index = region.index
-                level = plot_rect.bottom - plot_rect.height * 0.8 + index * 8
+                level = canvas_size.height - canvas_size.height * 0.8 + index * 8
                 with drawing_context.saver():
-                    drawing_context.clip_rect(0, 0, canvas_width, canvas_height)
+                    drawing_context.clip_rect(0, 0, canvas_size.width, canvas_size.height)
                     if region.style == "tag" and data is not None:
                         if calibrated_data_range != 0.0:
                             channel = (left_channel + right_channel) / 2
@@ -669,7 +666,7 @@ class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
                             py = plot_origin_y + plot_height - (plot_height * (data_value - calibrated_data_min) / calibrated_data_range)
                             py = max(plot_origin_y, py)
                             py = min(plot_origin_y + plot_height, py)
-                            x = convert_coordinate_to_pixel(channel)
+                            x = convert_coordinate_to_pixel(channel, data_scale, data_left, data_right)
                             with drawing_context.saver():
                                 drawing_context.begin_path()
                                 drawing_context.move_to(x, py - 3)
@@ -684,27 +681,18 @@ class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
                                 if label:
                                     drawing_context.line_dash = 0
                                     drawing_context.fill_style = region.color
-                                    drawing_context.font = "{0:d}px".format(self.font_size)
+                                    drawing_context.font = "{0:d}px".format(font_size)
                                     drawing_context.text_align = "center"
                                     drawing_context.text_baseline = "bottom"
                                     drawing_context.fill_text(label, x, py - 16)
-
-                                # drawing_context.begin_path()
-                                # drawing_context.move_to(x - 3, py - 3)
-                                # drawing_context.line_to(x + 2, py + 2)
-                                # drawing_context.move_to(x - 3, py + 3)
-                                # drawing_context.line_to(x + 2, py - 2)
-                                # drawing_context.line_width = 1
-                                # drawing_context.stroke_style = '#000'
-                                # drawing_context.stroke()
                     else:
                         drawing_context.begin_path()
 
-                        left = convert_coordinate_to_pixel(left_channel)
+                        left = convert_coordinate_to_pixel(left_channel, data_scale, data_left, data_right)
                         drawing_context.move_to(left, plot_origin_y)
                         drawing_context.line_to(left, plot_origin_y + plot_height)
 
-                        right = convert_coordinate_to_pixel(right_channel)
+                        right = convert_coordinate_to_pixel(right_channel, data_scale, data_left, data_right)
                         drawing_context.move_to(right, plot_origin_y)
                         drawing_context.line_to(right, plot_origin_y + plot_height)
 
@@ -724,7 +712,7 @@ class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
                         if region_selected:
                             draw_marker(drawing_context, (level, mid_x), fill=region.color, stroke=region.color)
                             drawing_context.fill_style = region.color
-                            drawing_context.font = "{0:d}px".format(self.font_size)
+                            drawing_context.font = "{0:d}px".format(font_size)
                             left_text = region.left_text
                             right_text = region.right_text
                             middle_text = region.middle_text
@@ -747,7 +735,7 @@ class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
                         if label:
                             drawing_context.line_dash = 0
                             drawing_context.fill_style = region.color
-                            drawing_context.font = "{0:d}px".format(self.font_size)
+                            drawing_context.font = "{0:d}px".format(font_size)
                             drawing_context.text_align = "center"
                             drawing_context.text_baseline = "top"
                             drawing_context.fill_text(label, mid_x, level + 6)
