@@ -27,17 +27,17 @@ The upgraded project index will be available with a new file extension ".nsproj"
 
 So if your old project was in a directory named "Graphene Experiment", there will be a file named something like "Nion Swift Library 13.nslib" within that folder; and another sub-folder named "Nion Swift Data 13". Once the project has been updated, there will a new file name "Graphene Experiment.nsproj" at the same level that the old project "Graphene Experiment" existed; and another directory name "Graphene Experiment Data" with the data. You can safely move the old directory "Graphene Experiment" to an archive.
 
-Old files/folders:
+Old project files/folders::
 
     C:\Data\Graphene Experiment\Nion Swift Library 13.nslib
     C:\Data\Graphene Experiment\Nion Swift Data 13
 
-New files/folders:
+New project files/folders::
 
     C:\Data\Graphene Experiment.nsproj
     C:\Data\Graphene Experiment Data
 
-Once the upgrade succeeds, we recommend that you confirm the new project location and then archive the old project. This prevents you from accidentally updating both the old and new projects (with an old version of Nion Swift) and generating conflicts that are difficult to merge.
+Once the upgrade succeeds, we recommend that you confirm the new project location and then archive the old project files/folders. This prevents you from accidentally updating both the old and new projects (with an old version of Nion Swift) and generating conflicts that are difficult to merge.
 
 Once the existing projects have been scanned and upgraded, Nion Swift will launch and ask you to choose an initial project. You can switch projects any time using the **File** > **Chose Project...** menu item.
 
