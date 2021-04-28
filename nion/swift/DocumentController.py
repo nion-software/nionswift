@@ -2897,9 +2897,26 @@ class WorkspaceRenameAction(Window.Action):
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
+class WorkspaceResetAction(Window.Action):
+    action_id = "workspace.1x1"
+    action_name = _("Reset Workspace")
+    action_command_icon_png = pkgutil.get_data(__name__, "resources/workspace_1x1.png")
+
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        workspace_controller = window.workspace_controller
+        if workspace_controller:
+            workspace_1x1 = workspace_controller.new_workspace(layout={'type': 'image', 'selected': True})
+            workspace_controller.change_workspace(workspace_1x1)
+            return Window.ActionResult(Window.ActionStatus.FINISHED)
+        raise ValueError("Missing workspace controller")
+
+
 class WorkspaceSplitHorizontalAction(Window.Action):
     action_id = "workspace.split_horizontal"
     action_name = _("Split Panel Into Left and Right")
+    action_command_icon_png = pkgutil.get_data(__name__, "resources/workspace_split_vertical.png")
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
@@ -2918,6 +2935,7 @@ class WorkspaceSplitHorizontalAction(Window.Action):
 class WorkspaceSplitVerticalAction(Window.Action):
     action_id = "workspace.split_vertical"
     action_name = _("Split Panel Into Top and Bottom")
+    action_command_icon_png = pkgutil.get_data(__name__, "resources/workspace_split_horizontal.png")
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
@@ -2964,6 +2982,7 @@ class WorkspaceSplitAction(Window.Action):
 class WorkspaceSplit2x2Action(WorkspaceSplitAction):
     action_id = "workspace.split_2x2"
     action_name = _("Split Panel 2x2")
+    action_command_icon_png = pkgutil.get_data(__name__, "resources/workspace_split_2x2.png")
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
@@ -2975,6 +2994,7 @@ class WorkspaceSplit2x2Action(WorkspaceSplitAction):
 class WorkspaceSplit3x2Action(WorkspaceSplitAction):
     action_id = "workspace.split_3x2"
     action_name = _("Split Panel 3x2")
+    action_command_icon_png = pkgutil.get_data(__name__, "resources/workspace_split_3x2.png")
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
@@ -2986,6 +3006,7 @@ class WorkspaceSplit3x2Action(WorkspaceSplitAction):
 class WorkspaceSplit3x3Action(WorkspaceSplitAction):
     action_id = "workspace.split_3x3"
     action_name = _("Split Panel 3x3")
+    action_command_icon_png = pkgutil.get_data(__name__, "resources/workspace_split_3x3.png")
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
@@ -2997,6 +3018,7 @@ class WorkspaceSplit3x3Action(WorkspaceSplitAction):
 class WorkspaceSplit4x3Action(WorkspaceSplitAction):
     action_id = "workspace.split_4x3"
     action_name = _("Split Panel 4x3")
+    action_command_icon_png = pkgutil.get_data(__name__, "resources/workspace_split_4x3.png")
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
@@ -3008,6 +3030,7 @@ class WorkspaceSplit4x3Action(WorkspaceSplitAction):
 class WorkspaceSplit4x4Action(WorkspaceSplitAction):
     action_id = "workspace.split_4x4"
     action_name = _("Split Panel 4x4")
+    action_command_icon_png = pkgutil.get_data(__name__, "resources/workspace_split_4x4.png")
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
@@ -3019,6 +3042,7 @@ class WorkspaceSplit4x4Action(WorkspaceSplitAction):
 class WorkspaceSplit5x4Action(WorkspaceSplitAction):
     action_id = "workspace.split_5x4"
     action_name = _("Split Panel 5x4")
+    action_command_icon_png = pkgutil.get_data(__name__, "resources/workspace_split_5x4.png")
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
@@ -3034,6 +3058,7 @@ Window.register_action(WorkspaceNextAction())
 Window.register_action(WorkspacePreviousAction())
 Window.register_action(WorkspaceRemoveAction())
 Window.register_action(WorkspaceRenameAction())
+Window.register_action(WorkspaceResetAction())
 Window.register_action(WorkspaceSplitHorizontalAction())
 Window.register_action(WorkspaceSplitVerticalAction())
 Window.register_action(WorkspaceSplitAction())
@@ -3071,9 +3096,9 @@ class DisplayCopyAction(Window.Action):
 
 
 class DisplayPanelClearAction(Window.Action):
-
     action_id = "display_panel.clear"
     action_name = _("Clear Display Panel Contents")
+    action_command_icon_png = pkgutil.get_data(__name__, "resources/workspace_clear.png")
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
@@ -3090,9 +3115,9 @@ class DisplayPanelClearAction(Window.Action):
 
 
 class DisplayPanelCloseAction(Window.Action):
-
     action_id = "display_panel.close"
     action_name = _("Close Display Panel")
+    action_command_icon_png = pkgutil.get_data(__name__, "resources/workspace_close.png")
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
@@ -3162,6 +3187,7 @@ class DisplayPanelOneViewAction(Window.Action):
 class DisplayPanelSelectSiblings(Window.Action):
     action_id = "display_panel.select_siblings"
     action_name = _("Select More Display Panels")
+    action_command_icon_png = pkgutil.get_data(__name__, "resources/workspace_select_all.png")
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)

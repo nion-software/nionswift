@@ -6,6 +6,7 @@ import typing
 # None
 
 # local libraries
+import numpy
 from nion.swift import DocumentController
 from nion.swift import Panel
 from nion.ui import CanvasItem
@@ -84,29 +85,30 @@ class ToolModeToolbarWidget:
         self.__tool_mode_changed_event_listener = None
 
 
-class RasterZoomToolbarWidget:
-    toolbar_widget_id = "nion.swift.toolbar-widget.raster-zoom"
-    toolbar_widget_title = _("Zoom")  # ideally "Raster Zoom" but that makes the title wider than the controls
+class ActionTableToolbarWidget:
 
-    def __init__(self, *, document_controller: DocumentController.DocumentController, **kwargs):
+    def __init__(self, actions: typing.Sequence[Window.Action], document_controller: DocumentController.DocumentController, **kwargs):
         self.__document_controller = document_controller
         u = Declarative.DeclarativeUI()
+        top_row = [self.__create_action_button(actions[i]) for i in range(0, len(actions), 2)]
+        bottom_row = [self.__create_action_button(actions[i]) for i in range(1, len(actions), 2)]
         self.ui_view = u.create_column(u.create_spacing(4),
-                                       u.create_row(self.__create_action_button("display_panel.fit_view"),
-                                                    self.__create_action_button("display_panel.1_view")),
-                                       u.create_row(self.__create_action_button("display_panel.fill_view"),
-                                                    self.__create_action_button("display_panel.2_view")),
+                                       u.create_row(*top_row),
+                                       u.create_row(*bottom_row),
                                        u.create_spacing(4), u.create_stretch())
 
-    def __create_action_button(self, action_id: str) -> Declarative.UIDescription:
-        action = Window.actions[action_id]
+    def __create_action_button(self, action: Window.Action) -> Declarative.UIDescription:
+        action_id = action.action_id
         action_identifier = action_id.replace(".", "_")
-        icon_png = getattr(action, "action_command_icon_png")
-        assert icon_png is not None
-        icon_data = CanvasItem.load_rgba_data_from_bytes(icon_png)
+        icon_png = getattr(action, "action_command_icon_png", None)
+        if icon_png is not None:
+            icon_data = CanvasItem.load_rgba_data_from_bytes(icon_png)
+        else:
+            icon_data = numpy.full((48, 64), 0x00FFFFFF, dtype=numpy.uint32)
+            icon_data[8:40, 8:56] = 0xFFC0C0C0
         icon_property = "icon_" + action_identifier
         setattr(self, icon_property, icon_data)
-        tool_tip = getattr(action, "action_tool_tip", None)
+        tool_tip = getattr(action, "action_tool_tip", getattr(action, "action_name", None))
         key_shortcut = Window.action_shortcuts.get(action_id, dict()).get("display_panel", None)
         if tool_tip and key_shortcut:
             tool_tip += f" ({key_shortcut})"
@@ -118,8 +120,51 @@ class RasterZoomToolbarWidget:
         return u.create_image(image=f"@binding({icon_property})", height=24, width=32, on_clicked=f"{perform_function}", tool_tip=tool_tip)
 
 
+class RasterZoomToolbarWidget(ActionTableToolbarWidget):
+    toolbar_widget_id = "nion.swift.toolbar-widget.raster-zoom"
+    toolbar_widget_title = _("Zoom")  # ideally "Raster Zoom" but that makes the title wider than the controls
+
+    def __init__(self, *, document_controller: DocumentController.DocumentController, **kwargs):
+        super().__init__(
+            [
+                Window.actions["display_panel.fit_view"],
+                Window.actions["display_panel.1_view"],
+                Window.actions["display_panel.fill_view"],
+                Window.actions["display_panel.2_view"],
+            ],
+            document_controller,
+            **kwargs
+        )
+
+
+class WorkspaceToolbarWidget(ActionTableToolbarWidget):
+    toolbar_widget_id = "nion.swift.toolbar-widget.workspace"
+    toolbar_widget_title = _("Workspace")
+
+    def __init__(self, *, document_controller: DocumentController.DocumentController, **kwargs):
+        super().__init__(
+            [
+                Window.actions["workspace.split_horizontal"],
+                Window.actions["workspace.split_vertical"],
+                Window.actions["workspace.split_2x2"],
+                Window.actions["workspace.split_3x2"],
+                Window.actions["workspace.split_3x3"],
+                Window.actions["workspace.split_4x3"],
+                Window.actions["workspace.split_4x4"],
+                Window.actions["workspace.split_5x4"],
+                Window.actions["display_panel.select_siblings"],
+                Window.actions["display_panel.clear"],
+                Window.actions["workspace.1x1"],
+                Window.actions["display_panel.close"],
+            ],
+            document_controller,
+            **kwargs
+        )
+
+
 Registry.register_component(ToolModeToolbarWidget, {"toolbar-widget"})
 Registry.register_component(RasterZoomToolbarWidget, {"toolbar-widget"})
+Registry.register_component(WorkspaceToolbarWidget, {"toolbar-widget"})
 
 
 class ToolbarPanel(Panel.Panel):
@@ -152,7 +197,8 @@ class ToolbarPanel(Panel.Panel):
         # available from packages.
         widget_id_list = [
             "nion.swift.toolbar-widget.tool-mode",
-            "nion.swift.toolbar-widget.raster-zoom"
+            "nion.swift.toolbar-widget.raster-zoom",
+            "nion.swift.toolbar-widget.workspace"
         ]
 
         # add the widgets.
