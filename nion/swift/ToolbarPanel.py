@@ -1,8 +1,6 @@
 # standard libraries
 import gettext
-import pkgutil
 import typing
-import weakref
 
 # third party libraries
 # None
@@ -12,8 +10,8 @@ from nion.swift import DocumentController
 from nion.swift import Panel
 from nion.ui import CanvasItem
 from nion.ui import Declarative
+from nion.ui import UserInterface
 from nion.ui import Window
-from nion.utils import Geometry
 from nion.utils import Model
 from nion.utils import Registry
 
@@ -21,7 +19,8 @@ _ = gettext.gettext
 
 
 class ToolModeToolbarWidget:
-    toolbar_widget_id = "nion.swift.tool-mode"
+    toolbar_widget_id = "nion.swift.toolbar-widget.tool-mode"
+    toolbar_widget_title = _("Tools")
 
     def __init__(self, *, document_controller: DocumentController.DocumentController, **kwargs):
         self.radio_button_value: Model.PropertyModel[int] = Model.PropertyModel(0)
@@ -85,7 +84,42 @@ class ToolModeToolbarWidget:
         self.__tool_mode_changed_event_listener = None
 
 
+class RasterZoomToolbarWidget:
+    toolbar_widget_id = "nion.swift.toolbar-widget.raster-zoom"
+    toolbar_widget_title = _("Zoom")  # ideally "Raster Zoom" but that makes the title wider than the controls
+
+    def __init__(self, *, document_controller: DocumentController.DocumentController, **kwargs):
+        self.__document_controller = document_controller
+        u = Declarative.DeclarativeUI()
+        self.ui_view = u.create_column(u.create_spacing(4),
+                                       u.create_row(self.__create_action_button("display_panel.fit_view"),
+                                                    self.__create_action_button("display_panel.1_view")),
+                                       u.create_row(self.__create_action_button("display_panel.fill_view"),
+                                                    self.__create_action_button("display_panel.2_view")),
+                                       u.create_spacing(4), u.create_stretch())
+
+    def __create_action_button(self, action_id: str) -> Declarative.UIDescription:
+        action = Window.actions[action_id]
+        action_identifier = action_id.replace(".", "_")
+        icon_png = getattr(action, "action_command_icon_png")
+        assert icon_png is not None
+        icon_data = CanvasItem.load_rgba_data_from_bytes(icon_png)
+        icon_property = "icon_" + action_identifier
+        setattr(self, icon_property, icon_data)
+        tool_tip = getattr(action, "action_tool_tip", None)
+        key_shortcut = Window.action_shortcuts.get(action_id, dict()).get("display_panel", None)
+        if tool_tip and key_shortcut:
+            tool_tip += f" ({key_shortcut})"
+        u = Declarative.DeclarativeUI()
+        perform_function = "perform_" + action_identifier
+        def perform_action(widget: UserInterface.Widget) -> None:
+            self.__document_controller.perform_action(action_id)
+        setattr(self, perform_function, perform_action)
+        return u.create_image(image=f"@binding({icon_property})", height=24, width=32, on_clicked=f"{perform_function}", tool_tip=tool_tip)
+
+
 Registry.register_component(ToolModeToolbarWidget, {"toolbar-widget"})
+Registry.register_component(RasterZoomToolbarWidget, {"toolbar-widget"})
 
 
 class ToolbarPanel(Panel.Panel):
@@ -97,98 +131,42 @@ class ToolbarPanel(Panel.Panel):
 
         self.widget = self.ui.create_column_widget()
 
-        # see https://www.iconfinder.com
-
-        ui = document_controller.ui
-
-        document_controller_weak_ref = weakref.ref(document_controller)
-
-        icon_size = Geometry.IntSize(height=24, width=32)
-        border_color = "#CCC"
-
-        margins = Geometry.Margins(left=2, right=2, top=3, bottom=3)
-
-        new_group_button = self.ui.create_push_button_widget()
-        new_group_button.tool_tip = _("New Group")
-        new_group_button.icon = CanvasItem.load_rgba_data_from_bytes(pkgutil.get_data(__name__, "resources/new_group_icon.png"))
-        new_group_button.on_clicked = lambda: document_controller_weak_ref().perform_action("project.add_group")
-
-        delete_button = self.ui.create_push_button_widget()
-        delete_button.tool_tip = _("Delete")
-        delete_button.icon = CanvasItem.load_rgba_data_from_bytes(pkgutil.get_data(__name__, "resources/delete_icon.png"))
-        delete_button.on_clicked = lambda: document_controller_weak_ref().perform_action("window.delete")
-
-        export_button = self.ui.create_push_button_widget()
-        export_button.tool_tip = _("Export")
-        export_button.icon = CanvasItem.load_rgba_data_from_bytes(pkgutil.get_data(__name__, "resources/export_icon.png"))
-        export_button.on_clicked = lambda: document_controller_weak_ref().perform_action("file.export")
-
-        view_palette_grid_canvas_item = CanvasItem.CanvasItemComposition()
-        view_palette_grid_canvas_item.layout = CanvasItem.CanvasItemGridLayout(size=Geometry.IntSize(height=2, width=2), margins=margins)
-
-        fit_view_button = CanvasItem.BitmapButtonCanvasItem(CanvasItem.load_rgba_data_from_bytes(pkgutil.get_data(__name__, "resources/fit_icon.png")), border_color=border_color)
-        fit_view_button.size = icon_size
-        fit_view_button.on_button_clicked = lambda: document_controller_weak_ref()._fit_view_action.trigger()
-        fit_view_button.tool_tip = _("Zoom to fit to enclosing space")
-
-        fill_view_button = CanvasItem.BitmapButtonCanvasItem(CanvasItem.load_rgba_data_from_bytes(pkgutil.get_data(__name__, "resources/fill_icon.png")), border_color=border_color)
-        fill_view_button.size = icon_size
-        fill_view_button.on_button_clicked = lambda: document_controller_weak_ref()._fill_view_action.trigger()
-        fill_view_button.tool_tip = _("Zoom to fill enclosing space")
-
-        one_to_one_view_button = CanvasItem.BitmapButtonCanvasItem(CanvasItem.load_rgba_data_from_bytes(pkgutil.get_data(__name__, "resources/1x1_icon.png")), border_color=border_color)
-        one_to_one_view_button.size = icon_size
-        one_to_one_view_button.on_button_clicked = lambda: document_controller_weak_ref()._one_to_one_view_action.trigger()
-        one_to_one_view_button.tool_tip = _("Zoom to one image pixel per screen pixel")
-
-        two_to_one_view_button = CanvasItem.BitmapButtonCanvasItem(CanvasItem.load_rgba_data_from_bytes(pkgutil.get_data(__name__, "resources/2x1_icon.png")), border_color=border_color)
-        two_to_one_view_button.size = icon_size
-        two_to_one_view_button.on_button_clicked = lambda: document_controller_weak_ref()._two_to_one_view_action.trigger()
-        two_to_one_view_button.tool_tip = _("Zoom to two image pixels per screen pixel")
-
-        view_palette_grid_canvas_item.add_canvas_item(fit_view_button, Geometry.IntPoint(x=0, y=0))
-        view_palette_grid_canvas_item.add_canvas_item(fill_view_button, Geometry.IntPoint(x=0, y=1))
-        view_palette_grid_canvas_item.add_canvas_item(one_to_one_view_button, Geometry.IntPoint(x=1, y=0))
-        view_palette_grid_canvas_item.add_canvas_item(two_to_one_view_button, Geometry.IntPoint(x=1, y=1))
-
-        toggle_filter_button = self.ui.create_push_button_widget()
-        toggle_filter_button.tool_tip = _("Toggle Filter Panel")
-        toggle_filter_button.icon = CanvasItem.load_rgba_data_from_bytes(pkgutil.get_data(__name__, "resources/filter_icon.png"))
-        toggle_filter_button.on_clicked = lambda: document_controller_weak_ref()._toggle_filter_action.trigger()
-
-        commands_group_widget = self.ui.create_row_widget()
-        commands_group_widget.add(new_group_button)
-        commands_group_widget.add(delete_button)
-        commands_group_widget.add(export_button)
-
-        view_palette_widget = ui.create_canvas_widget(properties={"height": 54, "width": 68})
-        view_palette_widget.canvas_item.add_canvas_item(view_palette_grid_canvas_item)
-
-        view_group_widget = self.ui.create_row_widget()
-        view_group_widget.add(view_palette_widget)
-
-        filter_group_widget = self.ui.create_row_widget()
-        filter_group_widget.add(toggle_filter_button)
+        # note: "maximum" here means the size hint is maximum and the widget can be smaller. Qt layout is atrocious.
+        self.__toolbar_widget_row = self.ui.create_row_widget(properties={"size-policy-horizontal": "maximum"})
 
         toolbar_row_widget = self.ui.create_row_widget()
         toolbar_row_widget.add_spacing(12)
-        # note: "maximum" here means the size hint is maximum and the widget can be smaller. Qt layout is atrocious.
-        self.__toolbar_widget_row = self.ui.create_row_widget(properties={"size-policy-horizontal": "maximum"})
         toolbar_row_widget.add(self.__toolbar_widget_row)
-        toolbar_row_widget.add_spacing(12)
-        toolbar_row_widget.add(commands_group_widget)
-        toolbar_row_widget.add_spacing(12)
-        toolbar_row_widget.add(view_group_widget)
-        toolbar_row_widget.add_spacing(12)
-        toolbar_row_widget.add(filter_group_widget)
         toolbar_row_widget.add_spacing(12)
         toolbar_row_widget.add_stretch()
 
         self.widget.add(toolbar_row_widget)
 
-        # handle any components that have already been registered.
+        # make a map from widget_id to widget factory.
+        widget_factories = dict()
         for component in Registry.get_components_by_type("toolbar-widget"):
-            self.__component_registered(component, {"toolbar-widget"})
+            widget_factories[component.toolbar_widget_id] = component
+
+        # define the order of widgets.
+        # this part is hard coded for now; needs some work to make it dynamically order widgets as they become
+        # available from packages.
+        widget_id_list = [
+            "nion.swift.toolbar-widget.tool-mode",
+            "nion.swift.toolbar-widget.raster-zoom"
+        ]
+
+        # add the widgets.
+        for widget_id in widget_id_list:
+            self.__toolbar_widget_row.add_spacing(12)
+            widget_factory = widget_factories[widget_id]
+            widget_handler = widget_factory(document_controller=self.document_controller)
+            widget = Declarative.DeclarativeWidget(self.ui, self.document_controller.event_loop, widget_handler)
+            widget_section_label = self.ui.create_label_widget(widget_handler.toolbar_widget_title)
+            widget_section_label.text_color = "darkgrey"  # this is actually light gray due to an error in html specs at w3
+            widget_section = self.ui.create_column_widget()
+            widget_section.add(widget_section_label, alignment="left")
+            widget_section.add(widget, alignment="left")
+            self.__toolbar_widget_row.add(widget_section)
 
     def close(self):
         self.__component_registered_listener.close()

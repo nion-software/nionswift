@@ -3111,6 +3111,8 @@ class DisplayPanelCloseAction(Window.Action):
 class DisplayPanelFillViewAction(Window.Action):
     action_id = "display_panel.fill_view"
     action_name = _("Fill View")
+    action_tool_tip = _("Zoom to fill enclosing space")
+    action_command_icon_png = pkgutil.get_data(__name__, "resources/fill_icon.png")
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
@@ -3126,6 +3128,8 @@ class DisplayPanelFillViewAction(Window.Action):
 class DisplayPanelFitToViewAction(Window.Action):
     action_id = "display_panel.fit_view"
     action_name = _("Fit to View")
+    action_tool_tip = _("Zoom to fit to enclosing space")
+    action_command_icon_png = pkgutil.get_data(__name__, "resources/fit_icon.png")
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
@@ -3141,6 +3145,8 @@ class DisplayPanelFitToViewAction(Window.Action):
 class DisplayPanelOneViewAction(Window.Action):
     action_id = "display_panel.1_view"
     action_name = _("1:1 View")
+    action_tool_tip = _("Zoom to one image pixel per screen pixel")
+    action_command_icon_png = pkgutil.get_data(__name__, "resources/1x1_icon.png")
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
@@ -3240,6 +3246,8 @@ class DisplayPanelShowThumbnailBrowserAction(Window.Action):
 class DisplayPanelTwoViewAction(Window.Action):
     action_id = "display_panel.2_view"
     action_name = _("2:1 View")
+    action_tool_tip = _("Zoom to two image pixels per screen pixel")
+    action_command_icon_png = pkgutil.get_data(__name__, "resources/2x1_icon.png")
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
