@@ -1,0 +1,5 @@
+# new standard tool icons are 64x48 w/ 3.0 line width
+arch -x86_64 brew install batik
+/usr/local/opt/batik/bin/batik-rasterizer -d ../nion/swift/resources -m image/png workspace_*.svg
+/usr/local/opt/batik/bin/batik-rasterizer -h 24 -w 24 -a 0,0,24,24 sliders.svg -d xyz.png
+/usr/local/opt/batik/bin/batik-rasterizer sliders.svg -d xyz.png
