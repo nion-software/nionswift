@@ -1,27 +1,101 @@
 # standard libraries
 import gettext
 import pkgutil
+import typing
 import weakref
 
 # third party libraries
 # None
 
 # local libraries
+from nion.swift import DocumentController
 from nion.swift import Panel
 from nion.ui import CanvasItem
+from nion.ui import Declarative
+from nion.ui import Window
 from nion.utils import Geometry
+from nion.utils import Model
+from nion.utils import Registry
 
 _ = gettext.gettext
+
+
+class ToolModeToolbarWidget:
+    toolbar_widget_id = "nion.swift.tool-mode"
+
+    def __init__(self, *, document_controller: DocumentController.DocumentController, **kwargs):
+        self.radio_button_value: Model.PropertyModel[int] = Model.PropertyModel(0)
+
+        u = Declarative.DeclarativeUI()
+
+        top_row_items = list()
+        bottom_row_items = list()
+        modes = list()
+
+        tool_actions = list()
+
+        for action in Window.actions.values():
+            if action.action_id.startswith("window.set_tool_mode"):
+                tool_actions.append(typing.cast(DocumentController.SetToolModeAction, action))
+
+        for i, tool_action in enumerate(tool_actions):
+            tool_id = tool_action.tool_mode
+            icon_png = tool_action.tool_icon
+            tool_tip = tool_action.tool_tip
+            key_shortcut = Window.action_shortcuts.get(tool_action.action_id, dict()).get("display_panel", None)
+            if key_shortcut:
+                tool_tip += f" ({key_shortcut})"
+            modes.append(tool_id)
+            assert icon_png is not None
+            icon_data = CanvasItem.load_rgba_data_from_bytes(icon_png)
+            icon_property = "icon_" + tool_id
+            setattr(self, icon_property, icon_data)
+            radio_button = u.create_radio_button(icon=f"@binding({icon_property})", value=i,
+                                                 group_value="@binding(radio_button_value.value)", width=32, height=24,
+                                                 tool_tip=tool_tip)
+            if i % 2 == 0:
+                top_row_items.append(radio_button)
+            else:
+                bottom_row_items.append(radio_button)
+
+        top_row = u.create_row(*top_row_items)
+        bottom_row = u.create_row(*bottom_row_items)
+
+        self.ui_view = u.create_column(u.create_spacing(4), top_row, bottom_row, u.create_spacing(4), u.create_stretch())
+
+        self.radio_button_value.value = modes.index(document_controller.tool_mode)
+
+        def tool_mode_changed(tool_mode: str) -> None:
+            self.radio_button_value.value = modes.index(tool_mode)
+
+        self.__tool_mode_changed_event_listener = document_controller.tool_mode_changed_event.listen(tool_mode_changed)
+
+        tool_mode_changed(document_controller.tool_mode)
+
+        def radio_button_changed(property: str):
+            if property == "value":
+                mode_index = self.radio_button_value.value
+                if mode_index is not None:
+                    document_controller.tool_mode = modes[mode_index]
+
+        self.__radio_button_value_listener = self.radio_button_value.property_changed_event.listen(radio_button_changed)
+
+    def close(self) -> None:
+        self.__tool_mode_changed_event_listener.close()
+        self.__tool_mode_changed_event_listener = None
+
+
+Registry.register_component(ToolModeToolbarWidget, {"toolbar-widget"})
 
 
 class ToolbarPanel(Panel.Panel):
 
     def __init__(self, document_controller, panel_id, properties):
-        super(ToolbarPanel, self).__init__(document_controller, panel_id, _("Toolbar"))
+        super().__init__(document_controller, panel_id, _("Toolbar"))
+
+        self.__component_registered_listener = Registry.listen_component_registered_event(self.__component_registered)
 
         self.widget = self.ui.create_column_widget()
-
-        toolbar_row_widget = self.ui.create_row_widget()
 
         # see https://www.iconfinder.com
 
@@ -33,79 +107,6 @@ class ToolbarPanel(Panel.Panel):
         border_color = "#CCC"
 
         margins = Geometry.Margins(left=2, right=2, top=3, bottom=3)
-
-        tool_palette_grid_canvas_item = CanvasItem.CanvasItemComposition()
-        tool_palette_grid_canvas_item.layout = CanvasItem.CanvasItemGridLayout(size=Geometry.IntSize(height=2, width=6), margins=margins)
-
-        pointer_tool_button = CanvasItem.BitmapButtonCanvasItem(CanvasItem.load_rgba_data_from_bytes(pkgutil.get_data(__name__, "resources/pointer_icon.png")), border_color=border_color)
-        pointer_tool_button.size = icon_size
-        pointer_tool_button.tool_tip = _("Pointer tool for selecting graphics")
-
-        hand_tool_button = CanvasItem.BitmapButtonCanvasItem(CanvasItem.load_rgba_data_from_bytes(pkgutil.get_data(__name__, "resources/hand_icon.png")), border_color=border_color)
-        hand_tool_button.size = icon_size
-        hand_tool_button.tool_tip = _("Hand tool for dragging images within panel")
-
-        line_tool_button = CanvasItem.BitmapButtonCanvasItem(CanvasItem.load_rgba_data_from_bytes(pkgutil.get_data(__name__, "resources/line_icon.png")), border_color=border_color)
-        line_tool_button.size = icon_size
-        line_tool_button.tool_tip = _("Line tool for making line regions on images")
-
-        rectangle_tool_button = CanvasItem.BitmapButtonCanvasItem(CanvasItem.load_rgba_data_from_bytes(pkgutil.get_data(__name__, "resources/rectangle_icon.png")), border_color=border_color)
-        rectangle_tool_button.size = icon_size
-        rectangle_tool_button.tool_tip = _("Rectangle tool for making rectangle regions on images")
-
-        ellipse_tool_button = CanvasItem.BitmapButtonCanvasItem(CanvasItem.load_rgba_data_from_bytes(pkgutil.get_data(__name__, "resources/ellipse_icon.png")), border_color=border_color)
-        ellipse_tool_button.size = icon_size
-        ellipse_tool_button.tool_tip = _("Ellipse tool for making ellipse regions on images")
-
-        point_tool_button = CanvasItem.BitmapButtonCanvasItem(CanvasItem.load_rgba_data_from_bytes(pkgutil.get_data(__name__, "resources/point_icon.png")), border_color=border_color)
-        point_tool_button.size = icon_size
-        point_tool_button.tool_tip = _("Point tool for making point regions on images")
-
-        line_profile_tool_button = CanvasItem.BitmapButtonCanvasItem(CanvasItem.load_rgba_data_from_bytes(pkgutil.get_data(__name__, "resources/line_profile_icon.png")), border_color=border_color)
-        line_profile_tool_button.size = icon_size
-        line_profile_tool_button.tool_tip = _("Line profile tool for making line profiles on images")
-
-        interval_tool_button = CanvasItem.BitmapButtonCanvasItem(CanvasItem.load_rgba_data_from_bytes(pkgutil.get_data(__name__, "resources/interval_icon.png")), border_color=border_color)
-        interval_tool_button.size = icon_size
-        interval_tool_button.tool_tip = _("Interval tool for making intervals on line plots")
-
-        spot_tool_button = CanvasItem.BitmapButtonCanvasItem(CanvasItem.load_rgba_data_from_bytes(pkgutil.get_data(__name__, "resources/spot_icon.png")), border_color=border_color)
-        spot_tool_button.size = icon_size
-        spot_tool_button.tool_tip = _("Spot tool for creating spot masks")
-
-        wedge_tool_button = CanvasItem.BitmapButtonCanvasItem(CanvasItem.load_rgba_data_from_bytes(pkgutil.get_data(__name__, "resources/wedge_icon.png")), border_color=border_color)
-        wedge_tool_button.size = icon_size
-        wedge_tool_button.tool_tip = _("Wedge tool for creating wedge masks")
-
-        ring_tool_button = CanvasItem.BitmapButtonCanvasItem( CanvasItem.load_rgba_data_from_bytes(pkgutil.get_data(__name__, "resources/annular_ring.png")), border_color=border_color)
-        ring_tool_button.size = icon_size
-        ring_tool_button.tool_tip = _("Ring tool for creating ring masks")
-
-        lattice_tool_button = CanvasItem.BitmapButtonCanvasItem( CanvasItem.load_rgba_data_from_bytes(pkgutil.get_data(__name__, "resources/lattice_icon.png")), border_color=border_color)
-        lattice_tool_button.size = icon_size
-        lattice_tool_button.tool_tip = _("Lattice tool for creating periodic lattice masks")
-
-        tool_palette_grid_canvas_item.add_canvas_item(pointer_tool_button, Geometry.IntPoint(x=0, y=0))
-        tool_palette_grid_canvas_item.add_canvas_item(hand_tool_button, Geometry.IntPoint(x=0, y=1))
-        tool_palette_grid_canvas_item.add_canvas_item(line_tool_button, Geometry.IntPoint(x=1, y=0))
-        tool_palette_grid_canvas_item.add_canvas_item(ellipse_tool_button, Geometry.IntPoint(x=1, y=1))
-        tool_palette_grid_canvas_item.add_canvas_item(rectangle_tool_button, Geometry.IntPoint(x=2, y=0))
-        tool_palette_grid_canvas_item.add_canvas_item(point_tool_button, Geometry.IntPoint(x=2, y=1))
-        tool_palette_grid_canvas_item.add_canvas_item(line_profile_tool_button, Geometry.IntPoint(x=3, y=0))
-        tool_palette_grid_canvas_item.add_canvas_item(interval_tool_button, Geometry.IntPoint(x=3, y=1))
-        tool_palette_grid_canvas_item.add_canvas_item(spot_tool_button, Geometry.IntPoint(x=4, y=0))
-        tool_palette_grid_canvas_item.add_canvas_item(wedge_tool_button, Geometry.IntPoint(x=4, y=1))
-        tool_palette_grid_canvas_item.add_canvas_item(ring_tool_button, Geometry.IntPoint(x=5, y=0))
-        tool_palette_grid_canvas_item.add_canvas_item(lattice_tool_button, Geometry.IntPoint(x=5, y=1))
-
-        modes = "pointer", "hand", "line", "rectangle", "ellipse", "point", "line-profile", "interval", "spot", "wedge", "ring", "lattice"
-        self.__tool_button_group = CanvasItem.RadioButtonGroup([pointer_tool_button, hand_tool_button, line_tool_button, rectangle_tool_button, ellipse_tool_button, point_tool_button, line_profile_tool_button, interval_tool_button, spot_tool_button, wedge_tool_button, ring_tool_button])
-        def tool_mode_changed(tool_mode):
-            self.__tool_button_group.current_index = modes.index(tool_mode)
-        self.__tool_mode_changed_event_listener = document_controller.tool_mode_changed_event.listen(tool_mode_changed)
-        self.__tool_button_group.current_index = modes.index(document_controller.tool_mode)
-        self.__tool_button_group.on_current_index_changed = lambda index: setattr(document_controller_weak_ref(), "tool_mode", modes[index])
-        tool_mode_changed(document_controller.tool_mode)
 
         new_group_button = self.ui.create_push_button_widget()
         new_group_button.tool_tip = _("New Group")
@@ -155,12 +156,6 @@ class ToolbarPanel(Panel.Panel):
         toggle_filter_button.icon = CanvasItem.load_rgba_data_from_bytes(pkgutil.get_data(__name__, "resources/filter_icon.png"))
         toggle_filter_button.on_clicked = lambda: document_controller_weak_ref()._toggle_filter_action.trigger()
 
-        tool_palette_widget = ui.create_canvas_widget(properties={"height": 54, "width": 164})
-        tool_palette_widget.canvas_item.add_canvas_item(tool_palette_grid_canvas_item)
-
-        tool_group_widget = self.ui.create_row_widget()
-        tool_group_widget.add(tool_palette_widget)
-
         commands_group_widget = self.ui.create_row_widget()
         commands_group_widget.add(new_group_button)
         commands_group_widget.add(delete_button)
@@ -175,8 +170,11 @@ class ToolbarPanel(Panel.Panel):
         filter_group_widget = self.ui.create_row_widget()
         filter_group_widget.add(toggle_filter_button)
 
+        toolbar_row_widget = self.ui.create_row_widget()
         toolbar_row_widget.add_spacing(12)
-        toolbar_row_widget.add(tool_group_widget)
+        # note: "maximum" here means the size hint is maximum and the widget can be smaller. Qt layout is atrocious.
+        self.__toolbar_widget_row = self.ui.create_row_widget(properties={"size-policy-horizontal": "maximum"})
+        toolbar_row_widget.add(self.__toolbar_widget_row)
         toolbar_row_widget.add_spacing(12)
         toolbar_row_widget.add(commands_group_widget)
         toolbar_row_widget.add_spacing(12)
@@ -188,7 +186,16 @@ class ToolbarPanel(Panel.Panel):
 
         self.widget.add(toolbar_row_widget)
 
+        # handle any components that have already been registered.
+        for component in Registry.get_components_by_type("toolbar-widget"):
+            self.__component_registered(component, {"toolbar-widget"})
+
     def close(self):
-        self.__tool_mode_changed_event_listener.close()
-        self.__tool_mode_changed_event_listener = None
+        self.__component_registered_listener.close()
+        self.__component_registered_listener = None
         super().close()
+
+    def __component_registered(self, component, component_types: typing.Set[str]) -> None:
+        if "toolbar-widget" in component_types:
+            self.__toolbar_widget_row.add_spacing(12)
+            self.__toolbar_widget_row.add(Declarative.DeclarativeWidget(self.ui, self.document_controller.event_loop, component(document_controller=self.document_controller)))
