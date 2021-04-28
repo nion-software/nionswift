@@ -67,5 +67,17 @@
     },
     "workspace.new": {
         "window": "Ctrl+Alt+L"
+    },
+    "window.set_tool_mode.pointer": {
+        "display_panel": "e"
+    },
+    "window.set_tool_mode.hand": {
+        "display_panel": "h"
+    },
+    "window.set_tool_mode.line": {
+        "display_panel": "n"
+    },
+    "window.set_tool_mode.rectangle": {
+        "display_panel": "c"
     }
 }

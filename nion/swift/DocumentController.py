@@ -2682,6 +2682,38 @@ Window.register_action(OpenRunScriptsAction())
 Window.register_action(ToggleFilterAction())
 
 
+class SetToolModeAction(Window.Action):
+    def __init__(self, tool_mode: str, tool_name: str, tool_icon_filename: str, tool_tip: str):
+        super().__init__()
+        tool_mode_id = tool_mode.replace("_", "-")
+        self.action_id = f"window.set_tool_mode.{tool_mode_id}"
+        base_action_name = _("Set Tool Mode")
+        self.action_name = f"{base_action_name} ({tool_name})"
+        self.tool_mode = tool_mode
+        self.tool_icon = pkgutil.get_data(__name__, "resources/" + tool_icon_filename)
+        self.tool_tip = tool_tip
+
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        window.tool_mode = self.tool_mode
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
+
+
+Window.register_action(SetToolModeAction("pointer", _("Pointer"), "pointer_icon.png", _("Pointer tool for selecting graphics")))
+Window.register_action(SetToolModeAction("hand", _("Hand"), "hand_icon.png", _("Hand tool for dragging images within panel")))
+Window.register_action(SetToolModeAction("line", _("Line"), "line_icon.png", _("Line tool for making line regions on images")))
+Window.register_action(SetToolModeAction("ellipse", _("Ellipse"), "ellipse_icon.png", _("Ellipse tool for making ellipse regions on images")))
+Window.register_action(SetToolModeAction("rectangle", _("Rectangle"), "rectangle_icon.png", _("Rectangle tool for making rectangle regions on images")))
+Window.register_action(SetToolModeAction("point", _("Point"), "point_icon.png", _("Point tool for making point regions on images")))
+Window.register_action(SetToolModeAction("line-profile", _("Line Profile"), "line_profile_icon.png", _("Line profile tool for making line profiles on images")))
+Window.register_action(SetToolModeAction("interval", _("Interval"), "interval_icon.png", _("Interval tool for making intervals on line plots")))
+Window.register_action(SetToolModeAction("spot", _("Spot"), "spot_icon.png", _("Spot tool for creating spot masks")))
+Window.register_action(SetToolModeAction("wedge", _("Wedge"), "wedge_icon.png", _("Wedge tool for creating wedge masks")))
+Window.register_action(SetToolModeAction("ring", _("Ring"), "annular_ring.png", _("Ring tool for creating ring masks")))
+Window.register_action(SetToolModeAction("lattice", _("Lattice"), "lattice_icon.png", _("Lattice tool for creating periodic lattice masks")))
+
+
 class WorkspaceChangeSplits(Window.Action):
     # this is for internal testing only. since it requires passing the splitter and splits,
     # it is a non-standard action.
