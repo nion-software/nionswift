@@ -386,7 +386,7 @@ class Workspace:
         selected_display_panel = None
         type = d["type"]
         if type == "splitter":
-            if isinstance(canvas_item, CanvasItem.SplitterCanvasItem):
+            if isinstance(canvas_item, CanvasItem.SplitterCanvasItem) and canvas_item.orientation == d.get("orientation", None):
                 canvas_item_container = canvas_item
                 children = d.get("children", list())
                 if len(children) == len(canvas_item_container.canvas_items):

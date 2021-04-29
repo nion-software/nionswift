@@ -498,6 +498,35 @@ class TestWorkspaceClass(unittest.TestCase):
             # compare against new layout
             self.assertEqual(new_workspace_layout, workspace_controller._workspace_layout)
 
+    def test_workspace_remove_bottom_two_in_2x2_undo_and_redo_works_cleanly(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+            workspace_controller = document_controller.workspace_controller
+            display_panel = workspace_controller.display_panels[0]
+            document_controller.selected_display_panel = display_panel
+            document_controller.perform_action("workspace.split_2x2")
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+            # save the original layout
+            old_workspace_layout = copy.deepcopy(workspace_controller._workspace_layout)
+            # remove display
+            workspace_controller.close_display_panels(workspace_controller.display_panels[2:4])
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+            # record the new layout
+            new_workspace_layout = copy.deepcopy(workspace_controller._workspace_layout)
+            # undo the remove
+            document_controller.handle_undo()
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+            # compare against old layout
+            self.assertEqual(old_workspace_layout, workspace_controller._workspace_layout)
+            # now redo
+            document_controller.handle_redo()
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+            # compare against new layout
+            self.assertEqual(new_workspace_layout, workspace_controller._workspace_layout)
+
     def test_workspace_change_workspace_undo_redo(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
