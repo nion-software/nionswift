@@ -134,7 +134,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         self.__last_xdata_list = list()
 
         # frame rate
-        self.__display_frame_rate_id = None
+        self.__display_frame_rate_id: typing.Optional[str] = None
         self.__display_frame_rate_last_index = 0
 
         # child displays
@@ -768,36 +768,29 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
     def context_menu_event(self, x, y, gx, gy):
         return self.delegate.show_display_context_menu(gx, gy)
 
+    @property
+    def key_contexts(self) -> typing.Sequence[str]:
+        key_contexts = ["display_panel"]
+        key_contexts.append("line_plot_display")
+        if self.__graphic_selection and self.__graphic_selection.has_selection:
+            key_contexts.append("line_plot_display_graphics")
+        return key_contexts
+
     # ths message comes from the widget
     def key_pressed(self, key):
         if super().key_pressed(key):
             return True
-        # only handle keys if we're directly embedded in an image panel
-        if key.is_delete:
-            self.delegate.delete_key_pressed()
-            return True
-        if key.is_enter_or_return:
-            self.delegate.enter_key_pressed()
-            return True
-        if key.is_arrow:
-            mapping = self.__get_mouse_mapping()
-            amount = 10.0 if key.modifiers.shift else 1.0
-            if key.is_left_arrow:
-                self.delegate.nudge_selected_graphics(mapping, Geometry.FloatPoint(y=0, x=-amount))
-            elif key.is_right_arrow:
-                self.delegate.nudge_selected_graphics(mapping, Geometry.FloatPoint(y=0, x=amount))
-            return True
-        if key.key == 70 and key.modifiers.shift and key.modifiers.alt:
-            if self.__display_frame_rate_id is None:
-                self.__display_frame_rate_id = str(id(self))
-            else:
-                self.__display_frame_rate_id = None
-            return True
-        # This will update the cursor shape when the user presses a modifier key
+        # This will update the cursor shape when the user presses a modifier key.
         if self.__last_mouse:
             last_mouse = self.__last_mouse
             self.mouse_position_changed(last_mouse.x, last_mouse.y, key.modifiers)
         return False
+
+    def toggle_frame_rate(self) -> None:
+        if self.__display_frame_rate_id is None:
+            self.__display_frame_rate_id = str(id(self))
+        else:
+            self.__display_frame_rate_id = None
 
     def key_released(self, key):
         if super().key_released(key):
@@ -814,6 +807,10 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         left_channel = self.__axes.drawn_left_channel
         right_channel = self.__axes.drawn_right_channel
         return LinePlotCanvasItemMapping(data_scale, plot_rect, left_channel, right_channel)
+
+    @property
+    def mouse_mapping(self):
+        return self.__get_mouse_mapping()
 
     def begin_tracking_regions(self, pos, modifiers):
         # keep track of general drag information

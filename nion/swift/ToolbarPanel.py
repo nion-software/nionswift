@@ -127,10 +127,10 @@ class RasterZoomToolbarWidget(ActionTableToolbarWidget):
     def __init__(self, *, document_controller: DocumentController.DocumentController, **kwargs):
         super().__init__(
             [
-                Window.actions["display_panel.fit_view"],
-                Window.actions["display_panel.1_view"],
-                Window.actions["display_panel.fill_view"],
-                Window.actions["display_panel.2_view"],
+                Window.actions["raster_display.fit_view"],
+                Window.actions["raster_display.1_view"],
+                Window.actions["raster_display.fill_view"],
+                Window.actions["raster_display.2_view"],
             ],
             document_controller,
             **kwargs

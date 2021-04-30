@@ -300,24 +300,24 @@ class TestDisplayPanelClass(unittest.TestCase):
         # select it
         self.display_item.graphic_selection.set(0)
         # move it left
-        self.display_panel.display_canvas_item.key_pressed(self.document_controller.ui.create_key_by_id("left"))
+        self.display_panel._handle_key_pressed(typing.cast(TestUI.UserInterface, self.document_controller.ui).create_key_by_id("left"))
         self.assertClosePoint(self.display_item.graphics[0].start, (0.200, 0.199))
-        self.display_panel.display_canvas_item.key_pressed(self.document_controller.ui.create_key_by_id("left", self.document_controller.ui.create_modifiers_by_id_list(["shift"])))
+        self.display_panel._handle_key_pressed(typing.cast(TestUI.UserInterface, self.document_controller.ui).create_key_by_id("left", self.document_controller.ui.create_modifiers_by_id_list(["shift"])))
         self.assertClosePoint(self.display_item.graphics[0].start, (0.200, 0.189))
         # move it up
-        self.display_panel.display_canvas_item.key_pressed(self.document_controller.ui.create_key_by_id("up"))
+        self.display_panel._handle_key_pressed(typing.cast(TestUI.UserInterface, self.document_controller.ui).create_key_by_id("up"))
         self.assertClosePoint(self.display_item.graphics[0].start, (0.199, 0.189))
-        self.display_panel.display_canvas_item.key_pressed(self.document_controller.ui.create_key_by_id("up", self.document_controller.ui.create_modifiers_by_id_list(["shift"])))
+        self.display_panel._handle_key_pressed(typing.cast(TestUI.UserInterface, self.document_controller.ui).create_key_by_id("up", self.document_controller.ui.create_modifiers_by_id_list(["shift"])))
         self.assertClosePoint(self.display_item.graphics[0].start, (0.189, 0.189))
         # move it right
-        self.display_panel.display_canvas_item.key_pressed(self.document_controller.ui.create_key_by_id("right"))
+        self.display_panel._handle_key_pressed(typing.cast(TestUI.UserInterface, self.document_controller.ui).create_key_by_id("right"))
         self.assertClosePoint(self.display_item.graphics[0].start, (0.189, 0.190))
-        self.display_panel.display_canvas_item.key_pressed(self.document_controller.ui.create_key_by_id("right", self.document_controller.ui.create_modifiers_by_id_list(["shift"])))
+        self.display_panel._handle_key_pressed(typing.cast(TestUI.UserInterface, self.document_controller.ui).create_key_by_id("right", self.document_controller.ui.create_modifiers_by_id_list(["shift"])))
         self.assertClosePoint(self.display_item.graphics[0].start, (0.189, 0.200))
         # move it down
-        self.display_panel.display_canvas_item.key_pressed(self.document_controller.ui.create_key_by_id("down"))
+        self.display_panel._handle_key_pressed(typing.cast(TestUI.UserInterface, self.document_controller.ui).create_key_by_id("down"))
         self.assertClosePoint(self.display_item.graphics[0].start, (0.190, 0.200))
-        self.display_panel.display_canvas_item.key_pressed(self.document_controller.ui.create_key_by_id("down", self.document_controller.ui.create_modifiers_by_id_list(["shift"])))
+        self.display_panel._handle_key_pressed(typing.cast(TestUI.UserInterface, self.document_controller.ui).create_key_by_id("down", self.document_controller.ui.create_modifiers_by_id_list(["shift"])))
         self.assertClosePoint(self.display_item.graphics[0].start, (0.200, 0.200))
 
     def test_nudge_rect(self):
@@ -326,24 +326,24 @@ class TestDisplayPanelClass(unittest.TestCase):
         # select it
         self.display_item.graphic_selection.set(0)
         # move it left
-        self.display_panel.display_canvas_item.key_pressed(self.document_controller.ui.create_key_by_id("left"))
+        self.display_panel._handle_key_pressed(typing.cast(TestUI.UserInterface, self.document_controller.ui).create_key_by_id("left"))
         self.assertClosePoint(self.display_item.graphics[0].bounds[0], (0.250, 0.249))
-        self.display_panel.display_canvas_item.key_pressed(self.document_controller.ui.create_key_by_id("left", self.document_controller.ui.create_modifiers_by_id_list(["shift"])))
+        self.display_panel._handle_key_pressed(typing.cast(TestUI.UserInterface, self.document_controller.ui).create_key_by_id("left", self.document_controller.ui.create_modifiers_by_id_list(["shift"])))
         self.assertClosePoint(self.display_item.graphics[0].bounds[0], (0.250, 0.239))
         # move it up
-        self.display_panel.display_canvas_item.key_pressed(self.document_controller.ui.create_key_by_id("up"))
+        self.display_panel._handle_key_pressed(typing.cast(TestUI.UserInterface, self.document_controller.ui).create_key_by_id("up"))
         self.assertClosePoint(self.display_item.graphics[0].bounds[0], (0.249, 0.239))
-        self.display_panel.display_canvas_item.key_pressed(self.document_controller.ui.create_key_by_id("up", self.document_controller.ui.create_modifiers_by_id_list(["shift"])))
+        self.display_panel._handle_key_pressed(typing.cast(TestUI.UserInterface, self.document_controller.ui).create_key_by_id("up", self.document_controller.ui.create_modifiers_by_id_list(["shift"])))
         self.assertClosePoint(self.display_item.graphics[0].bounds[0], (0.239, 0.239))
         # move it right
-        self.display_panel.display_canvas_item.key_pressed(self.document_controller.ui.create_key_by_id("right"))
+        self.display_panel._handle_key_pressed(typing.cast(TestUI.UserInterface, self.document_controller.ui).create_key_by_id("right"))
         self.assertClosePoint(self.display_item.graphics[0].bounds[0], (0.239, 0.240))
-        self.display_panel.display_canvas_item.key_pressed(self.document_controller.ui.create_key_by_id("right", self.document_controller.ui.create_modifiers_by_id_list(["shift"])))
+        self.display_panel._handle_key_pressed(typing.cast(TestUI.UserInterface, self.document_controller.ui).create_key_by_id("right", self.document_controller.ui.create_modifiers_by_id_list(["shift"])))
         self.assertClosePoint(self.display_item.graphics[0].bounds[0], (0.239, 0.250))
         # move it down
-        self.display_panel.display_canvas_item.key_pressed(self.document_controller.ui.create_key_by_id("down"))
+        self.display_panel._handle_key_pressed(typing.cast(TestUI.UserInterface, self.document_controller.ui).create_key_by_id("down"))
         self.assertClosePoint(self.display_item.graphics[0].bounds[0], (0.240, 0.250))
-        self.display_panel.display_canvas_item.key_pressed(self.document_controller.ui.create_key_by_id("down", self.document_controller.ui.create_modifiers_by_id_list(["shift"])))
+        self.display_panel._handle_key_pressed(typing.cast(TestUI.UserInterface, self.document_controller.ui).create_key_by_id("down", self.document_controller.ui.create_modifiers_by_id_list(["shift"])))
         self.assertClosePoint(self.display_item.graphics[0].bounds[0], (0.250, 0.250))
 
     def test_nudge_ellipse(self):
@@ -352,24 +352,24 @@ class TestDisplayPanelClass(unittest.TestCase):
         # select it
         self.display_item.graphic_selection.set(0)
         # move it left
-        self.display_panel.display_canvas_item.key_pressed(self.document_controller.ui.create_key_by_id("left"))
+        self.display_panel._handle_key_pressed(typing.cast(TestUI.UserInterface, self.document_controller.ui).create_key_by_id("left"))
         self.assertClosePoint(self.display_item.graphics[0].bounds[0], (0.250, 0.249))
-        self.display_panel.display_canvas_item.key_pressed(self.document_controller.ui.create_key_by_id("left", self.document_controller.ui.create_modifiers_by_id_list(["shift"])))
+        self.display_panel._handle_key_pressed(typing.cast(TestUI.UserInterface, self.document_controller.ui).create_key_by_id("left", self.document_controller.ui.create_modifiers_by_id_list(["shift"])))
         self.assertClosePoint(self.display_item.graphics[0].bounds[0], (0.250, 0.239))
         # move it up
-        self.display_panel.display_canvas_item.key_pressed(self.document_controller.ui.create_key_by_id("up"))
+        self.display_panel._handle_key_pressed(typing.cast(TestUI.UserInterface, self.document_controller.ui).create_key_by_id("up"))
         self.assertClosePoint(self.display_item.graphics[0].bounds[0], (0.249, 0.239))
-        self.display_panel.display_canvas_item.key_pressed(self.document_controller.ui.create_key_by_id("up", self.document_controller.ui.create_modifiers_by_id_list(["shift"])))
+        self.display_panel._handle_key_pressed(typing.cast(TestUI.UserInterface, self.document_controller.ui).create_key_by_id("up", self.document_controller.ui.create_modifiers_by_id_list(["shift"])))
         self.assertClosePoint(self.display_item.graphics[0].bounds[0], (0.239, 0.239))
         # move it right
-        self.display_panel.display_canvas_item.key_pressed(self.document_controller.ui.create_key_by_id("right"))
+        self.display_panel._handle_key_pressed(typing.cast(TestUI.UserInterface, self.document_controller.ui).create_key_by_id("right"))
         self.assertClosePoint(self.display_item.graphics[0].bounds[0], (0.239, 0.240))
-        self.display_panel.display_canvas_item.key_pressed(self.document_controller.ui.create_key_by_id("right", self.document_controller.ui.create_modifiers_by_id_list(["shift"])))
+        self.display_panel._handle_key_pressed(typing.cast(TestUI.UserInterface, self.document_controller.ui).create_key_by_id("right", self.document_controller.ui.create_modifiers_by_id_list(["shift"])))
         self.assertClosePoint(self.display_item.graphics[0].bounds[0], (0.239, 0.250))
         # move it down
-        self.display_panel.display_canvas_item.key_pressed(self.document_controller.ui.create_key_by_id("down"))
+        self.display_panel._handle_key_pressed(typing.cast(TestUI.UserInterface, self.document_controller.ui).create_key_by_id("down"))
         self.assertClosePoint(self.display_item.graphics[0].bounds[0], (0.240, 0.250))
-        self.display_panel.display_canvas_item.key_pressed(self.document_controller.ui.create_key_by_id("down", self.document_controller.ui.create_modifiers_by_id_list(["shift"])))
+        self.display_panel._handle_key_pressed(typing.cast(TestUI.UserInterface, self.document_controller.ui).create_key_by_id("down", self.document_controller.ui.create_modifiers_by_id_list(["shift"])))
         self.assertClosePoint(self.display_item.graphics[0].bounds[0], (0.250, 0.250))
 
     def test_drag_point_moves_the_point_graphic(self):
@@ -1027,7 +1027,8 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertEqual(len(line_plot_display_item.graphics), 1)
         self.assertEqual(len(line_plot_display_item.graphic_selection.indexes), 1)
         # hit the delete key
-        self.display_panel.display_canvas_item.key_pressed(self.document_controller.ui.create_key_by_id("delete"))
+        k = typing.cast(TestUI.UserInterface, self.document_controller.ui).create_key_by_id("delete")
+        self.display_panel._handle_key_pressed(typing.cast(TestUI.UserInterface, self.document_controller.ui).create_key_by_id("delete"))
         self.assertEqual(len(line_plot_display_item.graphics), 0)
 
     def test_key_gets_dispatched_to_image_canvas_item(self):

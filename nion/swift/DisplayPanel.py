@@ -35,6 +35,7 @@ from nion.ui import CanvasItem
 from nion.ui import DrawingContext
 from nion.ui import GridCanvasItem
 from nion.ui import UserInterface
+from nion.ui import Window
 from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import ListModel
@@ -513,6 +514,10 @@ class MissingDataCanvasItem(CanvasItem.CanvasItemComposition):
 
     def context_menu_event(self, x, y, gx, gy):
         return self.__delegate.show_display_context_menu(gx, gy)
+
+    @property
+    def key_contexts(self) -> typing.Sequence[str]:
+        return ["display_panel"]
 
     @property
     def default_aspect_ratio(self):
@@ -1379,9 +1384,11 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         def data_list_drag_started(mime_data, thumbnail_data: typing.Optional[numpy.ndarray]) -> None:
             self.content_canvas_item.drag(mime_data, thumbnail_data)
 
-        def key_pressed(key):
-            if key.text == "v":
-                self.__cycle_display()
+        # this handles the case of a key press in a grid or list controller.
+        def key_pressed(key: UserInterface.Key) -> bool:
+            action = Window.get_action_for_key(["display_panel_browser"], key)
+            if action:
+                self.document_controller.perform_action(action)
                 return True
             return False
 
@@ -1886,22 +1893,27 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
     def __begin_drag(self, mime_data, thumbnail_data):
         self.drag(mime_data, thumbnail_data, drag_finished_fn=functools.partial(self._drag_finished, self.__document_controller))
 
+    def cycle_display(self) -> None:
+        self.__cycle_display()
+
     def __cycle_display(self):
-        # the second part of the if statement below handles the case where the data item has been changed by
-        # the user so the cycle should go back to the main display.
-        if self.__display_composition_canvas_item.visible and (not self.__horizontal_browser_canvas_item.visible or not self.__display_changed):
-            if self.__horizontal_browser_canvas_item.visible:
-                self.__switch_to_grid_browser()
-                self.__update_selection_to_display()
-                self.__grid_data_grid_controller.icon_view_canvas_item.request_focus()
+        # cycle display is only valid if there is no display panel controller.
+        if self.__display_panel_controller is None:
+            # the second part of the if statement below handles the case where the data item has been changed by
+            # the user so the cycle should go back to the main display.
+            if self.__display_composition_canvas_item.visible and (not self.__horizontal_browser_canvas_item.visible or not self.__display_changed):
+                if self.__horizontal_browser_canvas_item.visible:
+                    self.__switch_to_grid_browser()
+                    self.__update_selection_to_display()
+                    self.__grid_data_grid_controller.icon_view_canvas_item.request_focus()
+                else:
+                    self.__switch_to_horizontal_browser()
+                    self.__update_selection_to_display()
+                    self.__horizontal_data_grid_controller.icon_view_canvas_item.request_focus()
             else:
-                self.__switch_to_horizontal_browser()
-                self.__update_selection_to_display()
-                self.__horizontal_data_grid_controller.icon_view_canvas_item.request_focus()
-        else:
-            self.__switch_to_no_browser()
-            self._select()
-        self.__display_changed = False
+                self.__switch_to_no_browser()
+                self._select()
+            self.__display_changed = False
 
     def __update_selection_to_display(self):
         # match the selection in the browsers (thumbnail and grid) to the display item.
@@ -1936,18 +1948,25 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
 
     # from the canvas item directly. dispatches to the display canvas item. if the display canvas item
     # doesn't handle it, gives the display controller a chance to handle it.
-    def _handle_key_pressed(self, key):
+    def _handle_key_pressed(self, key: UserInterface.Key) -> bool:
         display_canvas_item = self.display_canvas_item
-        if display_canvas_item and display_canvas_item.key_pressed(key):
-            return True
-        if self.__display_panel_controller and self.__display_panel_controller.key_pressed(key):
-            return True
-        if self.__display_panel_controller is None:
-            # cycle views is only valid if there is no display_panel_controller
-            if key.text == "v":
-                self.__cycle_display()
+        if display_canvas_item:
+            # Alt+Shift+L and Alt+Shift+F are not currently expressible using key config.
+            # Handle those two special cases here. This also serves to avoid key conflicts
+            # with these debugging capabilities.
+            action: typing.Optional[Window.Action]
+            if key.key == 70 and key.modifiers.shift and key.modifiers.alt:
+                action = Window.actions["display_panel.toggle_latency"]
+            elif key.key == 76 and key.modifiers.shift and key.modifiers.alt:
+                action = Window.actions["display_panel.toggle_frame_rate"]
+            else:
+                action = Window.get_action_for_key(["display_panel_browser"] + display_canvas_item.key_contexts, key)
+            if action:
+                self.document_controller.perform_action(action)
                 return True
-        if self.document_controller.perform_display_panel_command(key):
+            if display_canvas_item.key_pressed(key):
+                return True
+        if self.__display_panel_controller and self.__display_panel_controller.key_pressed(key):
             return True
         return DisplayPanelManager().key_pressed(self, key)
 
@@ -2126,10 +2145,13 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         if undo_command:
             self.__document_controller.push_undo_command(undo_command)
 
-    def delete_key_pressed(self):
+    def delete_key_pressed(self) -> None:
         self.__document_controller.remove_selected_graphics()
 
-    def enter_key_pressed(self):
+    def enter_key_pressed(self) -> None:
+        self.handle_auto_display()
+
+    def handle_auto_display(self) -> None:
         command = ChangeDisplayCommand(self.__document_controller.document_model, self.__display_item)
         result = self.display_canvas_item.handle_auto_display()
         if result:

@@ -467,7 +467,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         self.__mouse_in = False
 
         # frame rate and latency
-        self.__display_frame_rate_id = None
+        self.__display_frame_rate_id: typing.Optional[str] = None
         self.__display_frame_rate_last_index = 0
         self.__display_latency = False
 
@@ -1075,91 +1075,30 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
     def context_menu_event(self, x, y, gx, gy):
         return self.delegate.show_display_context_menu(gx, gy)
 
-    # ths message comes from the widget
-    def key_pressed(self, key):
-        if super().key_pressed(key):
-            return True
-        # only handle keys if we're directly embedded in an image panel
-        if key.is_delete:
-            self.delegate.delete_key_pressed()
-            return True
-        if key.is_enter_or_return:
-            self.delegate.enter_key_pressed()
-            return True
+    @property
+    def key_contexts(self) -> typing.Sequence[str]:
+        key_contexts = ["display_panel"]
         if self.__data_shape is not None:
+            key_contexts.append("raster_display")
             if self.__graphic_selection.has_selection:
-                if key.is_arrow:
-                    widget_mapping = self.__get_mouse_mapping()
-                    amount = 10.0 if key.modifiers.shift else 1.0
-                    if key.is_left_arrow:
-                        self.delegate.nudge_selected_graphics(widget_mapping, Geometry.FloatPoint(y=0, x=-amount))
-                    elif key.is_up_arrow:
-                        self.delegate.nudge_selected_graphics(widget_mapping, Geometry.FloatPoint(y=-amount, x=0))
-                    elif key.is_right_arrow:
-                        self.delegate.nudge_selected_graphics(widget_mapping, Geometry.FloatPoint(y=0, x=amount))
-                    elif key.is_down_arrow:
-                        self.delegate.nudge_selected_graphics(widget_mapping, Geometry.FloatPoint(y=amount, x=0))
-                    return True
-            if key.is_arrow:
-                if key.modifiers.control:
-                    if key.is_left_arrow:
-                        self.delegate.nudge_slice(-1)
-                    elif key.is_right_arrow:
-                        self.delegate.nudge_slice(1)
-                else:
-                    amount = 100.0 if key.modifiers.shift else 10.0
-                    if key.is_left_arrow:
-                        self.move_left(amount)
-                    elif key.is_up_arrow:
-                        self.move_up(amount)
-                    elif key.is_right_arrow:
-                        self.move_right(amount)
-                    elif key.is_down_arrow:
-                        self.move_down(amount)
-                    return True
-            if key.text == "-":
-                self.zoom_out()
-                return True
-            if key.text == "+" or key.text == "=":
-                self.zoom_in()
-                return True
-            if key.text == "j":
-                self.move_left()
-                return True
-            if key.text == "k":
-                self.move_right()
-                return True
-            if key.text == "i":
-                self.move_up()
-                return True
-            if key.text == "m":
-                self.move_down()
-                return True
-            if key.text == "1":
-                self.set_one_to_one_mode()
-                return True
-            if key.text == "2":
-                self.set_two_to_one_mode()
-                return True
-            if key.text == "0":
-                self.set_fit_mode()
-                return True
-            if key.text == ")":
-                self.set_fill_mode()
-                return True
-            if key.key == 70 and key.modifiers.shift and key.modifiers.alt:
-                if self.__display_frame_rate_id is None:
-                    self.__display_frame_rate_id = str(id(self))
-                else:
-                    self.__display_frame_rate_id = None
-                return True
-            if key.key == 76 and key.modifiers.shift and key.modifiers.alt:
-                self.__display_latency = not self.__display_latency
-                return True
-        return False
+                key_contexts.append("raster_display_graphics")
+        return key_contexts
+
+    def toggle_frame_rate(self) -> None:
+        if self.__display_frame_rate_id is None:
+            self.__display_frame_rate_id = str(id(self))
+        else:
+            self.__display_frame_rate_id = None
+
+    def toggle_latency(self) -> None:
+        self.__display_latency = not self.__display_latency
 
     def __get_mouse_mapping(self):
         return ImageCanvasItemMapping(self.__data_shape, self.__composite_canvas_item.canvas_rect, self.__coordinate_system)
+
+    @property
+    def mouse_mapping(self):
+        return self.__get_mouse_mapping()
 
     # map from widget coordinates to image coordinates
     def map_widget_to_image(self, p):
@@ -1279,7 +1218,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         self.delegate.update_display_properties(display_properties)
         self.delegate.push_undo_command(command)
 
-    def __apply_move_command(self, delta):
+    def apply_move_command(self, delta: Geometry.FloatPoint) -> None:
         command = self.delegate.create_change_display_command(command_id="image_nudge", is_mergeable=True)
         self.__update_image_canvas_position(delta)
         self.delegate.push_undo_command(command)
@@ -1303,13 +1242,13 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         self.__apply_display_properties_command({"image_zoom": self.__image_zoom / 1.25, "image_canvas_mode": "custom"})
 
     def move_left(self, amount=10.0):
-        self.__apply_move_command((0.0, amount))
+        self.apply_move_command(Geometry.FloatPoint(y=0.0, x=amount))
 
     def move_right(self, amount=10.0):
-        self.__apply_move_command((0.0, -amount))
+        self.apply_move_command(Geometry.FloatPoint(y=0.0, x=-amount))
 
     def move_up(self, amount=10.0):
-        self.__apply_move_command((amount, 0.0))
+        self.apply_move_command(Geometry.FloatPoint(y=amount, x=0.0))
 
     def move_down(self, amount=10.0):
-        self.__apply_move_command((-amount, 0.0))
+        self.apply_move_command(Geometry.FloatPoint(y=-amount, x=0.0))

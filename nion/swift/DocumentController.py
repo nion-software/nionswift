@@ -27,6 +27,7 @@ from nion.swift import DisplayPanel
 from nion.swift import ExportDialog
 from nion.swift import FilterPanel
 from nion.swift import GeneratorDialog
+from nion.swift import ImageCanvasItem
 from nion.swift import Inspector
 from nion.swift import MimeTypes
 from nion.swift import Panel
@@ -1416,14 +1417,7 @@ class DocumentController(Window.Window):
         return False
 
     def remove_selected_graphics(self) -> None:
-        display_item = self.selected_display_item
-        if display_item:
-            if display_item.graphic_selection.has_selection:
-                graphics = [display_item.graphics[index] for index in display_item.graphic_selection.indexes]
-                if graphics:
-                    command = self.create_remove_graphics_command(display_item, graphics)
-                    command.perform()
-                    self.push_undo_command(command)
+        self.perform_action("display_panel.delete_graphics")
 
     class RemoveGraphicsCommand(Undo.UndoableCommand):
 
@@ -2421,13 +2415,6 @@ class DocumentController(Window.Window):
                                                 used_display_panel, used_display_panels, model, used_display_item,
                                                 used_display_items, crop_graphic, used_data_item, used_data_items)
 
-    def perform_display_panel_command(self, key) -> bool:
-        action_id = Window.get_action_id_for_key("display_panel", key)
-        if action_id:
-            self.perform_action(action_id)
-            return True
-        return False
-
 
 class DeleteItemAction(Window.Action):
     action_id = "item.delete"
@@ -3133,55 +3120,44 @@ class DisplayPanelCloseAction(Window.Action):
         return len(context.display_panels) > 0 or context.display_panel is not None
 
 
-class DisplayPanelFillViewAction(Window.Action):
-    action_id = "display_panel.fill_view"
-    action_name = _("Fill View")
-    action_tool_tip = _("Zoom to fill enclosing space")
-    action_command_icon_png = pkgutil.get_data(__name__, "resources/fill_icon.png")
+class DisplayPanelCycleAction(Window.Action):
+    action_id = "display_panel.cycle_display"
+    action_name = _("Cycle Display Browser")
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
-        if context.display_panel:
-            context.display_panel.perform_action("set_fill_mode")
+        display_panel = context.display_panel
+        if display_panel:
+            display_panel.cycle_display()
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
     def is_enabled(self, context: Window.ActionContext) -> bool:
         context = typing.cast(DocumentController.ActionContext, context)
-        return context.display_item is not None and context.display_item.used_display_type == "image"
+        return len(context.display_panels) > 0 or context.display_panel is not None
 
 
-class DisplayPanelFitToViewAction(Window.Action):
-    action_id = "display_panel.fit_view"
-    action_name = _("Fit to View")
-    action_tool_tip = _("Zoom to fit to enclosing space")
-    action_command_icon_png = pkgutil.get_data(__name__, "resources/fit_icon.png")
+class DisplayPanelDeleteGraphicsAction(Window.Action):
+    action_id = "display_panel.delete_graphics"
+    action_name = _("Delete Selected Graphics")
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
-        if context.display_panel:
-            context.display_panel.perform_action("set_fit_mode")
+        window = typing.cast(DocumentController, context.window)
+        display_item = window.selected_display_item
+        if display_item:
+            if display_item.graphic_selection.has_selection:
+                graphics = [display_item.graphics[index] for index in display_item.graphic_selection.indexes]
+                if graphics:
+                    command = window.create_remove_graphics_command(display_item, graphics)
+                    command.perform()
+                    window.push_undo_command(command)
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
     def is_enabled(self, context: Window.ActionContext) -> bool:
         context = typing.cast(DocumentController.ActionContext, context)
-        return context.display_item is not None and context.display_item.used_display_type == "image"
-
-
-class DisplayPanelOneViewAction(Window.Action):
-    action_id = "display_panel.1_view"
-    action_name = _("1:1 View")
-    action_tool_tip = _("Zoom to one image pixel per screen pixel")
-    action_command_icon_png = pkgutil.get_data(__name__, "resources/1x1_icon.png")
-
-    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
-        context = typing.cast(DocumentController.ActionContext, context)
-        if context.display_panel:
-            context.display_panel.perform_action("set_one_to_one_mode")
-        return Window.ActionResult(Window.ActionStatus.FINISHED)
-
-    def is_enabled(self, context: Window.ActionContext) -> bool:
-        context = typing.cast(DocumentController.ActionContext, context)
-        return context.display_item is not None and context.display_item.used_display_type == "image"
+        window = typing.cast(DocumentController, context.window)
+        display_item = window.selected_display_item
+        return display_item is not None and display_item.graphic_selection.has_selection
 
 
 class DisplayPanelSelectSiblings(Window.Action):
@@ -3269,23 +3245,6 @@ class DisplayPanelShowThumbnailBrowserAction(Window.Action):
         return context.display_panel is not None
 
 
-class DisplayPanelTwoViewAction(Window.Action):
-    action_id = "display_panel.2_view"
-    action_name = _("2:1 View")
-    action_tool_tip = _("Zoom to two image pixels per screen pixel")
-    action_command_icon_png = pkgutil.get_data(__name__, "resources/2x1_icon.png")
-
-    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
-        context = typing.cast(DocumentController.ActionContext, context)
-        if context.display_panel:
-            context.display_panel.perform_action("set_two_to_one_mode")
-        return Window.ActionResult(Window.ActionStatus.FINISHED)
-
-    def is_enabled(self, context: Window.ActionContext) -> bool:
-        context = typing.cast(DocumentController.ActionContext, context)
-        return context.display_item is not None and context.display_item.used_display_type == "image"
-
-
 class DisplayRemoveAction(Window.Action):
     action_id = "display.remove_display"
     action_name = _("Delete Display Item")
@@ -3326,19 +3285,295 @@ class DisplayRevealAction(Window.Action):
         return context.display_item is not None
 
 
+class DisplayToggleFrameRateAction(Window.Action):
+    action_id = "display_panel.toggle_frame_rate"
+    action_name = _("Toggle Frame Rate Overlay")
+
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        if context.display_panel:
+            context.display_panel.perform_action("toggle_frame_rate")
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return context.display_item is not None
+
+
+class DisplayToggleLatencyAction(Window.Action):
+    action_id = "display_panel.toggle_latency"
+    action_name = _("Toggle Latency Overlay")
+
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        if context.display_panel:
+            context.display_panel.perform_action("toggle_latency")
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return context.display_item is not None
+
+
 Window.register_action(DisplayCopyAction())
 Window.register_action(DisplayPanelClearAction())
 Window.register_action(DisplayPanelCloseAction())
-Window.register_action(DisplayPanelFitToViewAction())
-Window.register_action(DisplayPanelFillViewAction())
-Window.register_action(DisplayPanelOneViewAction())
+Window.register_action(DisplayPanelCycleAction())
+Window.register_action(DisplayPanelDeleteGraphicsAction())
 Window.register_action(DisplayPanelSelectSiblings())
 Window.register_action(DisplayPanelShowItemAction())
 Window.register_action(DisplayPanelShowGridBrowserAction())
 Window.register_action(DisplayPanelShowThumbnailBrowserAction())
-Window.register_action(DisplayPanelTwoViewAction())
 Window.register_action(DisplayRemoveAction())
 Window.register_action(DisplayRevealAction())
+Window.register_action(DisplayToggleFrameRateAction())
+Window.register_action(DisplayToggleLatencyAction())
+
+
+class RasterDisplayFillViewAction(Window.Action):
+    action_id = "raster_display.fill_view"
+    action_name = _("Fill View")
+    action_tool_tip = _("Zoom to fill enclosing space")
+    action_command_icon_png = pkgutil.get_data(__name__, "resources/fill_icon.png")
+
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        if context.display_panel:
+            context.display_panel.perform_action("set_fill_mode")
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return context.display_item is not None and context.display_item.used_display_type == "image"
+
+
+class RasterDisplayFitToViewAction(Window.Action):
+    action_id = "raster_display.fit_view"
+    action_name = _("Fit to View")
+    action_tool_tip = _("Zoom to fit to enclosing space")
+    action_command_icon_png = pkgutil.get_data(__name__, "resources/fit_icon.png")
+
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        if context.display_panel:
+            context.display_panel.perform_action("set_fit_mode")
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return context.display_item is not None and context.display_item.used_display_type == "image"
+
+
+class RasterDisplayOneViewAction(Window.Action):
+    action_id = "raster_display.1_view"
+    action_name = _("1:1 View")
+    action_tool_tip = _("Zoom to one image pixel per screen pixel")
+    action_command_icon_png = pkgutil.get_data(__name__, "resources/1x1_icon.png")
+
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        if context.display_panel:
+            context.display_panel.perform_action("set_one_to_one_mode")
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return context.display_item is not None and context.display_item.used_display_type == "image"
+
+
+class RasterDisplayTwoViewAction(Window.Action):
+    action_id = "raster_display.2_view"
+    action_name = _("2:1 View")
+    action_tool_tip = _("Zoom to two image pixels per screen pixel")
+    action_command_icon_png = pkgutil.get_data(__name__, "resources/2x1_icon.png")
+
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        if context.display_panel:
+            context.display_panel.perform_action("set_two_to_one_mode")
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return context.display_item is not None and context.display_item.used_display_type == "image"
+
+
+class RasterDisplayZoomOutAction(Window.Action):
+    action_id = "raster_display.zoom_out"
+    action_name = _("Zoom Out")
+
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        if context.display_panel:
+            context.display_panel.perform_action("zoom_out")
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return context.display_item is not None and context.display_item.used_display_type == "image"
+
+
+class RasterDisplayZoomInAction(Window.Action):
+    action_id = "raster_display.zoom_in"
+    action_name = _("Zoom In")
+
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        if context.display_panel:
+            context.display_panel.perform_action("zoom_in")
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return context.display_item is not None and context.display_item.used_display_type == "image"
+
+
+class RasterDisplayAutoDisplayAction(Window.Action):
+    action_id = "raster_display.auto_display"
+    action_name = _("Auto Adjust Display")
+
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        display_panel = context.display_panel
+        if display_panel:
+            display_panel.handle_auto_display()
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return context.display_panel is not None
+
+
+class RasterDisplayMoveAction(Window.Action):
+    def __init__(self, action_id: str, action_name: str, delta: Geometry.FloatPoint):
+        super().__init__()
+        self.action_id = action_id
+        self.action_name = action_name
+        self.__delta = delta
+
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        display_panel = context.display_panel
+        if display_panel:
+            display_canvas_item = display_panel.display_canvas_item
+            if isinstance(display_canvas_item, ImageCanvasItem.ImageCanvasItem):
+                display_canvas_item.apply_move_command(self.__delta)
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return context.display_panel is not None and isinstance(context.display_panel.display_canvas_item, ImageCanvasItem.ImageCanvasItem)
+
+
+class RasterDisplayMoveGraphicsAction(Window.Action):
+    def __init__(self, action_id: str, action_name: str, delta: Geometry.FloatPoint):
+        super().__init__()
+        self.action_id = action_id
+        self.action_name = action_name
+        self.__delta = delta
+
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        display_panel = context.display_panel
+        if display_panel:
+            display_canvas_item = display_panel.display_canvas_item
+            if display_canvas_item:
+                display_panel.nudge_selected_graphics(display_canvas_item.mouse_mapping, self.__delta)
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return context.display_panel is not None and context.display_panel.display_canvas_item is not None
+
+
+class RasterDisplayNudgeSliceAction(Window.Action):
+    def __init__(self, action_id: str, action_name: str, delta: int):
+        super().__init__()
+        self.action_id = action_id
+        self.action_name = action_name
+        self.__delta = delta
+
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        display_panel = context.display_panel
+        if display_panel:
+            display_panel.nudge_slice(self.__delta)
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return context.display_panel is not None and context.display_panel.display_canvas_item is not None
+
+
+Window.register_action(RasterDisplayFitToViewAction())
+Window.register_action(RasterDisplayFillViewAction())
+Window.register_action(RasterDisplayOneViewAction())
+Window.register_action(RasterDisplayTwoViewAction())
+Window.register_action(RasterDisplayZoomOutAction())
+Window.register_action(RasterDisplayZoomInAction())
+Window.register_action(RasterDisplayAutoDisplayAction())
+Window.register_action(RasterDisplayMoveGraphicsAction("raster_display.nudge_graphics_left", _("Nudge Graphics Left"), Geometry.FloatPoint(x=-1, y=0)))
+Window.register_action(RasterDisplayMoveGraphicsAction("raster_display.nudge_graphics_right", _("Nudge Graphics Right"), Geometry.FloatPoint(x=1, y=0)))
+Window.register_action(RasterDisplayMoveGraphicsAction("raster_display.nudge_graphics_up", _("Nudge Graphics Up"), Geometry.FloatPoint(x=0, y=-1)))
+Window.register_action(RasterDisplayMoveGraphicsAction("raster_display.nudge_graphics_down", _("Nudge Graphics Down"), Geometry.FloatPoint(x=0, y=1)))
+Window.register_action(RasterDisplayMoveGraphicsAction("raster_display.move_graphics_left", _("Move Graphics Left"), Geometry.FloatPoint(x=-10, y=0)))
+Window.register_action(RasterDisplayMoveGraphicsAction("raster_display.move_graphics_right", _("Move Graphics Right"), Geometry.FloatPoint(x=10, y=0)))
+Window.register_action(RasterDisplayMoveGraphicsAction("raster_display.move_graphics_up", _("Move Graphics Up"), Geometry.FloatPoint(x=0, y=-10)))
+Window.register_action(RasterDisplayMoveGraphicsAction("raster_display.move_graphics_down", _("Move Graphics Down"), Geometry.FloatPoint(x=0, y=10)))
+Window.register_action(RasterDisplayMoveAction("raster_display.nudge_left", _("Nudge Display Left"), Geometry.FloatPoint(x=10, y=0)))
+Window.register_action(RasterDisplayMoveAction("raster_display.nudge_right", _("Nudge Display Right"), Geometry.FloatPoint(x=-10, y=0)))
+Window.register_action(RasterDisplayMoveAction("raster_display.nudge_up", _("Nudge Display Up"), Geometry.FloatPoint(x=0, y=10)))
+Window.register_action(RasterDisplayMoveAction("raster_display.nudge_down", _("Nudge Display Down"), Geometry.FloatPoint(x=0, y=-10)))
+Window.register_action(RasterDisplayMoveAction("raster_display.move_left", _("Move Display Left"), Geometry.FloatPoint(x=100, y=0)))
+Window.register_action(RasterDisplayMoveAction("raster_display.move_right", _("Move Display Right"), Geometry.FloatPoint(x=-100, y=0)))
+Window.register_action(RasterDisplayMoveAction("raster_display.move_up", _("Move Display Up"), Geometry.FloatPoint(x=0, y=100)))
+Window.register_action(RasterDisplayMoveAction("raster_display.move_down", _("Move Display Down"), Geometry.FloatPoint(x=0, y=-100)))
+Window.register_action(RasterDisplayNudgeSliceAction("raster_display.nudge_slice_left", _("Nudge Slice Left"), -1))
+Window.register_action(RasterDisplayNudgeSliceAction("raster_display.nudge_slice_right", _("Nudge Slice Right"), 1))
+
+
+class LinePlotDisplayAutoDisplayAction(Window.Action):
+    action_id = "line_plot_display.auto_display"
+    action_name = _("Auto Adjust Display")
+
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        display_panel = context.display_panel
+        if display_panel:
+            display_panel.handle_auto_display()
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return context.display_panel is not None
+
+
+class LinePlotDisplayMoveGraphicsAction(Window.Action):
+    def __init__(self, action_id: str, action_name: str, delta: Geometry.FloatPoint):
+        super().__init__()
+        self.action_id = action_id
+        self.action_name = action_name
+        self.__delta = delta
+
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        display_panel = context.display_panel
+        if display_panel:
+            display_canvas_item = display_panel.display_canvas_item
+            if display_canvas_item:
+                display_panel.nudge_selected_graphics(display_canvas_item.mouse_mapping, self.__delta)
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return context.display_panel is not None and context.display_panel.display_canvas_item is not None
+
+
+Window.register_action(LinePlotDisplayAutoDisplayAction())
+Window.register_action(LinePlotDisplayMoveGraphicsAction("line_plot_display.nudge_graphics_left", _("Nudge Graphics Left"), Geometry.FloatPoint(x=-1, y=0)))
+Window.register_action(LinePlotDisplayMoveGraphicsAction("line_plot_display.nudge_graphics_right", _("Nudge Graphics Right"), Geometry.FloatPoint(x=1, y=0)))
+Window.register_action(LinePlotDisplayMoveGraphicsAction("line_plot_display.move_graphics_left", _("Move Graphics Left"), Geometry.FloatPoint(x=-10, y=0)))
+Window.register_action(LinePlotDisplayMoveGraphicsAction("line_plot_display.move_graphics_right", _("Move Graphics Right"), Geometry.FloatPoint(x=10, y=0)))
 
 
 class AssignVariableReference(Window.Action):
