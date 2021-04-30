@@ -1,7 +1,7 @@
 # standard libraries
-import contextlib
 import logging
 import math
+import typing
 import unittest
 
 # third party libraries
@@ -181,7 +181,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             # test
             document_controller.tool_mode = "pointer"
             display_panel.display_canvas_item.simulate_click((240, 320))
-            display_panel.display_canvas_item.key_pressed(self.app.ui.create_key_by_id("left"))
+            display_panel._handle_key_pressed(typing.cast(TestUI.UserInterface, self.app.ui).create_key_by_id("left"))
             interval_region = display_item.graphics[0]
             self.assertTrue(interval_region.start < 0.1)
             self.assertTrue(interval_region.end < 0.9)

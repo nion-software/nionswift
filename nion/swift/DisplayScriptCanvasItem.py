@@ -207,24 +207,9 @@ class DisplayScriptCanvasItem(CanvasItem.CanvasItemComposition):
     def context_menu_event(self, x, y, gx, gy):
         return self.delegate.show_display_context_menu(gx, gy)
 
-    # ths message comes from the widget
-    def key_pressed(self, key):
-        if super().key_pressed(key):
-            return True
-        # only handle keys if we're directly embedded in an image panel
-        if key.is_delete:
-            self.delegate.delete_key_pressed()
-            return True
-        if key.is_enter_or_return:
-            self.delegate.enter_key_pressed()
-            return True
-        if key.key == 70 and key.modifiers.shift and key.modifiers.alt:
-            if self.__display_frame_rate_id is None:
-                self.__display_frame_rate_id = str(id(self))
-            else:
-                self.__display_frame_rate_id = None
-            return True
-        return False
+    @property
+    def key_contexts(self) -> typing.Sequence[str]:
+        return ["display_panel"]
 
     def __update_cursor_info(self):
         if not self.delegate:  # allow display to work without delegate

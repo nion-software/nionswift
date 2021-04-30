@@ -226,19 +226,19 @@
             },
             {
                 "type": "item",
-                "action_id": "display_panel.fit_view"
+                "action_id": "raster_display.fit_view"
             },
             {
                 "type": "item",
-                "action_id": "display_panel.fill_view"
+                "action_id": "raster_display.fill_view"
             },
             {
                 "type": "item",
-                "action_id": "display_panel.1_view"
+                "action_id": "raster_display.1_view"
             },
             {
                 "type": "item",
-                "action_id": "display_panel.2_view"
+                "action_id": "raster_display.2_view"
             }
         ]
     },

@@ -218,7 +218,7 @@ class TestStorageClass(unittest.TestCase):
         document_controller.add_point_graphic()
         display_panel.set_display_panel_display_item(display_item)
         self.assertEqual(document_controller.selected_data_item, data_item)
-        document_controller.perform_action("processing.gaussian_blur")
+        document_controller.perform_action("processing.gaussian_filter")
         display_panel.set_display_panel_display_item(display_item)
         document_controller.perform_action("processing.resample")
         display_panel.set_display_panel_display_item(display_item)
