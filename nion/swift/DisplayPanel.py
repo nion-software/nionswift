@@ -1349,7 +1349,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
 
         ui = document_controller.ui
 
-        self.__display_item = None
+        self.__display_item = typing.cast(DisplayItem.DisplayItem, None)
         self.__display_tracker = None
         self.__data_item_reference_changed_event_listener = None
         self.__data_item_reference_changed_task = None
@@ -2270,8 +2270,11 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         return None
 
     def create_spot(self, pos):
-        data_shape = self.__display_item.data_item.data_shape
-        mapping = ImageCanvasItem.ImageCanvasItemMapping(data_shape, None, self.__display_item.datum_calibrations)
+        display_data_channel = self.__display_item.display_data_channel
+        assert display_data_channel
+        element_data_and_metadata = display_data_channel.get_calculated_display_values().element_data_and_metadata
+        data_shape = element_data_and_metadata.datum_dimension_shape
+        mapping = ImageCanvasItem.ImageCanvasItemMapping(data_shape, None, element_data_and_metadata.datum_dimensional_calibrations)
         bounds = Geometry.FloatRect.from_center_and_size(pos - mapping.calibrated_origin_image_norm, Geometry.FloatSize())
         self.__display_item.graphic_selection.clear()
         region = Graphics.SpotGraphic()
@@ -2298,8 +2301,11 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         return region
 
     def create_lattice(self, u_pos):
-        data_shape = self.__display_item.data_item.data_shape
-        mapping = ImageCanvasItem.ImageCanvasItemMapping(data_shape, None, self.__display_item.datum_calibrations)
+        display_data_channel = self.__display_item.display_data_channel
+        assert display_data_channel
+        element_data_and_metadata = display_data_channel.get_calculated_display_values().element_data_and_metadata
+        data_shape = element_data_and_metadata.datum_dimension_shape
+        mapping = ImageCanvasItem.ImageCanvasItemMapping(data_shape, None, element_data_and_metadata.datum_dimensional_calibrations)
         self.__display_item.graphic_selection.clear()
         region = Graphics.LatticeGraphic()
         region.u_pos = u_pos - mapping.calibrated_origin_image_norm

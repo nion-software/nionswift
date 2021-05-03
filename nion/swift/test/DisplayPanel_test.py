@@ -2429,6 +2429,32 @@ class TestDisplayPanelClass(unittest.TestCase):
             data_item.set_data(numpy.zeros(8, ))
             document_controller.periodic()
 
+    def test_filter_masks_can_be_created_on_a_variety_of_displays(self):
+        filter_mask_fns = [
+            ("create_spot", [Geometry.FloatPoint(x=20, y=20)]),
+            ("create_wedge", [1.0]),
+            ("create_ring", [20.0]),
+            ("create_lattice", [Geometry.FloatPoint(x=20, y=20)]),
+        ]
+        data_and_metadata_list = [
+            DataAndMetadata.new_data_and_metadata(numpy.ones((100, 100)), data_descriptor=DataAndMetadata.DataDescriptor(False, 0, 2)),
+            DataAndMetadata.new_data_and_metadata(numpy.ones((100, 100, 2)), data_descriptor=DataAndMetadata.DataDescriptor(False, 2, 1)),
+            DataAndMetadata.new_data_and_metadata(numpy.ones((100, 100, 2, 2)), data_descriptor=DataAndMetadata.DataDescriptor(False, 2, 2)),
+        ]
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            for data_and_metadata in data_and_metadata_list:
+                data_item = DataItem.new_data_item(data_and_metadata)
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                display_panel = document_controller.selected_display_panel
+                display_panel.set_displayed_data_item(data_item)
+                for filter_mask_fn_name, filter_mask_fn_params in filter_mask_fns:
+                    graphic = getattr(display_panel, filter_mask_fn_name)(*filter_mask_fn_params)
+                    display_item.remove_graphic(graphic).close()
+                document_model.remove_data_item(data_item)
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
