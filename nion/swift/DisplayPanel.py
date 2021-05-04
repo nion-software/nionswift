@@ -1956,9 +1956,9 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
             # with these debugging capabilities.
             action: typing.Optional[Window.Action]
             if key.key == 70 and key.modifiers.shift and key.modifiers.alt:
-                action = Window.actions["display_panel.toggle_latency"]
-            elif key.key == 76 and key.modifiers.shift and key.modifiers.alt:
                 action = Window.actions["display_panel.toggle_frame_rate"]
+            elif key.key == 76 and key.modifiers.shift and key.modifiers.alt:
+                action = Window.actions["display_panel.toggle_latency"]
             else:
                 action = Window.get_action_for_key(["display_panel_browser"] + display_canvas_item.key_contexts, key)
             if action:
