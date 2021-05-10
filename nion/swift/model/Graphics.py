@@ -71,12 +71,6 @@ def get_corners(bounds):
     return [top_left, bottom_left, top_right, bottom_right]
 
 
-def get_slope_eq(x, y, angle):
-    if (1/2) * math.pi < angle <= math.pi  * (3/2):
-        return y >= numpy.tan(-angle) * x
-    return y <= numpy.tan(-angle) * x
-
-
 def extend_line(origin, point, pixels):
     delta = point - origin
     angle = math.atan2(delta.y, delta.x)
@@ -1981,17 +1975,38 @@ class WedgeGraphic(Graphic):
         return None, None
 
     def get_mask(self, data_shape: typing.Sequence[int], calibrated_origin: Geometry.FloatPoint = None) -> numpy.ndarray:
-        calibrated_origin = calibrated_origin or Geometry.FloatPoint(y=data_shape[0] * 0.5 + 0.5, x=data_shape[1] * 0.5 + 0.5)
-        mask1 = numpy.zeros(data_shape)
-        mask2 = numpy.zeros(data_shape)
+        # a and b will be the calibrated pixel origin, expressed as pixels from top left
+        calibrated_origin = calibrated_origin or Geometry.FloatPoint(y=data_shape[0] * 0.5 + 0.5,
+                                                                     x=data_shape[1] * 0.5 + 0.5)
         a, b = calibrated_origin.y, calibrated_origin.x
+
+        # x and y will be pixel ramps increasing from top left to bottom right and zero at the origin
         y, x = numpy.ogrid[-a:data_shape[0] - a, -b:data_shape[1] - b]
-        mask1[get_slope_eq(x, y, self.__start_angle_internal)] = 1
-        mask1[get_slope_eq(x, y, self.__end_angle_internal)] = 0
-        mask1[round(a), round(b)] = 1
-        mask2[get_slope_eq(x, y, (self.__start_angle_internal + math.pi) % (math.pi * 2))] = 1
-        mask2[get_slope_eq(x, y, (self.__end_angle_internal + math.pi) % (math.pi * 2))] = 0
-        return numpy.logical_or(mask1, mask2)
+
+        # normalize the angles. the angles are specified as counter-clockwise rotation around the positive x-axis
+        s = self.start_angle % math.tau
+        e = self.end_angle % math.tau
+
+        # the sign of the cos for each angle will be helpful.
+        s_sign = math.copysign(1.0, math.cos(s))
+        e_sign = math.copysign(1.0, math.cos(e))
+
+        # in the equation below:
+        # y <= tan(angle) * x is True for the half plane y > 0 rotated counter-clockwise by the angle if it is
+        # between -pi and +pi (when cos(angle) > 0) and the half plane y < 0 if when it [the angle] is between
+        # +pi and 3/2 * pi. call this the positive half-plane.
+        # so the equation below is comprised of four sections:
+        # 1) the positive half-plane rotated by the start angle
+        # 2) the negative half-plane rotated by the end angle
+        # 1+2) give the wedge between the start and end angle in the positive direction.
+        # 3) the positive half-plane rotated by the start angle + pi
+        # 4) the negative half-plane rotated by the end angle + pi
+        # 3+4) give the wedge between the start and end angle in the negative direction.
+
+        return (numpy.where(y * s_sign <= numpy.tan(-s) * x * s_sign, 1, 0) &
+                numpy.where(y * e_sign <= numpy.tan(-e) * x * e_sign, 0, 1)) | (
+                    numpy.where(-y * s_sign <= numpy.tan(-s) * -x * s_sign, 1, 0) &
+                    numpy.where(-y * e_sign <= numpy.tan(-e) * -x * e_sign, 0, 1))
 
     def draw(self, ctx, ui_settings: UISettings.UISettings, mapping, is_selected=False):
         center = mapping.calibrated_origin_widget
