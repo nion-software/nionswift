@@ -48,27 +48,55 @@ def rotate(point: Geometry.FloatPoint, origin: Geometry.FloatPoint, angle: float
                                         y=delta.y * angle_cos - delta.x * angle_sin)
 
 
-def get_length_for_angle(angle: float, bounds: typing.Tuple[float, float]):
-    top_right = math.atan2(bounds[1], bounds[0])
-    top_left = math.pi - math.atan2(bounds[1], bounds[0])
-    bottom_left = math.pi + math.atan2(bounds[1], bounds[0])
-    bottom_right = 2 * math.pi - math.atan2(bounds[1], bounds[0])
-    if bottom_right <= angle <= math.pi * 2 or top_right >= angle:
-        return (bounds[0] / 2) / math.cos(angle)
-    if top_right <= angle <= top_left:
-        return (bounds[1] / 2) / math.sin(angle)
-    if top_left <= angle <= bottom_left:
-        return -(bounds[0] / 2) / math.cos(angle)
-    if bottom_left <= angle <= bottom_right:
-        return -(bounds[1] / 2) / math.sin(angle)
+def get_line_intersection(p1: Geometry.FloatPoint, p2: Geometry.FloatPoint, p3: Geometry.FloatPoint, p4: Geometry.FloatPoint, sign: float) -> typing.Tuple[bool, Geometry.FloatPoint, float]:
+    # see https://en.wikipedia.org/wiki/Line%E2%80%93line_intersection
+    d = (p1.x - p2.x) * (p3.y - p4.y) - (p1.y - p2.y) * (p3.x - p4.x)
+    if (d >= 0) == (sign >= 0) and (d != 0):
+        x = ((p1.x * p2.y - p1.y * p2.x) * (p3.x - p4.x) - (p1.x - p2.x) * (p3.x * p4.y - p3.y * p4.x)) / d
+        y = ((p1.x * p2.y - p1.y * p2.x) * (p3.y - p4.y) - (p1.y - p2.y) * (p3.x * p4.y - p3.y * p4.x)) / d
+        p = Geometry.FloatPoint(x=x, y=y)
+        return True, p, Geometry.distance(p1, p)
+    else:
+        return False, Geometry.FloatPoint(), 0.0
 
 
-def get_corners(bounds):
-    top_right = math.atan2(bounds[0], bounds[1])
-    top_left = math.pi - math.atan2(bounds[0], bounds[1])
-    bottom_left = math.pi + math.atan2(bounds[0], bounds[1])
-    bottom_right = 2 * math.pi - math.atan2(bounds[0], bounds[1])
-    return [top_left, bottom_left, top_right, bottom_right]
+def get_rectangle_intersection(origin: Geometry.FloatPoint, angle: float, bounds: Geometry.FloatRect, sign: float) -> typing.Tuple[int, Geometry.FloatPoint]:
+    # see https://en.wikipedia.org/wiki/Line%E2%80%93line_intersection
+    p1 = origin
+    p2 = origin + Geometry.FloatPoint(x=math.cos(angle), y=-math.sin(angle))  # positive angle is cc around x-axis.
+    # print(f"-- {p1} {p2}")
+    distance = bounds.width + bounds.height
+    segment = 0
+    pt = p1
+    # check top side
+    v, p, d = get_line_intersection(p1, p2, bounds.top_left, bounds.top_right, sign)
+    # print(f"0> {v} {p} {d} (top)")
+    if v and d < distance:
+        distance = d
+        segment = 0
+        pt = p
+    # check right side
+    v, p, d = get_line_intersection(p1, p2, bounds.top_right, bounds.bottom_right, sign)
+    # print(f"1> {v} {p} {d} (right)")
+    if v and d < distance:
+        distance = d
+        segment = 1
+        pt = p
+    # check bottom side
+    v, p, d = get_line_intersection(p1, p2, bounds.bottom_right, bounds.bottom_left, sign)
+    # print(f"2> {v} {p} {d} (bottom)")
+    if v and d < distance:
+        distance = d
+        segment = 2
+        pt = p
+    # check left side
+    v, p, d = get_line_intersection(p1, p2, bounds.bottom_left, bounds.top_left, sign)
+    # print(f"3> {v} {p} {d} (left)")
+    if v and d < distance:
+        distance = d
+        segment = 3
+        pt = p
+    return segment, pt
 
 
 def extend_line(origin, point, pixels):
@@ -702,7 +730,7 @@ class Graphic(Observable.Observable, Persistence.PersistentObject):
         self.graphic_changed_event.fire()
 
     def nudge(self, mapping, delta):
-        raise NotImplementedError()
+        pass
 
     def label_position(self, mapping, font_metrics, padding):
         raise NotImplementedError()
@@ -1951,7 +1979,6 @@ class WedgeGraphic(Graphic):
         if d_angle > math.pi:
             d_angle = -(math.pi * 2 - d_angle)
         inverted = self.__inverted_drag
-        constraints = self._constraints
         if (part[0] == "end-angle" and not inverted) or (part[0] == "inverted-end-angle" and inverted):
             self.__end_angle_internal = c_angle
         elif (part[0] == "start-angle" and not inverted) or (part[0] == "inverted-start-angle" and inverted):
@@ -2011,31 +2038,52 @@ class WedgeGraphic(Graphic):
     def draw(self, ctx, ui_settings: UISettings.UISettings, mapping, is_selected=False):
         center = mapping.calibrated_origin_widget
         size = mapping.map_size_image_norm_to_widget((1.0, 1.0))
-        start_length = get_length_for_angle(self.__start_angle_internal, (size[1], size[0]))
-        end_length = get_length_for_angle(self.__end_angle_internal, (size[1], size[0]))
-        with ctx.saver():
-            for start_angle, end_angle in ((self.__start_angle_internal, self.__end_angle_internal), ((self.__start_angle_internal + math.pi) % (math.pi * 2), (self.__end_angle_internal + math.pi) % (math.pi * 2))):
-                ctx.begin_path()
-                end_line_endpoint = (center[1] + end_length * math.sin(end_angle + math.pi / 2),center[0] + end_length * math.cos(end_angle + math.pi / 2))
-                start_line_endpoint = (center[1] + start_length * math.sin(start_angle + math.pi / 2), center[0] + start_length * math.cos(start_angle + math.pi / 2))
-                ctx.move_to(*end_line_endpoint)
-                ctx.line_to(center[1], center[0])
-                ctx.line_to(*start_line_endpoint)
-                corners_to_connect = sorted([x for x in get_corners(size) if angle_between(x, end_angle, start_angle)])
-                if len(corners_to_connect) == 2 and corners_to_connect[1] - corners_to_connect[0] > math.pi:
-                    temp = corners_to_connect[0]
-                    corners_to_connect[0] = corners_to_connect[1]
-                    corners_to_connect[1] = temp
-                for corner_angle in corners_to_connect:
-                    corner_length = get_length_for_angle(corner_angle, (size[1], size[0]))
-                    corner_endpoint = (center[1] + corner_length * math.sin(corner_angle + math.pi / 2), center[0] + corner_length * math.cos(corner_angle + math.pi / 2))
-                    ctx.line_to(*corner_endpoint)
-                ctx.line_to(*end_line_endpoint)
-                ctx.line_width = 1
-                ctx.stroke_style = self.used_stroke_style
-                ctx.fill_style = self.used_fill_style
-                ctx.fill()
-                ctx.stroke()
+        bounds = Geometry.FloatRect(Geometry.FloatPoint(), size) + mapping.map_point_image_norm_to_widget(Geometry.FloatPoint())
+        start_angle = self.start_angle % math.tau
+        if start_angle < 0:
+            start_angle += math.tau
+        end_angle = self.end_angle % math.tau
+        while end_angle < start_angle:
+            end_angle += math.tau
+        side_corners = (bounds.top_left, bounds.top_right, bounds.bottom_right, bounds.bottom_left)
+
+        def draw_mask(sign: float) -> None:
+            # draw either the positive or negative mask. pass 1.0 or -1.0 for sign.
+            # print(f"(+) {start_angle=} {end_angle=}")
+            side1, pt1 = get_rectangle_intersection(center, start_angle, bounds, sign)
+            side2, pt2 = get_rectangle_intersection(center, end_angle, bounds, sign)
+            # print(f"(+) {side1=} {side2=}")
+            ctx.begin_path()
+            ctx.move_to(center.x, center.y)
+            ctx.line_to(pt1.x, pt1.y)
+            if end_angle - start_angle <= math.pi:
+                # counterclockwise from side1 to side2
+                # print("counter-clockwise")
+                if side1 < side2:
+                    side1 += 4
+                for side in range(side1, side2, -1):
+                    # print(f"add point {side} {side_corners[side % 4]}")
+                    corner = side_corners[side % 4]
+                    ctx.line_to(corner.x, corner.y)
+            else:
+                # clockwise from side1 to side2
+                # print("clockwise")
+                if side2 < side1:
+                    side2 += 4
+                for side in range(side1, side2):
+                    corner = side_corners[(side + 1) % 4]
+                    ctx.line_to(corner.x, corner.y)
+            ctx.line_to(pt2.x, pt2.y)
+            ctx.close_path()
+            ctx.line_width = 1
+            ctx.stroke_style = self.used_stroke_style
+            ctx.fill_style = self.used_fill_style
+            ctx.fill()
+            ctx.stroke()
+
+        draw_mask(1.0)
+        draw_mask(-1.0)
+
         if is_selected:
             draw_marker(ctx, center)
         self.draw_label(ctx, ui_settings, mapping)
@@ -2250,8 +2298,6 @@ class LatticeGraphic(Graphic):
         self.title = _("Lattice")
         self.define_property("u_pos", (0.0, 0.25), validate=lambda value: tuple(value), changed=self._property_changed)
         self.define_property("v_pos", (-0.25, 0.0), validate=lambda value: tuple(value), changed=self._property_changed)
-        self.define_property("u_count", 1, changed=self._property_changed)
-        self.define_property("v_count", 1, changed=self._property_changed)
         self.define_property("radius", 0.1, changed=self._property_changed)
 
     def mime_data_dict(self) -> dict:

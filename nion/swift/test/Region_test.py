@@ -192,6 +192,22 @@ class TestRegionClass(unittest.TestCase):
             self.assertTrue(mask.data[400, 400])  # top left
             self.assertFalse(mask.data[400, 600])  # bottom left
 
+    def slow_test_wedge_angles(self):
+        wedge_graphic = Graphics.WedgeGraphic()
+        with contextlib.closing(wedge_graphic):
+            start_angles = [i * math.pi / 12 for i in range(-24, 24, 3)]
+            end_angles = [i * math.pi / 12 for i in range(-24, 24, 4)]
+            zeros = numpy.zeros((1000, 1000))
+            ones = numpy.ones((1000, 1000))
+            for start_angle in start_angles:
+                for end_angle in end_angles:
+                    if start_angle % math.pi != 0 or end_angle % math.pi != 0:
+                        with self.subTest(start_angle=start_angle, end_angle=end_angle):
+                            wedge_graphic.angle_interval = start_angle, end_angle
+                            mask = wedge_graphic.get_mask((1000, 1000))
+                            self.assertFalse(numpy.array_equal(mask, zeros))
+                            self.assertFalse(numpy.array_equal(mask, ones))
+
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
     unittest.main()
