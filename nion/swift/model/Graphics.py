@@ -377,6 +377,12 @@ def draw_marker(ctx, p, fill_style=None):
         ctx.fill()
 
 
+def draw_circular_marker(ctx, p, fill_style=None):
+    fill_style = fill_style if fill_style else '#00FF00'
+    size = Geometry.FloatSize(w=6, h=6)
+    draw_ellipse(ctx, p, size, None, fill_style)
+
+
 def draw_rect_marker(ctx, r: Geometry.FloatRect, fill_style=None):
     draw_marker(ctx, r.top_left, fill_style)
     draw_marker(ctx, r.top_right, fill_style)
@@ -392,11 +398,6 @@ def draw_ellipse_graphic(ctx, center: Geometry.FloatPoint, size: Geometry.FloatS
     bottom_right = rect.bottom_right
     bottom_left = rect.bottom_left
     center = rect.center
-    if rotation:
-        top_left = rotate(top_left, center, rotation)
-        top_right = rotate(top_right, center, rotation)
-        bottom_left = rotate(bottom_left, center, rotation)
-        bottom_right = rotate(bottom_right, center, rotation)
     with ctx.saver():
         if rotation:
             ctx.translate(center.x, center.y)
@@ -415,16 +416,15 @@ def draw_ellipse_graphic(ctx, center: Geometry.FloatPoint, size: Geometry.FloatS
         ctx.fill_style = fill_style
         ctx.fill()
     if is_selected:
-        draw_marker(ctx, top_left)
-        draw_marker(ctx, top_right)
-        draw_marker(ctx, bottom_right)
-        draw_marker(ctx, bottom_left)
-        # draw center marker
         with ctx.saver():
             if rotation:
                 ctx.translate(center.x, center.y)
                 ctx.rotate(-rotation)
                 ctx.translate(-center.x, -center.y)
+            draw_marker(ctx, top_left)
+            draw_marker(ctx, top_right)
+            draw_marker(ctx, bottom_right)
+            draw_marker(ctx, bottom_left)
             mark_size = 8
             if size[0] > mark_size:
                 mid_x = origin[1] + 0.5 * size[1]
@@ -442,6 +442,15 @@ def draw_ellipse_graphic(ctx, center: Geometry.FloatPoint, size: Geometry.FloatS
                 ctx.line_to(mid_x, mid_y + 0.5 * mark_size)
                 ctx.stroke_style = stroke_style
                 ctx.stroke()
+            # draw rotation marker
+            top_middle = Geometry.FloatPoint(y=rect.top, x=rect.center.x)
+            rotation_point = extend_line(center, top_middle, 14)
+            ctx.begin_path()
+            ctx.move_to(top_middle.x, top_middle.y)
+            ctx.line_to(rotation_point.x, rotation_point.y)
+            ctx.stroke_style = stroke_style
+            ctx.stroke()
+            draw_circular_marker(ctx, rotation_point)
 
 
 # closest point on line
@@ -484,11 +493,13 @@ def test_rectangle(p: Geometry.FloatPoint, radius: float, center: Geometry.Float
     top_right = rect_widget.top_right
     bottom_right = rect_widget.bottom_right
     bottom_left = rect_widget.bottom_left
+    top_middle = Geometry.FloatPoint(y=rect_widget.top, x=rect_widget.center.x)
     if rotation:
         top_left = rotate(top_left, center, rotation)
         top_right = rotate(top_right, center, rotation)
         bottom_left = rotate(bottom_left, center, rotation)
         bottom_right = rotate(bottom_right, center, rotation)
+        top_middle = rotate(top_middle, center, rotation)
     test_point_unrotated = rotate(p, center, -rotation)
     if test_point(top_left, p, radius):
         return "top-left", True
@@ -498,13 +509,7 @@ def test_rectangle(p: Geometry.FloatPoint, radius: float, center: Geometry.Float
         return "bottom-right", True
     if test_point(bottom_left, p, radius):
         return "bottom-left", True
-    if test_point(extend_line(center, top_left, 14), p, radius):
-        return "rotate", True
-    if test_point(extend_line(center, top_right, 14), p, radius):
-        return "rotate", True
-    if test_point(extend_line(center, bottom_right, 14), p, radius):
-        return "rotate", True
-    if test_point(extend_line(center, bottom_left, 14), p, radius):
+    if test_point(extend_line(center, top_middle, 14), p, radius):
         return "rotate", True
 
     # top line
@@ -953,11 +958,6 @@ class RectangleGraphic(RectangleTypeGraphic):
         bottom_right = rect.bottom_right
         bottom_left = rect.bottom_left
         center = rect.center
-        if self.rotation:
-            top_left = rotate(top_left, center, self.rotation)
-            top_right = rotate(top_right, center, self.rotation)
-            bottom_left = rotate(bottom_left, center, self.rotation)
-            bottom_right = rotate(bottom_right, center, self.rotation)
         with ctx.saver():
             if self.rotation:
                 ctx.translate(center.x, center.y)
@@ -979,15 +979,15 @@ class RectangleGraphic(RectangleTypeGraphic):
             ctx.fill_style = self.used_fill_style
             ctx.fill()
         if is_selected:
-            draw_marker(ctx, top_left)
-            draw_marker(ctx, top_right)
-            draw_marker(ctx, bottom_right)
-            draw_marker(ctx, bottom_left)
             with ctx.saver():
                 if self.rotation:
                     ctx.translate(center.x, center.y)
                     ctx.rotate(-self.rotation)
                     ctx.translate(-center.x, -center.y)
+                draw_marker(ctx, top_left)
+                draw_marker(ctx, top_right)
+                draw_marker(ctx, bottom_right)
+                draw_marker(ctx, bottom_left)
                 # draw center marker
                 mark_size = 8
                 if size[0] > mark_size:
@@ -1010,6 +1010,15 @@ class RectangleGraphic(RectangleTypeGraphic):
                     ctx.stroke()
                     ctx.fill_style = self.used_fill_style
                     ctx.fill()
+                # draw rotation marker
+                top_middle = Geometry.FloatPoint(y=rect.top, x=rect.center.x)
+                rotation_point = extend_line(center, top_middle, 14)
+                ctx.begin_path()
+                ctx.move_to(top_middle.x, top_middle.y)
+                ctx.line_to(rotation_point.x, rotation_point.y)
+                ctx.stroke_style = self.used_stroke_style
+                ctx.stroke()
+                draw_circular_marker(ctx, rotation_point)
         self.draw_label(ctx, ui_settings, mapping)
 
     def label_position(self, mapping, font_metrics, padding):
