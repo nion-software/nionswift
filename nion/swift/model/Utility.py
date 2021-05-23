@@ -5,6 +5,8 @@ import contextlib
 import datetime
 import functools
 import logging
+import os
+import pathlib
 import sys
 import threading
 import time
@@ -245,6 +247,42 @@ def compare_versions(version1: str, version2: str) -> int:
         elif version_component1 < version_component2:
             return -1
     return 0
+
+
+class AtomicFileWriter:
+    # see https://blog.gocept.com/2013/07/15/reliable-file-updates-with-python/
+    # see https://github.com/mahmoud/boltons/blob/1885ed64006982cdd08a70c2cba193e1fe2eb693/boltons/fileutils.py#L343
+
+    def __init__(self, filepath: pathlib.Path):
+        self.__filepath = filepath
+        self.__temp_filepath = self.__filepath.with_suffix(".temp")
+        self.__fp = None
+
+    def __enter__(self):
+        self.__fp = self.__temp_filepath.open("w")
+        return self.__fp
+
+    def __exit__(self, exception_type, value, traceback):
+        self.__fp.flush()
+        os.fsync(self.__fp)
+        self.__fp.close()
+        if exception_type:
+            try:
+                os.unlink(self.__temp_filepath)
+            except Exception:
+                pass
+        else:
+            try:
+                os.replace(self.__temp_filepath, self.__filepath)
+                dirfd = os.open(os.path.dirname(self.__filepath), os.O_DIRECTORY)
+                os.fsync(dirfd)
+                os.close(dirfd)
+            except OSError:
+                try:
+                    os.unlink(self.__temp_filepath)
+                except Exception:
+                    pass
+                raise
 
 
 def fps_tick(fps_id):
