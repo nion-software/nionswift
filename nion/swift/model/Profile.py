@@ -142,10 +142,11 @@ class ProjectReference(Observable.Observable, Persistence.PersistentObject):
         if not self.__has_project_info_been_read:
             try:
                 project_storage_system = self.make_storage(profile_context)
+                if project_storage_system:
+                    project_storage_system.load_properties()
             except Exception:
                 project_storage_system = None
             if project_storage_system:
-                project_storage_system.load_properties()
                 with contextlib.closing(Project.Project(project_storage_system)) as project:
                     if self.project_uuid != project.project_uuid:
                         self.project_uuid = project.project_uuid
