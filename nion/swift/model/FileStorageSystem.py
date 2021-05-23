@@ -393,12 +393,9 @@ class FilePersistentStorageSystem(PersistentStorageSystem):
 
     def _write_properties(self) -> None:
         if self.__path:
-            # atomically overwrite
-            temp_filepath = self.__path.with_suffix(".temp")
-            with temp_filepath.open("w") as fp:
+            with Utility.AtomicFileWriter(self.__path) as fp:
                 properties = Utility.clean_dict(self.get_storage_properties())
                 json.dump(properties, fp)
-            os.replace(temp_filepath, self.__path)
 
 
 class MemoryPersistentStorageSystem(PersistentStorageSystem):
@@ -687,8 +684,7 @@ class FileProjectStorageSystem(ProjectStorageSystem):
     def __write_properties_inner(self, properties: typing.Dict) -> None:
         if self.__project_path:
             # atomically overwrite
-            temp_filepath = self.__project_path.with_suffix(".temp")
-            with temp_filepath.open("w") as fp:
+            with Utility.AtomicFileWriter(self.__project_path) as fp:
                 properties = Utility.clean_dict(properties)
                 project_data_paths = list()
                 for project_data_path in [self.__project_data_path] if self.__project_data_path else []:
@@ -699,7 +695,6 @@ class FileProjectStorageSystem(ProjectStorageSystem):
                 properties.setdefault("uuid", str(project_uuid))
                 properties["project_data_folders"] = [str(project_data_path) for project_data_path in project_data_paths]
                 json.dump(properties, fp)
-            os.replace(temp_filepath, self.__project_path)
 
     def _get_identifier(self) -> str:
         return str(self.__project_path)

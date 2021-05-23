@@ -48,6 +48,7 @@ from nion.swift.model import Processing
 from nion.swift.model import Profile
 from nion.swift.model import Project
 from nion.swift.model import Symbolic
+from nion.swift.model import Utility
 from nion.swift.model import WorkspaceLayout
 from nion.ui import CanvasItem
 from nion.ui import Dialog
@@ -766,10 +767,8 @@ class DocumentController(Window.Window):
 
             svg = drawing_context.to_svg(shape, view_box)
 
-            temp_filepath = path + ".temp"
-            with open(temp_filepath, "w") as fp:
+            with Utility.AtomicFileWriter(pathlib.Path(path)) as fp:
                 fp.write(svg)
-            os.replace(temp_filepath, path)
 
     # this method creates a task. it is thread safe.
     def create_task_context_manager(self, title, task_type, logging=True):

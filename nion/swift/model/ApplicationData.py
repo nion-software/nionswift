@@ -11,6 +11,7 @@ import threading
 import typing
 
 # third party libraries
+from nion.swift.model import Utility
 from nion.utils import Event
 from nion.utils import StructuredModel
 
@@ -69,10 +70,8 @@ class ApplicationData(metaclass=Singleton):
 
     def __write_data(self):
         if self.__file_path:
-            temp_filepath = self.__file_path.with_suffix(".temp")
-            with open(temp_filepath, "w") as fp:
+            with Utility.AtomicFileWriter(self.__file_path) as fp:
                 json.dump(self.__data, fp, skipkeys=True, indent=4)
-            os.replace(temp_filepath, self.__file_path)
 
 
 def set_file_path(file_path: pathlib.Path) -> None:
