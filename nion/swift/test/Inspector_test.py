@@ -22,6 +22,7 @@ from nion.swift.model import Symbolic
 from nion.swift.test import TestContext
 from nion.ui import TestUI
 from nion.utils import Binding
+from nion.utils import Converter
 from nion.utils import Geometry
 from nion.utils import Observable
 
@@ -304,6 +305,31 @@ class TestInspectorClass(unittest.TestCase):
             length_widget.editing_finished(length_str)
             self.assertAlmostEqual(line_region.end[0], 1.0, 3)
             self.assertAlmostEqual(line_region.end[1], 1.0, 3)
+
+    def test_graphic_inspector_sets_calibrated_angle_units(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((200, 100), numpy.uint32))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            line_region = Graphics.LineGraphic()
+            line_region.start = (0, 0)
+            line_region.end = (0.25, 0.5)
+            display_item.add_graphic(line_region)
+            display_item.calibration_style_id = "calibrated"
+            # find the inspector panel
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            document_controller.periodic()  # needed to build the inspector
+            inspector_panel = document_controller.find_dock_panel("inspector-panel")
+            # check the values
+            document_controller.periodic()  # needed to update the inspector
+            angle_widget = inspector_panel.widget.find_widget_by_id("angle")
+            self.assertEqual(-45.0, Converter.FloatToStringConverter().convert_back(angle_widget.text))
+            angle_widget.editing_finished("45")
+            self.assertAlmostEqual(line_region.end[0], -0.25, 3)
+            self.assertAlmostEqual(line_region.end[1], 0.5, 3)
 
     def test_line_profile_inspector_display_calibrated_width_units(self):
         with TestContext.create_memory_context() as test_context:

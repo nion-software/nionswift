@@ -2286,6 +2286,52 @@ class CalibratedLengthBinding(Binding.Binding):
         return self.__size_converter.convert_calibrated_value_to_str(calibrated_value)
 
 
+class CalibratedAngleBinding(Binding.Binding):
+    def __init__(self, display_item: DisplayItem.DisplayItem, start_binding, end_binding):
+        super().__init__(None)
+        self.__x_converter = CalibratedValueFloatToStringConverter(display_item, 1)
+        self.__y_converter = CalibratedValueFloatToStringConverter(display_item, 0)
+        self.__size_converter = CalibratedSizeFloatToStringConverter(display_item, 0)
+        self.__start_binding = start_binding
+        self.__end_binding = end_binding
+        def update_target(value):
+            self.update_target_direct(self.get_target_value())
+        self.__start_binding.target_setter = update_target
+        self.__end_binding.target_setter = update_target
+        def calibrations_changed(k):
+            if k == "displayed_dimensional_calibrations":
+                update_target(display_item.displayed_datum_calibrations)
+        self.__calibrations_changed_event_listener = display_item.display_property_changed_event.listen(calibrations_changed)
+    def close(self):
+        self.__start_binding.close()
+        self.__start_binding = None
+        self.__end_binding.close()
+        self.__end_binding = None
+        self.__calibrations_changed_event_listener.close()
+        self.__calibrations_changed_event_listener = None
+        super().close()
+    # set the model value from the target ui element text.
+    def update_source(self, target_value):
+        start = self.__start_binding.get_target_value()
+        end = self.__end_binding.get_target_value()
+        calibrated_start = Geometry.FloatPoint(y=self.__y_converter.convert_to_calibrated_value(start[0]), x=self.__x_converter.convert_to_calibrated_value(start[1]))
+        calibrated_dy = self.__y_converter.convert_to_calibrated_value(end[0]) - self.__y_converter.convert_to_calibrated_value(start[0])
+        calibrated_dx = self.__x_converter.convert_to_calibrated_value(end[1]) - self.__x_converter.convert_to_calibrated_value(start[1])
+        length = math.sqrt(calibrated_dy * calibrated_dy + calibrated_dx * calibrated_dx)
+        angle = RadianToDegreeStringConverter().convert_back(target_value)
+        new_calibrated_end = calibrated_start + length * Geometry.FloatSize(height=-math.sin(angle), width=math.cos(angle))
+        end = Geometry.FloatPoint(y=self.__y_converter.convert_from_calibrated_value(new_calibrated_end.y), x=self.__x_converter.convert_from_calibrated_value(new_calibrated_end.x))
+        self.__end_binding.update_source(end)
+    # get the value from the model and return it as a string suitable for the target ui element.
+    # in this binding, it combines the two source bindings into one.
+    def get_target_value(self):
+        start = self.__start_binding.get_target_value()
+        end = self.__end_binding.get_target_value()
+        calibrated_dy = self.__y_converter.convert_to_calibrated_value(end[0]) - self.__y_converter.convert_to_calibrated_value(start[0])
+        calibrated_dx = self.__x_converter.convert_to_calibrated_value(end[1]) - self.__x_converter.convert_to_calibrated_value(start[1])
+        return RadianToDegreeStringConverter().convert(-math.atan2(calibrated_dy, calibrated_dx))
+
+
 def make_point_type_inspector(document_controller, display_item: DisplayItem.DisplayItem, graphic) -> InspectorSectionWidget:
     ui = document_controller.ui
     graphic_widget = InspectorSectionWidget(ui)
@@ -2334,6 +2380,7 @@ def make_point_type_inspector(document_controller, display_item: DisplayItem.Dis
 def make_line_type_inspector(document_controller, display_item: DisplayItem.DisplayItem, graphic) -> InspectorSectionWidget:
     ui = document_controller.ui
     graphic_widget = InspectorSectionWidget(ui)
+    graphic_widget.content_widget.widget_id = "line_type_inspector"
     # create the ui
     graphic_start_row = ui.create_row_widget()
     graphic_start_row.add_spacing(20)
@@ -2404,7 +2451,7 @@ def make_line_type_inspector(document_controller, display_item: DisplayItem.Disp
         end_x_binding = CalibratedValueBinding(1, display_item, Binding.TuplePropertyBinding(end_model, "value", 1))
         end_y_binding = CalibratedValueBinding(0, display_item, Binding.TuplePropertyBinding(end_model, "value", 0))
         length_binding = CalibratedLengthBinding(display_item, ChangeGraphicPropertyBinding(document_controller, display_item, graphic, "start"), ChangeGraphicPropertyBinding(document_controller, display_item, graphic, "end"))
-        angle_binding = ChangeGraphicPropertyBinding(document_controller, display_item, graphic, "angle", RadianToDegreeStringConverter())
+        angle_binding = CalibratedAngleBinding(display_item, ChangeGraphicPropertyBinding(document_controller, display_item, graphic, "start"), ChangeGraphicPropertyBinding(document_controller, display_item, graphic, "end"))
         graphic_start_x_line_edit.bind_text(start_x_binding)
         graphic_start_y_line_edit.bind_text(start_y_binding)
         graphic_end_x_line_edit.bind_text(end_x_binding)
