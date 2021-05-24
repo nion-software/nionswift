@@ -1589,16 +1589,17 @@ class DocumentController(Window.Window):
         return self.add_data_element(data_element)
 
     def show_display_item(self, display_item: DisplayItem.DisplayItem, *, source_display_item=None, source_data_item=None, request_focus=True) -> None:
+        # when a new item is shown, call this to find a display panel for it.
+        # request focus can be passed as False to avoid focusing on the new
+        # item, as may be preferred during live acquisition (snapshot).
+        # previously, the inspector was also focused; this has been removed for
+        # consistency. see https://github.com/nion-software/nionswift/issues/257.
         result_display_panel = self.next_result_display_panel()
         if result_display_panel:
             result_display_panel.set_display_panel_display_item(display_item)
             if request_focus:
                 result_display_panel.request_focus()
         self.select_display_items_in_data_panel([display_item])
-        if request_focus:
-            inspector_panel = typing.cast(typing.Optional[Inspector.InspectorPanel], self.find_dock_panel("inspector-panel"))
-            if inspector_panel:
-                inspector_panel.request_focus = True
 
     def _perform_redimension(self, display_item: DisplayItem.DisplayItem, data_descriptor: DataAndMetadata.DataDescriptor) -> None:
         def process() -> DataItem.DataItem:
@@ -1839,10 +1840,6 @@ class DocumentController(Window.Window):
             new_data_item = self.document_model.copy_data_item(data_item)
             new_data_item.title = _("Clone of ") + data_item.title
             new_data_item.category = data_item.category
-            self.select_data_item_in_data_panel(new_data_item)
-            inspector_panel = typing.cast(typing.Optional[Inspector.InspectorPanel], self.find_dock_panel("inspector-panel"))
-            if inspector_panel is not None:
-                inspector_panel.request_focus = True
             display_item = self.document_model.get_display_item_for_data_item(new_data_item)
             assert display_item
             self.show_display_item(display_item, source_data_item=data_item)
@@ -1884,16 +1881,11 @@ class DocumentController(Window.Window):
             super().close()
 
         def perform(self):
+            # regarding focus, see https://github.com/nion-software/nionswift/issues/145
             document_controller = self.__document_controller
             display_item = self.__display_item
             request_focus = not display_item.is_live
             snapshot_display_item = self.__display_item_fn(display_item)
-            if request_focus:
-                # see https://github.com/nion-software/nionswift/issues/145
-                document_controller.select_display_items_in_data_panel([snapshot_display_item])
-                inspector_panel = document_controller.find_dock_panel("inspector-panel")
-                if inspector_panel is not None:
-                    inspector_panel.request_focus = True
             document_controller.show_display_item(snapshot_display_item, source_display_item=snapshot_display_item, request_focus=request_focus)
             self.__display_item_proxy = display_item.create_proxy() if display_item else None
 

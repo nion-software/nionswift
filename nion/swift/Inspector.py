@@ -58,7 +58,6 @@ class InspectorPanel(Panel.Panel):
         self.__display_item = None
 
         self.__display_inspector = None
-        self.request_focus = False
 
         # listen for selected display binding changes
         self.__data_item_will_be_removed_event_listener = None
@@ -174,10 +173,6 @@ class InspectorPanel(Panel.Panel):
         if not self.document_controller.document_model.are_display_items_equal(self.__display_item, display_item):
             self.__display_item = display_item
             self.__update_display_inspector()
-        if self.request_focus:
-            if self.__display_inspector:
-                self.__display_inspector.focus_default()
-            self.request_focus = False
 
     # this message is received from the data item binding.
     # mark the data item as needing updating.
