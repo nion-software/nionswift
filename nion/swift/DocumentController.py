@@ -3185,7 +3185,7 @@ class DisplayPanelShowItemAction(Window.Action):
 
     def is_checked(self, context: Window.ActionContext) -> bool:
         context = typing.cast(DocumentController.ActionContext, context)
-        return context.display_panel is not None and context.display_panel.display_panel_type == "data_item"
+        return context.display_panel is not None and context.display_panel.display_panel_type in ("data_item", "empty")
 
     def is_enabled(self, context: Window.ActionContext) -> bool:
         context = typing.cast(DocumentController.ActionContext, context)

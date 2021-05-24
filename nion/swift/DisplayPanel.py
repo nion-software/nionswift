@@ -1966,6 +1966,12 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
                 return True
             if display_canvas_item.key_pressed(key):
                 return True
+        else:
+            # handle case of empty display panel
+            action = Window.get_action_for_key(["display_panel_browser"], key)
+            if action:
+                self.document_controller.perform_action(action)
+                return True
         if self.__display_panel_controller and self.__display_panel_controller.key_pressed(key):
             return True
         return DisplayPanelManager().key_pressed(self, key)
