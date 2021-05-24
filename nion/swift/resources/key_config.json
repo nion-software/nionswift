@@ -78,7 +78,7 @@
         "raster_display": "-"
     },
     "raster_display.zoom_in": {
-        "raster_display": ["=", "Shift++"]
+        "raster_display": ["=", "Shift++", "+"]
     },
     "line_plot_display.auto_display": {
         "line_plot_display": "enter"
