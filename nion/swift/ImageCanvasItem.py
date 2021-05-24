@@ -635,8 +635,8 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
             new_image_norm_center_0 = max(min(new_image_norm_center[0], 1.0), 0.0)
             new_image_norm_center_1 = max(min(new_image_norm_center[1], 1.0), 0.0)
             # save the new image norm center
-            self.delegate.update_display_properties({"image_position": list(self.__image_position), "image_canvas_mode": "custom"})
             self.__image_position = (new_image_norm_center_0, new_image_norm_center_1)
+            self.delegate.update_display_properties({"image_position": list(self.__image_position), "image_canvas_mode": "custom"})
             # and update the image canvas accordingly
             self.__image_canvas_mode = "custom"
             self.__update_image_canvas_size()

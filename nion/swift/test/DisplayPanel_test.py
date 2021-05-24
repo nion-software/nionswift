@@ -414,6 +414,24 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertClosePoint(self.display_panel.display_canvas_item.map_widget_to_image((0, 60)), (0.0, 0.0))
         self.assertClosePoint(self.display_panel.display_canvas_item.map_widget_to_image((480, 540)), (10, 10))
 
+    def test_moving_image_updates_display_properties(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((8, 8)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            display_panel.display_canvas_item.layout_immediate(Geometry.IntSize(height=480, width=640))
+            # establish display properties
+            display_panel.display_canvas_item.move_left()
+            display_panel.display_canvas_item.move_right()
+            self.assertEqual((0.5, 0.5), tuple(display_item.display_properties["image_position"]))
+            # move and ensure value was updated
+            display_panel.display_canvas_item.move_left()  # 10 pixels left
+            self.assertNotEqual((0.5, 0.5), tuple(display_item.display_properties["image_position"]))
+
     def test_resize_rectangle(self):
         # add rect (0.25, 0.25), (0.5, 0.5)
         self.document_controller.add_rectangle_graphic()
