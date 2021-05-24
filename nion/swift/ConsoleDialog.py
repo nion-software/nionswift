@@ -190,6 +190,9 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
         super().close()
         self.__text_edit_widget = None
 
+    def activate(self) -> None:
+        self.__text_edit_widget.focused = True
+
     @property
     def current_prompt(self):
         return self.continuation_prompt if self.__state_controller.incomplete else self.prompt
@@ -359,6 +362,13 @@ class ConsoleDialog(Dialog.ActionDialog):
     def close(self):
         self.__document_controller.unregister_console(self)
         super().close()
+
+    def about_to_show(self) -> None:
+        super().about_to_show()
+        def request_focus():
+            self.activate()
+            self.__console_widget.activate()
+        self.queue_task(request_focus)
 
     def assign_item_var(self, item_var: str, item: Persistence.PersistentObject) -> None:
         self.__console_widget.insert_lines([f"{item_var} = api.library.get_item_by_specifier(api.create_specifier(uuid.UUID(\"{item.uuid}\")))"])
