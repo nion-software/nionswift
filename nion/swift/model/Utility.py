@@ -274,9 +274,11 @@ class AtomicFileWriter:
         else:
             try:
                 os.replace(self.__temp_filepath, self.__filepath)
-                dirfd = os.open(os.path.dirname(self.__filepath), os.O_DIRECTORY)
-                os.fsync(dirfd)
-                os.close(dirfd)
+                if hasattr(os, "O_DIRECTORY"):
+                    # ensure the directory has been updated. not available all the time on Windows.
+                    dirfd = os.open(os.path.dirname(self.__filepath), os.O_DIRECTORY)
+                    os.fsync(dirfd)
+                    os.close(dirfd)
             except OSError:
                 try:
                     os.unlink(self.__temp_filepath)
