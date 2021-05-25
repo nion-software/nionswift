@@ -244,7 +244,7 @@ class HeaderCanvasItem(CanvasItem.CanvasItemComposition):
 
     def __set_default_style(self):
         if sys.platform == "win32":
-            self.__font = 'normal system serif'
+            self.__font = 'normal 11px system serif'
             self.__top_offset = 1
             self.__text_offset = 4
             self.__start_header_color = "#d9d9d9"
