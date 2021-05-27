@@ -12,6 +12,20 @@ in bug fix releases, we choose to include them for evaluation and feedback. If y
 or have feedback about these types of new features, please contact us or file issues at
 https://github.com/nion-software/nionswift/issues.
 
+Version 0.15.7 (2021-05-27)
+---------------------------
+* (2021-05-25) Fix issue with font sizes when changing screen resolution without rebooting.
+* (2021-05-24) Fix issue shifting and zooming raster displays during acquisition.
+* (2021-05-24) Improve handling of corrupt projects and logging.
+* (2021-05-10) Change rotation knob on rectangles and ellipses to be easier to see, at top.
+* (2021-05-03) Improvements to mask handling.
+* (2021-04-28) Fix issue undoing and saving workspaces.
+* (2021-04-28) Add preliminary controls to toolbar for adjusting workspace (splits, close, delete, clear, etc.).
+* (2021-04-27) Add preliminary key shortcuts for pointer (e), hand (h), line (n), and rectangle (c).
+* (2021-04-20) Fix issue when dragging line plot intervals outside of data domain.
+* (2021-04-17) Improve line plot stability when calibration changes.
+* (2021-04-13) Clean up utility windows (do not display unneeded menus).
+
 Version 0.15.6 (2021-04-12)
 ---------------------------
 * (2021-04-12) Fix export issue resulting in incomplete or corrupt data after export of fresh scan data.
