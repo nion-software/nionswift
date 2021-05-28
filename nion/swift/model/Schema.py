@@ -40,19 +40,19 @@ def get_entity_type(entity_id: str) -> EntityType:
 def build_value(type: str, value) -> typing.Any:
     if value is None:
         return None
-    if type in (SET, ):
+    if type in (SET,):
         return set(value)
-    if type in (BOOLEAN, ):
+    if type in (BOOLEAN,):
         return bool(value)
-    if type in (INT, ):
+    if type in (INT,):
         return int(value)
-    if type in (FLOAT, ):
+    if type in (FLOAT,):
         return float(value)
-    if type in (TIMESTAMP):
+    if type in (TIMESTAMP,):
         return Converter.DatetimeToStringConverter().convert_back(value)
-    if type in (UUID):
+    if type in (UUID,):
         return Converter.UuidToStringConverter().convert_back(value)
-    if type in (PATH):
+    if type in (PATH,):
         return Converter.PathToStringConverter().convert_back(value)
     return value
 
@@ -60,19 +60,19 @@ def build_value(type: str, value) -> typing.Any:
 def dict_value(type: str, value):
     if value is None:
         return None
-    if type in (SET, ):
+    if type in (SET,):
         return list(value)
-    if type in (BOOLEAN, ):
+    if type in (BOOLEAN,):
         return bool(value)
-    if type in (INT, ):
+    if type in (INT,):
         return int(value)
-    if type in (FLOAT, ):
+    if type in (FLOAT,):
         return float(value)
-    if type in (TIMESTAMP):
+    if type in (TIMESTAMP,):
         return Converter.DatetimeToStringConverter().convert(value)
-    if type in (UUID):
+    if type in (UUID,):
         return Converter.UuidToStringConverter().convert(value)
-    if type in (PATH):
+    if type in (PATH,):
         return Converter.PathToStringConverter().convert(value)
     return value
 
