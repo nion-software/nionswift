@@ -11,6 +11,7 @@
 import collections
 import gettext
 import math
+import re
 import typing
 
 # third party libraries
@@ -969,12 +970,20 @@ class Exponenter:
             drawing_context.fill_text(label, width, y)
 
 
+_LABEL_SIZE_CALCULATION_NORMALIZE_RE = re.compile(r"\d")
+
+
+def _normalize_label_for_size_calculation(label):
+    return _LABEL_SIZE_CALCULATION_NORMALIZE_RE.sub("0", label)
+
+
 def calculate_scientific_notation_drawing_width(ui_settings: UISettings.UISettings, fonts: typing.Tuple[str, str], label: str) -> int:
     labels = label.lower().split("e")
     if len(labels) == 2:
         labels[0] = labels[0] + " x 10"
         labels[1] = str(int(labels[1]))
-    return sum(ui_settings.get_font_metrics(font, label).width for font, label in zip(fonts, labels))
+    return sum(ui_settings.get_font_metrics(font, _normalize_label_for_size_calculation(label)).width
+               for font, label in zip(fonts, labels))
 
 
 
