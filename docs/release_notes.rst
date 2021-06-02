@@ -14,17 +14,21 @@ https://github.com/nion-software/nionswift/issues.
 
 Version 0.15.7 (2021-05-27)
 ---------------------------
-* (2021-05-25) Fix issue with font sizes when changing screen resolution without rebooting.
-* (2021-05-24) Fix issue shifting and zooming raster displays during acquisition.
-* (2021-05-24) Improve handling of corrupt projects and logging.
-* (2021-05-10) Change rotation knob on rectangles and ellipses to be easier to see, at top.
-* (2021-05-03) Improvements to mask handling.
-* (2021-04-28) Fix issue undoing and saving workspaces.
-* (2021-04-28) Add preliminary controls to toolbar for adjusting workspace (splits, close, delete, clear, etc.).
-* (2021-04-27) Add preliminary key shortcuts for pointer (e), hand (h), line (n), and rectangle (c).
-* (2021-04-20) Fix issue when dragging line plot intervals outside of data domain.
-* (2021-04-17) Improve line plot stability when calibration changes.
-* (2021-04-13) Clean up utility windows (do not display unneeded menus).
+* `#475 <https://github.com/nion-software/nionswift/issues/475>`_ Fix issue with font sizes when changing screen resolution without rebooting.
+* `#211 <https://github.com/nion-software/nionswift/issues/211>`_ Fix issue shifting and zooming raster displays during acquisition.
+* `#236 <https://github.com/nion-software/nionswift/issues/236>`_ Console dialog gets focus immediately after opening.
+* `#257 <https://github.com/nion-software/nionswift/issues/257>`_ Fix focus issues after processing produces a new item.
+* `#151 <https://github.com/nion-software/nionswift/issues/151>`_ Calculate line angles using calibrated coordinates.
+* `#471 <https://github.com/nion-software/nionswift/issues/471>`_, `#692 <https://github.com/nion-software/nionswift/issues/692>`_ Improve handling of corrupt projects and logging.
+* `#293 <https://github.com/nion-software/nionswift/issues/293>`_ Change rotation knob on rectangles and ellipses to be easier to see, at top.
+* `#148 <https://github.com/nion-software/nionswift/issues/148>`_, `#686 <https://github.com/nion-software/nionswift/issues/686>`_, `#688 <https://github.com/nion-software/nionswift/issues/688>`_, `#690 <https://github.com/nion-software/nionswift/issues/690>`_ Improvements to mask handling.
+* `#683 <https://github.com/nion-software/nionswift/issues/683>`_ Fix issue undoing and saving workspaces.
+* Add preliminary controls to toolbar for adjusting workspace (splits, close, delete, clear, etc.).
+* `#101 <https://github.com/nion-software/nionswift/issues/101>`_ Add preliminary key shortcuts for pointer (e), hand (h), line (n), and rectangle (c).
+* `#644 <https://github.com/nion-software/nionswift/issues/644>`_ Fix issue when dragging line plot intervals outside of data domain.
+* `#643 <https://github.com/nion-software/nionswift/issues/643>`_ Improve line plot stability when calibration changes.
+* `#402 <https://github.com/nion-software/nionswift/issues/402>`_ Fixed Reveal right-click menu item to work again.
+* Clean up utility windows (do not display unneeded menus).
 
 Version 0.15.6 (2021-04-12)
 ---------------------------
