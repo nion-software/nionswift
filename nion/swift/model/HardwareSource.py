@@ -450,6 +450,7 @@ class DataChannel:
         self.__state = None
         self.__data_shape = None
         self.__sub_area = None
+        self.__dest_sub_area = None
         self.__data_and_metadata = None
         self.is_dirty = False
         self.data_channel_updated_event = Event.Event()
