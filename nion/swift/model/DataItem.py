@@ -1044,7 +1044,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         finally:
             self.decrement_data_ref_count()
 
-    def reserve_data(self, *, data_shape: typing.Tuple[int, ...], data_dtype: numpy.dtype, data_descriptor: DataAndMetadata.DataDescriptor, data_modified=None) -> None:
+    def reserve_data(self, *, data_shape: typing.Tuple[int, ...], data_dtype, data_descriptor: DataAndMetadata.DataDescriptor, data_modified=None) -> None:
         """Reserves the underlying data without necessarily allocating memory. Useful for memory mapped files.
         """
         self.increment_data_ref_count()
@@ -1100,6 +1100,12 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
                     assert self.__data_and_metadata.data_dtype == data_metadata.data_dtype
                     assert self.__data_and_metadata.data_dtype == data_and_metadata.data_dtype
                     self.__data_and_metadata.data[tuple(dst)] = data_and_metadata.data[tuple(src)]
+                    # mark changes and update session
+                    self.__change_changed = True
+                    self.__change_data_changed = True
+                    if self._session_manager:
+                        session_id = self._session_manager.current_session_id
+                        self.session_id = session_id
                     # set data_shape as a way to update 'modified' property
                     self._set_persistent_property_value("data_shape", self.__data_and_metadata.data_shape)
                     if self.persistent_object_context and not self.is_write_delayed:

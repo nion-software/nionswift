@@ -4082,6 +4082,37 @@ class TestStorageClass(unittest.TestCase):
                 data_item.set_data(numpy.ones((2, 2)))  # but it is overwritten here and may be unloaded
                 self.assertIsNotNone(data_and_metadata.data)  # ensure that it isn't actually unloaded
 
+    def test_partial_data_on_new_data_item_writes(self):
+        with create_temp_profile_context() as profile_context:
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            with contextlib.closing(document_controller):
+                document_model = document_controller.document_model
+                data_item = DataItem.DataItem()
+                document_model.append_data_item(data_item)
+                data_item.reserve_data(data_shape=(4, 4), data_dtype=float, data_descriptor=DataAndMetadata.DataDescriptor(False, 0, 2))
+                # this next statement would clear the change data flag and prevent writing
+                with data_item.data_source_changes():
+                    pass
+                # set up the transaction
+                data_item.increment_data_ref_count()
+                data_item_transaction = document_model.item_transaction(data_item)
+                document_model.begin_data_item_live(data_item)
+                # update
+                data_and_metadata = DataAndMetadata.new_data_and_metadata(numpy.ones((1, 4)))
+                document_model.update_data_item_partial(data_item, data_item.data_and_metadata.data_metadata, data_and_metadata, [slice(0, 1), slice(None)], [slice(0, 1), slice(None)])
+                document_model.update_data_item_partial(data_item, data_item.data_and_metadata.data_metadata, data_and_metadata, [slice(0, 1), slice(None)], [slice(1, 2), slice(None)])
+                document_model.perform_data_item_updates()
+                self.assertGreater(numpy.sum(data_item.data), 0)  # ensure we wrote some data
+                reference_data = numpy.copy(data_item.data)
+                # close
+                data_item_transaction.close()
+                document_model.end_data_item_live(data_item)
+                data_item.decrement_data_ref_count()
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            with contextlib.closing(document_controller):
+                document_model = document_controller.document_model
+                self.assertTrue(numpy.array_equal(reference_data, document_model.data_items[0].data))
+
     def test_undo_redo_is_written_to_storage(self):
         with create_memory_profile_context() as profile_context:
             document_controller = profile_context.create_document_controller()
