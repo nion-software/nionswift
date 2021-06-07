@@ -35,13 +35,10 @@
 """
 
 # standard libraries
-import contextlib
 import copy
-import collections
 import datetime
 import gettext
 import numbers
-import pickle
 import threading
 import typing
 import uuid as uuid_module
@@ -63,7 +60,6 @@ from nion.swift.model import DataItem as DataItemModule
 from nion.swift.model import DisplayItem as DisplayItemModule
 from nion.swift.model import DocumentModel as DocumentModelModule
 from nion.swift.model import Graphics
-from nion.swift.model import HardwareSource as HardwareSourceModule
 from nion.swift.model import ImportExportManager
 from nion.swift.model import Metadata
 from nion.swift.model import Persistence
@@ -73,6 +69,7 @@ from nion.swift.model import Utility
 from nion.ui import CanvasItem as CanvasItemModule
 from nion.ui import Declarative
 from nion.utils import Geometry
+from nion.utils import Registry
 
 if typing.TYPE_CHECKING:
     from nion.swift import DocumentController
@@ -88,6 +85,19 @@ NormRectangleType = typing.Tuple[typing.Tuple[float, float], typing.Tuple[float,
 NormPointType = typing.Tuple[float, float]
 NormSizeType = typing.Tuple[float, float]
 NormVectorType = typing.Tuple[NormPointType, NormPointType]
+
+
+class HardwareSourceManager:
+    def register_hardware_source(self, hardware_source) -> None: ...
+    def get_all_instrument_ids(self) -> typing.List[str]: ...
+    def get_all_hardware_source_ids(self) -> typing.List[str]: ...
+    def get_instrument_by_id(self, instrument_id) -> typing.Any: ...
+    def get_hardware_source_for_hardware_source_id(self, hardware_source_id: str) -> typing.Any: ...
+    def make_delegate_hardware_source(self, delegate, hardware_source_id: str, hardware_source_name: str) -> typing.Any: ...
+
+
+def hardware_source_manager() -> HardwareSourceManager:
+    return typing.cast(HardwareSourceManager, Registry.get_component("hardware_source_manager"))
 
 
 # ideally these can be alphabetical, but some orders may need to be switched to ensure that
@@ -188,9 +198,9 @@ class ObjectSpecifier:
                 if display_item.uuid == object_uuid:
                     return Display(display_item)
         elif object_type == "hardware_source":
-            return HardwareSource(HardwareSourceModule.HardwareSourceManager().get_hardware_source_for_hardware_source_id(object_id))
+            return HardwareSource(hardware_source_manager().get_hardware_source_for_hardware_source_id(object_id))
         elif object_type == "instrument":
-            return Instrument(HardwareSourceModule.HardwareSourceManager().get_instrument_by_id(object_id))
+            return Instrument(hardware_source_manager().get_instrument_by_id(object_id))
         return None
 
 
@@ -1796,20 +1806,8 @@ class ViewTask:
 
     release = ["close", "grab_earliest", "grab_immediate", "grab_next_to_finish", "grab_next_to_start"]
 
-    def __init__(self, hardware_source: HardwareSourceModule.HardwareSource, frame_parameters: dict, channels_enabled: typing.List[bool], buffer_size: int):
-        self.__hardware_source = hardware_source
-        self.__was_playing = self.__hardware_source.is_playing
-        if frame_parameters:
-            self.__hardware_source.set_current_frame_parameters(self.__hardware_source.get_frame_parameters_from_dict(frame_parameters))
-        if channels_enabled is not None:
-            for channel_index, channel_enabled in enumerate(channels_enabled):
-                self.__hardware_source.set_channel_enabled(channel_index, channel_enabled)
-        if not self.__was_playing:
-            self.__hardware_source.start_playing()
-        self.__data_channel_buffer = HardwareSourceModule.DataChannelBuffer(self.__hardware_source.data_channels, buffer_size)
-        self.__data_channel_buffer.start()
-        self.on_will_start_frame = None  # prepare the hardware here
-        self.on_did_finish_frame = None  # restore the hardware here, modify the data_and_metadata here
+    def __init__(self, view_task):
+        self._view_task = view_task
 
     def close(self) -> None:
         """Close the task.
@@ -1818,11 +1816,7 @@ class ViewTask:
 
         This method must be called when the task is no longer needed.
         """
-        self.__data_channel_buffer.stop()
-        self.__data_channel_buffer.close()
-        self.__data_channel_buffer = None
-        if not self.__was_playing:
-            self.__hardware_source.stop_playing()
+        self._view_task.close()
 
     def grab_immediate(self) -> typing.List[DataAndMetadata.DataAndMetadata]:
         """Grab list of data/metadata from the task.
@@ -1834,7 +1828,7 @@ class ViewTask:
         :return: The list of data and metadata items that were read.
         :rtype: list of :py:class:`DataAndMetadata`
         """
-        return self.__data_channel_buffer.grab_latest()
+        return self._view_task.grab_immediate()
 
     def grab_next_to_finish(self) -> typing.List[DataAndMetadata.DataAndMetadata]:
         """Grab list of data/metadata from the task.
@@ -1846,7 +1840,7 @@ class ViewTask:
         :return: The list of data and metadata items that were read.
         :rtype: list of :py:class:`DataAndMetadata`
         """
-        return self.__data_channel_buffer.grab_next()
+        return self._view_task.grab_next_to_finish()
 
     def grab_next_to_start(self) -> typing.List[DataAndMetadata.DataAndMetadata]:
         """Grab list of data/metadata from the task.
@@ -1858,7 +1852,7 @@ class ViewTask:
         :return: The list of data and metadata items that were read.
         :rtype: list of :py:class:`DataAndMetadata`
         """
-        return self.__data_channel_buffer.grab_following()
+        return self._view_task.grab_next_to_start()
 
     def grab_earliest(self) -> typing.List[DataAndMetadata.DataAndMetadata]:
         """Grab list of data/metadata from the task.
@@ -1870,7 +1864,7 @@ class ViewTask:
         :return: The list of data and metadata items that were read.
         :rtype: list of :py:class:`DataAndMetadata`
         """
-        return self.__data_channel_buffer.grab_earliest()
+        return self._view_task.grab_earliest()
 
 
 class HardwareSource(metaclass=SharedInstance):
@@ -2019,7 +2013,7 @@ class HardwareSource(metaclass=SharedInstance):
 
         See :py:class:`ViewTask` for examples of how to use.
         """
-        return ViewTask(self.__hardware_source, frame_parameters, channels_enabled, buffer_size)
+        return ViewTask(self.__hardware_source.create_view_task(frame_parameters, channels_enabled, buffer_size))
 
     def grab_next_to_finish(self, timeout: float=None) -> typing.List[DataAndMetadata.DataAndMetadata]:
         """Grabs the next frame to finish and returns it as data and metadata.
@@ -3256,49 +3250,13 @@ class API_1:
 
     def create_hardware_source(self, hardware_source_delegate):
 
-        class FacadeAcquisitionTask(HardwareSourceModule.AcquisitionTask):
-
-            def __init__(self):
-                super().__init__(True)
-
-            def _start_acquisition(self) -> bool:
-                if not super()._start_acquisition():
-                    return False
-                hardware_source_delegate.start_acquisition()
-                return True
-
-            def _acquire_data_elements(self):
-                data_and_metadata = hardware_source_delegate.acquire_data_and_metadata()
-                data_element = {
-                    "version": 1,
-                    "data": data_and_metadata.data,
-                    "properties": {
-                        "hardware_source_name": hardware_source_delegate.hardware_source_name,
-                        "hardware_source_id": hardware_source_delegate.hardware_source_id,
-                    }
-                }
-                return [data_element]
-
-            def _stop_acquisition(self) -> None:
-                hardware_source_delegate.stop_acquisition()
-                super()._stop_acquisition()
-
-        class FacadeHardwareSource(HardwareSourceModule.HardwareSource):
-
-            def __init__(self):
-                super().__init__(hardware_source_delegate.hardware_source_id, hardware_source_delegate.hardware_source_name)
-                self.features["is_video"] = True
-                self.add_data_channel()
-
-            def _create_acquisition_view_task(self) -> FacadeAcquisitionTask:
-                return FacadeAcquisitionTask()
-
         class HardwareSourceReference:
 
             def __init__(self):
-                self.__hardware_source_delegate = hardware_source_delegate
-                self.__hardware_source = FacadeHardwareSource()
-                HardwareSourceModule.HardwareSourceManager().register_hardware_source(self.__hardware_source)
+                self.__hardware_source = hardware_source_manager().make_delegate_hardware_source(
+                    hardware_source_delegate, hardware_source_delegate.hardware_source_id,
+                    hardware_source_delegate.hardware_source_name)
+                hardware_source_manager().register_hardware_source(self.__hardware_source)
 
             def __del__(self):
                 self.close()
@@ -3362,10 +3320,10 @@ class API_1:
         return None
 
     def get_all_hardware_source_ids(self) -> typing.List[str]:
-        return HardwareSourceModule.HardwareSourceManager().get_all_hardware_source_ids()
+        return hardware_source_manager().get_all_hardware_source_ids()
 
     def get_all_instrument_ids(self) -> typing.List[str]:
-        return HardwareSourceModule.HardwareSourceManager().get_all_instrument_ids()
+        return hardware_source_manager().get_all_instrument_ids()
 
     def get_hardware_source_by_id(self, hardware_source_id: str, version: str):
         """Return the hardware source API matching the hardware_source_id and version.
@@ -3377,14 +3335,14 @@ class API_1:
         actual_version = "1.0.0"
         if Utility.compare_versions(version, actual_version) > 0:
             raise NotImplementedError("Hardware API requested version %s is greater than %s." % (version, actual_version))
-        hardware_source = HardwareSourceModule.HardwareSourceManager().get_hardware_source_for_hardware_source_id(hardware_source_id)
+        hardware_source = hardware_source_manager().get_hardware_source_for_hardware_source_id(hardware_source_id)
         return HardwareSource(hardware_source) if hardware_source else None
 
     def get_instrument_by_id(self, instrument_id: str, version: str):
         actual_version = "1.0.0"
         if Utility.compare_versions(version, actual_version) > 0:
             raise NotImplementedError("Hardware API requested version %s is greater than %s." % (version, actual_version))
-        instrument = HardwareSourceModule.HardwareSourceManager().get_instrument_by_id(instrument_id)
+        instrument = hardware_source_manager().get_instrument_by_id(instrument_id)
         return Instrument(instrument) if instrument else None
 
     @property
@@ -3535,7 +3493,6 @@ import base64
 import functools
 import io
 import pickle
-import threading
 
 from nion.data import Calibration
 from nion.data import DataAndMetadata

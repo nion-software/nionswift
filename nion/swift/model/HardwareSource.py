@@ -10,6 +10,8 @@ The HardwareSourceManager allows callers to register and unregister hardware sou
 This module also defines individual functions that can be used to collect data from hardware sources.
 """
 
+from __future__ import annotations
+
 # system imports
 import configparser
 import contextlib
@@ -159,7 +161,7 @@ class HardwareSourceManager(metaclass=Utility.Singleton):
                 return hardware_source, display_name
         return None
 
-    def get_hardware_source_for_hardware_source_id(self, hardware_source_id: str) -> "HardwareSource":
+    def get_hardware_source_for_hardware_source_id(self, hardware_source_id: str) -> typing.Optional[HardwareSource]:
         info = self.__get_info_for_hardware_source_id(hardware_source_id)
         if info:
             hardware_source, display_name = info
@@ -181,6 +183,9 @@ class HardwareSourceManager(metaclass=Utility.Singleton):
         self.__aliases[alias_instrument_id] = (instrument_id, display_name)
         for f in self.aliases_updated:
             f()
+
+    def make_delegate_hardware_source(self, delegate, hardware_source_id: str, hardware_source_name: str) -> DelegateHardwareSource:
+        return DelegateHardwareSource(delegate, hardware_source_id, hardware_source_name)
 
 
 class AcquisitionTask:
@@ -991,6 +996,10 @@ class HardwareSource(Observable.Observable):
     def set_property(self, name, value):
         setattr(self, name, value)
 
+    # deprecated. for Facade use only.
+    def create_view_task(self, frame_parameters: dict=None, channels_enabled: typing.List[bool]=None, buffer_size: int=1) -> ViewTask:
+        return ViewTask(self, frame_parameters, channels_enabled, buffer_size)
+
     def get_api(self, version):
         actual_version = "1.0.0"
         if Utility.compare_versions(version, actual_version) > 0:
@@ -1001,6 +1010,51 @@ class HardwareSource(Observable.Observable):
                 pass
 
         return HardwareSourceFacade()
+
+
+# used for Facade backwards compatibility
+class DelegateAcquisitionTask(AcquisitionTask):
+
+    def __init__(self, delegate, hardware_source_id: str, hardware_source_name: str):
+        super().__init__(True)
+        self.__delegate = delegate
+        self.__hardware_source_id = hardware_source_id
+        self.__hardware_source_name = hardware_source_name
+
+    def _start_acquisition(self) -> bool:
+        if not super()._start_acquisition():
+            return False
+        self.__delegate.start_acquisition()
+        return True
+
+    def _acquire_data_elements(self):
+        data_and_metadata = self.__delegate.acquire_data_and_metadata()
+        data_element = {
+            "version": 1,
+            "data": data_and_metadata.data,
+            "properties": {
+                "hardware_source_name": self.__hardware_source_name,
+                "hardware_source_id": self.__hardware_source_id,
+            }
+        }
+        return [data_element]
+
+    def _stop_acquisition(self) -> None:
+        self.__delegate.stop_acquisition()
+        super()._stop_acquisition()
+
+
+# used for Facade backwards compatibility
+class DelegateHardwareSource(HardwareSource):
+
+    def __init__(self, delegate, hardware_source_id: str, hardware_source_name: str):
+        super().__init__(hardware_source_id, hardware_source_name)
+        self.__delegate = delegate
+        self.features["is_video"] = True
+        self.add_data_channel()
+
+    def _create_acquisition_view_task(self) -> DelegateAcquisitionTask:
+        return DelegateAcquisitionTask(self.__delegate, self.hardware_source_id, self.display_name)
 
 
 class SumProcessor(Observable.Observable):
@@ -1095,6 +1149,60 @@ class SumProcessor(Observable.Observable):
             self.__crop_listener = crop_graphic.property_changed_event.listen(property_changed)
             self.__remove_listener = display_item.item_removed_event.listen(graphic_removed)
             self.__crop_graphic = crop_graphic
+
+
+class ViewTask:
+
+    def __init__(self, hardware_source: HardwareSource, frame_parameters: typing.Optional[dict], channels_enabled: typing.Optional[typing.List[bool]], buffer_size: int):
+        self.__hardware_source = hardware_source
+        self.__was_playing = self.__hardware_source.is_playing
+        if frame_parameters:
+            self.__hardware_source.set_current_frame_parameters(self.__hardware_source.get_frame_parameters_from_dict(frame_parameters))
+        if channels_enabled is not None:
+            for channel_index, channel_enabled in enumerate(channels_enabled):
+                self.__hardware_source.set_channel_enabled(channel_index, channel_enabled)
+        if not self.__was_playing:
+            self.__hardware_source.start_playing()
+        self.__data_channel_buffer = DataChannelBuffer(self.__hardware_source.data_channels, buffer_size)
+        self.__data_channel_buffer.start()
+        self.on_will_start_frame = None  # prepare the hardware here
+        self.on_did_finish_frame = None  # restore the hardware here, modify the data_and_metadata here
+
+    def close(self) -> None:
+        """Close the task. Must be called when the task is no longer needed."""
+        self.__data_channel_buffer.stop()
+        self.__data_channel_buffer.close()
+        self.__data_channel_buffer = typing.cast(DataChannelBuffer, None)
+        if not self.__was_playing:
+            self.__hardware_source.stop_playing()
+
+    def grab_immediate(self) -> typing.List[DataAndMetadata.DataAndMetadata]:
+        """Grab list of data/metadata from the task.
+
+        This method will return immediately if data is available.
+        """
+        return self.__data_channel_buffer.grab_latest()
+
+    def grab_next_to_finish(self) -> typing.List[DataAndMetadata.DataAndMetadata]:
+        """Grab list of data/metadata from the task.
+
+        This method will wait until the current frame completes.
+        """
+        return self.__data_channel_buffer.grab_next()
+
+    def grab_next_to_start(self) -> typing.List[DataAndMetadata.DataAndMetadata]:
+        """Grab list of data/metadata from the task.
+
+        This method will wait until the current frame completes and the next one finishes.
+        """
+        return self.__data_channel_buffer.grab_following()
+
+    def grab_earliest(self) -> typing.List[DataAndMetadata.DataAndMetadata]:
+        """Grab list of data/metadata from the task.
+
+        This method will return the earliest item in the buffer or wait for the next one to finish.
+        """
+        return self.__data_channel_buffer.grab_earliest()
 
 
 @contextlib.contextmanager
@@ -1330,3 +1438,6 @@ def matches_hardware_source(hardware_source_id, channel_id, document_model, data
         data_item_channel_id = hardware_source_metadata.get("channel_id")
         return data_item.category == "temporary" and hardware_source_id == data_item_hardware_source_id and channel_id == data_item_channel_id
     return False
+
+
+Registry.register_component(HardwareSourceManager(), {"hardware_source_manager"})
