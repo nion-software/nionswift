@@ -5,7 +5,6 @@ Stores application data.
 # standard libraries
 import copy
 import json
-import os
 import pathlib
 import threading
 import typing

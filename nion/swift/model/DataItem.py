@@ -23,6 +23,7 @@ from nion.data import Calibration
 from nion.data import Core
 from nion.data import DataAndMetadata
 from nion.data import Image
+from nion.swift.model import ApplicationData
 from nion.swift.model import Cache
 from nion.swift.model import Changes
 from nion.swift.model import Graphics
@@ -552,6 +553,14 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
     def session_id(self, value: str) -> None:
         assert value is None or datetime.datetime.strptime(value, "%Y%m%d-%H%M%S")
         self._set_persistent_property_value("session_id", value)
+
+    def update_session(self, session_id: str) -> None:
+        # update the session, but only if necessary (this is an optimization to prevent unnecessary display updates)
+        if self.session_id != session_id:
+            self.session_id = session_id
+        session_metadata = ApplicationData.get_session_metadata_dict()
+        if self.session_metadata != session_metadata:
+            self.session_metadata = session_metadata
 
     def data_item_changes(self):
         # return a context manager to batch up a set of changes so that listeners
