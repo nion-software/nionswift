@@ -82,9 +82,12 @@ Once you have activated Python and installed Nion Swift, you can run Nion Swift 
 For easier launching, you can create a Shortcut to Nion Swift on your Desktop using the command::
 
     $ conda activate nionswift
+    $ conda install pywin32
     $ nionswift --alias
 
 Double clicking this Shortcut will launch Nion Swift in the Python environment from which the command above was run.
+
+If you have a custom Python environment and the technique above does not work, you might consider another shortcut tool such as `Shortcutter <https://github.com/kiwi0fruit/shortcutter>`_.
 
 Updating Nion Swift
 +++++++++++++++++++
