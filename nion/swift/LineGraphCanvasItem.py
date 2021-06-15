@@ -337,7 +337,7 @@ def draw_vertical_grid_lines(drawing_context, plot_height, plot_origin_y, x_tick
         drawing_context.stroke_style = '#DDD'
         drawing_context.stroke()
 
-def draw_line_graph(drawing_context, plot_height, plot_width, plot_origin_y, plot_origin_x, calibrated_xdata, calibrated_data_min, calibrated_data_range, calibrated_left_channel, calibrated_right_channel, x_calibration, fill_color: str, stroke_color: str, rebin_cache, data_style: str):
+def draw_line_graph(drawing_context, plot_height, plot_width, plot_origin_y, plot_origin_x, calibrated_xdata, calibrated_data_min, calibrated_data_range, calibrated_left_channel, calibrated_right_channel, x_calibration, fill_color: str, stroke_color: str, rebin_cache, data_style: str, stroke_width: float):
     # calculate how the data is displayed
     xdata_calibration = calibrated_xdata.dimensional_calibrations[-1]
     assert xdata_calibration.units == x_calibration.units
@@ -425,24 +425,24 @@ def draw_line_graph(drawing_context, plot_height, plot_width, plot_origin_y, plo
                             stroke_path.line_to(px, last_py)
                             if stroke_color and not fill_color:
                                 stroke_path.line_to(px, shape_origin_y)
-                            finalize_path(drawing_context, stroke_path, shape_origin_x, px, shape_origin_y, fill_color, stroke_color)
+                            finalize_path(drawing_context, stroke_path, shape_origin_x, px, shape_origin_y, fill_color, stroke_color, stroke_width)
                             stroke_path = DrawingContext.DrawingContext()
                             drawing_context.begin_path()
 
                 stroke_path.line_to(plot_origin_x + plot_width, last_py)
 
                 if did_draw:
-                    finalize_path(drawing_context, stroke_path, shape_origin_x, px, shape_origin_y, fill_color, stroke_color)
+                    finalize_path(drawing_context, stroke_path, shape_origin_x, px, shape_origin_y, fill_color, stroke_color, stroke_width)
 
         else:
             if fill_color or stroke_color:
                 drawing_context.move_to(plot_origin_x, plot_origin_y + plot_height * 0.5)
                 drawing_context.line_to(plot_origin_x + plot_width, plot_origin_y + plot_height * 0.5)
-                drawing_context.line_width = 0.5
+                drawing_context.line_width = stroke_width
                 drawing_context.stroke_style = fill_color or stroke_color
                 drawing_context.stroke()
 
-def finalize_path(drawing_context, stroke_path, path_origin_x, path_end_x, path_baseline, fill_color, stroke_color):
+def finalize_path(drawing_context, stroke_path, path_origin_x, path_end_x, path_baseline, fill_color, stroke_color, stroke_width):
     if fill_color:
         drawing_context.add(stroke_path)
         drawing_context.line_to(path_end_x, path_baseline)
@@ -452,7 +452,7 @@ def finalize_path(drawing_context, stroke_path, path_origin_x, path_end_x, path_
         drawing_context.fill()
     if stroke_color:
         drawing_context.add(stroke_path)
-        drawing_context.line_width = 0.5
+        drawing_context.line_width = stroke_width
         drawing_context.stroke_style = stroke_color
         drawing_context.stroke()
 
@@ -530,6 +530,7 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__axes = None
         self.__fill_color = None
         self.__stroke_color = None
+        self.__stroke_width = 0.5
         self.__uncalibrated_xdata = None
         self.__calibrated_xdata = None
         self.__retained_rebin_1d = dict()
@@ -542,6 +543,11 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
     def set_stroke_color(self, color):
         if self.__stroke_color != color:
             self.__stroke_color = color
+            self.update()
+
+    def set_stroke_width(self, width):
+        if width is not None and self.__stroke_width != width:
+            self.__stroke_width = width
             self.update()
 
     def set_uncalibrated_xdata(self, uncalibrated_xdata):
@@ -572,6 +578,7 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
         calibrated_xdata = self.calibrated_xdata
         stroke_color = self.__stroke_color
         fill_color = self.__fill_color
+        stroke_width = self.__stroke_width
         if axes and axes.is_valid and calibrated_xdata is not None:
 
             plot_rect = self.canvas_bounds
@@ -592,7 +599,7 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
 
             # draw the line plot itself
             if x_calibration.units == calibrated_xdata.dimensional_calibrations[-1].units:
-                draw_line_graph(drawing_context, plot_height, plot_width, plot_origin_y, plot_origin_x, calibrated_xdata, calibrated_data_min, calibrated_data_range, calibrated_left_channel, calibrated_right_channel, x_calibration, fill_color, stroke_color, self.__retained_rebin_1d, axes.data_style)
+                draw_line_graph(drawing_context, plot_height, plot_width, plot_origin_y, plot_origin_x, calibrated_xdata, calibrated_data_min, calibrated_data_range, calibrated_left_channel, calibrated_right_channel, x_calibration, fill_color, stroke_color, self.__retained_rebin_1d, axes.data_style, stroke_width)
 
 
 class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
