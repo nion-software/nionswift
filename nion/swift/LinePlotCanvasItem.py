@@ -529,6 +529,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             for index, display_layer in enumerate(self.__display_layers[0:max_layer_count]):
                 fill_color = display_layer.get("fill_color")
                 stroke_color = display_layer.get("stroke_color")
+                stroke_width = display_layer.get("stroke_width")
                 data_index = display_layer.get("data_index", 0)
                 data_row = display_layer.get("data_row", 0)
                 if 0 <= data_index < len(scalar_xdata_list):
@@ -543,6 +544,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
                     line_graph_canvas_item = self.__line_graph_stack.canvas_items[display_layer_count - (index + 1)]
                     line_graph_canvas_item.set_fill_color(fill_color)
                     line_graph_canvas_item.set_stroke_color(stroke_color)
+                    line_graph_canvas_item.set_stroke_width(stroke_width)
                     line_graph_canvas_item.set_axes(axes)
                     line_graph_canvas_item.set_uncalibrated_xdata(scalar_xdata)
                     self.___has_valid_drawn_graph_data = scalar_xdata is not None

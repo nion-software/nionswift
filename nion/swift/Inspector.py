@@ -798,6 +798,15 @@ class LinePlotDisplayLayersInspectorSection(InspectorSection):
             color_edit.text = color
             color_edit.select_all()
 
+        def change_stroke_width(width_widget: UserInterface.LineEditWidget, display_layer: DisplayItem.DisplayLayer, width: str) -> None:
+            width = Converter.FloatToStringConverter(pass_none=True).convert_back(width)
+            index = display_item.display_layers.index(display_layer)
+            command = ChangeDisplayLayerPropertyCommand(document_controller.document_model, display_item, index, "stroke_width", width)
+            command.perform()
+            document_controller.push_undo_command(command)
+            width_widget.select_all()
+
+
         class DisplayLayerWidget(Widgets.CompositeWidgetBase):
             def __init__(self, display_layer: DisplayItem.DisplayLayer):
                 super().__init__(document_controller.ui.create_column_widget())
@@ -859,12 +868,20 @@ class LinePlotDisplayLayersInspectorSection(InspectorSection):
                 stroke_color_row.add_stretch()
                 stroke_color_widget.on_color_changed = functools.partial(change_stroke_color, stroke_color_widget, stroke_color_edit, display_layer)
                 stroke_color_edit.on_editing_finished = functools.partial(change_stroke_color, stroke_color_widget, stroke_color_edit, display_layer)
+                stroke_width_edit = ui.create_line_edit_widget(properties={"width": 36})
+                stroke_width_edit.text = str(display_layer.stroke_width) if display_layer.stroke_width is not None else None
+                stroke_width_row = ui.create_row_widget(properties={"spacing": 8})
+                stroke_width_row.add(ui.create_label_widget(_("Stroke Width"), properties={"width": 80}))
+                stroke_width_row.add(stroke_width_edit)
+                stroke_width_row.add_stretch()
+                stroke_width_edit.on_editing_finished = functools.partial(change_stroke_width, stroke_width_edit, display_layer)
                 # build the inner column
                 self.content_widget.add(label_row)
                 self.content_widget.add(button_row)
                 self.content_widget.add(content_row)
                 self.content_widget.add(fill_color_row)
                 self.content_widget.add(stroke_color_row)
+                self.content_widget.add(stroke_width_row)
                 # complex display type
                 display_data_channel = display_layer.display_data_channel
                 if display_data_channel:
@@ -881,6 +898,7 @@ class LinePlotDisplayLayersInspectorSection(InspectorSection):
                 self.__fill_color_edit = fill_color_edit
                 self.__stroke_color_widget = stroke_color_widget
                 self.__stroke_color_edit = stroke_color_edit
+                self.__stroke_width_edit = stroke_width_edit
 
                 def display_layer_property_changed(name: str) -> None:
                     if name == "display_data_channel":
@@ -898,6 +916,8 @@ class LinePlotDisplayLayersInspectorSection(InspectorSection):
                         self.__fill_color_edit.text = display_layer.fill_color
                     elif name == "data_row":
                         self.__display_data_channel_row_widget.text = str(display_layer.data_row) if display_layer.data_row is not None else None
+                    elif name == "stroke_width":
+                        self.__stroke_width_edit.text = str(display_layer.stroke_width) if display_layer.stroke_width is not None else None
 
                 self.__display_layer_property_changed_listener = display_layer.property_changed_event.listen(display_layer_property_changed)
 
@@ -915,6 +935,7 @@ class LinePlotDisplayLayersInspectorSection(InspectorSection):
                 self.__fill_color_edit = None
                 self.__stroke_color_widget = None
                 self.__stroke_color_edit = None
+                self.__stroke_width_edit = None
                 if self.__display_layer_property_changed_listener:
                     self.__display_layer_property_changed_listener.close()
                     self.__display_layer_property_changed_listener = None

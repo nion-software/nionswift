@@ -1134,6 +1134,14 @@ class DisplayLayer(Schema.Entity):
     def fill_color(self, value: typing.Optional[str]) -> None:
         self._set_field_value("fill_color", value)
 
+    @property
+    def stroke_width(self) -> typing.Optional[float]:
+        return self._get_field_value("stroke_width")
+
+    @stroke_width.setter
+    def stroke_width(self, value: typing.Optional[float]) -> None:
+        self._set_field_value("stroke_width", value)
+
     # standard overrides from entity to fit within persistent object architecture
 
     def _field_value_changed(self, name: str, value: typing.Any) -> None:
@@ -1466,7 +1474,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
 
     @property
     def display_layers_list(self) -> typing.List[typing.Dict[str, typing.Any]]:
-        properties = ["data_row", "fill_color", "stroke_color", "label"]
+        properties = ["data_row", "fill_color", "stroke_color", "label", "stroke_width"]
         l = list()
         for display_layer in self.display_layers:
             d = dict()
@@ -1485,7 +1493,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
     @display_layers_list.setter
     def display_layers_list(self, value: typing.List[typing.Dict[str, typing.Any]]) -> None:
         assert len(value) == len(self.display_layers)
-        properties = ["data_row", "fill_color", "stroke_color", "label"]
+        properties = ["data_row", "fill_color", "stroke_color", "label", "stroke_width"]
         for index, (display_layer, display_layer_dict) in enumerate(zip(self.display_layers, value)):
             for property in properties:
                 if not property in display_layer_dict:
