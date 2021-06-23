@@ -871,7 +871,8 @@ class LinePlotDisplayLayersInspectorSection(InspectorSection):
                 stroke_width_edit = ui.create_line_edit_widget(properties={"width": 36})
                 stroke_width_edit.text = str(display_layer.stroke_width) if display_layer.stroke_width is not None else None
                 stroke_width_row = ui.create_row_widget(properties={"spacing": 8})
-                stroke_width_row.add(ui.create_label_widget(_("Stroke Width"), properties={"width": 80}))
+                stroke_width_row.add(ui.create_label_widget(_("Stroke Width"), properties={"width": 80, "height": 30}))
+                stroke_width_row.add_spacing(44 + 8)  # color push button width + spacing to avoid collapse
                 stroke_width_row.add(stroke_width_edit)
                 stroke_width_row.add_stretch()
                 stroke_width_edit.on_editing_finished = functools.partial(change_stroke_width, stroke_width_edit, display_layer)
