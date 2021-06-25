@@ -1,6 +1,7 @@
 # standard libraries
 import logging
 import math
+import operator
 import typing
 import unittest
 
@@ -12,13 +13,43 @@ from nion.data import Calibration
 from nion.data import DataAndMetadata
 from nion.swift import Application
 from nion.swift import LineGraphCanvasItem
+from nion.swift import LinePlotCanvasItem
 from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
 from nion.swift.model import Graphics
 from nion.swift.test import TestContext
+from nion.ui import CanvasItem
 from nion.ui import DrawingContext
 from nion.ui import TestUI
 
+
+def _enumerate_child_canvas_items_postorder(
+        canvas_item: CanvasItem.AbstractCanvasItem,
+        depth: int
+) -> typing.Iterator[typing.Tuple[CanvasItem.AbstractCanvasItem, int]]:
+    if isinstance(canvas_item, CanvasItem.CanvasItemComposition):
+        for child_canvas_item in canvas_item.canvas_items:
+            yield from _enumerate_child_canvas_items_postorder(child_canvas_item, depth+1)
+
+    yield canvas_item, depth
+
+
+def _find_first_descendent_of_type_postorder(
+        canvas_item: CanvasItem.AbstractCanvasItem,
+        canvas_item_type
+) -> typing.Optional[CanvasItem.AbstractCanvasItem]:
+    return next(
+        filter(
+            (lambda _: isinstance(_, canvas_item_type)),
+            map(operator.itemgetter(0), _enumerate_child_canvas_items_postorder(canvas_item, 0))
+        ),
+        None
+    )
+
+def _print_canvas_item_tree_preorder(canvas_item: CanvasItem.AbstractCanvasItem):
+
+    for ci, depth in _enumerate_child_canvas_items_postorder(canvas_item, 0):
+        print("0x{:016x} - {} {} - {}".format(id(ci), depth * '   ', type(ci).__name__, ci.canvas_bounds))
 
 def create_memory_profile_context() -> TestContext.MemoryProfileContext:
     return TestContext.MemoryProfileContext()
@@ -409,6 +440,60 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             self.assertEqual(2, len(display_item1.display_layers))
             display_item1.display_type = None
             self.assertEqual(2, len(display_item1.display_layers))
+
+    def test_line_plot_width_doesnt_jitter_for_small_vertical_bounds_changes(self):
+        """
+        Create a line plot with data that has been shown, when dragged vertically, produces bounds with
+        a reasonable distribution of different digits. Verify that the layout calclated for these bounds
+        does not change for moderate sized drags.
+        """
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller(ui=TestContext.VarWidthSystemFontUserInterface())
+            document_model = document_controller.document_model
+            display_panel = document_controller.selected_display_panel
+            data = numpy.sin(numpy.linspace(0, 20, 100)) * 53488.2
+            data_item = DataItem.DataItem(data)
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel.set_display_panel_display_item(display_item)
+
+            lp_ci = _find_first_descendent_of_type_postorder(
+                display_panel,
+                LinePlotCanvasItem.LinePlotCanvasItem)
+            lp_graph_frame_ci = _find_first_descendent_of_type_postorder(
+                display_panel,
+                LineGraphCanvasItem.LineGraphFrameCanvasItem
+            )
+            lp_vert_axis_scale_ci = _find_first_descendent_of_type_postorder(
+                display_panel,
+                LineGraphCanvasItem.LineGraphVerticalAxisScaleCanvasItem
+            )
+            display_panel.layout_immediate((960, 1200))
+
+            # _print_canvas_item_tree_preorder(display_panel)
+
+            # Drag vertical axis, and force re-layout every few pixels of drag.
+            # Record the distinct sizes calculate for line graph and vertical axis items.
+            lp_graph_frame_ci_sizes = set()
+            lp_vert_axis_scale_ci_sizes = set()
+
+            drag_start_pos_x = lp_vert_axis_scale_ci.canvas_size.width
+            drag_start_pos_y = lp_vert_axis_scale_ci.canvas_size.height // 2
+            for y_offset in range(0, 30):
+                lp_ci.simulate_drag(
+                    (drag_start_pos_y + 2*y_offset, drag_start_pos_x),
+                    (drag_start_pos_y + 2*(y_offset+1), drag_start_pos_x))
+
+                display_panel.refresh_layout_immediate()
+
+                lp_graph_frame_ci_sizes.add((lp_graph_frame_ci.canvas_size.width, lp_graph_frame_ci.canvas_size.height))
+                lp_vert_axis_scale_ci_sizes.add((lp_vert_axis_scale_ci.canvas_size.width, lp_vert_axis_scale_ci.canvas_size.height))
+
+            # Verify that there is only one size that the line plot grapn and vertical axis scale
+            # items take during the drag, indicating that the layout is stable against small changes
+            # in bounds.
+            self.assertEqual(len(lp_graph_frame_ci_sizes), 1)
+            self.assertEqual(len(lp_vert_axis_scale_ci_sizes), 1)
 
     def test_check_exponents(self):
         e = LineGraphCanvasItem.Exponenter()
