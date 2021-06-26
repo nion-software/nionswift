@@ -1646,9 +1646,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 return display_item
         return next(iter(display_items)) if len(display_items) == 1 else None
 
-    def are_display_items_equal(self, display_item1: DisplayItem.DisplayItem, display_item2: DisplayItem.DisplayItem) -> bool:
-        return display_item1 == display_item2
-
     def get_or_create_data_group(self, group_name):
         data_group = DataGroup.get_data_group_in_container_by_title(self, group_name)
         if data_group is None:

@@ -170,7 +170,7 @@ class InspectorPanel(Panel.Panel):
 
     # not thread safe
     def __set_display_item(self, display_item: typing.Optional[DisplayItem.DisplayItem]) -> None:
-        if not self.document_controller.document_model.are_display_items_equal(self.__display_item, display_item):
+        if self.__display_item != display_item:
             self.__display_item = display_item
             self.__update_display_inspector()
 
