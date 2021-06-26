@@ -40,6 +40,7 @@ from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import ListModel
 from nion.utils import Selection
+from nion.utils import Stream
 
 if typing.TYPE_CHECKING:
     import numpy
@@ -436,6 +437,119 @@ class DisplayTypeMonitor:
             self.__first = False
 
 
+class DisplayDataChannelValueStream(Stream.ValueStream):
+    def __init__(self, display_item_value_stream: Stream.ValueStream):
+        super().__init__()
+        self.__stream = display_item_value_stream.add_ref()
+        self.__display_item_item_inserted_listener: typing.Optional[Event.EventListener] = None
+        self.__display_item_item_removed_listener: typing.Optional[Event.EventListener] = None
+        self.__stream_listener = self.__stream.value_stream.listen(self.__update_display_item)
+        self.__display_item: typing.Optional[DisplayItem.DisplayItem] = self.__stream.value
+
+    def close(self):
+        if self.__display_item_item_inserted_listener:
+            self.__display_item_item_inserted_listener.close()
+            self.__display_item_item_inserted_listener = None
+        if self.__display_item_item_removed_listener:
+            self.__display_item_item_removed_listener.close()
+            self.__display_item_item_removed_listener = None
+        self.__stream_listener.close()
+        self.__stream_listener = None
+        self.__stream.remove_ref()
+        self.__stream = None
+        super().close()
+
+    def __update_display_item(self, display_item: typing.Optional[DisplayItem.DisplayItem]) -> None:
+        if display_item != self.__display_item:
+            if self.__display_item_item_inserted_listener:
+                self.__display_item_item_inserted_listener.close()
+                self.__display_item_item_inserted_listener = None
+            if self.__display_item_item_removed_listener:
+                self.__display_item_item_removed_listener.close()
+                self.__display_item_item_removed_listener = None
+            self.__display_item = display_item
+            if self.__display_item:
+                self.__display_item_item_inserted_listener = self.__display_item.item_inserted_event.listen(
+                    self.__handle_item_changed)
+                self.__display_item_item_removed_listener = self.__display_item.item_inserted_event.listen(
+                    self.__handle_item_changed)
+            self.value = self.__display_item.display_data_channel if self.__display_item else None
+
+    def __handle_item_changed(self, key: str, value: typing.Any, index: int) -> None:
+        if key == "display_data_channels":
+            assert self.__display_item
+            self.value = self.__display_item.display_data_channel
+
+
+class OptionalStream(Stream.AbstractStream):
+    """Sends value from input stream or None."""
+
+    def __init__(self, stream: Stream.AbstractStream, pred: typing.Callable[[typing.Any], bool]):
+        super().__init__()
+        self.__stream = stream.add_ref()
+        self.__pred = pred
+        self.__stream_listener = self.__stream.value_stream.listen(self.__value_changed)
+        self.value_stream = Event.Event()
+        self.__value_changed(self.__stream.value)
+
+    def close(self):
+        self.__stream_listener.close()
+        self.__stream_listener = None
+        self.__stream.remove_ref()
+        self.__stream = None
+        super().close()
+
+    @property
+    def value(self):
+        return None
+
+    def __value_changed(self, value) -> None:
+        if self.__pred(value):
+            self.value_stream.fire(value)
+        else:
+            self.value_stream.fire(None)
+
+
+from nion.utils import ReferenceCounting
+
+class PrintStream(ReferenceCounting.ReferenceCounted):
+    """prints value from input stream."""
+
+    def __init__(self, stream: Stream.AbstractStream):
+        super().__init__()
+        self.__stream = stream.add_ref()
+        self.__stream_listener = self.__stream.value_stream.listen(self.__value_changed)
+
+    def close(self) -> None:
+        self.__stream_listener.close()
+        self.__stream_listener = None
+        self.__stream.remove_ref()
+        self.__stream = None
+
+    def __value_changed(self, value) -> None:
+        print(f"value={value}")
+
+
+class ValueStreamAction:
+    """Calls an action function when the stream value changes."""
+
+    def __init__(self, stream: Stream.AbstractStream, fn: typing.Callable[[typing.Any], None]):
+        super().__init__()
+        self.__stream = stream.add_ref()
+        self.__stream_listener = self.__stream.value_stream.listen(self.__value_changed)
+        self.__fn = fn
+
+    def close(self) -> None:
+        self.__stream_listener.close()
+        self.__stream_listener = None
+        self.__stream.remove_ref()
+        self.__stream = None
+        self.__fn = typing.cast(typing.Callable[[typing.Any], None], None)
+
+    def __value_changed(self, value) -> None:
+        self.__fn(value)
+
+
 class RelatedIconsCanvasItem(CanvasItem.CanvasItemComposition):
     """Display icons to related items (sources and dependencies)."""
 
@@ -474,17 +588,24 @@ class RelatedIconsCanvasItem(CanvasItem.CanvasItemComposition):
         self.on_drag = None
         self.__display_item: typing.Optional[DisplayItem.DisplayItem] = None
         self.__related_items_changed_listener: typing.Optional[Event.EventListener] = None
-        self.__display_item_item_inserted_listener: typing.Optional[Event.EventListener] = None
-        self.__display_item_item_removed_listener: typing.Optional[Event.EventListener] = None
-        self.__display_data_channel_property_changed_listener: typing.Optional[Event.EventListener] = None
         self.__slider_property_changed_listener: typing.Optional[Event.EventListener] = None
-        self.__suppress = False
+
+        self.__display_item_value_stream = Stream.ValueStream().add_ref()
+        display_data_channel_value_stream: Stream.AbstractStream
+        display_data_channel_value_stream = DisplayDataChannelValueStream(self.__display_item_value_stream)
+        display_data_channel_value_stream = OptionalStream(display_data_channel_value_stream, lambda x: x and x.is_sequence)
+        sequence_index_value_stream = Stream.PropertyChangedEventStream(display_data_channel_value_stream, "sequence_index")
+        self.__sequence_index_changed_action = Stream.CombineLatestStream([self.__display_item_value_stream, display_data_channel_value_stream, sequence_index_value_stream], self.__sequence_index_changed)
 
     def close(self):
+        self.__sequence_index_changed_action.close()
+        self.__sequence_index_changed_action = None
         if self.__slider_property_changed_listener:
             self.__slider_property_changed_listener.close()
             self.__slider_property_changed_listener = None
         self.set_display_item(None)
+        self.__display_item_value_stream.remove_ref()
+        self.__display_item_value_stream = None
         super().close()
 
     @property
@@ -496,7 +617,7 @@ class RelatedIconsCanvasItem(CanvasItem.CanvasItemComposition):
         return self.__dependent_thumbnails
 
     def __related_items_changed(self, display_item: typing.Optional[DisplayItem.DisplayItem], source_display_items: typing.List[DisplayItem.DisplayItem], dependent_display_items: typing.List[DisplayItem.DisplayItem]) -> None:
-        if self.__document_model.are_display_items_equal(display_item, self.__display_item):
+        if display_item == self.__display_item:
             self.__source_thumbnails.remove_all_canvas_items()
             self.__dependent_thumbnails.remove_all_canvas_items()
             for source_display_item in source_display_items:
@@ -511,78 +632,57 @@ class RelatedIconsCanvasItem(CanvasItem.CanvasItemComposition):
                 thumbnail_canvas_item.on_drag = self.on_drag
                 self.__dependent_thumbnails.add_canvas_item(thumbnail_canvas_item)
 
-    def __sequence_index_changed(self) -> None:
-        if not self.__suppress:
+    def __sequence_index_changed(self, display_item: DisplayItem.DisplayItem, display_data_channel: DisplayItem.DisplayDataChannel, sequence_index: int) -> None:
+        if not display_data_channel:
             if self.__slider_property_changed_listener:
                 self.__slider_property_changed_listener.close()
                 self.__slider_property_changed_listener = None
             self.__sequence_slider_row.remove_all_canvas_items()
-            if self.__display_item:
-                display_data_channel = self.__display_item.display_data_channel
-                if display_data_channel and display_data_channel.is_sequence:
-                    sequence_index_text = CanvasItem.StaticTextCanvasItem("9999")
-                    sequence_index_text.size_to_content(self.ui.get_font_metrics)
-                    sequence_index_text.text = str(display_data_channel.sequence_index)
-                    slider_canvas_item = CanvasItem.SliderCanvasItem()
-                    slider_canvas_item.value = display_data_channel.sequence_index / (display_data_channel.dimensional_shape[0] - 1)
-                    label = CanvasItem.StaticTextCanvasItem("Index")
-                    label.size_to_content(self.ui.get_font_metrics)
-                    slider_canvas_item.update_sizing(slider_canvas_item.sizing.with_preferred_width(360))
-                    self.__sequence_slider_row.add_canvas_item(label)
-                    self.__sequence_slider_row.add_canvas_item(slider_canvas_item)
-                    self.__sequence_slider_row.add_canvas_item(sequence_index_text)
+        if display_data_channel:
+            slider_canvas_item: CanvasItem.SliderCanvasItem
+            sequence_index_text: CanvasItem.StaticTextCanvasItem
+            if not self.__sequence_slider_row.canvas_items:
+                sequence_index_text = CanvasItem.StaticTextCanvasItem("9999")
+                sequence_index_text.size_to_content(self.ui.get_font_metrics)
+                slider_canvas_item = CanvasItem.SliderCanvasItem()
+                label = CanvasItem.StaticTextCanvasItem("Index")
+                label.size_to_content(self.ui.get_font_metrics)
+                slider_canvas_item.update_sizing(slider_canvas_item.sizing.with_preferred_width(360))
+                self.__sequence_slider_row.add_canvas_item(label)
+                self.__sequence_slider_row.add_canvas_item(slider_canvas_item)
+                self.__sequence_slider_row.add_canvas_item(sequence_index_text)
 
-                    def slider_property_changed(property_name: str) -> None:
-                        if property_name == "value":
-                            self.__suppress = True
-                            try:
-                                assert self.__display_item
-                                display_data_channel = self.__display_item.display_data_channel
-                                if display_data_channel:
-                                    display_data_channel.sequence_index = int(slider_canvas_item.value * (display_data_channel.dimensional_shape[0] - 1))
-                                    sequence_index_text.text = str(display_data_channel.sequence_index)
-                            finally:
-                                self.__suppress = False
+                def slider_property_changed(property_name: str) -> None:
+                    if property_name == "value":
+                        sequence_length = display_data_channel.dimensional_shape[0] if display_data_channel.dimensional_shape is not None else 0
+                        display_data_channel.sequence_index = int(slider_canvas_item.value * (sequence_length - 1))
 
-                    self.__slider_property_changed_listener = slider_canvas_item.property_changed_event.listen(slider_property_changed)
+                self.__slider_property_changed_listener = slider_canvas_item.property_changed_event.listen(
+                    slider_property_changed)
+            else:
+                slider_canvas_item = typing.cast(CanvasItem.SliderCanvasItem, self.__sequence_slider_row.canvas_items[1])
+                sequence_index_text = typing.cast(CanvasItem.StaticTextCanvasItem, self.__sequence_slider_row.canvas_items[2])
+
+            sequence_length = display_data_channel.dimensional_shape[0] if display_data_channel.dimensional_shape is not None else 0
+            sequence_index_text.text = str(display_data_channel.sequence_index)
+            slider_canvas_item.value = display_data_channel.sequence_index / (sequence_length - 1)
 
     def set_display_item(self, display_item: typing.Optional[DisplayItem.DisplayItem]) -> None:
         if self.__related_items_changed_listener:
             self.__related_items_changed_listener.close()
             self.__related_items_changed_listener = None
-        if self.__display_item_item_inserted_listener:
-            self.__display_item_item_inserted_listener.close()
-            self.__display_item_item_inserted_listener = None
-        if self.__display_item_item_removed_listener:
-            self.__display_item_item_removed_listener.close()
-            self.__display_item_item_removed_listener = None
 
         self.__display_item = display_item
 
-        def property_changed(property_name: str) -> None:
-            if property_name == "sequence_index":
-                self.__sequence_index_changed()
-
-        def relisten() -> None:
-            if self.__display_data_channel_property_changed_listener:
-                self.__display_data_channel_property_changed_listener.close()
-                self.__display_data_channel_property_changed_listener = None
-            if self.__display_item:
-                if self.__display_item.display_data_channel:
-                    self.__display_data_channel_property_changed_listener = self.__display_item.display_data_channel.property_changed_event.listen(property_changed)
-            property_changed("sequence_index")
+        self.__display_item_value_stream.value = display_item
 
         if self.__display_item:
             self.__related_items_changed_listener = self.__document_model.related_items_changed.listen(self.__related_items_changed)
             source_display_items = self.__document_model.get_source_display_items(self.__display_item)
             dependent_display_items = self.__document_model.get_dependent_display_items(self.__display_item)
             self.__related_items_changed(self.__display_item, source_display_items, dependent_display_items)
-            if self.__display_item.display_data_channel and self.__display_item.display_data_channel.is_sequence:
-                self.__display_item_item_inserted_listener = self.__display_item.item_inserted_event.listen(lambda k, v, i: relisten())
-                self.__display_item_item_removed_listener = self.__display_item.item_inserted_event.listen(lambda k, v, i: relisten())
         else:
             self.__related_items_changed(self.__display_item, [], [])
-        relisten()
 
 
 class MissingDataCanvasItem(CanvasItem.CanvasItemComposition):
