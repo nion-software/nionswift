@@ -550,62 +550,130 @@ class ValueStreamAction:
         self.__fn(value)
 
 
-class RelatedIconsCanvasItem(CanvasItem.CanvasItemComposition):
-    """Display icons to related items (sources and dependencies)."""
-
-    def __init__(self, ui: UserInterface.UserInterface, document_model: DocumentModel.DocumentModel):
+class SequenceSliderCanvasItem(CanvasItem.CanvasItemComposition):
+    def __init__(self, display_item_value_stream: Stream.ValueStream, get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]):
         super().__init__()
-        self.ui = ui
-        self.__document_model = document_model
-        self.__source_thumbnails = CanvasItem.CanvasItemComposition()
-        self.__source_thumbnails.layout = CanvasItem.CanvasItemRowLayout(spacing=8)
-        self.__dependent_thumbnails = CanvasItem.CanvasItemComposition()
-        self.__dependent_thumbnails.layout = CanvasItem.CanvasItemRowLayout(spacing=8)
+        self.layout = CanvasItem.CanvasItemRowLayout()
+        self.update_sizing(self.sizing.with_preferred_height(0))
         self.__sequence_slider_row = CanvasItem.CanvasItemComposition()
         self.__sequence_slider_row.layout = CanvasItem.CanvasItemRowLayout(spacing=8)
-        self.__thumbnail_size = Geometry.IntSize(height=24, width=24)
-        column = CanvasItem.CanvasItemComposition()
-        column.layout = CanvasItem.CanvasItemColumnLayout()
-        row = CanvasItem.CanvasItemComposition()
-        row.layout = CanvasItem.CanvasItemRowLayout()
-        row.add_spacing(12)
-        row.add_canvas_item(self.__source_thumbnails)
-        row.add_stretch()
-        row.add_canvas_item(self.__dependent_thumbnails)
-        row.add_spacing(12)
-        slider_row = CanvasItem.CanvasItemComposition()
-        slider_row.layout = CanvasItem.CanvasItemRowLayout()
-        slider_row.add_spacing(12)
-        slider_row.add_canvas_item(self.__sequence_slider_row)
-        slider_row.add_stretch()
-        slider_row.add_spacing(12)
-        column.add_canvas_item(slider_row)
-        column.add_canvas_item(row)
-        self.layout = CanvasItem.CanvasItemColumnLayout()
+        self.add_spacing(12)
+        self.add_canvas_item(self.__sequence_slider_row)
         self.add_stretch()
-        self.add_canvas_item(column)
-        self.add_spacing(4)
-        self.on_drag = None
-        self.__display_item: typing.Optional[DisplayItem.DisplayItem] = None
-        self.__related_items_changed_listener: typing.Optional[Event.EventListener] = None
-        self.__slider_property_changed_listener: typing.Optional[Event.EventListener] = None
-
-        self.__display_item_value_stream = Stream.ValueStream().add_ref()
+        self.add_spacing(12)
+        self.__display_item_value_stream = display_item_value_stream.add_ref()
+        self.__get_font_metrics_fn = get_font_metrics_fn
+        self.__slider_value_action: typing.Optional[ValueStreamAction] = None
         display_data_channel_value_stream: Stream.AbstractStream
         display_data_channel_value_stream = DisplayDataChannelValueStream(self.__display_item_value_stream)
         display_data_channel_value_stream = OptionalStream(display_data_channel_value_stream, lambda x: x and x.is_sequence)
         sequence_index_value_stream = Stream.PropertyChangedEventStream(display_data_channel_value_stream, "sequence_index")
-        self.__sequence_index_changed_action = Stream.CombineLatestStream([self.__display_item_value_stream, display_data_channel_value_stream, sequence_index_value_stream], self.__sequence_index_changed)
+        combined_stream = Stream.CombineLatestStream([self.__display_item_value_stream, display_data_channel_value_stream, sequence_index_value_stream])
+        self.__stream_action = ValueStreamAction(combined_stream, self.__sequence_index_changed)
 
-    def close(self):
-        self.__sequence_index_changed_action.close()
-        self.__sequence_index_changed_action = None
-        if self.__slider_property_changed_listener:
-            self.__slider_property_changed_listener.close()
-            self.__slider_property_changed_listener = None
-        self.set_display_item(None)
+    def close(self) -> None:
+        self.__stream_action.close()
+        self.__stream_action = typing.cast(ValueStreamAction, None)
+        if self.__slider_value_action:
+            self.__slider_value_action.close()
+            self.__slider_value_action = None
         self.__display_item_value_stream.remove_ref()
         self.__display_item_value_stream = None
+        super().close()
+
+    def __sequence_index_changed(self, args: typing.Tuple[DisplayItem.DisplayItem, DisplayItem.DisplayDataChannel, int]) -> None:
+        display_item, display_data_channel, sequence_index = args
+        if display_data_channel:
+            slider_canvas_item: CanvasItem.SliderCanvasItem
+            sequence_index_text: CanvasItem.StaticTextCanvasItem
+            if not self.__sequence_slider_row.canvas_items:
+                sequence_index_text = CanvasItem.StaticTextCanvasItem("9999")
+                sequence_index_text.size_to_content(self.__get_font_metrics_fn)
+                slider_canvas_item = CanvasItem.SliderCanvasItem()
+                label = CanvasItem.StaticTextCanvasItem("Index")
+                label.size_to_content(self.__get_font_metrics_fn)
+                slider_canvas_item.update_sizing(slider_canvas_item.sizing.with_preferred_width(360))
+                self.__sequence_slider_row.add_canvas_item(label)
+                self.__sequence_slider_row.add_canvas_item(slider_canvas_item)
+                self.__sequence_slider_row.add_canvas_item(sequence_index_text)
+
+                def slider_property_changed(slider_value: float) -> None:
+                    sequence_length = display_data_channel.dimensional_shape[0] if display_data_channel.dimensional_shape is not None else 0
+                    display_data_channel.sequence_index = int(slider_value * (sequence_length - 1))
+
+                slider_value_stream = Stream.PropertyChangedEventStream(slider_canvas_item, "value")
+                self.__slider_value_action = ValueStreamAction(slider_value_stream, slider_property_changed)
+            else:
+                slider_canvas_item = typing.cast(CanvasItem.SliderCanvasItem, self.__sequence_slider_row.canvas_items[1])
+                sequence_index_text = typing.cast(CanvasItem.StaticTextCanvasItem, self.__sequence_slider_row.canvas_items[2])
+
+            sequence_length = display_data_channel.dimensional_shape[0] if display_data_channel.dimensional_shape is not None else 0
+            sequence_index_text.text = str(display_data_channel.sequence_index)
+            slider_canvas_item.value = display_data_channel.sequence_index / (sequence_length - 1)
+        else:
+            if self.__slider_value_action:
+                self.__slider_value_action.close()
+                self.__slider_value_action = None
+            self.__sequence_slider_row.remove_all_canvas_items()
+
+
+class RelatedItemsValueStream(Stream.ValueStream):
+    def __init__(self, document_model: DocumentModel.DocumentModel, display_item_value_stream: Stream.ValueStream):
+        super().__init__()
+        self.__document_model = document_model
+        self.__display_item_stream = display_item_value_stream.add_ref()
+        self.__stream_listener = self.__display_item_stream.value_stream.listen(self.__update_display_item)
+        self.__related_items_changed_listener: typing.Optional[Event.EventListener] = None
+
+    def close(self):
+        self.__stream_listener.close()
+        self.__stream_listener = None
+        self.__display_item_stream.remove_ref()
+        self.__display_item_stream = None
+        if self.__related_items_changed_listener:
+            self.__related_items_changed_listener.close()
+            self.__related_items_changed_listener = None
+        super().close()
+
+    def __update_display_item(self, display_item: typing.Optional[DisplayItem.DisplayItem]) -> None:
+        if self.__related_items_changed_listener:
+            self.__related_items_changed_listener.close()
+            self.__related_items_changed_listener = None
+        if display_item:
+            self.__related_items_changed_listener = self.__document_model.related_items_changed.listen(self.__related_items_changed)
+            source_display_items = self.__document_model.get_source_display_items(display_item)
+            dependent_display_items = self.__document_model.get_dependent_display_items(display_item)
+            self.__related_items_changed(display_item, source_display_items, dependent_display_items)
+        else:
+            self.__related_items_changed(display_item, [], [])
+
+    def __related_items_changed(self, display_item: typing.Optional[DisplayItem.DisplayItem], source_display_items: typing.List[DisplayItem.DisplayItem], dependent_display_items: typing.List[DisplayItem.DisplayItem]) -> None:
+        if display_item == self.__display_item_stream.value:
+            self.value = source_display_items, dependent_display_items
+
+
+class RelatedIconsCanvasItem(CanvasItem.CanvasItemComposition):
+    def __init__(self, ui: UserInterface.UserInterface, document_model: DocumentModel.DocumentModel, display_item_value_stream: Stream.ValueStream, drag_fn: typing.Callable[[UserInterface.MimeData, numpy.ndarray, int, int], None]):
+        super().__init__()
+        self.layout = CanvasItem.CanvasItemRowLayout()
+        self.update_sizing(self.sizing.with_preferred_height(0))
+        self.ui = ui
+        self.__drag_fn = drag_fn
+        self.__thumbnail_size = Geometry.IntSize(height=24, width=24)
+        self.__source_thumbnails = CanvasItem.CanvasItemComposition()
+        self.__source_thumbnails.layout = CanvasItem.CanvasItemRowLayout(spacing=8)
+        self.__dependent_thumbnails = CanvasItem.CanvasItemComposition()
+        self.__dependent_thumbnails.layout = CanvasItem.CanvasItemRowLayout(spacing=8)
+        self.add_spacing(12)
+        self.add_canvas_item(self.__source_thumbnails)
+        self.add_stretch()
+        self.add_canvas_item(self.__dependent_thumbnails)
+        self.add_spacing(12)
+        self.__related_items_stream_action = ValueStreamAction(RelatedItemsValueStream(document_model, display_item_value_stream).add_ref(), self.__related_items_changed)
+
+    def close(self) -> None:
+        self.__related_items_stream_action.close()
+        self.__related_items_stream_action = typing.cast(ValueStreamAction, None)
         super().close()
 
     @property
@@ -616,73 +684,54 @@ class RelatedIconsCanvasItem(CanvasItem.CanvasItemComposition):
     def _dependent_thumbnails(self):
         return self.__dependent_thumbnails
 
-    def __related_items_changed(self, display_item: typing.Optional[DisplayItem.DisplayItem], source_display_items: typing.List[DisplayItem.DisplayItem], dependent_display_items: typing.List[DisplayItem.DisplayItem]) -> None:
-        if display_item == self.__display_item:
-            self.__source_thumbnails.remove_all_canvas_items()
-            self.__dependent_thumbnails.remove_all_canvas_items()
-            for source_display_item in source_display_items:
-                thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(self.ui, display_item=source_display_item)
-                thumbnail_canvas_item = DataItemThumbnailWidget.ThumbnailCanvasItem(self.ui, thumbnail_source, self.__thumbnail_size)
-                thumbnail_canvas_item.update_sizing(thumbnail_canvas_item.sizing.with_fixed_height(self.__thumbnail_size.height))
-                thumbnail_canvas_item.on_drag = self.on_drag
-                self.__source_thumbnails.add_canvas_item(thumbnail_canvas_item)
-            for dependent_display_item in dependent_display_items:
-                thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(self.ui, display_item=dependent_display_item)
-                thumbnail_canvas_item = DataItemThumbnailWidget.ThumbnailCanvasItem(self.ui, thumbnail_source, self.__thumbnail_size)
-                thumbnail_canvas_item.on_drag = self.on_drag
-                self.__dependent_thumbnails.add_canvas_item(thumbnail_canvas_item)
+    def __related_items_changed(self, items: typing.Tuple[typing.List[DisplayItem.DisplayItem], typing.List[DisplayItem.DisplayItem]]) -> None:
+        source_display_items, dependent_display_items = items
+        self.__source_thumbnails.remove_all_canvas_items()
+        self.__dependent_thumbnails.remove_all_canvas_items()
+        for source_display_item in source_display_items:
+            thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(self.ui, display_item=source_display_item)
+            thumbnail_canvas_item = DataItemThumbnailWidget.ThumbnailCanvasItem(self.ui, thumbnail_source, self.__thumbnail_size)
+            thumbnail_canvas_item.update_sizing(thumbnail_canvas_item.sizing.with_fixed_height(self.__thumbnail_size.height))
+            thumbnail_canvas_item.on_drag = self.__drag_fn
+            self.__source_thumbnails.add_canvas_item(thumbnail_canvas_item)
+        for dependent_display_item in dependent_display_items:
+            thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(self.ui, display_item=dependent_display_item)
+            thumbnail_canvas_item = DataItemThumbnailWidget.ThumbnailCanvasItem(self.ui, thumbnail_source, self.__thumbnail_size)
+            thumbnail_canvas_item.on_drag = self.__drag_fn
+            self.__dependent_thumbnails.add_canvas_item(thumbnail_canvas_item)
 
-    def __sequence_index_changed(self, display_item: DisplayItem.DisplayItem, display_data_channel: DisplayItem.DisplayDataChannel, sequence_index: int) -> None:
-        if not display_data_channel:
-            if self.__slider_property_changed_listener:
-                self.__slider_property_changed_listener.close()
-                self.__slider_property_changed_listener = None
-            self.__sequence_slider_row.remove_all_canvas_items()
-        if display_data_channel:
-            slider_canvas_item: CanvasItem.SliderCanvasItem
-            sequence_index_text: CanvasItem.StaticTextCanvasItem
-            if not self.__sequence_slider_row.canvas_items:
-                sequence_index_text = CanvasItem.StaticTextCanvasItem("9999")
-                sequence_index_text.size_to_content(self.ui.get_font_metrics)
-                slider_canvas_item = CanvasItem.SliderCanvasItem()
-                label = CanvasItem.StaticTextCanvasItem("Index")
-                label.size_to_content(self.ui.get_font_metrics)
-                slider_canvas_item.update_sizing(slider_canvas_item.sizing.with_preferred_width(360))
-                self.__sequence_slider_row.add_canvas_item(label)
-                self.__sequence_slider_row.add_canvas_item(slider_canvas_item)
-                self.__sequence_slider_row.add_canvas_item(sequence_index_text)
 
-                def slider_property_changed(property_name: str) -> None:
-                    if property_name == "value":
-                        sequence_length = display_data_channel.dimensional_shape[0] if display_data_channel.dimensional_shape is not None else 0
-                        display_data_channel.sequence_index = int(slider_canvas_item.value * (sequence_length - 1))
+class DisplayControlsCanvasItem(CanvasItem.CanvasItemComposition):
+    """Display icons to related items (sources and dependencies)."""
 
-                self.__slider_property_changed_listener = slider_canvas_item.property_changed_event.listen(
-                    slider_property_changed)
-            else:
-                slider_canvas_item = typing.cast(CanvasItem.SliderCanvasItem, self.__sequence_slider_row.canvas_items[1])
-                sequence_index_text = typing.cast(CanvasItem.StaticTextCanvasItem, self.__sequence_slider_row.canvas_items[2])
+    def __init__(self, ui: UserInterface.UserInterface, document_model: DocumentModel.DocumentModel):
+        super().__init__()
+        self.ui = ui
+        self.__document_model = document_model
+        self.__display_item_value_stream = Stream.ValueStream().add_ref()
+        self.__related_icons_canvas_item = RelatedIconsCanvasItem(ui, document_model, self.__display_item_value_stream, self.__drag)
+        sequence_slider_row = SequenceSliderCanvasItem(self.__display_item_value_stream, ui.get_font_metrics)
+        self.layout = CanvasItem.CanvasItemColumnLayout(spacing=4)
+        self.add_stretch()
+        self.add_canvas_item(self.__related_icons_canvas_item)
+        self.add_canvas_item(sequence_slider_row)
+        self.on_drag: typing.Optional[typing.Callable[[UserInterface.MimeData, numpy.ndarray, int, int], None]] = None
 
-            sequence_length = display_data_channel.dimensional_shape[0] if display_data_channel.dimensional_shape is not None else 0
-            sequence_index_text.text = str(display_data_channel.sequence_index)
-            slider_canvas_item.value = display_data_channel.sequence_index / (sequence_length - 1)
+    def close(self):
+        self.__display_item_value_stream.remove_ref()
+        self.__display_item_value_stream = None
+        super().close()
 
     def set_display_item(self, display_item: typing.Optional[DisplayItem.DisplayItem]) -> None:
-        if self.__related_items_changed_listener:
-            self.__related_items_changed_listener.close()
-            self.__related_items_changed_listener = None
-
-        self.__display_item = display_item
-
         self.__display_item_value_stream.value = display_item
 
-        if self.__display_item:
-            self.__related_items_changed_listener = self.__document_model.related_items_changed.listen(self.__related_items_changed)
-            source_display_items = self.__document_model.get_source_display_items(self.__display_item)
-            dependent_display_items = self.__document_model.get_dependent_display_items(self.__display_item)
-            self.__related_items_changed(self.__display_item, source_display_items, dependent_display_items)
-        else:
-            self.__related_items_changed(self.__display_item, [], [])
+    @property
+    def _related_icons_canvas_item(self) -> RelatedIconsCanvasItem:
+        return self.__related_icons_canvas_item
+
+    def __drag(self, mime_data: UserInterface.MimeData, thumbnail: numpy.ndarray, hot_spot_x: int, hot_spot_y: int) -> None:
+        if callable(self.on_drag):
+            self.on_drag(mime_data, thumbnail, hot_spot_x, hot_spot_y)
 
 
 class MissingDataCanvasItem(CanvasItem.CanvasItemComposition):
@@ -1541,13 +1590,13 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         # used for the (optional) display canvas item
         self.__closing_lock = threading.RLock()
 
-        self.__related_icons_canvas_item = RelatedIconsCanvasItem(self.ui, document_model)
-        self.__related_icons_canvas_item.on_drag = document_controller.drag
+        self.__display_controls_canvas_item = DisplayControlsCanvasItem(self.ui, document_model)
+        self.__display_controls_canvas_item.on_drag = document_controller.drag
 
         # the data item panel consists of the data item display canvas item and the related icons canvas item
         self.__display_composition_canvas_item = CanvasItem.CanvasItemComposition()
 
-        self.__display_composition_canvas_item.add_canvas_item(self.__related_icons_canvas_item)
+        self.__display_composition_canvas_item.add_canvas_item(self.__display_controls_canvas_item)
 
         self.__selection = document_controller.filtered_display_items_model.make_selection()
         self.__selection.expanded_changed_event = True
@@ -1558,7 +1607,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         self.display_items_changed_event = Event.Event()
         # the cached __display_items value is used to determine whether the display items have
         # changed since the last time the display_items_changed_event was fired.
-        self.__display_items = list()
+        self.__display_items: typing.List[DisplayItem.DisplayItem] = list()
 
         def data_list_drag_started(mime_data, thumbnail_data: typing.Optional[numpy.ndarray]) -> None:
             self.content_canvas_item.drag(mime_data, thumbnail_data)
@@ -1705,8 +1754,8 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         return self.__selection
 
     @property
-    def _related_icons_canvas_item(self):
-        return self.__related_icons_canvas_item
+    def _related_icons_canvas_item(self) -> RelatedIconsCanvasItem:
+        return self.__display_controls_canvas_item._related_icons_canvas_item
 
     @property
     def header_canvas_item(self):
@@ -1989,7 +2038,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         # as simple as dragging a background selection in a background subtracted line plot as it
         # recalculates thumbnails on the main thread.
         if did_display_change:
-            self.__related_icons_canvas_item.set_display_item(display_item)
+            self.__display_controls_canvas_item.set_display_item(display_item)
 
         self.__update_title()
 
