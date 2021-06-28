@@ -1,11 +1,10 @@
 # standard libraries
-# None
+import typing
 
 # third party libraries
 # None
 
 # local libraries
-import typing
 from nion.data import Image
 from nion.swift import MimeTypes
 from nion.swift import Thumbnails
@@ -15,6 +14,9 @@ from nion.ui import CanvasItem
 from nion.ui import UserInterface
 from nion.ui import Widgets
 from nion.utils import Geometry
+
+if typing.TYPE_CHECKING:
+    import numpy
 
 
 class AbstractThumbnailSource:
@@ -149,7 +151,7 @@ class ThumbnailCanvasItem(CanvasItem.CanvasItemComposition):
             thumbnail_source.overlay_canvas_item.update_sizing(thumbnail_source.overlay_canvas_item.sizing.with_fixed_size(size))
         bitmap_overlay_canvas_item.add_canvas_item(thumbnail_source.overlay_canvas_item)
         self.__thumbnail_source = thumbnail_source
-        self.on_drag = None
+        self.on_drag: typing.Optional[typing.Callable[[UserInterface.MimeData, numpy.ndarray, int, int], None]] = None
         self.on_drop_mime_data = None
         self.on_delete = None
 
@@ -226,7 +228,7 @@ class ThumbnailWidget(Widgets.CompositeWidgetBase):
         bitmap_canvas_widget.canvas_item.add_canvas_item(thumbnail_square)
         self.content_widget.add(bitmap_canvas_widget)
         self.on_drop_mime_data = None
-        self.on_drag = None
+        self.on_drag: typing.Optional[typing.Callable[[UserInterface.MimeData, numpy.ndarray, int, int], None]] = None
         self.on_delete = None
 
         def drop_mime_data(mime_data: UserInterface.MimeData, x: int, y: int) -> str:
