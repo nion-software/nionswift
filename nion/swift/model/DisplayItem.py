@@ -789,6 +789,14 @@ class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
         return self.__data_item and self.__data_item.is_collection and self.__data_item.collection_dimension_count == 2 and self.__data_item.datum_dimension_count == 1
 
     @property
+    def datum_rank(self) -> int:
+        return self.__data_item.datum_dimension_count if self.__data_item else 0
+
+    @property
+    def collection_rank(self) -> int:
+        return self.__data_item.collection_dimension_count if self.__data_item else 0
+
+    @property
     def is_display_1d_preferred(self) -> bool:
         data_item = self.data_item
         if not data_item:
