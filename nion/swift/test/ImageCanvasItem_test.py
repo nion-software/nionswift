@@ -12,6 +12,7 @@ from nion.swift import Application
 from nion.swift.model import DataItem
 from nion.swift.model import Graphics
 from nion.swift.test import TestContext
+from nion.ui import DrawingContext
 from nion.ui import TestUI
 
 
@@ -247,6 +248,8 @@ class TestImageCanvasItemClass(unittest.TestCase):
             display_item.display_type = "image"
             header_height = display_panel.header_canvas_item.header_height
             display_panel.root_container.layout_immediate((1000 + header_height, 1000))
+            drawing_context = DrawingContext.DrawingContext()
+            display_panel.root_container.repaint_immediate(drawing_context, display_panel.root_container.canvas_size)
 
     def test_hand_tool_on_one_image_of_multiple_displays(self):
         # setup
