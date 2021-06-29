@@ -448,7 +448,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
         does not change for moderate sized drags.
         """
         with TestContext.create_memory_context() as test_context:
-            document_controller = test_context.create_document_controller(ui=TestContext.VarWidthSystemFontUserInterface())
+            document_controller = test_context.create_document_controller()
             document_model = document_controller.document_model
             display_panel = document_controller.selected_display_panel
             data = numpy.sin(numpy.linspace(0, 20, 100)) * 53488.2

@@ -14,7 +14,6 @@ from nion.swift.model import NDataHandler
 from nion.swift.model import Persistence
 from nion.swift.model import Profile
 from nion.ui import TestUI
-from nion.ui import UserInterface as UserInterfaceModule
 from nion.utils import Event
 
 
@@ -36,17 +35,6 @@ def end_leaks(test_case: unittest.TestCase) -> None:
     test_case.assertEqual(0, Persistence.PersistentObjectReference.count)
     test_case.assertEqual(0, Persistence.PersistentObject.count)
 
-
-class VarWidthSystemFontUserInterface(TestUI.UserInterface):
-    def get_font_metrics(self, font_str: str, text: str) -> UserInterfaceModule.FontMetrics:
-        var_char_widths = {
-            '1': 5.0,
-            '6': 8.0, '9': 8.0, '0': 8.0,
-            '.': 4.0
-        }
-        default_char_width = 7.0
-        var_text_width = int(round(sum(map((lambda _: var_char_widths.get(_, default_char_width)), text))))
-        return UserInterfaceModule.FontMetrics(width=var_text_width, height=12, ascent=10, descent=2, leading=0)
 
 class MemoryProfileContext:
     # used for testing
@@ -130,12 +118,9 @@ class MemoryProfileContext:
             self.__items_to_close.append(document_model)
         return document_model
 
-    def create_document_controller(self, *, auto_close: bool = True, var_width_font: bool = False,
-                                   ui: UserInterfaceModule.UserInterface = None) -> DocumentController.DocumentController:
-        if ui is None:
-            ui = TestUI.UserInterface()
+    def create_document_controller(self, *, auto_close: bool = True) -> DocumentController.DocumentController:
         document_model = self.create_document_model(auto_close=False)
-        document_controller = DocumentController.DocumentController(ui, document_model, workspace_id="library")
+        document_controller = DocumentController.DocumentController(TestUI.UserInterface(), document_model, workspace_id="library")
         if auto_close:
             self.__items_to_close.append(document_controller)
         return document_controller
