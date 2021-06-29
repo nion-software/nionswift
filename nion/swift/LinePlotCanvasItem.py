@@ -190,17 +190,27 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         line_graph_group_canvas_item.add_canvas_item(self.__line_graph_area_stack, Geometry.IntPoint(x=1, y=0))
         line_graph_group_canvas_item.add_canvas_item(self.line_graph_horizontal_axis_group_canvas_item, Geometry.IntPoint(x=1, y=1))
 
+        self.__overlap_controls = CanvasItem.CanvasItemComposition()
+        self.__overlap_controls.layout = CanvasItem.CanvasItemColumnLayout()
+        self.__overlap_controls.add_stretch()
+
         # draw the background
         line_graph_background_canvas_item = CanvasItem.CanvasItemComposition()
         #line_graph_background_canvas_item.update_sizing(line_graph_background_canvas_item.size.with_minimum_aspect_ratio(1.5))  # note: no maximum aspect ratio; line plot looks nice wider.
         line_graph_background_canvas_item.add_canvas_item(CanvasItem.BackgroundCanvasItem("#FFF"))
         line_graph_background_canvas_item.add_canvas_item(line_graph_group_canvas_item)
+        line_graph_background_canvas_item.add_canvas_item(self.__overlap_controls)
+
+        self.__display_controls = CanvasItem.CanvasItemComposition()
+        self.__display_controls.layout = CanvasItem.CanvasItemColumnLayout()
+        self.__display_controls.add_canvas_item(line_graph_background_canvas_item)
 
         # canvas items get added back to front
         # create the child canvas items
         # the background
-        self.add_canvas_item(CanvasItem.BackgroundCanvasItem())
-        self.add_canvas_item(line_graph_background_canvas_item)
+        self.add_canvas_item(CanvasItem.BackgroundCanvasItem("#FFF"))
+        # self.add_canvas_item(line_graph_background_canvas_item)
+        self.add_canvas_item(self.__display_controls)
 
         self.__display_values_list = None
 
@@ -276,6 +286,13 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             self.__line_graph_legend_row.canvas_items[2].visible = False
         else:
             self.__line_graph_legend_canvas_item.visible = False
+
+    def add_display_control(self, display_control_canvas_item: CanvasItem.AbstractCanvasItem, role: typing.Optional[str] = None) -> bool:
+        if role == "related_icons":
+            self.__overlap_controls.add_canvas_item(display_control_canvas_item)
+        else:
+            self.__display_controls.add_canvas_item(display_control_canvas_item)
+        return True
 
     def update_display_values(self, display_values_list) -> None:
         self.__display_values_list = display_values_list

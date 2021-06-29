@@ -75,7 +75,7 @@ class TestImageCanvasItemClass(unittest.TestCase):
             header_height = display_panel.header_canvas_item.header_height
             display_panel.root_container.layout_immediate((1000 + header_height, 1000))
             # run test
-            self.assertEqual(display_panel.display_canvas_item._info_overlay_canvas_item_for_test._dimension_calibration_for_test.units, "x")
+            self.assertEqual(display_panel.display_canvas_item._scale_marker_canvas_item_for_test._dimension_calibration_for_test.units, "x")
 
     def test_dimension_used_for_scale_marker_on_3d_spectrum_image_is_correct(self):
         with TestContext.create_memory_context() as test_context:
@@ -91,7 +91,7 @@ class TestImageCanvasItemClass(unittest.TestCase):
             header_height = display_panel.header_canvas_item.header_height
             display_panel.root_container.layout_immediate((1000 + header_height, 1000))
             # run test
-            self.assertEqual(display_panel.display_canvas_item._info_overlay_canvas_item_for_test._dimension_calibration_for_test.units, "x")
+            self.assertEqual(display_panel.display_canvas_item._scale_marker_canvas_item_for_test._dimension_calibration_for_test.units, "x")
 
     def test_dimension_used_for_scale_marker_on_4d_diffraction_image_is_correct(self):
         with TestContext.create_memory_context() as test_context:
@@ -107,7 +107,7 @@ class TestImageCanvasItemClass(unittest.TestCase):
             header_height = display_panel.header_canvas_item.header_height
             display_panel.root_container.layout_immediate((1000 + header_height, 1000))
             # run test
-            self.assertEqual(display_panel.display_canvas_item._info_overlay_canvas_item_for_test._dimension_calibration_for_test.units, "b")
+            self.assertEqual(display_panel.display_canvas_item._scale_marker_canvas_item_for_test._dimension_calibration_for_test.units, "b")
 
     def test_tool_returns_to_pointer_after_but_not_during_creating_rectangle(self):
         # setup

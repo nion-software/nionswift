@@ -173,20 +173,24 @@ class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):
                             traceback.print_stack()
 
 
-class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
+class ScaleMarkerCanvasItem(CanvasItem.AbstractCanvasItem):
     """A canvas item to paint the scale marker as an overlay.
 
     Callers should set the image_canvas_origin and image_canvas_size properties.
 
     Callers should also call set_data_info when the data changes.
     """
+    scale_marker_width = 120
+    scale_marker_height = 6
+    scale_marker_font = "normal 14px serif"
 
-    def __init__(self, screen_pixel_per_image_pixel_stream: Stream.ValueStream):
+    def __init__(self, screen_pixel_per_image_pixel_stream: Stream.ValueStream, get_font_metrics_fn: typing.Callable[[str, str], UISettings.FontMetrics]):
         super().__init__()
+        self.__get_font_metrics_fn = get_font_metrics_fn
         self.__dimensional_calibration = None
-        self.__info_text = None
+        self.__info_text: typing.Optional[str] = None
         self.__screen_pixel_per_image_pixel_stream = screen_pixel_per_image_pixel_stream.add_ref()
-        self.__screen_pixel_per_image_pixel_action = Stream.ValueStreamAction(screen_pixel_per_image_pixel_stream, lambda x: self.update())
+        self.__screen_pixel_per_image_pixel_action = Stream.ValueStreamAction(screen_pixel_per_image_pixel_stream, lambda x: self.__update_sizing())
 
     def close(self) -> None:
         self.__screen_pixel_per_image_pixel_stream.remove_ref()
@@ -199,6 +203,29 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
     def _dimension_calibration_for_test(self):
         return self.__dimensional_calibration
 
+    def __update_sizing(self) -> None:
+        height = self.scale_marker_height
+        width = 20
+        dimensional_calibration = self.__dimensional_calibration
+        if dimensional_calibration is not None:  # display scale marker?
+            screen_pixel_per_image_pixel = self.__screen_pixel_per_image_pixel_stream.value
+            if screen_pixel_per_image_pixel > 0.0:
+                scale_marker_image_width = self.scale_marker_width / screen_pixel_per_image_pixel
+                calibrated_scale_marker_width = Geometry.make_pretty2(scale_marker_image_width * dimensional_calibration.scale, True)
+                # update the scale marker width
+                scale_marker_image_width = calibrated_scale_marker_width / dimensional_calibration.scale
+                scale_marker_width = scale_marker_image_width * screen_pixel_per_image_pixel
+                text1 = dimensional_calibration.convert_to_calibrated_size_str(scale_marker_image_width)
+                text2 = self.__info_text
+                fm1 = self.__get_font_metrics_fn(self.scale_marker_font, text1)
+                fm2 = self.__get_font_metrics_fn(self.scale_marker_font, text2)
+                height = height + 4 + fm1.height + fm2.height
+                width = 20 + max(scale_marker_width, fm1.width, fm2.width)
+        new_sizing = self.copy_sizing()
+        new_sizing._set_fixed_width(width)
+        new_sizing._set_fixed_height(height)
+        self.update_sizing(new_sizing)
+
     def set_data_info(self, dimensional_calibration: Calibration.Calibration, info_items: typing.Sequence[str]) -> None:
         needs_update = False
         if self.__dimensional_calibration is None or dimensional_calibration != self.__dimensional_calibration:
@@ -209,39 +236,38 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
             self.__info_text = info_text
             needs_update = True
         if needs_update:
-            self.update()
+            self.__update_sizing()
 
     def _repaint(self, drawing_context):
-        canvas_size = self.canvas_size
-        canvas_height = canvas_size[0]
         dimensional_calibration = self.__dimensional_calibration
         if dimensional_calibration is not None:  # display scale marker?
-            origin = (canvas_height - 30, 20)
-            scale_marker_width = 120
-            scale_marker_height = 6
             screen_pixel_per_image_pixel = self.__screen_pixel_per_image_pixel_stream.value
             if screen_pixel_per_image_pixel > 0.0:
-                scale_marker_image_width = scale_marker_width / screen_pixel_per_image_pixel
+                scale_marker_image_width = self.scale_marker_width / screen_pixel_per_image_pixel
                 calibrated_scale_marker_width = Geometry.make_pretty2(scale_marker_image_width * dimensional_calibration.scale, True)
                 # update the scale marker width
                 scale_marker_image_width = calibrated_scale_marker_width / dimensional_calibration.scale
                 scale_marker_width = scale_marker_image_width * screen_pixel_per_image_pixel
+                baseline = self.canvas_size.height
                 with drawing_context.saver():
                     drawing_context.begin_path()
-                    drawing_context.move_to(origin[1], origin[0])
-                    drawing_context.line_to(origin[1] + scale_marker_width, origin[0])
-                    drawing_context.line_to(origin[1] + scale_marker_width, origin[0] - scale_marker_height)
-                    drawing_context.line_to(origin[1], origin[0] - scale_marker_height)
+                    drawing_context.move_to(0, baseline)
+                    drawing_context.line_to(0 + scale_marker_width, baseline)
+                    drawing_context.line_to(0 + scale_marker_width, baseline - self.scale_marker_height)
+                    drawing_context.line_to(0, baseline - self.scale_marker_height)
                     drawing_context.close_path()
                     drawing_context.fill_style = "#448"
                     drawing_context.fill()
                     drawing_context.stroke_style = "#000"
                     drawing_context.stroke()
-                    drawing_context.font = "normal 14px serif"
+                    drawing_context.font = self.scale_marker_font
                     drawing_context.text_baseline = "bottom"
                     drawing_context.fill_style = "#FFF"
-                    drawing_context.fill_text(dimensional_calibration.convert_to_calibrated_size_str(scale_marker_image_width), origin[1], origin[0] - scale_marker_height - 4)
-                    drawing_context.fill_text(self.__info_text, origin[1], origin[0] - scale_marker_height - 4 - 20)
+                    text1 = dimensional_calibration.convert_to_calibrated_size_str(scale_marker_image_width)
+                    text2 = self.__info_text
+                    fm1 = self.__get_font_metrics_fn(self.scale_marker_font, text1)
+                    drawing_context.fill_text(text1, 0, baseline - self.scale_marker_height - 4)
+                    drawing_context.fill_text(text2, 0, baseline - self.scale_marker_height - 4 - fm1.height)
 
 
 class ImageCanvasItemDelegate:
@@ -421,13 +447,23 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         # info overlay (scale marker, etc.)
         self.__screen_pixel_per_image_pixel_stream_lock = threading.RLock()
         self.__screen_pixel_per_image_pixel_stream = Stream.ValueStream(0.0).add_ref()
-        self.__info_overlay_canvas_item = InfoOverlayCanvasItem(self.__screen_pixel_per_image_pixel_stream)
+        self.__scale_marker_canvas_item = ScaleMarkerCanvasItem(self.__screen_pixel_per_image_pixel_stream, ui_settings.get_font_metrics)
+        info_overlay_row = CanvasItem.CanvasItemComposition()
+        info_overlay_row.layout = CanvasItem.CanvasItemRowLayout()
+        info_overlay_row.add_spacing(12)
+        info_overlay_row.add_canvas_item(self.__scale_marker_canvas_item)
+        info_overlay_row.add_stretch()
         self.__timestamp_canvas_item = CanvasItem.TimestampCanvasItem()
+        self.__overlay_canvas_item = CanvasItem.CanvasItemComposition()
+        self.__overlay_canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
+        self.__overlay_canvas_item.add_stretch()
+        self.__overlay_canvas_item.add_canvas_item(info_overlay_row)
+        self.__overlay_canvas_item.add_spacing(8)
         # canvas items get added back to front
         if draw_background:
             self.add_canvas_item(CanvasItem.BackgroundCanvasItem())
         self.add_canvas_item(self.scroll_area_canvas_item)
-        self.add_canvas_item(self.__info_overlay_canvas_item)
+        self.add_canvas_item(self.__overlay_canvas_item)
         self.add_canvas_item(self.__timestamp_canvas_item)
 
         self.__display_values_dirty = False
@@ -474,8 +510,12 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         return 1.0
 
     @property
-    def _info_overlay_canvas_item_for_test(self):
-        return self.__info_overlay_canvas_item
+    def _scale_marker_canvas_item_for_test(self):
+        return self.__scale_marker_canvas_item
+
+    def add_display_control(self, display_control_canvas_item: CanvasItem.AbstractCanvasItem, role: typing.Optional[str] = None) -> bool:
+        self.__overlay_canvas_item.add_canvas_item(display_control_canvas_item)
+        return True
 
     def update_display_values(self, display_values_list) -> None:
         self.__display_values = display_values_list[0] if display_values_list else None
@@ -585,7 +625,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
                                         self.__update_layout_handle = None
 
                 # setting the bitmap on the bitmap_canvas_item is delayed until paint, so that it happens on a thread, since it may be time consuming
-                self.__info_overlay_canvas_item.set_data_info(dimensional_calibration, info_items)
+                self.__scale_marker_canvas_item.set_data_info(dimensional_calibration, info_items)
                 self.__update_scale_stream()
 
     def update_graphics_coordinate_system(self, graphics, graphic_selection, display_calibration_info) -> None:

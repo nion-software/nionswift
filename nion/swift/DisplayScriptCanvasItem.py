@@ -75,6 +75,9 @@ class DisplayScriptCanvasItem(CanvasItem.CanvasItemComposition):
     def default_aspect_ratio(self):
         return 1.0
 
+    def add_display_control(self, display_control_canvas_item: CanvasItem.AbstractCanvasItem, role: typing.Optional[str] = None) -> bool:
+        return False
+
     def update_display_values(self, display_values_list) -> None:
         self.__display_data = display_values_list[0].data_and_metadata if display_values_list else None
 
