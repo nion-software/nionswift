@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 # standard libraries
+import abc
 import contextlib
 import copy
 import functools
@@ -481,26 +482,85 @@ class DisplayDataChannelValueStream(Stream.ValueStream):
             self.value = self.__display_item.display_data_channel
 
 
-class SequenceSliderCanvasItem(CanvasItem.CanvasItemComposition):
-    def __init__(self, display_item_value_stream: Stream.ValueStream, get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]):
+class IndexValueAdapter(abc.ABC):
+
+    @abc.abstractmethod
+    def get_index_value_stream(self, display_data_channel_value_stream: Stream.AbstractStream) -> Stream.AbstractStream: ...
+
+    @abc.abstractmethod
+    def get_index_value(self, display_data_channel: DisplayItem.DisplayDataChannel) -> float: ...
+
+    @abc.abstractmethod
+    def get_index_str(self, display_data_channel: DisplayItem.DisplayDataChannel) -> str: ...
+
+    @abc.abstractmethod
+    def set_index_value(self, display_data_channel: DisplayItem.DisplayDataChannel, value: float) -> None: ...
+
+
+class CollectionIndexAdapter(IndexValueAdapter):
+
+    def __init__(self, collection_index: int):
+        self.__collection_index = collection_index
+
+    def get_index_value_stream(self, display_data_channel_value_stream: Stream.AbstractStream) -> Stream.AbstractStream:
+        display_data_channel_value_stream = Stream.OptionalStream(display_data_channel_value_stream, lambda x: x and self.__collection_index < x.collection_rank and x.datum_rank == 2)
+        return Stream.MapStream(Stream.PropertyChangedEventStream(display_data_channel_value_stream, "collection_index"), lambda x: x[self.__collection_index] if x is not None else None)
+
+    def get_index_value(self, display_data_channel: DisplayItem.DisplayDataChannel) -> float:
+        index = self.__collection_index + (1 if display_data_channel.is_sequence else 0)
+        dim_length = display_data_channel.dimensional_shape[index] if display_data_channel.dimensional_shape is not None else 0
+        return display_data_channel.collection_index[self.__collection_index] / (dim_length - 1)
+
+    def get_index_str(self, display_data_channel: DisplayItem.DisplayDataChannel) -> str:
+        return str(display_data_channel.collection_index[self.__collection_index])
+
+    def set_index_value(self, display_data_channel: DisplayItem.DisplayDataChannel, value: float) -> None:
+        index = self.__collection_index + (1 if display_data_channel.is_sequence else 0)
+        dim_length = display_data_channel.dimensional_shape[index] if display_data_channel.dimensional_shape is not None else 0
+        collection_index = list(display_data_channel.collection_index)
+        collection_index[self.__collection_index] = int(value * (dim_length - 1))
+        display_data_channel.collection_index = collection_index
+
+
+class SequenceIndexAdapter(IndexValueAdapter):
+
+    def get_index_value_stream(self, display_data_channel_value_stream: Stream.AbstractStream) -> Stream.AbstractStream:
+        display_data_channel_value_stream = Stream.OptionalStream(display_data_channel_value_stream, lambda x: x and x.is_sequence)
+        return Stream.PropertyChangedEventStream(display_data_channel_value_stream, "sequence_index")
+
+    def get_index_value(self, display_data_channel: DisplayItem.DisplayDataChannel) -> float:
+        sequence_length = display_data_channel.dimensional_shape[0] if display_data_channel.dimensional_shape is not None else 0
+        return display_data_channel.sequence_index / (sequence_length - 1)
+
+    def get_index_str(self, display_data_channel: DisplayItem.DisplayDataChannel) -> str:
+        return str(display_data_channel.sequence_index)
+
+    def set_index_value(self, display_data_channel: DisplayItem.DisplayDataChannel, value: float) -> None:
+        sequence_length = display_data_channel.dimensional_shape[0] if display_data_channel.dimensional_shape is not None else 0
+        display_data_channel.sequence_index = int(value * (sequence_length - 1))
+
+
+class IndexValueSliderCanvasItem(CanvasItem.CanvasItemComposition):
+    def __init__(self, title: str, display_item_value_stream: Stream.ValueStream, index_value_adapter: IndexValueAdapter, get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]):
         super().__init__()
         self.layout = CanvasItem.CanvasItemRowLayout()
         self.update_sizing(self.sizing.with_preferred_height(0))
-        self.__sequence_slider_row = CanvasItem.CanvasItemComposition()
-        self.__sequence_slider_row.layout = CanvasItem.CanvasItemRowLayout(spacing=8)
+        self.__slider_row = CanvasItem.CanvasItemComposition()
+        self.__slider_row.layout = CanvasItem.CanvasItemRowLayout(spacing=8)
         self.add_spacing(12)
-        self.add_canvas_item(self.__sequence_slider_row)
+        self.add_canvas_item(self.__slider_row)
         self.add_stretch()
         self.add_spacing(12)
         self.__display_item_value_stream = display_item_value_stream.add_ref()
         self.__get_font_metrics_fn = get_font_metrics_fn
         self.__slider_value_action: typing.Optional[Stream.ValueStreamAction] = None
+        self.__title = title
+        self.__index_value_adapter = index_value_adapter
         display_data_channel_value_stream: Stream.AbstractStream
         display_data_channel_value_stream = DisplayDataChannelValueStream(self.__display_item_value_stream)
-        display_data_channel_value_stream = Stream.OptionalStream(display_data_channel_value_stream, lambda x: x and x.is_sequence)
-        sequence_index_value_stream = Stream.PropertyChangedEventStream(display_data_channel_value_stream, "sequence_index")
-        combined_stream = Stream.CombineLatestStream([self.__display_item_value_stream, display_data_channel_value_stream, sequence_index_value_stream])
-        self.__stream_action = Stream.ValueStreamAction(combined_stream, self.__sequence_index_changed)
+        index_value_stream = self.__index_value_adapter.get_index_value_stream(display_data_channel_value_stream)
+        combined_stream = Stream.CombineLatestStream([self.__display_item_value_stream, display_data_channel_value_stream, index_value_stream])
+        self.__stream_action = Stream.ValueStreamAction(combined_stream, self.__index_changed)
 
     def close(self) -> None:
         self.__stream_action.close()
@@ -512,40 +572,34 @@ class SequenceSliderCanvasItem(CanvasItem.CanvasItemComposition):
         self.__display_item_value_stream = None
         super().close()
 
-    def __sequence_index_changed(self, args: typing.Tuple[DisplayItem.DisplayItem, DisplayItem.DisplayDataChannel, int]) -> None:
-        display_item, display_data_channel, sequence_index = args
-        if display_data_channel:
+    def __index_changed(self, args: typing.Tuple[DisplayItem.DisplayItem, DisplayItem.DisplayDataChannel, int]) -> None:
+        display_item, display_data_channel, index_value = args
+        if display_data_channel and index_value is not None:
             slider_canvas_item: CanvasItem.SliderCanvasItem
-            sequence_index_text: CanvasItem.StaticTextCanvasItem
-            if not self.__sequence_slider_row.canvas_items:
-                sequence_index_text = CanvasItem.StaticTextCanvasItem("9999")
-                sequence_index_text.size_to_content(self.__get_font_metrics_fn)
+            slider_text: CanvasItem.StaticTextCanvasItem
+            if not self.__slider_row.canvas_items:
+                slider_text = CanvasItem.StaticTextCanvasItem("9999")
+                slider_text.size_to_content(self.__get_font_metrics_fn)
                 slider_canvas_item = CanvasItem.SliderCanvasItem()
-                label = CanvasItem.StaticTextCanvasItem("Index")
+                label = CanvasItem.StaticTextCanvasItem("WWW")
                 label.size_to_content(self.__get_font_metrics_fn)
+                label.text = self.__title
                 slider_canvas_item.update_sizing(slider_canvas_item.sizing.with_preferred_width(360))
-                self.__sequence_slider_row.add_canvas_item(label)
-                self.__sequence_slider_row.add_canvas_item(slider_canvas_item)
-                self.__sequence_slider_row.add_canvas_item(sequence_index_text)
-
-                def slider_property_changed(slider_value: float) -> None:
-                    sequence_length = display_data_channel.dimensional_shape[0] if display_data_channel.dimensional_shape is not None else 0
-                    display_data_channel.sequence_index = int(slider_value * (sequence_length - 1))
-
+                self.__slider_row.add_canvas_item(label)
+                self.__slider_row.add_canvas_item(slider_canvas_item)
+                self.__slider_row.add_canvas_item(slider_text)
                 slider_value_stream = Stream.PropertyChangedEventStream(slider_canvas_item, "value")
-                self.__slider_value_action = Stream.ValueStreamAction(slider_value_stream, slider_property_changed)
+                self.__slider_value_action = Stream.ValueStreamAction(slider_value_stream, functools.partial(self.__index_value_adapter.set_index_value, display_data_channel))
             else:
-                slider_canvas_item = typing.cast(CanvasItem.SliderCanvasItem, self.__sequence_slider_row.canvas_items[1])
-                sequence_index_text = typing.cast(CanvasItem.StaticTextCanvasItem, self.__sequence_slider_row.canvas_items[2])
-
-            sequence_length = display_data_channel.dimensional_shape[0] if display_data_channel.dimensional_shape is not None else 0
-            sequence_index_text.text = str(display_data_channel.sequence_index)
-            slider_canvas_item.value = display_data_channel.sequence_index / (sequence_length - 1)
+                slider_canvas_item = typing.cast(CanvasItem.SliderCanvasItem, self.__slider_row.canvas_items[1])
+                slider_text = typing.cast(CanvasItem.StaticTextCanvasItem, self.__slider_row.canvas_items[2])
+            slider_text.text = self.__index_value_adapter.get_index_str(display_data_channel)
+            slider_canvas_item.value = self.__index_value_adapter.get_index_value(display_data_channel)
         else:
             if self.__slider_value_action:
                 self.__slider_value_action.close()
                 self.__slider_value_action = None
-            self.__sequence_slider_row.remove_all_canvas_items()
+            self.__slider_row.remove_all_canvas_items()
 
 
 class RelatedItemsValueStream(Stream.ValueStream):
@@ -1493,7 +1547,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
 
         self.__display_item_value_stream = Stream.ValueStream().add_ref()
 
-        self.__related_icons_canvas_item = None
+        self.__related_icons_canvas_item: typing.Optional[RelatedIconsCanvasItem] = None
 
         display_controls_canvas_item = CanvasItem.CanvasItemComposition()
         display_controls_canvas_item.layout = CanvasItem.CanvasItemColumnLayout(spacing=4)
@@ -1924,12 +1978,26 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
                     related_icons_canvas_item = RelatedIconsCanvasItem(self.ui, self.get_document_model(),
                                                                        self.__display_item_value_stream,
                                                                        self.document_controller.drag)
-                    sequence_slider_row = SequenceSliderCanvasItem(self.__display_item_value_stream,
-                                                                   self.ui.get_font_metrics)
+                    sequence_slider_row = IndexValueSliderCanvasItem(_("S"),
+                                                                     self.__display_item_value_stream,
+                                                                     SequenceIndexAdapter(),
+                                                                     self.ui.get_font_metrics)
+                    c0_slider_row = IndexValueSliderCanvasItem(_("C0"),
+                                                               self.__display_item_value_stream,
+                                                               CollectionIndexAdapter(0),
+                                                               self.ui.get_font_metrics)
+                    c1_slider_row = IndexValueSliderCanvasItem(_("C1"),
+                                                               self.__display_item_value_stream,
+                                                               CollectionIndexAdapter(1),
+                                                               self.ui.get_font_metrics)
                     if not display_canvas_item.add_display_control(related_icons_canvas_item, "related_icons"):
                         self.__display_controls_canvas_item.add_canvas_item(related_icons_canvas_item)
                     if not display_canvas_item.add_display_control(sequence_slider_row):
                         sequence_slider_row.close()
+                    if not display_canvas_item.add_display_control(c0_slider_row):
+                        c0_slider_row.close()
+                    if not display_canvas_item.add_display_control(c1_slider_row):
+                        c1_slider_row.close()
                     self.__related_icons_canvas_item = related_icons_canvas_item
 
                 def replace_display_canvas_item(old_display_canvas_item, new_display_canvas_item):
