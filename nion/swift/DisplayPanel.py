@@ -571,7 +571,7 @@ class IndexValueSliderCanvasItem(CanvasItem.CanvasItemComposition):
         self.add_spacing(12)
         self.__display_item_value_stream = display_item_value_stream.add_ref()
         self.__get_font_metrics_fn = get_font_metrics_fn
-        self.__value_change_stream_reactor: typing.Optional[Stream.ValueChangeStreamReactor] = None
+        self.__slider_value_action: typing.Optional[Stream.ValueStreamAction] = None
         self.__title = title
         self.__index_value_adapter = index_value_adapter
         display_data_channel_value_stream: Stream.AbstractStream
@@ -583,11 +583,11 @@ class IndexValueSliderCanvasItem(CanvasItem.CanvasItemComposition):
     def close(self) -> None:
         self.__stream_action.close()
         self.__stream_action = typing.cast(Stream.ValueStreamAction, None)
+        if self.__slider_value_action:
+            self.__slider_value_action.close()
+            self.__slider_value_action = None
         self.__display_item_value_stream.remove_ref()
         self.__display_item_value_stream = None
-        if self.__value_change_stream_reactor:
-            self.__value_change_stream_reactor.close()
-            self.__value_change_stream_reactor = None
         super().close()
 
     def __index_changed(self, args: typing.Tuple[DisplayItem.DisplayItem, DisplayItem.DisplayDataChannel, int]) -> None:
@@ -599,22 +599,6 @@ class IndexValueSliderCanvasItem(CanvasItem.CanvasItemComposition):
                 slider_text = CanvasItem.StaticTextCanvasItem("9999")
                 slider_text.size_to_content(self.__get_font_metrics_fn)
                 slider_canvas_item = CanvasItem.SliderCanvasItem()
-
-                # async loop to track a value change stream from the slider canvas item.
-                # the value change stream will be produced when the user changes the value
-                # of the slider by either dragging or paging the thumb.
-                async def track_slider_canvas_item_value(r: Stream.ValueChangeStreamReactor) -> None:
-                    while True:
-                        await r.begin()
-                        while True:
-                            value_change = await r.next_value_change()
-                            if value_change.is_end:
-                                break
-                            self.__index_value_adapter.set_index_value(display_data_channel, value_change.value)
-
-                self.__value_change_stream_reactor = Stream.ValueChangeStreamReactor(slider_canvas_item.value_change_stream)
-                self.__value_change_stream_reactor.run(track_slider_canvas_item_value)
-
                 label = CanvasItem.StaticTextCanvasItem("WWW")
                 label.size_to_content(self.__get_font_metrics_fn)
                 label.text = self.__title
@@ -622,15 +606,17 @@ class IndexValueSliderCanvasItem(CanvasItem.CanvasItemComposition):
                 self.__slider_row.add_canvas_item(label)
                 self.__slider_row.add_canvas_item(slider_canvas_item)
                 self.__slider_row.add_canvas_item(slider_text)
+                slider_value_stream = Stream.PropertyChangedEventStream(slider_canvas_item, "value")
+                self.__slider_value_action = Stream.ValueStreamAction(slider_value_stream, functools.partial(self.__index_value_adapter.set_index_value, display_data_channel))
             else:
                 slider_canvas_item = typing.cast(CanvasItem.SliderCanvasItem, self.__slider_row.canvas_items[1])
                 slider_text = typing.cast(CanvasItem.StaticTextCanvasItem, self.__slider_row.canvas_items[2])
             slider_text.text = self.__index_value_adapter.get_index_str(display_data_channel)
             slider_canvas_item.value = self.__index_value_adapter.get_index_value(display_data_channel)
         else:
-            if self.__value_change_stream_reactor:
-                self.__value_change_stream_reactor.close()
-                self.__value_change_stream_reactor = None
+            if self.__slider_value_action:
+                self.__slider_value_action.close()
+                self.__slider_value_action = None
             self.__slider_row.remove_all_canvas_items()
 
 
