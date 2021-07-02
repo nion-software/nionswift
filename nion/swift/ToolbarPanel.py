@@ -11,8 +11,10 @@ from nion.swift import DocumentController
 from nion.swift import Panel
 from nion.ui import CanvasItem
 from nion.ui import Declarative
+from nion.ui import DrawingContext
 from nion.ui import UserInterface
 from nion.ui import Window
+from nion.utils import Geometry
 from nion.utils import Model
 from nion.utils import Registry
 
@@ -61,7 +63,7 @@ class ToolModeToolbarWidget:
         top_row = u.create_row(*top_row_items)
         bottom_row = u.create_row(*bottom_row_items)
 
-        self.ui_view = u.create_column(u.create_spacing(4), top_row, bottom_row, u.create_spacing(4), u.create_stretch())
+        self.ui_view = u.create_row(u.create_column(u.create_spacing(4), top_row, bottom_row, u.create_spacing(4), u.create_stretch()))
 
         self.radio_button_value.value = modes.index(document_controller.tool_mode)
 
@@ -180,9 +182,7 @@ class ToolbarPanel(Panel.Panel):
         self.__toolbar_widget_row = self.ui.create_row_widget(properties={"size-policy-horizontal": "maximum"})
 
         toolbar_row_widget = self.ui.create_row_widget()
-        toolbar_row_widget.add_spacing(12)
         toolbar_row_widget.add(self.__toolbar_widget_row)
-        toolbar_row_widget.add_spacing(12)
         toolbar_row_widget.add_stretch()
 
         self.widget.add(toolbar_row_widget)
@@ -203,16 +203,30 @@ class ToolbarPanel(Panel.Panel):
 
         # add the widgets.
         for widget_id in widget_id_list:
-            self.__toolbar_widget_row.add_spacing(12)
             widget_factory = widget_factories[widget_id]
             widget_handler = widget_factory(document_controller=self.document_controller)
             widget = Declarative.DeclarativeWidget(self.ui, self.document_controller.event_loop, widget_handler)
-            widget_section_label = self.ui.create_label_widget(widget_handler.toolbar_widget_title)
-            widget_section_label.text_color = "darkgrey"  # this is actually light gray due to an error in html specs at w3
-            widget_section = self.ui.create_column_widget()
-            widget_section.add(widget_section_label, alignment="left")
-            widget_section.add(widget, alignment="left")
+            widget_section = self.ui.create_row_widget()
+            widget_section.add(widget)
+            section_bar = self.ui.create_canvas_widget(properties={"width": 9, "size_policy_vertical": "expanding"})
+
+            def draw(drawing_context: DrawingContext.DrawingContext, canvas_size: Geometry.IntSize, *args, **kwargs):
+                with drawing_context.saver():
+                    drawing_context.rect(0, 0, canvas_size.width, canvas_size.height)
+                    drawing_context.fill_style = "#DDD"
+                    drawing_context.stroke_style = "#AAA"
+                    drawing_context.fill()
+                    drawing_context.stroke()
+
+            section_bar.canvas_item.add_canvas_item(CanvasItem.DrawCanvasItem(draw))
+            self.__toolbar_widget_row.add(section_bar)
+            self.__toolbar_widget_row.add_spacing(8)
             self.__toolbar_widget_row.add(widget_section)
+            self.__toolbar_widget_row.add_spacing(8)
+
+        end_divider = self.ui.create_canvas_widget(properties={"width": 1, "size_policy_vertical": "expanding"})
+        end_divider.canvas_item.add_canvas_item(CanvasItem.DividerCanvasItem(color="#888"))
+        self.__toolbar_widget_row.add(end_divider)
 
     def close(self):
         self.__component_registered_listener.close()
