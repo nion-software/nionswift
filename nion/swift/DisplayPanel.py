@@ -627,6 +627,7 @@ class RelatedItemsValueStream(Stream.ValueStream):
         self.__display_item_stream = display_item_value_stream.add_ref()
         self.__stream_listener = self.__display_item_stream.value_stream.listen(self.__update_display_item)
         self.__related_items_changed_listener: typing.Optional[Event.EventListener] = None
+        self.__update_display_item(self.__display_item_stream.value)
 
     def close(self):
         self.__stream_listener.close()
@@ -672,7 +673,9 @@ class RelatedIconsCanvasItem(CanvasItem.CanvasItemComposition):
         self.add_stretch()
         self.add_canvas_item(self.__dependent_thumbnails)
         self.add_spacing(12)
-        self.__related_items_stream_action = Stream.ValueStreamAction(RelatedItemsValueStream(document_model, display_item_value_stream).add_ref(), self.__related_items_changed)
+        related_items_value_stream = RelatedItemsValueStream(document_model, display_item_value_stream)
+        self.__related_items_stream_action = Stream.ValueStreamAction(related_items_value_stream, self.__related_items_changed)
+        self.__related_items_changed(typing.cast(typing.Tuple[typing.List[DisplayItem.DisplayItem], typing.List[DisplayItem.DisplayItem]], related_items_value_stream.value))
 
     def close(self) -> None:
         self.__related_items_stream_action.close()
@@ -721,8 +724,8 @@ class MissingDataCanvasItem(CanvasItem.CanvasItemComposition):
     def default_aspect_ratio(self):
         return 1.0
 
-    def add_display_control(self, display_control_canvas_item: CanvasItem.AbstractCanvasItem, role: typing.Optional[str] = None) -> bool:
-        return False
+    def add_display_control(self, display_control_canvas_item: CanvasItem.AbstractCanvasItem, role: typing.Optional[str] = None) -> None:
+        display_control_canvas_item.close()
 
     def update_display_values(self, display_values_list) -> None:
         pass
@@ -1567,16 +1570,8 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
 
         self.__related_icons_canvas_item: typing.Optional[RelatedIconsCanvasItem] = None
 
-        display_controls_canvas_item = CanvasItem.CanvasItemComposition()
-        display_controls_canvas_item.layout = CanvasItem.CanvasItemColumnLayout(spacing=4)
-        display_controls_canvas_item.add_stretch()
-        # used for adding source/dependency icons to missing and other displays that don't support it directly.
-        self.__display_controls_canvas_item = display_controls_canvas_item
-
         # the data item panel consists of the data item display canvas item and the related icons canvas item
         self.__display_composition_canvas_item = CanvasItem.CanvasItemComposition()
-
-        self.__display_composition_canvas_item.add_canvas_item(display_controls_canvas_item)
 
         self.__selection = document_controller.filtered_display_items_model.make_selection()
         self.__selection.expanded_changed_event = True
@@ -1979,7 +1974,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         if did_display_change:
 
             # remove any existing display canvas item
-            if len(self.__display_composition_canvas_item.canvas_items) > 1:
+            if len(self.__display_composition_canvas_item.canvas_items) > 0:
                 self.__display_composition_canvas_item.remove_canvas_item(self.__display_composition_canvas_item.canvas_items[0])
 
             old_display_tracker = self.__display_tracker
@@ -2008,14 +2003,10 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
                                                                self.__display_item_value_stream,
                                                                CollectionIndexAdapter(self.document_controller, 1),
                                                                self.ui.get_font_metrics)
-                    if not display_canvas_item.add_display_control(related_icons_canvas_item, "related_icons"):
-                        self.__display_controls_canvas_item.add_canvas_item(related_icons_canvas_item)
-                    if not display_canvas_item.add_display_control(sequence_slider_row):
-                        sequence_slider_row.close()
-                    if not display_canvas_item.add_display_control(c0_slider_row):
-                        c0_slider_row.close()
-                    if not display_canvas_item.add_display_control(c1_slider_row):
-                        c1_slider_row.close()
+                    display_canvas_item.add_display_control(related_icons_canvas_item, "related_icons")
+                    display_canvas_item.add_display_control(sequence_slider_row)
+                    display_canvas_item.add_display_control(c0_slider_row)
+                    display_canvas_item.add_display_control(c1_slider_row)
                     self.__related_icons_canvas_item = related_icons_canvas_item
 
                 def replace_display_canvas_item(old_display_canvas_item, new_display_canvas_item):

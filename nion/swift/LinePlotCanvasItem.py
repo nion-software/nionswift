@@ -130,15 +130,12 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
 
         self.___has_valid_drawn_graph_data = False
 
-        self.__xdata_list = list()
-        self.__last_xdata_list = list()
+        self.__xdata_list: typing.List[DataAndMetadata.DataMetadata] = list()
+        self.__last_xdata_list: typing.List[DataAndMetadata.DataMetadata] = list()
 
         # frame rate
         self.__display_frame_rate_id: typing.Optional[str] = None
         self.__display_frame_rate_last_index = 0
-
-        # child displays
-        self.__display_listeners = list()
 
         self.__line_graph_area_stack = CanvasItem.CanvasItemComposition()
         self.__line_graph_background_canvas_item = LineGraphCanvasItem.LineGraphBackgroundCanvasItem()
@@ -146,7 +143,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         self.__line_graph_regions_canvas_item = LineGraphCanvasItem.LineGraphRegionsCanvasItem()
         self.__line_graph_legend_row = CanvasItem.CanvasItemComposition()
         self.__line_graph_legend_row.layout = CanvasItem.CanvasItemRowLayout(margins=Geometry.Margins(4, 8, 4, 8))
-        self.__line_graph_legend_canvas_item = LineGraphCanvasItem.LineGraphLegendCanvasItem(ui_settings, delegate)
+        self.__line_graph_legend_canvas_item = LineGraphCanvasItem.LineGraphLegendCanvasItem(ui_settings, typing.cast(LineGraphCanvasItem.LineGraphLegendCanvasItemDelegate, delegate))
         self.__line_graph_legend_row.add_stretch()
         self.__line_graph_legend_row.add_canvas_item(self.__line_graph_legend_canvas_item)
         self.__line_graph_legend_row.add_stretch()
@@ -218,17 +215,17 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         self.__undo_command = None
 
         # used for dragging graphic items
-        self.__graphic_drag_items = []
-        self.__graphic_drag_item = None
-        self.__graphic_part_data = {}
-        self.__graphic_drag_indexes = []
+        self.__graphic_drag_items: typing.List[Graphics.Graphic] = list()
+        self.__graphic_drag_item: typing.Optional[Graphics.Graphic] = None
+        self.__graphic_part_data: typing.Dict[int, typing.Any] = dict()
+        self.__graphic_drag_indexes: typing.Set[int] = set()
         self.__last_mouse = None
         self.__mouse_in = False
         self.__tracking_selections = False
         self.__tracking_horizontal = False
         self.__tracking_vertical = False
 
-        self.__axes = None
+        self.__axes: typing.Optional[LineGraphCanvasItem.LineGraphAxes] = None
 
         self.__data_scale = None
         self.__displayed_dimensional_calibration = None
@@ -241,7 +238,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         self.__right_channel = None
         self.__legend_position = None
 
-        self.__graphics = list()
+        self.__graphics: typing.List[Graphics.Graphic] = list()
         self.__graphic_selection = None
         self.__pending_interval = None
 
@@ -267,7 +264,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
 
     # for testing
     @property
-    def _axes(self) -> LineGraphCanvasItem.LineGraphAxes:
+    def _axes(self) -> typing.Optional[LineGraphCanvasItem.LineGraphAxes]:
         return self.__axes
 
     @property
@@ -287,12 +284,11 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         else:
             self.__line_graph_legend_canvas_item.visible = False
 
-    def add_display_control(self, display_control_canvas_item: CanvasItem.AbstractCanvasItem, role: typing.Optional[str] = None) -> bool:
+    def add_display_control(self, display_control_canvas_item: CanvasItem.AbstractCanvasItem, role: typing.Optional[str] = None) -> None:
         if role == "related_icons":
             self.__overlap_controls.add_canvas_item(display_control_canvas_item)
         else:
             self.__display_controls.add_canvas_item(display_control_canvas_item)
-        return True
 
     def update_display_values(self, display_values_list) -> None:
         self.__display_values_list = display_values_list
@@ -418,8 +414,14 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         left = None
         right = None
         for interval in intervals:
-            left = min(left, interval[0]) if left is not None else interval[0]
-            right = max(right, interval[1]) if right is not None else interval[1]
+            if left is not None:
+                left = min(left, interval[0])
+            else:
+                left = interval[0]
+            if right is not None:
+                right = max(right, interval[1])
+            else:
+                right = interval[1]
         left = left if left is not None else 0.0
         right = right if right is not None else 1.0
         left_channel = int(max(0.0, left) * data_and_metadata.data_shape[-1])
@@ -445,7 +447,11 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
     def __view_to_selected_graphics(self, data_and_metadata: DataAndMetadata.DataAndMetadata) -> None:
         """Change the view to encompass the selected graphic intervals."""
         all_graphics = self.__graphics
-        graphics = [graphic for graphic_index, graphic in enumerate(all_graphics) if self.__graphic_selection.contains(graphic_index)]
+        graphics: typing.List[Graphics.Graphic]
+        if self.__graphic_selection:
+            graphics = [graphic for graphic_index, graphic in enumerate(all_graphics) if self.__graphic_selection.contains(graphic_index)]
+        else:
+            graphics = list()
         intervals = list()
         for graphic in graphics:
             if isinstance(graphic, Graphics.IntervalGraphic):
@@ -573,7 +579,6 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
                 line_graph_canvas_item.set_uncalibrated_xdata(None)
 
             legend_position = self.__legend_position
-            LegendEntry = collections.namedtuple("LegendEntry", ["label", "fill_color", "stroke_color"])
             legend_entries = list()
             for index, display_layer in enumerate(self.__display_layers[0:max_layer_count]):
                 data_index = display_layer.get("data_index", None)
@@ -588,7 +593,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
                         label = "Unknown"
                 fill_color = display_layer.get("fill_color")
                 stroke_color = display_layer.get("stroke_color")
-                legend_entries.append(LegendEntry(label, fill_color, stroke_color))
+                legend_entries.append(LineGraphCanvasItem.LegendEntry(label, fill_color, stroke_color))
 
             self.__update_canvas_items(axes, legend_position, legend_entries, display_layers)
         else:
@@ -596,7 +601,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
                 line_graph_canvas_item.set_axes(None)
                 line_graph_canvas_item.set_uncalibrated_xdata(None)
             self.__line_graph_xdata_list = list()
-            self.__update_canvas_items(LineGraphCanvasItem.LineGraphAxes(), None, None, None)
+            self.__update_canvas_items(LineGraphCanvasItem.LineGraphAxes(), None, list(), None)
 
     def _prepare_render(self):
         # this is called before layout and repainting. it gives this display item a chance
@@ -638,7 +643,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
                 drawing_context.fill_text("update:" + fps3, text_pos.x + 8, text_pos.y + 50)
                 drawing_context.fill_text("prepare:" + fps4, text_pos.x + 8, text_pos.y + 70)
 
-    def __update_canvas_items(self, axes, legend_position: typing.Optional[str], legend_entries: typing.Optional[typing.Sequence], display_layers: typing.Optional[typing.Sequence]):
+    def __update_canvas_items(self, axes, legend_position: typing.Optional[str], legend_entries: typing.Sequence, display_layers: typing.Optional[typing.Sequence]):
         self.__line_graph_background_canvas_item.set_axes(axes)
         self.__line_graph_regions_canvas_item.set_axes(axes)
         self.__line_graph_regions_canvas_item.set_calibrated_data(self.line_graph_canvas_item.calibrated_xdata.data if self.line_graph_canvas_item and self.line_graph_canvas_item.calibrated_xdata else None)

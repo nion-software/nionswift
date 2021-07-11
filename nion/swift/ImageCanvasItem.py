@@ -513,9 +513,8 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
     def _scale_marker_canvas_item_for_test(self):
         return self.__scale_marker_canvas_item
 
-    def add_display_control(self, display_control_canvas_item: CanvasItem.AbstractCanvasItem, role: typing.Optional[str] = None) -> bool:
+    def add_display_control(self, display_control_canvas_item: CanvasItem.AbstractCanvasItem, role: typing.Optional[str] = None) -> None:
         self.__overlay_canvas_item.add_canvas_item(display_control_canvas_item)
-        return True
 
     def update_display_values(self, display_values_list) -> None:
         self.__display_values = display_values_list[0] if display_values_list else None

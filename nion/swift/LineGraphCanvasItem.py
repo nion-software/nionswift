@@ -9,21 +9,19 @@
 
 # standard libraries
 import collections
+import dataclasses
 import gettext
 import math
 import re
 import typing
 
 # third party libraries
-import uuid
-
 import numpy
 
 # local libraries
 from nion.data import Calibration
 from nion.data import DataAndMetadata
 from nion.data import Image
-from nion.swift import Inspector
 from nion.swift import MimeTypes
 from nion.swift import Undo
 from nion.swift.model import DisplayItem
@@ -116,6 +114,13 @@ def calculate_y_axis(uncalibrated_data_list, data_min, data_max, y_calibration, 
         calibrated_data_max = ticker.maximum
 
     return calibrated_data_min, calibrated_data_max, ticker
+
+
+@dataclasses.dataclass
+class LegendEntry:
+    label: str
+    fill_color: str
+    stroke_color: str
 
 
 class LineGraphAxes:
@@ -1146,10 +1151,10 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__drawing_context = None
 
         # current legend items corresponding to layers of the display item
-        self.__legend_entries = []
+        self.__legend_entries: typing.List[LegendEntry] = list()
 
         # reordered/inserted entries that have not yet been applied
-        self.__effective_entries = []
+        self.__effective_entries: typing.List[LegendEntry] = list()
 
         # True when a user is clicking, but a drag hasn't started because they haven't moved the mouse enough
         self.__mouse_pressed_for_dragging = False
@@ -1161,19 +1166,19 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
         self._drag_start_position = None
 
         # The current display layers of the display item. Used to shift to different positions as needed.
-        self.__display_layers = None
+        self.__display_layers: typing.Optional[typing.Sequence[DisplayItem.DisplayLayer]] = None
 
         # The index of the local entry we're currently dragging
         self.__dragging_index = None
 
         # The entry where the mouse is over so we know where to reorder the entry to
-        self.__entry_to_insert = None
+        self.__entry_to_insert: typing.Optional[int] = None
 
         # An entry from another display item that we're dragging into this one
-        self.__foreign_legend_entry = None
+        self.__foreign_legend_entry: typing.Optional[LegendEntry] = None
 
         # The index and UUID of the other display item layer we're dragging here
-        self.__foreign_legend_uuid_and_index = None
+        self.__foreign_legend_uuid_and_index: typing.Optional[typing.Tuple[DisplayItem.DisplayItem, int]] = None
 
         # canvas item settings
         self.wants_mouse_events = True
@@ -1186,7 +1191,7 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
         This function generates a new effective entries array based on how the user is dragging legend items and updates
         the bounds of the canvas item as needed.
         """
-        effective_entries = self.__legend_entries[:]
+        effective_entries = list(self.__legend_entries)  # copy
 
         if self.__mouse_dragging and self.__entry_to_insert is not None and self.__dragging_index is not None:
             # move legend entry from dragging_index to entry_to_insert
@@ -1219,9 +1224,9 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
     def wants_drag_event(self, mime_data: UserInterface.MimeData, x: int, y: int) -> bool:
         return mime_data.has_format(MimeTypes.LAYER_MIME_TYPE)
 
-    def set_legend_entries(self, legend_entries: typing.Optional[typing.Sequence], display_layers: typing.Optional[typing.Sequence]):
+    def set_legend_entries(self, legend_entries: typing.Sequence[LegendEntry], display_layers: typing.Optional[typing.Sequence[DisplayItem.DisplayLayer]]) -> None:
         if self.__legend_entries != legend_entries or self.__display_layers != display_layers:
-            self.__legend_entries = legend_entries
+            self.__legend_entries = list(legend_entries)
             self.__generate_effective_entries()
             self.__display_layers = display_layers
             self.update()
@@ -1288,7 +1293,7 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
             self.update()
             return True
 
-    def drag_move(self, mime_data: UserInterface.MimeData, x: int, y: int) -> bool:
+    def drag_move(self, mime_data: UserInterface.MimeData, x: int, y: int) -> str:
         # get the entry the mouse was over
         old_entry = self.__entry_to_insert
 
@@ -1298,7 +1303,7 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
             # update effective entries and the display if it changed
             self.__generate_effective_entries()
             self.update()
-        return True
+        return "ignore"
 
     def mouse_pressed(self, x, y, modifiers):
         # if there are less than 2 entries, ignore this because a data item can't be empty
@@ -1336,7 +1341,7 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__generate_effective_entries()
         self.update()
 
-    def drag_enter(self, mime_data: UserInterface.MimeData) -> None:
+    def drag_enter(self, mime_data: UserInterface.MimeData) -> str:
         # if a new drag comes in with layer mime data, check if we're the source or if this is a foreign layer
         if mime_data.has_format(MimeTypes.LAYER_MIME_TYPE):
             self.__mouse_dragging = True
@@ -1349,13 +1354,14 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
                 self.update()
             else:
                 # if we aren't the source, setup foreign_legend_* and update the display
-                LegendEntry = collections.namedtuple("LegendEntry", ["label", "fill_color", "stroke_color"])
-
+                assert display_item
                 self.__foreign_legend_entry = LegendEntry(label=legend_data["label"], fill_color=legend_data["fill_color"], stroke_color=legend_data["stroke_color"])
-                self.__foreign_legend_uuid_and_index = (display_item, legend_data["index"])
+                self.__foreign_legend_uuid_and_index = (display_item, typing.cast(int, legend_data["index"]))
                 self.update()
+            return "move"
+        return "ignore"
 
-    def drop(self, mime_data: UserInterface.MimeData, x: int, y: int) -> None:
+    def drop(self, mime_data: UserInterface.MimeData, x: int, y: int) -> str:
         # stop dragging
         self._drag_start_position = None
         self.__mouse_pressed_for_dragging = False
@@ -1367,11 +1373,15 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
             if source_display_item == self.__delegate.get_display_item():
                 # if we're the source item, just shift the layers
                 if from_index != self.__entry_to_insert:
+                    assert self.__entry_to_insert is not None
                     command = self.__delegate.create_move_display_layer_command(source_display_item, from_index, self.__entry_to_insert)
                     command.perform()
                     self.__entry_to_insert = None
                     self.__delegate.push_undo_command(command)
             else:
+                assert self.__entry_to_insert is not None
+                assert source_display_item
+
                 # if we aren't the source item, move the display layer between display items
                 command = self.__delegate.create_move_display_layer_command(source_display_item, from_index, self.__entry_to_insert)
 
@@ -1382,9 +1392,11 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
                 command.perform()
                 self.__delegate.push_undo_command(command)
             self.update()
+            return "move"
+        return "ignore"
 
     @property
-    def effective_entries(self) -> list:
+    def effective_entries(self) -> typing.List[LegendEntry]:
         return self.__effective_entries
 
     def _repaint(self, drawing_context):
@@ -1402,7 +1414,7 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
         border = 4
         font = "{0:d}px".format(self.font_size)
 
-        effective_entries_and_foreign = self.__effective_entries[:]
+        effective_entries_and_foreign = list(self.__effective_entries)
         if self.__foreign_legend_entry is not None and self.__entry_to_insert is not None:
             effective_entries_and_foreign.insert(self.__entry_to_insert, self.__foreign_legend_entry)
 
