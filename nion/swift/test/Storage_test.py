@@ -32,13 +32,12 @@ from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import FileStorageSystem
 from nion.swift.model import Graphics
-from nion.swift.model import HDF5Handler
-from nion.swift.model import NDataHandler
 from nion.swift.model import Persistence
 from nion.swift.model import Profile
 from nion.swift.model import Symbolic
 from nion.swift.test import TestContext
 from nion.ui import TestUI
+from nion.utils import Geometry
 
 
 Facade.initialize()
@@ -934,6 +933,24 @@ class TestStorageClass(unittest.TestCase):
             with contextlib.closing(document_model):
                 data_item = document_model.data_items[0]
                 self.assertTrue(numpy.array_equal(zeros.data, data_item.data))
+
+    def test_line_plot_display_calculation_with_large_format_after_reload(self):
+        with create_temp_profile_context() as profile_context:
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            with contextlib.closing(document_controller):
+                document_model = document_controller.document_model
+                data_item = DataItem.DataItem(numpy.random.randn(10), large_format=True)
+                document_model.append_data_item(data_item)
+            # reload to ensure data_item.data is a h5py dataset, which is how the original failure occurred
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            document_model = document_controller.document_model
+            with contextlib.closing(document_controller):
+                data_item = document_model.data_items[0]
+                display_panel = document_controller.workspace_controller.display_panels[0]
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                display_panel.set_display_panel_display_item(display_item)
+                display_panel.display_canvas_item.layout_immediate(Geometry.IntSize(w=200, h=50))
+                display_panel.display_canvas_item.prepare_display()  # force layout
 
     def test_writing_empty_data_item_returns_expected_values(self):
         with create_temp_profile_context() as profile_context:

@@ -482,7 +482,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             scalar_xdata_list = list()
             for xdata in xdata_list:
                 if xdata:
-                    scalar_data = Image.convert_to_grayscale(xdata.data)
+                    scalar_data = Image.convert_to_grayscale(numpy.array(xdata.data))  # note: ensure scalar_data is numpy.array
                     scalar_intensity_calibration = calibration_style.get_intensity_calibration(xdata)
                     scalar_dimensional_calibrations = calibration_style.get_dimensional_calibrations(xdata.dimensional_shape, xdata.dimensional_calibrations)
                     if displayed_dimensional_calibration.units == scalar_dimensional_calibrations[-1].units and intensity_calibration.units == scalar_intensity_calibration.units:
