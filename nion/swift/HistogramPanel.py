@@ -621,37 +621,6 @@ class HistogramPanel(Panel.Panel):
         super().close()
 
 
-class TargetDataItemStream(Stream.AbstractStream):
-
-    def __init__(self, document_controller):
-        super().__init__()
-        # outgoing messages
-        self.value_stream = Event.Event()
-        # cached values
-        self.__value = None
-        # listen for selected data item changes
-        self.__focused_data_item_changed_event_listener = document_controller.focused_data_item_changed_event.listen(self.__focused_data_item_changed)
-        # manually send the first data item changed message to set things up.
-        self.__focused_display_item_changed(document_controller.selected_display_item)
-
-    def close(self):
-        # disconnect data item binding
-        self.__focused_display_item_changed(None)
-        self.__focused_display_item_changed_event_listener.close()
-        self.__focused_display_item_changed_event_listener = None
-        super().close()
-
-    @property
-    def value(self):
-        return self.__value
-
-    def __focused_display_item_changed(self, display_item: typing.Optional[DisplayItem.DisplayItem]) -> None:
-        data_item = display_item.data_item if display_item else None
-        if data_item != self.__value:
-            self.__value = data_item
-            self.value_stream.fire(data_item)
-
-
 class TargetDisplayItemStream(Stream.AbstractStream):
 
     def __init__(self, document_controller):
@@ -665,12 +634,12 @@ class TargetDisplayItemStream(Stream.AbstractStream):
         # manually send the first data item changed message to set things up.
         self.__focused_display_item_changed(document_controller.selected_display_item)
 
-    def close(self):
+    def about_to_delete(self) -> None:
         # disconnect data item binding
         self.__focused_display_item_changed(None)
         self.__focused_display_item_changed_event_listener.close()
         self.__focused_display_item_changed_event_listener = None
-        super().close()
+        super().about_to_delete()
 
     @property
     def value(self):
@@ -699,13 +668,13 @@ class TargetRegionStream(Stream.AbstractStream):
         self.__graphic_about_to_be_removed_event_listener = None
         self.__display_item_changed(display_item_stream.value)
 
-    def close(self):
+    def about_to_delete(self) -> None:
         self.__display_item_changed(None)
         self.__display_stream_listener.close()
         self.__display_stream_listener = None
         self.__display_item_stream.remove_ref()
         self.__display_item_stream = None
-        super().close()
+        super().about_to_delete()
 
     @property
     def value(self):
@@ -782,13 +751,13 @@ class DisplayDataChannelTransientsStream(Stream.AbstractStream):
         self.__display_data_channel_stream_listener = display_data_channel_stream.value_stream.listen(self.__display_data_channel_changed)
         self.__display_data_channel_changed(display_data_channel_stream.value)
 
-    def close(self):
+    def about_to_delete(self) -> None:
         self.__display_data_channel_changed(None)
         self.__display_data_channel_stream_listener.close()
         self.__display_data_channel_stream_listener = None
         self.__display_data_channel_stream.remove_ref()
         self.__display_data_channel_stream = None
-        super().close()
+        super().about_to_delete()
 
     @property
     def value(self):
