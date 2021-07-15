@@ -448,7 +448,7 @@ class DisplayDataChannelValueStream(Stream.ValueStream):
         self.__stream_listener = self.__stream.value_stream.listen(self.__update_display_item)
         self.__display_item: typing.Optional[DisplayItem.DisplayItem] = self.__stream.value
 
-    def close(self):
+    def about_to_delete(self) -> None:
         if self.__display_item_item_inserted_listener:
             self.__display_item_item_inserted_listener.close()
             self.__display_item_item_inserted_listener = None
@@ -459,7 +459,7 @@ class DisplayDataChannelValueStream(Stream.ValueStream):
         self.__stream_listener = None
         self.__stream.remove_ref()
         self.__stream = None
-        super().close()
+        super().about_to_delete()
 
     def __update_display_item(self, display_item: typing.Optional[DisplayItem.DisplayItem]) -> None:
         if display_item != self.__display_item:
@@ -629,7 +629,7 @@ class RelatedItemsValueStream(Stream.ValueStream):
         self.__related_items_changed_listener: typing.Optional[Event.EventListener] = None
         self.__update_display_item(self.__display_item_stream.value)
 
-    def close(self):
+    def about_to_delete(self) -> None:
         self.__stream_listener.close()
         self.__stream_listener = None
         self.__display_item_stream.remove_ref()
@@ -637,7 +637,7 @@ class RelatedItemsValueStream(Stream.ValueStream):
         if self.__related_items_changed_listener:
             self.__related_items_changed_listener.close()
             self.__related_items_changed_listener = None
-        super().close()
+        super().about_to_delete()
 
     def __update_display_item(self, display_item: typing.Optional[DisplayItem.DisplayItem]) -> None:
         if self.__related_items_changed_listener:
