@@ -680,9 +680,11 @@ class IndexValueSliderCanvasItem(CanvasItem.CanvasItemComposition):
     def __init__(self, title: str, display_item_value_stream: Stream.ValueStream[DisplayItem.DisplayItem],
                  index_value_adapter: IndexValueAdapter,
                  get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics],
+                 event_loop: typing.Optional[asyncio.AbstractEventLoop] = None,
                  play_button_handler: typing.Optional[typing.Callable[[], None]] = None,
                  play_button_model: typing.Optional[Model.PropertyModel[bool]] = None) -> None:
         super().__init__()
+        self.__event_loop = event_loop
         self.layout = CanvasItem.CanvasItemRowLayout()
         self.update_sizing(self.sizing.with_preferred_height(0))
         self.__slider_row = CanvasItem.CanvasItemComposition()
@@ -695,12 +697,12 @@ class IndexValueSliderCanvasItem(CanvasItem.CanvasItemComposition):
         self.add_spacing(12)
         self.__display_item_value_stream = display_item_value_stream.add_ref()
         self.__get_font_metrics_fn = get_font_metrics_fn
-        self.__slider_value_action: typing.Optional[Stream.ValueStreamAction[Stream.ValueChange[float]]] = None
+        self.__value_change_stream_reactor: typing.Optional[Stream.ValueChangeStreamReactor[float]] = None
         self.__title = title
         self.__index_value_adapter = index_value_adapter
-        display_data_channel_value_stream = DisplayDataChannelValueStream(self.__display_item_value_stream)
-        index_value_stream = self.__index_value_adapter.get_index_value_stream(display_data_channel_value_stream)
-        combined_stream = Stream.CombineLatestStream[typing.Any, typing.Any]([self.__display_item_value_stream, display_data_channel_value_stream, index_value_stream])
+        self.__display_data_channel_value_stream = DisplayDataChannelValueStream(self.__display_item_value_stream)
+        index_value_stream = self.__index_value_adapter.get_index_value_stream(self.__display_data_channel_value_stream)
+        combined_stream = Stream.CombineLatestStream[typing.Any, typing.Any]([self.__display_item_value_stream, self.__display_data_channel_value_stream, index_value_stream])
         self.__stream_action = Stream.ValueStreamAction[typing.Tuple[DisplayItem.DisplayItem, DisplayItem.DisplayDataChannel, int]](combined_stream, self.__index_changed)
         self.__play_button_handler = play_button_handler
         self.__play_button_model = play_button_model
@@ -709,17 +711,37 @@ class IndexValueSliderCanvasItem(CanvasItem.CanvasItemComposition):
     def close(self) -> None:
         self.__stream_action.close()
         self.__stream_action = typing.cast(typing.Any, None)
-        if self.__slider_value_action:
-            self.__slider_value_action.close()
-            self.__slider_value_action = None
         self.__display_item_value_stream.remove_ref()
         self.__display_item_value_stream = typing.cast(typing.Any, None)
+        self.__value_change_stream_reactor = None
         super().close()
 
     def __index_changed(self, args: typing.Optional[typing.Tuple[DisplayItem.DisplayItem, DisplayItem.DisplayDataChannel, typing.Optional[int]]]) -> None:
         display_item, display_data_channel, index_value = args if args else (None, None, 0)
         if display_data_channel and index_value is not None:
             if not self.__slider_row.canvas_items:
+
+                # async loop to track a value change stream from the slider canvas item.
+                # the value change stream will be produced when the user changes the value
+                # of the slider by either dragging or paging the thumb.
+                async def track_slider_canvas_item_value(index_value_adapter: IndexValueAdapter,
+                                                         display_data_channel_value_stream: Stream.ValueStream[DisplayItem.DisplayDataChannel],
+                                                         r: Stream.ValueChangeStreamReactorInterface[float]) -> None:
+                    while True:
+                        value_change = await r.next_value_change()
+                        if value_change.is_end:
+                            break
+                        display_data_channel = display_data_channel_value_stream.value
+                        if display_data_channel:
+                            index_value_adapter.apply_index_value_change(display_data_channel, value_change)
+                        else:
+                            break
+
+                self.__value_change_stream_reactor = Stream.ValueChangeStreamReactor[float](
+                    self.__slider_canvas_item.value_change_stream,
+                    functools.partial(track_slider_canvas_item_value, self.__index_value_adapter, self.__display_data_channel_value_stream),
+                    self.__event_loop)
+
                 label = CanvasItem.StaticTextCanvasItem("WWW")
                 label.size_to_content(self.__get_font_metrics_fn)
                 label.text = self.__title
@@ -740,16 +762,12 @@ class IndexValueSliderCanvasItem(CanvasItem.CanvasItemComposition):
                     self.__slider_row.add_spacing(0)
                 self.__slider_row.add_canvas_item(self.__slider_canvas_item)
                 self.__slider_row.add_canvas_item(self.__slider_text)
-            # display_data_channel may have changed, so do this every time
-            self.__slider_value_action = Stream.ValueStreamAction(self.__slider_canvas_item.value_change_stream, functools.partial(self.__index_value_adapter.apply_index_value_change, display_data_channel))
             self.__slider_text.text = self.__index_value_adapter.get_index_str(display_data_channel)
             self.__slider_text.size_to_content(self.__get_font_metrics_fn)
             self.__slider_canvas_item.value = self.__index_value_adapter.get_index_value(display_data_channel)
             self.__slider_canvas_item.update_sizing(self.__slider_canvas_item.sizing.with_preferred_width(360))
         else:
-            if self.__slider_value_action:
-                self.__slider_value_action.close()
-                self.__slider_value_action = None
+            self.__value_change_stream_reactor = None
             self.__slider_row.remove_all_canvas_items()
             self.__slider_canvas_item = CanvasItem.SliderCanvasItem()
             self.__slider_text = CanvasItem.StaticTextCanvasItem("9999")
@@ -2308,16 +2326,19 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
                                                                      self.__display_item_value_stream,
                                                                      SequenceIndexAdapter(self.document_controller),
                                                                      self.ui.get_font_metrics,
+                                                                     self.__document_controller.event_loop,
                                                                      self.__playback_controller.handle_play_button,
                                                                      self.__playback_controller.is_movie_playing)
                     c0_slider_row = IndexValueSliderCanvasItem(_("C0"),
                                                                self.__display_item_value_stream,
                                                                CollectionIndexAdapter(self.document_controller, 0),
-                                                               self.ui.get_font_metrics)
+                                                               self.ui.get_font_metrics,
+                                                               self.__document_controller.event_loop)
                     c1_slider_row = IndexValueSliderCanvasItem(_("C1"),
                                                                self.__display_item_value_stream,
                                                                CollectionIndexAdapter(self.document_controller, 1),
-                                                               self.ui.get_font_metrics)
+                                                               self.ui.get_font_metrics,
+                                                               self.__document_controller.event_loop)
                     display_canvas_item.add_display_control(related_icons_canvas_item, "related_icons")
                     display_canvas_item.add_display_control(sequence_slider_row)
                     display_canvas_item.add_display_control(c0_slider_row)
