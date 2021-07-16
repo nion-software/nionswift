@@ -187,10 +187,7 @@ class ThumbnailSource(ReferenceCounting.ReferenceCounted):
 
         self.__display_will_close_listener = display_item.about_to_be_removed_event.listen(display_item_will_close)
 
-    def close(self):
-        self.remove_ref()
-
-    def about_to_delete(self):
+    def about_to_delete(self) -> None:
         self.__display_will_close_listener.close()
         self.__display_will_close_listener = None
         if self.__thumbnail_processor:
@@ -201,6 +198,7 @@ class ThumbnailSource(ReferenceCounting.ReferenceCounted):
             self.__display_changed_event_listener = None
         self._on_will_delete(self)
         self._on_will_delete = None
+        super().about_to_delete()
 
     @property
     def thumbnail_data(self):
@@ -228,15 +226,18 @@ class ThumbnailManager(metaclass=Utility.Singleton):
             thumbnail_source = self.__thumbnail_sources.get(display_item)
             if not thumbnail_source:
                 thumbnail_source = ThumbnailSource(ui, display_item)
+
+                # note: do not add_ref. the _on_will_delete is called when the thumbnail_source is about to
+                # delete and takes care of removing it from the global list.
                 self.__thumbnail_sources[display_item] = thumbnail_source
 
                 def will_delete(thumbnail_source):
-                    del self.__thumbnail_sources[thumbnail_source._display_item]
+                    self.__thumbnail_sources.pop(thumbnail_source._display_item)
 
                 thumbnail_source._on_will_delete = will_delete
             else:
                 assert thumbnail_source._ui == ui
-            return thumbnail_source.add_ref()
+            return thumbnail_source
 
     def thumbnail_data_for_display_item(self, display_item: DisplayItem.DisplayItem) -> typing.Optional[numpy.ndarray]:
         thumbnail_source = self.__thumbnail_sources.get(display_item) if display_item else None

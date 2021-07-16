@@ -1,4 +1,6 @@
 # standard libraries
+import contextlib
+
 import numpy
 import logging
 import threading
@@ -32,19 +34,20 @@ class TestThumbnailsClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_item.display_type = "image"
             thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(document_controller.ui)
-            finished = threading.Event()
-            def thumbnail_data_changed(data):
-                finished.set()
-            thumbnail_source.on_thumbnail_data_changed = thumbnail_data_changed
-            thumbnail_source.set_display_item(display_item)
-            finished.wait(1.0)
-            finished.clear()
-            finished.wait(1.0)
-            mime_data = document_controller.ui.create_mime_data()
-            valid, thumbnail = thumbnail_source.populate_mime_data_for_drag(mime_data, Geometry.IntSize(64, 64))
-            self.assertTrue(valid)
-            self.assertIsNotNone(thumbnail)
-            self.assertTrue(mime_data.has_format(MimeTypes.DISPLAY_ITEM_MIME_TYPE))
+            with contextlib.closing(thumbnail_source):
+                finished = threading.Event()
+                def thumbnail_data_changed(data):
+                    finished.set()
+                thumbnail_source.on_thumbnail_data_changed = thumbnail_data_changed
+                thumbnail_source.set_display_item(display_item)
+                finished.wait(1.0)
+                finished.clear()
+                finished.wait(1.0)
+                mime_data = document_controller.ui.create_mime_data()
+                valid, thumbnail = thumbnail_source.populate_mime_data_for_drag(mime_data, Geometry.IntSize(64, 64))
+                self.assertTrue(valid)
+                self.assertIsNotNone(thumbnail)
+                self.assertTrue(mime_data.has_format(MimeTypes.DISPLAY_ITEM_MIME_TYPE))
 
 
 if __name__ == '__main__':

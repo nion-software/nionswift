@@ -42,16 +42,9 @@ class ProjectReference(Observable.Observable, Persistence.PersistentObject):
         self.__project_version: typing.Optional[int] = None
         self.__project_state = "invalid"
         self.__document_model: typing.Optional[DocumentModel.DocumentModel] = None
-        self.__document_model_about_to_close_listener = None
         self.storage_cache = None
         self.project_uuid: typing.Optional[uuid.UUID] = None  # satisfy type checker
         self.last_used: typing.Optional[datetime.datetime] = None  # satisfy type checker
-
-    def close(self) -> None:
-        if self.__document_model_about_to_close_listener:
-            self.__document_model_about_to_close_listener.close()
-            self.__document_model_about_to_close_listener = None
-        super().close()
 
     def about_to_be_removed(self, container):
         self.unload_project()
@@ -171,20 +164,12 @@ class ProjectReference(Observable.Observable, Persistence.PersistentObject):
             if project:
                 self.__document_model = DocumentModel.DocumentModel(project, storage_cache=self.storage_cache)
 
-                # handle special case of document model closing during tests
-                def document_window_close():
-                    self.__document_model_about_to_close_listener.close()
-                    self.__document_model_about_to_close_listener = None
-                    self.__document_model = None
-
                 project.prepare_read_project()  # sets up the uuid, used next.
 
                 self.update_item_context(project)
                 project.about_to_be_inserted(self)
                 self.notify_property_changed("project")  # before reading, so document model has a chance to set up
                 project.read_project()
-
-                self.__document_model_about_to_close_listener = self.__document_model.about_to_close_event.listen(document_window_close)
             else:
                 logging.getLogger("loader").warning(f"Project could not be loaded {self}.")
 
@@ -195,7 +180,9 @@ class ProjectReference(Observable.Observable, Persistence.PersistentObject):
             self.project.about_to_be_removed(self)
             self.project.persistent_object_context = typing.cast(Persistence.PersistentObjectContext, None)
             assert self.__document_model
-            self.__document_model.close()
+            # add/remove ref in case it was never added anywhere else. this will delete it.
+            with self.__document_model.ref():
+                pass
             self.__document_model = None
             self.notify_property_changed("project")
 

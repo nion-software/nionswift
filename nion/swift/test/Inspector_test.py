@@ -1202,13 +1202,14 @@ class TestInspectorClass(unittest.TestCase):
             computation = document_model.get_data_item_computation(new_data_item)
             old_bins = computation.get_input_value("bins")
             inspector_section = Inspector.ComputationInspectorSection(document_controller, new_data_item)
-            field_widget = inspector_section.find_widget_by_id("value")
-            field_widget.on_editing_finished("100")
-            self.assertEqual(100, computation.get_input_value("bins"))
-            document_controller.handle_undo()
-            self.assertEqual(old_bins, computation.get_input_value("bins"))
-            document_controller.handle_redo()
-            self.assertEqual(100, computation.get_input_value("bins"))
+            with contextlib.closing(inspector_section):
+                field_widget = inspector_section.find_widget_by_id("value")
+                field_widget.on_editing_finished("100")
+                self.assertEqual(100, computation.get_input_value("bins"))
+                document_controller.handle_undo()
+                self.assertEqual(old_bins, computation.get_input_value("bins"))
+                document_controller.handle_redo()
+                self.assertEqual(100, computation.get_input_value("bins"))
 
     def test_computation_inspector_handles_computation_variable_specifier_and_undo_redo_cycle(self):
         with TestContext.create_memory_context() as test_context:

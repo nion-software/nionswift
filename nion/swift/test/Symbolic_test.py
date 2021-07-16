@@ -556,8 +556,8 @@ class TestSymbolicClass(unittest.TestCase):
 
     def test_computation_handles_data_lookups(self):
         with TestContext.create_memory_context() as test_context:
-            document_model = test_context.create_document_model()
-            document_controller = self.app.create_document_controller(document_model, workspace_id="library")
+            document_controller = test_context.create_document_controller_with_application()
+            document_model = document_controller.document_model
             d = numpy.random.randn(2, 2)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
@@ -568,8 +568,8 @@ class TestSymbolicClass(unittest.TestCase):
 
     def test_computation_handles_region_lookups(self):
         with TestContext.create_memory_context() as test_context:
-            document_model = test_context.create_document_model()
-            document_controller = self.app.create_document_controller(document_model, workspace_id="library")
+            document_controller = test_context.create_document_controller_with_application()
+            document_model = document_controller.document_model
             d = numpy.random.randn(100, 100)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)

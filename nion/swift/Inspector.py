@@ -87,6 +87,9 @@ class InspectorPanel(Panel.Panel):
         self.__display_data_shape = None
 
     def close(self):
+        if self.__data_item_will_be_removed_event_listener:
+            self.__data_item_will_be_removed_event_listener.close()
+            self.__data_item_will_be_removed_event_listener = None
         # disconnect self as listener
         self.__display_item_changed_event_listener.close()
         self.__display_item_changed_event_listener = None

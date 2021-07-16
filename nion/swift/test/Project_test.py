@@ -38,7 +38,7 @@ class TestProjectClass(unittest.TestCase):
         with create_memory_profile_context() as profile_context:
             document_model = profile_context.create_document_model(auto_close=False)
             profile = profile_context.profile
-            with contextlib.closing(document_model):
+            with document_model.ref():
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
                 # add a project reference; it won't be loaded until we reload below
@@ -47,20 +47,20 @@ class TestProjectClass(unittest.TestCase):
             # reload; will try to load two projects with same uuid
             document_model = profile_context.create_document_model(auto_close=False)
             profile = typing.cast(Profile.Profile, getattr(document_model, "_profile_for_test"))
-            with contextlib.closing(document_model):
+            with document_model.ref():
                 self.assertEqual(1, len(profile.projects))
                 self.assertEqual(1, len(profile.projects[0].data_items))
 
     def test_project_reloads_with_same_uuid(self):
         with create_memory_profile_context() as profile_context:
             document_model = profile_context.create_document_model(auto_close=False)
-            with contextlib.closing(document_model):
+            with document_model.ref():
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
                 project_uuid = document_model._project.uuid
                 project_specifier = document_model._project.item_specifier
             document_model = profile_context.create_document_model(auto_close=False)
-            with contextlib.closing(document_model):
+            with document_model.ref():
                 self.assertEqual(project_uuid, document_model._project.uuid)
                 profile = typing.cast(Profile.Profile, getattr(document_model, "_profile_for_test"))
                 self.assertEqual(document_model._project, profile.persistent_object_context.get_registered_object(project_specifier))

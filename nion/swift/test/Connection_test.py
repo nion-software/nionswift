@@ -72,7 +72,7 @@ class TestConnectionClass(unittest.TestCase):
         # setup document
         with create_memory_profile_context() as profile_context:
             document_model = profile_context.create_document_model(auto_close=False)
-            with contextlib.closing(document_model):
+            with document_model.ref():
                 data_item_3d = DataItem.DataItem(numpy.zeros((8, 8, 32), numpy.uint32))
                 data_item_1d = DataItem.DataItem(numpy.zeros((32,), numpy.uint32))
                 document_model.append_data_item(data_item_3d)
@@ -85,7 +85,7 @@ class TestConnectionClass(unittest.TestCase):
                 document_model.append_connection(connection)
             # read it back
             document_model = profile_context.create_document_model(auto_close=False)
-            with contextlib.closing(document_model):
+            with document_model.ref():
                 # verify it read back
                 data_item_3d = document_model.data_items[0]
                 data_item_1d = document_model.data_items[1]

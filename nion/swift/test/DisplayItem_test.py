@@ -410,7 +410,7 @@ class TestDisplayItemClass(unittest.TestCase):
     def test_display_layer_property_reloads_after_change(self):
         with create_memory_profile_context() as profile_context:
             document_model = profile_context.create_document_model(auto_close=False)
-            with contextlib.closing(document_model):
+            with document_model.ref():
                 data_item = DataItem.DataItem(numpy.zeros((8,)))
                 document_model.append_data_item(data_item)
                 display_item = document_model.get_display_item_for_data_item(data_item)
@@ -418,7 +418,7 @@ class TestDisplayItemClass(unittest.TestCase):
                 display_layer.fill_color = "red"
                 display_item.title = "red"
             document_model = profile_context.create_document_model(auto_close=False)
-            with contextlib.closing(document_model):
+            with document_model.ref():
                 data_item = document_model.data_items[0]
                 display_item = document_model.get_display_item_for_data_item(data_item)
                 display_layer = typing.cast(DisplayItem.DisplayLayer, display_item.display_layers[0])
@@ -428,14 +428,14 @@ class TestDisplayItemClass(unittest.TestCase):
     def test_display_layer_property_reloads_with_no_display_data_channel(self):
         with create_memory_profile_context() as profile_context:
             document_model = profile_context.create_document_model(auto_close=False)
-            with contextlib.closing(document_model):
+            with document_model.ref():
                 data_item = DataItem.DataItem(numpy.zeros((8,)))
                 document_model.append_data_item(data_item)
                 display_item = document_model.get_display_item_for_data_item(data_item)
                 display_layer = typing.cast(DisplayItem.DisplayLayer, display_item.display_layers[0])
                 display_layer.display_data_channel = None
             document_model = profile_context.create_document_model(auto_close=False)
-            with contextlib.closing(document_model):
+            with document_model.ref():
                 data_item = document_model.data_items[0]
                 display_item = document_model.get_display_item_for_data_item(data_item)
                 display_layer = typing.cast(DisplayItem.DisplayLayer, display_item.display_layers[0])
@@ -444,7 +444,7 @@ class TestDisplayItemClass(unittest.TestCase):
     def test_display_layers_reload_after_inserting_and_removing(self):
         with create_memory_profile_context() as profile_context:
             document_model = profile_context.create_document_model(auto_close=False)
-            with contextlib.closing(document_model):
+            with document_model.ref():
                 data_item = DataItem.DataItem(numpy.zeros((8,)))
                 document_model.append_data_item(data_item)
                 display_item = document_model.get_display_item_for_data_item(data_item)
@@ -452,7 +452,7 @@ class TestDisplayItemClass(unittest.TestCase):
                 display_item.add_display_layer_for_display_data_channel(display_item.display_data_channels[0])
                 self.assertEqual(2, len(display_item.display_layers))
             document_model = profile_context.create_document_model(auto_close=False)
-            with contextlib.closing(document_model):
+            with document_model.ref():
                 data_item = document_model.data_items[0]
                 display_item = document_model.get_display_item_for_data_item(data_item)
                 self.assertEqual(2, len(display_item.display_layers))
@@ -460,7 +460,7 @@ class TestDisplayItemClass(unittest.TestCase):
                 display_item.remove_display_layer(display_item.display_layers[1]).close()
                 self.assertEqual(1, len(display_item.display_layers))
             document_model = profile_context.create_document_model(auto_close=False)
-            with contextlib.closing(document_model):
+            with document_model.ref():
                 data_item = document_model.data_items[0]
                 display_item = document_model.get_display_item_for_data_item(data_item)
                 self.assertEqual(1, len(display_item.display_layers))

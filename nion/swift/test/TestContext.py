@@ -15,6 +15,7 @@ from nion.swift.model import Persistence
 from nion.swift.model import Profile
 from nion.ui import TestUI
 from nion.utils import Event
+from nion.utils import ReferenceCounting
 
 
 def begin_leaks() -> None:
@@ -24,6 +25,7 @@ def begin_leaks() -> None:
     Persistence.PersistentObjectProxy.count = 0
     Persistence.PersistentObjectReference.count = 0
     Persistence.PersistentObject.count = 0
+    ReferenceCounting.ReferenceCounted.count = 0
 
 
 def end_leaks(test_case: unittest.TestCase) -> None:
@@ -34,6 +36,7 @@ def end_leaks(test_case: unittest.TestCase) -> None:
     test_case.assertEqual(0, Persistence.PersistentObjectProxy.count)
     test_case.assertEqual(0, Persistence.PersistentObjectReference.count)
     test_case.assertEqual(0, Persistence.PersistentObject.count)
+    test_case.assertEqual(0, ReferenceCounting.ReferenceCounted.count)
 
 
 class MemoryProfileContext:
@@ -62,7 +65,7 @@ class MemoryProfileContext:
         self._test_data_read_event = Event.Event()
         self.__profile = None
 
-        self.__items_to_close = list()
+        self.__items_exit = list()
 
     def reset_profile(self):
         self.__profile = None
@@ -92,7 +95,7 @@ class MemoryProfileContext:
             if add_project:
                 add_project_memory(profile, self.project_uuid)
             self.__profile = profile
-            self.__items_to_close.append(profile)
+            self.__items_exit.append(profile.close)
             return profile
         else:
             storage_system = self.__storage_system
@@ -100,7 +103,7 @@ class MemoryProfileContext:
             profile = Profile.Profile(storage_system=storage_system, storage_cache=self.storage_cache)
             profile.storage_system = storage_system
             profile.profile_context = self
-            self.__items_to_close.append(profile)
+            self.__items_exit.append(profile.close)
             return profile
 
     @property
@@ -115,30 +118,36 @@ class MemoryProfileContext:
         document_model = project_reference.document_model
         document_model._profile_for_test = profile
         if auto_close:
-            self.__items_to_close.append(document_model)
+            document_model.add_ref()
+            self.__items_exit.append(document_model.remove_ref)
         return document_model
 
     def create_document_controller(self, *, auto_close: bool = True) -> DocumentController.DocumentController:
         document_model = self.create_document_model(auto_close=False)
         document_controller = DocumentController.DocumentController(TestUI.UserInterface(), document_model, workspace_id="library")
         if auto_close:
-            self.__items_to_close.append(document_controller)
+            self.__items_exit.append(document_controller.close)
         return document_controller
 
     def create_secondary_document_controller(self, document_model: DocumentModel.DocumentModel, *, auto_close: bool = True) -> DocumentController.DocumentController:
         document_controller = DocumentController.DocumentController(TestUI.UserInterface(), document_model, workspace_id="library")
         if auto_close:
-            self.__items_to_close.append(document_controller)
+            self.__items_exit.append(document_controller.close)
         return document_controller
 
     def create_document_controller_with_application(self) -> DocumentController.DocumentController:
         app = Application.Application(TestUI.UserInterface(), set_global=False)
         document_model = self.create_document_model(auto_close=False)
         document_controller = app.create_document_controller(document_model, "library")
-        self.__items_to_close.append(document_controller)
+        self.__items_exit.append(document_controller.close)
         self.__app = app  # hold a reference
         app._set_document_model(document_model)  # required to allow API to find document model
         return document_controller
+
+    def create_application(self) -> Application.Application:
+        app = Application.Application(TestUI.UserInterface(), set_global=False)
+        self.__app = app  # hold a reference
+        return app
 
     def __enter__(self):
         return self
@@ -147,9 +156,9 @@ class MemoryProfileContext:
         self.close()
 
     def close(self):
-        for item in reversed(self.__items_to_close):
-            item.close()
-        self.__items_to_close = list()
+        for item in reversed(self.__items_exit):
+            item()
+        self.__items_exit = list()
         self.__app = None
 
 

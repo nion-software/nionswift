@@ -942,7 +942,7 @@ class TestHardwareSourceClass(unittest.TestCase):
             self.__acquire_one(document_controller, hardware_source)
             self.assertEqual(len(document_model.data_items), 2)
             # reload
-            with contextlib.closing(simple_test_context.create_document_model(auto_close=False)) as document_model:
+            with simple_test_context.create_document_model(auto_close=False).ref() as document_model:
                 self.assertEqual(len(document_model.data_items), len(set([d.uuid for d in document_model.data_items])))
                 self.assertEqual(len(document_model.data_items), 2)
 

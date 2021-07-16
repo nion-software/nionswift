@@ -105,9 +105,10 @@ class TestHistogramPanelClass(unittest.TestCase):
 
     def test_target_region_stream_stops_updates_when_region_deselected(self):
         target_display_item_stream = HistogramPanel.TargetDisplayItemStream(self.document_controller)
-        target_region_stream = HistogramPanel.TargetRegionStream(target_display_item_stream).add_ref()
-        try:
+        target_region_stream = HistogramPanel.TargetRegionStream(target_display_item_stream)
+        with target_region_stream.ref():
             count = 0
+
             def new_region(graphic: Graphics.Graphic) -> None:
                 nonlocal count
                 count += 1
@@ -124,9 +125,6 @@ class TestHistogramPanelClass(unittest.TestCase):
                 rect_region.bounds = (0.2, 0.2), (0.2, 0.2)  # count 2
                 rect_region.bounds = (0.2, 0.2), (0.2, 0.2)  # count 2
                 self.assertEqual(count0, count)
-
-        finally:
-            target_region_stream.remove_ref()
 
     def test_cursor_histogram_of_empty_data_displays_without_exception(self):
         self.data_item.set_xdata(DataAndMetadata.DataAndMetadata(lambda: None, ((0, 0), float)))
