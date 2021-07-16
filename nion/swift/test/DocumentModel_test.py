@@ -84,7 +84,7 @@ class TestDocumentModelClass(unittest.TestCase):
     def test_loading_document_with_duplicated_data_items_ignores_earlier_ones(self):
         with create_memory_profile_context() as profile_context:
             document_model = profile_context.create_document_model(auto_close=False)
-            with contextlib.closing(document_model):
+            with document_model.ref():
                 data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.uint32))
                 document_model.append_data_item(data_item)
             # modify data reference to have duplicate
@@ -96,7 +96,7 @@ class TestDocumentModelClass(unittest.TestCase):
             profile_context.data_properties_map[new_properties_key] = copy.deepcopy(profile_context.data_properties_map[old_properties_key])
             # reload and verify
             document_model = profile_context.create_document_model(auto_close=False)
-            with contextlib.closing(document_model):
+            with document_model.ref():
                 self.assertEqual(len(document_model.data_items), len(set([d.uuid for d in document_model.data_items])))
                 self.assertEqual(len(document_model.data_items), 1)
 
@@ -2194,7 +2194,7 @@ class TestDocumentModelClass(unittest.TestCase):
     def test_delete_display_item_with_missing_data_item_reference(self):
         with create_memory_profile_context() as profile_context:
             document_model = profile_context.create_document_model(auto_close=False)
-            with contextlib.closing(document_model):
+            with document_model.ref():
                 data_item1 = DataItem.DataItem(numpy.ones((2, 2)))
                 document_model.append_data_item(data_item1)
                 data_item2 = DataItem.DataItem(numpy.ones((2, 2)))
@@ -2205,7 +2205,7 @@ class TestDocumentModelClass(unittest.TestCase):
                 display_item.append_display_data_channel(DisplayItem.DisplayDataChannel(data_item=data_item2))
             profile_context.project_properties["display_items"][2]["display_data_channels"][0]["data_item_reference"] = str(uuid.uuid4())
             document_model = profile_context.create_document_model(auto_close=False)
-            with contextlib.closing(document_model):
+            with document_model.ref():
                 document_model.remove_display_item(document_model.display_items[-1])
 
     def test_delete_one_data_item_from_multi_data_item_display(self):
@@ -2262,19 +2262,19 @@ class TestDocumentModelClass(unittest.TestCase):
     def test_data_item_reference_gets_reconnected_when_reloading(self):
         with create_memory_profile_context() as profile_context:
             document_model = profile_context.create_document_model(auto_close=False)
-            with contextlib.closing(document_model):
+            with document_model.ref():
                 data_item = DataItem.DataItem(numpy.ones((2, 2)))
                 document_model.append_data_item(data_item)
                 document_model._update_data_item_reference("abc", data_item)
             document_model = profile_context.create_document_model(auto_close=False)
-            with contextlib.closing(document_model):
+            with document_model.ref():
                 data_item_reference = document_model.get_data_item_reference("abc")
                 self.assertEqual(document_model.data_items[0], data_item_reference.data_item)
 
     def test_data_item_reference_gets_connected_when_referenced_before_setting(self):
         with create_memory_profile_context() as profile_context:
             document_model = profile_context.create_document_model(auto_close=False)
-            with contextlib.closing(document_model):
+            with document_model.ref():
                 document_model.get_data_item_reference("abc")
                 data_item = DataItem.DataItem(numpy.ones((2, 2)))
                 document_model.append_data_item(data_item)
@@ -2285,7 +2285,7 @@ class TestDocumentModelClass(unittest.TestCase):
     def test_display_items_with_multiple_data_channels_list_all_sources(self):
         with create_memory_profile_context() as profile_context:
             document_model = profile_context.create_document_model(auto_close=False)
-            with contextlib.closing(document_model):
+            with document_model.ref():
                 data_item = DataItem.DataItem(numpy.ones((4, )))
                 document_model.append_data_item(data_item)
                 display_item = document_model.get_display_item_for_data_item(data_item)
@@ -2306,7 +2306,7 @@ class TestDocumentModelClass(unittest.TestCase):
     def test_display_items_with_multiple_data_channels_processing(self):
         with create_memory_profile_context() as profile_context:
             document_model = profile_context.create_document_model(auto_close=False)
-            with contextlib.closing(document_model):
+            with document_model.ref():
                 data_item = DataItem.DataItem(numpy.ones((4, )))
                 document_model.append_data_item(data_item)
                 display_item = document_model.get_display_item_for_data_item(data_item)
@@ -2326,7 +2326,7 @@ class TestDocumentModelClass(unittest.TestCase):
         with create_memory_profile_context() as profile_context:
             self.assertEqual(0, len(DocumentModel.MappedItemManager().item_map.keys()))
             document_model = profile_context.create_document_model(auto_close=False)
-            with contextlib.closing(document_model):
+            with document_model.ref():
                 item_uuid = uuid.uuid4()
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32), item_uuid=item_uuid)
                 document_model.append_data_item(data_item)

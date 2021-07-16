@@ -313,7 +313,7 @@ class DataItemThumbnailSource(AbstractThumbnailSource):
             self.__thumbnail_updated_event_listener.close()
             self.__thumbnail_updated_event_listener = None
         if self.__thumbnail_source:
-            self.__thumbnail_source.close()
+            self.__thumbnail_source.remove_ref()
             self.__thumbnail_source = None
 
     def __update_thumbnail(self) -> None:
@@ -331,7 +331,7 @@ class DataItemThumbnailSource(AbstractThumbnailSource):
             self.__detach_listeners()
             self.__display_item = display_item
             if display_item:
-                self.__thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.ui, display_item)
+                self.__thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.ui, display_item).add_ref()
                 self.__thumbnail_updated_event_listener = self.__thumbnail_source.thumbnail_updated_event.listen(self.__update_thumbnail)
             self.__update_thumbnail()
             if self.__display_item_binding:

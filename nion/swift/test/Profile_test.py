@@ -61,20 +61,21 @@ class TestProfileClass(unittest.TestCase):
             # use lower level calls to create the profile and open the window via the app
             profile = profile_context.create_profile()
             profile.read_profile()
-            self.app._set_profile_for_test(profile)
+            app = profile_context.create_application()
+            app._set_profile_for_test(profile)
             TestContext.add_project_memory(profile, load=False)
             # load first project and check conditions
-            document_controller = self.app.open_project_window(profile.project_references[0])
+            document_controller = app.open_project_window(profile.project_references[0])
             self.assertEqual("loaded", profile.project_references[0].project_state)
             self.assertEqual("unloaded", profile.project_references[1].project_state)
             # switch projects and check conditions
             document_controller.request_close()
-            document_controller = self.app.open_project_window(profile.project_references[1])
+            document_controller = app.open_project_window(profile.project_references[1])
             self.assertEqual("unloaded", profile.project_references[0].project_state)
             self.assertEqual("loaded", profile.project_references[1].project_state)
             # switch projects again and check conditions
             document_controller.request_close()
-            document_controller = self.app.open_project_window(profile.project_references[0])
+            document_controller = app.open_project_window(profile.project_references[0])
             self.assertEqual("loaded", profile.project_references[0].project_state)
             self.assertEqual("unloaded", profile.project_references[1].project_state)
             document_controller.request_close()

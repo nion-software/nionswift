@@ -291,7 +291,8 @@ class TestDataItemClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             self.assertTrue(display_item._display_cache.is_cached_value_dirty(display_item, "thumbnail_data"))
-            with contextlib.closing(Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.app.ui, display_item)) as thumbnail_source:
+            thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.app.ui, display_item)
+            with thumbnail_source.ref():
                 thumbnail_source.recompute_data()
                 self.assertIsNotNone(thumbnail_source.thumbnail_data)
                 self.assertFalse(display_item._display_cache.is_cached_value_dirty(display_item, "thumbnail_data"))
@@ -305,7 +306,8 @@ class TestDataItemClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((1, 300), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            with contextlib.closing(Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.app.ui, display_item)) as thumbnail_source:
+            thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.app.ui, display_item)
+            with thumbnail_source.ref():
                 thumbnail_source.recompute_data()
                 thumbnail_data = thumbnail_source.thumbnail_data
                 self.assertTrue(functools.reduce(lambda x, y: x * y, thumbnail_data.shape) > 0)
@@ -318,7 +320,8 @@ class TestDataItemClass(unittest.TestCase):
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            with contextlib.closing(Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.app.ui, display_item)) as thumbnail_source:
+            thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.app.ui, display_item)
+            with thumbnail_source.ref():
                 thumbnail_source.recompute_data()
                 self.assertIsNotNone(thumbnail_source.thumbnail_data)
 
@@ -330,7 +333,8 @@ class TestDataItemClass(unittest.TestCase):
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            with contextlib.closing(Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.app.ui, display_item)) as thumbnail_source:
+            thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.app.ui, display_item)
+            with thumbnail_source.ref():
                 thumbnail_source.recompute_data()
                 self.assertIsNotNone(thumbnail_source.thumbnail_data)
 
@@ -340,7 +344,8 @@ class TestDataItemClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((256), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            with contextlib.closing(Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.app.ui, display_item)) as thumbnail_source:
+            thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.app.ui, display_item)
+            with thumbnail_source.ref():
                 thumbnail_source.recompute_data()
                 self.assertIsNotNone(thumbnail_source.thumbnail_data)
 
@@ -352,7 +357,8 @@ class TestDataItemClass(unittest.TestCase):
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            with contextlib.closing(Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.app.ui, display_item)) as thumbnail_source:
+            thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.app.ui, display_item)
+            with thumbnail_source.ref():
                 thumbnail_source.recompute_data()
                 self.assertIsNotNone(thumbnail_source.thumbnail_data)
 
@@ -364,7 +370,8 @@ class TestDataItemClass(unittest.TestCase):
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            with contextlib.closing(Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.app.ui, display_item)) as thumbnail_source:
+            thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.app.ui, display_item)
+            with thumbnail_source.ref():
                 thumbnail_source.recompute_data()
                 self.assertIsNotNone(thumbnail_source.thumbnail_data)
 
@@ -377,7 +384,8 @@ class TestDataItemClass(unittest.TestCase):
             data_item_inverted = document_model.get_invert_new(display_item, display_item.data_item)
             inverted_display_item = document_model.get_display_item_for_data_item(data_item_inverted)
             document_model.recompute_all()
-            with contextlib.closing(Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.app.ui, inverted_display_item)) as thumbnail_source:
+            thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.app.ui, inverted_display_item)
+            with thumbnail_source.ref():
                 thumbnail_source.recompute_data()
                 thumbnail_source.thumbnail_data
                 # here the data should be computed and the thumbnail should not be dirty

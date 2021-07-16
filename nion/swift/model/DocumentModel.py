@@ -765,7 +765,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
     def __prune(self):
         self._project.prune()
 
-    def close(self):
+    def about_to_delete(self) -> None:
         with self.__call_soon_queue_lock:
             self.__call_soon_queue = list()
 
@@ -839,6 +839,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.__project = None
         self.__class__.count -= 1
 
+        super().about_to_delete()
+
     def __call_soon(self, fn):
         # add the function to the queue of items to call on the main thread.
         # use a queue here in case it is called before the listener is configured,
@@ -866,10 +868,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             self.__call_soon_queue = list()
         for fn in call_soon_queue:
             fn()
-
-    def about_to_delete(self):
-        # override from ReferenceCounted. several DocumentControllers may retain references
-        self.close()
 
     def __project_item_inserted(self, name: str, item, before_index: int) -> None:
         if name == "data_items":

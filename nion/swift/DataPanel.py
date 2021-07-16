@@ -101,7 +101,7 @@ class DisplayItemAdapter:
             self.__thumbnail_updated_event_listener.close()
             self.__thumbnail_updated_event_listener = None
         if self.__thumbnail_source:
-            self.__thumbnail_source.close()
+            self.__thumbnail_source.remove_ref()
             self.__thumbnail_source = None
         if self.__display_changed_event_listener:
             self.__display_changed_event_listener.close()
@@ -162,11 +162,12 @@ class DisplayItemAdapter:
     def calculate_thumbnail_data(self) -> typing.Optional[numpy.ndarray]:
         # grab the display specifier and if there is a display, handle thumbnail updating.
         if self.__display_item and not self.__thumbnail_source:
-            self.__thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.ui, self.__display_item)
+            self.__thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.ui, self.__display_item).add_ref()
 
             def thumbnail_updated():
                 self.needs_update_event.fire()
 
+            assert self.__thumbnail_source  # type checker
             self.__thumbnail_updated_event_listener = self.__thumbnail_source.thumbnail_updated_event.listen(thumbnail_updated)
 
         return self.__thumbnail_source.thumbnail_data if self.__thumbnail_source else None

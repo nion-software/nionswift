@@ -59,8 +59,12 @@ class Panel:
 
     # subclasses can override to clean up when the panel closes.
     def close(self) -> None:
-        if self.dock_widget:  # sometimes encountered during tests
+        if self.dock_widget:
+            # added to a dock widget, closing dock widget will close the widget
             self.dock_widget.close()
+        else:
+            # never added to a dock widget, so explicitly close
+            self.widget.close()
         self.widget = typing.cast(UserInterface.Widget, None)  # closed by the dock_widget
         Panel.count -= 1
 
