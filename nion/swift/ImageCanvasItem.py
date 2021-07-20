@@ -237,6 +237,7 @@ class ScaleMarkerCanvasItem(CanvasItem.AbstractCanvasItem):
             needs_update = True
         if needs_update:
             self.__update_sizing()
+            self.update()
 
     def _repaint(self, drawing_context):
         dimensional_calibration = self.__dimensional_calibration
@@ -427,7 +428,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
 
         # create the child canvas items
         # the background
-        # next the zooma-ble items
+        # next the zoom-able items
         self.__bitmap_canvas_item = CanvasItem.BitmapCanvasItem(background_color="#888" if draw_background else "transparent")
         self.__graphics_canvas_item = GraphicsCanvasItem(ui_settings)
         # put the zoom-able items into a composition
