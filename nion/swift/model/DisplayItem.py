@@ -1868,7 +1868,7 @@ class DisplayItem(Observable.Observable, Persistence.PersistentObject):
         return [self.graphics[i] for i in self.graphic_selection.indexes]
 
     def __insert_graphic(self, name, before_index, graphic):
-        graphic_changed_listener = graphic.graphic_changed_event.listen(functools.partial(self.__graphic_changed, graphic))
+        graphic_changed_listener = graphic.property_changed_event.listen(lambda p: self.__graphic_changed(graphic))
         self.__graphic_changed_listeners.insert(before_index, graphic_changed_listener)
         self.graphic_selection.insert_index(before_index)
         self.notify_insert_item("graphics", graphic, before_index)

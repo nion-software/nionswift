@@ -661,7 +661,7 @@ class TargetRegionStream(Stream.AbstractStream):
         self.__display_item_stream = display_item_stream.add_ref()
         # initialize
         self.__display_graphic_selection_changed_event_listener = None
-        self.__value = None
+        self.__value: typing.Optional[Graphics.Graphic] = None
         # listen for display changes
         self.__display_stream_listener = display_item_stream.value_stream.listen(self.__display_item_changed)
         self.__graphic_changed_event_listener = None
@@ -677,7 +677,7 @@ class TargetRegionStream(Stream.AbstractStream):
         super().about_to_delete()
 
     @property
-    def value(self):
+    def value(self) -> typing.Optional[Graphics.Graphic]:
         return self.__value
 
     def __display_item_changed(self, display_item):
@@ -687,7 +687,7 @@ class TargetRegionStream(Stream.AbstractStream):
                 new_value = display_item.graphics[current_index]
                 if new_value != self.__value:
                     self.__value = new_value
-                    def graphic_changed():
+                    def graphic_changed(property: str) -> None:
                         self.value_stream.fire(self.__value)
                     def graphic_removed():
                         self.__value = None
@@ -699,9 +699,9 @@ class TargetRegionStream(Stream.AbstractStream):
                         self.__graphic_about_to_be_removed_event_listener.close()
                         self.__graphic_about_to_be_removed_event_listener = None
                     if self.__value:
-                        self.__graphic_changed_event_listener = self.__value.graphic_changed_event.listen(graphic_changed)
+                        self.__graphic_changed_event_listener = self.__value.property_changed_event.listen(graphic_changed)
                         self.__graphic_about_to_be_removed_event_listener = self.__value.about_to_be_removed_event.listen(graphic_removed)
-                    graphic_changed()
+                    graphic_changed("role")  # pass a dummy property
             elif self.__value is not None:
                 self.__value = None
                 if self.__graphic_changed_event_listener:

@@ -562,7 +562,6 @@ class Graphic(Observable.Observable, Persistence.PersistentObject):
         self.define_property("is_bounds_constrained", False, changed=self._property_changed)
         self.define_property("role", None, changed=self._property_changed)
         self.__region = None
-        self.graphic_changed_event = Event.Event()
         self.label_padding = 4
         self.label_font = "normal 11px serif"
         self.__source_reference = self.create_item_reference()
@@ -729,10 +728,6 @@ class Graphic(Observable.Observable, Persistence.PersistentObject):
                 ctx.text_align = "center"
                 ctx.fill_style = "#000"
                 ctx.fill_text(self.label, text_pos.x, text_pos.y)
-
-    def notify_property_changed(self, key):
-        super().notify_property_changed(key)
-        self.graphic_changed_event.fire()
 
     def nudge(self, mapping, delta):
         pass
