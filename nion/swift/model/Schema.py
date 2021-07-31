@@ -112,7 +112,7 @@ class SimpleEntityContext(EntityContext):
 
 
 class Field(abc.ABC):
-    """A field in an entity or another field.
+    """A value-holding field in an entity or another field.
 
     The context is used to resolve references and must be valid to read entities containing references.
     """
@@ -153,6 +153,8 @@ class Field(abc.ABC):
 
 
 class PropertyField(Field):
+    """A value property field, which can hold a simple value."""
+
     def __init__(self, context: typing.Optional[EntityContext], type: str, optional: bool, default):
         super().__init__(context)
         self.__type = type
@@ -176,6 +178,8 @@ class PropertyField(Field):
 
 
 class TupleField(Field):
+    """A tuple property field, which can hold an indefinite tuple of simple values."""
+
     def __init__(self, context: typing.Optional[EntityContext], type: FieldType, optional: bool, default_values):
         super().__init__(context)
         assert isinstance(type, FieldType)
@@ -224,6 +228,8 @@ class TupleField(Field):
 
 
 class FixedTupleField(Field):
+    """A tuple property field, which can hold a fixed length tuple of simple values."""
+
     def __init__(self, context: typing.Optional[EntityContext], types: typing.Sequence[FieldType], optional: bool, default_values):
         super().__init__(context)
         assert default_values is None or isinstance(default_values, (tuple, list))
@@ -272,6 +278,8 @@ class FixedTupleField(Field):
 
 
 class RecordField(Field):
+    """A record property field, which can hold a mapping of strings to simple values."""
+
     def __init__(self, context: typing.Optional[EntityContext], field_type_map: typing.Mapping[str, FieldType]):
         super().__init__(context)
         self.__field_type_map = field_type_map
@@ -313,6 +321,8 @@ class RecordField(Field):
 
 
 class ArrayField(Field):
+    """A array of fields, which can be simple values, references, or components."""
+
     def __init__(self, context: typing.Optional[EntityContext], type: FieldType, optional: bool):
         super().__init__(context)
         self.__type = type
@@ -367,6 +377,8 @@ class ArrayField(Field):
 
 
 class MapField(Field):
+    """A map of strings to fields, which can be simple values, references, or components."""
+
     def __init__(self, context: typing.Optional[EntityContext], key: FieldType, value: FieldType, optional: bool):
         super().__init__(context)
         self.__key = key
@@ -409,6 +421,8 @@ class MapField(Field):
 
 
 class ReferenceField(Field):
+    """A reference field, references another entity without cascading delete."""
+
     def __init__(self, context: typing.Optional[EntityContext], type: EntityType):
         super().__init__(context)
         self.__type = type
@@ -469,11 +483,12 @@ class ReferenceField(Field):
 
 
 class ComponentField(Field):
+    """A component field, references another entity with cascading delete."""
+
     def __init__(self, context: typing.Optional[EntityContext], entity_id: str):
         super().__init__(context)
         self.__type = get_entity_type(entity_id)
         self.__entity: typing.Optional[Entity] = None
-        self.__value: ItemProxyEntity = None
 
     def close(self) -> None:
         if self.__entity:
@@ -496,19 +511,23 @@ class ComponentField(Field):
 
     @property
     def field_value(self) -> typing.Any:
-        return self.__value
+        return self.__entity
 
     def set_field_value(self, container: ItemProxyEntity, value: typing.Any) -> None:
-        if self.__value:
-            self.__value._container = None
-            self.__value._set_entity_context(None)
-        self.__value = value
-        if self.__value:
-            self.__value._container = container
-            self.__value._set_entity_context(self._context)
+        if self.__entity:
+            self.__entity._container = None
+            self.__entity._set_entity_context(None)
+        self.__entity = value
+        if self.__entity:
+            self.__entity._container = container
+            self.__entity._set_entity_context(self._context)
 
 
 class FieldType(abc.ABC):
+    """A field type that provides the ability to create a field of a given type.
+
+    The field class is a callable returning a field. The args and kwargs are passed to the callable.
+    """
     def __init__(self, field_class: typing.Callable[..., Field], *args, **kwargs):
         assert callable(field_class)
         self.__field_class = field_class
@@ -637,6 +656,9 @@ class Entity(Observable.Observable):
             entity_copy._set_field_value(k, self._get_field_value(k))
         memo[id(self)] = entity_copy
         return entity_copy
+
+    def __repr__(self) -> str:
+        return f"entity '{self.__entity_type.entity_id}' at 0x{id(self):x}"
 
     @property
     def _entity_context(self) -> typing.Optional[EntityContext]:
