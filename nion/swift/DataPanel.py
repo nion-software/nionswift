@@ -312,6 +312,7 @@ class DataListController:
         self.__display_item_adapter_end_changes_event_listener.close()
         self.__display_item_adapter_end_changes_event_listener = None
         self.__display_item_adapters = typing.cast(typing.List, None)
+        self.__display_item_adapters_model = typing.cast(ListModel.MappedListModel, None)
         self.on_context_menu_event = None
         self.on_drag_started = None
         self.on_focus_changed = None
@@ -559,6 +560,7 @@ class DataGridController:
             display_item_adapter_needs_update_listener.close()
         self.__display_item_adapter_needs_update_listeners = typing.cast(typing.List, None)
         self.__display_item_adapters = typing.cast(typing.List, None)
+        self.__display_item_adapters_model = None
         self.on_context_menu_event = None
         self.on_drag_started = None
         self.on_focus_changed = None
@@ -820,6 +822,8 @@ class DataPanel(Panel.Panel):
         # button group
         self.__view_button_group.close()
         self.__view_button_group = typing.cast(CanvasItem.RadioButtonGroup, None)
+        self.__selection_changed_event_listener.close()
+        self.__selection_changed_event_listener = typing.cast(Event.EventListener, None)
 
     def __notify_focus_changed(self) -> None:
         # this is called when the keyboard focus for the data panel is changed.

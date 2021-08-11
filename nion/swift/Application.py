@@ -75,8 +75,6 @@ class Application(UIApplication.BaseApplication):
         logging.getLogger("migration").setLevel(logging.ERROR)
         logging.getLogger("loader").setLevel(logging.ERROR)
 
-        global app
-
         ui.set_application_info("Nion Swift", "Nion", "nion.com")
 
         self.ui.persistence_root = "3"  # sets of preferences
@@ -85,8 +83,8 @@ class Application(UIApplication.BaseApplication):
 
         self.document_model_available_event = Event.Event()
 
-        if True or set_global:
-            app = self  # hack to get the single instance set. hmm. better way?
+        global app
+        app = self  # hack to get the single instance set. hmm. better way?
 
         self.__profile = None
         self.__document_model = None
@@ -133,8 +131,11 @@ class Application(UIApplication.BaseApplication):
         if self.__profile:
             self.__profile.close()
             self.__profile = None
+        self.__document_model = None
         HardwareSource.HardwareSourceManager().close()
         PlugInManager.unload_plug_ins()
+        global app
+        app = None  # hack to get the single instance set. hmm. better way?
         self.__class__.count -= 1
         super().deinitialize()
 

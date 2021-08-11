@@ -287,6 +287,7 @@ class OrderedArrayArraySourceAdapter(AbstractArraySourceAdapter):
         self.__item_removed_listener = None
         self.__list_model.close()
         self.__list_model = None
+        self.__items = None
 
     @property
     def items(self) -> typing.Sequence:
@@ -330,6 +331,7 @@ class SetArraySourceAdapter(AbstractArraySourceAdapter):
         self.__item_added_listener = None
         self.__item_discarded_listener.close()
         self.__item_discarded_listener = None
+        self.__items = None
 
     @property
     def items(self) -> typing.Sequence:
@@ -365,6 +367,9 @@ class ItemSequenceSource(AbstractItemSequenceSource):
         self.__item_source_changed_listener = None
         self.__item_source.close()
         self.__item_source = None
+        if self.__adapter:
+            self.__adapter.close()
+            self.__adapter = None
 
     @property
     def item_inserted_event(self):
@@ -466,7 +471,7 @@ class FunctionItemTransformer(AbstractItemTransformer):
         self.__value = fn(item)
 
     def close(self) -> None:
-        pass
+        self.__value = None
 
     @property
     def item(self) -> ItemValue:
@@ -502,6 +507,7 @@ class TransformedItemSource(AbstractItemSource):
         self.__item_source_changed_listener = None
         self.__item_source.close()
         self.__item_source = None
+        self.__item_value = None
 
     @property
     def item_changed_event(self):
@@ -557,6 +563,7 @@ class TransformedItemSequence(AbstractItemSequenceSource):
         self.__item_mutated_listener = None
         for item in self.__transformers:
             item.close()
+        self.__transformers = None
         self.__item_sequence_source.close()
         self.__item_sequence_source = None
 
@@ -702,8 +709,10 @@ class MappedItemSequence(AbstractItemSequenceSource):
         self.__item_mutated_listener = None
         for mapped_item_listener in self.__mapped_item_listeners:
             mapped_item_listener.close()
+        self.__mapped_item_listeners = None
         for item in self.__mapped_items:
             item.close()
+        self.__mapped_items = None
         self.__item_sequence_source.close()
         self.__item_sequence_source = None
 
@@ -952,6 +961,7 @@ class ItemSequenceIndex(AbstractItemSource):
         self.__item_mutated_listener = None
         self.__item_sequence_source.close()
         self.__item_sequence_source = None
+        self.__item = None
 
     @property
     def item_changed_event(self):
@@ -989,6 +999,7 @@ class ItemTuple(AbstractItemSource):
             if item:
                 item.close()
         self.__items = None
+        self.__values = None
 
     @property
     def item_changed_event(self):

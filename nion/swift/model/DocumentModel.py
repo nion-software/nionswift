@@ -829,10 +829,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             self.__project_property_changed_listener = None
 
         for computation in self.__computations:
-            computation_changed_listener = self.__computation_changed_listeners.pop(computation, None)
-            if computation_changed_listener: computation_changed_listener.close()
-            computation_output_changed_listener = self.__computation_output_changed_listeners.pop(computation, None)
-            if computation_output_changed_listener: computation_output_changed_listener.close()
+            self.__computation_changed_listeners.pop(computation).close()
+            self.__computation_output_changed_listeners.pop(computation).close()
 
         self.__project.persistent_object_context = None
         self.__project.close()

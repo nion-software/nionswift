@@ -618,6 +618,7 @@ class HistogramPanel(Panel.Panel):
         self.__color_map_data_model = None
         self.__statistics_model.close()
         self.__statistics_model = None
+        self._statistics_widget = None
         super().close()
 
 
@@ -636,7 +637,7 @@ class TargetDisplayItemStream(Stream.AbstractStream):
 
     def about_to_delete(self) -> None:
         # disconnect data item binding
-        self.__focused_display_item_changed(None)
+        self.__value = None
         self.__focused_display_item_changed_event_listener.close()
         self.__focused_display_item_changed_event_listener = None
         super().about_to_delete()
@@ -669,11 +670,20 @@ class TargetRegionStream(Stream.AbstractStream):
         self.__display_item_changed(display_item_stream.value)
 
     def about_to_delete(self) -> None:
-        self.__display_item_changed(None)
         self.__display_stream_listener.close()
         self.__display_stream_listener = None
         self.__display_item_stream.remove_ref()
         self.__display_item_stream = None
+        if self.__graphic_changed_event_listener:
+            self.__graphic_changed_event_listener.close()
+            self.__graphic_changed_event_listener = None
+        if self.__graphic_about_to_be_removed_event_listener:
+            self.__graphic_about_to_be_removed_event_listener.close()
+            self.__graphic_about_to_be_removed_event_listener = None
+        if self.__display_graphic_selection_changed_event_listener:
+            self.__display_graphic_selection_changed_event_listener.close()
+            self.__display_graphic_selection_changed_event_listener = None
+        self.__value = None
         super().about_to_delete()
 
     @property
@@ -752,7 +762,13 @@ class DisplayDataChannelTransientsStream(Stream.AbstractStream):
         self.__display_data_channel_changed(display_data_channel_stream.value)
 
     def about_to_delete(self) -> None:
-        self.__display_data_channel_changed(None)
+        if self.__next_calculated_display_values_listener:
+            self.__next_calculated_display_values_listener.close()
+            self.__next_calculated_display_values_listener = None
+        if self.__display_values_changed_listener:
+            self.__display_values_changed_listener.close()
+            self.__display_values_changed_listener = None
+        self.__value = None
         self.__display_data_channel_stream_listener.close()
         self.__display_data_channel_stream_listener = None
         self.__display_data_channel_stream.remove_ref()

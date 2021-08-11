@@ -85,6 +85,8 @@ class ToolModeToolbarWidget:
     def close(self) -> None:
         self.__tool_mode_changed_event_listener.close()
         self.__tool_mode_changed_event_listener = None
+        self.__radio_button_value_listener.close()
+        self.__radio_button_value_listener = None
 
 
 class ActionTableToolbarWidget:

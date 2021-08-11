@@ -444,8 +444,7 @@ class TestSymbolicClass(unittest.TestCase):
             needs_update_ref = [False]
             def needs_update():
                 needs_update_ref[0] = True
-            needs_update_event_listener = computation.computation_mutated_event.listen(needs_update)
-            with contextlib.closing(needs_update_event_listener):
+            with contextlib.closing(computation.computation_mutated_event.listen(needs_update)):
                 with data_item.data_ref() as dr:
                     dr.data += 1.5
             self.assertTrue(needs_update_ref[0])
@@ -482,8 +481,7 @@ class TestSymbolicClass(unittest.TestCase):
             needs_update_ref = [False]
             def needs_update():
                 needs_update_ref[0] = True
-            needs_update_event_listener = computation.computation_mutated_event.listen(needs_update)
-            with contextlib.closing(needs_update_event_listener):
+            with contextlib.closing(computation.computation_mutated_event.listen(needs_update)):
                 metadata = data_item.metadata
                 metadata["abc"] = 1
                 data_item.metadata = metadata
@@ -503,8 +501,7 @@ class TestSymbolicClass(unittest.TestCase):
             needs_update_ref = [False]
             def needs_update():
                 needs_update_ref[0] = True
-            needs_update_event_listener = computation.computation_mutated_event.listen(needs_update)
-            with contextlib.closing(needs_update_event_listener):
+            with contextlib.closing(computation.computation_mutated_event.listen(needs_update)):
                 display_item.graphics[0].position = (0.3, 0.4)
             self.assertFalse(needs_update_ref[0])
 
@@ -526,8 +523,7 @@ class TestSymbolicClass(unittest.TestCase):
             needs_update_ref = [False]
             def needs_update():
                 needs_update_ref[0] = True
-            needs_update_event_listener = computation.computation_mutated_event.listen(needs_update)
-            with contextlib.closing(needs_update_event_listener):
+            with contextlib.closing(computation.computation_mutated_event.listen(needs_update)):
                 display_item.graphics[0].size = 0.53, 0.43
             self.assertTrue(needs_update_ref[0])
 
@@ -547,7 +543,7 @@ class TestSymbolicClass(unittest.TestCase):
             needs_update_ref = [False]
             def needs_update():
                 needs_update_ref[0] = True
-            with contextlib.closing(computation.computation_mutated_event.listen(needs_update)) as needs_update_event_listener:
+            with contextlib.closing(computation.computation_mutated_event.listen(needs_update)):
                 computation.create_input_item("a", Symbolic.make_item(data_item))
                 self.assertTrue(needs_update_ref[0])
                 needs_update_ref[0] = False
@@ -1247,8 +1243,7 @@ class TestSymbolicClass(unittest.TestCase):
             needs_update_ref = [False]
             def needs_update():
                 needs_update_ref[0] = True
-            needs_update_event_listener = computation.computation_mutated_event.listen(needs_update)
-            with contextlib.closing(needs_update_event_listener):
+            with contextlib.closing(computation.computation_mutated_event.listen(needs_update)):
                 computation.set_input_item("a", Symbolic.make_item(data_item2))
             self.assertTrue(needs_update_ref[0])
 
