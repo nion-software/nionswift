@@ -11,5 +11,5 @@ scipy
 numpy==1.19.3
 h5py
 pytz
-tzlocal
+tzlocal==2.1
 pillow
