@@ -13,6 +13,8 @@ import time
 import traceback
 
 # third party libraries
+import typing
+
 import numpy
 
 # local libraries
@@ -70,11 +72,15 @@ class TimezoneMinutesToStringConverter:
     def convert_back(self, value):
         return (int(value[1:3]) * 60 + int(value[3:5])) * (-1 if value[0] == '-' else 1) if value is not None else None
 
-local_timezone_override = None  # for testing
+local_timezone_override: typing.Optional[typing.List[str]] = None  # for testing
 try:
     import tzlocal
     def get_local_timezone():
-        return tzlocal.get_localzone().zone if local_timezone_override is None else local_timezone_override[0]
+        if local_timezone_override is None:
+            lz = tzlocal.get_localzone()
+            return getattr(lz, "key", getattr(lz, "zone", None))  # key for tzlocal 3.x, zone for tzlocal 2.x
+        else:
+            return local_timezone_override[0]
 except ImportError:
     def get_local_timezone():
         return None if local_timezone_override is None else local_timezone_override[0]
