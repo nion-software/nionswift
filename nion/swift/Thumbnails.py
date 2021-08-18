@@ -6,6 +6,8 @@
 import functools
 import threading
 import typing
+import uuid
+import weakref
 
 # third-party libraries
 import numpy
@@ -37,10 +39,11 @@ class ThumbnailProcessor:
 
     def close(self):
         self.on_thumbnail_updated = None
-        if self.__dispatcher:
-            self.__dispatcher.close()
+        self.__dispatcher.close()
         self.__dispatcher = None
         self.__display_item = None
+        self.__display_item_about_to_close_listener.close()
+        self.__display_item_about_to_close_listener = None
 
     def __about_to_close_display_item(self) -> None:
         self.close()
@@ -108,7 +111,6 @@ class ThumbnailSource(ReferenceCounting.ReferenceCounted):
 
         self.thumbnail_updated_event = Event.Event()
         self.__thumbnail_processor = ThumbnailProcessor(display_item)
-        self._on_will_delete = None
 
         def thumbnail_changed():
             thumbnail_processor = self.__thumbnail_processor
@@ -143,8 +145,6 @@ class ThumbnailSource(ReferenceCounting.ReferenceCounted):
         if self.__display_changed_event_listener:
             self.__display_changed_event_listener.close()
             self.__display_changed_event_listener = None
-        self._on_will_delete(self)
-        self._on_will_delete = None
         super().about_to_delete()
 
     @property
@@ -164,30 +164,29 @@ class ThumbnailManager(metaclass=Utility.Singleton):
     """Manages thumbnail sources for displays."""
 
     def __init__(self):
-        self.__thumbnail_sources = dict()
+        self.__thumbnail_sources: typing.Dict[uuid.UUID, weakref.ReferenceType[ThumbnailSource]] = dict()
         self.__lock = threading.RLock()
+
+    def thumbnail_sources(self) -> typing.Dict[uuid.UUID, weakref.ReferenceType[ThumbnailSource]]:
+        return self.__thumbnail_sources
 
     def thumbnail_source_for_display_item(self, ui, display_item: DisplayItem.DisplayItem) -> ThumbnailSource:
         """Returned ThumbnailSource must be closed."""
         with self.__lock:
-            thumbnail_source = self.__thumbnail_sources.get(display_item)
+            thumbnail_source_ref = self.__thumbnail_sources.get(display_item.uuid)
+            thumbnail_source = thumbnail_source_ref() if thumbnail_source_ref else None
             if not thumbnail_source:
                 thumbnail_source = ThumbnailSource(ui, display_item)
-
-                # note: do not add_ref. the _on_will_delete is called when the thumbnail_source is about to
-                # delete and takes care of removing it from the global list.
-                self.__thumbnail_sources[display_item] = thumbnail_source
-
-                def will_delete(thumbnail_source):
-                    self.__thumbnail_sources.pop(thumbnail_source._display_item)
-
-                thumbnail_source._on_will_delete = will_delete
+                self.__thumbnail_sources[display_item.uuid] = weakref.ref(thumbnail_source)
+                weakref.finalize(thumbnail_source, self.__thumbnail_sources.pop, display_item.uuid)
             else:
                 assert thumbnail_source._ui == ui
             return thumbnail_source
 
     def thumbnail_data_for_display_item(self, display_item: DisplayItem.DisplayItem) -> typing.Optional[numpy.ndarray]:
-        thumbnail_source = self.__thumbnail_sources.get(display_item) if display_item else None
-        if thumbnail_source:
-            return thumbnail_source.thumbnail_data
-        return None
+        with self.__lock:
+            thumbnail_source_ref = self.__thumbnail_sources.get(display_item.uuid) if display_item else None
+            thumbnail_source = thumbnail_source_ref() if thumbnail_source_ref else None
+            if thumbnail_source:
+                return thumbnail_source.thumbnail_data
+            return None

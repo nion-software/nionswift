@@ -36,12 +36,10 @@ class TestThumbnailsClass(unittest.TestCase):
             thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(document_controller.ui)
             with contextlib.closing(thumbnail_source):
                 finished = threading.Event()
+                thumbnail_source.set_display_item(display_item)  # this will trigger changed callback with None
                 def thumbnail_data_changed(data):
                     finished.set()
-                thumbnail_source.on_thumbnail_data_changed = thumbnail_data_changed
-                thumbnail_source.set_display_item(display_item)
-                finished.wait(1.0)
-                finished.clear()
+                thumbnail_source.on_thumbnail_data_changed = thumbnail_data_changed  # watch for actual data
                 finished.wait(1.0)
                 mime_data = document_controller.ui.create_mime_data()
                 valid, thumbnail = thumbnail_source.populate_mime_data_for_drag(mime_data, Geometry.IntSize(64, 64))

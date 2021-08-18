@@ -321,6 +321,7 @@ class TestStorageClass(unittest.TestCase):
                 thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.app.ui, display_item)
                 with thumbnail_source.ref():
                     thumbnail_source.recompute_data()
+                del thumbnail_source
             # read it back
             document_model = profile_context.create_document_model(auto_close=False)
             with document_model.ref():

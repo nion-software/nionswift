@@ -790,8 +790,9 @@ class TestDataPanelClass(unittest.TestCase):
             project_panel._collection_selection.set(1)
             document_controller.periodic()
             document_controller.selected_display_panel.set_display_panel_display_item(display_item)
-            display_item = data_panel.data_list_controller._test_get_display_item_adapter(0)
-            mime_data, thumbnail = display_item.drag_started(self.app.ui, 0, 0, 0)
+            with contextlib.closing(data_panel.data_list_controller._test_get_display_item_adapter(0)) as display_item_adapter:
+                # close to close thumbnail that is generated during drag_started
+                mime_data, thumbnail = display_item_adapter.drag_started(self.app.ui, 0, 0, 0)
             self.assertTrue(mime_data.has_format(MimeTypes.DISPLAY_ITEM_MIME_TYPE))
 
     def test_changing_filter_validates_data_browser_selection(self):
