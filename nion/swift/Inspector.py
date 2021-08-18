@@ -2857,9 +2857,10 @@ class GraphicsInspectorSection(InspectorSection):
         header_widget = self.__create_header_widget()
         header_for_empty_list_widget = self.__create_header_for_empty_list_widget()
         # create the widgets for each graphic
-        # TODO: do not use dynamic list object in graphics inspector; the dynamic aspect is not utilized.
         list_widget = Widgets.TableWidget(ui, lambda item: self.__create_list_item_widget(item), header_widget, header_for_empty_list_widget)
-        list_widget.bind_items(Binding.ListBinding(display_item, "selected_graphics" if selected_only else "graphics"))
+        graphics = getattr(display_item, "selected_graphics" if selected_only else "graphics")
+        for index, graphic in enumerate(graphics):
+            list_widget.insert_item(graphic, index)
         self.add_widget_to_content(list_widget)
         # create the display calibrations check box row
         display_calibrations_row = self.ui.create_row_widget()
