@@ -809,6 +809,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             self.__storage_cache = None
 
         self.__computation_thread_pool.close()
+        self.__computation_thread_pool = None
+
         self.__transaction_manager.close()
         self.__transaction_manager = None
 
@@ -1667,11 +1669,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                         break
             else:
                 break
-
-    def recompute_one(self, merge=True):
-        self.__computation_thread_pool.run_one()
-        if merge:
-            self.perform_data_item_merge()
 
     def start_dispatcher(self):
         self.__computation_thread_pool.start(1)
