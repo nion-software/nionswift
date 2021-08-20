@@ -164,10 +164,10 @@ class ThumbnailManager(metaclass=Utility.Singleton):
     """Manages thumbnail sources for displays."""
 
     def __init__(self):
-        self.__thumbnail_sources: typing.Dict[uuid.UUID, weakref.ReferenceType[ThumbnailSource]] = dict()
+        self.__thumbnail_sources: typing.Dict[uuid.UUID, weakref.ReferenceType] = dict()
         self.__lock = threading.RLock()
 
-    def thumbnail_sources(self) -> typing.Dict[uuid.UUID, weakref.ReferenceType[ThumbnailSource]]:
+    def thumbnail_sources(self) -> typing.Dict[uuid.UUID, weakref.ReferenceType]:
         return self.__thumbnail_sources
 
     def thumbnail_source_for_display_item(self, ui, display_item: DisplayItem.DisplayItem) -> ThumbnailSource:
