@@ -60,11 +60,38 @@ _ = gettext.gettext
 app = None
 
 
+class PersistenceHandler(UserInterface.PersistenceHandler):
+    # handle persistent values using a file instead of ui-tool.
+
+    def get_string(self, key: str) -> typing.Tuple[bool, str]:
+        application_data = ApplicationData.ApplicationData().data
+        values = application_data.get("preference-values", dict())
+        if key in values:
+            return True, values.get(key)
+        return False, str()
+
+    def set_string(self, key: str, value: str) -> bool:
+        application_data = ApplicationData.ApplicationData().data
+        values = application_data.setdefault("preference-values", dict())
+        values[key] = value
+        ApplicationData.ApplicationData().data = application_data
+        return True
+
+    def remove_key(self, key: str) -> bool:
+        application_data = ApplicationData.ApplicationData().data
+        values = application_data.get("preference-values", dict())
+        if key in values:
+            values.pop(key)
+            ApplicationData.ApplicationData().data = application_data
+            return True
+        return False
+
+
 # facilitate bootstrapping the application
 class Application(UIApplication.BaseApplication):
     count = 0  # useful for detecting leaks in tests
 
-    def __init__(self, ui, set_global=True, resources_path=None):
+    def __init__(self, ui: UserInterface.UserInterface, set_global=True, resources_path=None):
         super().__init__(ui)
         self.__class__.count += 1
 
@@ -77,6 +104,7 @@ class Application(UIApplication.BaseApplication):
 
         ui.set_application_info("Nion Swift", "Nion", "nion.com")
 
+        ui.set_persistence_handler(PersistenceHandler())
         self.ui.persistence_root = "3"  # sets of preferences
         self.__resources_path = resources_path
         self.version_str = "0.15.7"
@@ -89,7 +117,7 @@ class Application(UIApplication.BaseApplication):
         self.__profile = None
         self.__document_model = None
 
-        self.__menu_handlers = []
+        self.__menu_handlers: typing.List[typing.Callable[[DocumentController.DocumentController], None]] = []
 
         Registry.register_component(Inspector.DeclarativeImageChooserConstructor(self), {"declarative_constructor"})
         Registry.register_component(Inspector.DeclarativeDataSourceChooserConstructor(self), {"declarative_constructor"})
@@ -526,16 +554,16 @@ class Application(UIApplication.BaseApplication):
     def document_controllers(self) -> typing.List[DocumentController.DocumentController]:
         return typing.cast(typing.List[DocumentController.DocumentController], self.windows)
 
-    def register_menu_handler(self, new_menu_handler):
+    def register_menu_handler(self, new_menu_handler: typing.Callable[[DocumentController.DocumentController], None]) -> typing.Callable[[DocumentController.DocumentController], None]:
         assert new_menu_handler not in self.__menu_handlers
         self.__menu_handlers.append(new_menu_handler)
         # when a menu handler is registered, let it immediately know about existing menu handlers
         for document_controller in self.windows:
-            new_menu_handler(document_controller)
+            new_menu_handler(typing.cast(DocumentController.DocumentController, document_controller))
         # return the menu handler so that it can be used to unregister (think: lambda)
         return new_menu_handler
 
-    def unregister_menu_handler(self, menu_handler):
+    def unregister_menu_handler(self, menu_handler: typing.Callable[[DocumentController.DocumentController], None]) -> None:
         self.__menu_handlers.remove(menu_handler)
 
     @property
