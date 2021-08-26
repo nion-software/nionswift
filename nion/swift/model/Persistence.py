@@ -228,9 +228,10 @@ class PersistentObjectContext:
         registration_changed_key_map = self.__registration_changed_map.setdefault(uuid_, dict())
         registration_changed_key_map[key] = registration_changed_fn
 
-    def register(self, object: PersistentObject, item_specifier: PersistentObjectSpecifier) -> None:
+    def register(self, object: PersistentObject) -> None:
         # print(f"register {object} {item_specifier.write()} {len(self.__objects) + 1}")
         # assert item_specifier not in self.__objects
+        item_specifier = object.item_specifier
         self.__objects[item_specifier] = weakref.ref(object)
         self.registration_event.fire(object, None)
         registration_changed_key_map = self.__registration_changed_map.get(object.uuid, dict())
@@ -238,9 +239,10 @@ class PersistentObjectContext:
             if callable(registration_changed_fn):
                 registration_changed_fn(object, None)
 
-    def unregister(self, object: PersistentObject, item_specifier: PersistentObjectSpecifier) -> None:
+    def unregister(self, object: PersistentObject) -> None:
         # print(f"unregister {object} {item_specifier.write()} {len(self.__objects) - 1}")
         # assert item_specifier in self.__objects
+        item_specifier = object.item_specifier
         if item_specifier in self.__objects:
             self.__objects.pop(item_specifier)
             self.registration_event.fire(None, object)
@@ -629,10 +631,10 @@ class PersistentObject:
                 if item:
                     item.persistent_object_context = persistent_object_context
         if old_persistent_object_context:
-            old_persistent_object_context.unregister(self, self.__item_specifier)
+            old_persistent_object_context.unregister(self)
         if persistent_object_context:
             self.__item_specifier = self.item_specifier
-            persistent_object_context.register(self, self.__item_specifier)
+            persistent_object_context.register(self)
         self.persistent_object_context_changed()
         self.persistent_object_context_changed_event.fire()
 

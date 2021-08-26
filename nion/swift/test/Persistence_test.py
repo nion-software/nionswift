@@ -22,7 +22,7 @@ class TestPersistentObjectContextClass(unittest.TestCase):
         persistent_object_context = Persistence.PersistentObjectContext()
         object1 = Persistence.PersistentObject()
         with contextlib.closing(object1):
-            persistent_object_context.register(object1, object1.item_specifier)
+            persistent_object_context.register(object1)
             was_registered = False
             def registered(registered_item, unregistered_item) -> None:
                 nonlocal was_registered
@@ -41,7 +41,7 @@ class TestPersistentObjectContextClass(unittest.TestCase):
                 if registered_item == object1:
                     was_registered = True
             with persistent_object_context.registration_event.listen(registered):
-                persistent_object_context.register(object1, object1.item_specifier)
+                persistent_object_context.register(object1)
                 self.assertTrue(was_registered)
 
     def test_persistent_object_context_calls_unregister_when_object_becomes_unregistered(self):
@@ -56,17 +56,16 @@ class TestPersistentObjectContextClass(unittest.TestCase):
                 if unregistered_item == object1:
                     was_registered = False
             with persistent_object_context.registration_event.listen(registered):
-                item_specifier1 = object1.item_specifier
-                persistent_object_context.register(object1, item_specifier1)
+                persistent_object_context.register(object1)
                 self.assertTrue(was_registered)
-                persistent_object_context.unregister(object1, item_specifier1)
+                persistent_object_context.unregister(object1)
                 self.assertFalse(was_registered)
 
     def test_persistent_object_context_unregister_without_subscription_works(self):
         # this test will only generate extra output in the failure case, which has been fixed
         persistent_object_context = Persistence.PersistentObjectContext()
         object1 = Persistence.PersistentObject()
-        persistent_object_context.register(object1, object1.item_specifier)
+        persistent_object_context.register(object1)
         object1.close()
         object1 = None
 
