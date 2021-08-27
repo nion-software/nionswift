@@ -153,9 +153,13 @@ class Application(UIApplication.BaseApplication):
                 ColorMaps.load_color_maps(color_maps_dir)
             else:
                 logging.info("NOT Loading color maps from " + str(color_maps_dir) + " (missing)")
+            for component in Registry.get_components_by_type("application_changed"):
+                component(self)
 
     def deinitialize(self):
         # shut down hardware source manager, unload plug-ins, and really exit ui
+        for component in Registry.get_components_by_type("application_changed"):
+            component(None)
         if self.__profile:
             self.__profile.close()
             self.__profile = None
