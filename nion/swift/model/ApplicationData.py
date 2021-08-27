@@ -15,28 +15,17 @@ from nion.utils import Event
 from nion.utils import StructuredModel
 
 
-class Singleton(type):
-    def __init__(cls, name, bases, dict):
-        super(Singleton, cls).__init__(name, bases, dict)
-        cls.instance = None
-
-    def __call__(cls, *args, **kw):
-        if cls.instance is None:
-            cls.instance = super(Singleton, cls).__call__(*args, **kw)
-        return cls.instance
-
-
-class ApplicationData(metaclass=Singleton):
+class ApplicationData:
     """Application data is a singleton that stores application data."""
 
-    def __init__(self):
+    def __init__(self, file_path: typing.Optional[pathlib.Path] = None):
         self.__lock = threading.RLock()
-        self.__file_path = None
-        self.__data = None
+        self.__file_path = file_path
+        self.__data: typing.Optional[typing.Dict] = None
         self.data_changed_event = Event.Event()
 
     @property
-    def file_path(self) -> pathlib.Path:
+    def file_path(self) -> typing.Optional[pathlib.Path]:
         return self.__file_path
 
     @file_path.setter
@@ -73,21 +62,24 @@ class ApplicationData(metaclass=Singleton):
                 json.dump(self.__data, fp, skipkeys=True, indent=4)
 
 
+__application_data = ApplicationData()
+
+
 def set_file_path(file_path: pathlib.Path) -> None:
-    ApplicationData().file_path = file_path
+    __application_data.file_path = file_path
 
 
 def get_data() -> typing.Dict:
-    return ApplicationData().data
+    return __application_data.data
 
 
 def set_data(data: typing.Dict) -> None:
-    ApplicationData().data = data
+    __application_data.data = data
 
 
 #
 
-class SessionMetadata(metaclass=Singleton):
+class SessionMetadata:
     """Session data is a singleton that stores application data via the ApplicationData singleton."""
 
     def __init__(self):
@@ -112,8 +104,10 @@ class SessionMetadata(metaclass=Singleton):
     def model(self) -> StructuredModel.RecordModel:
         return self.__model
 
-def get_session_metadata_model() -> StructuredModel.RecordModel:
-    return SessionMetadata().model
+__session_metadata = SessionMetadata()
 
-def get_session_metadata_dict() -> typing.Dict:
-    return SessionMetadata().model.to_dict_value()
+def get_session_metadata_model() -> StructuredModel.RecordModel:
+    return __session_metadata.model
+
+def get_session_metadata_dict() -> typing.Dict[str, typing.Any]:
+    return dict(__session_metadata.model.to_dict_value())

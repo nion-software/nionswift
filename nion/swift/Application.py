@@ -64,25 +64,25 @@ class PersistenceHandler(UserInterface.PersistenceHandler):
     # handle persistent values using a file instead of ui-tool.
 
     def get_string(self, key: str) -> typing.Tuple[bool, str]:
-        application_data = ApplicationData.ApplicationData().data
+        application_data = ApplicationData.get_data()
         values = application_data.get("preference-values", dict())
         if key in values:
             return True, values.get(key)
         return False, str()
 
     def set_string(self, key: str, value: str) -> bool:
-        application_data = ApplicationData.ApplicationData().data
+        application_data = ApplicationData.get_data()
         values = application_data.setdefault("preference-values", dict())
         values[key] = value
-        ApplicationData.ApplicationData().data = application_data
+        ApplicationData.set_data(application_data)
         return True
 
     def remove_key(self, key: str) -> bool:
-        application_data = ApplicationData.ApplicationData().data
+        application_data = ApplicationData.get_data()
         values = application_data.get("preference-values", dict())
         if key in values:
             values.pop(key)
-            ApplicationData.ApplicationData().data = application_data
+            ApplicationData.set_data(application_data)
             return True
         return False
 
