@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import abc
+import collections
 import copy
 import datetime
 import json
@@ -8,6 +9,7 @@ import os
 import pathlib
 import typing
 import uuid
+import weakref
 
 from nion.utils import Converter
 from nion.utils import Observable
@@ -84,11 +86,20 @@ ItemProxyEntity = typing.Optional[typing.Any]  # use this to make it easy to swi
 
 
 class ItemProxy:
-    def __init__(self):
+    def __init__(self, item_uuid: typing.Optional[uuid.UUID]):
+        self.__item_uuid = item_uuid
         self.__item = None
 
     def close(self) -> None:
         pass
+
+    @property
+    def item_uuid(self) -> typing.Optional[uuid.UUID]:
+        return self.__item_uuid
+
+    @item_uuid.setter
+    def item_uuid(self, value: typing.Optional[uuid.UUID]) -> None:
+        self.__item_uuid = value
 
     @property
     def item(self) -> ItemProxyEntity:
@@ -102,13 +113,60 @@ class ItemProxy:
 class EntityContext(abc.ABC):
 
     @abc.abstractmethod
+    def register(self, entity: Entity) -> None: ...
+
+    @abc.abstractmethod
+    def unregister(self, entity: Entity) -> None: ...
+
+    @abc.abstractmethod
     def create_item_reference(self, item_uuid: typing.Optional[uuid.UUID] = None) -> ItemProxy: ...
+
+    @abc.abstractmethod
+    def update_item_reference_uuid(self, item_reference: ItemProxy, item_uuid: typing.Optional[uuid.UUID]) -> None: ...
 
 
 class SimpleEntityContext(EntityContext):
+    def __init__(self):
+        self.__entity_map: typing.Dict[uuid.UUID, weakref.ReferenceType] = dict()
+        self.__item_proxies: typing.List[weakref.ReferenceType] = list()
+
+    def register(self, entity: Entity) -> None:
+        self.__entity_map[entity.uuid] = weakref.ref(entity)
+        for item_proxy_ref in self.__item_proxies:
+            item_proxy = item_proxy_ref()
+            if item_proxy and item_proxy.item_uuid == entity.uuid:
+                item_proxy.item = entity
+
+    def unregister(self, entity: Entity) -> None:
+        self.__entity_map.pop(entity.uuid)
+        for item_proxy_ref in self.__item_proxies:
+            item_proxy = item_proxy_ref()
+            if item_proxy and item_proxy.item_uuid == entity.uuid:
+                item_proxy.item = None
 
     def create_item_reference(self, item_uuid: typing.Optional[uuid.UUID] = None) -> ItemProxy:
-        return ItemProxy()
+        item_proxy = ItemProxy(item_uuid)
+        if item_uuid and item_uuid in self.__entity_map:
+            entity_ref = self.__entity_map.get(item_uuid)
+            if entity_ref:
+                item_proxy.item = entity_ref()
+        item_proxy_ref = weakref.ref(item_proxy)
+        self.__item_proxies.append(item_proxy_ref)
+
+        def finalize(item_proxy_ref: weakref.ReferenceType, item_proxies: typing.List[weakref.ReferenceType]) -> None:
+            item_proxies.pop(item_proxies.index(item_proxy_ref))
+
+        weakref.finalize(item_proxy, finalize, item_proxy_ref, self.__item_proxies)
+        return item_proxy
+
+    def update_item_reference_uuid(self, item_proxy: ItemProxy, item_uuid: typing.Optional[uuid.UUID]) -> None:
+        if item_uuid and item_uuid in self.__entity_map:
+            entity_ref = self.__entity_map.get(item_uuid)
+            if entity_ref:
+                item_proxy.item = entity_ref()
+                return
+        item_proxy.item = None
+
 
 
 class Field(abc.ABC):
@@ -133,7 +191,7 @@ class Field(abc.ABC):
 
         Subclasses should propagate the context to their sub fields.
         """
-        assert (self.__context is None) != (context is None)  # one or the other is None
+        assert (self.__context is None) != (context is None), f"{self.__context} {context}"
         self.__context = context
 
     @abc.abstractmethod
@@ -150,6 +208,12 @@ class Field(abc.ABC):
     # not abstract to avoid type checking issues until mypy supports abstract properties
     def set_field_value(self, container: ItemProxyEntity, value: typing.Any) -> None:
         pass
+
+    def field_by_key(self, key: str) -> Field:
+        raise AttributeError()
+
+    def field_by_index(self, index: int) -> Field:
+        raise AttributeError()
 
 
 class PropertyField(Field):
@@ -314,10 +378,15 @@ class RecordField(Field):
 
     @property
     def field_value(self) -> typing.Any:
-        return None
+        d = {k: field.field_value for k, field in self.__field_map.items()}
+        return collections.namedtuple("record", d.keys())(*d.values())
 
     def set_field_value(self, container: ItemProxyEntity, value: typing.Any) -> None:
-        pass
+        assert isinstance(value, dict)
+        for field in self.__field_map.values():
+            field.close()
+        for k, field_value in value.items():
+            self.__field_map[k] = self.__field_type_map[k].create_and_read(self._context, field_value)
 
 
 class ArrayField(Field):
@@ -364,7 +433,6 @@ class ArrayField(Field):
 
     def insert_value(self, container: ItemProxyEntity, index: int, value: typing.Any) -> None:
         if isinstance(value, Entity):
-            assert not value._container
             field = self.__type.create(self._context)
             field.set_field_value(container, value)  # no container yet
             self.__fields.insert(index, field)
@@ -374,6 +442,9 @@ class ArrayField(Field):
     def remove_value_at_index(self, index: int) -> None:
         field = self.__fields.pop(index)
         field.set_field_value(None, None)  # no container
+
+    def field_by_index(self, index: int) -> Field:
+        return self.__fields[index]
 
 
 class MapField(Field):
@@ -426,11 +497,12 @@ class ReferenceField(Field):
     def __init__(self, context: typing.Optional[EntityContext], type: EntityType):
         super().__init__(context)
         self.__type = type
-        self.__reference_uuid: typing.Optional[str] = None
+        self.__reference_uuid: typing.Optional[uuid.UUID] = None
         self.__reference: typing.Optional[ItemProxy] = None  # proxy is only valid when context is valid
         self.__shadow_item: typing.Optional[Entity] = None  # used when proxy is None
-        if self._context:
-            self.__reference = self._context.create_item_reference()
+        if context:
+            super().set_context(None)  # unset it safely
+            self.set_context(context)
 
     def close(self) -> None:
         if self.__reference:
@@ -442,7 +514,7 @@ class ReferenceField(Field):
         super().set_context(context)
         if self._context:
             if not self.__reference:
-                self.__reference = self._context.create_item_reference(uuid.UUID(self.__reference_uuid) if self.__reference_uuid else None)
+                self.__reference = self._context.create_item_reference(self.__reference_uuid if self.__reference_uuid else None)
             if self.__shadow_item:
                 self.__reference.item = self.__shadow_item
                 self.__shadow_item = None
@@ -452,11 +524,13 @@ class ReferenceField(Field):
             self.__reference = None
 
     def read(self, dict_value: typing.Any) -> Field:
-        self.__reference_uuid = copy.deepcopy(dict_value)
+        self.__reference_uuid = uuid.UUID(copy.deepcopy(dict_value))
+        if self.__reference and self._context:
+            self._context.update_item_reference_uuid(self.__reference, self.__reference_uuid)
         return self
 
     def write(self) -> DictValue:
-        return copy.deepcopy(self.__reference_uuid)
+        return str(self.__reference_uuid)
 
     @property
     def field_value(self) -> typing.Any:
@@ -469,7 +543,7 @@ class ReferenceField(Field):
         item = typing.cast(Entity, value)
         if item:
             item_uuid = item.uuid  # prefer _get_field_value; but use direct accessor for legacy Swift PersistentObject compatibility
-            self.__reference_uuid = str(item_uuid)
+            self.__reference_uuid = item_uuid
             if self.__reference:
                 self.__reference.item = item
             else:
@@ -514,13 +588,20 @@ class ComponentField(Field):
         return self.__entity
 
     def set_field_value(self, container: ItemProxyEntity, value: typing.Any) -> None:
+        assert value is None or not value._container
         if self.__entity:
             self.__entity._container = None
-            self.__entity._set_entity_context(None)
+            if self.__entity._entity_context:
+                self.__entity._set_entity_context(None)
         self.__entity = value
         if self.__entity:
             self.__entity._container = container
-            self.__entity._set_entity_context(self._context)
+            if self._context:
+                self.__entity._set_entity_context(self._context)
+
+    def field_by_key(self, key: str) -> Field:
+        assert self.__entity
+        return self.__entity.get_field(key)
 
 
 class FieldType(abc.ABC):
@@ -625,57 +706,78 @@ EntityTransforms = typing.Tuple[typing.Callable[[typing.Dict], typing.Dict], typ
 class Entity(Observable.Observable):
     """An instance of an entity type.
 
+    To support deepcopy, subclasses must be able to be initialized with no arguments (passing entity_type to this init)
+    or override deepcopy.
     """
-    def __init__(self, *,
-                 type: EntityType,
-                 version: typing.Optional[int],
-                 context: typing.Optional[EntityContext],
-                 field_type_map: typing.Mapping[str, FieldType],
-                 renames: typing.Mapping[str, str],
-                 transforms: EntityTransforms):
+    def __init__(self, entity_type: EntityType = None, context: typing.Optional[EntityContext] = None):
         super().__init__()
-        self.__context = context
-        self.__entity_type = type
-        self.__version = version
-        self.__field_type_map = field_type_map
+        assert entity_type, str(self.__class__)
+        self.__context: typing.Optional[EntityContext] = None
+        self.__entity_type = entity_type
+        self.__version = entity_type._version
+        self.__field_type_map = entity_type._field_type_map
         self.__field_dict : typing.Dict[str, Field] = dict()
-        self.__renames = renames
-        self.__transforms = transforms
+        self.__renames = entity_type._renames
+        self.__transforms = entity_type._transforms
         self._container = None
         for field_name, field_type in self.__field_type_map.items():
             self.__field_dict[field_name] = field_type.create(self.__context)
         self._set_field_value("uuid", uuid.uuid4())
         self._set_field_value("modified", datetime.datetime.utcnow())
+        if context:
+            self._set_entity_context(context)
 
     def close(self) -> None:
         pass
 
     def __deepcopy__(self, memo):
-        entity_copy = self.__class__()
-        for k, field in self.__field_dict.items():
-            entity_copy._set_field_value(k, self._get_field_value(k))
+        entity_copy = self._deepcopy()
         memo[id(self)] = entity_copy
         return entity_copy
 
     def __repr__(self) -> str:
         return f"entity '{self.__entity_type.entity_id}' at 0x{id(self):x}"
 
+    def _create(self, context: typing.Optional[EntityContext]) -> Entity:
+        return self.__class__(self.__entity_type, context)
+
+    def _deepcopy(self) -> Entity:
+        context = SimpleEntityContext()
+        entity_copy = self._create(context)
+        entity_copy.read(self.write_to_dict())
+        entity_copy._set_entity_context(None)
+        return entity_copy
+
     @property
     def _entity_context(self) -> typing.Optional[EntityContext]:
         return self.__context
 
     def _set_entity_context(self, context: typing.Optional[EntityContext]) -> None:
-        assert (self.__context is None) != (context is None)  # one or the other is None
+        assert (self.__context is None) != (context is None), f"{self.__context} {context}"
+        if self.__context:
+            self.__context.unregister(self)
         self.__context = context
+        if self.__context:
+            self.__context.register(self)
         for field in self.__field_dict.values():
             field.set_context(context)
 
     def read(self, properties: typing.Mapping) -> Entity:
+        # unregister old uuid
+        if self.__context:
+            self.__context.unregister(self)
         properties = self.__transforms[0](dict(properties))  # transform forward
         for field_name, field_type in self.__field_type_map.items():
             d = properties.get(self.__renames.get(field_name, field_name))
-            self.__field_dict[field_name].read(d)
+            if d is not None:
+                self.__field_dict[field_name].read(d)
+        # register new uuid
+        if self.__context:
+            self.__context.register(self)
         return self
+
+    def write(self) -> DictValue:
+        return self.write_to_dict()
 
     def write_to_dict(self) -> typing.Dict:
         d: typing.Dict[str, DictValue] = dict()
@@ -713,6 +815,9 @@ class Entity(Observable.Observable):
 
     def __get_field(self, name: str) -> typing.Optional[Field]:
         return self.__field_dict.get(name)
+
+    def get_field(self, name: str) -> Field:
+        return typing.cast(Field, self.__get_field(name))
 
     def _get_field_value(self, name: str) -> typing.Any:
         field = self.__get_field(name)
@@ -798,11 +903,50 @@ class Entity(Observable.Observable):
 
     @property
     def item_names(self) -> typing.List:
-        return list()
+        return [k for k, f in self.__field_type_map.items() if isinstance(f, ComponentType)]
 
     @property
     def relationship_names(self) -> typing.List:
-        return list()
+        return [k for k, f in self.__field_type_map.items() if isinstance(f, ArrayType)]
+
+    def item_specifier(self) -> typing.Any:
+        class ItemSpecifier:
+
+            def __init__(self, *, item: Entity = None, item_uuid: uuid.UUID = None):
+                self.__item_uuid = item.uuid if item else item_uuid
+                assert (self.__item_uuid is None) or isinstance(self.__item_uuid, uuid.UUID)
+
+            def __hash__(self):
+                return hash(self.__item_uuid)
+
+            def __eq__(self, other):
+                if isinstance(other, self.__class__):
+                    return self.__item_uuid == other.__item_uuid
+                return False
+
+            @property
+            def item_uuid(self) -> typing.Optional[uuid.UUID]:
+                return self.__item_uuid
+
+            def write(self) -> typing.Optional[typing.Union[typing.Dict, str]]:
+                if self.__item_uuid:
+                    return str(self.__item_uuid)
+                return None
+
+            @staticmethod
+            def read(d: typing.Union[typing.Mapping, str, uuid.UUID]) -> typing.Optional[ItemSpecifier]:
+                if isinstance(d, str):
+                    return ItemSpecifier(item_uuid=uuid.UUID(d))
+                elif isinstance(d, uuid.UUID):
+                    return ItemSpecifier(item_uuid=d)
+                elif isinstance(d, dict) and "item_uuid" in d:
+                    return ItemSpecifier(item_uuid=uuid.UUID(d["item_uuid"]))
+                elif isinstance(d, dict) and "uuid" in d:
+                    return ItemSpecifier(item_uuid=uuid.UUID(d["uuid"]))
+                else:
+                    return None
+
+        return ItemSpecifier(item=self)
 
 
 def no_transform(x: typing.Dict) -> typing.Dict:
@@ -810,7 +954,7 @@ def no_transform(x: typing.Dict) -> typing.Dict:
 
 
 class EntityType:
-    def __init__(self, entity_id: str, base: typing.Optional[EntityType], version: typing.Optional[int], field_type_map: typing.Mapping[str, FieldType]):
+    def __init__(self, entity_id: str, base: typing.Optional[EntityType], version: typing.Optional[int], field_type_map: typing.Mapping[str, FieldType], factory: typing.Optional[typing.Callable[[EntityType, typing.Optional[EntityContext]], Entity]] = None):
         self.__entity_id = entity_id
         self.__base = base
         self.__version = version
@@ -819,6 +963,7 @@ class EntityType:
         self.__field_type_map: typing.Dict[str, FieldType] = dict()
         self.__field_type_map["uuid"] = prop(UUID)
         self.__field_type_map["modified"] = prop(TIMESTAMP)
+        self.__factory = factory
         while base:
             for k, v in base._field_type_map.items():
                 if not k in ("uuid", "modified"):
@@ -831,6 +976,10 @@ class EntityType:
         register_entity_type(entity_id, self)
 
     @property
+    def _version(self) -> typing.Optional[int]:
+        return self.__version
+
+    @property
     def _field_type_map(self) -> typing.Mapping[str, FieldType]:
         return self.__field_type_map
 
@@ -838,21 +987,15 @@ class EntityType:
     def _renames(self) -> typing.Mapping[str, str]:
         return self.__renames
 
+    @property
+    def _transforms(self) -> EntityTransforms:
+        return self.__transforms
+
     def create(self, context: typing.Optional[EntityContext] = None, d: typing.Optional[typing.Dict] = None) -> Entity:
-        entity = Entity(**self.entity_init_kwargs(context))
+        entity = self.__factory(self, context) if callable(self.__factory) else Entity(self, context)
         if d is not None:
             entity.read(d)
         return entity
-
-    def entity_init_kwargs(self, context: typing.Optional[EntityContext] = None) -> typing.Dict[str, typing.Any]:
-        return {
-            "type": self,
-            "version": self.__version,
-            "context": context,
-            "field_type_map": self.__field_type_map,
-            "renames": self.__renames,
-            "transforms": self.__transforms,
-        }
 
     @property
     def base(self) -> typing.Optional[EntityType]:
@@ -907,8 +1050,8 @@ def component(type: typing.Union[EntityType, str]) -> ComponentType:
     else:  # str, used for forward or self references
         return ComponentType(type)
 
-def entity(entity_id: str, base: typing.Optional[EntityType], version: typing.Optional[int], field_type_map: typing.Dict[str, FieldType]) -> EntityType:
-    return EntityType(entity_id, base, version, field_type_map)
+def entity(entity_id: str, base: typing.Optional[EntityType], version: typing.Optional[int], field_type_map: typing.Dict[str, FieldType], factory: typing.Optional[typing.Callable[[EntityType, typing.Optional[EntityContext]], Entity]] = None) -> EntityType:
+    return EntityType(entity_id, base, version, field_type_map, factory)
 
 def read_json(path: pathlib.Path) -> typing.Dict:
     """Read the json file from path. Rename path if not readable."""

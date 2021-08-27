@@ -288,8 +288,8 @@ def project_reference_factory(lookup_id: typing.Callable[[str], str]) -> typing.
 
 
 class ScriptItem(Schema.Entity):
-    def __init__(self, entity_type: Schema.EntityType):
-        super().__init__(**entity_type.entity_init_kwargs())
+    def __init__(self, entity_type: Schema.EntityType, context: typing.Optional[Schema.EntityContext] = None):
+        super().__init__(entity_type, context)
         self.persistent_storage = None
 
     @property

@@ -1,5 +1,6 @@
 # standard libraries
 import contextlib
+import copy
 import unittest
 
 # third party libraries
@@ -107,10 +108,10 @@ class TestSchemaClass(unittest.TestCase):
         c._remove_item("c_items", c_item)
         self.assertIsNone(c_item._entity_context)
         # test reference
-        r_item = ItemModel.create()
-        c._append_item("r_items", r_item)
+        c._append_item("r_items", c_item)
+        r_item = c._get_array_item("r_items", 0)
         self.assertIsNone(r_item._entity_context)  # setting a reference should NOT propagate context
-        c._remove_item("r_items", r_item)
+        c._remove_item("r_items", c_item)
         self.assertIsNone(r_item._entity_context)
 
     def test_inserting_and_removing_array_components_and_references_trigger_events(self):
@@ -164,16 +165,16 @@ class TestSchemaClass(unittest.TestCase):
         c = ContainerModel.create(context)
         c._append_item("c_items", ItemModel.create())
         c._append_item("c_items", ItemModel.create())
-        c._append_item("r_items", ItemModel.create())
-        c._append_item("r_items", ItemModel.create())
+        c._append_item("r_items", c._get_array_item("c_items", 0))
+        c._append_item("r_items", c._get_array_item("c_items", 1))
         c._set_field_value("c_item", ItemModel.create())
-        c._set_field_value("r_item", ItemModel.create())
+        c._set_field_value("r_item", c.c_item)
         self.assertEqual(c, c._get_array_item("c_items", 0)._container)
         self.assertEqual(c, c._get_array_item("c_items", 1)._container)
-        self.assertIsNone(c._get_array_item("r_items", 0)._container)
-        self.assertIsNone(c._get_array_item("r_items", 1)._container)
+        self.assertEqual(c, c._get_array_item("r_items", 0)._container)
+        self.assertEqual(c, c._get_array_item("r_items", 1)._container)
         self.assertEqual(c, c._get_field_value("c_item")._container)
-        self.assertIsNone(c._get_field_value("r_item")._container)
+        self.assertEqual(c, c._get_field_value("r_item")._container)
         c_item0 = c._get_array_item("c_items", 0)
         c._remove_item("c_items", c_item0)
         self.assertIsNone(c_item0._container)
@@ -181,6 +182,41 @@ class TestSchemaClass(unittest.TestCase):
         c._set_field_value("c_item", None)
         self.assertIsNone(c_item._container)
 
+    def test_deepcopy(self):
+        RecordModel = Schema.record({
+            "value": Schema.prop(Schema.INT),
+        })
+        ItemModel = Schema.entity("item", None, None, {
+            "name": Schema.prop(Schema.STRING),
+            "record": RecordModel,
+        })
+        ListModel = Schema.entity("list", None, None, {
+            "c_items": Schema.array(Schema.component(ItemModel)),
+            "r_items": Schema.array(Schema.reference(ItemModel)),
+        })
+        context = Schema.SimpleEntityContext()
+        with contextlib.closing(ListModel.create(context)) as l:
+            l._append_item("c_items", ItemModel.create(None, {"name": "aa", "record": {"value": 4}}))
+            l._append_item("c_items", ItemModel.create(None, {"name": "bb", "record": {"value": 5}}))
+            l._append_item("r_items", l._get_array_item("c_items", 0))
+            l._append_item("r_items", l._get_array_item("c_items", 1))
+            self.assertEqual(4, l._get_array_item("c_items", 0).record.value)
+            self.assertEqual(5, l._get_array_item("c_items", 1).record.value)
+            self.assertEqual(l._get_array_item("r_items", 0), l._get_array_item("c_items", 0))
+            self.assertEqual(l._get_array_item("r_items", 1), l._get_array_item("c_items", 1))
+            with contextlib.closing(copy.deepcopy(l)) as ll:
+                self.assertEqual(l._get_array_item("c_items", 0).uuid, ll._get_array_item("c_items", 0).uuid)
+                self.assertEqual(l._get_array_item("c_items", 1).uuid, ll._get_array_item("c_items", 1).uuid)
+                self.assertEqual(l._get_array_item("c_items", 0).modified, ll._get_array_item("c_items", 0).modified)
+                self.assertEqual(l._get_array_item("c_items", 1).modified, ll._get_array_item("c_items", 1).modified)
+                self.assertEqual(l._get_array_item("c_items", 0).name, ll._get_array_item("c_items", 0).name)
+                self.assertEqual(l._get_array_item("c_items", 1).name, ll._get_array_item("c_items", 1).name)
+                self.assertEqual(4, ll._get_array_item("c_items", 0).record.value)
+                self.assertEqual(5, ll._get_array_item("c_items", 1).record.value)
+                self.assertEqual(ll._get_array_item("r_items", 0), ll._get_array_item("c_items", 0))
+                self.assertEqual(ll._get_array_item("r_items", 1), ll._get_array_item("c_items", 1))
+
+    # test adding values to an array of strings
     # modified gets updated when setting field or inserting/removing item
     # referenced items write and read
     # reading item uses custom entity class

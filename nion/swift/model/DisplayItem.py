@@ -1106,9 +1106,15 @@ def display_data_channel_factory(lookup_id):
 
 
 class DisplayLayer(Schema.Entity):
-    def __init__(self, display_data_channel: DisplayDataChannel = None):
-        super().__init__(**Model.DisplayLayer.entity_init_kwargs())
+    def __init__(self):
+        super().__init__(Model.DisplayLayer)
         self.persistent_storage = None
+
+    def _create(self, context: typing.Optional[Schema.EntityContext]) -> Schema.Entity:
+        display_layer = DisplayLayer()
+        if context:
+            display_layer._set_entity_context(context)
+        return display_layer
 
     @property
     def label(self) -> typing.Optional[str]:
