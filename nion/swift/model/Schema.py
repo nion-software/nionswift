@@ -36,8 +36,11 @@ entity_types: typing.Dict[str, EntityType] = dict()
 def register_entity_type(entity_id: str, entity: EntityType) -> None:
     entity_types[entity_id] = entity
 
-def get_entity_type(entity_id: str) -> EntityType:
-    return entity_types[entity_id]
+def unregister_entity_type(entity_id: str) -> None:
+    del entity_types[entity_id]
+
+def get_entity_type(entity_id: str) -> typing.Optional[EntityType]:
+    return entity_types.get(entity_id)
 
 def build_value(type: str, value) -> typing.Any:
     if value is None:
@@ -490,6 +493,14 @@ class MapField(Field):
         assert isinstance(value, dict)
         self.__fields = {k: self.__value.create_and_read(self._context, v) for k, v in value.items()}
 
+    def set_value(self, container: ItemProxyEntity, key: str, value: typing.Any) -> None:
+        if isinstance(value, Entity):
+            field = self.__value.create(self._context)
+            field.set_field_value(container, value)  # no container yet
+            self.__map[key] = field
+        else:
+            raise IndexError()
+
 
 class ReferenceField(Field):
     """A reference field, references another entity without cascading delete."""
@@ -576,6 +587,7 @@ class ComponentField(Field):
             self.__entity._set_entity_context(context)
 
     def read(self, dict_value: typing.Any) -> Field:
+        assert self.__type
         self.__entity = self.__type.create(self._context)
         self.__entity.read(dict_value)
         return self
@@ -602,6 +614,21 @@ class ComponentField(Field):
     def field_by_key(self, key: str) -> Field:
         assert self.__entity
         return self.__entity.get_field(key)
+
+
+class ComponentPlaceholderField(Field):
+    """Keep the dict, but otherwise be non-functional."""
+
+    def __init__(self, context: typing.Optional[EntityContext]):
+        super().__init__(context)
+        self.__d = typing.cast(DictValue, None)
+
+    def read(self, dict_value: typing.Any) -> Field:
+        self.__d = copy.deepcopy(dict_value)
+        return self
+
+    def write(self) -> DictValue:
+        return copy.deepcopy(self.__d)
 
 
 class FieldType(abc.ABC):
@@ -687,17 +714,20 @@ class ReferenceType(FieldType):
 
 
 class ComponentType(FieldType):
-    def __init__(self, entity_id: str):
+    def __init__(self, entity_id: str, required: bool):
         super().__init__(ComponentField, entity_id)
         self.entity_id = entity_id
+        self.required = required
 
     def create_and_read(self, context: typing.Optional[EntityContext], dict_value: DictValue) -> Field:
         assert isinstance(dict_value, dict)
         d = dict_value
         entity_type = get_entity_type(d["type"])
-        assert entity_type
-        field_type = entity_type.entity_id if entity_type else self._args[0]
-        return self._call(context, self._field_class, *((field_type, ) + self._args[1:]), **self._kwargs).read(dict_value)
+        if entity_type:
+            field_type = entity_type.entity_id if entity_type else self._args[0]
+            return self._call(context, self._field_class, *((field_type, ) + self._args[1:]), **self._kwargs).read(dict_value)
+        else:
+            return ComponentPlaceholderField(context).read(dict_value)
 
 
 EntityTransforms = typing.Tuple[typing.Callable[[typing.Dict], typing.Dict], typing.Callable[[typing.Dict], typing.Dict]]
@@ -1044,11 +1074,11 @@ def map(key: str, value: FieldType, optional: bool = False) -> MapType:
 def reference(type: typing.Optional[EntityType] = None) -> ReferenceType:
     return ReferenceType(type)
 
-def component(type: typing.Union[EntityType, str]) -> ComponentType:
+def component(type: typing.Union[EntityType, str], required: bool = True) -> ComponentType:
     if isinstance(type, EntityType):
-        return ComponentType(type.entity_id)
+        return ComponentType(type.entity_id, required)
     else:  # str, used for forward or self references
-        return ComponentType(type)
+        return ComponentType(type, required)
 
 def entity(entity_id: str, base: typing.Optional[EntityType], version: typing.Optional[int], field_type_map: typing.Dict[str, FieldType], factory: typing.Optional[typing.Callable[[EntityType, typing.Optional[EntityContext]], Entity]] = None) -> EntityType:
     return EntityType(entity_id, base, version, field_type_map, factory)

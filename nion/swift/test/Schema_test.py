@@ -216,6 +216,46 @@ class TestSchemaClass(unittest.TestCase):
                 self.assertEqual(ll._get_array_item("r_items", 0), ll._get_array_item("c_items", 0))
                 self.assertEqual(ll._get_array_item("r_items", 1), ll._get_array_item("c_items", 1))
 
+    def test_non_required_subclass_survives_read_write(self):
+        ItemModel = Schema.entity("item", None, None, {
+            "name": Schema.prop(Schema.STRING),
+        })
+        ItemModel1 = Schema.entity("item1", ItemModel, None, {
+            "one": Schema.prop(Schema.STRING),
+        })
+        ItemModel2 = Schema.entity("item2", ItemModel, None, {
+            "two": Schema.prop(Schema.STRING),
+        })
+        ListModel = Schema.entity("list", None, None, {
+            "items": Schema.array(Schema.component(ItemModel, False)),
+        })
+        import pprint
+        context = Schema.SimpleEntityContext()
+        with contextlib.closing(ListModel.create(context)) as l:
+            l._append_item("items", ItemModel1.create(None, {"name": "1", "one": "11"}))
+            l._append_item("items", ItemModel2.create(None, {"name": "2", "two": "22"}))
+            d = l.write()
+            self.assertEqual("1", l._get_array_item("items", 0).name)
+            self.assertEqual("11", l._get_array_item("items", 0).one)
+            self.assertEqual("2", l._get_array_item("items", 1).name)
+            self.assertEqual("22", l._get_array_item("items", 1).two)
+        Schema.unregister_entity_type("item1")
+        with contextlib.closing(ListModel.create(context)) as l:
+            l.read(d)
+            self.assertEqual(d, l.write())
+            self.assertIsNone(l._get_array_item("items", 0))
+            self.assertEqual("2", l._get_array_item("items", 1).name)
+            self.assertEqual("22", l._get_array_item("items", 1).two)
+        # re-register and make sure it loads
+        Schema.register_entity_type("item1", ItemModel1)
+        with contextlib.closing(ListModel.create(context)) as l:
+            l.read(d)
+            self.assertEqual(d, l.write())
+            self.assertEqual("1", l._get_array_item("items", 0).name)
+            self.assertEqual("11", l._get_array_item("items", 0).one)
+            self.assertEqual("2", l._get_array_item("items", 1).name)
+            self.assertEqual("22", l._get_array_item("items", 1).two)
+
     # test adding values to an array of strings
     # modified gets updated when setting field or inserting/removing item
     # referenced items write and read
