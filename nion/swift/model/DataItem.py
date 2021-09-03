@@ -248,7 +248,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         self.__display_data_channel_refs = set()  # display data channels referencing this data item
         if data is not None:
             data_and_metadata = DataAndMetadata.DataAndMetadata.from_data(data, timezone=self.timezone, timezone_offset=self.timezone_offset)
-            self.__set_data_metadata_direct(data_and_metadata)
+            self.__set_data_and_metadata_direct(data_and_metadata)
 
     @classmethod
     def utcnow(cls) -> datetime.datetime:
@@ -990,7 +990,33 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
             return self.read_external_data("data")
         return None
 
-    def __set_data_metadata_direct(self, data_and_metadata, data_modified=None):
+    def __set_data_metadata_direct(self, data_metadata: DataAndMetadata.DataMetadata,
+                                   data_modified: typing.Optional[datetime.datetime] = None) -> None:
+        # set the persistent values for the data_metadata
+        self._set_persistent_property_value("data_shape", data_metadata.data_shape)
+        self._set_persistent_property_value("data_dtype", DtypeToStringConverter().convert(data_metadata.data_dtype))
+        self._set_persistent_property_value("is_sequence", data_metadata.is_sequence)
+        self._set_persistent_property_value("collection_dimension_count", data_metadata.collection_dimension_count)
+        self._set_persistent_property_value("datum_dimension_count", data_metadata.datum_dimension_count)
+        self._set_persistent_property_value("intensity_calibration", copy.deepcopy(data_metadata.intensity_calibration))
+        self._set_persistent_property_value("dimensional_calibrations", CalibrationList(data_metadata.dimensional_calibrations))
+        # save timezone info here so it doesn't get overwritten in intermediate states.
+        timezone = data_metadata.timezone
+        timezone_offset = data_metadata.timezone_offset
+        if timezone:
+            self._set_persistent_property_value("timezone", timezone)
+        if timezone_offset:
+            self._set_persistent_property_value("timezone_offset", timezone_offset)
+        # explicitly set metadata into persistent storage to prevent notifications.
+        self.__metadata = data_metadata.metadata
+        self._set_persistent_property_value("metadata", self.__metadata)
+        # set the data modified directly
+        data_modified = data_modified if data_modified else datetime.datetime.utcnow()
+        data_metadata.timestamp = data_modified
+        self._set_persistent_property_value("data_modified", data_modified)
+
+    def __set_data_and_metadata_direct(self, data_and_metadata: DataAndMetadata.DataAndMetadata,
+                                       data_modified: typing.Optional[datetime.datetime] = None) -> None:
         with self.__data_ref_count_mutex:
             if self.__data_and_metadata:
                 self.__data_and_metadata._subtract_data_ref_count(self.__data_ref_count)
@@ -998,27 +1024,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
             if self.__data_and_metadata:
                 self.__data_and_metadata._add_data_ref_count(self.__data_ref_count)
         if self.__data_and_metadata:
-            self._set_persistent_property_value("data_shape", self.__data_and_metadata.data_shape)
-            self._set_persistent_property_value("data_dtype", DtypeToStringConverter().convert(self.__data_and_metadata.data_dtype))
-            self._set_persistent_property_value("is_sequence", self.__data_and_metadata.is_sequence)
-            self._set_persistent_property_value("collection_dimension_count", self.__data_and_metadata.collection_dimension_count)
-            self._set_persistent_property_value("datum_dimension_count", self.__data_and_metadata.datum_dimension_count)
-            self._set_persistent_property_value("intensity_calibration", copy.deepcopy(self.__data_and_metadata.intensity_calibration))
-            self._set_persistent_property_value("dimensional_calibrations", CalibrationList(self.__data_and_metadata.dimensional_calibrations))
-            # save timezone info here so it doesn't get overwritten in intermediate states.
-            timezone = self.__data_and_metadata.timezone
-            timezone_offset = self.__data_and_metadata.timezone_offset
-            if timezone:
-                self._set_persistent_property_value("timezone", timezone)
-            if timezone_offset:
-                self._set_persistent_property_value("timezone_offset", timezone_offset)
-            # explicitly set metadata into persistent storage to prevent notifications.
-            self.__metadata = self.__data_and_metadata.metadata
-            self._set_persistent_property_value("metadata", self.__metadata)
-            # set the data modified directly
-            data_modified = data_modified if data_modified else datetime.datetime.utcnow()
-            self.__data_and_metadata.timestamp = data_modified
-            self._set_persistent_property_value("data_modified", data_modified)
+            self.__set_data_metadata_direct(self.__data_and_metadata.data_metadata, data_modified)
         self.__change_changed = True
         self.__change_data_changed = True
         if self._session_manager:
@@ -1045,7 +1051,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
                 new_data_and_metadata = DataAndMetadata.DataAndMetadata(self.__load_data, data_shape_and_dtype, intensity_calibration, dimensional_calibrations, metadata, timestamp, data, data_descriptor, timezone, timezone_offset)
             else:
                 new_data_and_metadata = None
-            self.__set_data_metadata_direct(new_data_and_metadata, data_modified)
+            self.__set_data_and_metadata_direct(new_data_and_metadata, data_modified)
             if self.__data_and_metadata is not None:
                 if self.persistent_object_context and not self.is_write_delayed:
                     self.write_external_data("data", self.__data_and_metadata.data)
@@ -1067,7 +1073,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
                 timezone = Utility.get_local_timezone()
                 timezone_offset = Utility.TimezoneMinutesToStringConverter().convert(Utility.local_utcoffset_minutes())
                 new_data_and_metadata = DataAndMetadata.DataAndMetadata(self.__load_data, data_shape_and_dtype, None, None, None, None, data, data_descriptor, timezone, timezone_offset)
-                self.__set_data_metadata_direct(new_data_and_metadata, data_modified)
+                self.__set_data_and_metadata_direct(new_data_and_metadata, data_modified)
                 self.__data_and_metadata.unloadable = True
         finally:
             self.decrement_data_ref_count()
@@ -1076,6 +1082,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
                                       data_and_metadata: DataAndMetadata.DataAndMetadata, src: typing.Sequence[slice],
                                       dst: typing.Sequence[slice], update_metadata: bool = False,
                                       data_modified: datetime.datetime = None) -> None:
+        # metadata is updated from data_metadata; data_and_metadata is only used for data
         with self.data_source_changes():
             self.increment_data_ref_count()
             try:
@@ -1095,7 +1102,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
                                                                             dimensional_calibrations, metadata,
                                                                             timestamp, data, data_descriptor, timezone,
                                                                             timezone_offset)
-                    self.__set_data_metadata_direct(new_data_and_metadata, data_modified)
+                    self.__set_data_and_metadata_direct(new_data_and_metadata, data_modified)
                 if self.__data_and_metadata is not None:
                     if update_metadata:
                         self.__data_and_metadata._set_data_descriptor(data_metadata.data_descriptor)
@@ -1105,6 +1112,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
                         self.__data_and_metadata._set_timestamp(data_metadata.timestamp)
                         self.__data_and_metadata.timezone = data_metadata.timezone
                         self.__data_and_metadata.timezone_offset = data_metadata.timezone_offset
+                        self.__set_data_metadata_direct(data_metadata)
                     assert self.__data_and_metadata.data_shape == data_metadata.data_shape
                     assert self.__data_and_metadata.data_dtype == data_metadata.data_dtype
                     assert self.__data_and_metadata.data_dtype == data_and_metadata.data_dtype

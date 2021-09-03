@@ -4118,9 +4118,11 @@ class TestStorageClass(unittest.TestCase):
                 data_item_transaction = document_model.item_transaction(data_item)
                 document_model.begin_data_item_live(data_item)
                 # update
-                data_and_metadata = DataAndMetadata.new_data_and_metadata(numpy.ones((1, 4)))
-                document_model.update_data_item_partial(data_item, data_item.data_and_metadata.data_metadata, data_and_metadata, [slice(0, 1), slice(None)], [slice(0, 1), slice(None)])
-                document_model.update_data_item_partial(data_item, data_item.data_and_metadata.data_metadata, data_and_metadata, [slice(0, 1), slice(None)], [slice(1, 2), slice(None)])
+                data_and_metadata = DataAndMetadata.new_data_and_metadata(numpy.ones((1, 4)), metadata={"abc": 44})
+                data_metadata = copy.deepcopy(data_item.data_and_metadata.data_metadata)
+                data_metadata.metadata["abc"] = "ABC"
+                document_model.update_data_item_partial(data_item, data_metadata, data_and_metadata, [slice(0, 1), slice(None)], [slice(0, 1), slice(None)])
+                document_model.update_data_item_partial(data_item, data_metadata, data_and_metadata, [slice(0, 1), slice(None)], [slice(1, 2), slice(None)])
                 document_model.perform_data_item_updates()
                 self.assertGreater(numpy.sum(data_item.data), 0)  # ensure we wrote some data
                 reference_data = numpy.copy(data_item.data)
@@ -4132,6 +4134,8 @@ class TestStorageClass(unittest.TestCase):
             with contextlib.closing(document_controller):
                 document_model = document_controller.document_model
                 self.assertTrue(numpy.array_equal(reference_data, document_model.data_items[0].data))
+                # confirm metadata gets written
+                self.assertEqual("ABC", document_model.data_items[0].metadata["abc"])
 
     def test_undo_redo_is_written_to_storage(self):
         with create_memory_profile_context() as profile_context:
