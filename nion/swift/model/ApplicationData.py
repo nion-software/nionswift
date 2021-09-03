@@ -21,7 +21,7 @@ class ApplicationData:
     def __init__(self, file_path: typing.Optional[pathlib.Path] = None):
         self.__lock = threading.RLock()
         self.__file_path = file_path
-        self.__data: typing.Optional[typing.Dict] = None
+        self.__data_dict: typing.Optional[typing.Dict] = None
         self.data_changed_event = Event.Event()
 
     @property
@@ -32,34 +32,32 @@ class ApplicationData:
     def file_path(self, value: pathlib.Path) -> None:
         self.__file_path = value
 
-    @property
-    def data(self) -> typing.Dict:
+    def get_data_dict(self) -> typing.Dict:
         with self.__lock:
-            data_changed = self.__read_data()
-            result = copy.deepcopy(self.__data) if self.__data else dict()
+            data_changed = self.__read_data_dict()
+            result = copy.deepcopy(self.__data_dict) if self.__data_dict else dict()
         if data_changed:
             self.data_changed_event.fire()
         return result
 
-    @data.setter
-    def data(self, value: typing.Dict) -> None:
+    def set_data_dict(self, d: typing.Dict) -> None:
         with self.__lock:
-            assert value is not None
-            self.__data = value
-            self.__write_data()
+            assert d is not None
+            self.__data_dict = d
+            self.__write_data_dict()
         self.data_changed_event.fire()
 
-    def __read_data(self) -> bool:
-        if self.__data is None and self.__file_path and self.__file_path.exists():
+    def __read_data_dict(self) -> bool:
+        if self.__data_dict is None and self.__file_path and self.__file_path.exists():
             with open(self.__file_path) as f:
-                self.__data = json.load(f)
+                self.__data_dict = json.load(f)
                 return True
         return False
 
-    def __write_data(self):
+    def __write_data_dict(self):
         if self.__file_path:
             with Utility.AtomicFileWriter(self.__file_path) as fp:
-                json.dump(self.__data, fp, skipkeys=True, indent=4)
+                json.dump(self.__data_dict, fp, skipkeys=True, indent=4)
 
 
 __application_data = ApplicationData()
@@ -70,11 +68,11 @@ def set_file_path(file_path: pathlib.Path) -> None:
 
 
 def get_data() -> typing.Dict:
-    return __application_data.data
+    return __application_data.get_data_dict()
 
 
-def set_data(data: typing.Dict) -> None:
-    __application_data.data = data
+def set_data(d: typing.Dict) -> None:
+    __application_data.set_data_dict(d)
 
 
 #
