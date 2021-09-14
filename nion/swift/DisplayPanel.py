@@ -2575,8 +2575,6 @@ class DisplayPanelManager(metaclass=Utility.Singleton):
             kwargs["data_item"] = display_panel.data_item
         if display_panel.display_item:
             kwargs["display_item"] = display_panel.display_item
-        if display_panel.data_item:
-            display_panel.document_controller.document_model.populate_action_context(display_panel.data_item, kwargs)
         return kwargs
 
     # events from the image panels

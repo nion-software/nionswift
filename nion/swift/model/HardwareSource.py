@@ -44,6 +44,7 @@ from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import Observable
 from nion.utils import Registry
+from nion.utils.ReferenceCounting import weak_partial
 
 if typing.TYPE_CHECKING:
     from nion.swift.model import DocumentModel
@@ -74,8 +75,14 @@ class DocumentModelInterface(abc.ABC):
     @abc.abstractmethod
     def get_display_items_for_data_item(self, data_item: typing.Optional[DataItem.DataItem]) -> typing.Set[DisplayItem.DisplayItem]: ...
 
+    @property
+    @abc.abstractmethod
+    def project_loaded_event(self) -> Event.Event: ...
+
 
 class HardwareSourceBridge:
+    # NOTE: this will always be created before the first document is loaded.
+
     def __init__(self, document_model: DocumentModelInterface):
         self.__document_model = document_model
         self.__data_items_to_append_lock = threading.RLock()
@@ -89,10 +96,13 @@ class HardwareSourceBridge:
         self.__hardware_source_removed_listener = HardwareSourceManager().hardware_source_removed_event.listen(self.__hardware_source_removed)
         for hardware_source in HardwareSourceManager().hardware_sources:
             self.__hardware_source_added(hardware_source)
+        self.__project_loaded_event_listener = document_model.project_loaded_event.listen(weak_partial(HardwareSourceBridge.clean_display_items, self))
 
     def close(self) -> None:
         # close hardware source related stuff
         # close data items left to append that haven't been appended
+        self.__project_loaded_event_listener.close()
+        self.__project_loaded_event_listener = None
         with self.__data_items_to_append_lock:
             for key, data_item in self.__data_items_to_append:
                 data_item.close()
@@ -1648,3 +1658,22 @@ def matches_hardware_source(hardware_source_id, channel_id, document_model, data
 
 
 Registry.register_component(HardwareSourceManager(), {"hardware_source_manager"})
+
+hardware_source_bridges: typing.Dict[uuid.UUID, HardwareSourceBridge] = dict()
+
+
+def handle_component_registered(component, component_types: typing.Set[str]) -> None:
+    if "document_model" in component_types:
+        assert component.uuid not in hardware_source_bridges
+        hardware_source_bridges[component.uuid] = HardwareSourceManager().register_document_model(component)
+
+
+def handle_component_unregistered(component, component_types: typing.Set[str]) -> None:
+    if "application" in component_types:
+        HardwareSourceManager().close()
+    elif "document_model" in component_types:
+        hardware_source_bridges.pop(component.uuid).close()
+
+
+component_registered_event_listener = Registry.listen_component_registered_event(handle_component_registered)
+component_unregistered_event_listener = Registry.listen_component_unregistered_event(handle_component_unregistered)

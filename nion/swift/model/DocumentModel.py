@@ -45,16 +45,6 @@ _ = gettext.gettext
 Processing.init()
 
 
-class HardwareSourceManager:
-    # defines the methods of the hardware source manager that are called from this file.
-    def get_hardware_source_for_hardware_source_id(self, hardware_source_id: str) -> typing.Any: ...
-    def register_document_model(self, document_model: DocumentModel) -> typing.Any: ...
-
-
-def hardware_source_manager() -> HardwareSourceManager:
-    return typing.cast(HardwareSourceManager, Registry.get_component("hardware_source_manager"))
-
-
 def save_item_order(items: typing.List[Persistence.PersistentObject]) -> typing.List[typing.Tuple[Project.Project, Persistence.PersistentObject]]:
     return [item.item_specifier for item in items]
 
@@ -649,6 +639,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.related_items_changed = Event.Event()
 
         self.computation_updated_event = Event.Event()
+        self.project_loaded_event = Event.Event()
 
         self.__computation_thread_pool = ThreadPool.ThreadPool()
 
@@ -710,8 +701,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
         self.call_soon_event = Event.Event()
 
-        self.__hardware_source_bridge = hardware_source_manager().register_document_model(self)
-
         # the implicit connections watch for computations matching specific criteria and then set up
         # connections between inputs/outputs of the computation. for instance, when the user changes
         # the display interval on a line profile resulting from a pick-style operation, it can be
@@ -736,6 +725,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             self.__project_item_inserted("connections", item, index)
         for index, item in enumerate(self.__project.data_groups):
             self.__project_item_inserted("data_groups", item, index)
+
+        Registry.register_component(self, {"document_model"})
 
     def __resolve_display_item_specifier(self, display_item_specifier_d: typing.Dict) -> typing.Optional[DisplayItem.DisplayItem]:
         display_item_specifier = Persistence.PersistentObjectSpecifier.read(display_item_specifier_d)
@@ -766,6 +757,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self._project.prune()
 
     def about_to_delete(self) -> None:
+        Registry.unregister_component(self, {"document_model"})
+
         with self.__call_soon_queue_lock:
             self.__call_soon_queue = list()
 
@@ -799,10 +792,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         for data_item_reference in self.__data_item_references.values():
             data_item_reference.close()
         self.__data_item_references = None
-
-        if self.__hardware_source_bridge:
-            self.__hardware_source_bridge.close()
-        self.__hardware_source_bridge = None
 
         if self.__storage_cache:
             self.__storage_cache.close()
@@ -1119,7 +1108,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         pass
 
     def __finish_project_read(self) -> None:
-        self.__hardware_source_bridge.clean_display_items()
+        self.project_loaded_event.fire()
 
     def insert_model_item(self, container, name, before_index, item):
         container.insert_item(name, before_index, item)
@@ -1934,10 +1923,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
     def update_data_item_session(self, data_item: DataItem.DataItem) -> None:
         data_item.update_session(self.session_id)
-
-    def populate_action_context(self, data_item: DataItem.DataItem, d: typing.MutableMapping) -> None:
-        if data_item.has_metadata_value("stem.hardware_source.id"):
-            d["hardware_source"] = hardware_source_manager().get_hardware_source_for_hardware_source_id(data_item.get_metadata_value("stem.hardware_source.id"))
 
     def get_display_item_snapshot_new(self, display_item: DisplayItem.DisplayItem) -> DisplayItem.DisplayItem:
         display_item_copy = display_item.snapshot()

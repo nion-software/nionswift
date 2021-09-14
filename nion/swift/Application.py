@@ -153,7 +153,7 @@ class Application(UIApplication.BaseApplication):
                 ColorMaps.load_color_maps(color_maps_dir)
             else:
                 logging.info("NOT Loading color maps from " + str(color_maps_dir) + " (missing)")
-            Registry.register_component(self, {"application"})
+        Registry.register_component(self, {"application"})
 
     def deinitialize(self):
         # shut down hardware source manager, unload plug-ins, and really exit ui
@@ -162,7 +162,6 @@ class Application(UIApplication.BaseApplication):
             self.__profile.close()
             self.__profile = None
         self.__document_model = None
-        HardwareSource.HardwareSourceManager().close()
         PlugInManager.unload_plug_ins()
         global app
         app = None  # hack to get the single instance set. hmm. better way?
