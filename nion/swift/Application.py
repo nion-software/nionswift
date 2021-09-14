@@ -40,7 +40,6 @@ from nion.swift.model import Cache
 from nion.swift.model import ColorMaps
 from nion.swift.model import DocumentModel
 from nion.swift.model import FileStorageSystem
-from nion.swift.model import HardwareSource
 from nion.swift.model import PlugInManager
 from nion.swift.model import Profile
 from nion.ui import Application as UIApplication
