@@ -267,11 +267,6 @@ class TestFacadeClass(unittest.TestCase):
             # redisplay returns existing display panel.
             self.assertEqual(api.application.document_windows[0].display_data_item(data_item1_ref)._display_panel, display_panel)
 
-    def test_lookup_unknown_instrument_or_hardware_source_returns_none(self):
-        api = Facade.get_api("~1.0", "~1.0")
-        self.assertIsNone(api.get_hardware_source_by_id("nonexistent_hardware", "~1.0"))
-        self.assertIsNone(api.get_instrument_by_id("nonexistent_instrument", "~1.0"))
-
     def test_create_data_item_from_data_copies_data(self):
         with create_memory_profile_context() as profile_context:
             document_controller = profile_context.create_document_controller_with_application()
