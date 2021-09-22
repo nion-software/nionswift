@@ -104,10 +104,10 @@ lookup_arrays = {
                   [255, 255, 255]]
 }
 
-def generate_lookup_array(color_map_id: str) -> numpy.array:
+def generate_lookup_array(color_map_id: str) -> numpy.ndarray:
     return interpolate_colors(numpy.array(lookup_arrays[color_map_id]), 256)
 
-def generate_lookup_array_hsv() -> numpy.array:
+def generate_lookup_array_hsv() -> numpy.ndarray:
     result_array = []
     for lookup_value in range(256):
         color_values = [x * 255 for x in colorsys.hsv_to_rgb(lookup_value / 300, 1.0, 1.0)]
@@ -174,7 +174,9 @@ def load_color_maps(color_maps_dir) -> None:
                     traceback.print_exc()
 
 def load_color_map_resource(resource_path: str) -> None:
-    color_map_json = json.loads(pkgutil.get_data(__name__, resource_path))
+    bytes = pkgutil.get_data(__name__, resource_path)
+    assert bytes is not None
+    color_map_json = json.loads(bytes)
     color_maps[color_map_json["id"]] = ColorMap(color_map_json["name"], generate_lookup_array_from_points(color_map_json["points"], 256))
 
 load_color_map_resource("resources/color_maps/black_body.json")

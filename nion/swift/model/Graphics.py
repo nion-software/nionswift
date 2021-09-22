@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # standard libraries
 import copy
 import gettext
@@ -106,12 +108,11 @@ def extend_line(origin, point, pixels):
     return origin + delta_extended
 
 
-def adjust_rectangle_like(part_name: str, data_shape: typing.Sequence[int], bounds: Geometry.FloatRect, rotation: float,
+def adjust_rectangle_like(part_name: str, data_shape: Geometry.FloatSize, bounds: Geometry.FloatRect, rotation: float,
                           is_center_constant_by_default: bool, original_image: Geometry.FloatPoint,
                           current_image: Geometry.FloatPoint, original_rotation: float, modifiers,
                           constraints) -> typing.Tuple[Geometry.FloatRect, float]:
     # NOTE: all sizes/points are assumed to be in image coordinates
-    data_shape = Geometry.FloatSize.make(data_shape)
     delta = current_image - original_image
     bounds_image = Geometry.map_rect(bounds, Geometry.FloatRect.unit_rect(), Geometry.FloatRect(origin=Geometry.FloatPoint(), size=data_shape))
     size_image = bounds_image.size
@@ -329,7 +330,8 @@ def adjust_rectangle_like(part_name: str, data_shape: typing.Sequence[int], boun
         else:
             origin = bounds_image.top_left + delta
         if "bounds" in constraints:
-            origin = min(max(origin.y, 0.0), data_shape.height - bounds_image.height), min(max(origin.x, 0.0), data_shape.width - bounds_image.width)
+            origin = Geometry.FloatPoint(y=min(max(origin.y, 0.0), data_shape.height - bounds_image.height),
+                                         x=min(max(origin.x, 0.0), data_shape.width - bounds_image.width))
         new_bounds_image = Geometry.FloatRect(origin=origin, size=size_image)
     new_bounds = Geometry.map_rect(new_bounds_image, Geometry.FloatRect(origin=Geometry.FloatPoint(), size=data_shape), Geometry.FloatRect.unit_rect())
     return new_bounds, new_rotation
@@ -567,13 +569,14 @@ class Graphic(Observable.Observable, Persistence.PersistentObject):
         self.__source_reference = self.create_item_reference()
         self._default_stroke_color = "#F80"
 
-
     @property
-    def project(self) -> "Project.Project":
+    def project(self) -> typing.Optional["Project.Project"]:
         return typing.cast("Project.Project", self.container.container) if self.container else None
 
     def create_proxy(self) -> Persistence.PersistentObjectProxy:
-        return self.project.create_item_proxy(item=self)
+        project = self.project
+        assert project
+        return project.create_item_proxy(item=self)
 
     @property
     def item_specifier(self) -> Persistence.PersistentObjectSpecifier:
@@ -597,7 +600,7 @@ class Graphic(Observable.Observable, Persistence.PersistentObject):
         graphic.uuid = self.uuid
         return graphic
 
-    def mime_data_dict(self) -> dict:
+    def mime_data_dict(self) -> typing.Dict[str, typing.Any]:
         return {
             "type": self.type,
             "stroke_color": self.stroke_color,
@@ -780,8 +783,8 @@ class RectangleTypeGraphic(Graphic):
     # dependent property center
     @property
     def center(self) -> typing.Tuple[float, float]:
-        return tuple(Geometry.FloatPoint(y=self.bounds[0][0] + self.size[0] * 0.5,
-                                         x=self.bounds[0][1] + self.size[1] * 0.5))
+        center_point = Geometry.FloatPoint(y=self.bounds[0][0] + self.size[0] * 0.5, x=self.bounds[0][1] + self.size[1] * 0.5)
+        return (center_point.y, center_point.x)
 
     @center.setter
     def center(self, center: typing.Union[typing.Tuple[float, float], Geometry.FloatPoint]) -> None:
@@ -794,7 +797,8 @@ class RectangleTypeGraphic(Graphic):
 
     @center_x.setter
     def center_x(self, value: float) -> None:
-        self.center = tuple(Geometry.FloatPoint(y=self.center[0], x=value))
+        new_center_point = Geometry.FloatPoint(y=self.center[0], x=value)
+        self.center = new_center_point.y, new_center_point.x
 
     @property
     def center_y(self) -> float:
@@ -802,7 +806,8 @@ class RectangleTypeGraphic(Graphic):
 
     @center_y.setter
     def center_y(self, value: float) -> None:
-        self.center = tuple(Geometry.FloatPoint(y=value, x=self.center[1]))
+        new_center_point = Geometry.FloatPoint(y=value, x=self.center[1])
+        self.center = new_center_point.y, new_center_point.x
 
     # dependent property size
     @property
@@ -812,11 +817,10 @@ class RectangleTypeGraphic(Graphic):
     @size.setter
     def size(self, size: typing.Union[typing.Tuple[float, float], Geometry.FloatSize]) -> None:
         # keep center the same
-        size = tuple(size)
         old_origin = self.bounds[0]
         old_size = self.bounds[1]
         origin = old_origin[0] - (size[0] - old_size[0]) * 0.5, old_origin[1] - (size[1] - old_size[1]) * 0.5
-        self.bounds = (origin, size)
+        self.bounds = (origin, tuple(size))
 
     @property
     def width(self) -> float:
@@ -937,7 +941,7 @@ class RectangleGraphic(RectangleTypeGraphic):
         original_image = mapping.map_point_widget_to_image(original)
         current_image = mapping.map_point_widget_to_image(current)
         bounds = Geometry.FloatRect.make(part[1])
-        bounds, rotation = adjust_rectangle_like(part[0], mapping.data_shape, bounds, self.rotation, False, original_image, current_image, part[2], modifiers, self._constraints)
+        bounds, rotation = adjust_rectangle_like(part[0], Geometry.FloatSize.make(mapping.data_shape), bounds, self.rotation, False, original_image, current_image, part[2], modifiers, self._constraints)
         if bounds != self.bounds:
             self.bounds = bounds
         if rotation != self.rotation:
@@ -1035,7 +1039,7 @@ class EllipseGraphic(RectangleTypeGraphic):
         original_image = mapping.map_point_widget_to_image(original)
         current_image = mapping.map_point_widget_to_image(current)
         bounds = Geometry.FloatRect.make(part[1])
-        bounds, rotation = adjust_rectangle_like(part[0], mapping.data_shape, bounds, self.rotation, True, original_image, current_image, part[2], modifiers, self._constraints)
+        bounds, rotation = adjust_rectangle_like(part[0], Geometry.FloatSize.make(mapping.data_shape), bounds, self.rotation, True, original_image, current_image, part[2], modifiers, self._constraints)
         if bounds != self.bounds:
             self.bounds = bounds
         if rotation != self.rotation:
@@ -1756,9 +1760,13 @@ class SpotGraphic(Graphic):
         data_rect = Geometry.FloatRect(origin=Geometry.FloatPoint(), size=data_shape)
         origin = Geometry.map_point(calibrated_origin, data_rect, Geometry.FloatRect.unit_rect())
         bounds = Geometry.FloatRect.make(self.bounds)
-        mask1 = Core.function_make_elliptical_mask(data_shape, origin + bounds.center, bounds.size, self.rotation)
-        mask2 = Core.function_make_elliptical_mask(data_shape, origin - bounds.center, bounds.size, self.rotation)
-        return numpy.logical_or(mask1.data, mask2.data)
+        mask1 = Core.function_make_elliptical_mask(tuple(data_shape), origin + bounds.center, bounds.size, self.rotation)
+        mask2 = Core.function_make_elliptical_mask(tuple(data_shape), origin - bounds.center, bounds.size, self.rotation)
+        mask1_data = mask1.data
+        mask2_data = mask2.data
+        assert mask1_data is not None
+        assert mask2_data is not None
+        return numpy.logical_or(mask1_data, mask2_data)
 
     # test point hit
     def test(self, mapping, ui_settings: UISettings.UISettings, p, move_only):
@@ -1830,7 +1838,7 @@ class SpotGraphic(Graphic):
             original_bounds = origin + original_bounds
         original_image = mapping.map_point_widget_to_image(original)
         current_image = mapping.map_point_widget_to_image(current)
-        new_bounds, new_rotation = adjust_rectangle_like(part_name, mapping.data_shape, original_bounds, self.rotation, False, original_image, current_image, original_rotation, modifiers, constraints)
+        new_bounds, new_rotation = adjust_rectangle_like(part_name, Geometry.FloatSize.make(mapping.data_shape), original_bounds, self.rotation, False, original_image, current_image, original_rotation, modifiers, constraints)
         new_bounds = Geometry.FloatRect.make(new_bounds) - origin
         if new_bounds != self.bounds:
             self.bounds = new_bounds
@@ -2481,7 +2489,7 @@ class LatticeGraphic(Graphic):
             u_bounds = Geometry.FloatRect.from_center_and_size(part[1], size)
             sub_part = part[0][2:], u_bounds, 0
             sub_bounds = Geometry.FloatRect.make(sub_part[1])
-            part_bounds, _ = adjust_rectangle_like(sub_part[0], mapping.data_shape, sub_bounds, 0.0, False, original_image, current_image, sub_part[2], modifiers, part_constraints)
+            part_bounds, _ = adjust_rectangle_like(sub_part[0], Geometry.FloatSize.make(mapping.data_shape), sub_bounds, 0.0, False, original_image, current_image, sub_part[2], modifiers, part_constraints)
             part_bounds = Geometry.FloatRect.make(part_bounds)
             self.radius = abs(part_bounds.height / 2)
         elif part[0].startswith("v-") and not "shape" in constraints:
@@ -2489,7 +2497,7 @@ class LatticeGraphic(Graphic):
             v_bounds = Geometry.FloatRect.from_center_and_size(part[2], size)
             sub_part = part[0][2:], v_bounds, 0
             sub_bounds = Geometry.FloatRect.make(sub_part[1])
-            part_bounds, _ = adjust_rectangle_like(sub_part[0], mapping.data_shape, sub_bounds, 0.0, False, original_image, current_image, sub_part[2], modifiers, part_constraints)
+            part_bounds, _ = adjust_rectangle_like(sub_part[0], Geometry.FloatSize.make(mapping.data_shape), sub_bounds, 0.0, False, original_image, current_image, sub_part[2], modifiers, part_constraints)
             part_bounds = Geometry.FloatRect.make(part_bounds)
             self.radius = abs(part_bounds.height / 2)
 

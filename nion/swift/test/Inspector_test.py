@@ -1309,11 +1309,11 @@ class TestInspectorClass(unittest.TestCase):
             command = Inspector.ChangeDimensionalCalibrationsCommand(document_model, data_item, [Calibration.Calibration(scale=2), Calibration.Calibration(scale=3)])
             command.perform()
             document_controller.push_undo_command(command)
-            self.assertEqual([Calibration.Calibration(scale=2), Calibration.Calibration(scale=3)], data_item.dimensional_calibrations)
+            self.assertEqual([Calibration.Calibration(scale=2), Calibration.Calibration(scale=3)], list(data_item.dimensional_calibrations))
             document_controller.handle_undo()
-            self.assertEqual([Calibration.Calibration(), Calibration.Calibration()], data_item.dimensional_calibrations)
+            self.assertEqual([Calibration.Calibration(), Calibration.Calibration()], list(data_item.dimensional_calibrations))
             document_controller.handle_redo()
-            self.assertEqual([Calibration.Calibration(scale=2), Calibration.Calibration(scale=3)], data_item.dimensional_calibrations)
+            self.assertEqual([Calibration.Calibration(scale=2), Calibration.Calibration(scale=3)], list(data_item.dimensional_calibrations))
 
     def test_change_display_type_command(self):
         with TestContext.create_memory_context() as test_context:

@@ -130,7 +130,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
 
         self.___has_valid_drawn_graph_data = False
 
-        self.__xdata_list: typing.List[DataAndMetadata.DataMetadata] = list()
+        self.__xdata_list: typing.List[DataAndMetadata.DataAndMetadata] = list()
         self.__last_xdata_list: typing.List[DataAndMetadata.DataMetadata] = list()
 
         # frame rate
@@ -426,8 +426,10 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         right = right if right is not None else 1.0
         left_channel = int(max(0.0, left) * data_and_metadata.data_shape[-1])
         right_channel = int(min(1.0, right) * data_and_metadata.data_shape[-1])
-        data_min = numpy.amin(data_and_metadata.data[..., left_channel:right_channel])
-        data_max = numpy.amax(data_and_metadata.data[..., left_channel:right_channel])
+        data_in_channel = data_and_metadata.data
+        assert data_in_channel is not None
+        data_min = numpy.amin(data_in_channel[..., left_channel:right_channel])
+        data_max = numpy.amax(data_in_channel[..., left_channel:right_channel])
         if data_min > 0 and data_max > 0:
             y_min = 0.0
             y_max = data_max * 1.2

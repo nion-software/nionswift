@@ -36,7 +36,7 @@ class Project(Observable.Observable, Persistence.PersistentObject):
 
     PROJECT_VERSION = 3
 
-    _processing_descriptions = dict()
+    _processing_descriptions: typing.Dict[str, typing.Any] = dict()
 
     def __init__(self, storage_system: FileStorageSystem.ProjectStorageSystem):
         super().__init__()
@@ -61,7 +61,7 @@ class Project(Observable.Observable, Persistence.PersistentObject):
 
         self.__has_been_read = False
 
-        self._raw_properties = None  # debugging
+        self._raw_properties: typing.Optional[typing.Dict] = None  # debugging
 
         self.__storage_system = storage_system
 
@@ -73,7 +73,7 @@ class Project(Observable.Observable, Persistence.PersistentObject):
         self.handle_remove_model_item = None
         self.handle_finish_read = None
         self.__storage_system.close()
-        self.__storage_system = None
+        self.__storage_system = typing.cast(FileStorageSystem.ProjectStorageSystem, None)
         super().close()
 
     def open(self) -> None:
@@ -179,7 +179,7 @@ class Project(Observable.Observable, Persistence.PersistentObject):
     def __data_group_removed(self, name: str, index: int, data_group: DataGroup.DataGroup) -> None:
         self.notify_remove_item("data_groups", data_group, index)
 
-    def _get_relationship_persistent_dict(self, item, key: str, index: int) -> typing.Dict:
+    def _get_relationship_persistent_dict(self, item, key: str, index: int) -> typing.Optional[typing.Dict]:
         if key == "data_items":
             return self.__storage_system.get_persistent_dict("data_items", item.uuid)
         else:
@@ -333,12 +333,12 @@ class Project(Observable.Observable, Persistence.PersistentObject):
         self.remove_item("connections", connection)
 
     @property
-    def data_item_references(self) -> typing.Dict[str, uuid.UUID]:
+    def data_item_references(self) -> typing.Dict[str, str]:
         return dict(self._get_persistent_property_value("data_item_references").items())
 
     def set_data_item_reference(self, key: str, data_item: DataItem.DataItem) -> None:
         data_item_references = self.data_item_references
-        data_item_references[key] = data_item.item_specifier.write()
+        data_item_references[key] = str(data_item.item_specifier.write())
         self._set_persistent_property_value("data_item_references", {k: v for k, v in data_item_references.items()})
 
     def clear_data_item_reference(self, key: str) -> None:

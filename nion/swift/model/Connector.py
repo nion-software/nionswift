@@ -7,6 +7,7 @@ import typing
 # None
 
 # local libraries
+from nion.utils import Event
 from nion.utils import Observable
 
 
@@ -42,7 +43,7 @@ class PropertyConnector:
     # common property.
 
     def __init__(self, property_connector_items: typing.List[PropertyConnectorItem]):
-        self.__property_changed_listeners = list()
+        self.__property_changed_listeners: typing.List[Event.EventListener] = list()
 
         self.__suppress = False
 
@@ -66,4 +67,4 @@ class PropertyConnector:
     def close(self) -> None:
         for listener in self.__property_changed_listeners:
             listener.close()
-        self.__property_changed_listeners = None
+        self.__property_changed_listeners = typing.cast(typing.List[Event.EventListener], None)

@@ -1534,7 +1534,7 @@ class TestSymbolicClass(unittest.TestCase):
                 computed_data_item = DataItem.DataItem(src_data.copy())
                 document_model.append_data_item(computed_data_item)
                 document_model.set_data_item_computation(computed_data_item, computation)
-                self.assertIsNone(computed_data_item.timezone)
+                self.assertFalse(computed_data_item.timezone)
                 self.assertEqual(computed_data_item.timezone_offset, "+0000")
                 Utility.local_timezone_override = ["Europe/Athens"]
                 Utility.local_utcoffset_override = [180]

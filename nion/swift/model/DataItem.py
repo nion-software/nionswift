@@ -916,7 +916,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         self.dimensional_calibrations = dimensional_calibrations
 
     def set_dimensional_calibration(self, dimension: int, calibration: Calibration.Calibration) -> None:
-        dimensional_calibrations = self.dimensional_calibrations
+        dimensional_calibrations = list(self.dimensional_calibrations)
         while len(dimensional_calibrations) <= dimension:
             dimensional_calibrations.append(Calibration.Calibration())
         dimensional_calibrations[dimension] = calibration

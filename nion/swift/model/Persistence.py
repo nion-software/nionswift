@@ -337,7 +337,7 @@ class PersistentObjectProxy:
         self.__persistent_object_context_changed()
 
     @property
-    def item_specifier(self) -> PersistentObjectSpecifier:
+    def item_specifier(self) -> typing.Optional[PersistentObjectSpecifier]:
         return self.__item_specifier
 
     @item_specifier.setter
@@ -383,10 +383,10 @@ class PersistentObjectReference:
 
     def __init__(self, persistent_object_context: typing.Optional[PersistentObjectContext], item_specifier: typing.Optional[PersistentObjectSpecifier], item: typing.Optional[PersistentObject]):
         PersistentObjectReference.count += 1
-        self.__persistent_object_context = None
+        self.__persistent_object_context: typing.Optional[PersistentObjectContext] = None
         self.__item_specifier = item_specifier if item_specifier else PersistentObjectSpecifier(item=item) if item else None
         self.__item = item
-        self.__registered_change_uuid = None
+        self.__registered_change_uuid: typing.Optional[uuid.UUID] = None
         self.on_item_registered = None
         self.on_item_unregistered = None
         self.set_persistent_object_context(persistent_object_context)
@@ -411,7 +411,7 @@ class PersistentObjectReference:
         self.__persistent_object_context_changed()
 
     @property
-    def item_specifier(self) -> PersistentObjectSpecifier:
+    def item_specifier(self) -> typing.Optional[PersistentObjectSpecifier]:
         return self.__item_specifier
 
     @item_specifier.setter
@@ -428,8 +428,10 @@ class PersistentObjectReference:
         self.__persistent_object_context = persistent_object_context
         if self.__persistent_object_context:
             if self.__item_specifier:
-                self.__registered_change_uuid = self.__item_specifier.item_uuid
-                self.__persistent_object_context.register_registration_changed_fn(self.__item_specifier.item_uuid, self, self.__change_registration)
+                item_uuid = self.__item_specifier.item_uuid
+                assert item_uuid is not None
+                self.__registered_change_uuid = item_uuid
+                self.__persistent_object_context.register_registration_changed_fn(item_uuid, self, self.__change_registration)
         self.__persistent_object_context_changed()
 
     def __change_registration(self, registered_object: typing.Optional[PersistentObject], unregistered_object: typing.Optional[PersistentObject]) -> None:
@@ -462,7 +464,7 @@ class PersistentObjectParent:
         self.item_name = item_name
 
     @property
-    def parent(self) -> PersistentObject:
+    def parent(self) -> typing.Optional[PersistentObject]:
         return self.__weak_parent()
 
 
@@ -686,7 +688,7 @@ class PersistentObject:
                     return item_d
         return None
 
-    def define_type(self, type):
+    def define_type(self, type: str) -> None:
         self.__type = type
 
     def define_property(self, name: str, value=None, make=None, read_only: bool=False, hidden: bool=False, recordable: bool=True, copy_on_read: bool=False, validate=None, converter=None, changed=None, key=None, reader=None, writer=None):
@@ -745,7 +747,7 @@ class PersistentObject:
         return [property.key for property in self.__properties.values()]
 
     @property
-    def type(self):
+    def type(self) -> str:
         return self.__type
 
     @property
@@ -967,7 +969,7 @@ class PersistentObject:
 
     def load_item(self, name: str, before_index: int, item: PersistentObject) -> None:
         """ Load item in persistent storage and then into relationship storage, but don't update modified or notify persistent storage. """
-        item.persistent_dict = self._get_relationship_persistent_dict_by_uuid(item, name)
+        item.persistent_dict = self._get_relationship_persistent_dict_by_uuid(item, name) or dict()
         item.persistent_storage = self.persistent_storage
         relationship = self.__relationships[name]
         relationship.values.insert(before_index, item)

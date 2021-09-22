@@ -190,7 +190,7 @@ class TestImportExportManagerClass(unittest.TestCase):
         self.assertNotEqual(id(new_xdata.intensity_calibration), id(intensity_calibration))
         self.assertEqual(new_xdata.intensity_calibration, intensity_calibration)
         self.assertNotEqual(id(new_xdata.dimensional_calibrations[0]), id(dimensional_calibrations[0]))
-        self.assertEqual(new_xdata.dimensional_calibrations, dimensional_calibrations)
+        self.assertEqual(tuple(new_xdata.dimensional_calibrations), tuple(dimensional_calibrations))
         self.assertNotEqual(id(new_xdata.metadata), id(metadata))
         self.assertEqual(new_xdata.metadata, metadata)
         self.assertNotEqual(id(new_xdata.data_descriptor), id(data_descriptor))

@@ -1688,7 +1688,7 @@ class DocumentController(Window.Window):
         data_item = display_item.data_item if display_item else None
         if data_item:
 
-            def describe_data_descriptor(data_descriptor: DataAndMetadata.DataDescriptor, data_shape: typing.List[int]) -> str:
+            def describe_data_descriptor(data_descriptor: DataAndMetadata.DataDescriptor, data_shape: typing.Sequence[int]) -> str:
                 if data_descriptor.is_sequence:
                     data_type_name = _("Sequence of {} ".format(data_shape[0]))
                     index = 1

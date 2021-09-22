@@ -26,8 +26,8 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
     # regarding naming: https://en.wikipedia.org/wiki/Passive_data_structure
     def __init__(self, *, structure_type: str=None, source=None):
         super().__init__()
-        self.__properties = dict()
-        self.__referenced_object_proxies = dict()
+        self.__properties: typing.Dict[str, typing.Any] = dict()
+        self.__referenced_object_proxies: typing.Dict[str, Persistence.PersistentObjectProxy] = dict()
         self.define_type("data_structure")
         self.define_property("structure_type", structure_type, changed=self.__structure_type_changed)
         self.define_property("source_specifier", changed=self.__source_specifier_changed, key="source_uuid")
@@ -41,9 +41,10 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
         self.__create_entity()
 
     def close(self) -> None:
-        if self.__entity:
+        if self.__entity_property_changed_event_listener:
             self.__entity_property_changed_event_listener.close()
-            self.__entity_property_changed_event_listener = None
+            self.__entity_property_changed_event_listener = typing.cast(Event.EventListener, None)
+        if self.__entity:
             self.__entity.close()
             self.__entity = None
         for referenced_proxy in self.__referenced_object_proxies.values():
@@ -113,14 +114,15 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
         self.__create_entity()
 
     def __create_entity(self) -> None:
-        if self.__entity:
+        if self.__entity_property_changed_event_listener:
             self.__entity_property_changed_event_listener.close()
-            self.__entity_property_changed_event_listener = None
-            self.__entity.close()
+            self.__entity_property_changed_event_listener = typing.cast(Event.EventListener, None)
+            if self.__entity:
+                self.__entity.close()
             self.__entity = None
 
         if self.structure_type in DataStructure.entity_types:
-            self.__entity = DataStructure.entity_types[self.structure_type].create(self.persistent_object_context, self.__properties)
+            self.__entity = DataStructure.entity_types[self.structure_type].create(typing.cast(Schema.EntityContext, self.persistent_object_context), self.__properties)
 
             def entity_property_changed(name: str) -> None:
                 if name != "type":
