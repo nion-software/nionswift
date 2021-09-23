@@ -41,6 +41,7 @@ jobs:
     - name: Test
       run: |
         python -m unittest discover -p '*_test.py'
+        mypy --install-types --non-interactive
         mypy --namespace-packages --ignore-missing-imports --follow-imports=silent \
           nion/swift/DataPanel.py \
           nion/swift/DocumentController.py \
