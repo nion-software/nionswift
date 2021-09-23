@@ -38,11 +38,9 @@ jobs:
         python -m pip install mypy
         python -m pip install flake8
         mypy --version
-    - name: Test
+    - name: Type Checking
       run: |
-        python -m unittest discover -p '*_test.py'
-        mypy --install-types --non-interactive
-        mypy --namespace-packages --ignore-missing-imports --follow-imports=silent \
+        mypy --install-types --non-interactive --namespace-packages --ignore-missing-imports --follow-imports=silent \
           nion/swift/DataPanel.py \
           nion/swift/DocumentController.py \
           nion/swift/GeneratorDialog.py \
@@ -81,6 +79,9 @@ jobs:
           nion/swift/model/FileStorageSystem.py \
           nion/swift/model/Model.py \
           nion/swift/model/Profile.py
+    - name: Test
+      run: |
+        python -m unittest discover -p '*_test.py'
     - name: Upload Artifacts
       uses: actions/upload-artifact@v2
       if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.8'
