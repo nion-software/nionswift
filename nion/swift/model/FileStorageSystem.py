@@ -773,7 +773,7 @@ class FileProjectStorageSystem(ProjectStorageSystem):
         storage_handler = reader_info.storage_handler
         properties = reader_info.properties
         properties = Utility.clean_dict(copy.deepcopy(properties) if properties else dict())
-        data_item_uuid = uuid.UUID(properties["uuid"])
+        data_item_uuid = uuid.UUID(typing.cast(str, properties["uuid"]))
         old_data_item = DataItem.DataItem(item_uuid=data_item_uuid)
         with contextlib.closing(old_data_item):
             old_data_item.begin_reading()

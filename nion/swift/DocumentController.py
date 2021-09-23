@@ -91,9 +91,6 @@ class DocumentController(Window.Window):
 
         self.__undo_stack = Undo.UndoStack()
 
-        if not app:  # for testing
-            setattr(self.event_loop, "has_no_pulse", True)
-
         self.__closed = False  # debugging
 
         self.uuid = uuid.uuid4()

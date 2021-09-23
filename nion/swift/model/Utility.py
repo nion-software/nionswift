@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # standard libraries
 import asyncio
 import collections
@@ -11,6 +13,7 @@ import sys
 import threading
 import time
 import traceback
+import types
 
 # third party libraries
 import typing
@@ -27,7 +30,8 @@ import numpy
 # timezone is for conversion and is the Olson timezone string.
 # datetime_item is a dictionary with entries for the local_datetime, tz (timezone offset), and
 # dst (daylight savings time offset). it may optionally include tz_name (timezone name), if available.
-def get_datetime_item_from_datetime(datetime_local, tz_minutes=None, dst_minutes=None, timezone=None):
+def get_datetime_item_from_datetime(datetime_local: datetime.datetime, tz_minutes: typing.Optional[int] = None,
+                                    dst_minutes: typing.Optional[int] = None, timezone: typing.Optional[str] = None) -> typing.Dict[str, typing.Any]:
     # dst is information, tz already includes dst
     datetime_item = dict()
     datetime_item["local_datetime"] = datetime_local.isoformat()
@@ -42,52 +46,62 @@ def get_datetime_item_from_datetime(datetime_local, tz_minutes=None, dst_minutes
     return datetime_item
 
 
-def get_current_datetime_item():
+def get_current_datetime_item() -> typing.Dict[str, typing.Any]:
     return get_datetime_item_from_datetime(datetime.datetime.now())
 
 
-def get_datetime_item_from_utc_datetime(datetime_utc, tz_minutes=None, dst_minutes=None, timezone=None):
+def get_datetime_item_from_utc_datetime(datetime_utc: datetime.datetime, tz_minutes: typing.Optional[int] = None,
+                                        dst_minutes: typing.Optional[int] = None,
+                                        timezone: typing.Optional[str] = None) -> typing.Dict[str, typing.Any]:
     # dst is information, tz already includes dst
     if tz_minutes is None:
         tz_minutes = int(round((datetime.datetime.now() - datetime.datetime.utcnow()).total_seconds())) // 60
-    return get_datetime_item_from_datetime(datetime_utc + datetime.timedelta(minutes=tz_minutes), tz_minutes, dst_minutes, timezone)
+    return get_datetime_item_from_datetime(datetime_utc + datetime.timedelta(minutes=tz_minutes), tz_minutes,
+                                           dst_minutes, timezone)
 
-local_utcoffset_override = None  # for testing
+
+local_utcoffset_override: typing.Optional[typing.List[int]] = None  # for testing
 try:
     import pytz.reference
-    def local_utcoffset_minutes(datetime_local:datetime.datetime=None) -> int:
+    def local_utcoffset_minutes(datetime_local: typing.Optional[datetime.datetime] = None) -> int:
         if local_utcoffset_override is not None:
             return local_utcoffset_override[0]
         datetime_local = datetime_local if datetime_local else datetime.datetime.now()
         return int(pytz.reference.LocalTimezone().utcoffset(datetime_local).total_seconds() // 60)
 except ImportError:
-    def local_utcoffset_minutes(datetime_local:datetime.datetime=None) -> int:
+    def local_utcoffset_minutes(datetime_local: typing.Optional[datetime.datetime] = None) -> int:
         if local_utcoffset_override is not None:
             return local_utcoffset_override[0]
         return int(round((datetime.datetime.now() - datetime.datetime.utcnow()).total_seconds())) // 60
 
+
 class TimezoneMinutesToStringConverter:
-    def convert(self, value):
+    def convert(self, value: typing.Optional[int]) -> typing.Optional[str]:
         return "{0:+03d}{1:02d}".format(value // 60, value % 60) if value is not None else None
-    def convert_back(self, value):
+
+    def convert_back(self, value: typing.Optional[str]) -> typing.Optional[int]:
         return (int(value[1:3]) * 60 + int(value[3:5])) * (-1 if value[0] == '-' else 1) if value is not None else None
+
 
 local_timezone_override: typing.Optional[typing.List[str]] = None  # for testing
 try:
     import tzlocal
-    def get_local_timezone():
+
+    def get_local_timezone() -> typing.Optional[str]:
         if local_timezone_override is None:
             lz = tzlocal.get_localzone()
-            return getattr(lz, "key", getattr(lz, "zone", None))  # key for tzlocal 3.x, zone for tzlocal 2.x
+            # key for tzlocal 3.x, zone for tzlocal 2.x
+            return typing.cast(typing.Optional[str], getattr(lz, "key", getattr(lz, "zone", None)))
         else:
             return local_timezone_override[0]
 except ImportError:
-    def get_local_timezone():
+    def get_local_timezone() -> typing.Optional[str]:
         return None if local_timezone_override is None else local_timezone_override[0]
+
 
 # return python datetime object from a datetime_item. may return None if the datetime element is
 # not properly formatted.
-def get_datetime_from_datetime_item(datetime_item):
+def get_datetime_from_datetime_item(datetime_item: typing.Dict[str, typing.Any]) -> typing.Optional[datetime.datetime]:
     local_datetime = datetime_item.get("local_datetime", str())
     if len(local_datetime) == 26:
         return datetime.datetime.strptime(local_datetime, "%Y-%m-%dT%H:%M:%S.%f")
@@ -97,22 +111,24 @@ def get_datetime_from_datetime_item(datetime_item):
 
 
 class Singleton(type):
-    def __init__(cls, name, bases, dict):
+    def __init__(cls, name: str, bases: typing.Tuple[type], dict: typing.Dict[str, typing.Any]):
         super(Singleton, cls).__init__(name, bases, dict)
         cls.instance = None
 
-    def __call__(cls, *args, **kw):
+    def __call__(cls, *args: typing.List[typing.Any], **kw: typing.Dict[str, typing.Any]) -> typing.Any:
         if cls.instance is None:
             cls.instance = super(Singleton, cls).__call__(*args, **kw)
         return cls.instance
 
 
-def clean_dict(d0, clean_item_fn=None):
-    """
-        Return a json-clean dict. Will log info message for failures.
-    """
+DirtyValue = typing.Any
+CleanValue = typing.Union[typing.Dict[str, typing.Any], typing.List[typing.Any], typing.Tuple[typing.Any], str, float, int, bool, None]
+
+
+def clean_dict(d0: typing.Dict[str, DirtyValue], clean_item_fn: typing.Optional[typing.Callable[[DirtyValue], CleanValue]] = None) -> typing.Dict[str, CleanValue]:
+    """Return a json-clean dict. Will log info message for failures."""
     clean_item_fn = clean_item_fn if clean_item_fn else clean_item
-    d = dict()
+    d: typing.Dict[str, CleanValue] = dict()
     for key in d0:
         cleaned_item = clean_item_fn(d0[key])
         if cleaned_item is not None:
@@ -120,34 +136,28 @@ def clean_dict(d0, clean_item_fn=None):
     return d
 
 
-def clean_list(l0, clean_item_fn=None):
-    """
-        Return a json-clean list. Will log info message for failures.
-    """
+def clean_list(l0: typing.List[DirtyValue], clean_item_fn: typing.Optional[typing.Callable[[DirtyValue], CleanValue]] = None) -> typing.List[CleanValue]:
+    """Return a json-clean list. Will log info message for failures."""
     clean_item_fn = clean_item_fn if clean_item_fn else clean_item
-    l = list()
+    l: typing.List[CleanValue] = list()
     for index, item in enumerate(l0):
         cleaned_item = clean_item_fn(item)
         l.append(cleaned_item)
     return l
 
 
-def clean_tuple(t0, clean_item_fn=None):
-    """
-        Return a json-clean tuple. Will log info message for failures.
-    """
+def clean_tuple(t0: typing.Tuple[DirtyValue], clean_item_fn: typing.Optional[typing.Callable[[DirtyValue], CleanValue]] = None) -> typing.Tuple[CleanValue]:
+    """Return a json-clean tuple. Will log info message for failures."""
     clean_item_fn = clean_item_fn if clean_item_fn else clean_item
-    l = list()
+    l: typing.List[CleanValue] = list()
     for index, item in enumerate(t0):
         cleaned_item = clean_item_fn(item)
         l.append(cleaned_item)
-    return tuple(l)
+    return typing.cast(typing.Tuple[CleanValue], tuple(l))
 
 
-def clean_item(i):
-    """
-        Return a json-clean item or None. Will log info message for failure.
-    """
+def clean_item(i: DirtyValue) -> CleanValue:
+    """Return a json-clean item or None. Will log info message for failure."""
     itype = type(i)
     if itype == dict:
         return clean_dict(i)
@@ -172,24 +182,23 @@ def clean_item(i):
     elif itype == numpy.uint64:
         return int(i)
     elif itype == float:
-        return i
+        return float(i)
     elif itype == str:
-        return i
+        return str(i)
     elif itype == int:
-        return i
+        return int(i)
     elif itype == numpy.bool_:
         return bool(i)
     elif itype == bool:
-        return i
-    elif itype == type(None):
-        return i
-    logging.info("[1] Unable to handle type %s", itype)
-    import traceback
-    traceback.print_stack()
+        return bool(i)
+    if itype != type(None):
+        logging.info("[1] Unable to handle type %s", itype)
+        import traceback
+        traceback.print_stack()
     return None
 
 
-def clean_item_no_list(i):
+def clean_item_no_list(i: DirtyValue) -> CleanValue:
     """
         Return a json-clean item or None. Will log info message for failure.
     """
@@ -213,20 +222,19 @@ def clean_item_no_list(i):
     elif itype == numpy.uint32:
         return int(i)
     elif itype == float:
-        return i
+        return float(i)
     elif itype == str:
-        return i
+        return str(i)
     elif itype == int:
-        return i
+        return int(i)
     elif itype == bool:
-        return i
-    elif itype == type(None):
-        return i
-    logging.info("[2] Unable to handle type %s", itype)
+        return bool(i)
+    if itype != type(None):
+        logging.info("[2] Unable to handle type %s", itype)
     return None
 
 
-def parse_version(version, count=3, max_count=None):
+def parse_version(version: str, count: int = 3, max_count: typing.Optional[int] = None) -> typing.List[int]:
     max_count = max_count if max_count is not None else count
     version_components = [int(version_component) for version_component in version.split(".")]
     assert len(version_components) <= max_count
@@ -262,13 +270,14 @@ class AtomicFileWriter:
     def __init__(self, filepath: pathlib.Path):
         self.__filepath = filepath
         self.__temp_filepath = self.__filepath.with_suffix(".temp")
-        self.__fp = None
+        self.__fp: typing.Optional[typing.TextIO] = None
 
-    def __enter__(self):
+    def __enter__(self) -> typing.TextIO:
         self.__fp = self.__temp_filepath.open("w")
         return self.__fp
 
-    def __exit__(self, exception_type, value, traceback):
+    def __exit__(self, exception_type: typing.Optional[typing.Type[Exception]], value: typing.Optional[Exception], traceback: typing.Optional[types.TracebackType]) -> None:
+        assert self.__fp
         self.__fp.flush()
         os.fsync(self.__fp)
         self.__fp.close()
@@ -293,7 +302,7 @@ class AtomicFileWriter:
                 raise
 
 
-def fps_tick(fps_id):
+def fps_tick(fps_id: str) -> str:
     v = globals().setdefault("__fps_" + fps_id, [0, 0.0, None, 0.0, None, []])
     v[0] += 1
     next_time = time.perf_counter()
@@ -309,12 +318,17 @@ def fps_tick(fps_id):
     v[2] = next_time
     return fps_get(fps_id)
 
-def fps_get(fps_id):
+
+def fps_get(fps_id: str) -> str:
     v = globals().setdefault("__fps_" + fps_id, [0, 0.0, None, 0.0, None, []])
     # s = numpy.std(v[5]) if len(v[5]) > 0 else 0.0
-    return str(int(v[3]*100)/100.0) # + " " + str(int(s*1000)) + "ms"
+    return str(int(v[3] * 100) / 100.0)  # + " " + str(int(s*1000)) + "ms"
 
-def trace_calls(trace, frame, event, arg):
+
+Trace = collections.namedtuple("Trace", ["start_time", "last_time_ref", "min_elapsed", "discard", "all"])
+
+
+def trace_calls(trace: Trace, frame: types.FrameType, event: str, arg: typing.Any) -> None:
     if event != 'call':
         return
     co = frame.f_code
@@ -325,6 +339,7 @@ def trace_calls(trace, frame, event, arg):
     func_line_no = frame.f_lineno
     func_filename = co.co_filename
     caller = frame.f_back
+    assert caller is not None
     caller_line_no = caller.f_lineno
     caller_filename = caller.f_code.co_filename
     t = time.time()
@@ -337,30 +352,29 @@ def trace_calls(trace, frame, event, arg):
         trace.last_time_ref[0] = t
 
 
-def begin_trace(min_elapsed, discard):
-    Trace = collections.namedtuple("Trace", ["start_time", "last_time_ref", "min_elapsed", "discard", "all"])
+def begin_trace(min_elapsed: float, discard: typing.Optional[str]) -> Trace:
     trace = Trace(start_time=time.time(), last_time_ref=[0], min_elapsed=min_elapsed, discard=discard, all=list())
-    sys.settrace(functools.partial(trace_calls, trace))
+    sys.settrace(typing.cast(typing.Callable[[types.FrameType, str, typing.Any], None], functools.partial(trace_calls, trace)))
     return trace
 
 
-def end_trace(trace):
+def end_trace(trace: Trace) -> None:
     sys.settrace(None)
     logging.debug("\n".join(trace.all))
     logging.debug("TOTAL: %s", len(trace.all))
 
 
 @contextlib.contextmanager
-def trace(min_elapsed=0.0, discard=None):
+def trace(min_elapsed: float = 0.0, discard: typing.Optional[str] = None) -> typing.Generator[None, None, None]:
     t = begin_trace(min_elapsed, discard)
     yield
     end_trace(t)
 
 
-def sample_stack_all(count=10, interval=0.1):
+def sample_stack_all(count: int = 10, interval: float = 0.1) -> None:
     """Sample the stack in a thread and print it at regular intervals."""
 
-    def print_stack_all(l, ll):
+    def print_stack_all(l: threading.RLock, ll: typing.MutableSequence[str]) -> None:
         l1 = list()
         l1.append("*** STACKTRACE - START ***")
         code = []
@@ -387,9 +401,9 @@ def sample_stack_all(count=10, interval=0.1):
         with l:
             ll.extend(l1)
 
-    def do_sample():
+    def do_sample() -> None:
         l = threading.RLock()
-        ll = list()
+        ll: typing.List[str] = list()
         for i in range(count):
             print_stack_all(l, ll)
             time.sleep(interval)
@@ -400,9 +414,9 @@ def sample_stack_all(count=10, interval=0.1):
 
 
 class TraceCloseable:
-    all = list()
+    all: typing.List[TraceCloseable] = list()
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.__tb = traceback.extract_stack()
         TraceCloseable.all.append(self)
 
@@ -410,37 +424,37 @@ class TraceCloseable:
         TraceCloseable.all.remove(self)
 
     @classmethod
-    def print_leftovers(cls):
+    def print_leftovers(cls) -> None:
         import sys
         for x in TraceCloseable.all:
             print("**************************")
             print(f"LEAKED {x}")
             print(f"ALLOCATED HERE")
-            for line in traceback.StackSummary.from_list(x.__tb).format():
+            for line in traceback.StackSummary.from_list(typing.cast(typing.List[typing.Tuple[str, int, str, typing.Optional[str]]], x.__tb)).format():
                 print(line, file=sys.stderr, end="")
             print("^^^^^^^^^^^^^^^^^^^^^^^^^^")
 
 
 class TestEventLoop:
-    def __init__(self, event_loop: asyncio.AbstractEventLoop = None):
+    def __init__(self, event_loop: typing.Optional[asyncio.AbstractEventLoop] = None):
         logging.disable(logging.CRITICAL)  # suppress new_event_loop debug message
         self.__event_loop = event_loop if event_loop else asyncio.new_event_loop()
         logging.disable(logging.NOTSET)
-        self.__event_loop.has_no_pulse = True
 
-    def close(self):
+    def close(self) -> None:
         # give cancelled tasks a chance to finish
         self.__event_loop.stop()
         self.__event_loop.run_forever()
-        self.__event_loop.run_until_complete(asyncio.gather(*asyncio.Task.all_tasks(loop=self.__event_loop), loop=self.__event_loop))
+        self.__event_loop.run_until_complete(asyncio.gather(*asyncio.all_tasks(loop=self.__event_loop), loop=self.__event_loop))
         # now close
         # due to a bug in Python libraries, the default executor needs to be shutdown explicitly before the event loop
         # see http://bugs.python.org/issue28464
-        if self.__event_loop._default_executor:
-            self.__event_loop._default_executor.shutdown()
+        default_executor = getattr(self.__event_loop, "_default_executor", None)
+        if default_executor:
+            default_executor.shutdown()
         self.__event_loop.close()
-        self.__event_loop = None
+        self.__event_loop = typing.cast(asyncio.AbstractEventLoop, None)
 
     @property
-    def event_loop(self):
+    def event_loop(self) -> asyncio.AbstractEventLoop:
         return self.__event_loop
