@@ -4,6 +4,7 @@ import gettext
 import logging
 import operator
 import os
+import pathlib
 import re
 import traceback
 import unicodedata
@@ -174,7 +175,7 @@ class ExportDialog(Dialog.OkCancelDialog):
                     filename = "_".join(components)
                     extension = writer.extensions[0]
                     path = os.path.join(directory, "{0}.{1}".format(filename, extension))
-                    ImportExportManager.ImportExportManager().write_display_item_with_writer(self.ui, writer, display_item, path)
+                    ImportExportManager.ImportExportManager().write_display_item_with_writer(writer, display_item, pathlib.Path(path))
                 except Exception as e:
                     logging.debug("Could not export image %s / %s", str(data_item), str(e))
                     traceback.print_exc()

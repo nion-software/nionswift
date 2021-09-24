@@ -2,6 +2,7 @@
     A module for handle .h5 files for Swift.
 """
 
+import datetime
 import io
 import json
 import os
@@ -148,10 +149,11 @@ class HDF5Handler(StorageHandler.StorageHandler):
                 else:
                     self.__dataset = self.__fp.create_dataset("data", data=numpy.empty((0,)))
 
-    def write_data(self, data, file_datetime):
+    def write_data(self, data: numpy.ndarray, file_datetime: datetime.datetime) -> None:
         with self.__lock:
             assert data is not None
             self.__ensure_open()
+            assert self.__fp is not None
             json_properties = None
             # handle three cases:
             #   1 - 'data' doesn't yet exist (require_dataset)

@@ -60,6 +60,7 @@ jobs:
           nion/swift/model/FileStorageSystem.py \
           nion/swift/model/HDF5Handler.py \
           nion/swift/model/HardwareSource.py \
+          nion/swift/model/ImportExportManager.py \
           nion/swift/model/Metadata.py \
           nion/swift/model/Migration.py \
           nion/swift/model/Model.py \

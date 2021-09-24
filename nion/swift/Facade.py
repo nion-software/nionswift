@@ -39,6 +39,7 @@ import copy
 import datetime
 import gettext
 import numbers
+import pathlib
 import threading
 import typing
 import uuid as uuid_module
@@ -3162,20 +3163,20 @@ class API_1:
             def __init__(self):
                 super().__init__(io_handler_delegate.io_handler_id, io_handler_delegate.io_handler_name, io_handler_delegate.io_handler_extensions)
 
-            def read_data_elements(self, ui, extension, file_path):
-                data_and_metadata = io_handler_delegate.read_data_and_metadata(extension, file_path)
+            def read_data_elements(self, extension: str, path: pathlib.Path) -> typing.List[typing.Dict[str, typing.Any]]:
+                data_and_metadata = io_handler_delegate.read_data_and_metadata(extension, str(file_path))
                 data_element = ImportExportManager.create_data_element_from_extended_data(data_and_metadata)
                 return [data_element]
 
             def can_write(self, data_and_metadata, extension):
                 return io_handler_delegate.can_write_data_and_metadata(data_and_metadata, extension)
 
-            def write_display_item(self, ui, display_item: DisplayItemModule.DisplayItem, file_path: str, extension: str) -> None:
+            def write_display_item(self, display_item: DisplayItemModule.DisplayItem, path: pathlib.Path, extension: str) -> None:
                 data_item = display_item.data_item
                 if data_item:
-                    self.write_data_item(ui, data_item, file_path, extension)
+                    self.write_data_item(data_item, str(path), extension)
 
-            def write_data_item(self, ui, data_item, file_path, extension):
+            def write_data_item(self, data_item, file_path: str, extension):
                 data_and_metadata = data_item.xdata
                 data = data_and_metadata.data
                 if data is not None:

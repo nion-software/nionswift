@@ -2,6 +2,7 @@ from __future__ import annotations
 
 # standard libraries
 import abc
+import contextlib
 import copy
 import datetime
 import functools
@@ -181,7 +182,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
     sync_time = None
     sync_perf_counter = None
 
-    def __init__(self, data=None, item_uuid=None, large_format=False):
+    def __init__(self, data: typing.Optional[numpy.ndarray] = None, item_uuid: typing.Optional[uuid.UUID] = None, large_format: bool = False) -> None:
         super().__init__()
         self.uuid = item_uuid if item_uuid else self.uuid
         self.large_format = large_format
@@ -562,7 +563,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         if self.session_metadata != session_metadata:
             self.session_metadata = session_metadata
 
-    def data_item_changes(self):
+    def data_item_changes(self) -> contextlib.AbstractContextManager:
         # return a context manager to batch up a set of changes so that listeners
         # are only notified after the last change is complete.
         data_item = self
@@ -685,7 +686,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
 
     # temporary methods during restructuring
 
-    def data_source_changes(self):
+    def data_source_changes(self) -> contextlib.AbstractContextManager:
         # return a context manager to batch up a set of changes so that listeners
         # are only notified after the last change is complete.
         begin_changes = self.__begin_changes
@@ -833,38 +834,47 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
             self.ensure_data_source()
             self.set_data_and_metadata(xdata, data_modified)
 
+    class DataAccessor:
+        def __init__(self, data_item, get_data, set_data):
+            self.__data_item = data_item
+            self.__get_data = get_data
+            self.__set_data = set_data
+
+        def __enter__(self):
+            self.__data_item.increment_data_ref_count()
+            return self
+
+        def __exit__(self, type, value, traceback):
+            self.__data_item.decrement_data_ref_count()
+
+        @property
+        def data(self):
+            return self.__get_data()
+
+        @data.setter
+        def data(self, value):
+            self.__set_data(value)
+
+        def data_updated(self):
+            self.__set_data(self.__get_data())
+
+        @property
+        def master_data(self):
+            return self.__get_data()
+
+        @master_data.setter
+        def master_data(self, value):
+            self.__set_data(value)
+
+        def master_data_updated(self):
+            self.__set_data(self.__get_data())
+
     # grab a data reference as a context manager. the object
     # returned defines data and data properties. reading data
     # should use the data property. writing data (if allowed) should
     # assign to the data property.
-    def data_ref(self):
-        get_data = self.__get_data
-        set_data = self.__set_data
-        class DataAccessor:
-            def __init__(self, data_item):
-                self.__data_item = data_item
-            def __enter__(self):
-                self.__data_item.increment_data_ref_count()
-                return self
-            def __exit__(self, type, value, traceback):
-                self.__data_item.decrement_data_ref_count()
-            @property
-            def data(self):
-                return get_data()
-            @data.setter
-            def data(self, value):
-                set_data(value)
-            def data_updated(self):
-                set_data(get_data())
-            @property
-            def master_data(self):
-                return get_data()
-            @master_data.setter
-            def master_data(self, value):
-                set_data(value)
-            def master_data_updated(self):
-                set_data(get_data())
-        return DataAccessor(self)
+    def data_ref(self) -> DataItem.DataAccessor:
+        return DataItem.DataAccessor(self, self.__get_data, self.__set_data)
 
     def __get_data(self):
         return self.__data_and_metadata.data if self.__data_and_metadata else None
@@ -897,7 +907,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
             self.__intensity_calibration = copy.deepcopy(intensity_calibration)  # backup in case of no data and metadata
             self._set_persistent_property_value("intensity_calibration", intensity_calibration)
 
-    def set_intensity_calibration(self, intensity_calibration):
+    def set_intensity_calibration(self, intensity_calibration: Calibration.Calibration) -> None:
         self.intensity_calibration = intensity_calibration
 
     @property
@@ -956,11 +966,11 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
             self.__timezone_property_changed("timezone_offset", value)
 
     @property
-    def metadata(self) -> typing.Dict:
+    def metadata(self) -> DataAndMetadata.MetadataType:
         return copy.deepcopy(self.__data_and_metadata.metadata) if self.__data_and_metadata else self.__metadata
 
     @metadata.setter
-    def metadata(self, metadata: dict) -> None:
+    def metadata(self, metadata: DataAndMetadata.MetadataType) -> None:
         with self.data_source_changes():
             assert isinstance(metadata, dict)
             if self.__data_and_metadata:

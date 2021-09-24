@@ -733,7 +733,7 @@ class DocumentController(Window.Window):
         if selected_writer and path:
             self.ui.set_persistent_string("export_directory", selected_directory)
             self.ui.set_persistent_string("export_filter", selected_filter)
-            ImportExportManager.ImportExportManager().write_display_item_with_writer(self.ui, selected_writer, display_item, path)
+            ImportExportManager.ImportExportManager().write_display_item_with_writer(selected_writer, display_item, pathlib.Path(path))
 
     def export_files(self, display_items: typing.Sequence[DisplayItem.DisplayItem]) -> None:
         if len(display_items) > 1:
@@ -2217,7 +2217,7 @@ class DocumentController(Window.Window):
         # this function will be called on a thread to receive files in the background.
         def receive_files_on_thread(file_paths: typing.Sequence[pathlib.Path], data_group: typing.Optional[DataGroup.DataGroup], index: int, completion_fn) -> typing.List[DataItem.DataItem]:
 
-            received_data_items = list()
+            received_data_items: typing.List[DataItem.DataItem] = list()
 
             with self.create_task_context_manager(_("Import Data Items"), "table", logging=threaded) as task:
                 task.update_progress(_("Starting import."), (0, len(file_paths)))
@@ -2230,7 +2230,7 @@ class DocumentController(Window.Window):
                     data.append(task_data_entry)
                     task.update_progress(_("Importing item {}.").format(file_index + 1), (file_index + 1, len(file_paths)), task_data)
                     try:
-                        data_items = ImportExportManager.ImportExportManager().read_data_items(self.ui, str(file_path))
+                        data_items = ImportExportManager.ImportExportManager().read_data_items(file_path)
                         if data_items:
                             received_data_items.extend(data_items)
                     except Exception as e:

@@ -430,7 +430,7 @@ class NDataHandler(StorageHandler.StorageHandler):
     def get_extension(self) -> str:
         return ".ndata"
 
-    def write_data(self, data, file_datetime):
+    def write_data(self, data: numpy.ndarray, file_datetime: datetime.datetime) -> None:
         """
             Write data to the ndata file specified by reference.
 

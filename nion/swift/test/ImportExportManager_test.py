@@ -4,6 +4,7 @@ import datetime
 import json
 import logging
 import os
+import pathlib
 import unittest
 import uuid
 
@@ -82,10 +83,10 @@ class TestImportExportManagerClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((16, 16), dtype=numpy.double))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            handler.write_display_item(None, display_item, file_path, "ndata")
+            handler.write_display_item(display_item, pathlib.Path(file_path), "ndata")
             self.assertTrue(os.path.exists(file_path))
             try:
-                data_items = handler.read_data_items(None, "ndata", file_path)
+                data_items = handler.read_data_items("ndata", pathlib.Path(file_path))
                 self.assertEqual(len(data_items), 1)
                 data_item = data_items[0]
                 for data_item in data_items:
@@ -104,7 +105,7 @@ class TestImportExportManagerClass(unittest.TestCase):
                 json.dump({"version": 1}, f)
             handler = ImportExportManager.NumPyImportExportHandler("numpy-io-handler", "npy", ["npy"])
             try:
-                data_items = handler.read_data_items(None, "npy", file_path_npy)
+                data_items = handler.read_data_items("npy", pathlib.Path(file_path_npy))
                 self.assertEqual(len(data_items), 1)
                 data_item = data_items[0]
                 for data_item in data_items:
@@ -262,7 +263,7 @@ class TestImportExportManagerClass(unittest.TestCase):
             current_working_directory = os.getcwd()
             file_path = os.path.join(current_working_directory, "__file.csv")
             handler = ImportExportManager.CSV1ImportExportHandler("csv1-io-handler", "CSV 1D", ["csv"])
-            handler.write_display_item(None, display_item, file_path, "csv")
+            handler.write_display_item(display_item, pathlib.Path(file_path), "csv")
             self.assertTrue(os.path.exists(file_path))
             try:
                 saved_data = numpy.genfromtxt(file_path, delimiter=", ")
@@ -290,7 +291,7 @@ class TestImportExportManagerClass(unittest.TestCase):
             current_working_directory = os.getcwd()
             file_path = os.path.join(current_working_directory, "__file.csv")
             handler = ImportExportManager.CSV1ImportExportHandler("csv1-io-handler", "CSV 1D", ["csv"])
-            handler.write_display_item(None, display_item, file_path, "csv")
+            handler.write_display_item(display_item, pathlib.Path(file_path), "csv")
             self.assertTrue(os.path.exists(file_path))
             try:
                 saved_data = numpy.genfromtxt(file_path, delimiter=", ")
@@ -342,7 +343,7 @@ class TestImportExportManagerClass(unittest.TestCase):
         numpy.save(file_path_npy, numpy.zeros((4, 4, 4)))
         handler = ImportExportManager.NumPyImportExportHandler("numpy-io-handler", "npy", ["npy"])
         try:
-            data_items = handler.read_data_items(None, "npy", file_path_npy)
+            data_items = handler.read_data_items("npy", pathlib.Path(file_path_npy))
             self.assertEqual(len(data_items), 1)
             data_item = data_items[0]
             self.assertTrue(data_item.large_format)
