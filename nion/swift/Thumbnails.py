@@ -2,6 +2,8 @@
     Contains classes related to thumbnail generation.
 """
 
+from __future__ import annotations
+
 # standard libraries
 import functools
 import threading
@@ -146,6 +148,10 @@ class ThumbnailSource(ReferenceCounting.ReferenceCounted):
             self.__display_changed_event_listener.close()
             self.__display_changed_event_listener = None
         super().about_to_delete()
+
+    def add_ref(self) -> ThumbnailSource:
+        super().add_ref()
+        return self
 
     @property
     def thumbnail_data(self):

@@ -750,12 +750,12 @@ class RunScriptDialog(Dialog.ActionDialog):
     def get_integer(self, prompt: str, default_value: int = 0) -> int:
         converter = Converter.IntegerToStringConverter()
         result = self.get_string(prompt, converter.convert(default_value))
-        return converter.convert_back(result)
+        return converter.convert_back(result) or 0
 
     def get_float(self, prompt: str, default_value: float = 0, format_str: str = None) -> float:
         converter = Converter.FloatToStringConverter(format_str)
         result = self.get_string(prompt, converter.convert(default_value))
-        return converter.convert_back(result)
+        return converter.convert_back(result) or 0.0
 
     def show_ndarray(self, data: numpy.ndarray, title: str = None) -> None:
         with self.sync_event() as accept_event:
