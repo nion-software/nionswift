@@ -14,6 +14,7 @@ from nion.ui import Declarative
 from nion.ui import DrawingContext
 from nion.ui import UserInterface
 from nion.ui import Window
+from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import Model
 from nion.utils import Registry
@@ -84,9 +85,9 @@ class ToolModeToolbarWidget:
 
     def close(self) -> None:
         self.__tool_mode_changed_event_listener.close()
-        self.__tool_mode_changed_event_listener = None
+        self.__tool_mode_changed_event_listener = typing.cast(Event.EventListener, None)
         self.__radio_button_value_listener.close()
-        self.__radio_button_value_listener = None
+        self.__radio_button_value_listener = typing.cast(Event.EventListener, None)
 
 
 class ActionTableToolbarWidget:

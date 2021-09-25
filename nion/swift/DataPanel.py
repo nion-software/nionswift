@@ -92,7 +92,7 @@ class DisplayItemAdapter:
 
         self.__display_item_about_to_be_removed_event_listener = display_item.about_to_be_removed_event.listen(display_item_removed) if display_item else None
 
-        self.__thumbnail_updated_event_listener = None
+        self.__thumbnail_updated_event_listener: typing.Optional[Event.EventListener] = None
         self.__thumbnail_source : typing.Optional[Thumbnails.ThumbnailSource] = None
 
     def close(self) -> None:
@@ -281,7 +281,7 @@ class DataListController:
             self.selected_indexes = list(self.__selection.indexes)
             self.__list_canvas_item.make_selection_visible()
 
-        self.__selection_changed_listener = self.__selection.changed_event.listen(selection_changed)
+        self.__selection_changed_listener: typing.Optional[Event.EventListener] = self.__selection.changed_event.listen(selection_changed)
         self.selected_indexes = list()
         self.on_context_menu_event : typing.Optional[typing.Callable[[typing.Optional[DisplayItem.DisplayItem], typing.List[DisplayItem.DisplayItem], int, int, int, int], bool]] = None
         self.on_focus_changed : typing.Optional[typing.Callable[[bool], None]] = None
@@ -300,17 +300,18 @@ class DataListController:
         for pending_task in self.__pending_tasks:
             pending_task.cancel()
         self.__pending_tasks = typing.cast(typing.List, None)
-        self.__selection_changed_listener.close()
-        self.__selection_changed_listener = None
+        if self.__selection_changed_listener:
+            self.__selection_changed_listener.close()
+            self.__selection_changed_listener = None
         for display_item_adapter_needs_update_listener in self.__display_item_adapter_needs_update_listeners:
             display_item_adapter_needs_update_listener.close()
         self.__display_item_adapter_needs_update_listeners = typing.cast(typing.List, None)
         self.__display_item_adapter_inserted_event_listener.close()
-        self.__display_item_adapter_inserted_event_listener = None
+        self.__display_item_adapter_inserted_event_listener = typing.cast(Event.EventListener, None)
         self.__display_item_adapter_removed_event_listener.close()
-        self.__display_item_adapter_removed_event_listener = None
+        self.__display_item_adapter_removed_event_listener = typing.cast(Event.EventListener, None)
         self.__display_item_adapter_end_changes_event_listener.close()
-        self.__display_item_adapter_end_changes_event_listener = None
+        self.__display_item_adapter_end_changes_event_listener = typing.cast(Event.EventListener, None)
         self.__display_item_adapters = typing.cast(typing.List, None)
         self.__display_item_adapters_model = typing.cast(ListModel.MappedListModel, None)
         self.on_context_menu_event = None
