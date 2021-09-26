@@ -53,9 +53,6 @@ class Panel:
         self.display_name = display_name
         self.widget = typing.cast(UserInterface.Widget, None)  # gets closed by the dock widget
         self.dock_widget = typing.cast(UserInterface.DockWidget, None)
-        # useful for many panels.
-        self.__periodic_task_queue = Process.TaskQueue()
-        self.__periodic_task_set = Process.TaskSet()
 
     # subclasses can override to clean up when the panel closes.
     def close(self) -> None:
