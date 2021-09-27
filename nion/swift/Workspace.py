@@ -241,7 +241,7 @@ class Workspace:
 
         self.__workspace: typing.Optional[WorkspaceLayout.WorkspaceLayout] = None
         self.__change_splitter_command: typing.Optional[Undo.UndoableCommand] = None
-        self.__change_splitter_splits: typing.List[int] = list()
+        self.__change_splitter_splits: typing.List[float] = list()
 
     def close(self) -> None:
         for message_box_widget in copy.copy(list(self.__message_boxes.values())):
@@ -834,7 +834,7 @@ class Workspace:
     def insert_display_panel(self, display_panel: DisplayPanel.DisplayPanel, region: str,
                              display_item: typing.Optional[DisplayItem.DisplayItem] = None,
                              d: typing.Optional[dict] = None, new_uuid: typing.Optional[uuid.UUID] = None,
-                             new_splits: typing.Optional[typing.List[int]] = None) -> Undo.UndoableCommand:
+                             new_splits: typing.Optional[typing.List[float]] = None) -> Undo.UndoableCommand:
         assert self.__workspace
         command = ChangeWorkspaceContentsCommand(self, _("Split Display Panel"))
         self._insert_display_panel(display_panel, region, display_item, d, new_uuid, new_splits)
@@ -843,7 +843,7 @@ class Workspace:
     def _insert_display_panel(self, display_panel: DisplayPanel.DisplayPanel, region: str,
                               display_item: typing.Optional[DisplayItem.DisplayItem], d: typing.Optional[dict],
                               new_uuid: typing.Optional[uuid.UUID],
-                              new_splits: typing.Optional[typing.List[int]] = None) -> typing.Tuple[typing.Optional[typing.List[int]], typing.Optional[DisplayPanel.DisplayPanel]]:
+                              new_splits: typing.Optional[typing.List[float]] = None) -> typing.Tuple[typing.Optional[typing.List[float]], typing.Optional[DisplayPanel.DisplayPanel]]:
         assert isinstance(display_panel, DisplayPanel.DisplayPanel)
         orientation = "vertical" if region in ("left", "right") else "horizontal"
         new_display_panel = None
@@ -885,21 +885,21 @@ class Workspace:
         return old_splits, new_display_panel
 
     def remove_display_panel(self, display_panel: DisplayPanel.DisplayPanel,
-                             splits: typing.Optional[typing.List[int]] = None) -> Undo.UndoableCommand:
+                             splits: typing.Optional[typing.List[float]] = None) -> Undo.UndoableCommand:
         assert self.__workspace
         command = ChangeWorkspaceContentsCommand(self, _("Remove Display Panel"))
         self._remove_display_panel(display_panel, splits)
         return command
 
     def _remove_display_panel(self, display_panel: DisplayPanel.DisplayPanel,
-                              splits: typing.Optional[typing.List[int]]) -> typing.Tuple[typing.Optional[DisplayPanel.DisplayPanel], typing.Optional[typing.List[int]], str]:
+                              splits: typing.Optional[typing.List[float]]) -> typing.Tuple[typing.Optional[DisplayPanel.DisplayPanel], typing.Optional[typing.List[float]], str]:
         # first make sure the display panel has no content
         display_panel.change_display_panel_content({"type": "image", "display-panel-type": "empty-display-panel"})
         # now remove it
         container = display_panel.container
         region_id = str()
         old_display_panel: typing.Optional[DisplayPanel.DisplayPanel] = None
-        old_splits: typing.Optional[typing.List[int]] = None
+        old_splits: typing.Optional[typing.List[float]] = None
         if isinstance(container, CanvasItem.SplitterCanvasItem):
             old_splits = container.splits
             if display_panel in container.canvas_items:

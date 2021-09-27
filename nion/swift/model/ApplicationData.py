@@ -108,4 +108,4 @@ def get_session_metadata_model() -> StructuredModel.RecordModel:
     return __session_metadata.model
 
 def get_session_metadata_dict() -> typing.Dict[str, typing.Any]:
-    return dict(__session_metadata.model.to_dict_value())
+    return dict(typing.cast(typing.Mapping[str, typing.Any], __session_metadata.model.to_dict_value()))

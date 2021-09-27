@@ -1041,8 +1041,8 @@ class ImageDataInspectorSection(InspectorSection):
         self.display_limits_range_high = ui.create_label_widget(properties={"width": 80})
         float_point_2_converter = Converter.FloatToStringConverter(format="{0:#.5g}")
         float_point_2_none_converter = Converter.FloatToStringConverter(format="{0:#.5g}", pass_none=True)
-        self.display_limits_range_low.bind_text(Binding.TuplePropertyBinding(self.__data_range_model, "value", 0, float_point_2_converter, fallback=_("N/A")))
-        self.display_limits_range_high.bind_text(Binding.TuplePropertyBinding(self.__data_range_model, "value", 1, float_point_2_converter, fallback=_("N/A")))
+        self.display_limits_range_low.bind_text(Binding.TuplePropertyBinding(self.__data_range_model, "value", 0, converter=float_point_2_converter, fallback=_("N/A")))
+        self.display_limits_range_high.bind_text(Binding.TuplePropertyBinding(self.__data_range_model, "value", 1, converter=float_point_2_converter, fallback=_("N/A")))
         self.display_limits_range_row.add(ui.create_label_widget(_("Data Range:"), properties={"width": 120}))
         self.display_limits_range_row.add(self.display_limits_range_low)
         self.display_limits_range_row.add_spacing(8)
@@ -1056,8 +1056,8 @@ class ImageDataInspectorSection(InspectorSection):
 
         self.__display_limits_model = DisplayDataChannelPropertyCommandModel(document_controller, display_data_channel, "display_limits", title=_("Change Display Limits"), command_id="change_display_limits")
 
-        self.display_limits_limit_low.bind_text(Binding.TuplePropertyBinding(self.__display_limits_model, "value", 0, float_point_2_none_converter))
-        self.display_limits_limit_high.bind_text(Binding.TuplePropertyBinding(self.__display_limits_model, "value", 1, float_point_2_none_converter))
+        self.display_limits_limit_low.bind_text(Binding.TuplePropertyBinding(self.__display_limits_model, "value", 0, converter=float_point_2_none_converter))
+        self.display_limits_limit_high.bind_text(Binding.TuplePropertyBinding(self.__display_limits_model, "value", 1, converter=float_point_2_none_converter))
         self.display_limits_limit_row.add(ui.create_label_widget(_("Display Limits:"), properties={"width": 120}))
         self.display_limits_limit_row.add(self.display_limits_limit_low)
         self.display_limits_limit_row.add_spacing(8)
@@ -2734,8 +2734,8 @@ def make_wedge_inspector(document_controller, display_item: DisplayItem.DisplayI
 
     angle_interval_model = GraphicPropertyCommandModel(document_controller, display_item, graphic, "angle_interval", title=_("Change Angle Interval"), command_id="change_angle_interval")
 
-    graphic_center_start_angle_line_edit.bind_text(Binding.TuplePropertyBinding(angle_interval_model, "value", 0, RadianToDegreeStringConverter()))
-    graphic_center_angle_measure_line_edit.bind_text(Binding.TuplePropertyBinding(angle_interval_model, "value", 1, RadianToDegreeStringConverter()))
+    graphic_center_start_angle_line_edit.bind_text(Binding.TuplePropertyBinding(angle_interval_model, "value", 0, converter=RadianToDegreeStringConverter()))
+    graphic_center_angle_measure_line_edit.bind_text(Binding.TuplePropertyBinding(angle_interval_model, "value", 1, converter=RadianToDegreeStringConverter()))
 
     graphic_widget.add_unbinder([display_item, graphic], [graphic_center_start_angle_line_edit.unbind_text, graphic_center_angle_measure_line_edit.unbind_text])
 

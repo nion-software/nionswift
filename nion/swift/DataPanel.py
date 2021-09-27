@@ -123,8 +123,8 @@ class DisplayItemAdapter:
         if self.__display_item:
             thumbnail_data = self.calculate_thumbnail_data()
             if thumbnail_data is not None:
-                draw_rect = Geometry.fit_to_size(draw_rect, thumbnail_data.shape)
-                drawing_context.draw_image(thumbnail_data, draw_rect[0][1], draw_rect[0][0], draw_rect[1][1], draw_rect[1][0])
+                draw_rect_f = Geometry.fit_to_size(draw_rect, typing.cast(typing.Tuple[int, int], thumbnail_data.shape))
+                drawing_context.draw_image(thumbnail_data, draw_rect_f.left, draw_rect_f.top, draw_rect_f.width, draw_rect_f.height)
         return drawing_context
 
     @property
