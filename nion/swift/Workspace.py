@@ -367,7 +367,8 @@ class Workspace:
             children = desc.get("children", list())
             for child_desc in children:
                 child_canvas_item, child_selected_display_panel = self._construct(child_desc, display_panels)
-                container.add_canvas_item(child_canvas_item)
+                if child_canvas_item:
+                    container.add_canvas_item(child_canvas_item)
                 selected_display_panel = child_selected_display_panel if child_selected_display_panel else selected_display_panel
             post_children_adjust()
             return container, selected_display_panel
@@ -400,7 +401,8 @@ class Workspace:
                     return selected_display_panel
             # fall through
             new_canvas_item, selected_display_panel = self._construct(d, display_panels)
-            container.replace_canvas_item(canvas_item, new_canvas_item)
+            if new_canvas_item:
+                container.replace_canvas_item(canvas_item, new_canvas_item)
             return selected_display_panel
         elif type == "image":
             if isinstance(canvas_item, DisplayPanel.DisplayPanel):
@@ -412,7 +414,8 @@ class Workspace:
                 return selected_display_panel
             # fall through
             new_canvas_item, selected_display_panel = self._construct(d, display_panels)
-            container.replace_canvas_item(canvas_item, new_canvas_item)
+            if new_canvas_item:
+                container.replace_canvas_item(canvas_item, new_canvas_item)
             return selected_display_panel
         return selected_display_panel
 
@@ -848,6 +851,7 @@ class Workspace:
         orientation = "vertical" if region in ("left", "right") else "horizontal"
         new_display_panel = None
         container = display_panel.container
+        assert container
         # record old splits for undo if modifying an existing splitter; otherwise removing the display panel is trivial
         old_splits = list(container.splits) if isinstance(container, CanvasItem.SplitterCanvasItem) and container.orientation == orientation else None
         # if not modifying an existing splitter or if modifying in the other orientation, wrap panel in new splitter
@@ -862,7 +866,7 @@ class Workspace:
         index = container.canvas_items.index(display_panel)
         if isinstance(container, CanvasItem.SplitterCanvasItem):
             # modify the existing splitter
-            old_split = container.splits[index] if not new_splits else None
+            old_split = container.splits[index] if not new_splits else 0.0
             new_index_adj = 1 if region == "right" or region == "bottom" else 0
             new_display_panel = DisplayPanel.DisplayPanel(self.document_controller, dict(), new_uuid)
             self.display_panels.insert(self.display_panels.index(display_panel) + new_index_adj, new_display_panel)
@@ -923,7 +927,8 @@ class Workspace:
         return old_display_panel, old_splits, region_id
 
     def apply_layout(self, display_panel: DisplayPanel.DisplayPanel, w: int, h: int) -> typing.List[DisplayPanel.DisplayPanel]:
-        assert isinstance(display_panel, DisplayPanel.DisplayPanel)
+        display_panel_container = display_panel.container
+        assert display_panel_container
         assert self.__workspace
         change_workspace_contents_command = ChangeWorkspaceContentsCommand(self, _("Change Workspace Contents"))
 
@@ -933,7 +938,7 @@ class Workspace:
         row_splitter_canvas_item = CanvasItem.SplitterCanvasItem(orientation="horizontal")
         row_splitter_canvas_item.on_splits_will_change = functools.partial(self._splits_will_change, row_splitter_canvas_item)
         row_splitter_canvas_item.on_splits_changed = functools.partial(self._splits_did_change, row_splitter_canvas_item)
-        display_panel.container.wrap_canvas_item(display_panel, row_splitter_canvas_item)
+        display_panel_container.wrap_canvas_item(display_panel, row_splitter_canvas_item)
         new_display_panels.append(display_panel)
         dest_index = self.display_panels.index(display_panel)
         for row in range(h):
@@ -950,7 +955,9 @@ class Workspace:
             column_splitter_canvas_item = CanvasItem.SplitterCanvasItem(orientation="vertical")
             column_splitter_canvas_item.on_splits_will_change = functools.partial(self._splits_will_change, column_splitter_canvas_item)
             column_splitter_canvas_item.on_splits_changed = functools.partial(self._splits_did_change, column_splitter_canvas_item)
-            row_display_panel.container.wrap_canvas_item(row_display_panel, column_splitter_canvas_item)
+            row_display_panel_container = row_display_panel.container
+            assert row_display_panel_container
+            row_display_panel_container.wrap_canvas_item(row_display_panel, column_splitter_canvas_item)
             for column in range(1, w):
                 column_display_panel = DisplayPanel.DisplayPanel(self.document_controller, dict())
                 new_display_panels.append(column_display_panel)

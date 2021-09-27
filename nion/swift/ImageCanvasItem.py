@@ -439,7 +439,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         self.scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(self.__composite_canvas_item)
         self.scroll_area_canvas_item._constrain_position = False  # temporary until scroll bars are implemented
 
-        def layout_updated(canvas_origin, canvas_size, *, immediate=False):
+        def layout_updated(canvas_origin, canvas_size, immediate=False):
             # when the scroll area layout is updated, also update the overlay items since they have no way to
             # be sized otherwise. will be called on render thread.
             self.__update_overlay_canvas_item(canvas_size, immediate=immediate)

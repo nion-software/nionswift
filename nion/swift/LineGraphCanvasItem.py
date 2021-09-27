@@ -636,6 +636,10 @@ class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
     def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
         # draw the data, if any
         canvas_size = self.canvas_size
+        if not canvas_size:
+            return
+        assert canvas_size
+
         data = self.__calibrated_data
         regions = self.__regions
         font_size = self.font_size
@@ -660,7 +664,7 @@ class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
 
             calibrated_data_range = calibrated_data_max - calibrated_data_min
 
-            def convert_coordinate_to_pixel(c: float, data_scale: float, data_left: float, data_right: float) -> float:
+            def convert_coordinate_to_pixel(canvas_size: Geometry.IntSize, c: float, data_scale: float, data_left: float, data_right: float) -> float:
                 px = c * data_scale
                 return canvas_size.width * (px - data_left) / (data_right - data_left)
 
@@ -679,7 +683,7 @@ class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
                             py = plot_origin_y + plot_height - (plot_height * (data_value - calibrated_data_min) / calibrated_data_range)
                             py = max(plot_origin_y, py)
                             py = min(plot_origin_y + plot_height, py)
-                            x = convert_coordinate_to_pixel(channel, data_scale, data_left, data_right)
+                            x = convert_coordinate_to_pixel(canvas_size, channel, data_scale, data_left, data_right)
                             with drawing_context.saver():
                                 drawing_context.begin_path()
                                 drawing_context.move_to(x, py - 3)
@@ -701,11 +705,11 @@ class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
                     else:
                         drawing_context.begin_path()
 
-                        left = convert_coordinate_to_pixel(left_channel, data_scale, data_left, data_right)
+                        left = convert_coordinate_to_pixel(canvas_size, left_channel, data_scale, data_left, data_right)
                         drawing_context.move_to(left, plot_origin_y)
                         drawing_context.line_to(left, plot_origin_y + plot_height)
 
-                        right = convert_coordinate_to_pixel(right_channel, data_scale, data_left, data_right)
+                        right = convert_coordinate_to_pixel(canvas_size, right_channel, data_scale, data_left, data_right)
                         drawing_context.move_to(right, plot_origin_y)
                         drawing_context.line_to(right, plot_origin_y + plot_height)
 
