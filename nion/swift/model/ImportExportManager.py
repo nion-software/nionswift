@@ -13,7 +13,6 @@ import itertools
 # third party libraries
 import imageio
 import numpy
-import numpy.typing
 
 # local libraries
 from nion.data import Calibration
@@ -25,6 +24,7 @@ from nion.swift.model import Utility
 
 
 DataElementType = typing.Dict[str, typing.Any]
+_DataArrayType = typing.Any
 
 
 class ImportExportIncompatibleDataError(Exception):
@@ -85,7 +85,7 @@ class ImportExportHandler:
             if data is not None:
                 self.write_data(data, extension, f)
 
-    def write_data(self, data: numpy.typing.NDArray[typing.Any], extension: str, file: typing.BinaryIO) -> None:
+    def write_data(self, data: _DataArrayType, extension: str, file: typing.BinaryIO) -> None:
         pass
 
 
@@ -478,14 +478,14 @@ def create_data_element_from_extended_data(xdata: DataAndMetadata.DataAndMetadat
 
 
 # return True if data is grayscale.
-def is_grayscale(data: numpy.typing.NDArray[typing.Any]) -> bool:
+def is_grayscale(data: _DataArrayType) -> bool:
     if Image.is_data_rgb(data) or Image.is_data_rgba(data):
         return numpy.array_equal(data[..., 0],data[..., 1]) and numpy.array_equal(data[..., 1],data[..., 2])
     return True
 
 
 # read image file. convert to dtype if it is grayscale.
-def read_image_from_file(filename: pathlib.Path) -> numpy.typing.NDArray[typing.Any]:
+def read_image_from_file(filename: pathlib.Path) -> _DataArrayType:
     if str(filename).startswith(":"):
         return numpy.zeros((20, 20, 4), numpy.uint8)
     image = imageio.imread(filename)
@@ -574,12 +574,11 @@ class CSVImportExportHandler(ImportExportHandler):
             numpy.savetxt(path, data, delimiter=', ')  # type: ignore
 
 
-
-def build_table(display_item: DisplayItem.DisplayItem) -> typing.Tuple[typing.List[str], typing.List[numpy.typing.NDArray[typing.Any]]]:
+def build_table(display_item: DisplayItem.DisplayItem) -> typing.Tuple[typing.List[str], typing.List[_DataArrayType]]:
     data_items = display_item.data_items
     assert all([data_item.is_data_1d for data_item in data_items])
 
-    def make_x_data(calibration: Calibration.Calibration, length: int) -> numpy.typing.NDArray[typing.Any]:
+    def make_x_data(calibration: Calibration.Calibration, length: int) -> _DataArrayType:
         return numpy.linspace(calibration.offset, calibration.offset + (length - 1) * calibration.scale, length)
 
     calibration0 = data_items[0].xdata.dimensional_calibrations[0]

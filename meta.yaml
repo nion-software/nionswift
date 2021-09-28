@@ -28,7 +28,7 @@ requirements:
     - nionui >=0.5.0,<0.6.0
     - nionswift-io >=0.14.0
     - scipy
-    - numpy >=1.21
+    - numpy >=1.20,<2.0
     - h5py
     - imageio
     - pytz
