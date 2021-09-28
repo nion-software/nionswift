@@ -44,7 +44,7 @@ class FilterController:
     def __init__(self, document_controller):
         self.ui = document_controller.ui
         self.__periodic_listener = document_controller.add_periodic(1.0, self.__periodic)
-        self.item_model_controller = self.ui.create_item_model_controller(["display"])
+        self.item_model_controller = self.ui.create_item_model_controller()
         self.__document_controller_weakref = weakref.ref(document_controller)
 
         self.__display_item_tree = TreeNode(reversed=True)
