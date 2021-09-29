@@ -271,16 +271,18 @@ class ScriptListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
             return True
         return False
 
-    def context_menu_event(self, index: int, x: int, y: int, gx: int, gy: int) -> bool:
-        display_item = self.items[index]
-        menu = self.__document_controller.create_context_menu()
-        if isinstance(display_item, FolderListItem):
-            menu.add_menu_item(_("Open Folder"), functools.partial(open_location, display_item.full_path))
-        elif isinstance(display_item, ScriptListItem):
+    def context_menu_event(self, index: typing.Optional[int], x: int, y: int, gx: int, gy: int) -> bool:
+        if index is not None:
+            display_item = self.items[index]
             menu = self.__document_controller.create_context_menu()
-            menu.add_menu_item(_("Open Containing Folder"), functools.partial(open_location, display_item.dirname))
-        menu.popup(gx, gy)
-        return True
+            if isinstance(display_item, FolderListItem):
+                menu.add_menu_item(_("Open Folder"), functools.partial(open_location, display_item.full_path))
+            elif isinstance(display_item, ScriptListItem):
+                menu = self.__document_controller.create_context_menu()
+                menu.add_menu_item(_("Open Containing Folder"), functools.partial(open_location, display_item.dirname))
+            menu.popup(gx, gy)
+            return True
+        return False
 
     def __calculate_indent(self, display_item):
         # An item that can cause an indent_level > 0 is always an open folder
@@ -386,7 +388,7 @@ class RunScriptDialog(Dialog.ActionDialog):
             add_dir = self.ui.get_persistent_string("import_directory", "")
             file_paths, filter_str, directory = self.get_file_paths_dialog(_("Add Scripts"), add_dir, "Python Files (*.py)", "Python Files (*.py)")
             self.ui.set_persistent_string("import_directory", directory)
-            items = self.scripts_list_widget.items
+            items = list(self.scripts_list_widget.items)
             for file_path_str in file_paths:
                 script_item = Profile.FileScriptItem(pathlib.Path(file_path_str))
                 self.__profile.append_script_item(script_item)
@@ -406,7 +408,7 @@ class RunScriptDialog(Dialog.ActionDialog):
                 if full_path not in sys.path:
                     sys.path.append(full_path)
                     self.__new_path_entries.append(full_path)
-                items = self.scripts_list_widget.items
+                items = list(self.scripts_list_widget.items)
                 script_item = Profile.FolderScriptItem(pathlib.Path(existing_directory))
                 self.__profile.append_script_item(script_item)
                 folder_list_item.script_item = script_item

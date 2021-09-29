@@ -2870,7 +2870,7 @@ class GraphicsInspectorSection(InspectorSection):
         self.add_widget_to_content(display_calibrations_row)
         self.finish_widget_content()
         # add unbinders
-        self._unbinder.add([display_item], [list_widget.unbind_items])
+        self._unbinder.add([display_item], [])
 
     def __create_header_widget(self):
         return self.ui.create_row_widget()
