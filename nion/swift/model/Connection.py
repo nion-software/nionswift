@@ -21,7 +21,7 @@ if typing.TYPE_CHECKING:
     from nion.swift.model import Project
 
 
-class Connection(Observable.Observable, Persistence.PersistentObject):
+class Connection(Persistence.PersistentObject):
     """ Represents a connection between two objects. """
 
     def __init__(self, type, *, parent=None):

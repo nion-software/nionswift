@@ -108,7 +108,7 @@ def create_bound_item(container: Persistence.PersistentObject, specifier: typing
     return bound_item
 
 
-class ComputationOutput(Observable.Observable, Persistence.PersistentObject):
+class ComputationOutput(Persistence.PersistentObject):
     """Tracks an output of a computation."""
 
     def __init__(self, name: str=None, specifier: dict=None, specifiers: typing.Sequence[dict]=None, label: str=None):  # defaults are None for factory
@@ -215,7 +215,7 @@ class ComputationOutput(Observable.Observable, Persistence.PersistentObject):
         self._set_persistent_property_value("label", value)
 
 
-class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
+class ComputationVariable(Persistence.PersistentObject):
     """Tracks a variable (value or object) used in a computation.
 
     A variable has user visible name, a label used in the script, a value type.
@@ -1246,7 +1246,7 @@ class BoundList(BoundItemBase):
         self._update_base_items(self._get_base_items())
 
 
-class Computation(Observable.Observable, Persistence.PersistentObject):
+class Computation(Persistence.PersistentObject):
     """A computation on data and other inputs.
 
     Watches for changes to the sources and fires a computation_mutated_event
