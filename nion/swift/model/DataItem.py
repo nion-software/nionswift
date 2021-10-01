@@ -127,7 +127,7 @@ class SessionManager(abc.ABC):
 # daylight savings times are time offset (east of UTC) in format "+MM" or "-MM"
 # time zone name is for display only and has no specified format
 
-class DataItem(Observable.Observable, Persistence.PersistentObject):
+class DataItem(Persistence.PersistentObject):
     """
     Data items represent a data, description, display, and graphics within a library.
 

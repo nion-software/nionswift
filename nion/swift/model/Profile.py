@@ -31,7 +31,7 @@ _ = gettext.gettext
 ProfileContext = typing.TypeVar("ProfileContext")
 
 
-class ProjectReference(Observable.Observable, Persistence.PersistentObject):
+class ProjectReference(Persistence.PersistentObject):
 
     def __init__(self, type: str):
         super().__init__()
@@ -360,7 +360,7 @@ def script_item_factory(lookup_id: typing.Callable[[str], str]) -> typing.Option
     return None
 
 
-class Profile(Observable.Observable, Persistence.PersistentObject):
+class Profile(Persistence.PersistentObject):
     count = 0  # useful for detecting leaks in tests
 
     def __init__(self, storage_system=None, storage_cache=None, *, profile_context: typing.Optional[ProfileContext] = None):

@@ -3,8 +3,6 @@ A collection of persistence classes.
 """
 from __future__ import annotations
 
-from __future__ import annotations
-
 # standard libraries
 import abc
 import copy
@@ -16,12 +14,12 @@ import typing
 import uuid
 import weakref
 
-
 # third party libraries
 # None
 
 # local libraries
 from nion.utils import Event
+from nion.utils import Observable
 
 
 class PersistentProperty:
@@ -468,7 +466,7 @@ class PersistentObjectParent:
         return self.__weak_parent()
 
 
-class PersistentObject:
+class PersistentObject(Observable.Observable):
     """
         Base class for objects being stored in a PersistentObjectContext.
 
@@ -913,9 +911,20 @@ class PersistentObject:
             return copy.copy(self.__relationships[name].values)
         raise AttributeError("%r object has no attribute %r" % (self.__class__, name))
 
+    OBSERVABLE_FIELDS = (
+        "property_changed_event",
+        "item_set_event",
+        "item_cleared_event",
+        "item_inserted_event",
+        "item_removed_event",
+        "item_added_event",
+        "item_discarded_event",
+        "item_content_changed_event",
+        )
+
     def __setattr__(self, name, value):
         # Check for private properties of this class
-        if name.startswith("_PersistentObject__"):
+        if name.startswith("_PersistentObject__") or name in PersistentObject.OBSERVABLE_FIELDS:
             super().__setattr__(name, value)
         # Otherwise check for defined properties.
         else:
@@ -1107,7 +1116,7 @@ class PersistentObject:
         item_specifier = item_specifier or (PersistentObjectSpecifier(item_uuid=item_uuid) if item_uuid else None)
         return PersistentObjectProxy(self, item_specifier, item)
 
-    def create_item_reference(self, *, item_uuid: uuid.UUID = None, item_specifier: PersistentObjectSpecifier = None, item: PersistentObject = None) -> PersistentObjectReference:
+    def create_item_reference(self, *, item_uuid: typing.Optional[uuid.UUID] = None, item_specifier: typing.Optional[PersistentObjectSpecifier] = None, item: typing.Optional[PersistentObject] = None) -> PersistentObjectReference:
         """Create an item proxy by uuid or directly using the item."""
         item_specifier = item_specifier or (PersistentObjectSpecifier(item_uuid=item_uuid) if item_uuid else None)
         item_reference = PersistentObjectReference(self.persistent_object_context, item_specifier, item)

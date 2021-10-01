@@ -486,7 +486,7 @@ class DisplayValues:
         return (0 - m * b) / m, (1 - m * b) / m
 
 
-class DisplayDataChannel(Observable.Observable, Persistence.PersistentObject):
+class DisplayDataChannel(Persistence.PersistentObject):
     def __init__(self, data_item: DataItem.DataItem = None):
         super().__init__()
 
@@ -1174,7 +1174,7 @@ def display_layer_factory(lookup_id):
     return DisplayLayer()
 
 
-class DisplayItem(Observable.Observable, Persistence.PersistentObject):
+class DisplayItem(Persistence.PersistentObject):
     def __init__(self, item_uuid: uuid.UUID = None, *, data_item: DataItem.DataItem = None):
         super().__init__()
         self.uuid = item_uuid if item_uuid else self.uuid

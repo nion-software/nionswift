@@ -87,7 +87,7 @@ class UuidsToStringsConverter:
         return [uuid.UUID(uuid_str) for uuid_str in value]
 
 
-class DataGroup(Observable.Observable, Persistence.PersistentObject):
+class DataGroup(Persistence.PersistentObject):
 
     def __init__(self):
         super().__init__()

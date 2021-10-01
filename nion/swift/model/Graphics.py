@@ -549,7 +549,7 @@ class NullModifiers(object):
 
 
 # A Graphic object describes visible content, such as a shape, bitmap, video, or a line of text.
-class Graphic(Observable.Observable, Persistence.PersistentObject):
+class Graphic(Persistence.PersistentObject):
 
     def __init__(self, type):
         super().__init__()
