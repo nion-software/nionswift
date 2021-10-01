@@ -18,13 +18,13 @@ class UndeleteBase(abc.ABC):
 
 class UndeleteLog:
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.__items : typing.List[UndeleteBase] = list()
 
-    def close(self):
+    def close(self) -> None:
         for item in self.__items:
             item.close()
-        self.__items = None
+        self.__items = typing.cast(typing.Any, None)
 
     def append(self, item: UndeleteBase) -> None:
         self.__items.append(item)

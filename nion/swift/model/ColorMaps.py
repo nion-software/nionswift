@@ -7,9 +7,11 @@ See color maps:
 
 import collections
 import colorsys
+import dataclasses
 import gettext
 import json
 import numpy
+import numpy.typing
 import math
 import os
 import pkgutil
@@ -19,15 +21,19 @@ import xml.etree.ElementTree as ET
 
 _ = gettext.gettext
 
+_LookupDataArray = typing.Any  # numpy.typing.NDArray[typing.Any]
+_RGBA8ImageDataType = typing.Any  # numpy.typing.NDArray[typing.Any]
+_PointsType = typing.List[typing.Dict[str, typing.Union[float, typing.Tuple[int, int, int]]]]
 
-def interpolate_colors(array: numpy.ndarray, x: int) -> numpy.ndarray:
+
+def interpolate_colors(array: _LookupDataArray, x: int) -> _RGBA8ImageDataType:
     """
     Creates a color map for values in array
     :param array: color map to interpolate
     :param x: number of colors
     :return: interpolated color map
     """
-    out_array = []
+    out_array: typing.List[typing.Tuple[int, int, int]] = []
     for i in range(x):
         if i % (x / (len(array) - 1)) == 0:
             index = i / (x / (len(array) - 1))
@@ -42,7 +48,7 @@ def interpolate_colors(array: numpy.ndarray, x: int) -> numpy.ndarray:
     return numpy.array(out_array).astype(numpy.uint8)
 
 
-def generate_lookup_array_from_points(points: typing.List[typing.Dict], n: int) -> numpy.ndarray:
+def generate_lookup_array_from_points(points: _PointsType, n: int) -> _RGBA8ImageDataType:
     assert points[0]["x"] == 0.0
     assert points[-1]["x"] == 1.0
     out_array = []
@@ -50,12 +56,12 @@ def generate_lookup_array_from_points(points: typing.List[typing.Dict], n: int) 
     last_rgb = None
     for point in points:
         if "rgb" in point:
-            r, g, b = point["rgb"]
+            r, g, b = typing.cast(typing.Tuple[int, int, int], point["rgb"])
         else:
-            r = round(point["r"] * 255)
-            g = round(point["g"] * 255)
-            b = round(point["b"] * 255)
-        x = point["x"]
+            r = round(typing.cast(float, point["r"]) * 255)
+            g = round(typing.cast(float, point["g"]) * 255)
+            b = round(typing.cast(float, point["b"]) * 255)
+        x = typing.cast(float, point["x"])
         assert 0 <= r <= 255
         assert 0 <= g <= 255
         assert 0 <= b <= 255
@@ -63,7 +69,7 @@ def generate_lookup_array_from_points(points: typing.List[typing.Dict], n: int) 
         rgb = numpy.array([b, g, r])
         ix = int(math.floor(x * (n - 1)))
         if last_ix is None:
-            out_array.append(numpy.copy(rgb))
+            out_array.append(numpy.copy(rgb))  # type: ignore
         elif ix > last_ix:
             amount = (rgb - last_rgb) / (ix - last_ix)
             for x in range(ix - last_ix):
@@ -71,15 +77,15 @@ def generate_lookup_array_from_points(points: typing.List[typing.Dict], n: int) 
         else:
             assert ix >= last_ix
         last_ix = ix
-        last_rgb = numpy.copy(rgb)
+        last_rgb = numpy.copy(rgb)  # type: ignore
     return numpy.array(out_array).astype(numpy.uint8)
 
 
-def generate_lookup_array_grayscale():
+def generate_lookup_array_grayscale() -> _RGBA8ImageDataType:
     out_list = []
     for i in range(256):
         out_list.append([i, i, i])
-    return numpy.array(out_list)
+    return numpy.array(out_list).astype(numpy.uint8)
 
 lookup_arrays = {
     'magma':     [[0, 0, 0],
@@ -104,19 +110,24 @@ lookup_arrays = {
                   [255, 255, 255]]
 }
 
-def generate_lookup_array(color_map_id: str) -> numpy.ndarray:
+def generate_lookup_array(color_map_id: str) -> _RGBA8ImageDataType:
     return interpolate_colors(numpy.array(lookup_arrays[color_map_id]), 256)
 
-def generate_lookup_array_hsv() -> numpy.ndarray:
+def generate_lookup_array_hsv() -> _RGBA8ImageDataType:
     result_array = []
     for lookup_value in range(256):
         color_values = [x * 255 for x in colorsys.hsv_to_rgb(lookup_value / 300, 1.0, 1.0)]
         result_array.append(color_values)
-    return numpy.array(result_array).astype(int)
+    return numpy.array(result_array).astype(numpy.uint8)
 
-ColorMap = collections.namedtuple("ColorMap", ["name", "data"])
 
-color_maps = dict()
+@dataclasses.dataclass
+class ColorMap:
+    name: str
+    data: _RGBA8ImageDataType
+
+
+color_maps: typing.Dict[str, ColorMap] = dict()
 
 color_maps["grayscale"] = ColorMap(_("Grayscale"), generate_lookup_array_grayscale())
 color_maps["magma"] = ColorMap(_("Magma"), generate_lookup_array('magma'))
@@ -125,7 +136,8 @@ color_maps["viridis"] = ColorMap(_("Viridis"), generate_lookup_array('viridis'))
 color_maps["plasma"] = ColorMap(_("Plasma"), generate_lookup_array('plasma'))
 color_maps["ice"] = ColorMap(_("Ice"), generate_lookup_array('ice'))
 
-def load_color_maps(color_maps_dir) -> None:
+
+def load_color_maps(color_maps_dir: str) -> None:
     for root, dirs, files in os.walk(color_maps_dir):
         for file in files:
             if not file.startswith("."):
@@ -140,7 +152,7 @@ def load_color_maps(color_maps_dir) -> None:
                         color_map_tree = list(tree.getroot())[0]
                         assert color_map_tree.tag == "ColorMap"
                         raw_points = [point_tree.attrib for point_tree in color_map_tree]
-                        points = list()
+                        points: _PointsType = list()
                         for raw_point in raw_points:
                             if "x" in raw_point:
                                 points.append({"x": float(raw_point['x']), "r": float(raw_point['r']), "g": float(raw_point['g']), "b": float(raw_point['b'])})
@@ -173,16 +185,19 @@ def load_color_maps(color_maps_dir) -> None:
                     import traceback
                     traceback.print_exc()
 
+
 def load_color_map_resource(resource_path: str) -> None:
     bytes = pkgutil.get_data(__name__, resource_path)
     assert bytes is not None
     color_map_json = json.loads(bytes)
     color_maps[color_map_json["id"]] = ColorMap(color_map_json["name"], generate_lookup_array_from_points(color_map_json["points"], 256))
 
+
 load_color_map_resource("resources/color_maps/black_body.json")
 load_color_map_resource("resources/color_maps/extended_black_body.json")
 load_color_map_resource("resources/color_maps/extended_kindlmann.json")
 load_color_map_resource("resources/color_maps/kindlmann.json")
 
-def get_color_map_data_by_id(color_map_id: str) -> numpy.ndarray:
+
+def get_color_map_data_by_id(color_map_id: str) -> _RGBA8ImageDataType:
     return color_maps.get(color_map_id, color_maps["grayscale"]).data

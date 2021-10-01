@@ -18,10 +18,10 @@ from nion.utils import StructuredModel
 class ApplicationData:
     """Application data is a singleton that stores application data."""
 
-    def __init__(self, file_path: typing.Optional[pathlib.Path] = None):
+    def __init__(self, file_path: typing.Optional[pathlib.Path] = None) -> None:
         self.__lock = threading.RLock()
         self.__file_path = file_path
-        self.__data_dict: typing.Optional[typing.Dict] = None
+        self.__data_dict: typing.Optional[typing.Dict[str, typing.Any]] = None
         self.data_changed_event = Event.Event()
 
     @property
@@ -32,7 +32,7 @@ class ApplicationData:
     def file_path(self, value: pathlib.Path) -> None:
         self.__file_path = value
 
-    def get_data_dict(self) -> typing.Dict:
+    def get_data_dict(self) -> typing.Dict[str, typing.Any]:
         with self.__lock:
             data_changed = self.__read_data_dict()
             result = copy.deepcopy(self.__data_dict) if self.__data_dict else dict()
@@ -40,10 +40,9 @@ class ApplicationData:
             self.data_changed_event.fire()
         return result
 
-    def set_data_dict(self, d: typing.Dict) -> None:
+    def set_data_dict(self, d: typing.Mapping[str, typing.Any]) -> None:
         with self.__lock:
-            assert d is not None
-            self.__data_dict = d
+            self.__data_dict = dict(d)
             self.__write_data_dict()
         self.data_changed_event.fire()
 
@@ -54,7 +53,7 @@ class ApplicationData:
                 return True
         return False
 
-    def __write_data_dict(self):
+    def __write_data_dict(self) -> None:
         if self.__file_path:
             with Utility.AtomicFileWriter(self.__file_path) as fp:
                 json.dump(self.__data_dict, fp, skipkeys=True, indent=4)
@@ -67,11 +66,11 @@ def set_file_path(file_path: pathlib.Path) -> None:
     __application_data.file_path = file_path
 
 
-def get_data() -> typing.Dict:
+def get_data() -> typing.Dict[str, typing.Any]:
     return __application_data.get_data_dict()
 
 
-def set_data(d: typing.Dict) -> None:
+def set_data(d: typing.Mapping[str, typing.Any]) -> None:
     __application_data.set_data_dict(d)
 
 
@@ -80,7 +79,7 @@ def set_data(d: typing.Dict) -> None:
 class SessionMetadata:
     """Session data is a singleton that stores application data via the ApplicationData singleton."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         site_field = StructuredModel.define_field("site", StructuredModel.STRING)
         instrument_field = StructuredModel.define_field("instrument", StructuredModel.STRING)
         task_field = StructuredModel.define_field("task", StructuredModel.STRING)
@@ -91,7 +90,7 @@ class SessionMetadata:
 
         self.__model = StructuredModel.build_model(schema, value=get_data().get("session_metadata", dict()))
 
-        def model_changed():
+        def model_changed() -> None:
             data = get_data()
             data["session_metadata"] = self.__model.to_dict_value()
             set_data(data)
@@ -100,7 +99,7 @@ class SessionMetadata:
 
     @property
     def model(self) -> StructuredModel.RecordModel:
-        return self.__model
+        return typing.cast(StructuredModel.RecordModel, self.__model)
 
 __session_metadata = SessionMetadata()
 
