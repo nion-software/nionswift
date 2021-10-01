@@ -1,8 +1,11 @@
+from __future__ import annotations
+
 # standard libraries
 import copy
 import functools
 import logging
 import os
+import pathlib
 import pickle
 import queue
 import sqlite3
@@ -14,55 +17,74 @@ import threading
 
 # local libraries
 # None
+import typing
+import uuid
 
 
-class TracingCache:
+class CacheLike(typing.Protocol):
+    def close(self) -> None: ...
+    def suspend_cache(self) -> None: ...
+    def spill_cache(self) -> None: ...
+    def set_cached_value(self, target: typing.Any, key: str, value: typing.Any, dirty: bool = False) -> None: ...
+    def get_cached_value(self, target: typing.Any, key: str, default_value: typing.Any = None) -> typing.Any: ...
+    def remove_cached_value(self, target: typing.Any, key: str) -> None: ...
+    def is_cached_value_dirty(self, target: typing.Any, key: str) -> bool: ...
+    def set_cached_value_dirty(self, target: typing.Any, key: str, dirty: bool = True) -> None: ...
 
-    def __init__(self, storage_cache):
+
+class TracingCache(CacheLike):
+
+    def __init__(self, storage_cache: CacheLike) -> None:
         self.__storage_cache = storage_cache
 
-    def suspend_cache(self):
+    def close(self) -> None:
+        pass
+
+    def suspend_cache(self) -> None:
         logging.debug("%s.suspend_cache()", id(self))
         self.__storage_cache.suspend_cache()
 
-    def spill_cache(self):
+    def spill_cache(self) -> None:
         logging.debug("%s.spill_cache()", id(self))
         self.__storage_cache.spill_cache()
 
-    def set_cached_value(self, target, key, value, dirty=False):
+    def set_cached_value(self, target: typing.Any, key: str, value: typing.Any, dirty: bool = False) -> None:
         logging.debug("%s.set_cached_value(%s, %s, %s, %s)", id(self), id(target), key, value, dirty)
         self.__storage_cache.set_cached_value(target, key, value, dirty)
 
-    def get_cached_value(self, target, key, default_value=None):
+    def get_cached_value(self, target: typing.Any, key: str, default_value: typing.Any = None) -> typing.Any:
         logging.debug("%s.get_cached_value(%s, %s, %s)", id(self), id(target), key, default_value)
         result = self.__storage_cache.get_cached_value(target, key, default_value)
         logging.debug("# %s", result)
         return result
 
-    def remove_cached_value(self, target, key):
+    def remove_cached_value(self, target: typing.Any, key: str) -> None:
         logging.debug("%s.remove_cached_value(%s, %s)", id(self), target, key)
         self.__storage_cache.remove_cached_value(target, key)
 
-    def is_cached_value_dirty(self, target, key):
+    def is_cached_value_dirty(self, target: typing.Any, key: str) -> bool:
         logging.debug("%s.is_cached_value_dirty(%s, %s)", id(self), id(target), key)
         result = self.__storage_cache.is_cached_value_dirty(target, key)
         logging.debug("# %s", result)
         return result
 
-    def set_cached_value_dirty(self, target, key, dirty=True):
+    def set_cached_value_dirty(self, target: typing.Any, key: str, dirty: bool = True) -> None:
         logging.debug("%s.set_cached_value_dirty(%s, %s, %s)", id(self), target, key, dirty)
         self.__storage_cache.set_cached_value_dirty(target, key, dirty)
 
 
-class SuspendableCache:
+class SuspendableCache(CacheLike):
 
-    def __init__(self, storage_cache):
+    def __init__(self, storage_cache: CacheLike) -> None:
         self.__storage_cache = storage_cache
-        self.__cache = dict()
-        self.__cache_remove = dict()
-        self.__cache_dirty = dict()
+        self.__cache: typing.Dict[int, typing.Tuple[typing.Any, typing.Dict[str, typing.Any]]] = dict()
+        self.__cache_remove: typing.Dict[int, typing.Tuple[typing.Any, typing.List[typing.Any]]] = dict()
+        self.__cache_dirty: typing.Dict[int, typing.Tuple[typing.Any, typing.Dict[str, bool]]] = dict()
         self.__cache_mutex = threading.RLock()
         self.__cache_delayed = False
+
+    def close(self) -> None:
+        pass
 
     # the cache system stores values that are expensive to calculate for quick retrieval.
     # an item can be marked dirty in the cache so that callers can determine whether that
@@ -71,12 +93,12 @@ class SuspendableCache:
     # cache even when it is marked dirty. this way the cache is used to retrieve the best
     # available data without doing additional calculations.
 
-    def suspend_cache(self):
+    def suspend_cache(self) -> None:
         with self.__cache_mutex:
             self.__cache_delayed = True
 
     # move local cache items into permanent cache when transaction is finished.
-    def spill_cache(self):
+    def spill_cache(self) -> None:
         with self.__cache_mutex:
             cache_copy = copy.copy(self.__cache)
             cache_dirty_copy = copy.copy(self.__cache_dirty)
@@ -97,7 +119,7 @@ class SuspendableCache:
 
     # update the value in the cache. usually updating a value in the cache
     # means it will no longer be dirty.
-    def set_cached_value(self, target, key, value, dirty=False):
+    def set_cached_value(self, target: typing.Any, key: str, value: typing.Any, dirty: bool = False) -> None:
         # if transaction count is 0, cache directly
         if self.__storage_cache and not self.__cache_delayed:
             self.__storage_cache.set_cached_value(target, key, value, dirty)
@@ -113,7 +135,7 @@ class SuspendableCache:
                     object_list.remove(key)
 
     # grab the last cached value, if any, from the cache.
-    def get_cached_value(self, target, key, default_value=None):
+    def get_cached_value(self, target: typing.Any, key: str, default_value: typing.Any = None) -> typing.Any:
         # first check temporary cache.
         with self.__cache_mutex:
             _, object_dict = self.__cache.get(id(target), (target, dict()))
@@ -129,7 +151,7 @@ class SuspendableCache:
 
     # removing values from the cache happens immediately under a transaction.
     # this is an area of improvement if it becomes a bottleneck.
-    def remove_cached_value(self, target, key):
+    def remove_cached_value(self, target: typing.Any, key: str) -> None:
         # remove it from the cache db.
         if self.__storage_cache and not self.__cache_delayed:
             self.__storage_cache.remove_cached_value(target, key)
@@ -147,7 +169,7 @@ class SuspendableCache:
                     object_list.append(key)
 
     # determines whether the item in the cache is dirty.
-    def is_cached_value_dirty(self, target, key):
+    def is_cached_value_dirty(self, target: typing.Any, key: str) -> bool:
         # check the temporary cache first
         with self.__cache_mutex:
             _, object_dirty_dict = self.__cache_dirty.get(id(target), (target, dict()))
@@ -159,7 +181,7 @@ class SuspendableCache:
         return True
 
     # set whether the cache value is dirty.
-    def set_cached_value_dirty(self, target, key, dirty=True):
+    def set_cached_value_dirty(self, target: typing.Any, key: str, dirty: bool = True) -> None:
         # go directory to the db cache if not under a transaction
         if self.__storage_cache and not self.__cache_delayed:
             self.__storage_cache.set_cached_value_dirty(target, key, dirty)
@@ -170,25 +192,28 @@ class SuspendableCache:
                 object_dirty_dict[key] = dirty
 
 
-class ShadowCache:
+class ShadowCache(CacheLike):
     """Shadow another cache, allowing cache usage before the other cache is created.
 
     Set the other cache using set_storage_cache. Anything cached on this object before
     set_storage_cache is called will be spilled into the other cache."""
 
-    def __init__(self):
-        self.__storage_cache = None
-        self.__cache = dict()
-        self.__cache_remove = list()
-        self.__cache_dirty = dict()
+    def __init__(self) -> None:
+        self.__storage_cache: typing.Optional[CacheLike] = None
+        self.__cache: typing.Dict[str, typing.Any] = dict()
+        self.__cache_remove: typing.List[str] = list()
+        self.__cache_dirty: typing.Dict[str, bool] = dict()
         self.__cache_mutex = threading.RLock()
         self.__cache_delayed = False
 
+    def close(self) -> None:
+        pass
+
     @property
-    def storage_cache(self):
+    def storage_cache(self) -> typing.Optional[CacheLike]:
         return self.__storage_cache
 
-    def set_storage_cache(self, storage_cache, target):
+    def set_storage_cache(self, storage_cache: typing.Optional[CacheLike], target: typing.Any) -> None:
         self.__storage_cache = storage_cache
         self.__spill_cache(target)
 
@@ -200,7 +225,7 @@ class ShadowCache:
     # available data without doing additional calculations.
 
     # move local cache items into permanent cache when transaction is finished.
-    def __spill_cache(self, target):
+    def __spill_cache(self, target: typing.Any) -> None:
         with self.__cache_mutex:
             cache_copy = copy.copy(self.__cache)
             cache_dirty_copy = copy.copy(self.__cache_dirty)
@@ -216,7 +241,7 @@ class ShadowCache:
 
     # update the value in the cache. usually updating a value in the cache
     # means it will no longer be dirty.
-    def set_cached_value(self, target, key, value, dirty=False):
+    def set_cached_value(self, target: typing.Any, key: str, value: typing.Any, dirty: bool = False) -> None:
         # if transaction count is 0, cache directly
         if self.storage_cache and not self.__cache_delayed:
             self.storage_cache.set_cached_value(target, key, value, dirty)
@@ -229,7 +254,7 @@ class ShadowCache:
                     self.__cache_remove.remove(key)
 
     # grab the last cached value, if any, from the cache.
-    def get_cached_value(self, target, key, default_value=None):
+    def get_cached_value(self, target: typing.Any, key: str, default_value: typing.Any = None) -> typing.Any:
         # first check temporary cache.
         with self.__cache_mutex:
             if key in self.__cache:
@@ -241,7 +266,7 @@ class ShadowCache:
 
     # removing values from the cache happens immediately under a transaction.
     # this is an area of improvement if it becomes a bottleneck.
-    def remove_cached_value(self, target, key):
+    def remove_cached_value(self, target: typing.Any, key: str) -> None:
         # remove it from the cache db.
         if self.storage_cache and not self.__cache_delayed:
             self.storage_cache.remove_cached_value(target, key)
@@ -255,7 +280,7 @@ class ShadowCache:
                 self.__cache_remove.append(key)
 
     # determines whether the item in the cache is dirty.
-    def is_cached_value_dirty(self, target, key):
+    def is_cached_value_dirty(self, target: typing.Any, key: str) -> bool:
         # check the temporary cache first
         with self.__cache_mutex:
             if key in self.__cache_dirty:
@@ -266,7 +291,7 @@ class ShadowCache:
         return True
 
     # set whether the cache value is dirty.
-    def set_cached_value_dirty(self, target, key, dirty=True):
+    def set_cached_value_dirty(self, target: typing.Any, key: str, dirty: bool = True) -> None:
         # go directory to the db cache if not under a transaction
         if self.storage_cache and not self.__cache_delayed:
             self.storage_cache.set_cached_value_dirty(target, key, dirty)
@@ -276,7 +301,7 @@ class ShadowCache:
                 self.__cache_dirty[key] = dirty
 
 
-def db_make_directory_if_needed(directory_path):
+def db_make_directory_if_needed(directory_path: str) -> None:
     if os.path.exists(directory_path):
         if not os.path.isdir(directory_path):
             raise OSError("Path is not a directory:", directory_path)
@@ -284,46 +309,47 @@ def db_make_directory_if_needed(directory_path):
         os.makedirs(directory_path)
 
 
-class DictStorageCache:
-    def __init__(self, cache=None, cache_dirty=None):
-        self.__cache = copy.deepcopy(cache) if cache else dict()
-        self.__cache_dirty = copy.deepcopy(cache_dirty) if cache_dirty else dict()
+class DictStorageCache(CacheLike):
+    def __init__(self, cache: typing.Optional[typing.Dict[str, typing.Any]] = None,
+                 cache_dirty: typing.Optional[typing.Dict[uuid.UUID, typing.Dict[str, typing.Any]]] = None) -> None:
+        self.__cache: typing.Dict[str, typing.Any] = copy.deepcopy(cache) if cache else dict()
+        self.__cache_dirty: typing.Dict[uuid.UUID, typing.Dict[str, bool]] = copy.deepcopy(cache_dirty) if cache_dirty else dict()
 
-    def close(self):
+    def close(self) -> None:
         pass
 
     @property
-    def cache(self):
+    def cache(self) -> typing.Dict[str, typing.Any]:
         return self.__cache
 
     @property
-    def _cache_dict(self):
+    def _cache_dict(self) -> typing.Dict[str, typing.Any]:
         return self.__cache
 
     @property
-    def _cache_dirty_dict(self):
+    def _cache_dirty_dict(self) -> typing.Dict[uuid.UUID, typing.Dict[str, typing.Any]]:
         return self.__cache_dirty
 
-    def clone(self):
+    def clone(self) -> DictStorageCache:
         return DictStorageCache(cache=self.__cache, cache_dirty=self.__cache_dirty)
 
-    def suspend_cache(self):
+    def suspend_cache(self) -> None:
         pass
 
-    def spill_cache(self):
+    def spill_cache(self) -> None:
         pass
 
-    def set_cached_value(self, target, key, value, dirty=False):
+    def set_cached_value(self, target: typing.Any, key: str, value: typing.Any, dirty: bool = False) -> None:
         cache = self.__cache.setdefault(target.uuid, dict())
         cache_dirty = self.__cache_dirty.setdefault(target.uuid, dict())
         cache[key] = value
         cache_dirty[key] = dirty
 
-    def get_cached_value(self, target, key, default_value=None):
+    def get_cached_value(self, target: typing.Any, key: str, default_value: typing.Any = None) -> typing.Any:
         cache = self.__cache.setdefault(target.uuid, dict())
         return cache.get(key, default_value)
 
-    def remove_cached_value(self, target, key):
+    def remove_cached_value(self, target: typing.Any, key: str) -> None:
         cache = self.__cache.setdefault(target.uuid, dict())
         cache_dirty = self.__cache_dirty.setdefault(target.uuid, dict())
         if key in cache:
@@ -331,44 +357,45 @@ class DictStorageCache:
         if key in cache_dirty:
             del cache_dirty[key]
 
-    def is_cached_value_dirty(self, target, key):
+    def is_cached_value_dirty(self, target: typing.Any, key: str) -> bool:
         cache_dirty = self.__cache_dirty.setdefault(target.uuid, dict())
         return cache_dirty[key] if key in cache_dirty else True
 
-    def set_cached_value_dirty(self, target, key, dirty=True):
+    def set_cached_value_dirty(self, target: typing.Any, key: str, dirty: bool = True) -> None:
         cache_dirty = self.__cache_dirty.setdefault(target.uuid, dict())
         cache_dirty[key] = dirty
 
 
-class DbStorageCache:
+class DbStorageCache(CacheLike):
     count = 0  # useful for detecting leaks in tests
 
-    def __init__(self, cache_filename):
+    def __init__(self, cache_filename: pathlib.Path) -> None:
         DbStorageCache.count += 1
-        self.__queue = queue.Queue()
+        # Python 3.9+: fix typing
+        self.__queue: typing.Any = queue.Queue()
         self.__queue_lock = threading.RLock()
         self.__started_event = threading.Event()
         self.__thread = threading.Thread(target=self.__run, args=[cache_filename])
         self.__thread.start()
         self.__started_event.wait()
 
-    def close(self):
+    def close(self) -> None:
         with self.__queue_lock:
             assert self.__queue is not None
             self.__queue.put((None, None, None, None))
             self.__queue.join()
             self.__queue = None
         self.__thread.join()
-        self.__thread = None
+        self.__thread = typing.cast(typing.Any, None)
         DbStorageCache.count -= 1
 
-    def suspend_cache(self):
+    def suspend_cache(self) -> None:
         pass
 
-    def spill_cache(self):
+    def spill_cache(self) -> None:
         pass
 
-    def __run(self, cache_filename):
+    def __run(self, cache_filename: pathlib.Path) -> None:
         self.conn = sqlite3.connect(str(cache_filename))
         self.conn.execute("PRAGMA synchronous = OFF")
         self.__create()
@@ -400,13 +427,13 @@ class DbStorageCache:
             if not item:
                 break
         self.conn.close()
-        self.conn = None
+        self.conn = typing.cast(typing.Any, None)
 
-    def __create(self):
+    def __create(self) -> None:
         with self.conn:
             self.execute("CREATE TABLE IF NOT EXISTS cache(uuid STRING, key STRING, value BLOB, dirty INTEGER, PRIMARY KEY(uuid, key))")
 
-    def execute(self, stmt, args=None, log=False):
+    def execute(self, stmt: str, args: typing.Any = None, log: bool = False) -> typing.Any:
         if args:
             result = self.conn.execute(stmt, args)
             if log:
@@ -418,12 +445,12 @@ class DbStorageCache:
                 logging.debug("%s", stmt)
             return None
 
-    def __set_cached_value(self, target, key, value, dirty=False):
+    def __set_cached_value(self, target: typing.Any, key: str, value: typing.Any, dirty: bool = False) -> None:
         with self.conn:
             self.execute("INSERT OR REPLACE INTO cache (uuid, key, value, dirty) VALUES (?, ?, ?, ?)",
                          (str(target.uuid), key, sqlite3.Binary(pickle.dumps(value, 0)), 1 if dirty else 0))
 
-    def __get_cached_value(self, target, key, default_value=None):
+    def __get_cached_value(self, target: typing.Any, key: str, default_value: typing.Any = None) -> typing.Any:
         last_result = self.execute("SELECT value FROM cache WHERE uuid=? AND key=?", (str(target.uuid), key))
         value_row = last_result.fetchone()
         if value_row is not None:
@@ -435,23 +462,23 @@ class DbStorageCache:
         else:
             return default_value
 
-    def __remove_cached_value(self, target, key):
+    def __remove_cached_value(self, target: typing.Any, key: str) -> None:
         with self.conn:
             self.execute("DELETE FROM cache WHERE uuid=? AND key=?", (str(target.uuid), key))
 
-    def __is_cached_value_dirty(self, target, key):
+    def __is_cached_value_dirty(self, target: typing.Any, key: str) -> bool:
         last_result = self.execute("SELECT dirty FROM cache WHERE uuid=? AND key=?", (str(target.uuid), key))
         value_row = last_result.fetchone()
         if value_row is not None:
-            return value_row[0] != 0
+            return int(value_row[0]) != 0
         else:
             return True
 
-    def __set_cached_value_dirty(self, target, key, dirty=True):
+    def __set_cached_value_dirty(self, target: typing.Any, key: str, dirty: bool = True) -> None:
         with self.conn:
             self.execute("UPDATE cache SET dirty=? WHERE uuid=? AND key=?", (1 if dirty else 0, str(target.uuid), key))
 
-    def set_cached_value(self, target, key, value, dirty=False):
+    def set_cached_value(self, target: typing.Any, key: str, value: typing.Any, dirty: bool = False) -> None:
         assert target is not None
         event = threading.Event()
         with self.__queue_lock:
@@ -460,10 +487,10 @@ class DbStorageCache:
             _queue.put((functools.partial(self.__set_cached_value, target, key, value, dirty), None, event, "set_cached_value"))
         # event.wait()
 
-    def get_cached_value(self, target, key, default_value=None):
+    def get_cached_value(self, target: typing.Any, key: str, default_value: typing.Any = None) -> typing.Any:
         assert target is not None
         event = threading.Event()
-        result = list()
+        result: typing.List[typing.Any] = list()
         with self.__queue_lock:
             _queue = self.__queue
         if _queue:
@@ -471,7 +498,7 @@ class DbStorageCache:
             event.wait()
         return result[0] if len(result) > 0 else None
 
-    def remove_cached_value(self, target, key):
+    def remove_cached_value(self, target: typing.Any, key: str) -> None:
         assert target is not None
         event = threading.Event()
         with self.__queue_lock:
@@ -480,18 +507,18 @@ class DbStorageCache:
             _queue.put((functools.partial(self.__remove_cached_value, target, key), None, event, "remove_cached_value"))
         # event.wait()
 
-    def is_cached_value_dirty(self, target, key):
+    def is_cached_value_dirty(self, target: typing.Any, key: str) -> bool:
         assert target is not None
         event = threading.Event()
-        result = list()
+        result: typing.List[typing.Any] = list()
         with self.__queue_lock:
             _queue = self.__queue
         if _queue:
             _queue.put((functools.partial(self.__is_cached_value_dirty, target, key), result, event, "is_cached_value_dirty"))
             event.wait()
-        return result[0]
+        return typing.cast(bool, result[0])
 
-    def set_cached_value_dirty(self, target, key, dirty=True):
+    def set_cached_value_dirty(self, target: typing.Any, key: str, dirty: bool = True) -> None:
         assert target is not None
         event = threading.Event()
         with self.__queue_lock:
