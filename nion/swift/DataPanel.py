@@ -156,7 +156,7 @@ class DisplayItemAdapter:
             thumbnail_data = self.calculate_thumbnail_data()
             if thumbnail_data is not None:
                 # scaling is very slow
-                thumbnail_data = Image.get_rgba_data_from_rgba(Image.scaled(Image.get_rgba_view_from_rgba_data(thumbnail_data), Geometry.IntSize(w=80, h=80)))
+                thumbnail_data = Image.get_rgba_data_from_rgba(Image.scaled(Image.get_rgba_view_from_rgba_data(thumbnail_data), tuple(Geometry.IntSize(w=80, h=80))))
             return mime_data, thumbnail_data
         return None, None
 
