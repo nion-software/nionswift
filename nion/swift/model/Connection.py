@@ -22,6 +22,8 @@ if typing.TYPE_CHECKING:
     from nion.swift.model import Project
     from nion.utils import Event
 
+_SpecifierType = typing.Dict[str, typing.Any]
+
 
 class Connection(Persistence.PersistentObject):
     """ Represents a connection between two objects. """
@@ -61,7 +63,7 @@ class Connection(Persistence.PersistentObject):
         self.__parent_reference.item = parent
         self.parent_specifier = parent.project.create_specifier(parent).write() if parent else None
 
-    def __parent_specifier_changed(self, name: str, d: typing.Dict[str, typing.Any]) -> None:
+    def __parent_specifier_changed(self, name: str, d: _SpecifierType) -> None:
         self.__parent_reference.item_specifier = Persistence.PersistentObjectSpecifier.read(d)
 
 
@@ -154,10 +156,10 @@ class PropertyConnection(Connection):
     def _target(self) -> typing.Optional[Persistence.PersistentObject]:
         return self.__target_reference.item
 
-    def __source_specifier_changed(self, name: str, d: typing.Dict[str, typing.Any]) -> None:
+    def __source_specifier_changed(self, name: str, d: _SpecifierType) -> None:
         self.__source_reference.item_specifier = Persistence.PersistentObjectSpecifier.read(d)
 
-    def __target_specifier_changed(self, name: str, d: typing.Dict[str, typing.Any]) -> None:
+    def __target_specifier_changed(self, name: str, d: _SpecifierType) -> None:
         self.__target_reference.item_specifier = Persistence.PersistentObjectSpecifier.read(d)
 
     def __set_target_from_source(self, value: typing.Any) -> None:
@@ -264,10 +266,10 @@ class IntervalListConnection(Connection):
     def _target(self) -> typing.Optional[Persistence.PersistentObject]:
         return self.__target_reference.item
 
-    def __source_specifier_changed(self, name: str, d: typing.Dict[str, typing.Any]) -> None:
+    def __source_specifier_changed(self, name: str, d: _SpecifierType) -> None:
         self.__source_reference.item_specifier = Persistence.PersistentObjectSpecifier.read(d)
 
-    def __target_specifier_changed(self, name: str, d: typing.Dict[str, typing.Any]) -> None:
+    def __target_specifier_changed(self, name: str, d: _SpecifierType) -> None:
         self.__target_reference.item_specifier = Persistence.PersistentObjectSpecifier.read(d)
 
 

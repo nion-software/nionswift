@@ -254,13 +254,14 @@ class Project(Persistence.PersistentObject):
                             connection.close()
                 for item_d in properties.get("data_groups", list()):
                     data_group = DataGroup.data_group_factory(item_d.get)
-                    data_group.begin_reading()
-                    data_group.read_from_dict(item_d)
-                    data_group.finish_reading()
-                    if not self.get_item_by_uuid("data_groups", data_group.uuid):
-                        self.load_item("data_groups", len(self.data_groups), data_group)
-                    else:
-                        data_group.close()
+                    if data_group:
+                        data_group.begin_reading()
+                        data_group.read_from_dict(item_d)
+                        data_group.finish_reading()
+                        if not self.get_item_by_uuid("data_groups", data_group.uuid):
+                            self.load_item("data_groups", len(self.data_groups), data_group)
+                        else:
+                            data_group.close()
                 for item_d in properties.get("workspaces", list()):
                     workspace = WorkspaceLayout.factory(item_d.get)
                     workspace.begin_reading()

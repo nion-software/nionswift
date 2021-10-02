@@ -139,15 +139,21 @@ class PersistentItem:
 
 class PersistentRelationship:
 
-    def __init__(self, name, factory, insert=None, remove=None, key=None):
+    def __init__(self, name: str,
+                 factory: typing.Callable[[typing.Callable[[str], str]], typing.Optional[PersistentObject]],
+                 insert: typing.Optional[typing.Callable[[str, int, typing.Any], None]] = None,
+                 remove: typing.Optional[typing.Callable[[str, int, typing.Any], None]] = None,
+                 key: typing.Optional[str] = None,
+                 hidden: bool = False) -> None:
         super().__init__()
         self.name = name
         self.factory = factory
         self.insert = insert
         self.remove = remove
         self.key = key
-        self.values = list()
-        self.index = dict()
+        self.hidden = hidden
+        self.values: typing.List[PersistentObject] = list()
+        self.index: typing.Dict[uuid.UUID, PersistentObject] = dict()
 
     def close(self) -> None:
         self.insert = None
@@ -259,6 +265,10 @@ class PersistentObjectContext:
         return PersistentObjectReference(self, item_specifier, item)
 
 
+_SpecifierType = typing.Union[typing.Mapping[str, typing.Any], str, uuid.UUID]
+_SpecifierDictType = typing.Union[typing.Dict[str, typing.Any], str, uuid.UUID]
+
+
 class PersistentObjectSpecifier:
 
     def __init__(self, *, item: PersistentObject = None, item_uuid: uuid.UUID = None):
@@ -277,13 +287,13 @@ class PersistentObjectSpecifier:
     def item_uuid(self) -> typing.Optional[uuid.UUID]:
         return self.__item_uuid
 
-    def write(self) -> typing.Optional[typing.Union[typing.Dict, str]]:
+    def write(self) -> typing.Optional[_SpecifierType]:
         if self.__item_uuid:
             return str(self.__item_uuid)
         return None
 
     @staticmethod
-    def read(d: typing.Union[typing.Mapping, str, uuid.UUID]) -> typing.Optional[PersistentObjectSpecifier]:
+    def read(d: _SpecifierType) -> typing.Optional[PersistentObjectSpecifier]:
         if isinstance(d, str):
             return PersistentObjectSpecifier(item_uuid=uuid.UUID(d))
         elif isinstance(d, uuid.UUID):
@@ -292,8 +302,7 @@ class PersistentObjectSpecifier:
             return PersistentObjectSpecifier(item_uuid=uuid.UUID(d["item_uuid"]))
         elif isinstance(d, dict) and "uuid" in d:
             return PersistentObjectSpecifier(item_uuid=uuid.UUID(d["uuid"]))
-        else:
-            return None
+        return None
 
 
 class PersistentObjectProxy:
@@ -629,9 +638,9 @@ class PersistentObject(Observable.Observable):
             if item.value:
                 item.value.persistent_object_context = persistent_object_context
         for relationship in self.__relationships.values():
-            for item in relationship.values:
-                if item:
-                    item.persistent_object_context = persistent_object_context
+            for relationship_item in relationship.values:
+                if relationship_item:
+                    relationship_item.persistent_object_context = persistent_object_context
         if old_persistent_object_context:
             old_persistent_object_context.unregister(self)
         if persistent_object_context:
@@ -701,8 +710,12 @@ class PersistentObject(Observable.Observable):
     def define_item(self, name, factory, item_changed=None, hidden=False):
         self.__items[name] = PersistentItem(name, factory, item_changed, hidden)
 
-    def define_relationship(self, name, factory, insert=None, remove=None, key=None):
-        self.__relationships[name] = PersistentRelationship(name, factory, insert, remove, key)
+    def define_relationship(self, name: str,
+                            factory: typing.Callable[[typing.Callable[[str], str]], typing.Optional[PersistentObject]],
+                            insert: typing.Optional[typing.Callable[[str, int, typing.Any], None]] = None,
+                            remove: typing.Optional[typing.Callable[[str, int, typing.Any], None]] = None,
+                            key: str = None, hidden: bool = False) -> None:
+        self.__relationships[name] = PersistentRelationship(name, factory, insert, remove, key, hidden)
 
     def close_items(self) -> None:
         for item in self.__items.values():
@@ -881,12 +894,12 @@ class PersistentObject(Observable.Observable):
         """ Subclasses can call this to get a property descriptor. """
         return self.__properties[name]
 
-    def _get_persistent_property_value(self, name, default=None):
+    def _get_persistent_property_value(self, name: str, default: typing.Any = None) -> typing.Any:
         """ Subclasses can call this to get a hidden property. """
         property = self.__properties.get(name)
         return property.value if property else default
 
-    def _set_persistent_property_value(self, name, value):
+    def _set_persistent_property_value(self, name: str, value: typing.Any) -> None:
         """ Subclasses can call this to set a hidden property. """
         property = self.__properties[name]
         property.set_value(value)
@@ -899,6 +912,9 @@ class PersistentObject(Observable.Observable):
         if self.persistent_object_context:
             self.property_changed(name, value)
 
+    def _get_relationship_values(self, name: str) -> typing.Sequence[typing.Any]:
+        return copy.copy(self.__relationships[name].values)
+
     def _is_persistent_property_recordable(self, name) -> bool:
         property = self.__properties.get(name)
         return (property.recordable and not property.read_only) if (property is not None) else False
@@ -907,11 +923,11 @@ class PersistentObject(Observable.Observable):
         # Handle property objects that are not hidden.
         property = self.__properties.get(name)
         if property and not property.hidden:
-            return property.value
+            return self._get_persistent_property_value(name)
         if name in self.__items and not self.__items[name].hidden:
             return self.__items[name].value
-        if name in self.__relationships:
-            return copy.copy(self.__relationships[name].values)
+        if name in self.__relationships and not self.__relationships[name].hidden:
+            return self._get_relationship_values(name)
         raise AttributeError("%r object has no attribute %r" % (self.__class__, name))
 
     OBSERVABLE_FIELDS = (
@@ -1007,7 +1023,7 @@ class PersistentObject(Observable.Observable):
         item.persistent_dict = None
         item.close()
 
-    def insert_item(self, name, before_index, item):
+    def insert_item(self, name: str, before_index: int, item: PersistentObject) -> None:
         """ Insert item in persistent storage and then into relationship storage and notify. """
         relationship = self.__relationships[name]
         relationship.values.insert(before_index, item)
@@ -1023,11 +1039,11 @@ class PersistentObject(Observable.Observable):
         if relationship.insert:
             relationship.insert(name, before_index, item)
 
-    def append_item(self, name, item):
+    def append_item(self, name: str, item: PersistentObject) -> None:
         """ Append item and append to persistent storage. """
         self.insert_item(name, len(self.__relationships[name].values), item)
 
-    def remove_item(self, name, item):
+    def remove_item(self, name: str, item: PersistentObject) -> None:
         """ Remove item and remove from persistent storage. """
         item.about_to_be_removed(self)
         relationship = self.__relationships[name]
@@ -1044,7 +1060,7 @@ class PersistentObject(Observable.Observable):
         item.persistent_object_parent = None
         item.close()
 
-    def extend_items(self, name, items):
+    def extend_items(self, name: str, items: typing.Sequence[PersistentObject]) -> None:
         """ Append multiple items and add to persistent storage. """
         for item in items:
             self.append_item(name, item)
@@ -1054,7 +1070,7 @@ class PersistentObject(Observable.Observable):
         relationship = self.__relationships[name]
         return len(relationship.values)
 
-    def item_index(self, name: str, item: object) -> int:
+    def item_index(self, name: str, item: PersistentObject) -> int:
         """Return the index of item within the relationship specified by name."""
         relationship = self.__relationships[name]
         return relationship.values.index(item)
