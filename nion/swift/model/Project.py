@@ -244,13 +244,14 @@ class Project(Persistence.PersistentObject):
                         computation.close()
                 for item_d in properties.get("connections", list()):
                     connection = Connection.connection_factory(item_d.get)
-                    connection.begin_reading()
-                    connection.read_from_dict(item_d)
-                    connection.finish_reading()
-                    if not self.get_item_by_uuid("connections", connection.uuid):
-                        self.load_item("connections", len(self.connections), connection)
-                    else:
-                        connection.close()
+                    if connection:
+                        connection.begin_reading()
+                        connection.read_from_dict(item_d)
+                        connection.finish_reading()
+                        if not self.get_item_by_uuid("connections", connection.uuid):
+                            self.load_item("connections", len(self.connections), connection)
+                        else:
+                            connection.close()
                 for item_d in properties.get("data_groups", list()):
                     data_group = DataGroup.data_group_factory(item_d.get)
                     data_group.begin_reading()
