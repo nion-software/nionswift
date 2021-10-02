@@ -351,12 +351,13 @@ class FolderScriptItem(ScriptItem):
         self._set_field_value("folder_path", value)
 
 
-def script_item_factory(lookup_id: typing.Callable[[str], str]) -> typing.Optional[ScriptItem]:
+# casting required to use entity in place of persistent object
+def script_item_factory(lookup_id: typing.Callable[[str], str]) -> typing.Optional[Persistence.PersistentObject]:
     type = lookup_id("type")
     if type == Model.FileScriptItem.entity_id:
-        return FileScriptItem()
+        return typing.cast(Persistence.PersistentObject, FileScriptItem())
     if type == Model.FolderScriptItem.entity_id:
-        return FolderScriptItem()
+        return typing.cast(Persistence.PersistentObject, FolderScriptItem())
     return None
 
 

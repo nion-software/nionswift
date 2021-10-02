@@ -28,7 +28,6 @@ from nion.swift import ExportDialog
 from nion.swift import FilterPanel
 from nion.swift import GeneratorDialog
 from nion.swift import ImageCanvasItem
-from nion.swift import Inspector
 from nion.swift import MimeTypes
 from nion.swift import Panel
 from nion.swift import RecorderPanel
@@ -1216,6 +1215,7 @@ class DocumentController(Window.Window):
             data_group.begin_reading()
             data_group.read_from_dict(self.__data_group_properties)
             data_group.finish_reading()
+            assert self.__data_group_index is not None
             container.insert_item("data_groups", self.__data_group_index, data_group)
 
         def _redo(self) -> None:

@@ -26,7 +26,6 @@ from nion.swift.model import Persistence
 from nion.swift.model import Schema
 from nion.swift.model import Utility
 from nion.utils import Event
-from nion.utils import Observable
 from nion.utils import Registry
 
 if typing.TYPE_CHECKING:
