@@ -1241,11 +1241,6 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         Metadata.delete_metadata_value(self, key)
 
 
-def sort_by_date_key(data_item):
-    """ A sort key to for the created field of a data item. The sort by uuid makes it determinate. """
-    return data_item.title + str(data_item.uuid) if data_item.is_live else str(), data_item.date_for_sorting, str(data_item.uuid)
-
-
 def new_data_item(data_and_metadata: DataAndMetadata.DataAndMetadata=None) -> DataItem:
     data_item = DataItem(large_format=data_and_metadata and len(data_and_metadata.dimensional_shape) > 2)
     data_item.ensure_data_source()

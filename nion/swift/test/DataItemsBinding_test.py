@@ -11,8 +11,10 @@ import numpy
 
 # local libraries
 from nion.swift.model import DataItem
+from nion.swift import Application
 from nion.swift import Facade
 from nion.swift.test import TestContext
+from nion.ui import TestUI
 from nion.utils import ListModel
 from nion.utils import Selection
 
@@ -25,6 +27,13 @@ class TestDataItemsModelModule(unittest.TestCase):
     values = ["DEF", "ABC", "GHI", "DFG", "ACD", "GIJ"]
     indexes = [0, 0, 1, 1, 2, 4]
     result = ["ABC", "DFG", "ACD", "GHI", "GIJ", "DEF"]
+
+    def setUp(self):
+        TestContext.begin_leaks()
+        self.app = Application.Application(TestUI.UserInterface(), set_global=False)
+
+    def tearDown(self):
+        TestContext.end_leaks(self)
 
     def test_inserting_items_into_model_index0_with_sort_key_puts_them_in_correct_order(self):
         list_model = ListModel.ListModel("data_items")
@@ -296,10 +305,11 @@ class TestDataItemsModelModule(unittest.TestCase):
 
     def test_data_items_sorted_by_data_modified_date(self):
         with TestContext.create_memory_context() as test_context:
-            document_model = test_context.create_document_model()
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             filtered_data_items = ListModel.FilteredListModel(items_key="data_items")
             filtered_data_items.container = document_model
-            filtered_data_items.sort_key = DataItem.sort_by_date_key
+            filtered_data_items.sort_key = document_controller._sort_by_date_key
             for _ in range(4):
                 data_item = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
@@ -312,10 +322,11 @@ class TestDataItemsModelModule(unittest.TestCase):
 
     def test_processed_data_items_sorted_by_source_data_modified_date(self):
         with TestContext.create_memory_context() as test_context:
-            document_model = test_context.create_document_model()
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             filtered_data_items = ListModel.FilteredListModel(items_key="data_items")
             filtered_data_items.container = document_model
-            filtered_data_items.sort_key = DataItem.sort_by_date_key
+            filtered_data_items.sort_key = document_controller._sort_by_date_key
             for _ in range(4):
                 data_item = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)

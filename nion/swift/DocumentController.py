@@ -133,7 +133,7 @@ class DocumentController(Window.Window):
         with self.__display_items_model.changes():  # change filter and sort together
             self.__display_items_model.container = self.document_model
             self.__display_items_model.filter = ListModel.AndFilter((self.project_filter, self.get_filter_predicate(None)))
-            self.__display_items_model.sort_key = DataItem.sort_by_date_key
+            self.__display_items_model.sort_key = self._sort_by_date_key
             self.__display_items_model.sort_reverse = True
             typing.cast(typing.Any, self.__display_items_model).filter_id = None
 
@@ -434,7 +434,7 @@ class DocumentController(Window.Window):
                 with self.__display_items_model.changes():  # change filter and sort together
                     self.__display_items_model.container = self.document_model
                     self.__display_items_model.filter = ListModel.AndFilter((self.project_filter, self.get_filter_predicate(filter_id)))
-                    self.__display_items_model.sort_key = DataItem.sort_by_date_key
+                    self.__display_items_model.sort_key = self._sort_by_date_key
                     self.__display_items_model.sort_reverse = True
                     typing.cast(typing.Any, self.__display_items_model).filter_id = filter_id
                 self.filter_changed_event.fire(None, filter_id)
@@ -453,6 +453,10 @@ class DocumentController(Window.Window):
     def display_filter(self, display_filter: ListModel.Filter) -> None:
         if self.__filtered_display_items_model is not None:  # during close
             self.__filtered_display_items_model.filter = display_filter
+
+    def _sort_by_date_key(self, display_item: DisplayItem.DisplayItem) -> typing.Any:
+        """ A sort key to for the created field of a data item. The sort by uuid makes it determinate. """
+        return self.document_model.is_data_item_reference(display_item), display_item.title + str(display_item.uuid) if display_item.is_live else str(), display_item.date_for_sorting, str(display_item.uuid)
 
     @property
     def project_filter(self) -> ListModel.Filter:
