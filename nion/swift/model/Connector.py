@@ -7,31 +7,23 @@ import typing
 # None
 
 # local libraries
+from nion.utils import Converter
 from nion.utils import Event
 from nion.utils import Observable
 
 
-class AbstractConverter(abc.ABC):
-
-    @abc.abstractmethod
-    def convert(self, value): ...
-
-    @abc.abstractmethod
-    def convert_back(self, formatted_value): ...
-
-
 class PropertyConnectorItem:
 
-    def __init__(self, item: Observable.Observable, property_name: str, converter: AbstractConverter = None):
+    def __init__(self, item: Observable.Observable, property_name: str, converter: typing.Optional[Converter.ConverterLike[typing.Any, typing.Any]] = None) -> None:
         self.item = item
         self.property_name = property_name
         self.converter = converter
 
-    def get_common_value(self):
+    def get_common_value(self) -> typing.Any:
         value = getattr(self.item, self.property_name)
         return self.converter.convert(value) if self.converter else value
 
-    def set_common_value(self, formatted_value):
+    def set_common_value(self, formatted_value: typing.Any) -> None:
         value = self.converter.convert_back(formatted_value) if self.converter else formatted_value
         setattr(self.item, self.property_name, value)
 
@@ -42,7 +34,7 @@ class PropertyConnector:
     # when a common property is sent out to other items it is converted from the
     # common property.
 
-    def __init__(self, property_connector_items: typing.List[PropertyConnectorItem]):
+    def __init__(self, property_connector_items: typing.Sequence[PropertyConnectorItem]) -> None:
         self.__property_changed_listeners: typing.List[Event.EventListener] = list()
 
         self.__suppress = False

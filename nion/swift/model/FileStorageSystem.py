@@ -255,12 +255,13 @@ class PersistentStorageSystem(Persistence.PersistentStorageInterface):
         else:
             self.__write_properties_if_not_delayed(persistent_object_parent.parent)
 
-    def get_properties(self, item: Persistence.PersistentObject) -> typing.Dict:
+    def get_properties(self, item: Persistence.PersistentObject) -> typing.Optional[typing.Dict[str, typing.Any]]:
         return item.persistent_dict
 
     def __update_modified_and_get_storage_dict(self, item: Persistence.PersistentObject) -> typing.Dict:
         # update modified time on object and all parent objects in internal storage
         storage_dict = item.persistent_dict
+        assert storage_dict is not None
         with self.__properties_lock:
             storage_dict["modified"] = item.modified.isoformat()
         persistent_object_parent = item.persistent_object_parent
@@ -558,6 +559,7 @@ class ProjectStorageSystem(PersistentStorageSystem):
             item_uuid = item.uuid
             storage_handler = self._make_storage_handler(item)
             assert item_uuid not in self.__storage_adapter_map
+            assert item.persistent_dict is not None
             storage_adapter = DataItemStorageAdapter(storage_handler, item.persistent_dict)
             self.__storage_adapter_map[item_uuid] = storage_adapter
         else:

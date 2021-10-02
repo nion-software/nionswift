@@ -131,6 +131,7 @@ class PersistentItem:
         self.item_changed = item_changed
         self.hidden = hidden
         self.value = None
+        self.persistent_object_context: typing.Optional[PersistentObjectContext] = None
 
     def close(self) -> None:
         self.item_changed = None
@@ -163,7 +164,7 @@ class PersistentStorageInterface(abc.ABC):
     def get_storage_properties(self) -> typing.Dict: ...
 
     @abc.abstractmethod
-    def get_properties(self, object) -> typing.Dict: ...
+    def get_properties(self, object) -> typing.Optional[typing.Dict[str, typing.Any]]: ...
 
     @abc.abstractmethod
     def insert_item(self, parent, name: str, before_index: int, item) -> None: ...
@@ -385,8 +386,8 @@ class PersistentObjectReference:
         self.__item_specifier = item_specifier if item_specifier else PersistentObjectSpecifier(item=item) if item else None
         self.__item = item
         self.__registered_change_uuid: typing.Optional[uuid.UUID] = None
-        self.on_item_registered = None
-        self.on_item_unregistered = None
+        self.on_item_registered: typing.Optional[typing.Callable[[PersistentObject], None]] = None
+        self.on_item_unregistered: typing.Optional[typing.Callable[[PersistentObject], None]] = None
         self.set_persistent_object_context(persistent_object_context)
 
     def close(self):
@@ -505,28 +506,28 @@ class PersistentObject(Observable.Observable):
     """
     count = 0  # useful for detecting leaks in tests
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         PersistentObject.count += 1
-        self.__type = None
-        self.__properties = dict()
-        self.__items = dict()
-        self.__relationships = dict()
+        self.__type: typing.Optional[str] = None
+        self.__properties: typing.Dict[str, PersistentProperty] = dict()
+        self.__items: typing.Dict[str, PersistentItem] = dict()
+        self.__relationships: typing.Dict[str, PersistentRelationship] = dict()
         self.__container_weak_ref = None
         self._closed = False
         self.about_to_close_event = Event.Event()
         self._about_to_be_removed = False
         self.about_to_be_removed_event = Event.Event()
         self._is_reading = False
-        self.__persistent_object_context = None
+        self.__persistent_object_context: typing.Optional[PersistentObjectContext] = None
         # uuid as a property is too slow, so make it direct
         self.uuid = uuid.uuid4()
         self.__modified_count = 0
         self.modified_state = 0
         self.__modified = datetime.datetime.utcnow()
-        self.persistent_object_parent = None
-        self.__persistent_dict = None
-        self.__persistent_storage = None
+        self.persistent_object_parent: typing.Optional[PersistentObjectParent] = None
+        self.__persistent_dict: typing.Optional[typing.Dict[str, typing.Any]] = None
+        self.__persistent_storage: typing.Optional[PersistentStorageInterface] = None
         self.persistent_object_context_changed_event = Event.Event()
         self.__item_references: typing.List[PersistentObjectReference] = list()
 
@@ -600,6 +601,7 @@ class PersistentObject(Observable.Observable):
 
         Useful when reloading.
         """
+        assert self.persistent_storage
         self.persistent_dict = self.persistent_storage.get_storage_properties()
 
     def update_item_context(self, item: PersistentObject) -> None:
@@ -611,7 +613,7 @@ class PersistentObject(Observable.Observable):
         pass
 
     @property
-    def persistent_object_context(self) -> PersistentObjectContext:
+    def persistent_object_context(self) -> typing.Optional[PersistentObjectContext]:
         """ Return the persistent object context. """
         return self.__persistent_object_context
 
@@ -639,11 +641,11 @@ class PersistentObject(Observable.Observable):
         self.persistent_object_context_changed_event.fire()
 
     @property
-    def persistent_dict(self) -> typing.Dict:
+    def persistent_dict(self) -> typing.Optional[typing.Dict[str, typing.Any]]:
         return self.__persistent_dict
 
     @persistent_dict.setter
-    def persistent_dict(self, persistent_dict: typing.Dict) -> None:
+    def persistent_dict(self, persistent_dict: typing.Optional[typing.Dict[str, typing.Any]]) -> None:
         self.__persistent_dict = persistent_dict
         for key in self.__items.keys():
             item = self.__items[key].value
@@ -656,7 +658,7 @@ class PersistentObject(Observable.Observable):
                 item.persistent_storage = self.persistent_storage if persistent_dict is not None else None
 
     @property
-    def persistent_storage(self) -> PersistentStorageInterface:
+    def persistent_storage(self) -> typing.Optional[PersistentStorageInterface]:
         return self.__persistent_storage
 
     @persistent_storage.setter
@@ -732,8 +734,9 @@ class PersistentObject(Observable.Observable):
             relationship.close()
         self.__relationships.clear()
 
-    def get_storage_properties(self) -> typing.Dict:
+    def get_storage_properties(self) -> typing.Optional[typing.Dict[str, typing.Any]]:
         """ Return a copy of the properties for the object as a dict. """
+        assert self.persistent_storage
         return copy.deepcopy(self.persistent_storage.get_properties(self))
 
     @property
@@ -746,7 +749,7 @@ class PersistentObject(Observable.Observable):
 
     @property
     def type(self) -> str:
-        return self.__type
+        return self.__type or str()
 
     @property
     def modified(self):
@@ -1064,51 +1067,63 @@ class PersistentObject(Observable.Observable):
     def item_inserted(self, name: str, before_index: int, item: PersistentObject) -> None:
         """ Call this to notify this context that the item before before_index has just been inserted into the parent in
         the relationship with the given name. """
+        assert self.persistent_storage
         self.persistent_storage.insert_item(self, name, before_index, item)
 
     def item_removed(self, name: str, index: int, item: PersistentObject) -> None:
         """ Call this to notify this context that the item at item_index has been removed from the parent in the
         relationship with the given name. """
+        assert self.persistent_storage
         self.persistent_storage.remove_item(self, name, index, item)
 
     def item_set(self, name: str, item: PersistentObject) -> None:
         """ Call this to notify this context that an item with name has been set on the parent. """
+        assert self.persistent_storage
         self.persistent_storage.set_item(self, name, item)
 
     def property_changed(self, name: str, value) -> None:
         """ Call this to notify this context that a property with name has changed to value on object. """
+        assert self.persistent_storage
         self.persistent_storage.set_property(self, name, value)
 
     def clear_property(self, name: str) -> None:
         """ Call this to notify this context that a property with name has been removed on object. """
+        assert self.persistent_storage
         self.persistent_storage.clear_property(self, name)
 
     def read_external_data(self, name: str):
         """ Call this to notify read external data with name from an item in persistent storage. """
+        assert self.persistent_storage
         return self.persistent_storage.read_external_data(self, name)
 
     def write_external_data(self, name: str, value) -> None:
         """ Call this to notify write external data value with name to an item in persistent storage. """
+        assert self.persistent_storage
         self.persistent_storage.write_external_data(self, name, value)
 
     def reserve_external_data(self, name: str, data_shape: typing.Tuple[int, ...], data_dtype: numpy.dtype) -> None:
         """ Call this to notify reserve external data value with name to an item in persistent storage. """
+        assert self.persistent_storage
         self.persistent_storage.reserve_external_data(self, name, data_shape, data_dtype)
 
     def enter_write_delay(self) -> None:
         """ Call this to notify this context that the object should be write delayed. """
+        assert self.persistent_storage
         self.persistent_storage.enter_write_delay(self)
 
     def exit_write_delay(self) -> None:
         """ Call this to notify this context that the object should no longer be write delayed. """
+        assert self.persistent_storage
         self.persistent_storage.exit_write_delay(self)
 
     @property
     def is_write_delayed(self) -> bool:
+        assert self.persistent_storage
         return self.persistent_storage.is_write_delayed(self)
 
     def rewrite(self) -> None:
         """ Call this to write an item that was write delayed. """
+        assert self.persistent_storage
         self.persistent_storage.rewrite_item(self)
 
     def create_item_proxy(self, *, item_uuid: uuid.UUID = None, item_specifier: PersistentObjectSpecifier = None, item: PersistentObject = None) -> PersistentObjectProxy:
