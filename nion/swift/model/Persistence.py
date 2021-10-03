@@ -19,18 +19,30 @@ import weakref
 # None
 
 # local libraries
+from nion.utils import Converter
 from nion.utils import Event
 from nion.utils import Observable
 from nion.swift.model import Changes
+from nion.swift.model import Utility
 
 
 PersistentDictType = typing.Dict[str, typing.Any]
+
+_ImageDataType = typing.Any  # numpy.typing.NDArray[typing.Any]
 
 
 class PersistentContainerType(typing.Protocol):
     def insert_item(self, name: str, before_index: int, item: PersistentObject) -> None: ...
     def remove_item(self, name: str, item: PersistentObject) -> None: ...
 
+
+_PropertyMakeFn = typing.Callable[[], typing.Any]
+_PropertyValidateFn = typing.Callable[[typing.Any], typing.Any]
+_PropertyChangedFn = typing.Callable[[str, typing.Any], None]
+_PropertyReadFn = typing.Callable[["PersistentProperty", PersistentDictType], typing.Any]
+_PropertyWriterFn = typing.Callable[["PersistentProperty", PersistentDictType, typing.Any], None]
+_PropertyConverterType = Converter.ConverterLike[typing.Any, typing.Any]  # Utility.CleanValue?
+_PersistentObjectFactoryFn = typing.Callable[[typing.Callable[[str], str]], typing.Optional["PersistentObject"]]
 
 class PersistentProperty:
 
@@ -40,11 +52,17 @@ class PersistentProperty:
         converter converts from value to json value
     """
 
-    def __init__(self, name, value=None, make=None, read_only=False, hidden=False, recordable=True, validate=None, converter=None, changed=None, key=None, reader=None, writer=None):
+    def __init__(self, name: str, value: typing.Any = None, make: typing.Optional[_PropertyMakeFn] = None,
+                 read_only: bool = False, hidden: bool = False, recordable: bool = True,
+                 validate: typing.Optional[_PropertyValidateFn] = None,
+                 converter: typing.Optional[_PropertyConverterType] = None,
+                 changed: typing.Optional[_PropertyChangedFn] = None, key: typing.Optional[str] = None,
+                 reader: typing.Optional[_PropertyReadFn] = None,
+                 writer: typing.Optional[_PropertyWriterFn] = None) -> None:
         super().__init__()
         self.name = name
         self.key = key if key else name
-        self.value = value
+        self.value: typing.Any = value
         self.make = make
         self.read_only = read_only
         self.hidden = hidden
@@ -53,8 +71,8 @@ class PersistentProperty:
         self.converter = converter
         self.reader = reader
         self.writer = writer
-        self.convert_get_fn = converter.convert if converter else copy.deepcopy  # optimization
-        self.convert_set_fn = converter.convert_back if converter else lambda value: value  # optimization
+        self.convert_get_fn = typing.cast(typing.Callable[[Utility.DirtyValue], Utility.CleanValue], converter.convert if converter else copy.deepcopy)  # optimization
+        self.convert_set_fn = typing.cast(typing.Callable[[Utility.CleanValue], Utility.DirtyValue], converter.convert_back if converter else lambda value: value)  # optimization
         self.changed = changed
 
     def close(self) -> None:
@@ -63,8 +81,8 @@ class PersistentProperty:
         self.converter = None
         self.reader = None
         self.writer = None
-        self.convert_get_fn = None
-        self.convert_set_fn = None
+        self.convert_get_fn = typing.cast(typing.Any, None)
+        self.convert_set_fn = typing.cast(typing.Any, None)
         self.changed = None
 
     def set_value(self, value: typing.Any) -> None:
@@ -77,11 +95,11 @@ class PersistentProperty:
             self.changed(self.name, value)
 
     @property
-    def json_value(self):
+    def json_value(self) -> Utility.CleanValue:
         return self.convert_get_fn(self.value)
 
     @json_value.setter
-    def json_value(self, json_value):
+    def json_value(self, json_value: Utility.CleanValue) -> None:
         self.set_value(self.convert_set_fn(json_value))
 
     def read_from_dict(self, properties: PersistentDictType) -> None:
@@ -98,7 +116,7 @@ class PersistentProperty:
                 else:
                     self.json_value = properties[self.key]
 
-    def write_to_dict(self, properties):
+    def write_to_dict(self, properties: PersistentDictType) -> None:
         if self.writer:
             self.writer(self, properties, self.value)
         else:
@@ -119,28 +137,36 @@ class PersistentProperty:
 
 class PersistentPropertySpecial(PersistentProperty):
 
-    def __init__(self, name, value=None, make=None, read_only=False, hidden=False, recordable=True, validate=None, converter=None, changed=None, key=None, reader=None, writer=None):
+    def __init__(self, name: str, value: typing.Any = None, make: typing.Optional[_PropertyMakeFn] = None,
+                 read_only: bool = False, hidden: bool = False, recordable: bool = True,
+                 validate: typing.Optional[_PropertyValidateFn] = None,
+                 converter: typing.Optional[_PropertyConverterType] = None,
+                 changed: typing.Optional[_PropertyChangedFn] = None, key: typing.Optional[str] = None,
+                 reader: typing.Optional[_PropertyReadFn] = None,
+                 writer: typing.Optional[_PropertyWriterFn] = None) -> None:
         super().__init__(name, value, make, read_only, hidden, recordable, validate, converter, changed, key, reader, writer)
         self.__value = value
 
     @property
-    def value(self):
+    def value(self) -> typing.Any:
         return copy.deepcopy(self.__value)
 
     @value.setter
-    def value(self, value):
+    def value(self, value: typing.Any) -> None:
         self.__value = value
 
 
 class PersistentItem:
 
-    def __init__(self, name, factory, item_changed=None, hidden=False):
-        super(PersistentItem, self).__init__()
+    def __init__(self, name: str, factory: _PersistentObjectFactoryFn,
+                 item_changed: typing.Optional[typing.Callable[[str, typing.Any, typing.Any], None]] = None,
+                 hidden: bool = False) -> None:
+        super().__init__()
         self.name = name
         self.factory = factory
         self.item_changed = item_changed
         self.hidden = hidden
-        self.value = None
+        self.value: typing.Any = None
         self.persistent_object_context: typing.Optional[PersistentObjectContext] = None
 
     def close(self) -> None:
@@ -150,7 +176,7 @@ class PersistentItem:
 class PersistentRelationship:
 
     def __init__(self, name: str,
-                 factory: typing.Callable[[typing.Callable[[str], str]], typing.Optional[PersistentObject]],
+                 factory: _PersistentObjectFactoryFn,
                  insert: typing.Optional[typing.Callable[[str, int, typing.Any], None]] = None,
                  remove: typing.Optional[typing.Callable[[str, int, typing.Any], None]] = None,
                  key: typing.Optional[str] = None,
@@ -170,53 +196,53 @@ class PersistentRelationship:
         self.remove = None
 
     @property
-    def storage_key(self):
+    def storage_key(self) -> str:
         return self.key if self.key else self.name
 
 
 class PersistentStorageInterface(abc.ABC):
 
     @abc.abstractmethod
-    def get_storage_properties(self) -> typing.Dict: ...
+    def get_storage_properties(self) -> typing.Optional[PersistentDictType]: ...
 
     @abc.abstractmethod
-    def get_properties(self, object) -> typing.Optional[PersistentDictType]: ...
+    def get_properties(self, object: typing.Any) -> typing.Optional[PersistentDictType]: ...
 
     @abc.abstractmethod
-    def insert_item(self, parent, name: str, before_index: int, item) -> None: ...
+    def insert_item(self, parent: PersistentObject, name: str, before_index: int, item: PersistentObject) -> None: ...
 
     @abc.abstractmethod
-    def remove_item(self, parent, name: str, index: int, item) -> None: ...
+    def remove_item(self, parent: PersistentObject, name: str, index: int, item: PersistentObject) -> None: ...
 
     @abc.abstractmethod
-    def set_item(self, parent, name, item): ...
+    def set_item(self, parent: PersistentObject, name: str, item: PersistentObject) -> None: ...
 
     @abc.abstractmethod
-    def set_property(self, object, name, value): ...
+    def set_property(self, object: PersistentObject, name: str, value: typing.Any) -> None: ...
 
     @abc.abstractmethod
-    def clear_property(self, object, name): ...
+    def clear_property(self, object: PersistentObject, name: str) -> None: ...
 
     @abc.abstractmethod
-    def read_external_data(self, item, name: str): ...
+    def read_external_data(self, item: PersistentObject, name: str) -> typing.Any: ...
 
     @abc.abstractmethod
-    def write_external_data(self, item, name: str, value) -> None: ...
+    def write_external_data(self, item: PersistentObject, name: str, value: _ImageDataType) -> None: ...
 
     @abc.abstractmethod
-    def reserve_external_data(self, item, name: str, data_shape: typing.Tuple[int, ...], data_dtype: numpy.typing.DTypeLike) -> None: ...
+    def reserve_external_data(self, item: PersistentObject, name: str, data_shape: typing.Tuple[int, ...], data_dtype: numpy.typing.DTypeLike) -> None: ...
 
     @abc.abstractmethod
-    def enter_write_delay(self, object) -> None: ...
+    def enter_write_delay(self, object: PersistentObject) -> None: ...
 
     @abc.abstractmethod
-    def exit_write_delay(self, object) -> None: ...
+    def exit_write_delay(self, object: PersistentObject) -> None: ...
 
     @abc.abstractmethod
-    def is_write_delayed(self, data_item) -> bool: ...
+    def is_write_delayed(self, item: PersistentObject) -> bool: ...
 
     @abc.abstractmethod
-    def rewrite_item(self, item) -> None: ...
+    def rewrite_item(self, item: PersistentObject) -> None: ...
 
 
 class PersistentObjectContext:
@@ -228,8 +254,9 @@ class PersistentObjectContext:
     Other objects can listen to the registration_event to know when a specific object is registered or unregistered.
     """
 
-    def __init__(self):
-        self.__objects = dict()
+    def __init__(self) -> None:
+        # Python 3.9+: weakref typing
+        self.__objects: typing.Dict[PersistentObjectSpecifier, typing.Any] = dict()
         self.registration_event = Event.Event()
         self.__registration_changed_map: typing.Dict[uuid.UUID, typing.Dict[typing.Any, typing.Callable[[typing.Optional[PersistentObject], typing.Optional[PersistentObject]], None]]] = dict()
 
@@ -239,7 +266,7 @@ class PersistentObjectContext:
         if not registration_changed_key_map:
             self.__registration_changed_map.pop(uuid_, None)
 
-    def register_registration_changed_fn(self, uuid_: uuid.UUID, key: typing.Any, registration_changed_fn: typing.Callable[[typing.Optional[PersistentObject], typing.Optional[PersistentObject]], None]):
+    def register_registration_changed_fn(self, uuid_: uuid.UUID, key: typing.Any, registration_changed_fn: typing.Callable[[typing.Optional[PersistentObject], typing.Optional[PersistentObject]], None]) -> None:
         registration_changed_key_map = self.__registration_changed_map.setdefault(uuid_, dict())
         registration_changed_key_map[key] = registration_changed_fn
 
@@ -281,14 +308,14 @@ _SpecifierDictType = typing.Union[PersistentDictType, str, uuid.UUID]
 
 class PersistentObjectSpecifier:
 
-    def __init__(self, *, item: PersistentObject = None, item_uuid: uuid.UUID = None):
+    def __init__(self, *, item: typing.Optional[PersistentObject] = None, item_uuid: typing.Optional[uuid.UUID] = None) -> None:
         self.__item_uuid = item.uuid if item else item_uuid
         assert (self.__item_uuid is None) or isinstance(self.__item_uuid, uuid.UUID)
 
-    def __hash__(self):
+    def __hash__(self) -> typing.Any:
         return hash(self.__item_uuid)
 
-    def __eq__(self, other):
+    def __eq__(self, other: typing.Any) -> bool:
         if isinstance(other, self.__class__):
             return self.__item_uuid == other.__item_uuid
         return False
@@ -318,18 +345,16 @@ class PersistentObjectSpecifier:
 class PersistentObjectProxy:
     count = 0  # useful for detecting leaks in tests
 
-    def __init__(self, persistent_object: PersistentObject, item_specifier: typing.Optional[PersistentObjectSpecifier], item: typing.Optional[PersistentObject]):
+    def __init__(self, persistent_object: PersistentObject, item_specifier: typing.Optional[PersistentObjectSpecifier], item: typing.Optional[PersistentObject]) -> None:
         PersistentObjectProxy.count += 1
         self.__persistent_object = persistent_object
         self.__item_specifier = item_specifier if item_specifier else PersistentObjectSpecifier(item=item) if item else None
         self.__item = item
-        self.__persistent_object_context = None
-        self.__registered_change_uuid = None
-        self.on_item_registered = None
-        self.on_item_unregistered = None
-
+        self.__persistent_object_context: typing.Optional[PersistentObjectContext] = None
+        self.__registered_change_uuid: typing.Optional[uuid.UUID] = None
+        self.on_item_registered: typing.Optional[typing.Callable[[PersistentObject], None]] = None
+        self.on_item_unregistered: typing.Optional[typing.Callable[[PersistentObject], None]] = None
         self.__persistent_object_context_changed_listener = persistent_object.persistent_object_context_changed_event.listen(self.__persistent_object_context_changed)
-
         self.__persistent_object_context_changed()
 
     def close(self) -> None:
@@ -364,15 +389,17 @@ class PersistentObjectProxy:
         self.__item = None
         self.__persistent_object_context_changed()
 
-    def __update_persistent_object_context(self):
+    def __update_persistent_object_context(self) -> None:
         if self.__persistent_object_context:
-            self.__persistent_object_context.unregister_registration_changed_fn(self.__registered_change_uuid, self)
-            self.__registered_change_uuid = None
+            if self.__registered_change_uuid:
+                self.__persistent_object_context.unregister_registration_changed_fn(self.__registered_change_uuid, self)
+                self.__registered_change_uuid = None
             self.__persistent_object_context = None
         if self.__item_specifier and self.__persistent_object.persistent_object_context:
             self.__persistent_object_context = self.__persistent_object.persistent_object_context
             self.__registered_change_uuid = self.__item_specifier.item_uuid
-            self.__persistent_object_context.register_registration_changed_fn(self.__item_specifier.item_uuid, self, self.__change_registration)
+            if self.__registered_change_uuid:
+                self.__persistent_object_context.register_registration_changed_fn(self.__registered_change_uuid, self, self.__change_registration)
 
     def __change_registration(self, registered_object: typing.Optional[PersistentObject], unregistered_object: typing.Optional[PersistentObject]) -> None:
         if registered_object and not self.__item and self.__item_specifier and registered_object.uuid == self.__item_specifier.item_uuid:
@@ -399,7 +426,7 @@ class PersistentObjectProxy:
 class PersistentObjectReference:
     count = 0  # useful for detecting leaks in tests
 
-    def __init__(self, persistent_object_context: typing.Optional[PersistentObjectContext], item_specifier: typing.Optional[PersistentObjectSpecifier], item: typing.Optional[PersistentObject]):
+    def __init__(self, persistent_object_context: typing.Optional[PersistentObjectContext], item_specifier: typing.Optional[PersistentObjectSpecifier], item: typing.Optional[PersistentObject]) -> None:
         PersistentObjectReference.count += 1
         self.__persistent_object_context: typing.Optional[PersistentObjectContext] = None
         self.__item_specifier = item_specifier if item_specifier else PersistentObjectSpecifier(item=item) if item else None
@@ -476,7 +503,7 @@ class PersistentObjectReference:
 class PersistentObjectParent:
     """ Track the parent of a persistent object. """
 
-    def __init__(self, parent: PersistentObject, relationship_name: str=None, item_name: str=None):
+    def __init__(self, parent: PersistentObject, relationship_name: typing.Optional[str] = None, item_name: typing.Optional[str] = None) -> None:
         self.__weak_parent = weakref.ref(parent)
         self.relationship_name = relationship_name
         self.item_name = item_name
@@ -566,13 +593,13 @@ class PersistentObject(Observable.Observable):
         self.undefine_relationships()
         PersistentObject.count -= 1
 
-    def __deepcopy__(self, memo):
+    def __deepcopy__(self, memo: typing.Dict[typing.Any, typing.Any]) -> PersistentObject:
         deepcopy = self.__class__()
         deepcopy.deepcopy_from(self, memo)
         memo[id(self)] = deepcopy
         return deepcopy
 
-    def deepcopy_from(self, item, memo):
+    def deepcopy_from(self, item: PersistentObject, memo: typing.Dict[typing.Any, typing.Any]) -> None:
         for key in self.__properties.keys():
             value = item._get_persistent_property_value(key)
             new_value = copy.deepcopy(value)
@@ -610,17 +637,17 @@ class PersistentObject(Observable.Observable):
             container.remove_item(name, item)
             return Changes.UndeleteLog()
 
-    def about_to_be_inserted(self, container):
+    def about_to_be_inserted(self, container: PersistentObject) -> None:
         assert self.__container_weak_ref is None
         self.__container_weak_ref = weakref.ref(container)
 
-    def about_to_be_removed(self, container):
+    def about_to_be_removed(self, container: PersistentObject) -> None:
         # called before close and before item is removed from its container
         for item in self.__items.values():
             item.value.about_to_be_removed(self)
         for relationship in self.__relationships.values():
-            for item in reversed(relationship.values):
-                item.about_to_be_removed(self)
+            for relationship_item in reversed(relationship.values):
+                relationship_item.about_to_be_removed(self)
         self.about_to_be_removed_event.fire()
         assert not self._about_to_be_removed
         self._about_to_be_removed = True
@@ -715,40 +742,48 @@ class PersistentObject(Observable.Observable):
             for index, item in enumerate(self.__relationships[key].values):
                 item.persistent_storage = persistent_storage
 
-    def _get_item_persistent_dict(self, item, key: str) -> typing.Optional[typing.Dict]:
+    def _get_item_persistent_dict(self, item: typing.Any, key: str) -> typing.Optional[PersistentDictType]:
         return self.persistent_dict[key] if self.persistent_dict is not None else None
 
-    def _get_relationship_persistent_dict(self, item, key: str, index: int) -> typing.Optional[typing.Dict]:
+    def _get_relationship_persistent_dict(self, item: PersistentObject, key: str, index: int) -> typing.Optional[PersistentDictType]:
         return self.persistent_dict[key][index] if self.persistent_dict is not None else None
 
-    def _get_relationship_persistent_dict_by_uuid(self, item, key: str) -> typing.Optional[typing.Dict]:
+    def _get_relationship_persistent_dict_by_uuid(self, item: PersistentObject, key: str) -> typing.Optional[PersistentDictType]:
         if self.persistent_dict:
             item_uuid = str(item.uuid)
             for item_d in self.persistent_dict.get(key, list()):
                 # if uuid.UUID(item_d.get("uuid")) == item.uuid:
                 #     return item_d
                 if item_d.get("uuid") == item_uuid:  # a little dangerous, comparing the uuid str's, significantly faster
-                    return item_d
+                    return typing.cast(PersistentDictType, item_d)
         return None
 
     def define_type(self, type: str) -> None:
         self.__type = type
 
-    def define_property(self, name: str, value=None, make=None, read_only: bool=False, hidden: bool=False, recordable: bool=True, copy_on_read: bool=False, validate=None, converter=None, changed=None, key=None, reader=None, writer=None):
+    def define_property(self, name: str, value: typing.Any = None, make: typing.Optional[_PropertyMakeFn] = None,
+                        read_only: bool = False, hidden: bool = False, recordable: bool = True,
+                        copy_on_read: bool = False, validate: typing.Optional[_PropertyValidateFn] = None,
+                        converter: typing.Optional[_PropertyConverterType] = None,
+                        changed: typing.Optional[_PropertyChangedFn] = None, key: typing.Optional[str] = None,
+                        reader: typing.Optional[_PropertyReadFn] = None,
+                 writer: typing.Optional[_PropertyWriterFn] = None) -> None:
         """ key is what is stored on disk; name is what is used when accessing the property from code. """
         if copy_on_read:
             self.__properties[name] = PersistentPropertySpecial(name, value, make, read_only, hidden, recordable, validate, converter, changed, key, reader, writer)
         else:
             self.__properties[name] = PersistentProperty(name, value, make, read_only, hidden, recordable, validate, converter, changed, key, reader, writer)
 
-    def define_item(self, name, factory, item_changed=None, hidden=False):
+    def define_item(self, name: str, factory: _PersistentObjectFactoryFn,
+                    item_changed: typing.Optional[typing.Callable[[str, typing.Any, typing.Any], None]] = None,
+                    hidden: bool = False) -> None:
         self.__items[name] = PersistentItem(name, factory, item_changed, hidden)
 
     def define_relationship(self, name: str,
-                            factory: typing.Callable[[typing.Callable[[str], str]], typing.Optional[PersistentObject]],
+                            factory: _PersistentObjectFactoryFn,
                             insert: typing.Optional[typing.Callable[[str, int, typing.Any], None]] = None,
                             remove: typing.Optional[typing.Callable[[str, int, typing.Any], None]] = None,
-                            key: str = None, hidden: bool = False) -> None:
+                            key: typing.Optional[str] = None, hidden: bool = False) -> None:
         self.__relationships[name] = PersistentRelationship(name, factory, insert, remove, key, hidden)
 
     def close_items(self) -> None:
@@ -787,11 +822,11 @@ class PersistentObject(Observable.Observable):
         return copy.deepcopy(self.persistent_storage.get_properties(self))
 
     @property
-    def property_names(self):
+    def property_names(self) -> typing.Sequence[str]:
         return list(self.__properties.keys())
 
     @property
-    def key_names(self):
+    def key_names(self) -> typing.Sequence[str]:
         return [property.key for property in self.__properties.values()]
 
     @property
@@ -799,28 +834,28 @@ class PersistentObject(Observable.Observable):
         return self.__type or str()
 
     @property
-    def modified(self):
+    def modified(self) -> datetime.datetime:
         return self.__modified
 
     @property
-    def modified_count(self):
+    def modified_count(self) -> int:
         return self.__modified_count
 
-    def _set_modified(self, modified):
+    def _set_modified(self, modified: datetime.datetime) -> None:
         # for testing
         self.__update_modified(modified)
         if self.persistent_object_context:
             self.property_changed("uuid", str(self.uuid))  # dummy write
 
     @property
-    def item_names(self):
+    def item_names(self) -> typing.Sequence[str]:
         return list(self.__items.keys())
 
     @property
-    def relationship_names(self):
+    def relationship_names(self) -> typing.Sequence[str]:
         return list(self.__relationships.keys())
 
-    def begin_reading(self):
+    def begin_reading(self) -> None:
         self._is_reading = True
 
     def read_from_dict(self, properties: PersistentDictType) -> None:
@@ -835,15 +870,16 @@ class PersistentObject(Observable.Observable):
             property = self.__properties[key]
             property.read_from_dict(properties)
         for key in self.__items.keys():
-            item_dict = properties.get(key)
+            item_dict = typing.cast(PersistentDictType, properties.get(key))
             if item_dict:
                 factory = self.__items[key].factory
                 # the object has not been constructed yet, but we needs its
                 # type or id to construct it. so we need to look it up by key/index/name.
                 # to minimize the interface to the factory methods, just pass a closure
                 # which looks up by name.
-                def lookup_id(name, default=None):
+                def lookup_id(name: str, default: typing.Optional[str] = None) -> str:
                     return item_dict.get(name, default)
+
                 item = factory(lookup_id)
                 if item is None:
                     logging.debug("Unable to read %s", key)
@@ -862,8 +898,9 @@ class PersistentObject(Observable.Observable):
                 # type or id to construct it. so we need to look it up by key/index/name.
                 # to minimize the interface to the factory methods, just pass a closure
                 # which looks up by name.
-                def lookup_id(name, default=None):
+                def lookup_id(name: str, default: typing.Optional[str] = None) -> str:
                     return item_dict.get(name, default)
+
                 item = factory(lookup_id)
                 if item is None:
                     logging.debug("Unable to read %s", key)
@@ -905,10 +942,10 @@ class PersistentObject(Observable.Observable):
                 items_list.append(item.write_to_dict())
         return properties
 
-    def _update_persistent_object_context_property(self, name):
+    def _update_persistent_object_context_property(self, name: str) -> None:
         """Update the property given by name in the persistent object context."""
         if self.persistent_object_context:
-            properties = dict()
+            properties: PersistentDictType = dict()
             self.__properties[name].write_to_dict(properties)
             if properties:
                 for property_key, property_value in properties.items():
@@ -916,7 +953,7 @@ class PersistentObject(Observable.Observable):
             else:
                 self.clear_property(name)
 
-    def __update_modified(self, modified):
+    def __update_modified(self, modified: datetime.datetime) -> None:
         self.__modified_count += 1
         self.modified_state += 1
         self.__modified = modified
@@ -940,7 +977,7 @@ class PersistentObject(Observable.Observable):
         self.__update_modified(datetime.datetime.utcnow())
         self._update_persistent_object_context_property(name)
 
-    def _update_persistent_property(self, name: str, value) -> None:
+    def _update_persistent_property(self, name: str, value: typing.Any) -> None:
         """ Subclasses can call this to notify that a custom property was updated. """
         self.__update_modified(datetime.datetime.utcnow())
         if self.persistent_object_context:
@@ -949,7 +986,7 @@ class PersistentObject(Observable.Observable):
     def _get_relationship_values(self, name: str) -> typing.Sequence[typing.Any]:
         return copy.copy(self.__relationships[name].values)
 
-    def _is_persistent_property_recordable(self, name) -> bool:
+    def _is_persistent_property_recordable(self, name: str) -> bool:
         property = self.__properties.get(name)
         return (property.recordable and not property.read_only) if (property is not None) else False
 
@@ -994,7 +1031,7 @@ class PersistentObject(Observable.Observable):
             else:
                 super().__setattr__(name, value)
 
-    def __set_item(self, name, value):
+    def __set_item(self, name: str, value: typing.Any) -> None:
         """ Set item into item storage and notify. Does not set into persistent storage or update modified. Item can be None. """
         item = self.__items[name]
         old_value = item.value
@@ -1005,12 +1042,12 @@ class PersistentObject(Observable.Observable):
         if item.item_changed:
             item.item_changed(name, old_value, value)
 
-    def get_item(self, name):
+    def get_item(self, name: str) -> typing.Any:
         """ Get item from persistent storage. """
         item = self.__items[name]
         return item.value
 
-    def set_item(self, name, value):
+    def set_item(self, name: str, value: typing.Any) -> None:
         """ Set item into persistent storage and then into item storage and notify. """
         item = self.__items[name]
         old_value = item.value
@@ -1131,7 +1168,7 @@ class PersistentObject(Observable.Observable):
         assert self.persistent_storage
         self.persistent_storage.set_item(self, name, item)
 
-    def property_changed(self, name: str, value) -> None:
+    def property_changed(self, name: str, value: typing.Any) -> None:
         """ Call this to notify this context that a property with name has changed to value on object. """
         assert self.persistent_storage
         self.persistent_storage.set_property(self, name, value)
@@ -1141,12 +1178,12 @@ class PersistentObject(Observable.Observable):
         assert self.persistent_storage
         self.persistent_storage.clear_property(self, name)
 
-    def read_external_data(self, name: str):
+    def read_external_data(self, name: str) -> typing.Any:
         """ Call this to notify read external data with name from an item in persistent storage. """
         assert self.persistent_storage
         return self.persistent_storage.read_external_data(self, name)
 
-    def write_external_data(self, name: str, value) -> None:
+    def write_external_data(self, name: str, value: typing.Any) -> None:
         """ Call this to notify write external data value with name to an item in persistent storage. """
         assert self.persistent_storage
         self.persistent_storage.write_external_data(self, name, value)
