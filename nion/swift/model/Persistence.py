@@ -84,7 +84,7 @@ class PersistentProperty:
     def json_value(self, json_value):
         self.set_value(self.convert_set_fn(json_value))
 
-    def read_from_dict(self, properties):
+    def read_from_dict(self, properties: PersistentDictType) -> None:
         if self.reader:
             value = self.reader(self, properties)
             if value is not None:
@@ -332,14 +332,14 @@ class PersistentObjectProxy:
 
         self.__persistent_object_context_changed()
 
-    def close(self):
+    def close(self) -> None:
         if self.__persistent_object_context_changed_listener:
             self.__persistent_object_context_changed_listener.close()
-            self.__persistent_object_context_changed_listener = None
+            self.__persistent_object_context_changed_listener = typing.cast(typing.Any, None)
         self.__item = None
         self.__item_specifier = None
         self.__update_persistent_object_context()
-        self.__persistent_object = None
+        self.__persistent_object = typing.cast(typing.Any, None)
         self.on_item_registered = None
         self.on_item_unregistered = None
         PersistentObjectProxy.count -= 1
@@ -409,7 +409,7 @@ class PersistentObjectReference:
         self.on_item_unregistered: typing.Optional[typing.Callable[[PersistentObject], None]] = None
         self.set_persistent_object_context(persistent_object_context)
 
-    def close(self):
+    def close(self) -> None:
         self.set_persistent_object_context(None)
         self.__item = None
         self.__item_specifier = None
@@ -953,7 +953,7 @@ class PersistentObject(Observable.Observable):
         property = self.__properties.get(name)
         return (property.recordable and not property.read_only) if (property is not None) else False
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> typing.Any:
         # Handle property objects that are not hidden.
         property = self.__properties.get(name)
         if property and not property.hidden:
@@ -975,7 +975,7 @@ class PersistentObject(Observable.Observable):
         "item_content_changed_event",
         )
 
-    def __setattr__(self, name, value):
+    def __setattr__(self, name: str, value: typing.Any) -> None:
         # Check for private properties of this class
         if name.startswith("_PersistentObject__") or name in PersistentObject.OBSERVABLE_FIELDS:
             super().__setattr__(name, value)
@@ -1176,7 +1176,7 @@ class PersistentObject(Observable.Observable):
         assert self.persistent_storage
         self.persistent_storage.rewrite_item(self)
 
-    def create_item_proxy(self, *, item_uuid: uuid.UUID = None, item_specifier: PersistentObjectSpecifier = None, item: PersistentObject = None) -> PersistentObjectProxy:
+    def create_item_proxy(self, *, item_uuid: typing.Optional[uuid.UUID] = None, item_specifier: typing.Optional[PersistentObjectSpecifier] = None, item: typing.Optional[PersistentObject] = None) -> PersistentObjectProxy:
         """Create an item proxy by uuid or directly using the item."""
         item_specifier = item_specifier or (PersistentObjectSpecifier(item_uuid=item_uuid) if item_uuid else None)
         return PersistentObjectProxy(self, item_specifier, item)

@@ -54,7 +54,7 @@ class ProjectReference(Persistence.PersistentObject):
         self.unload_project()
         super().close_relationships()
 
-    def read_from_dict(self, properties):
+    def read_from_dict(self, properties: Persistence.PersistentDictType) -> None:
         super().read_from_dict(properties)
         self.establish_last_used()
 
@@ -384,7 +384,7 @@ class Profile(Persistence.PersistentObject):
         self.__class__.count -= 1
         super().close()
 
-    def read_from_dict(self, properties):
+    def read_from_dict(self, properties: Persistence.PersistentDictType) -> None:
         # cleanup from beta versions
         properties.pop("data_groups", None)
         properties.pop("data_item_references", None)
