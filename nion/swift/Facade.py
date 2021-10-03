@@ -3168,8 +3168,8 @@ class API_1:
                 data_element = ImportExportManager.create_data_element_from_extended_data(data_and_metadata)
                 return [data_element]
 
-            def can_write(self, data_and_metadata, extension):
-                return io_handler_delegate.can_write_data_and_metadata(data_and_metadata, extension)
+            def can_write(self, data_metadata: DataAndMetadata.DataMetadata, extension: str) -> bool:
+                return io_handler_delegate.can_write_data_and_metadata(data_metadata, extension)
 
             def write_display_item(self, display_item: DisplayItemModule.DisplayItem, path: pathlib.Path, extension: str) -> None:
                 data_item = display_item.data_item

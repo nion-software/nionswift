@@ -1110,10 +1110,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
     def __finish_project_read(self) -> None:
         self.project_loaded_event.fire()
 
-    def insert_model_item(self, container, name, before_index, item):
+    def insert_model_item(self, container: Persistence.PersistentContainerType, name: str, before_index: int, item: Persistence.PersistentObject) -> None:
         container.insert_item(name, before_index, item)
 
-    def remove_model_item(self, container, name, item, *, safe: bool=False) -> Changes.UndeleteLog:
+    def remove_model_item(self, container: Persistence.PersistentContainerType, name: str, item: Persistence.PersistentObject, *, safe: bool = False) -> Changes.UndeleteLog:
         return self.__cascade_delete(item, safe=safe)
 
     def assign_variable_to_display_item(self, display_item: DisplayItem.DisplayItem) -> str:

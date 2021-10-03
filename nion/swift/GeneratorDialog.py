@@ -197,14 +197,16 @@ class GenerateDataDialog(Declarative.WindowHandler):
         data_item.reserve_data(data_shape=data_shape, data_dtype=numpy.dtype(numpy.float32), data_descriptor=data_descriptor)
 
         with data_item.data_ref() as dr:
-            if datum_rank == 1:
-                n = scipy.stats.norm()
-                length = dr.data.shape[-1]
-                dr.data[..., :] = n.pdf(numpy.linspace(n.ppf(1.0 / length), n.ppf(1.0 - 1.0 / length), length))
+            data = dr.data
+            if data is not None:
+                if datum_rank == 1:
+                    n = scipy.stats.norm()
+                    length = data.shape[-1]
+                    data[..., :] = n.pdf(numpy.linspace(n.ppf(1.0 / length), n.ppf(1.0 - 1.0 / length), length))
 
-            # noise
-            rng = numpy.random.default_rng()
-            dr.data[...] += rng.standard_normal(dr.data.shape)
+                # noise
+                rng = numpy.random.default_rng()
+                data[...] += rng.standard_normal(data.shape)
 
             dr.data_updated()
 

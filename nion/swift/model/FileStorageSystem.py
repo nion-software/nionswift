@@ -5,6 +5,7 @@ import datetime
 import json
 import logging
 import numpy
+import numpy.typing
 import os.path
 import pathlib
 import shutil
@@ -335,7 +336,7 @@ class PersistentStorageSystem(Persistence.PersistentStorageInterface):
     def write_external_data(self, item: Persistence.PersistentObject, name: str, value: numpy.ndarray) -> None:
         pass
 
-    def reserve_external_data(self, item: Persistence.PersistentObject, name: str, data_shape: typing.Tuple[int, ...], data_dtype: numpy.dtype) -> None:
+    def reserve_external_data(self, item: Persistence.PersistentObject, name: str, data_shape: typing.Tuple[int, ...], data_dtype: numpy.typing.DTypeLike) -> None:
         pass
 
     def enter_write_delay(self, object: Persistence.PersistentObject) -> None:
@@ -595,9 +596,9 @@ class ProjectStorageSystem(PersistentStorageSystem):
             super().write_external_data(item, name, value)
 
     # override
-    def reserve_external_data(self, item: Persistence.PersistentObject, name: str, data_shape: typing.Tuple[int, ...], data_dtype: numpy.dtype) -> None:
+    def reserve_external_data(self, item: Persistence.PersistentObject, name: str, data_shape: typing.Tuple[int, ...], data_dtype: numpy.typing.DTypeLike) -> None:
         if isinstance(item, DataItem.DataItem) and name == "data":
-            self.__reserve_data_item_data(item, data_shape, data_dtype)
+            self.__reserve_data_item_data(item, data_shape, numpy.dtype(data_dtype))
         else:
             super().reserve_external_data(item, name, data_shape, data_dtype)
 
@@ -804,7 +805,8 @@ class FileProjectStorageSystem(ProjectStorageSystem):
             if data_item_properties.get("version", 0) == DataItem.DataItem.writer_version:
                 # file modified dates are stored as local timestamps
                 earliest_datetime = datetime.datetime.fromtimestamp(0).isoformat()
-                file_datetime = DataItem.DatetimeToStringConverter().convert_back(data_item_properties.get("created", earliest_datetime))
+                created = typing.cast(str, data_item_properties.get("created", earliest_datetime))
+                file_datetime = DataItem.DatetimeToStringConverter().convert_back(created) or datetime.datetime.now()
                 reader_info.storage_handler.write_properties(reader_info.properties, file_datetime)
 
     @staticmethod

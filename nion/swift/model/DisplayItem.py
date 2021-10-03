@@ -491,7 +491,7 @@ class DisplayDataChannel(Persistence.PersistentObject):
 
         self.define_type("display_data_channel")
         # conversion to scalar
-        self.define_property("complex_display_type", changed=self.__property_changed)
+        self.define_property("complex_display_type", changed=self.__property_changed, hidden=True)
         # data scaling and color (raster)
         self.define_property("display_limits", validate=self.__validate_display_limits, changed=self.__property_changed)
         self.define_property("color_map_id", changed=self.__color_map_id_changed)
@@ -588,6 +588,14 @@ class DisplayDataChannel(Persistence.PersistentObject):
         super().about_to_be_removed(container)
 
     @property
+    def complex_display_type(self) -> typing.Optional[str]:
+        return typing.cast(typing.Optional[str], self._get_persistent_property_value("complex_display_type"))
+
+    @complex_display_type.setter
+    def complex_display_type(self, value: typing.Optional[str]) -> None:
+        self._set_persistent_property_value("complex_display_type", value)
+
+    @property
     def display_item(self) -> "DisplayItem":
         return self.container
 
@@ -625,19 +633,6 @@ class DisplayDataChannel(Persistence.PersistentObject):
     @property
     def item_specifier(self) -> Persistence.PersistentObjectSpecifier:
         return Persistence.PersistentObjectSpecifier(item_uuid=self.uuid)
-
-    def insert_model_item(self, container, name, before_index, item):
-        if self.container:
-            self.container.insert_model_item(container, name, before_index, item)
-        else:
-            container.insert_item(name, before_index, item)
-
-    def remove_model_item(self, container, name, item, *, safe: bool=False) -> Changes.UndeleteLog:
-        if self.container:
-            return self.container.remove_model_item(container, name, item, safe=safe)
-        else:
-            container.remove_item(name, item)
-            return Changes.UndeleteLog()
 
     def clone(self):
         display_data_channel = DisplayDataChannel()
@@ -1178,7 +1173,7 @@ class DisplayItem(Persistence.PersistentObject):
         super().__init__()
         self.uuid = item_uuid if item_uuid else self.uuid
         self.define_type("display_item")
-        self.define_property("created", DataItem.DataItem.utcnow(), converter=DataItem.DatetimeToStringConverter(), changed=self.__property_changed)
+        self.define_property("created", DataItem.DataItem.utcnow(), hidden=True, converter=DataItem.DatetimeToStringConverter(), changed=self.__property_changed)
         self.define_property("display_type", changed=self.__display_type_changed)
         self.define_property("title", hidden=True, changed=self.__property_changed)
         self.define_property("caption", hidden=True, changed=self.__property_changed)
@@ -1276,6 +1271,14 @@ class DisplayItem(Persistence.PersistentObject):
         return display_item_copy
 
     @property
+    def created(self) -> datetime.datetime:
+        return typing.cast(datetime.datetime, self._get_persistent_property_value("created"))
+
+    @created.setter
+    def created(self, value: datetime.datetime) -> None:
+        self._set_persistent_property_value("created", value)
+
+    @property
     def project(self) -> "Project.Project":
         return typing.cast("Project.Project", self.container)
 
@@ -1285,29 +1288,6 @@ class DisplayItem(Persistence.PersistentObject):
     @property
     def item_specifier(self) -> Persistence.PersistentObjectSpecifier:
         return Persistence.PersistentObjectSpecifier(item_uuid=self.uuid)
-
-    def insert_model_item(self, container, name, before_index, item):
-        """Insert a model item. Let this item's container do it if possible; otherwise do it directly.
-
-        Passing responsibility to this item's container allows the library to easily track dependencies.
-        However, if this item isn't yet in the library hierarchy, then do the operation directly.
-        """
-        if self.container:
-            self.container.insert_model_item(container, name, before_index, item)
-        else:
-            container.insert_item(name, before_index, item)
-
-    def remove_model_item(self, container, name, item, *, safe: bool=False) -> Changes.UndeleteLog:
-        """Remove a model item. Let this item's container do it if possible; otherwise do it directly.
-
-        Passing responsibility to this item's container allows the library to easily track dependencies.
-        However, if this item isn't yet in the library hierarchy, then do the operation directly.
-        """
-        if self.container:
-            return self.container.remove_model_item(container, name, item, safe=safe)
-        else:
-            container.remove_item(name, item)
-            return Changes.UndeleteLog()
 
     # call this when the listeners need to be updated (via data_item_content_changed).
     # Calling this method will send the data_item_content_changed method to each listener by using the method

@@ -54,29 +54,6 @@ class ProjectReference(Persistence.PersistentObject):
         self.unload_project()
         super().close_relationships()
 
-    def insert_model_item(self, container, name, before_index, item):
-        """Insert a model item. Let this item's container do it if possible; otherwise do it directly.
-
-        Passing responsibility to this item's container allows the library to easily track dependencies.
-        However, if this item isn't yet in the library hierarchy, then do the operation directly.
-        """
-        if self.container:
-            self.container.insert_model_item(container, name, before_index, item)
-        else:
-            container.insert_item(name, before_index, item)
-
-    def remove_model_item(self, container, name, item, *, safe: bool = False) -> Changes.UndeleteLog:
-        """Remove a model item. Let this item's container do it if possible; otherwise do it directly.
-
-        Passing responsibility to this item's container allows the library to easily track dependencies.
-        However, if this item isn't yet in the library hierarchy, then do the operation directly.
-        """
-        if self.container:
-            return self.container.remove_model_item(container, name, item, safe=safe)
-        else:
-            container.remove_item(name, item)
-            return Changes.UndeleteLog()
-
     def read_from_dict(self, properties):
         super().read_from_dict(properties)
         self.establish_last_used()
@@ -436,15 +413,15 @@ class Profile(Persistence.PersistentObject):
 
     def insert_script_item(self, before_index: int, script_item: ScriptItem) -> None:
         """Insert a script_item before the index, but do it through the container, so dependencies can be tracked."""
-        self.insert_model_item(self, "script_items", before_index, script_item)
+        self.insert_model_item(self, "script_items", before_index, typing.cast(Persistence.PersistentObject, script_item))
 
     def append_script_item(self, script_item: ScriptItem) -> None:
         """Append a script_item, but do it through the container, so dependencies can be tracked."""
-        self.insert_model_item(self, "script_items", self.item_count("script_items"), script_item)
+        self.insert_model_item(self, "script_items", self.item_count("script_items"), typing.cast(Persistence.PersistentObject, script_item))
 
     def remove_script_item(self, script_item: ScriptItem, *, safe: bool = False) -> Changes.UndeleteLog:
         """Remove a script_item, but do it through the container, so dependencies can be tracked."""
-        return self.remove_model_item(self, "script_items", script_item, safe=safe)
+        return self.remove_model_item(self, "script_items", typing.cast(Persistence.PersistentObject, script_item), safe=safe)
 
     def __insert_script_item(self, name: str, before_index: int, script_item: ScriptItem) -> None:
         self.notify_insert_item("script_items", script_item, before_index)
@@ -455,29 +432,6 @@ class Profile(Persistence.PersistentObject):
     @property
     def _profile_storage_system(self) -> FileStorageSystem.PersistentStorageSystem:
         return self.storage_system
-
-    def insert_model_item(self, container, name, before_index, item):
-        """Insert a model item. Let this item's container do it if possible; otherwise do it directly.
-
-        Passing responsibility to this item's container allows the library to easily track dependencies.
-        However, if this item isn't yet in the library hierarchy, then do the operation directly.
-        """
-        if self.container:
-            self.container.insert_model_item(container, name, before_index, item)
-        else:
-            container.insert_item(name, before_index, item)
-
-    def remove_model_item(self, container, name, item, *, safe: bool = False) -> Changes.UndeleteLog:
-        """Remove a model item. Let this item's container do it if possible; otherwise do it directly.
-
-        Passing responsibility to this item's container allows the library to easily track dependencies.
-        However, if this item isn't yet in the library hierarchy, then do the operation directly.
-        """
-        if self.container:
-            return self.container.remove_model_item(container, name, item, safe=safe)
-        else:
-            container.remove_item(name, item)
-            return Changes.UndeleteLog()
 
     def transaction_context(self):
         """Return a context object for a document-wide transaction."""

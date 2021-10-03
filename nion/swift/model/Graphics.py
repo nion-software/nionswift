@@ -582,19 +582,6 @@ class Graphic(Persistence.PersistentObject):
     def item_specifier(self) -> Persistence.PersistentObjectSpecifier:
         return Persistence.PersistentObjectSpecifier(item_uuid=self.uuid)
 
-    def insert_model_item(self, container, name, before_index, item):
-        if self.container:
-            self.container.insert_model_item(container, name, before_index, item)
-        else:
-            container.insert_item(name, before_index, item)
-
-    def remove_model_item(self, container, name, item, *, safe: bool=False) -> Changes.UndeleteLog:
-        if self.container:
-            return self.container.remove_model_item(container, name, item, safe=safe)
-        else:
-            container.remove_item(name, item)
-            return Changes.UndeleteLog()
-
     def clone(self) -> "Graphic":
         graphic = copy.deepcopy(self)
         graphic.uuid = self.uuid
@@ -691,7 +678,7 @@ class Graphic(Persistence.PersistentObject):
             constraints.add("bounds")
         return constraints
 
-    def get_mask(self, data_shape: typing.Sequence[int], calibrated_origin: Geometry.FloatPoint = None) -> numpy.ndarray:
+    def get_mask(self, data_shape: typing.Sequence[int, ...], calibrated_origin: Geometry.FloatPoint = None) -> numpy.ndarray:
         return numpy.zeros(data_shape)
 
     def test_label(self, ui_settings: UISettings.UISettings, mapping, test_point):
@@ -873,7 +860,7 @@ class RectangleTypeGraphic(Graphic):
     def _rotated_bottom_left(self):  # useful for testing
         return rotate(self._bounds.bottom_left, self._bounds.center, self.rotation)
 
-    def get_mask(self, data_shape: typing.Sequence[int], calibrated_origin: Geometry.FloatPoint = None) -> numpy.ndarray:
+    def get_mask(self, data_shape: typing.Sequence[int, ...], calibrated_origin: Geometry.FloatPoint = None) -> numpy.ndarray:
         mask = numpy.zeros(data_shape)
         bounds_int = ((int(data_shape[0] * self.bounds[0][0]), int(data_shape[1] * self.bounds[0][1])),
                       (int(data_shape[0] * self.bounds[1][0]), int(data_shape[1] * self.bounds[1][1])))
@@ -1030,7 +1017,7 @@ class EllipseGraphic(RectangleTypeGraphic):
     def __init__(self):
         super().__init__("ellipse-graphic", _("Ellipse"))
 
-    def get_mask(self, data_shape: typing.Sequence[int], calibrated_origin: Geometry.FloatPoint = None) -> numpy.ndarray:
+    def get_mask(self, data_shape: typing.Sequence[int, ...], calibrated_origin: Geometry.FloatPoint = None) -> numpy.ndarray:
         bounds = Geometry.FloatRect.make(self.bounds)
         return Core.function_make_elliptical_mask(data_shape, bounds.center, bounds.size, self.rotation).data
 
@@ -1754,7 +1741,7 @@ class SpotGraphic(Graphic):
         self.center = bounds[0][0] + bounds[1][0] * 0.5, bounds[0][1] + bounds[1][1] * 0.5
         self.size = bounds[1]
 
-    def get_mask(self, data_shape: typing.Sequence[int], calibrated_origin: Geometry.FloatPoint = None) -> numpy.ndarray:
+    def get_mask(self, data_shape: typing.Sequence[int, ...], calibrated_origin: Geometry.FloatPoint = None) -> numpy.ndarray:
         data_shape = Geometry.FloatSize.make(data_shape)
         calibrated_origin = calibrated_origin or Geometry.FloatPoint(y=data_shape[0] * 0.5 + 0.5, x=data_shape[1] * 0.5 + 0.5)
         data_rect = Geometry.FloatRect(origin=Geometry.FloatPoint(), size=data_shape)
@@ -2013,7 +2000,7 @@ class WedgeGraphic(Graphic):
             self.__inverted_drag = not self.__inverted_drag
         return None, None
 
-    def get_mask(self, data_shape: typing.Sequence[int], calibrated_origin: Geometry.FloatPoint = None) -> numpy.ndarray:
+    def get_mask(self, data_shape: typing.Sequence[int, ...], calibrated_origin: Geometry.FloatPoint = None) -> numpy.ndarray:
         # a and b will be the calibrated pixel origin, expressed as pixels from top left
         calibrated_origin = calibrated_origin or Geometry.FloatPoint(y=data_shape[0] * 0.5 + 0.5,
                                                                      x=data_shape[1] * 0.5 + 0.5)
@@ -2198,7 +2185,7 @@ class RingGraphic(Graphic):
             self.radius_2 = radius
         return None, None
 
-    def get_mask(self, data_shape: typing.Tuple[int], calibrated_origin: Geometry.FloatPoint = None):
+    def get_mask(self, data_shape: typing.Sequence[int, ...], calibrated_origin: Geometry.FloatPoint = None):
         calibrated_origin = calibrated_origin or Geometry.FloatPoint(y=data_shape[0] * 0.5 + 0.5, x=data_shape[1] * 0.5 + 0.5)
         mask = numpy.zeros(data_shape, dtype=float)
         bounds_int = ((0, 0), (int(data_shape[0]), int(data_shape[1])))
@@ -2503,7 +2490,7 @@ class LatticeGraphic(Graphic):
 
         return None, None
 
-    def get_mask(self, data_shape: typing.Sequence[int], calibrated_origin: Geometry.FloatPoint = None) -> numpy.ndarray:
+    def get_mask(self, data_shape: typing.Sequence[int, ...], calibrated_origin: Geometry.FloatPoint = None) -> numpy.ndarray:
         calibrated_origin = calibrated_origin or Geometry.FloatPoint(y=data_shape[0] * 0.5 + 0.5, x=data_shape[1] * 0.5 + 0.5)
         mask = numpy.zeros(data_shape)
 
