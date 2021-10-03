@@ -9,6 +9,7 @@ import copy
 import datetime
 import logging
 import numpy
+import numpy.typing
 import re
 import typing
 import uuid
@@ -20,6 +21,15 @@ import weakref
 # local libraries
 from nion.utils import Event
 from nion.utils import Observable
+from nion.swift.model import Changes
+
+
+PersistentDictType = typing.Dict[str, typing.Any]
+
+
+class PersistentContainerType(typing.Protocol):
+    def insert_item(self, name: str, before_index: int, item: PersistentObject) -> None: ...
+    def remove_item(self, name: str, item: PersistentObject) -> None: ...
 
 
 class PersistentProperty:
@@ -57,7 +67,7 @@ class PersistentProperty:
         self.convert_set_fn = None
         self.changed = None
 
-    def set_value(self, value):
+    def set_value(self, value: typing.Any) -> None:
         if self.validate:
             value = self.validate(value)
         else:
@@ -170,7 +180,7 @@ class PersistentStorageInterface(abc.ABC):
     def get_storage_properties(self) -> typing.Dict: ...
 
     @abc.abstractmethod
-    def get_properties(self, object) -> typing.Optional[typing.Dict[str, typing.Any]]: ...
+    def get_properties(self, object) -> typing.Optional[PersistentDictType]: ...
 
     @abc.abstractmethod
     def insert_item(self, parent, name: str, before_index: int, item) -> None: ...
@@ -194,7 +204,7 @@ class PersistentStorageInterface(abc.ABC):
     def write_external_data(self, item, name: str, value) -> None: ...
 
     @abc.abstractmethod
-    def reserve_external_data(self, item, name: str, data_shape: typing.Tuple[int, ...], data_dtype: numpy.dtype) -> None: ...
+    def reserve_external_data(self, item, name: str, data_shape: typing.Tuple[int, ...], data_dtype: numpy.typing.DTypeLike) -> None: ...
 
     @abc.abstractmethod
     def enter_write_delay(self, object) -> None: ...
@@ -266,7 +276,7 @@ class PersistentObjectContext:
 
 
 _SpecifierType = typing.Union[typing.Mapping[str, typing.Any], str, uuid.UUID]
-_SpecifierDictType = typing.Union[typing.Dict[str, typing.Any], str, uuid.UUID]
+_SpecifierDictType = typing.Union[PersistentDictType, str, uuid.UUID]
 
 
 class PersistentObjectSpecifier:
@@ -522,7 +532,8 @@ class PersistentObject(Observable.Observable):
         self.__properties: typing.Dict[str, PersistentProperty] = dict()
         self.__items: typing.Dict[str, PersistentItem] = dict()
         self.__relationships: typing.Dict[str, PersistentRelationship] = dict()
-        self.__container_weak_ref = None
+        # Python 3.9+: typed weakref
+        self.__container_weak_ref: typing.Optional[typing.Any] = None
         self._closed = False
         self.about_to_close_event = Event.Event()
         self._about_to_be_removed = False
@@ -535,7 +546,7 @@ class PersistentObject(Observable.Observable):
         self.modified_state = 0
         self.__modified = datetime.datetime.utcnow()
         self.persistent_object_parent: typing.Optional[PersistentObjectParent] = None
-        self.__persistent_dict: typing.Optional[typing.Dict[str, typing.Any]] = None
+        self.__persistent_dict: typing.Optional[PersistentDictType] = None
         self.__persistent_storage: typing.Optional[PersistentStorageInterface] = None
         self.persistent_object_context_changed_event = Event.Event()
         self.__item_references: typing.List[PersistentObjectReference] = list()
@@ -573,8 +584,31 @@ class PersistentObject(Observable.Observable):
                 self.append_item(key, copy.deepcopy(child_item, memo))
 
     @property
-    def container(self):
+    def container(self) -> typing.Optional[PersistentObject]:
         return self.__container_weak_ref() if self.__container_weak_ref else None
+
+    def insert_model_item(self, container: PersistentContainerType, name: str, before_index: int, item: PersistentObject) -> None:
+        """Insert a model item. Let this item's container do it if possible; otherwise do it directly.
+
+        Passing responsibility to this item's container allows the library to easily track dependencies.
+        However, if this item isn't yet in the library hierarchy, then do the operation directly.
+        """
+        if self.container:
+            self.container.insert_model_item(container, name, before_index, item)
+        else:
+            container.insert_item(name, before_index, item)
+
+    def remove_model_item(self, container: PersistentContainerType, name: str, item: PersistentObject, *, safe: bool = False) -> Changes.UndeleteLog:
+        """Remove a model item. Let this item's container do it if possible; otherwise do it directly.
+
+        Passing responsibility to this item's container allows the library to easily track dependencies.
+        However, if this item isn't yet in the library hierarchy, then do the operation directly.
+        """
+        if self.container:
+            return self.container.remove_model_item(container, name, item, safe=safe)
+        else:
+            container.remove_item(name, item)
+            return Changes.UndeleteLog()
 
     def about_to_be_inserted(self, container):
         assert self.__container_weak_ref is None
@@ -650,11 +684,11 @@ class PersistentObject(Observable.Observable):
         self.persistent_object_context_changed_event.fire()
 
     @property
-    def persistent_dict(self) -> typing.Optional[typing.Dict[str, typing.Any]]:
+    def persistent_dict(self) -> typing.Optional[PersistentDictType]:
         return self.__persistent_dict
 
     @persistent_dict.setter
-    def persistent_dict(self, persistent_dict: typing.Optional[typing.Dict[str, typing.Any]]) -> None:
+    def persistent_dict(self, persistent_dict: typing.Optional[PersistentDictType]) -> None:
         self.__persistent_dict = persistent_dict
         for key in self.__items.keys():
             item = self.__items[key].value
@@ -747,7 +781,7 @@ class PersistentObject(Observable.Observable):
             relationship.close()
         self.__relationships.clear()
 
-    def get_storage_properties(self) -> typing.Optional[typing.Dict[str, typing.Any]]:
+    def get_storage_properties(self) -> typing.Optional[PersistentDictType]:
         """ Return a copy of the properties for the object as a dict. """
         assert self.persistent_storage
         return copy.deepcopy(self.persistent_storage.get_properties(self))
@@ -789,13 +823,13 @@ class PersistentObject(Observable.Observable):
     def begin_reading(self):
         self._is_reading = True
 
-    def read_from_dict(self, properties):
+    def read_from_dict(self, properties: PersistentDictType) -> None:
         """ Read from a dict. """
         # uuid is handled specially for performance reasons
         if "uuid" in properties:
             self.uuid = uuid.UUID(properties["uuid"])
         if "modified" in properties:
-            self.__modified = datetime.datetime(*list(map(int, re.split('[^\d]', properties["modified"]))))
+            self.__modified = datetime.datetime(*list(map(int, re.split('[^\d]', properties["modified"]))))  # type: ignore
         # iterate the defined properties
         for key in self.__properties.keys():
             property = self.__properties[key]
@@ -841,7 +875,7 @@ class PersistentObject(Observable.Observable):
                 before_index = len(self.__relationships[key].values)
                 self.load_item(key, before_index, item)
 
-    def finish_reading(self):
+    def finish_reading(self) -> None:
         for key in self.__items.keys():
             item = self.__items[key].value
             if item:
@@ -851,9 +885,9 @@ class PersistentObject(Observable.Observable):
                 item.finish_reading()
         self._is_reading = False
 
-    def write_to_dict(self):
+    def write_to_dict(self) -> PersistentDictType:
         """ Write the object to a dict and return it. """
-        properties = dict()
+        properties: PersistentDictType = dict()
         if self.__type:
             properties["type"] = self.__type
         properties["uuid"] = str(self.uuid)
@@ -890,7 +924,7 @@ class PersistentObject(Observable.Observable):
         if parent:
             parent.__update_modified(modified)
 
-    def _get_persistent_property(self, name):
+    def _get_persistent_property(self, name: str) -> PersistentProperty:
         """ Subclasses can call this to get a property descriptor. """
         return self.__properties[name]
 
@@ -1117,10 +1151,10 @@ class PersistentObject(Observable.Observable):
         assert self.persistent_storage
         self.persistent_storage.write_external_data(self, name, value)
 
-    def reserve_external_data(self, name: str, data_shape: typing.Tuple[int, ...], data_dtype: numpy.dtype) -> None:
+    def reserve_external_data(self, name: str, data_shape: typing.Tuple[int, ...], data_dtype: numpy.typing.DTypeLike) -> None:
         """ Call this to notify reserve external data value with name to an item in persistent storage. """
         assert self.persistent_storage
-        self.persistent_storage.reserve_external_data(self, name, data_shape, data_dtype)
+        self.persistent_storage.reserve_external_data(self, name, data_shape, numpy.dtype(data_dtype))
 
     def enter_write_delay(self) -> None:
         """ Call this to notify this context that the object should be write delayed. """

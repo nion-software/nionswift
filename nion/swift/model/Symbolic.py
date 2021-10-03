@@ -1319,19 +1319,6 @@ class Computation(Persistence.PersistentObject):
         self.label = d.get("label", self.label)
         self.processing_id = d.get("processing_id", self.processing_id)
 
-    def insert_model_item(self, container, name, before_index, item):
-        if self.container:
-            self.container.insert_model_item(container, name, before_index, item)
-        else:
-            container.insert_item(name, before_index, item)
-
-    def remove_model_item(self, container, name, item, *, safe: bool=False) -> Changes.UndeleteLog:
-        if self.container:
-            return self.container.remove_model_item(container, name, item, safe=safe)
-        else:
-            container.remove_item(name, item)
-            return Changes.UndeleteLog()
-
     @property
     def source(self):
         return self.__source_reference.item

@@ -80,7 +80,9 @@ class Project(Persistence.PersistentObject):
         self.__storage_system.reset()  # this makes storage reusable during tests
 
     def create_proxy(self) -> Persistence.PersistentObjectProxy:
-        return self.container.create_item_proxy(item=self)
+        container = self.container
+        assert container
+        return container.create_item_proxy(item=self)
 
     @property
     def item_specifier(self) -> Persistence.PersistentObjectSpecifier:
@@ -89,12 +91,12 @@ class Project(Persistence.PersistentObject):
     def create_specifier(self, item: Persistence.PersistentObject) -> Persistence.PersistentObjectSpecifier:
         return Persistence.PersistentObjectSpecifier(item=item)
 
-    def insert_model_item(self, container, name, before_index, item) -> None:
+    def insert_model_item(self, container: Persistence.PersistentContainerType, name: str, before_index: int, item: Persistence.PersistentObject) -> None:
         # special handling to pass on to the document model
         assert callable(self.handle_insert_model_item)
         self.handle_insert_model_item(container, name, before_index, item)
 
-    def remove_model_item(self, container, name, item, *, safe: bool=False) -> Changes.UndeleteLog:
+    def remove_model_item(self, container: Persistence.PersistentContainerType, name: str, item: Persistence.PersistentObject, *, safe: bool = False) -> Changes.UndeleteLog:
         # special handling to pass on to the document model
         assert callable(self.handle_remove_model_item)
         return self.handle_remove_model_item(container, name, item, safe=safe)

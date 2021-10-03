@@ -11,6 +11,7 @@ import pathlib
 import sys
 import threading
 import time
+import types
 import typing
 import uuid
 import warnings
@@ -18,6 +19,7 @@ import weakref
 
 # third party libraries
 import numpy
+import numpy.typing
 
 # local libraries
 from nion.data import Calibration
@@ -26,18 +28,19 @@ from nion.data import DataAndMetadata
 from nion.data import Image
 from nion.swift.model import ApplicationData
 from nion.swift.model import Cache
-from nion.swift.model import Changes
 from nion.swift.model import Graphics
 from nion.swift.model import Metadata
 from nion.swift.model import Persistence
 from nion.swift.model import Utility
 from nion.utils import Event
 from nion.utils import Geometry
-from nion.utils import Observable
 
 if typing.TYPE_CHECKING:
     from nion.swift.model import DisplayItem
+    from nion.swift.model import DocumentModel
     from nion.swift.model import Project
+
+from nion.data.DataAndMetadata import _ImageDataType
 
 _ = gettext.gettext
 
@@ -46,22 +49,22 @@ UNTITLED_STR = _("Untitled")
 
 class CalibrationList:
 
-    def __init__(self, calibrations=None):
-        self.list = list() if calibrations is None else copy.deepcopy(calibrations)
+    def __init__(self, calibrations: typing.Optional[DataAndMetadata.CalibrationListType] = None) -> None:
+        self.list = list() if calibrations is None else copy.deepcopy(list(calibrations))
 
-    def read_dict(self, storage_list):
+    def read_dict(self, storage_list: typing.Sequence[typing.Mapping[str, typing.Any]]) -> CalibrationList:
         # storage_list will be whatever is returned by write_dict.
-        new_list = list()
+        new_list: typing.List[Calibration.Calibration] = list()
         for calibration_dict in storage_list:
             new_list.append(Calibration.Calibration().read_dict(calibration_dict))
         self.list = new_list
         return self  # for convenience
 
-    def write_dict(self):
-        list = []
+    def write_dict(self) -> typing.List[Persistence.PersistentDictType]:
+        l: typing.List[Persistence.PersistentDictType] = list()
         for calibration in self.list:
-            list.append(calibration.write_dict())
-        return list
+            l.append(calibration.write_dict())
+        return l
 
 
 """
@@ -87,20 +90,22 @@ class CalibrationList:
 
 
 class DtypeToStringConverter:
-    def convert(self, value):
+    def convert(self, value: typing.Optional[numpy.typing.DTypeLike]) -> typing.Optional[str]:
         return str(value) if value is not None else None
-    def convert_back(self, value):
+
+    def convert_back(self, value: typing.Optional[str]) -> typing.Optional[numpy.typing.DTypeLike]:
         return numpy.dtype(value) if value is not None else None
 
 
 class DatetimeToStringConverter:
-    def convert(self, value):
+    def convert(self, value: typing.Optional[datetime.datetime]) -> typing.Optional[str]:
         return value.isoformat() if value is not None else None
-    def convert_back(self, value):
+
+    def convert_back(self, value: typing.Optional[str]) -> typing.Optional[datetime.datetime]:
         try:
-            if len(value) == 26:
+            if value and len(value) == 26:
                 return datetime.datetime.strptime(value, "%Y-%m-%dT%H:%M:%S.%f")
-            elif len(value) == 19:
+            elif value and len(value) == 19:
                 return datetime.datetime.strptime(value, "%Y-%m-%dT%H:%M:%S")
         except ValueError as e:
             pass  # fall through
@@ -108,9 +113,10 @@ class DatetimeToStringConverter:
 
 
 class UuidsToStringsConverter:
-    def convert(self, value):
+    def convert(self, value: typing.List[uuid.UUID]) -> typing.List[str]:
         return [str(uuid_) for uuid_ in value]
-    def convert_back(self, value):
+
+    def convert_back(self, value: typing.List[str]) -> typing.List[uuid.UUID]:
         return [uuid.UUID(uuid_str) for uuid_str in value]
 
 
@@ -179,21 +185,19 @@ class DataItem(Persistence.PersistentObject):
     storage_version = 13
     writer_version = 13
 
-    sync_time = None
-    sync_perf_counter = None
-
-    def __init__(self, data: typing.Optional[numpy.ndarray] = None, item_uuid: typing.Optional[uuid.UUID] = None, large_format: bool = False) -> None:
+    def __init__(self, data: typing.Optional[_ImageDataType] = None, item_uuid: typing.Optional[uuid.UUID] = None,
+                 large_format: bool = False) -> None:
         super().__init__()
         self.uuid = item_uuid if item_uuid else self.uuid
         self.large_format = large_format
-        self._document_model = None  # used only for Facade
+        self._document_model: typing.Optional[DocumentModel.DocumentModel] = None  # used only for Facade
         self.define_type("data-item")
-        self.define_property("created", self.utcnow(), converter=DatetimeToStringConverter(), changed=self.__description_property_changed)
+        self.define_property("created", self.utcnow(), hidden=True, converter=DatetimeToStringConverter(), changed=self.__description_property_changed)
         data_shape = data.shape if data is not None else None
         data_dtype = data.dtype if data is not None else None
         dimensional_shape = Image.dimensional_shape_from_shape_and_dtype(data_shape, data_dtype)
         collection_dimension_count = (2 if len(dimensional_shape) == 3 else 0) if dimensional_shape is not None else None
-        datum_dimension_count = len(dimensional_shape) - collection_dimension_count if dimensional_shape is not None else None
+        datum_dimension_count = len(dimensional_shape) - collection_dimension_count if dimensional_shape is not None and collection_dimension_count is not None else None
         self.define_property("data_shape", data_shape, hidden=True, recordable=False)
         self.define_property("data_dtype", data_dtype, hidden=True, recordable=False, converter=DtypeToStringConverter())
         self.define_property("is_sequence", False, hidden=True, recordable=False, changed=self.__data_description_changed)
@@ -212,20 +216,20 @@ class DataItem(Persistence.PersistentObject):
         self.define_property("session_id", validate=self.__validate_session_id, changed=self.__property_changed)
         self.define_property("session", dict(), changed=self.__property_changed)
         self.define_property("category", "persistent", changed=self.__property_changed)
-        self.__data_and_metadata = None
+        self.__data_and_metadata: typing.Optional[DataAndMetadata.DataAndMetadata] = None
         self.__data_and_metadata_lock = threading.RLock()
-        self.__intensity_calibration = None
-        self.__dimensional_calibrations = list()
-        self.__metadata = dict()
+        self.__intensity_calibration: typing.Optional[Calibration.Calibration] = None
+        self.__dimensional_calibrations: typing.List[Calibration.Calibration] = list()
+        self.__metadata: typing.Optional[DataAndMetadata.MetadataType] = dict()
         self.__data_ref_count = 0
         self.__data_ref_count_mutex = threading.RLock()
         self.__pending_write = True
         self.__in_transaction_state = False
         self.__write_delay_modified_count = 0
         self.__write_delay_data_changed = False
-        self.__source_file_path = None
+        self.__source_file_path: typing.Optional[pathlib.Path] = None
         self.__is_live = False
-        self.__session_manager = None
+        self.__session_manager: typing.Optional[SessionManager] = None
         self.__source_reference = self.create_item_reference()
         self.description_changed_event = Event.Event()
         self.item_changed_event = Event.Event()
@@ -236,17 +240,18 @@ class DataItem(Persistence.PersistentObject):
         self.did_change_event = Event.Event()
         self.__data_item_change_count = 0
         self.__data_item_change_count_lock = threading.RLock()
-        self.__change_thread = None
+        self.__change_thread: typing.Optional[threading.Thread] = None
         self.__change_count = 0
         self.__change_count_lock = threading.RLock()
         self.__change_changed = False
         self.__change_data_changed = False
         self.__pending_xdata_lock = threading.RLock()
-        self.__pending_xdata = None
-        self.__pending_queue = list()
+        self.__pending_xdata: typing.Optional[DataAndMetadata.DataAndMetadata] = None
+        self.__pending_queue: typing.List[typing.Tuple[DataAndMetadata.DataAndMetadata, typing.Sequence[slice], typing.Sequence[slice], DataAndMetadata.DataMetadata]] = list()
         self.__content_changed = False
-        self.__suspendable_storage_cache = None
-        self.__display_data_channel_refs = set()  # display data channels referencing this data item
+        self.__suspendable_storage_cache: typing.Optional[Cache.CacheLike] = None
+        # Python 3.9+: parameterized set, weakref
+        self.__display_data_channel_refs = set()  # type: ignore  # display data channels referencing this data item
         if data is not None:
             data_and_metadata = DataAndMetadata.DataAndMetadata.from_data(data, timezone=self.timezone, timezone_offset=self.timezone_offset)
             self.__set_data_and_metadata_direct(data_and_metadata)
@@ -267,13 +272,13 @@ class DataItem(Persistence.PersistentObject):
             utcnow = datetime.datetime.utcnow()
         return utcnow
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "{0} {1} ({2}, {3})".format(self.__repr__(), (self.title if self.title else _("Untitled")), str(self.uuid), self.date_for_sorting_local_as_string)
 
-    def __copy__(self):
+    def __copy__(self) -> DataItem:
         assert False
 
-    def __deepcopy__(self, memo):
+    def __deepcopy__(self, memo: typing.Dict[typing.Any, typing.Any]) -> DataItem:
         data_item_copy = self.__class__()
         # data format (temporary until moved to buffered data source)
         data_item_copy.large_format = self.large_format
@@ -298,6 +303,14 @@ class DataItem(Persistence.PersistentObject):
         super().close()
 
     @property
+    def created(self) -> datetime.datetime:
+        return typing.cast(datetime.datetime, self._get_persistent_property_value("created"))
+
+    @created.setter
+    def created(self, value: datetime.datetime) -> None:
+        self._set_persistent_property_value("created", value)
+
+    @property
     def project(self) -> Project.Project:
         return typing.cast("Project.Project", self.container)
 
@@ -308,35 +321,12 @@ class DataItem(Persistence.PersistentObject):
     def item_specifier(self) -> Persistence.PersistentObjectSpecifier:
         return Persistence.PersistentObjectSpecifier(item_uuid=self.uuid)
 
-    def insert_model_item(self, container, name, before_index, item):
-        """Insert a model item. Let this item's container do it if possible; otherwise do it directly.
-
-        Passing responsibility to this item's container allows the library to easily track dependencies.
-        However, if this item isn't yet in the library hierarchy, then do the operation directly.
-        """
-        if self.container:
-            self.container.insert_model_item(container, name, before_index, item)
-        else:
-            container.insert_item(name, before_index, item)
-
-    def remove_model_item(self, container, name, item, *, safe: bool=False) -> Changes.UndeleteLog:
-        """Remove a model item. Let this item's container do it if possible; otherwise do it directly.
-
-        Passing responsibility to this item's container allows the library to easily track dependencies.
-        However, if this item isn't yet in the library hierarchy, then do the operation directly.
-        """
-        if self.container:
-            return self.container.remove_model_item(container, name, item, safe=safe)
-        else:
-            container.remove_item(name, item)
-            return Changes.UndeleteLog()
-
     def clone(self) -> DataItem:
         data_item = self.__class__()
         data_item.uuid = self.uuid
         return data_item
 
-    def snapshot(self):
+    def snapshot(self) -> DataItem:
         """Return a new library item which is a copy of this one with any dynamic behavior made static."""
         data_item = self.__class__()
         # data format (temporary until moved to buffered data source)
@@ -354,11 +344,11 @@ class DataItem(Persistence.PersistentObject):
         data_item.session_data = copy.deepcopy(self.session_data)
         return data_item
 
-    def set_storage_cache(self, storage_cache):
+    def set_storage_cache(self, storage_cache: Cache.CacheLike) -> None:
         self.__suspendable_storage_cache = Cache.SuspendableCache(storage_cache)
 
     @property
-    def _suspendable_storage_cache(self):
+    def _suspendable_storage_cache(self) -> typing.Optional[Cache.CacheLike]:
         return self.__suspendable_storage_cache
 
     def add_display_data_channel(self, display_data_channel: DisplayItem.DisplayDataChannel) -> None:
@@ -380,20 +370,20 @@ class DataItem(Persistence.PersistentObject):
     def in_transaction_state(self) -> bool:
         return self.__in_transaction_state
 
-    def __enter_write_delay_state(self):
+    def __enter_write_delay_state(self) -> None:
         self.__write_delay_modified_count = self.modified_count
         self.__write_delay_data_changed = False
         if self.persistent_object_context:
             self.enter_write_delay()
 
-    def __exit_write_delay_state(self):
+    def __exit_write_delay_state(self) -> None:
         if self.persistent_object_context:
             self.exit_write_delay()
             if self.__data_and_metadata:
                 self.__data_and_metadata.unloadable = True
             self._finish_pending_write()
 
-    def write_to_dict(self):
+    def write_to_dict(self) -> Persistence.PersistentDictType:
         properties = super().write_to_dict()
         properties["version"] = DataItem.writer_version
         return properties
@@ -406,11 +396,11 @@ class DataItem(Persistence.PersistentObject):
             self.__write_data()
             self.__pending_write = False
 
-    def __write_data(self):
+    def __write_data(self) -> None:
         if self.__data_and_metadata:
             self.write_external_data("data", self.__data_and_metadata.data)
 
-    def _finish_pending_write(self):
+    def _finish_pending_write(self) -> None:
         if self.__pending_write:
             self.write_data_if_not_delayed()
         else:
@@ -419,7 +409,7 @@ class DataItem(Persistence.PersistentObject):
             if self.__write_delay_data_changed:
                 self.__write_data()
 
-    def _transaction_state_entered(self):
+    def _transaction_state_entered(self) -> None:
         self.__in_transaction_state = True
         # first enter the write delay state.
         self.__enter_write_delay_state()
@@ -429,7 +419,7 @@ class DataItem(Persistence.PersistentObject):
         # load data to prevent paging in and out.
         self.increment_data_ref_count()
 
-    def _transaction_state_exited(self):
+    def _transaction_state_exited(self) -> None:
         self.__in_transaction_state = False
         # being in the transaction state has the side effect of delaying the cache too.
         # spill whatever was into the local cache into the persistent cache.
@@ -441,18 +431,18 @@ class DataItem(Persistence.PersistentObject):
         self.decrement_data_ref_count()
 
     @property
-    def source(self):
+    def source(self) -> typing.Optional[Persistence.PersistentObject]:
         return self.__source_reference.item
 
     @source.setter
-    def source(self, source):
+    def source(self, source: typing.Optional[Persistence.PersistentObject]) -> None:
         self.__source_reference.item = source
         self.source_specifier = source.project.create_specifier(source).write() if source else None
 
-    def __source_specifier_changed(self, name: str, d: typing.Dict) -> None:
+    def __source_specifier_changed(self, name: str, d: Persistence._SpecifierType) -> None:
         self.__source_reference.item_specifier = Persistence.PersistentObjectSpecifier.read(d)
 
-    def persistent_object_context_changed(self):
+    def persistent_object_context_changed(self) -> None:
         # handle case where persistent object context is set on an item that is already under transaction.
         # this can occur during acquisition. any other cases?
         super().persistent_object_context_changed()
@@ -465,10 +455,11 @@ class DataItem(Persistence.PersistentObject):
         elif self.__data_and_metadata:
             self.__data_and_metadata.unloadable = self.persistent_object_context is not None and not self.is_write_delayed
 
-    def _test_get_file_path(self):
-        return self.persistent_storage.get_storage_property(self, "file_path")
+    def _test_get_file_path(self) -> str:
+        # hack for test function
+        return typing.cast(str, getattr(self.persistent_storage, "get_storage_property")(self, "file_path")) if self.persistent_storage else str()
 
-    def read_from_dict(self, properties):
+    def read_from_dict(self, properties: Persistence.PersistentDictType) -> None:
         self.large_format = properties.get("__large_format", self.large_format)
         # when reading, handle changes specially. first, put everything into a change
         # block; then make sure that no change notifications actually occur. this makes
@@ -484,7 +475,7 @@ class DataItem(Persistence.PersistentObject):
                 dimensional_calibration_list = self._get_persistent_property_value("dimensional_calibrations")
                 dimensional_calibrations = dimensional_calibration_list.list if dimensional_calibration_list else None
                 if dimensional_calibrations is not None:
-                    dimensional_shape = Image.dimensional_shape_from_shape_and_dtype(data_shape, data_dtype)
+                    assert dimensional_shape is not None
                     while len(dimensional_shape) > len(dimensional_calibrations):
                         dimensional_calibrations.append(Calibration.Calibration())
                     while len(dimensional_shape) < len(dimensional_calibrations):
@@ -498,12 +489,12 @@ class DataItem(Persistence.PersistentObject):
                 collection_dimension_count = self._get_persistent_property_value("collection_dimension_count")
                 datum_dimension_count = self._get_persistent_property_value("datum_dimension_count")
                 if collection_dimension_count is None:
-                    collection_dimension_count = 2 if len(dimensional_shape) == 3 and not is_sequence else 0
+                    collection_dimension_count = 2 if dimensional_shape is not None and len(dimensional_shape) == 3 and not is_sequence else 0
                     # update collection_dimension_count, but in a way that sets the internal value but
                     # doesn't trigger a write to disk or a change modification.
                     self._get_persistent_property("collection_dimension_count").set_value(collection_dimension_count)
                 if datum_dimension_count is None:
-                    datum_dimension_count = len(dimensional_shape) - collection_dimension_count - (1 if is_sequence else 0)
+                    datum_dimension_count = len(dimensional_shape) - collection_dimension_count - (1 if is_sequence else 0) if dimensional_shape is not None and collection_dimension_count is not None else 0
                     # update collection_dimension_count, but in a way that sets the internal value but
                     # doesn't trigger a write to disk or a change modification.
                     self._get_persistent_property("datum_dimension_count").set_value(datum_dimension_count)
@@ -523,23 +514,23 @@ class DataItem(Persistence.PersistentObject):
         self.__pending_write = False
 
     @property
-    def properties(self):
+    def properties(self) -> typing.Optional[Persistence.PersistentDictType]:
         """ Used for debugging. """
         return self.get_storage_properties()
 
     @property
-    def is_live(self):
+    def is_live(self) -> bool:
         """Return whether this library item represents live acquisition."""
         return self.__is_live
 
-    def _enter_live_state(self):
+    def _enter_live_state(self) -> None:
         self.__is_live = True
         # live state is only a display item
         # also, there are still tests which filter data items; so leave this here until those tests are updated
         # the item_changed_event facilitates data item filtering
         self.item_changed_event.fire()
 
-    def _exit_live_state(self):
+    def _exit_live_state(self) -> None:
         self.__is_live = False
         # live state is only a display item
         # also, there are still tests which filter data items; so leave this here until those tests are updated
@@ -547,15 +538,15 @@ class DataItem(Persistence.PersistentObject):
         self.item_changed_event.fire()
 
     @property
-    def session_id(self) -> str:
-        return self._get_persistent_property_value("session_id")
+    def session_id(self) -> typing.Optional[str]:
+        return typing.cast(typing.Optional[str], self._get_persistent_property_value("session_id"))
 
     @session_id.setter
-    def session_id(self, value: str) -> None:
+    def session_id(self, value: typing.Optional[str]) -> None:
         assert value is None or datetime.datetime.strptime(value, "%Y%m%d-%H%M%S")
         self._set_persistent_property_value("session_id", value)
 
-    def update_session(self, session_id: str) -> None:
+    def update_session(self, session_id: typing.Optional[str]) -> None:
         # update the session, but only if necessary (this is an optimization to prevent unnecessary display updates)
         if self.session_id != session_id:
             self.session_id = session_id
@@ -563,26 +554,29 @@ class DataItem(Persistence.PersistentObject):
         if self.session_metadata != session_metadata:
             self.session_metadata = session_metadata
 
-    def data_item_changes(self) -> contextlib.AbstractContextManager:
+    class DataItemChangeContextManager:
+        def __init__(self, data_item: DataItem) -> None:
+            self.__data_item = data_item
+        def __enter__(self) -> DataItem.DataItemChangeContextManager:
+            self.__data_item._begin_data_item_changes()
+            return self
+        def __exit__(self, exception_type: typing.Optional[typing.Type[BaseException]], value: typing.Optional[BaseException], traceback: typing.Optional[types.TracebackType]) -> typing.Optional[bool]:
+            self.__data_item._end_data_item_changes()
+            return None
+
+    def data_item_changes(self) -> contextlib.AbstractContextManager[DataItem.DataItemChangeContextManager]:
         # return a context manager to batch up a set of changes so that listeners
         # are only notified after the last change is complete.
-        data_item = self
-        class DataItemChangeContextManager:
-            def __enter__(self):
-                data_item._begin_data_item_changes()
-                return self
-            def __exit__(self, type, value, traceback):
-                data_item._end_data_item_changes()
-        return DataItemChangeContextManager()
+        return DataItem.DataItemChangeContextManager(self)
 
-    def _begin_data_item_changes(self):
+    def _begin_data_item_changes(self) -> None:
         with self.__data_item_change_count_lock:
             change_count = self.__data_item_change_count
             self.__data_item_change_count += 1
         if change_count == 0:
             self.will_change_event.fire()
 
-    def _end_data_item_changes(self):
+    def _end_data_item_changes(self) -> None:
         with self.__data_item_change_count_lock:
             self.__data_item_change_count -= 1
             change_count = self.__data_item_change_count
@@ -593,48 +587,49 @@ class DataItem(Persistence.PersistentObject):
             self.item_changed_event.fire()
             self.did_change_event.fire()
 
-    def __description_property_changed(self, name, value):
+    def __description_property_changed(self, name: str, value: typing.Any) -> None:
         self.__property_changed(name, value)
         self.__notify_description_changed()
 
-    def __notify_description_changed(self):
+    def __notify_description_changed(self) -> None:
         self._notify_data_item_content_changed()
         self._description_changed()
 
-    def _description_changed(self):
+    def _description_changed(self) -> None:
         self.description_changed_event.fire()
 
-    def __data_description_changed(self, name, value):
+    def __data_description_changed(self, name: str, value: int) -> None:
         self.__property_changed(name, value)
         self.__metadata_changed()
 
-    def __dimensional_calibrations_changed(self, name, value):
+    def __dimensional_calibrations_changed(self, name: str, value: typing.Any) -> None:
         self.__property_changed(name, self.dimensional_calibrations)  # don't send out the CalibrationList object
         self.__metadata_changed()
 
-    def __metadata_property_changed(self, name, value):
+    def __metadata_property_changed(self, name: str, value: typing.Any) -> None:
         self.__property_changed(name, value)
         self.__metadata_changed()
 
-    def __metadata_changed(self):
+    def __metadata_changed(self) -> None:
         self.__change_changed = True
         self.metadata_changed_event.fire()
 
-    def __property_changed(self, name, value):
+    def __property_changed(self, name: str, value: typing.Any) -> None:
         self.notify_property_changed(name)
         if name in ("title", "caption", "description"):
             self.__notify_description_changed()
 
-    def __timezone_property_changed(self, name, value):
-        if self.__data_and_metadata:
-            self.__data_and_metadata.data_metadata.timezone = self.timezone
-            self.__data_and_metadata.data_metadata.timezone_offset = self.timezone_offset
+    def __timezone_property_changed(self, name: str, value: typing.Optional[str]) -> None:
+        timezone = self.timezone
+        if self.__data_and_metadata and timezone is not None:
+            self.__data_and_metadata.data_metadata.timezone = timezone
+            self.__data_and_metadata.data_metadata.timezone_offset = self.timezone_offset or str()
         self.notify_property_changed(name)
 
     # call this when the listeners need to be updated (via data_item_content_changed).
     # Calling this method will send the data_item_content_changed method to each listener by using the method
     # data_item_changes.
-    def _notify_data_item_content_changed(self):
+    def _notify_data_item_content_changed(self) -> None:
         with self.data_item_changes():
             with self.__data_item_change_count_lock:
                 self.__content_changed = True
@@ -642,7 +637,7 @@ class DataItem(Persistence.PersistentObject):
     # date times
 
     @property
-    def date_for_sorting(self):
+    def date_for_sorting(self) -> datetime.datetime:
         data_modified_list = list()
         data_modified = self.data_modified
         if data_modified:
@@ -654,18 +649,18 @@ class DataItem(Persistence.PersistentObject):
         return self.created
 
     @property
-    def date_for_sorting_local_as_string(self):
+    def date_for_sorting_local_as_string(self) -> str:
         date_utc = self.date_for_sorting
         tz_minutes = Utility.local_utcoffset_minutes(date_utc)
         date_local = date_utc + datetime.timedelta(minutes=tz_minutes)
         return date_local.strftime("%c")
 
     @property
-    def created_local_as_string(self):
+    def created_local_as_string(self) -> str:
         return self.created_local.strftime("%c")
 
     @property
-    def created_local(self):
+    def created_local(self) -> datetime.datetime:
         created_utc = self.created
         tz_minutes = Utility.local_utcoffset_minutes(created_utc)
         return created_utc + datetime.timedelta(minutes=tz_minutes)
@@ -673,33 +668,34 @@ class DataItem(Persistence.PersistentObject):
     # access description
 
     @property
-    def _session_manager(self) -> SessionManager:
+    def _session_manager(self) -> typing.Optional[SessionManager]:
         return self.__session_manager
 
-    def set_session_manager(self, session_manager: SessionManager) -> None:
+    def set_session_manager(self, session_manager: typing.Optional[SessionManager]) -> None:
         self.__session_manager = session_manager
 
     # override from storage to watch for changes to this library item. notify observers.
-    def notify_property_changed(self, key):
+    def notify_property_changed(self, key: str) -> None:
         super().notify_property_changed(key)
         self._notify_data_item_content_changed()
 
-    # temporary methods during restructuring
+    class ChangeContextManager:
+        def __init__(self, begin_changes_fn: typing.Callable[[], None], end_changes_fn: typing.Callable[[], None]) -> None:
+            self.__begin_changes_fn = begin_changes_fn
+            self.__end_changes_fn = end_changes_fn
+        def __enter__(self) -> DataItem.ChangeContextManager:
+            self.__begin_changes_fn()
+            return self
+        def __exit__(self, exception_type: typing.Optional[typing.Type[BaseException]], value: typing.Optional[BaseException], traceback: typing.Optional[types.TracebackType]) -> typing.Optional[bool]:
+            self.__end_changes_fn()
+            return None
 
-    def data_source_changes(self) -> contextlib.AbstractContextManager:
+    def data_source_changes(self) -> contextlib.AbstractContextManager[DataItem.ChangeContextManager]:
         # return a context manager to batch up a set of changes so that listeners
         # are only notified after the last change is complete.
-        begin_changes = self.__begin_changes
-        end_changes = self.__end_changes
-        class ChangeContextManager:
-            def __enter__(self):
-                begin_changes()
-                return self
-            def __exit__(self, type, value, traceback):
-                end_changes()
-        return ChangeContextManager()
+        return DataItem.ChangeContextManager(self.__begin_changes, self.__end_changes)
 
-    def __begin_changes(self):
+    def __begin_changes(self) -> None:
         self.will_change_event.fire()
         with self.__change_count_lock:
             if self.__change_count == 0:
@@ -709,7 +705,7 @@ class DataItem(Persistence.PersistentObject):
                     warnings.warn('begin changes from different threads', RuntimeWarning, stacklevel=2)
             self.__change_count += 1
 
-    def __end_changes(self):
+    def __end_changes(self) -> None:
         changed = False
         data_changed = False
         with self.__change_count_lock:
@@ -738,18 +734,18 @@ class DataItem(Persistence.PersistentObject):
                     self.data_item_changed_event.fire()
         self.did_change_event.fire()
 
-    def _handle_write_delay_data_changed(self):
+    def _handle_write_delay_data_changed(self) -> None:
         self.__write_delay_data_changed = True
 
-    def increment_data_ref_count(self):
+    def increment_data_ref_count(self) -> int:
         with self.__data_ref_count_mutex:
             initial_count = self.__data_ref_count
             self.__data_ref_count += 1
             if self.__data_and_metadata:
                 self.__data_and_metadata.increment_data_ref_count()
-        return initial_count+1
+        return initial_count + 1
 
-    def decrement_data_ref_count(self):
+    def decrement_data_ref_count(self) -> int:
         with self.__data_ref_count_mutex:
             assert self.__data_ref_count > 0
             self.__data_ref_count -= 1
@@ -762,14 +758,12 @@ class DataItem(Persistence.PersistentObject):
         with self.__pending_xdata_lock:
             self.__pending_xdata = xd
 
-    def queue_partial_update(self, partial_xdata: DataAndMetadata.DataAndMetadata, *,
-                             src_slice: typing.Optional[typing.Sequence[slice]] = None,
-                             dst_slice: typing.Optional[typing.Sequence[slice]] = None,
-                             metadata: DataAndMetadata.DataMetadata = None) -> None:
+    def queue_partial_update(self, partial_xdata: DataAndMetadata.DataAndMetadata, *, src_slice: typing.Sequence[slice],
+                             dst_slice: typing.Sequence[slice], metadata: DataAndMetadata.DataMetadata) -> None:
         with self.__pending_xdata_lock:
             self.__pending_queue.append((partial_xdata, src_slice, dst_slice, metadata))
 
-    def update_to_pending_xdata(self):
+    def update_to_pending_xdata(self) -> None:
         with self.__pending_xdata_lock:
             pending_xdata = self.__pending_xdata
             pending_queue = self.__pending_queue
@@ -786,11 +780,11 @@ class DataItem(Persistence.PersistentObject):
                     self.set_data_and_metadata_partial(partial_metadata, partial_xdata, partial_src_slice, partial_dst_slice, update_metadata=True)
 
     @property
-    def xdata(self) -> DataAndMetadata.DataAndMetadata:
+    def xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
         return self.data_and_metadata
 
     @property
-    def source_file_path(self) -> pathlib.Path:
+    def source_file_path(self) -> typing.Optional[pathlib.Path]:
         return self.__source_file_path
 
     @source_file_path.setter
@@ -798,106 +792,112 @@ class DataItem(Persistence.PersistentObject):
         self.__source_file_path = pathlib.Path(value) if value is not None else pathlib.Path()
 
     @property
-    def session_metadata(self) -> dict:
+    def session_metadata(self) -> DataAndMetadata.MetadataType:
         return copy.deepcopy(self._get_persistent_property_value("session"))
 
     @session_metadata.setter
-    def session_metadata(self, value: dict) -> None:
+    def session_metadata(self, value: DataAndMetadata.MetadataType) -> None:
         self._set_persistent_property_value("session", copy.deepcopy(value))
 
     @property
-    def session_data(self) -> typing.Dict:
+    def session_data(self) -> DataAndMetadata.MetadataType:
         return self.session_metadata
 
     @session_data.setter
-    def session_data(self, value: typing.Dict) -> None:
+    def session_data(self, value: DataAndMetadata.MetadataType) -> None:
         self.session_metadata = value
 
-    def __validate_session_id(self, value):
+    def __validate_session_id(self, value: typing.Any) -> typing.Optional[datetime.datetime]:
         assert value is None or datetime.datetime.strptime(value, "%Y%m%d-%H%M%S")
-        return value
+        return typing.cast(typing.Optional[datetime.datetime], value)
 
     def ensure_data_source(self) -> None:
         pass
 
     @property
-    def data(self) -> numpy.ndarray:
+    def data(self) -> _ImageDataType:
         return self.__get_data()
 
-    def set_data(self, data: numpy.ndarray, data_modified: datetime.datetime=None) -> None:
+    def set_data(self, data: _ImageDataType, data_modified: typing.Optional[datetime.datetime] = None) -> None:
         timezone = Utility.get_local_timezone()
         timezone_offset = Utility.TimezoneMinutesToStringConverter().convert(Utility.local_utcoffset_minutes())
-        self.set_xdata(DataAndMetadata.new_data_and_metadata(data, data_modified, timezone=timezone, timezone_offset=timezone_offset))
+        self.set_xdata(DataAndMetadata.new_data_and_metadata(data, timestamp=data_modified, timezone=timezone, timezone_offset=timezone_offset))
 
-    def set_xdata(self, xdata: DataAndMetadata.DataAndMetadata, data_modified: datetime.datetime=None) -> None:
+    def set_xdata(self, xdata: typing.Optional[DataAndMetadata.DataAndMetadata], data_modified: typing.Optional[datetime.datetime] = None) -> None:
         with self.data_source_changes():
             self.ensure_data_source()
             self.set_data_and_metadata(xdata, data_modified)
 
     class DataAccessor:
-        def __init__(self, data_item, get_data, set_data):
+        def __init__(self, data_item: DataItem, get_data: typing.Callable[[], typing.Optional[_ImageDataType]], set_data: typing.Callable[[_ImageDataType], None]) -> None:
             self.__data_item = data_item
             self.__get_data = get_data
             self.__set_data = set_data
 
-        def __enter__(self):
+        def __enter__(self) -> DataItem.DataAccessor:
             self.__data_item.increment_data_ref_count()
             return self
 
-        def __exit__(self, type, value, traceback):
+        def __exit__(self, exception_type: typing.Optional[typing.Type[BaseException]], value: typing.Optional[BaseException], traceback: typing.Optional[types.TracebackType]) -> typing.Optional[bool]:
             self.__data_item.decrement_data_ref_count()
+            return None
 
         @property
-        def data(self):
+        def data(self) -> typing.Optional[_ImageDataType]:
             return self.__get_data()
 
         @data.setter
-        def data(self, value):
+        def data(self, value: _ImageDataType) -> None:
             self.__set_data(value)
 
-        def data_updated(self):
+        def data_updated(self) -> None:
             self.__set_data(self.__get_data())
 
         @property
-        def master_data(self):
+        def master_data(self) -> typing.Optional[_ImageDataType]:
             return self.__get_data()
 
         @master_data.setter
-        def master_data(self, value):
+        def master_data(self, value: _ImageDataType) -> None:
             self.__set_data(value)
 
-        def master_data_updated(self):
+        def master_data_updated(self) -> None:
             self.__set_data(self.__get_data())
 
     # grab a data reference as a context manager. the object
     # returned defines data and data properties. reading data
     # should use the data property. writing data (if allowed) should
     # assign to the data property.
-    def data_ref(self) -> DataItem.DataAccessor:
+    def data_ref(self) -> contextlib.AbstractContextManager[DataItem.DataAccessor]:
         return DataItem.DataAccessor(self, self.__get_data, self.__set_data)
 
-    def __get_data(self):
+    def __get_data(self) -> typing.Optional[_ImageDataType]:
         return self.__data_and_metadata.data if self.__data_and_metadata else None
 
-    def __set_data(self, data, data_modified=None):
+    def __set_data(self, data: _ImageDataType, data_modified: typing.Optional[datetime.datetime] = None) -> None:
         with self.data_source_changes():
             dimensional_shape = Image.dimensional_shape_from_data(data)
             data_and_metadata = self.data_and_metadata
             intensity_calibration = data_and_metadata.intensity_calibration if data_and_metadata else None
-            dimensional_calibrations = copy.deepcopy(data_and_metadata.dimensional_calibrations) if data_and_metadata else None
+            dimensional_calibrations: typing.Optional[typing.List[Calibration.Calibration]] = None
+            metadata: typing.Optional[DataAndMetadata.MetadataType] = None
+            timestamp: typing.Optional[datetime.datetime] = None  # always update when the data is modified
+            data_descriptor: typing.Optional[DataAndMetadata.DataDescriptor] = None
             if data_and_metadata:
+                assert dimensional_shape is not None
+                dimensional_calibrations = list(data_and_metadata.dimensional_calibrations)
                 while len(dimensional_calibrations) < len(dimensional_shape):
                     dimensional_calibrations.append(Calibration.Calibration())
                 while len(dimensional_calibrations) > len(dimensional_shape):
                     dimensional_calibrations.pop(-1)
-            metadata = data_and_metadata.metadata if data_and_metadata else None
-            timestamp = None  # always update when the data is modified
-            data_descriptor = data_and_metadata.data_descriptor
+                metadata = data_and_metadata.metadata
+                data_descriptor = data_and_metadata.data_descriptor
             self.set_data_and_metadata(DataAndMetadata.DataAndMetadata.from_data(data, intensity_calibration, dimensional_calibrations, metadata, timestamp, data_descriptor), data_modified)
 
     @property
-    def intensity_calibration(self) -> Calibration.Calibration:
-        return copy.deepcopy(self.__data_and_metadata.intensity_calibration) if self.__data_and_metadata else self.__intensity_calibration
+    def intensity_calibration(self) -> typing.Optional[Calibration.Calibration]:
+        data_and_metadata = self.__data_and_metadata
+        return copy.deepcopy(data_and_metadata.intensity_calibration) if data_and_metadata else self.__intensity_calibration
 
     @intensity_calibration.setter
     def intensity_calibration(self, intensity_calibration: Calibration.Calibration) -> None:
@@ -911,18 +911,19 @@ class DataItem(Persistence.PersistentObject):
         self.intensity_calibration = intensity_calibration
 
     @property
-    def dimensional_calibrations(self) -> typing.List[Calibration.Calibration]:
-        return copy.deepcopy(self.__data_and_metadata.dimensional_calibrations) if self.__data_and_metadata else self.__dimensional_calibrations
+    def dimensional_calibrations(self) -> DataAndMetadata.CalibrationListType:
+        data_and_metadata = self.__data_and_metadata
+        return copy.deepcopy(data_and_metadata.dimensional_calibrations) if data_and_metadata else self.__dimensional_calibrations
 
     @dimensional_calibrations.setter
-    def dimensional_calibrations(self, dimensional_calibrations: typing.Sequence[Calibration.Calibration]) -> None:
+    def dimensional_calibrations(self, dimensional_calibrations: DataAndMetadata.CalibrationListType) -> None:
         with self.data_source_changes():
             if self.__data_and_metadata:  # handle case of missing data and metadata but doing recording
                 self.__data_and_metadata._set_dimensional_calibrations(dimensional_calibrations)
-            self.__dimensional_calibrations = copy.deepcopy(dimensional_calibrations)  # backup in case of no data and metadata
+            self.__dimensional_calibrations = copy.deepcopy(list(dimensional_calibrations))  # backup in case of no data and metadata
             self._set_persistent_property_value("dimensional_calibrations", CalibrationList(dimensional_calibrations))
 
-    def set_dimensional_calibrations(self, dimensional_calibrations: typing.Sequence[Calibration.Calibration]) -> None:
+    def set_dimensional_calibrations(self, dimensional_calibrations: DataAndMetadata.CalibrationListType) -> None:
         self.dimensional_calibrations = dimensional_calibrations
 
     def set_dimensional_calibration(self, dimension: int, calibration: Calibration.Calibration) -> None:
@@ -933,41 +934,44 @@ class DataItem(Persistence.PersistentObject):
         self.set_dimensional_calibrations(dimensional_calibrations)
 
     @property
-    def data_modified(self) -> str:
+    def data_modified(self) -> typing.Optional[datetime.datetime]:
         return self.__data_and_metadata.timestamp if self.__data_and_metadata else None
 
     @data_modified.setter
-    def data_modified(self, value: str) -> None:
+    def data_modified(self, value: datetime.datetime) -> None:
         if self.__data_and_metadata:
             self.__data_and_metadata.timestamp = value
             self._set_persistent_property_value("data_modified", value)
             self.__metadata_property_changed("data_modified", value)
 
     @property
-    def timezone(self) -> str:
-        return self.__data_and_metadata.timezone if self.__data_and_metadata else Utility.get_local_timezone()
+    def timezone(self) -> typing.Optional[str]:
+        data_and_metadata = self.__data_and_metadata
+        return data_and_metadata.timezone if data_and_metadata else Utility.get_local_timezone()
 
     @timezone.setter
-    def timezone(self, value):
+    def timezone(self, value: str) -> None:
         if self.__data_and_metadata:
             self.__data_and_metadata.timezone = value
             self._set_persistent_property_value("timezone", value)
             self.__timezone_property_changed("timezone", value)
 
     @property
-    def timezone_offset(self) -> str:
-        return self.__data_and_metadata.timezone_offset if self.__data_and_metadata else Utility.TimezoneMinutesToStringConverter().convert(Utility.local_utcoffset_minutes())
+    def timezone_offset(self) -> typing.Optional[str]:
+        data_and_metadata = self.__data_and_metadata
+        return data_and_metadata.timezone_offset if data_and_metadata else Utility.TimezoneMinutesToStringConverter().convert(Utility.local_utcoffset_minutes())
 
     @timezone_offset.setter
-    def timezone_offset(self, value):
+    def timezone_offset(self, value: str) -> None:
         if self.__data_and_metadata:
             self.__data_and_metadata.timezone_offset = value
             self._set_persistent_property_value("timezone_offset", value)
             self.__timezone_property_changed("timezone_offset", value)
 
     @property
-    def metadata(self) -> DataAndMetadata.MetadataType:
-        return copy.deepcopy(self.__data_and_metadata.metadata) if self.__data_and_metadata else self.__metadata
+    def metadata(self) -> typing.Optional[DataAndMetadata.MetadataType]:
+        data_and_metadata = self.__data_and_metadata
+        return copy.deepcopy(dict(data_and_metadata.metadata)) if data_and_metadata else self.__metadata
 
     @metadata.setter
     def metadata(self, metadata: DataAndMetadata.MetadataType) -> None:
@@ -988,14 +992,15 @@ class DataItem(Persistence.PersistentObject):
         return self.__data_and_metadata is not None and self.__data_and_metadata.is_data_valid
 
     @property
-    def data_metadata(self):
-        return self.__data_and_metadata.data_metadata if self.__data_and_metadata else None
+    def data_metadata(self) -> typing.Optional[DataAndMetadata.DataMetadata]:
+        data_and_metadata = self.__data_and_metadata
+        return data_and_metadata.data_metadata if data_and_metadata else None
 
     @property
-    def data_and_metadata(self):
+    def data_and_metadata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
         return self.__data_and_metadata
 
-    def __load_data(self):
+    def __load_data(self) -> typing.Optional[_ImageDataType]:
         if self.persistent_object_context:
             return self.read_external_data("data")
         return None
@@ -1025,7 +1030,7 @@ class DataItem(Persistence.PersistentObject):
         data_metadata.timestamp = data_modified
         self._set_persistent_property_value("data_modified", data_modified)
 
-    def __set_data_and_metadata_direct(self, data_and_metadata: DataAndMetadata.DataAndMetadata,
+    def __set_data_and_metadata_direct(self, data_and_metadata: typing.Optional[DataAndMetadata.DataAndMetadata],
                                        data_modified: typing.Optional[datetime.datetime] = None) -> None:
         with self.__data_ref_count_mutex:
             if self.__data_and_metadata:
@@ -1041,13 +1046,14 @@ class DataItem(Persistence.PersistentObject):
             session_id = self._session_manager.current_session_id
             self.session_id = session_id
 
-    def set_data_and_metadata(self, data_and_metadata, data_modified=None):
+    def set_data_and_metadata(self, data_and_metadata: typing.Optional[DataAndMetadata.DataAndMetadata], data_modified: typing.Optional[datetime.datetime] = None) -> None:
         """Sets the underlying data and data-metadata to the data_and_metadata.
 
         Note: this does not make a copy of the data.
         """
         self.increment_data_ref_count()
         try:
+            new_data_and_metadata: typing.Optional[DataAndMetadata.DataAndMetadata]
             if data_and_metadata:
                 data = data_and_metadata.data
                 data_shape_and_dtype = data_and_metadata.data_shape_and_dtype
@@ -1069,7 +1075,7 @@ class DataItem(Persistence.PersistentObject):
         finally:
             self.decrement_data_ref_count()
 
-    def reserve_data(self, *, data_shape: typing.Tuple[int, ...], data_dtype, data_descriptor: DataAndMetadata.DataDescriptor, data_modified=None) -> None:
+    def reserve_data(self, *, data_shape: DataAndMetadata.ShapeType, data_dtype: numpy.typing.DTypeLike, data_descriptor: DataAndMetadata.DataDescriptor, data_modified: typing.Optional[datetime.datetime] = None) -> None:
         """Reserves the underlying data without necessarily allocating memory. Useful for memory mapped files.
         """
         self.increment_data_ref_count()
@@ -1084,14 +1090,15 @@ class DataItem(Persistence.PersistentObject):
                 timezone_offset = Utility.TimezoneMinutesToStringConverter().convert(Utility.local_utcoffset_minutes())
                 new_data_and_metadata = DataAndMetadata.DataAndMetadata(self.__load_data, data_shape_and_dtype, None, None, None, None, data, data_descriptor, timezone, timezone_offset)
                 self.__set_data_and_metadata_direct(new_data_and_metadata, data_modified)
-                self.__data_and_metadata.unloadable = True
+                if self.__data_and_metadata:
+                    self.__data_and_metadata.unloadable = True
         finally:
             self.decrement_data_ref_count()
 
     def set_data_and_metadata_partial(self, data_metadata: DataAndMetadata.DataMetadata,
                                       data_and_metadata: DataAndMetadata.DataAndMetadata, src: typing.Sequence[slice],
                                       dst: typing.Sequence[slice], update_metadata: bool = False,
-                                      data_modified: datetime.datetime = None) -> None:
+                                      data_modified: typing.Optional[datetime.datetime] = None) -> None:
         # metadata is updated from data_metadata; data_and_metadata is only used for data
         with self.data_source_changes():
             self.increment_data_ref_count()
@@ -1126,7 +1133,7 @@ class DataItem(Persistence.PersistentObject):
                     assert self.__data_and_metadata.data_shape == data_metadata.data_shape
                     assert self.__data_and_metadata.data_dtype == data_metadata.data_dtype
                     assert self.__data_and_metadata.data_dtype == data_and_metadata.data_dtype
-                    self.__data_and_metadata.data[tuple(dst)] = data_and_metadata.data[tuple(src)]
+                    self.__data_and_metadata._data_ex[tuple(dst)] = data_and_metadata._data_ex[tuple(src)]
                     # mark changes and update session
                     self.__change_changed = True
                     self.__change_data_changed = True
@@ -1142,20 +1149,20 @@ class DataItem(Persistence.PersistentObject):
                 self.decrement_data_ref_count()
 
     @property
-    def data_shape(self):
+    def data_shape(self) -> typing.Optional[DataAndMetadata.ShapeType]:
         return self.__data_and_metadata.data_shape if self.__data_and_metadata else None
 
     @property
-    def data_dtype(self):
+    def data_dtype(self) -> typing.Optional[numpy.typing.DTypeLike]:
         return self.__data_and_metadata.data_dtype if self.__data_and_metadata else None
 
     @property
-    def dimensional_shape(self):
-        return self.__data_and_metadata.dimensional_shape if self.__data_and_metadata else list()
+    def dimensional_shape(self) -> DataAndMetadata.ShapeType:
+        return self.__data_and_metadata.dimensional_shape if self.__data_and_metadata else tuple()
 
     @property
-    def datum_dimension_shape(self):
-        return self.__data_and_metadata.datum_dimension_shape if self.__data_and_metadata else list()
+    def datum_dimension_shape(self) -> DataAndMetadata.ShapeType:
+        return self.__data_and_metadata.datum_dimension_shape if self.__data_and_metadata else tuple()
 
     @property
     def datum_dimension_count(self) -> int:
@@ -1166,12 +1173,12 @@ class DataItem(Persistence.PersistentObject):
         return self.__data_and_metadata.collection_dimension_count if self.__data_and_metadata else 0
 
     @property
-    def is_collection(self):
+    def is_collection(self) -> bool:
         return self.collection_dimension_count > 0 if self.collection_dimension_count is not None else False
 
     @property
     def is_sequence(self) -> bool:
-        return self.__data_and_metadata.is_sequence if self.__data_and_metadata else None
+        return self.__data_and_metadata.is_sequence if self.__data_and_metadata else False
 
     @property
     def is_data_1d(self) -> bool:
@@ -1221,7 +1228,7 @@ class DataItem(Persistence.PersistentObject):
     def is_data_bool(self) -> bool:
         return self.__data_and_metadata is not None and self.__data_and_metadata.is_data_bool
 
-    def get_data_value(self, pos):
+    def get_data_value(self, pos: DataAndMetadata.ShapeType) -> typing.Any:
         return self.__data_and_metadata.get_data_value(pos) if self.__data_and_metadata else None
 
     @property
@@ -1241,19 +1248,19 @@ class DataItem(Persistence.PersistentObject):
         Metadata.delete_metadata_value(self, key)
 
 
-def sort_by_date_key(data_item):
+def sort_by_date_key(data_item: DataItem) -> typing.Tuple[typing.Optional[str], datetime.datetime, str]:
     """ A sort key to for the created field of a data item. The sort by uuid makes it determinate. """
     return data_item.title + str(data_item.uuid) if data_item.is_live else str(), data_item.date_for_sorting, str(data_item.uuid)
 
 
-def new_data_item(data_and_metadata: DataAndMetadata.DataAndMetadata=None) -> DataItem:
-    data_item = DataItem(large_format=data_and_metadata and len(data_and_metadata.dimensional_shape) > 2)
+def new_data_item(data_and_metadata: typing.Optional[DataAndMetadata.DataAndMetadata] = None) -> DataItem:
+    data_item = DataItem(large_format=len(data_and_metadata.dimensional_shape) > 2 if data_and_metadata else False)
     data_item.ensure_data_source()
     data_item.set_xdata(data_and_metadata)
     return data_item
 
 
-def create_mask_data(graphics: typing.Sequence[Graphics.Graphic], shape, calibrated_origin: Geometry.FloatPoint) -> numpy.ndarray:
+def create_mask_data(graphics: typing.Sequence[Graphics.Graphic], shape: DataAndMetadata.ShapeType, calibrated_origin: Geometry.FloatPoint) -> _ImageDataType:
     mask = None
     for graphic in graphics:
         if isinstance(graphic, (Graphics.PointTypeGraphic, Graphics.LineTypeGraphic, Graphics.RectangleTypeGraphic, Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
@@ -1267,9 +1274,9 @@ def create_mask_data(graphics: typing.Sequence[Graphics.Graphic], shape, calibra
 
 
 class DataSource:
-    def __init__(self, display_data_channel: DisplayItem.DisplayDataChannel, graphic: Graphics.Graphic, xdata: DataAndMetadata.DataAndMetadata = None):
+    def __init__(self, display_data_channel: DisplayItem.DisplayDataChannel, graphic: Graphics.Graphic, xdata: typing.Optional[DataAndMetadata.DataAndMetadata] = None) -> None:
         self.__display_data_channel = display_data_channel
-        self.__display_item = display_data_channel.container if display_data_channel else None
+        self.__display_item = typing.cast("DisplayItem.DisplayItem", display_data_channel.container) if display_data_channel else None
         self.__data_item = display_data_channel.data_item if display_data_channel else None
         self.__graphic = graphic
         self.__xdata = xdata
@@ -1291,7 +1298,7 @@ class DataSource:
         return self.__graphic
 
     @property
-    def data(self) -> typing.Optional[numpy.ndarray]:
+    def data(self) -> typing.Optional[_ImageDataType]:
         return self.xdata.data if self.xdata else None
 
     @property
@@ -1307,7 +1314,7 @@ class DataSource:
         display_data_channel = self.__display_data_channel
         if display_data_channel:
             if self.__xdata is not None:
-                return Core.function_convert_to_scalar(self.xdata, display_data_channel.complex_display_type)
+                return Core.function_convert_to_scalar(self.__xdata, display_data_channel.complex_display_type)
             else:
                 return display_data_channel.get_calculated_display_values().element_data_and_metadata
         return None
@@ -1317,7 +1324,7 @@ class DataSource:
         display_data_channel = self.__display_data_channel
         if display_data_channel:
             if self.__xdata is not None:
-                return Core.function_convert_to_scalar(self.xdata, display_data_channel.complex_display_type)
+                return Core.function_convert_to_scalar(self.__xdata, display_data_channel.complex_display_type)
             else:
                 return display_data_channel.get_calculated_display_values().display_data_and_metadata
         return None
@@ -1367,12 +1374,12 @@ class DataSource:
         data_item = self.data_item
         graphic = self.__graphic
         if data_item and graphic:
-            if hasattr(graphic, "bounds") and xdata.is_data_2d:
+            if hasattr(graphic, "bounds") and xdata and xdata.is_data_2d:
                 if graphic.rotation:
                     return Core.function_crop_rotated(xdata, graphic.bounds, graphic.rotation)
                 else:
                     return Core.function_crop(xdata, graphic.bounds)
-            if hasattr(graphic, "interval") and xdata.is_data_1d:
+            if hasattr(graphic, "interval") and xdata and xdata.is_data_1d:
                 return Core.function_crop_interval(xdata, graphic.interval)
         return xdata
 
@@ -1416,31 +1423,35 @@ class DataSource:
     @property
     def filtered_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
         xdata = self.xdata
-        if self.__display_item and xdata.is_data_2d:
-            shape = self.display_xdata.data_shape
-            calibrated_origin = Geometry.FloatPoint(y=self.__display_item.datum_calibrations[0].convert_from_calibrated_value(0.0),
-                                                    x=self.__display_item.datum_calibrations[1].convert_from_calibrated_value(0.0))
-            if xdata.is_data_complex_type:
-                return Core.function_fourier_mask(xdata, DataAndMetadata.DataAndMetadata.from_data(create_mask_data(self.__display_item.graphics, shape, calibrated_origin)))
-            else:
-                return DataAndMetadata.DataAndMetadata.from_data(create_mask_data(self.__display_item.graphics, shape, calibrated_origin)) * self.display_xdata
+        if self.__display_item and xdata and xdata.is_data_2d:
+            display_xdata = self.display_xdata
+            if display_xdata:
+                shape = display_xdata.data_shape
+                calibrated_origin = Geometry.FloatPoint(y=self.__display_item.datum_calibrations[0].convert_from_calibrated_value(0.0),
+                                                        x=self.__display_item.datum_calibrations[1].convert_from_calibrated_value(0.0))
+                if xdata.is_data_complex_type:
+                    return Core.function_fourier_mask(xdata, DataAndMetadata.DataAndMetadata.from_data(create_mask_data(self.__display_item.graphics, shape, calibrated_origin)))
+                else:
+                    return DataAndMetadata.DataAndMetadata.from_data(create_mask_data(self.__display_item.graphics, shape, calibrated_origin)) * display_xdata
         return xdata
 
     @property
     def filter_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
         xdata = self.xdata
-        if self.__display_item and xdata.is_data_2d:
-            shape = self.display_xdata.data_shape
-            calibrated_origin = Geometry.FloatPoint(y=self.__display_item.datum_calibrations[0].convert_from_calibrated_value(0.0),
-                                                    x=self.__display_item.datum_calibrations[1].convert_from_calibrated_value(0.0))
-            return DataAndMetadata.DataAndMetadata.from_data(create_mask_data(self.__display_item.graphics, shape, calibrated_origin))
+        if self.__display_item and xdata and xdata.is_data_2d:
+            display_xdata = self.display_xdata
+            if display_xdata:
+                shape = display_xdata.data_shape
+                calibrated_origin = Geometry.FloatPoint(y=self.__display_item.datum_calibrations[0].convert_from_calibrated_value(0.0),
+                                                        x=self.__display_item.datum_calibrations[1].convert_from_calibrated_value(0.0))
+                return DataAndMetadata.DataAndMetadata.from_data(create_mask_data(self.__display_item.graphics, shape, calibrated_origin))
         return None
 
 
 class MonitoredDataSource(DataSource):
-    def __init__(self, display_data_channel: DisplayItem.DisplayDataChannel, graphic: Graphics.Graphic, changed_event):
+    def __init__(self, display_data_channel: DisplayItem.DisplayDataChannel, graphic: Graphics.Graphic, changed_event: Event.Event) -> None:
         super().__init__(display_data_channel, graphic)
-        self.__display_item = display_data_channel.container
+        self.__display_item = typing.cast("DisplayItem.DisplayItem", display_data_channel.container)
         self.__graphic = graphic
         self.__changed_event = changed_event  # not public since it is passed in
         self.__data_item = display_data_channel.data_item
@@ -1448,7 +1459,7 @@ class MonitoredDataSource(DataSource):
         # self.__data_item_changed_event_listener = None
         self.__data_item_changed_event_listener = self.__data_item.data_item_changed_event.listen(self.__changed_event.fire) if self.__data_item else None
         self.__display_values_event_listener = display_data_channel.display_data_will_change_event.listen(self.__changed_event.fire) if display_data_channel else None
-        self.__property_changed_listener = None
+        self.__property_changed_listener: typing.Optional[Event.EventListener] = None
 
         def property_changed(key: str) -> None:
             self.__changed_event.fire()
@@ -1461,7 +1472,7 @@ class MonitoredDataSource(DataSource):
             if key == "role" or graphic.used_role in ("mask", "fourier_mask"):
                 self.__changed_event.fire()
 
-        self.__graphic_property_changed_listeners = list()
+        self.__graphic_property_changed_listeners: typing.List[typing.Optional[Event.EventListener]] = list()
 
         # when a new graphic is inserted, track it
         def graphic_inserted(key: str, graphic: Graphics.Graphic, before_index: int) -> None:
@@ -1490,7 +1501,7 @@ class MonitoredDataSource(DataSource):
                 property_changed_listener = graphic.property_changed_event.listen(functools.partial(filter_property_changed, graphic))
             self.__graphic_property_changed_listeners.append(property_changed_listener)
 
-    def close(self):
+    def close(self) -> None:
         # shut down the trackers
         for graphic_property_changed_listener in self.__graphic_property_changed_listeners:
             if graphic_property_changed_listener:
@@ -1512,5 +1523,5 @@ class MonitoredDataSource(DataSource):
             self.__display_values_event_listener.close()
             self.__display_values_event_listener = None
         self.__display_item = None
-        self.__graphic = None
-        self.__changed_event = None
+        self.__graphic = typing.cast(typing.Any, None)
+        self.__changed_event = typing.cast(typing.Any, None)

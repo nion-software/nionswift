@@ -1173,7 +1173,7 @@ class DocumentController(Window.Window):
             self.__document_model = document_model
             self.__container_proxy = container.create_proxy()
             self.__data_group_proxy = data_group.create_proxy()
-            self.__data_group_properties = None
+            self.__data_group_properties: typing.Optional[Persistence.PersistentDictType] = None
             self.__data_group_index = None
             self.initialize()
 
@@ -1213,7 +1213,8 @@ class DocumentController(Window.Window):
             data_group = DataGroup.DataGroup()
             assert data_group
             data_group.begin_reading()
-            data_group.read_from_dict(self.__data_group_properties)
+            if self.__data_group_properties:
+                data_group.read_from_dict(self.__data_group_properties)
             data_group.finish_reading()
             assert self.__data_group_index is not None
             container.insert_item("data_groups", self.__data_group_index, data_group)
@@ -1704,37 +1705,42 @@ class DocumentController(Window.Window):
                     data_type_name += "Images of Shape " + str(data_shape[index]) + "x" + str(data_shape[index + 1])
                 return data_type_name
 
+            data_item_xdata = data_item.xdata
+
             # add (disabled) existing data type menu item
-            data_type_name = describe_data_descriptor(data_item.xdata.data_descriptor, data_item.xdata.data_shape)
-            action = menu.add_menu_item(data_type_name, lambda: None)
-            action.enabled = False
-            self.__data_menu_actions.append(action)
+            if data_item_xdata:
+                data_type_name = describe_data_descriptor(data_item_xdata.data_descriptor, data_item_xdata.data_shape)
+                action = menu.add_menu_item(data_type_name, lambda: None)
+                action.enabled = False
+                self.__data_menu_actions.append(action)
 
             # add redimension menu items if available
-            for is_sequence, collection_dims, data_dims in itertools.product((True, False), (0, 1, 2), (1, 2)):
-                data_descriptor = DataAndMetadata.DataDescriptor(is_sequence, collection_dims, data_dims)
-                if data_descriptor.expected_dimension_count == data_item.xdata.data_descriptor.expected_dimension_count and data_descriptor != data_item.xdata.data_descriptor:
-                    data_type_name = describe_data_descriptor(data_descriptor, data_item.xdata.data_shape)
-                    action = menu.add_menu_item(_("Redimension to {}").format(data_type_name), functools.partial(self._perform_redimension, display_item, data_descriptor))
-                    self.__data_menu_actions.append(action)
+            if data_item_xdata:
+                for is_sequence, collection_dims, data_dims in itertools.product((True, False), (0, 1, 2), (1, 2)):
+                    data_descriptor = DataAndMetadata.DataDescriptor(is_sequence, collection_dims, data_dims)
+                    if data_descriptor.expected_dimension_count == data_item_xdata.data_descriptor.expected_dimension_count and data_descriptor != data_item_xdata.data_descriptor:
+                        data_type_name = describe_data_descriptor(data_descriptor, data_item_xdata.data_shape)
+                        action = menu.add_menu_item(_("Redimension to {}").format(data_type_name), functools.partial(self._perform_redimension, display_item, data_descriptor))
+                        self.__data_menu_actions.append(action)
 
             # add squeeze menu item if available
-            data_descriptor = data_item.xdata.data_descriptor
-            data_shape = list(data_item.xdata.data_shape)
-            if 1 in data_shape[data_descriptor.collection_dimension_index_slice] or 1 in data_shape[data_descriptor.sequence_dimension_index_slice] and len(data_shape[data_descriptor.datum_dimension_index_slice]) > 1 and data_shape[data_descriptor.datum_dimension_index_slice].count(1) > 0:
-                if data_descriptor.is_sequence and data_shape[data_descriptor.sequence_dimension_index_slice] == 1:
-                    data_descriptor.is_sequence = False
-                    data_shape = data_shape[1:]
-                while data_shape[data_descriptor.collection_dimension_index_slice].count(1) > 0:
-                    index = data_shape[data_descriptor.collection_dimension_index_slice].index(1)
-                    del data_shape[data_descriptor.collection_dimension_index_slice.start + index]
-                    data_descriptor.collection_dimension_count -= 1
-                while len(data_shape[data_descriptor.datum_dimension_index_slice]) > 1 and data_shape[data_descriptor.datum_dimension_index_slice].count(1) > 0:
-                    index = data_shape[data_descriptor.datum_dimension_index_slice].index(1)
-                    del data_shape[data_descriptor.datum_dimension_index_slice.start + index]
-                    data_descriptor.datum_dimension_count -= 1
-                data_type_name = describe_data_descriptor(data_descriptor, data_shape)
-                self.__data_menu_actions.append(menu.add_menu_item(_("Squeeze to {}").format(data_type_name), functools.partial(self._perform_squeeze, display_item)))
+            if data_item_xdata:
+                data_descriptor = data_item_xdata.data_descriptor
+                data_shape = list(data_item_xdata.data_shape)
+                if 1 in data_shape[data_descriptor.collection_dimension_index_slice] or 1 in data_shape[data_descriptor.sequence_dimension_index_slice] and len(data_shape[data_descriptor.datum_dimension_index_slice]) > 1 and data_shape[data_descriptor.datum_dimension_index_slice].count(1) > 0:
+                    if data_descriptor.is_sequence and data_shape[data_descriptor.sequence_dimension_index_slice] == 1:
+                        data_descriptor.is_sequence = False
+                        data_shape = data_shape[1:]
+                    while data_shape[data_descriptor.collection_dimension_index_slice].count(1) > 0:
+                        index = data_shape[data_descriptor.collection_dimension_index_slice].index(1)
+                        del data_shape[data_descriptor.collection_dimension_index_slice.start + index]
+                        data_descriptor.collection_dimension_count -= 1
+                    while len(data_shape[data_descriptor.datum_dimension_index_slice]) > 1 and data_shape[data_descriptor.datum_dimension_index_slice].count(1) > 0:
+                        index = data_shape[data_descriptor.datum_dimension_index_slice].index(1)
+                        del data_shape[data_descriptor.datum_dimension_index_slice.start + index]
+                        data_descriptor.datum_dimension_count -= 1
+                    data_type_name = describe_data_descriptor(data_descriptor, data_shape)
+                    self.__data_menu_actions.append(menu.add_menu_item(_("Squeeze to {}").format(data_type_name), functools.partial(self._perform_squeeze, display_item)))
         else:
             action = menu.add_menu_item(_("No Data Selected"), lambda: None)
             action.enabled = False

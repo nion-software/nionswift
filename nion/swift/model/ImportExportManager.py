@@ -74,7 +74,7 @@ class ImportExportHandler:
     def read_data_elements(self, extension: str, path: pathlib.Path) -> typing.List[DataElementType]:
         return list()
 
-    def can_write(self, x_data: DataAndMetadata.DataAndMetadata, extension: str) -> bool:
+    def can_write(self, data_metadata: DataAndMetadata.DataMetadata, extension: str) -> bool:
         return False
 
     def write_display_item(self, display_item: DisplayItem.DisplayItem, path: pathlib.Path, extension: str) -> None:
@@ -240,14 +240,16 @@ def update_data_item_from_data_element_1(data_item: DataItem.DataItem, data_elem
             assert data is not None
             with data_item.data_ref() as data_ref:
                 sub_area = data_element.get("sub_area")
-                if sub_area is not None:
-                    top = sub_area[0][0]
-                    bottom = sub_area[0][0] + sub_area[1][0]
-                    left = sub_area[0][1]
-                    right = sub_area[0][1] + sub_area[1][1]
-                    data_ref.master_data[top:bottom, left:right] = data[top:bottom, left:right]
-                else:
-                    data_ref.master_data[:] = data[:]
+                master_data = data_ref.master_data
+                if master_data is not None:
+                    if sub_area is not None:
+                        top = sub_area[0][0]
+                        bottom = sub_area[0][0] + sub_area[1][0]
+                        left = sub_area[0][1]
+                        right = sub_area[0][1] + sub_area[1][1]
+                        master_data[top:bottom, left:right] = data[top:bottom, left:right]
+                    else:
+                        master_data[:] = data[:]
                 data_ref.data_updated()  # trigger change notifications
             if dimensional_calibrations is not None:
                 for dimension, dimensional_calibration in enumerate(dimensional_calibrations):
@@ -413,14 +415,15 @@ def create_data_element_from_data_item(data_item: DataItem.DataItem, include_dat
             data_element["is_sequence"] = data_item.is_sequence
         data_element["collection_dimension_count"] = data_item.collection_dimension_count
         data_element["datum_dimension_count"] = data_item.datum_dimension_count
-        data_element["metadata"] = copy.deepcopy(data_item.metadata)
-        data_element["properties"] = copy.deepcopy(data_item.metadata.get("hardware_source", dict()))
+        data_item_metadata = data_item.metadata or dict()
+        data_element["metadata"] = copy.deepcopy(data_item_metadata)
+        data_element["properties"] = copy.deepcopy(data_item_metadata.get("hardware_source", dict()))
         data_element["title"] = data_item.title
         data_element["source_file_path"] = data_item.source_file_path.as_posix() if data_item.source_file_path else None
         tz_value = data_item.timezone_offset
         timezone = data_item.timezone
         dst_minutes = None
-        time_zone_dict = data_item.metadata.get("description", dict()).get("time_zone")
+        time_zone_dict = data_item_metadata.get("description", dict()).get("time_zone")
         if time_zone_dict:
             # note: dst is informational only; tz already include dst
             if tz_value is None:
@@ -428,6 +431,7 @@ def create_data_element_from_data_item(data_item: DataItem.DataItem, include_dat
             dst_minutes = int(time_zone_dict["dst"])
             if timezone is None:
                 timezone = time_zone_dict.get("timezone")
+        tz_minutes: typing.Optional[int]
         if tz_value is not None:
             tz_minutes = (int(tz_value[1:3]) * 60 + int(tz_value[3:5])) * (-1 if tz_value[0] == '-' else 1)
         else:
@@ -539,8 +543,8 @@ class StandardImportExportHandler(ImportExportHandler):
             return [data_element]
         return list()
 
-    def can_write(self, data_and_metadata: DataAndMetadata.DataAndMetadata, extension: str) -> bool:
-        return len(data_and_metadata.dimensional_shape) == 2
+    def can_write(self, data_metadata: DataAndMetadata.DataMetadata, extension: str) -> bool:
+        return len(data_metadata.dimensional_shape) == 2
 
     def write_display_item(self, display_item: DisplayItem.DisplayItem, path: pathlib.Path, extension: str) -> None:
         display_data_channel = display_item.display_data_channel
@@ -563,7 +567,7 @@ class CSVImportExportHandler(ImportExportHandler):
             return [data_element]
         return list()
 
-    def can_write(self, x_data: DataAndMetadata.DataAndMetadata, extension: str) -> bool:
+    def can_write(self, data_metadata: DataAndMetadata.DataMetadata, extension: str) -> bool:
         return True
 
     def write_display_item(self, display_item: DisplayItem.DisplayItem, path: pathlib.Path, extension: str) -> None:
@@ -581,9 +585,10 @@ def build_table(display_item: DisplayItem.DisplayItem) -> typing.Tuple[typing.Li
     def make_x_data(calibration: Calibration.Calibration, length: int) -> _DataArrayType:
         return numpy.linspace(calibration.offset, calibration.offset + (length - 1) * calibration.scale, length)
 
-    calibration0 = data_items[0].xdata.dimensional_calibrations[0]
-    if all([calibration0 == data_item.xdata.dimensional_calibrations[0] for data_item in data_items]):
-        length = max([data_item.xdata.data_shape[0] for data_item in data_items])
+    xdata0 = data_items[0].xdata
+    calibration0 = xdata0.dimensional_calibrations[0] if xdata0 else Calibration.Calibration()
+    if all([calibration0 == (data_item.xdata.dimensional_calibrations[0] if data_item.xdata else Calibration.Calibration()) for data_item in data_items]):
+        length = max([data_item.xdata.data_shape[0] if data_item.xdata else 0 for data_item in data_items])
         data_list = [make_x_data(calibration0, length)]
         headers = [f"X ({calibration0.units or 'pixel'})"]
         for index in range(len(display_item.display_layers)):
@@ -625,8 +630,8 @@ class CSV1ImportExportHandler(ImportExportHandler):
     def read_data_elements(self, extension: str, path: pathlib.Path) -> typing.List[DataElementType]:
         return list()
 
-    def can_write(self, x_data: DataAndMetadata.DataAndMetadata, extension: str) -> bool:
-        return x_data is not None and x_data.is_data_1d
+    def can_write(self, data_metadata: DataAndMetadata.DataMetadata, extension: str) -> bool:
+        return data_metadata.is_data_1d
 
     def write_display_item(self, display_item: DisplayItem.DisplayItem, path: pathlib.Path, extension: str) -> None:
         headers, data_list = build_table(display_item)
@@ -663,7 +668,7 @@ class NDataImportExportHandler(ImportExportHandler):
                 return [data_element]
         return list()
 
-    def can_write(self, data_and_metadata: DataAndMetadata.DataAndMetadata, extension: str) -> bool:
+    def can_write(self, data_metadata: DataAndMetadata.DataMetadata, extension: str) -> bool:
         return True
 
     def write_display_item(self, display_item: DisplayItem.DisplayItem, path: pathlib.Path, extension: str) -> None:
@@ -716,7 +721,7 @@ class NumPyImportExportHandler(ImportExportHandler):
             return [data_element]
         return list()
 
-    def can_write(self, data_and_metadata: DataAndMetadata.DataAndMetadata, extension: str) -> bool:
+    def can_write(self, data_metadata: DataAndMetadata.DataMetadata, extension: str) -> bool:
         return True
 
     def write_display_item(self, display_item: DisplayItem.DisplayItem, path: pathlib.Path, extension: str) -> None:
