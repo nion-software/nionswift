@@ -1339,7 +1339,7 @@ class Computation(Persistence.PersistentObject):
                     return False
         return True
 
-    def __source_specifier_changed(self, name: str, d: typing.Dict) -> None:
+    def __source_specifier_changed(self, name: str, d: Persistence._SpecifierType) -> None:
         self.__source_reference.item_specifier = Persistence.PersistentObjectSpecifier.read(d)
 
     @property

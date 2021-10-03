@@ -622,7 +622,7 @@ class Graphic(Persistence.PersistentObject):
         self.__source_reference.item = source
         self.source_specifier = source.project.create_specifier(source).write() if source else None
 
-    def __source_specifier_changed(self, name: str, d: typing.Dict) -> None:
+    def __source_specifier_changed(self, name: str, d: Persistence._SpecifierType) -> None:
         self.__source_reference.item_specifier = Persistence.PersistentObjectSpecifier.read(d)
 
     def _property_changed(self, name, value):

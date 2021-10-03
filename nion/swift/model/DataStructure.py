@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # standard libraries
 import copy
 import typing
@@ -5,14 +7,12 @@ import typing
 # third party libraries
 
 # local libraries
-from nion.swift.model import Changes
 from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
 from nion.swift.model import Graphics
 from nion.swift.model import Persistence
 from nion.swift.model import Schema
 from nion.utils import Event
-from nion.utils import Observable
 
 if typing.TYPE_CHECKING:
     from nion.swift.model import Project
@@ -24,7 +24,7 @@ class DataStructure(Persistence.PersistentObject):
     entity_package_names:typing.Dict[str, str] = dict()
 
     # regarding naming: https://en.wikipedia.org/wiki/Passive_data_structure
-    def __init__(self, *, structure_type: str=None, source=None):
+    def __init__(self, *, structure_type: typing.Optional[str] = None, source: typing.Optional[Persistence.PersistentObject] = None) -> None:
         super().__init__()
         self.__properties: typing.Dict[str, typing.Any] = dict()
         self.__referenced_object_proxies: typing.Dict[str, Persistence.PersistentObjectProxy] = dict()
@@ -53,7 +53,7 @@ class DataStructure(Persistence.PersistentObject):
         super().close()
 
     @classmethod
-    def register_entity(cls, entity_type: Schema.EntityType, *, entity_name: str = None, entity_package_name: str = None, **kwargs) -> None:
+    def register_entity(cls, entity_type: Schema.EntityType, *, entity_name: typing.Optional[str] = None, entity_package_name: typing.Optional[str] = None, **kwargs: typing.Any) -> None:
         DataStructure.entity_types[entity_type.entity_id] = entity_type
         if entity_name:
             DataStructure.entity_names[entity_type.entity_id] = entity_name
@@ -66,13 +66,13 @@ class DataStructure(Persistence.PersistentObject):
         DataStructure.entity_names.pop(entity_type.entity_id, None)
         DataStructure.entity_package_names.pop(entity_type.entity_id, None)
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> typing.Any:
         properties = self.__dict__.get("_DataStructure__properties", dict())
         if name in properties:
             return properties[name]
         return super().__getattr__(name)
 
-    def __setattr__(self, name, value):
+    def __setattr__(self, name: str, value: typing.Any) -> None:
         properties = self.__dict__.get("_DataStructure__properties", dict())
         if name in properties:
             if value is not None:
@@ -83,7 +83,7 @@ class DataStructure(Persistence.PersistentObject):
             super().__setattr__(name, value)
 
     @property
-    def project(self) -> "Project.Project":
+    def project(self) -> Project.Project:
         return typing.cast("Project.Project", self.container)
 
     def create_proxy(self) -> Persistence.PersistentObjectProxy:
@@ -93,9 +93,9 @@ class DataStructure(Persistence.PersistentObject):
     def item_specifier(self) -> Persistence.PersistentObjectSpecifier:
         return Persistence.PersistentObjectSpecifier(item_uuid=self.uuid)
 
-    def read_from_dict(self, properties):
+    def read_from_dict(self, properties: Persistence.PersistentDictType) -> None:
         super().read_from_dict(properties)
-        self.__properties = properties.get("properties")
+        self.__properties = typing.cast(typing.Dict[str, typing.Any], properties.get("properties"))
         for property_name, value in self.__properties.items():
             self.__configure_reference_proxy(property_name, value, None)
         self.__create_entity()
@@ -125,21 +125,21 @@ class DataStructure(Persistence.PersistentObject):
 
             self.__entity_property_changed_event_listener = self.__entity.property_changed_event.listen(entity_property_changed)
 
-    def __configure_reference_proxy(self, property_name, value, item):
+    def __configure_reference_proxy(self, property_name: str, value: typing.Any, item: typing.Optional[Persistence.PersistentObject]) -> None:
         if isinstance(value, dict) and value.get("type") in {"data_item", "display_item", "data_source", "graphic", "structure"} and "uuid" in value:
             self.__referenced_object_proxies[property_name] = self.create_item_proxy(item_specifier=Persistence.PersistentObjectSpecifier.read(value["uuid"]), item=item)
 
-    def write_to_dict(self):
+    def write_to_dict(self) -> Persistence.PersistentDictType:
         properties = super().write_to_dict()
         properties["properties"] = copy.deepcopy(self.__properties)
         return properties
 
     @property
-    def source(self):
+    def source(self) -> typing.Optional[Persistence.PersistentObject]:
         return self.__source_reference.item
 
     @source.setter
-    def source(self, source):
+    def source(self, source: typing.Optional[Persistence.PersistentObject]) -> None:
         self.__source_reference.item = source
         self.source_specifier = source.project.create_specifier(source).write() if source else None
 
@@ -151,10 +151,10 @@ class DataStructure(Persistence.PersistentObject):
         self.__create_entity()
         self.property_changed_event.fire("structure_type")
 
-    def __source_specifier_changed(self, name: str, d: typing.Dict) -> None:
+    def __source_specifier_changed(self, name: str, d: Persistence._SpecifierType) -> None:
         self.__source_reference.item_specifier = Persistence.PersistentObjectSpecifier.read(d)
 
-    def set_property_value(self, property: str, value) -> None:
+    def set_property_value(self, property: str, value: typing.Any) -> None:
         self.__properties[property] = value
         reference_object_proxy = self.__referenced_object_proxies.pop(property, None)
         if reference_object_proxy:
@@ -174,10 +174,10 @@ class DataStructure(Persistence.PersistentObject):
             self.property_changed_event.fire(property)
             self._update_persistent_property("properties", self.__properties)
 
-    def get_property_value(self, property: str, default_value=None):
+    def get_property_value(self, property: str, default_value: typing.Any = None) -> typing.Any:
         return self.__properties.get(property, default_value)
 
-    def set_referenced_object(self, property: str, item) -> None:
+    def set_referenced_object(self, property: str, item: typing.Any) -> None:
         assert item is not None
         if item != self.get_referenced_object(property):
             object_type = "data_item" if isinstance(item, DataItem.DataItem) else None
@@ -194,15 +194,16 @@ class DataStructure(Persistence.PersistentObject):
     def remove_referenced_object(self, property: str) -> None:
         self.remove_property_value(property)
 
-    def get_referenced_object(self, property: str):
+    def get_referenced_object(self, property: str) -> typing.Any:
         return self.__referenced_object_proxies[property].item if property in self.__referenced_object_proxies else None
 
     @property
-    def referenced_objects(self) -> typing.List:
+    def referenced_objects(self) -> typing.List[typing.Optional[Persistence.PersistentObject]]:
         return list(referenced_object_proxy.item for referenced_object_proxy in self.__referenced_object_proxies.values())
 
 
-def get_object_specifier(object, object_type: str = None, project=None) -> typing.Optional[typing.Dict]:
+def get_object_specifier(object: Persistence.PersistentObject, object_type: typing.Optional[str] = None,
+                         project: typing.Optional[Project.Project] = None) -> typing.Optional[Persistence._SpecifierType]:
     # project is passed for testing only
     if isinstance(object, DataItem.DataItem):
         project = project or object.project
