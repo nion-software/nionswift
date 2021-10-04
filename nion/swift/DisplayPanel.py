@@ -2398,7 +2398,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
             command.close()
         return result
 
-    def cursor_changed(self, pos: typing.Optional[typing.Tuple[int]]) -> None:
+    def cursor_changed(self, pos: typing.Optional[typing.Tuple[int, ...]]) -> None:
         position_text, value_text = str(), str()
         try:
             if pos is not None:

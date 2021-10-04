@@ -22,7 +22,6 @@ from nion.swift.model import Persistence
 from nion.swift.model import Project
 from nion.swift.model import Schema
 from nion.utils import Converter
-from nion.utils import Observable
 
 
 _ = gettext.gettext

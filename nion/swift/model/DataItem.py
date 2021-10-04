@@ -1316,7 +1316,9 @@ class DataSource:
             if self.__xdata is not None:
                 return Core.function_convert_to_scalar(self.__xdata, display_data_channel.complex_display_type)
             else:
-                return display_data_channel.get_calculated_display_values().element_data_and_metadata
+                display_values = display_data_channel.get_calculated_display_values()
+                if display_values:
+                    return display_values.element_data_and_metadata
         return None
 
     @property
@@ -1326,7 +1328,9 @@ class DataSource:
             if self.__xdata is not None:
                 return Core.function_convert_to_scalar(self.__xdata, display_data_channel.complex_display_type)
             else:
-                return display_data_channel.get_calculated_display_values().display_data_and_metadata
+                display_values = display_data_channel.get_calculated_display_values()
+                if display_values:
+                    return display_values.display_data_and_metadata
         return None
 
     @property
@@ -1336,8 +1340,10 @@ class DataSource:
             if self.__xdata is not None:
                 return self.xdata
             else:
-                display_rgba = display_data_channel.get_calculated_display_values().display_rgba
-                return DataAndMetadata.new_data_and_metadata(Image.get_byte_view(display_rgba)) if display_rgba is not None else None
+                display_values = display_data_channel.get_calculated_display_values()
+                if display_values:
+                    display_rgba = display_values.display_rgba
+                    return DataAndMetadata.new_data_and_metadata(Image.get_byte_view(display_rgba)) if display_rgba is not None else None
         return None
 
     @property
@@ -1347,7 +1353,9 @@ class DataSource:
             if self.__xdata is not None:
                 return Core.function_rescale(self.display_xdata, (0, 1))
             else:
-                return display_data_channel.get_calculated_display_values().normalized_data_and_metadata
+                display_values = display_data_channel.get_calculated_display_values()
+                if display_values:
+                    return display_values.normalized_data_and_metadata
         return None
 
     @property
@@ -1357,7 +1365,9 @@ class DataSource:
             if self.__xdata is not None:
                 return self.normalized_xdata
             else:
-                return display_data_channel.get_calculated_display_values().adjusted_data_and_metadata
+                display_values = display_data_channel.get_calculated_display_values()
+                if display_values:
+                    return display_values.adjusted_data_and_metadata
         return None
 
     @property
@@ -1367,7 +1377,9 @@ class DataSource:
             if self.__xdata is not None:
                 return self.normalized_xdata
             else:
-                return display_data_channel.get_calculated_display_values().transformed_data_and_metadata
+                display_values = display_data_channel.get_calculated_display_values()
+                if display_values:
+                    return display_values.transformed_data_and_metadata
         return None
 
     def __cropped_xdata(self, xdata: typing.Optional[DataAndMetadata.DataAndMetadata]) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
@@ -1458,7 +1470,7 @@ class MonitoredDataSource(DataSource):
         # display_data_channel = self.__display_item.get_display_data_channel_for_data_item(self.__data_item) if self.__display_item else None
         # self.__data_item_changed_event_listener = None
         self.__data_item_changed_event_listener = self.__data_item.data_item_changed_event.listen(self.__changed_event.fire) if self.__data_item else None
-        self.__display_values_event_listener = display_data_channel.display_data_will_change_event.listen(self.__changed_event.fire) if display_data_channel else None
+        self.__display_values_event_listener = display_data_channel.display_data_will_change_event.listen(self.__changed_event.fire)  # type: ignore  # mypy bug?
         self.__property_changed_listener: typing.Optional[Event.EventListener] = None
 
         def property_changed(key: str) -> None:

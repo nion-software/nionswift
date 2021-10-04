@@ -59,6 +59,7 @@ jobs:
           nion/swift/model/DataItem.py \
           nion/swift/model/DataGroup.py \
           nion/swift/model/DataStructure.py \
+          nion/swift/model/DisplayItem.py \
           nion/swift/model/FileStorageSystem.py \
           nion/swift/model/HDF5Handler.py \
           nion/swift/model/HardwareSource.py \
