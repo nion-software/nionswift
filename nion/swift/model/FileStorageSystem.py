@@ -336,7 +336,8 @@ class PersistentStorageSystem(Persistence.PersistentStorageInterface):
     def write_external_data(self, item: Persistence.PersistentObject, name: str, value: numpy.ndarray) -> None:
         pass
 
-    def reserve_external_data(self, item: Persistence.PersistentObject, name: str, data_shape: typing.Tuple[int, ...], data_dtype: numpy.typing.DTypeLike) -> None:
+    def reserve_external_data(self, item: Persistence.PersistentObject, name: str, data_shape: typing.Tuple[int, ...],
+                              data_dtype: numpy.typing.DTypeLike) -> None:
         pass
 
     def enter_write_delay(self, object: Persistence.PersistentObject) -> None:
@@ -596,7 +597,8 @@ class ProjectStorageSystem(PersistentStorageSystem):
             super().write_external_data(item, name, value)
 
     # override
-    def reserve_external_data(self, item: Persistence.PersistentObject, name: str, data_shape: typing.Tuple[int, ...], data_dtype: numpy.typing.DTypeLike) -> None:
+    def reserve_external_data(self, item: Persistence.PersistentObject, name: str, data_shape: typing.Tuple[int, ...],
+                              data_dtype: numpy.typing.DTypeLike) -> None:
         if isinstance(item, DataItem.DataItem) and name == "data":
             self.__reserve_data_item_data(item, data_shape, numpy.dtype(data_dtype))
         else:

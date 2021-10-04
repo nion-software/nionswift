@@ -549,7 +549,9 @@ class StandardImportExportHandler(ImportExportHandler):
     def write_display_item(self, display_item: DisplayItem.DisplayItem, path: pathlib.Path, extension: str) -> None:
         display_data_channel = display_item.display_data_channel
         assert display_data_channel
-        data = display_data_channel.get_calculated_display_values().display_rgba  # export the display rather than the data for these types
+        display_values = display_data_channel.get_calculated_display_values()
+        assert display_values
+        data = display_values.display_rgba  # export the display rather than the data for these types
         assert data is not None
         imageio.imwrite(path, data, extension)
 
@@ -594,7 +596,10 @@ def build_table(display_item: DisplayItem.DisplayItem) -> typing.Tuple[typing.Li
         for index in range(len(display_item.display_layers)):
             display_data_channel = display_item.get_display_layer_display_data_channel(index)
             assert display_data_channel
-            xdata = display_data_channel.get_calculated_display_values(True).display_data_and_metadata
+            display_values = display_data_channel.get_calculated_display_values(True)
+            assert display_values
+            xdata = display_values.display_data_and_metadata
+            assert xdata
             data = xdata.data
             assert data is not None
             data_list.append(xdata.intensity_calibration.convert_array_to_calibrated_value(data))
@@ -607,7 +612,10 @@ def build_table(display_item: DisplayItem.DisplayItem) -> typing.Tuple[typing.Li
         for index in range(len(display_item.display_layers)):
             display_data_channel = display_item.get_display_layer_display_data_channel(index)
             assert display_data_channel
-            xdata = display_data_channel.get_calculated_display_values(True).display_data_and_metadata
+            display_values = display_data_channel.get_calculated_display_values(True)
+            assert display_values
+            xdata = display_values.display_data_and_metadata
+            assert xdata
             data = xdata.data
             assert data is not None
             data_list.append(make_x_data(xdata.dimensional_calibrations[0], xdata.data_shape[0]))

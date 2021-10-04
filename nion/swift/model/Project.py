@@ -42,7 +42,7 @@ class Project(Persistence.PersistentObject):
         super().__init__()
 
         self.define_type("project")
-        self.define_property("title", str())
+        self.define_property("title", str(), hidden=True)
         self.define_relationship("data_items", data_item_factory, insert=self.__data_item_inserted, remove=self.__data_item_removed)
         self.define_relationship("display_items", display_item_factory, insert=self.__display_item_inserted, remove=self.__display_item_removed)
         self.define_relationship("computations", computation_factory, insert=self.__computation_inserted, remove=self.__computation_removed)
@@ -75,6 +75,14 @@ class Project(Persistence.PersistentObject):
         self.__storage_system.close()
         self.__storage_system = typing.cast(FileStorageSystem.ProjectStorageSystem, None)
         super().close()
+
+    @property
+    def title(self) -> str:
+        return typing.cast(str, self._get_persistent_property_value("title"))
+
+    @title.setter
+    def title(self, value: str) -> None:
+        self._set_persistent_property_value("title", value)
 
     def open(self) -> None:
         self.__storage_system.reset()  # this makes storage reusable during tests

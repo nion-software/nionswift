@@ -2011,7 +2011,7 @@ class DocumentController(Window.Window):
             display_item = selected_display_items[0]
             if display_item and len(display_item.graphic_selection.indexes) == n:
                 data_item = display_item.data_item if display_item else None
-                index1 = display_item.graphic_selection.anchor_index
+                index1 = display_item.graphic_selection.anchor_index or 0
                 graphics: typing.List[Graphics.Graphic] = [display_item.graphics[index1]]
                 for index in list(display_item.graphic_selection.indexes.difference({index1})):
                     graphics.append(display_item.graphics[index])
