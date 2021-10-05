@@ -715,7 +715,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
                     for graphic_index, graphic in enumerate(graphics):
                         if isinstance(graphic, (Graphics.IntervalGraphic, Graphics.ChannelGraphic)):
                             widget_mapping = self.__get_mouse_mapping()
-                            part, specific = graphic.test(widget_mapping, self.__ui_settings, pos, False)
+                            part, specific = graphic.test(widget_mapping, self.__ui_settings, pos.to_float_point(), False)
                             if part in {"start", "end"} and not modifiers.control:
                                 self.cursor_shape = "size_horizontal"
                                 break
@@ -852,7 +852,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
                     multiple_items_selected = len(selection_indexes) > 1
                     move_only = not already_selected or multiple_items_selected
                     widget_mapping = self.__get_mouse_mapping()
-                    part, specific = graphic.test(widget_mapping, self.__ui_settings, self.__graphic_drag_start_pos, move_only)
+                    part, specific = graphic.test(widget_mapping, self.__ui_settings, self.__graphic_drag_start_pos.to_float_point(), move_only)
                     if part:
                         # select item and prepare for drag
                         self.graphic_drag_item_was_selected = already_selected
@@ -929,7 +929,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
                 selection_indexes = self.__graphic_selection.indexes
                 for graphic_index, graphic in enumerate(self.__graphics):
                     if graphic == region:
-                        part, specific = graphic.test(widget_mapping, self.__ui_settings, pos, False)
+                        part, specific = graphic.test(widget_mapping, self.__ui_settings, pos.to_float_point(), False)
                         if part:
                             self.graphic_drag_item_was_selected = False
                             self.delegate.set_selection(graphic_index)
@@ -949,7 +949,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             if self.__graphic_drag_items:
                 widget_mapping = self.__get_mouse_mapping()
                 self.delegate.adjust_graphics(widget_mapping, self.__graphic_drag_items, self.__graphic_drag_part,
-                                              self.__graphic_part_data, self.__graphic_drag_start_pos, pos, modifiers)
+                                              self.__graphic_part_data, self.__graphic_drag_start_pos.to_float_point(), pos.to_float_point(), modifiers)
                 self.__graphic_drag_changed = True
                 self.__line_graph_regions_canvas_item.update()
         elif self.__tracking_horizontal:

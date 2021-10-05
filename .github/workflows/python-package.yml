@@ -62,6 +62,7 @@ jobs:
           nion/swift/model/DisplayItem.py \
           nion/swift/model/DocumentModel.py \
           nion/swift/model/FileStorageSystem.py \
+          nion/swift/model/Graphics.py \
           nion/swift/model/HDF5Handler.py \
           nion/swift/model/HardwareSource.py \
           nion/swift/model/ImportExportManager.py \

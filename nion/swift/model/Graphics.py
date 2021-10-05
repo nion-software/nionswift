@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 # standard libraries
+import contextlib
 import copy
 import gettext
 import math
@@ -11,6 +12,7 @@ import typing
 
 # local libraries
 from nion.data import Core
+from nion.data import DataAndMetadata
 from nion.swift.model import Persistence
 from nion.swift.model import UISettings
 from nion.utils import Geometry
@@ -19,11 +21,53 @@ if typing.TYPE_CHECKING:
     from nion.swift.model import DisplayItem
     from nion.swift.model import Project
 
+DragPartData = typing.Tuple[typing.Any, ...]
+DragPartDataPlus = typing.Tuple[typing.Any, ...]
 
 _ = gettext.gettext
 
 
-def angle_between(n, a, b):
+class DrawingContextLike(typing.Protocol):
+    fill_style: typing.Optional[str]
+    font: typing.Optional[str]
+    line_width: int
+    line_dash: typing.Optional[int]
+    stroke_style: typing.Optional[str]
+    text_align: typing.Optional[str]
+    text_baseline: typing.Optional[str]
+
+    def begin_path(self) -> None: ...
+    def close_path(self) -> None: ...
+    def fill(self) -> None: ...
+    def fill_text(self, text: str, x: float, y: float, max_width: typing.Optional[int] = None) -> None: ...
+    def line_to(self, x: float, y: float) -> None: ...
+    def move_to(self, x: float, y: float) -> None: ...
+    def rotate(self, radians: float) -> None: ...
+    def scale(self, x: float, y: float) -> None: ...
+    def stroke(self) -> None: ...
+    def translate(self, x: float, y: float) -> None: ...
+
+    @contextlib.contextmanager
+    def saver(self) -> typing.Iterator[typing.Any]: ...
+
+
+class CoordinateMappingLike(typing.Protocol):
+    data_shape: DataAndMetadata.Shape2dType
+    calibrated_origin_widget: Geometry.FloatPoint
+    calibrated_origin_image_norm: Geometry.FloatPoint
+    def map_point_channel_norm_to_channel(self, x: float) -> float: ...
+    def map_point_channel_norm_to_widget(self, x: float) -> float: ...
+    def map_point_widget_to_channel_norm(self, pos: Geometry.FloatPoint) -> float: ...
+    def map_point_image_norm_to_image(self, p: Geometry.FloatPoint) -> Geometry.FloatPoint: ...
+    def map_point_image_norm_to_widget(self, p: Geometry.FloatPoint) -> Geometry.FloatPoint: ...
+    def map_point_image_to_image_norm(self, p: Geometry.FloatPoint) -> Geometry.FloatPoint: ...
+    def map_point_widget_to_image(self, p: Geometry.FloatPoint) -> Geometry.FloatPoint: ...
+    def map_point_widget_to_image_norm(self, p: Geometry.FloatPoint) -> Geometry.FloatPoint: ...
+    def map_size_image_to_widget(self, s: Geometry.FloatSize) -> Geometry.FloatSize: ...
+    def map_size_image_norm_to_widget(self, s: Geometry.FloatSize) -> Geometry.FloatSize: ...
+
+
+def angle_between(n: float, a: float, b: float) -> bool:
     if a > b:
         return b < n < a
     if a < b:
@@ -31,7 +75,7 @@ def angle_between(n, a, b):
     return False
 
 
-def angle_diff(start_angle, end_angle):
+def angle_diff(start_angle: float, end_angle: float) -> float:
     if end_angle > start_angle and end_angle - start_angle >= math.pi / 2:
         return (math.pi * 2 - end_angle + start_angle + math.pi * 2000) % (math.pi * 2)
     return (start_angle - end_angle + math.pi * 2000) % (math.pi * 2)
@@ -99,17 +143,23 @@ def get_rectangle_intersection(origin: Geometry.FloatPoint, angle: float, bounds
     return segment, pt
 
 
-def extend_line(origin, point, pixels):
+def extend_line(origin: Geometry.FloatPoint, point: Geometry.FloatPoint, pixels: int) -> Geometry.FloatPoint:
     delta = point - origin
     angle = math.atan2(delta.y, delta.x)
     delta_extended = delta + pixels * Geometry.FloatPoint(y=math.sin(angle), x=math.cos(angle))
     return origin + delta_extended
 
 
+class ModifiersLike(typing.Protocol):
+    alt: bool
+    shift: bool
+    control: bool
+
+
 def adjust_rectangle_like(part_name: str, data_shape: Geometry.FloatSize, bounds: Geometry.FloatRect, rotation: float,
                           is_center_constant_by_default: bool, original_image: Geometry.FloatPoint,
-                          current_image: Geometry.FloatPoint, original_rotation: float, modifiers,
-                          constraints) -> typing.Tuple[Geometry.FloatRect, float]:
+                          current_image: Geometry.FloatPoint, original_rotation: float, modifiers: ModifiersLike,
+                          constraints: typing.Set[str]) -> typing.Tuple[Geometry.FloatRect, float]:
     # NOTE: all sizes/points are assumed to be in image coordinates
     delta = current_image - original_image
     bounds_image = Geometry.map_rect(bounds, Geometry.FloatRect.unit_rect(), Geometry.FloatRect(origin=Geometry.FloatPoint(), size=data_shape))
@@ -133,7 +183,7 @@ def adjust_rectangle_like(part_name: str, data_shape: Geometry.FloatSize, bounds
         if (bool(modifiers.alt) != bool(is_center_constant_by_default)) or "position" in constraints:
             if modifiers.shift or "square" in constraints:
                 # shape constrained to square; hold center constant
-                half_size = Geometry.FloatSize.make(bounds_image.center - new_top_left)
+                half_size = (bounds_image.center - new_top_left).as_size()
                 if half_size.height > half_size.width:  # size will be width
                     new_top_left = bounds_image.center - Geometry.FloatPoint(y=half_size.width, x=half_size.width)
                 else:  # size will be height
@@ -147,7 +197,7 @@ def adjust_rectangle_like(part_name: str, data_shape: Geometry.FloatSize, bounds
                     new_top_left = Geometry.FloatPoint(y=min(max(new_top_left.y, bounds_image.center.y - max_abs_delta_v), bounds_image.center.y + max_abs_delta_v), x=min(max(new_top_left.x, bounds_image.center.x - max_abs_delta_h), bounds_image.center.x + max_abs_delta_h))
             # c + (c - t), c + (c - l)
             new_bottom_right = 2 * bounds_image.center - new_top_left
-            new_bounds_image = Geometry.FloatRect(origin=new_top_left, size=new_bottom_right - new_top_left)
+            new_bounds_image = Geometry.FloatRect(origin=new_top_left, size=(new_bottom_right - new_top_left).as_size())
         else:
             if modifiers.shift or "square" in constraints:
                 if "bounds" in constraints and rotation == 0.0:
@@ -170,7 +220,7 @@ def adjust_rectangle_like(part_name: str, data_shape: Geometry.FloatSize, bounds
                 # shape not constrained; hold bottom right constant
                 if "bounds" in constraints and rotation == 0.0:
                     new_top_left = Geometry.FloatPoint(y=min(max(new_top_left.y, 0.0), data_shape.height), x=min(max(new_top_left.x, 0.0), data_shape.width))
-            new_bounds_image = Geometry.FloatRect(origin=new_top_left, size=bounds_image.bottom_right - new_top_left)
+            new_bounds_image = Geometry.FloatRect(origin=new_top_left, size=(bounds_image.bottom_right - new_top_left).as_size())
             rotation_offset = rotate(new_bounds_image.bottom_right, new_bounds_image.center, rotation) - rotate(bounds_image.bottom_right, bounds_image.center, rotation)
             new_bounds_image -= rotation_offset
     elif part_name == "top-right" and not "shape" in constraints:  # top right
@@ -193,7 +243,7 @@ def adjust_rectangle_like(part_name: str, data_shape: Geometry.FloatSize, bounds
                     new_top_right = Geometry.FloatPoint(y=min(max(new_top_right.y, bounds_image.center.y - max_abs_delta_v), bounds_image.center.y + max_abs_delta_v), x=min(max(new_top_right.x, bounds_image.center.x - max_abs_delta_h), bounds_image.center.x + max_abs_delta_h))
             # c + (c - t), c - (r - c)
             new_bottom_left = 2 * bounds_image.center - new_top_right
-            new_bounds_image = Geometry.FloatRect(origin=new_top_right, size=new_bottom_left - new_top_right)
+            new_bounds_image = Geometry.FloatRect(origin=new_top_right, size=(new_bottom_left - new_top_right).as_size())
         else:
             if modifiers.shift or "square" in constraints:
                 if "bounds" in constraints:
@@ -225,7 +275,7 @@ def adjust_rectangle_like(part_name: str, data_shape: Geometry.FloatSize, bounds
         if (bool(modifiers.alt) != bool(is_center_constant_by_default)) or "position" in constraints:
             if modifiers.shift or "square" in constraints:
                 # shape constrained to square; hold center constant
-                half_size = Geometry.FloatSize.make(new_bottom_right - bounds_image.center)
+                half_size = (new_bottom_right - bounds_image.center).as_size()
                 if half_size.height > half_size.width:  # size will be width
                     new_bottom_right = bounds_image.center + Geometry.FloatPoint(y=half_size.width, x=half_size.width)
                 else:  # size will be height
@@ -239,7 +289,7 @@ def adjust_rectangle_like(part_name: str, data_shape: Geometry.FloatSize, bounds
                     new_bottom_right = Geometry.FloatPoint(y=min(max(new_bottom_right.y, bounds_image.center.y - max_abs_delta_v), bounds_image.center.y + max_abs_delta_v), x=min(max(new_bottom_right.x, bounds_image.center.x - max_abs_delta_h), bounds_image.center.x + max_abs_delta_h))
             # c - (b - c), c - (r - c)
             new_top_left = 2 * bounds_image.center - new_bottom_right
-            new_bounds_image = Geometry.FloatRect(origin=new_top_left, size=new_bottom_right - new_top_left)
+            new_bounds_image = Geometry.FloatRect(origin=new_top_left, size=(new_bottom_right - new_top_left).as_size())
         else:
             if modifiers.shift or "square" in constraints:
                 if "bounds" in constraints:
@@ -262,7 +312,7 @@ def adjust_rectangle_like(part_name: str, data_shape: Geometry.FloatSize, bounds
                 # shape not constrained; hold top right constant
                 if "bounds" in constraints:
                     new_bottom_right = Geometry.FloatPoint(y=min(max(new_bottom_right.y, 0.0), data_shape.height), x=min(max(new_bottom_right.x, 0.0), data_shape.width))
-            new_bounds_image = Geometry.FloatRect(origin=bounds_image.top_left, size=new_bottom_right - bounds_image.top_left)
+            new_bounds_image = Geometry.FloatRect(origin=bounds_image.top_left, size=(new_bottom_right - bounds_image.top_left).as_size())
             rotation_offset = rotate(new_bounds_image.top_left, new_bounds_image.center, rotation) - rotate(bounds_image.top_left, bounds_image.center, rotation)
             new_bounds_image -= rotation_offset
     elif part_name == "bottom-left" and not "shape" in constraints:  # bottom left
@@ -335,7 +385,7 @@ def adjust_rectangle_like(part_name: str, data_shape: Geometry.FloatSize, bounds
     return new_bounds, new_rotation
 
 
-def draw_ellipse(ctx, center: Geometry.FloatPoint, size: Geometry.FloatSize, stroke_style, fill_style):
+def draw_ellipse(ctx: DrawingContextLike, center: Geometry.FloatPoint, size: Geometry.FloatSize, stroke_style: typing.Optional[str], fill_style: typing.Optional[str]) -> None:
     cx, cy = center.x, center.y
     rx, ry = size.width, size.height
     with ctx.saver():
@@ -357,40 +407,40 @@ def draw_ellipse(ctx, center: Geometry.FloatPoint, size: Geometry.FloatSize, str
         ctx.fill()
 
 
-def draw_arrow(ctx, p1, p2, arrow_size=8):
-    angle = math.atan2(p2[0] - p1[0], p2[1] - p1[1])
-    ctx.move_to(p2[1], p2[0])
-    ctx.line_to(p2[1] - arrow_size * math.cos(angle - math.pi / 6), p2[0] - arrow_size * math.sin(angle - math.pi / 6))
-    ctx.move_to(p2[1], p2[0])
-    ctx.line_to(p2[1] - arrow_size * math.cos(angle + math.pi / 6), p2[0] - arrow_size * math.sin(angle + math.pi / 6))
+def draw_arrow(ctx: DrawingContextLike, p1: Geometry.FloatPoint, p2: Geometry.FloatPoint, arrow_size: int = 8) -> None:
+    angle = math.atan2(p2.y - p1.y, p2.x - p1.x)
+    ctx.move_to(p2.x, p2.y)
+    ctx.line_to(p2.x - arrow_size * math.cos(angle - math.pi / 6), p2.y - arrow_size * math.sin(angle - math.pi / 6))
+    ctx.move_to(p2.x, p2.y)
+    ctx.line_to(p2.x - arrow_size * math.cos(angle + math.pi / 6), p2.y - arrow_size * math.sin(angle + math.pi / 6))
 
 
-def draw_marker(ctx, p, fill_style=None):
+def draw_marker(ctx: DrawingContextLike, p: Geometry.FloatPoint, fill_style: typing.Optional[str] = None) -> None:
     with ctx.saver():
         ctx.fill_style = fill_style if fill_style else '#00FF00'
         ctx.begin_path()
-        ctx.move_to(p[1] - 3, p[0] - 3)
-        ctx.line_to(p[1] + 3, p[0] - 3)
-        ctx.line_to(p[1] + 3, p[0] + 3)
-        ctx.line_to(p[1] - 3, p[0] + 3)
+        ctx.move_to(p.x - 3, p.y - 3)
+        ctx.line_to(p.x + 3, p.y - 3)
+        ctx.line_to(p.x + 3, p.y + 3)
+        ctx.line_to(p.x - 3, p.y + 3)
         ctx.close_path()
         ctx.fill()
 
 
-def draw_circular_marker(ctx, p, fill_style=None):
+def draw_circular_marker(ctx: DrawingContextLike, p: Geometry.FloatPoint, fill_style: typing.Optional[str] = None) -> None:
     fill_style = fill_style if fill_style else '#00FF00'
     size = Geometry.FloatSize(w=6, h=6)
     draw_ellipse(ctx, p, size, None, fill_style)
 
 
-def draw_rect_marker(ctx, r: Geometry.FloatRect, fill_style=None):
+def draw_rect_marker(ctx: DrawingContextLike, r: Geometry.FloatRect, fill_style: typing.Optional[str] = None) -> None:
     draw_marker(ctx, r.top_left, fill_style)
     draw_marker(ctx, r.top_right, fill_style)
     draw_marker(ctx, r.bottom_right, fill_style)
     draw_marker(ctx, r.bottom_left, fill_style)
 
 
-def draw_ellipse_graphic(ctx, center: Geometry.FloatPoint, size: Geometry.FloatSize, rotation: float, is_selected: bool, stroke_style: str, fill_style: str) -> None:
+def draw_ellipse_graphic(ctx: DrawingContextLike, center: Geometry.FloatPoint, size: Geometry.FloatSize, rotation: float, is_selected: bool, stroke_style: typing.Optional[str], fill_style: typing.Optional[str]) -> None:
     rect = Geometry.FloatRect.from_center_and_size(center, size)
     origin = rect.origin
     top_left = rect.top_left
@@ -454,41 +504,39 @@ def draw_ellipse_graphic(ctx, center: Geometry.FloatPoint, size: Geometry.FloatS
 
 
 # closest point on line
-def get_closest_point_on_line(start, end, p):
-    c = (p[0] - start[0], p[1] - start[1])
-    v = (end[0] - start[0], end[1] - start[1])
-    length = math.sqrt(pow(v[0], 2) + pow(v[1], 2))
+def get_closest_point_on_line(start: Geometry.FloatPoint, end: Geometry.FloatPoint, p: Geometry.FloatPoint) -> Geometry.FloatPoint:
+    c = p - start
+    v = end - start
+    length = abs(v)
     if length > 0:
-        v = (v[0] / length, v[1] / length)
-        t = v[0] * c[0] + v[1] * c[1]
+        v = v / length
+        t = v.y * c.y + v.x * c.x
         if t < 0:
             return start
         if t > length:
             return end
-        return (start[0] + v[0] * t, start[1] + v[1] * t)
+        return start + v * t
     else:
         return start
 
 
 # test whether points are close
-def test_point(p1, p2, radius: float):
-    return math.sqrt(pow(p1[0] - p2[0], 2) + pow(p1[1] - p2[1], 2)) < radius
+def test_point(p1: Geometry.FloatPoint, p2: Geometry.FloatPoint, radius: float) -> bool:
+    return abs(p1 - p2) < radius
 
 
 # test whether point is close to line
-def test_line(start, end, p, radius: float):
+def test_line(start: Geometry.FloatPoint, end: Geometry.FloatPoint, p: Geometry.FloatPoint, radius: float) -> bool:
     cp = get_closest_point_on_line(start, end, p)
-    return math.sqrt(pow(p[0] - cp[0], 2) + pow(p[1] - cp[1], 2)) < radius
+    return abs(p - cp) < radius
 
 
-def test_inside_bounds(bounds, p, radius: float):
-    return p[0] > bounds[0][0] and p[0] <= bounds[0][0] + bounds[1][0] and p[1] > bounds[0][1] and p[1] <= bounds[0][1] + bounds[1][1]
+def test_inside_bounds(bounds: Geometry.FloatRect, p: Geometry.FloatPoint, radius: float) -> bool:
+    return bounds.contains_point(p)
 
 
-def test_rectangle(p: Geometry.FloatPoint, radius: float, center: Geometry.FloatPoint, size: Geometry.FloatSize, rotation: float) -> typing.Tuple[typing.Optional[str], typing.Optional[bool]]:
+def test_rectangle(p: Geometry.FloatPoint, radius: float, center: Geometry.FloatPoint, size: Geometry.FloatSize, rotation: float) -> typing.Tuple[typing.Optional[str], bool]:
     rect_widget = Geometry.FloatRect.from_center_and_size(center, size)
-    origin = rect_widget.origin
-    size = rect_widget.size
     top_left = rect_widget.top_left
     top_right = rect_widget.top_right
     bottom_right = rect_widget.bottom_right
@@ -525,12 +573,13 @@ def test_rectangle(p: Geometry.FloatPoint, radius: float, center: Geometry.Float
     if test_line(top_right, bottom_right, p, radius):
         return "all", True
 
-    if test_inside_bounds((origin, size), test_point_unrotated, radius):
+    if test_inside_bounds(rect_widget, test_point_unrotated, radius):
         return "all", False
-    return None, None
+
+    return None, False
 
 
-class NullModifiers(object):
+class NullModifiers(ModifiersLike):
     def __init__(self) -> None:
         self.shift = False
         self.only_shift = False
@@ -549,23 +598,86 @@ class NullModifiers(object):
 # A Graphic object describes visible content, such as a shape, bitmap, video, or a line of text.
 class Graphic(Persistence.PersistentObject):
 
-    def __init__(self, type):
+    def __init__(self, type: str) -> None:
         super().__init__()
         self.define_type(type)
-        self.define_property("graphic_id", None, changed=self._property_changed, validate=lambda s: str(s) if s else None)
+        self.define_property("graphic_id", None, changed=self._property_changed, validate=lambda s: str(s) if s else None, hidden=True)
         self.define_property("source_specifier", changed=self.__source_specifier_changed, key="source_uuid")
-        self.define_property("stroke_color", None, changed=self._property_changed)
-        self.define_property("fill_color", None, changed=self._property_changed)
-        self.define_property("label", changed=self._property_changed, validate=lambda s: str(s) if s else None)
-        self.define_property("is_position_locked", False, changed=self._property_changed)
-        self.define_property("is_shape_locked", False, changed=self._property_changed)
-        self.define_property("is_bounds_constrained", False, changed=self._property_changed)
-        self.define_property("role", None, changed=self._property_changed)
-        self.__region = None
+        self.define_property("stroke_color", None, changed=self._property_changed, hidden=True)
+        self.define_property("fill_color", None, changed=self._property_changed, hidden=True)
+        self.define_property("label", changed=self._property_changed, validate=lambda s: str(s) if s else None, hidden=True)
+        self.define_property("is_position_locked", False, changed=self._property_changed, hidden=True)
+        self.define_property("is_shape_locked", False, changed=self._property_changed, hidden=True)
+        self.define_property("is_bounds_constrained", False, changed=self._property_changed, hidden=True)
+        self.define_property("role", None, changed=self._property_changed, hidden=True)
         self.label_padding = 4
         self.label_font = "normal 11px serif"
         self.__source_reference = self.create_item_reference()
         self._default_stroke_color = "#F80"
+
+    @property
+    def graphic_id(self) -> str:
+        return typing.cast(str, self._get_persistent_property_value("graphic_id"))
+
+    @graphic_id.setter
+    def graphic_id(self, value: str) -> None:
+        self._set_persistent_property_value("graphic_id", value)
+
+    @property
+    def stroke_color(self) -> typing.Optional[str]:
+        return typing.cast(typing.Optional[str], self._get_persistent_property_value("stroke_color"))
+
+    @stroke_color.setter
+    def stroke_color(self, value: typing.Optional[str]) -> None:
+        self._set_persistent_property_value("stroke_color", value)
+
+    @property
+    def fill_color(self) -> typing.Optional[str]:
+        return typing.cast(typing.Optional[str], self._get_persistent_property_value("fill_color"))
+
+    @fill_color.setter
+    def fill_color(self, value: typing.Optional[str]) -> None:
+        self._set_persistent_property_value("fill_color", value)
+
+    @property
+    def label(self) -> typing.Optional[str]:
+        return typing.cast(typing.Optional[str], self._get_persistent_property_value("label"))
+
+    @label.setter
+    def label(self, value: typing.Optional[str]) -> None:
+        self._set_persistent_property_value("label", value)
+
+    @property
+    def is_position_locked(self) -> bool:
+        return typing.cast(bool, self._get_persistent_property_value("is_position_locked"))
+
+    @is_position_locked.setter
+    def is_position_locked(self, value: bool) -> None:
+        self._set_persistent_property_value("is_position_locked", value)
+
+    @property
+    def is_shape_locked(self) -> bool:
+        return typing.cast(bool, self._get_persistent_property_value("is_shape_locked"))
+
+    @is_shape_locked.setter
+    def is_shape_locked(self, value: bool) -> None:
+        self._set_persistent_property_value("is_shape_locked", value)
+
+    @property
+    def is_bounds_constrained(self) -> bool:
+        return typing.cast(bool, self._get_persistent_property_value("is_bounds_constrained"))
+
+    @is_bounds_constrained.setter
+    def is_bounds_constrained(self, value: bool) -> None:
+        self._set_persistent_property_value("is_bounds_constrained", value)
+
+    @property
+    def role(self) -> typing.Optional[str]:
+        return typing.cast(typing.Optional[str], self._get_persistent_property_value("role"))
+
+    @role.setter
+    def role(self, value: typing.Optional[str]) -> None:
+        self._set_persistent_property_value("role", value)
 
     @property
     def project(self) -> typing.Optional[Project.Project]:
@@ -584,12 +696,12 @@ class Graphic(Persistence.PersistentObject):
     def item_specifier(self) -> Persistence.PersistentObjectSpecifier:
         return Persistence.PersistentObjectSpecifier(item_uuid=self.uuid)
 
-    def clone(self) -> "Graphic":
+    def clone(self) -> Graphic:
         graphic = copy.deepcopy(self)
         graphic.uuid = self.uuid
         return graphic
 
-    def mime_data_dict(self) -> typing.Dict[str, typing.Any]:
+    def mime_data_dict(self) -> Persistence.PersistentDictType:
         return {
             "type": self.type,
             "stroke_color": self.stroke_color,
@@ -600,7 +712,7 @@ class Graphic(Persistence.PersistentObject):
             "is_bounds_constrained": self.is_bounds_constrained,
         }
 
-    def read_from_mime_data(self, graphic_dict: typing.Mapping) -> None:
+    def read_from_mime_data(self, graphic_dict: Persistence.PersistentDictType) -> None:
         self.stroke_color = graphic_dict.get("stroke_color", self.stroke_color)
         self.fill_color = graphic_dict.get("fill_color", self.fill_color)
         self.label = graphic_dict.get("label", self.label)
@@ -616,18 +728,18 @@ class Graphic(Persistence.PersistentObject):
         self.read_from_mime_data(d)
 
     @property
-    def source(self):
+    def source(self) -> typing.Optional[Persistence.PersistentObject]:
         return self.__source_reference.item
 
     @source.setter
-    def source(self, source):
+    def source(self, source: typing.Optional[Persistence.PersistentObject]) -> None:
         self.__source_reference.item = source
         self.source_specifier = source.project.create_specifier(source).write() if source else None
 
     def __source_specifier_changed(self, name: str, d: Persistence._SpecifierType) -> None:
         self.__source_reference.item_specifier = Persistence.PersistentObjectSpecifier.read(d)
 
-    def _property_changed(self, name, value):
+    def _property_changed(self, name: str, value: typing.Any) -> None:
         self.notify_property_changed(name)
 
     @property
@@ -663,15 +775,8 @@ class Graphic(Persistence.PersistentObject):
         self.stroke_color = value
 
     @property
-    def region(self):
-        return self.__region
-
-    def set_region(self, region):
-        self.__region = region
-
-    @property
-    def _constraints(self):
-        constraints = set()
+    def _constraints(self) -> typing.Set[str]:
+        constraints: typing.Set[str] = set()
         if self.is_position_locked:
             constraints.add("position")
         if self.is_shape_locked:
@@ -680,10 +785,31 @@ class Graphic(Persistence.PersistentObject):
             constraints.add("bounds")
         return constraints
 
-    def get_mask(self, data_shape: typing.Sequence[int, ...], calibrated_origin: Geometry.FloatPoint = None) -> numpy.ndarray:
+    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool = False) -> None:
+        raise NotImplementedError()
+
+    def test(self, mapping: CoordinateMappingLike, ui_settings: UISettings.UISettings, p: Geometry.FloatPoint, move_only: bool) -> typing.Tuple[typing.Optional[str], bool]:
+        raise NotImplementedError()
+
+    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: typing.Optional[Geometry.FloatPoint] = None) -> DataAndMetadata._ImageDataType:
         return numpy.zeros(data_shape)
 
-    def test_label(self, ui_settings: UISettings.UISettings, mapping, test_point):
+    def begin_drag(self) -> DragPartData:
+        raise NotImplementedError()
+
+    def end_drag(self, part_data: DragPartData) -> None:
+        pass
+
+    def adjust_part(self, mapping: CoordinateMappingLike, original: Geometry.FloatPoint, current: Geometry.FloatPoint, part: DragPartDataPlus, modifiers: ModifiersLike) -> None:
+        pass
+
+    def nudge(self, mapping: CoordinateMappingLike, delta: Geometry.FloatSize) -> None:
+        pass
+
+    def label_position(self, mapping: CoordinateMappingLike, font_metrics: UISettings.FontMetrics, padding: float) -> typing.Optional[Geometry.FloatPoint]:
+        return None
+
+    def test_label(self, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, test_point: Geometry.FloatPoint) -> bool:
         if self.label:
             padding = self.label_padding
             font = self.label_font
@@ -694,69 +820,80 @@ class Graphic(Persistence.PersistentObject):
                 return test_inside_bounds(bounds, test_point, ui_settings.cursor_tolerance)
         return False
 
-    def draw_label(self, ctx, ui_settings: UISettings.UISettings, mapping):
+    def draw_label(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike) -> None:
         if self.label:
             padding = self.label_padding
             font = self.label_font
             font_metrics = ui_settings.get_font_metrics(font, self.label)
             text_pos = self.label_position(mapping, font_metrics, padding)
-            with ctx.saver():
-                ctx.begin_path()
-                ctx.move_to(text_pos.x - font_metrics.width * 0.5 - padding,
-                            text_pos.y - font_metrics.height * 0.5 - padding)
-                ctx.line_to(text_pos.x + font_metrics.width * 0.5 + padding,
-                            text_pos.y - font_metrics.height * 0.5 - padding)
-                ctx.line_to(text_pos.x + font_metrics.width * 0.5 + padding,
-                            text_pos.y + font_metrics.height * 0.5 + padding)
-                ctx.line_to(text_pos.x - font_metrics.width * 0.5 - padding,
-                            text_pos.y + font_metrics.height * 0.5 + padding)
-                ctx.close_path()
-                ctx.fill_style = "rgba(255, 255, 255, 0.6)"
-                ctx.fill()
-                ctx.stroke_style = self.used_stroke_style
-                ctx.stroke()
-                ctx.font = font
-                ctx.text_baseline = "middle"
-                ctx.text_align = "center"
-                ctx.fill_style = "#000"
-                ctx.fill_text(self.label, text_pos.x, text_pos.y)
-
-    def nudge(self, mapping, delta):
-        pass
-
-    def label_position(self, mapping, font_metrics, padding):
-        raise NotImplementedError()
+            if text_pos:
+                with ctx.saver():
+                    ctx.begin_path()
+                    ctx.move_to(text_pos.x - font_metrics.width * 0.5 - padding,
+                                text_pos.y - font_metrics.height * 0.5 - padding)
+                    ctx.line_to(text_pos.x + font_metrics.width * 0.5 + padding,
+                                text_pos.y - font_metrics.height * 0.5 - padding)
+                    ctx.line_to(text_pos.x + font_metrics.width * 0.5 + padding,
+                                text_pos.y + font_metrics.height * 0.5 + padding)
+                    ctx.line_to(text_pos.x - font_metrics.width * 0.5 - padding,
+                                text_pos.y + font_metrics.height * 0.5 + padding)
+                    ctx.close_path()
+                    ctx.fill_style = "rgba(255, 255, 255, 0.6)"
+                    ctx.fill()
+                    ctx.stroke_style = self.used_stroke_style
+                    ctx.stroke()
+                    ctx.font = font
+                    ctx.text_baseline = "middle"
+                    ctx.text_align = "center"
+                    ctx.fill_style = "#000"
+                    ctx.fill_text(self.label, text_pos.x, text_pos.y)
 
 
 class MissingGraphic(Graphic):
-    def __init__(self, type):
+    def __init__(self, type: str) -> None:
         super().__init__(type)
 
-    def draw(self, ctx, ui_settings: UISettings.UISettings, mapping, is_selected=False):
+    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool = False) -> None:
         pass
 
 
 class RectangleTypeGraphic(Graphic):
-    def __init__(self, type, title):
+    def __init__(self, type: str, title: typing.Optional[str]) -> None:
         super().__init__(type)
         self.title = title
-        self.define_property("bounds", ((0.0, 0.0), (1.0, 1.0)), validate=self.__validate_bounds, changed=self.__bounds_changed)
-        self.define_property("rotation", 0.0, changed=self._property_changed)
+        self.define_property("bounds", ((0.0, 0.0), (1.0, 1.0)), validate=self.__validate_bounds, changed=self.__bounds_changed, hidden=True)
+        self.define_property("rotation", 0.0, changed=self._property_changed, hidden=True)
 
-    def mime_data_dict(self) -> dict:
+    @property
+    def bounds(self) -> Geometry.FloatRect:
+        return Geometry.FloatRect.make(typing.cast(Geometry.RectFloatTuple, self._get_persistent_property_value("bounds")))
+
+    @bounds.setter
+    def bounds(self, value: Geometry.FloatRectTuple) -> None:
+        self._set_persistent_property_value("bounds", tuple(value))
+
+    @property
+    def rotation(self) -> float:
+        return typing.cast(float, self._get_persistent_property_value("rotation"))
+
+    @rotation.setter
+    def rotation(self, value: float) -> None:
+        self._set_persistent_property_value("rotation", value)
+
+    def mime_data_dict(self) -> Persistence.PersistentDictType:
         d = super().mime_data_dict()
-        d["bounds"] = self.bounds
+        d["bounds"] = tuple(self.bounds)
         d["rotation"] = self.rotation
         return d
 
-    def read_from_mime_data(self, graphic_dict: typing.Mapping) -> None:
+    def read_from_mime_data(self, graphic_dict: Persistence.PersistentDictType) -> None:
         super().read_from_mime_data(graphic_dict)
         self.bounds = graphic_dict.get("bounds", self.bounds)
         self.rotation = graphic_dict.get("rotation", self.rotation)
 
     # accessors
 
-    def __validate_bounds(self, value):
+    def __validate_bounds(self, value: Geometry.RectFloatTuple) -> Geometry.RectFloatTuple:
         # normalize
         if value[1][0] < 0:  # height is negative
             value = ((value[0][0] + value[1][0], value[0][1]), (-value[1][0], value[1][1]))
@@ -764,56 +901,52 @@ class RectangleTypeGraphic(Graphic):
             value = ((value[0][0], value[0][1] + value[1][1]), (value[1][0], -value[1][1]))
         return (value[0][0], value[0][1]), (value[1][0], value[1][1])
 
-    def __bounds_changed(self, name, value):
+    def __bounds_changed(self, name: str, value: typing.Any) -> None:
         self._property_changed(name, value)
         self._property_changed("center", self.center)
         self._property_changed("size", self.size)
 
     # dependent property center
     @property
-    def center(self) -> typing.Tuple[float, float]:
-        center_point = Geometry.FloatPoint(y=self.bounds[0][0] + self.size[0] * 0.5, x=self.bounds[0][1] + self.size[1] * 0.5)
-        return (center_point.y, center_point.x)
+    def center(self) -> Geometry.FloatPoint:
+        return self.bounds.center
 
     @center.setter
-    def center(self, center: typing.Union[typing.Tuple[float, float], Geometry.FloatPoint]) -> None:
+    def center(self, center: Geometry.FloatPointTuple) -> None:
         center = Geometry.FloatPoint.make(center)
-        self.bounds = ((center[0] - self.size[0] * 0.5, center[1] - self.size[1] * 0.5), self.size)
+        self.bounds = Geometry.FloatRect.from_center_and_size(center, self.size)
 
     @property
     def center_x(self) -> float:
-        return self.center[1]
+        return self.center.x
 
     @center_x.setter
     def center_x(self, value: float) -> None:
-        new_center_point = Geometry.FloatPoint(y=self.center[0], x=value)
-        self.center = new_center_point.y, new_center_point.x
+        self.center = Geometry.FloatPoint(y=self.center.y, x=value)
 
     @property
     def center_y(self) -> float:
-        return self.center[0]
+        return self.center.y
 
     @center_y.setter
     def center_y(self, value: float) -> None:
-        new_center_point = Geometry.FloatPoint(y=value, x=self.center[1])
-        self.center = new_center_point.y, new_center_point.x
+        self.center = Geometry.FloatPoint(y=value, x=self.center.x)
 
     # dependent property size
     @property
-    def size(self) -> typing.Tuple[float, float]:
-        return self.bounds[1]
+    def size(self) -> Geometry.FloatSize:
+        return self.bounds.size
 
     @size.setter
-    def size(self, size: typing.Union[typing.Tuple[float, float], Geometry.FloatSize]) -> None:
+    def size(self, size: Geometry.FloatSizeTuple) -> None:
         # keep center the same
-        old_origin = self.bounds[0]
-        old_size = self.bounds[1]
-        origin = old_origin[0] - (size[0] - old_size[0]) * 0.5, old_origin[1] - (size[1] - old_size[1]) * 0.5
-        self.bounds = (origin, tuple(size))
+        old_origin = self.bounds.origin
+        old_size = self.bounds.size
+        self.bounds = Geometry.FloatRect(origin=old_origin - (Geometry.FloatSize.make(size) - old_size) * 0.5, size=size)
 
     @property
     def width(self) -> float:
-        return self.size[1]
+        return self.size.width
 
     @width.setter
     def width(self, value: float) -> None:
@@ -821,7 +954,7 @@ class RectangleTypeGraphic(Graphic):
 
     @property
     def height(self) -> float:
-        return self.size[0]
+        return self.size.height
 
     @height.setter
     def height(self, value: float) -> None:
@@ -836,42 +969,41 @@ class RectangleTypeGraphic(Graphic):
         self.rotation = math.radians(value)
 
     @property
-    def _bounds(self):  # useful for testing
+    def _bounds(self) -> Geometry.FloatRect:  # useful for testing
         center = self.center
         size = self.size
-        return Geometry.FloatRect(origin=(center[0] - size[0] * 0.5, center[1] - size[1] * 0.5), size=size)
+        return Geometry.FloatRect(origin=center - size * 0.5, size=size)
 
     @_bounds.setter
-    def _bounds(self, bounds):
-        self.center = bounds[0][0] + bounds[1][0] * 0.5, bounds[0][1] + bounds[1][1] * 0.5
-        self.size = bounds[1]
+    def _bounds(self, bounds: Geometry.FloatRectTuple) -> None:
+        self.bounds = Geometry.FloatRect.make(bounds)
 
     @property
-    def _rotated_top_left(self):  # useful for testing
+    def _rotated_top_left(self) -> Geometry.FloatPoint:  # useful for testing
         return rotate(self._bounds.top_left, self._bounds.center, self.rotation)
 
     @property
-    def _rotated_top_right(self):  # useful for testing
+    def _rotated_top_right(self) -> Geometry.FloatPoint:  # useful for testing
         return rotate(self._bounds.top_right, self._bounds.center, self.rotation)
 
     @property
-    def _rotated_bottom_right(self):  # useful for testing
+    def _rotated_bottom_right(self) -> Geometry.FloatPoint:  # useful for testing
         return rotate(self._bounds.bottom_right, self._bounds.center, self.rotation)
 
     @property
-    def _rotated_bottom_left(self):  # useful for testing
+    def _rotated_bottom_left(self) -> Geometry.FloatPoint:  # useful for testing
         return rotate(self._bounds.bottom_left, self._bounds.center, self.rotation)
 
-    def get_mask(self, data_shape: typing.Sequence[int, ...], calibrated_origin: Geometry.FloatPoint = None) -> numpy.ndarray:
+    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: typing.Optional[Geometry.FloatPoint] = None) -> DataAndMetadata._ImageDataType:
         mask = numpy.zeros(data_shape)
         bounds_int = ((int(data_shape[0] * self.bounds[0][0]), int(data_shape[1] * self.bounds[0][1])),
                       (int(data_shape[0] * self.bounds[1][0]), int(data_shape[1] * self.bounds[1][1])))
         if self.rotation:
             a, b = bounds_int[0][0] + bounds_int[1][0] * 0.5, bounds_int[0][1] + bounds_int[1][1] * 0.5
-            y, x = numpy.ogrid[-a:data_shape[0] - a, -b:data_shape[1] - b]
+            y, x = numpy.ogrid[-a:data_shape[0] - a, -b:data_shape[1] - b]  # type: ignore
             angle_sin = math.sin(self.rotation)
             angle_cos = math.cos(self.rotation)
-            mask_eq = (numpy.fabs(x * angle_cos - y * angle_sin) / (bounds_int[1][1] / 2) <= 1) & (numpy.fabs(y * angle_cos + x * angle_sin) / (bounds_int[1][0] / 2) <= 1)
+            mask_eq = (numpy.fabs(x * angle_cos - y * angle_sin) / (bounds_int[1][1] / 2) <= 1) & (numpy.fabs(y * angle_cos + x * angle_sin) / (bounds_int[1][0] / 2) <= 1)  # type: ignore
             mask[mask_eq] = 1
         else:
             mask[bounds_int[0][0]:bounds_int[0][0] + bounds_int[1][0] + 1,
@@ -879,11 +1011,9 @@ class RectangleTypeGraphic(Graphic):
         return mask
 
     # test point hit
-    def test(self, mapping, ui_settings: UISettings.UISettings, p, move_only):
+    def test(self, mapping: CoordinateMappingLike, ui_settings: UISettings.UISettings, p: Geometry.FloatPoint, move_only: bool) -> typing.Tuple[typing.Optional[str], bool]:
         # first convert to widget coordinates since test distances
         # are specified in widget coordinates
-        p = Geometry.FloatPoint.make(p)
-
         rotation = self.rotation
         bounds = Geometry.FloatRect.make(self.bounds)
         center = mapping.map_point_image_norm_to_widget(bounds.center)
@@ -898,26 +1028,26 @@ class RectangleTypeGraphic(Graphic):
             return "all", False
 
         # didn't find anything
-        return None, None
+        return None, False
 
-    def begin_drag(self):
+    def begin_drag(self) -> DragPartData:
         return (self.bounds, self.rotation)
 
-    def end_drag(self, part_data):
+    def end_drag(self, part_data: DragPartData) -> None:
         pass
 
     # rectangle
-    def adjust_part(self, mapping, original, current, part, modifiers):
+    def adjust_part(self, mapping: CoordinateMappingLike, original: Geometry.FloatPoint, current: Geometry.FloatPoint, part: DragPartDataPlus, modifiers: ModifiersLike) -> None:
         raise NotImplementedError()
 
-    def nudge(self, mapping, delta):
-        origin = mapping.map_point_image_norm_to_widget(self.bounds[0])
-        size = mapping.map_size_image_norm_to_widget(self.bounds[1])
-        original = (origin[0] + size[0] * 0.5, origin[1] + size[1] * 0.5)
-        current = (original[0] + delta[0], original[1] + delta[1])
+    def nudge(self, mapping: CoordinateMappingLike, delta: Geometry.FloatSize) -> None:
+        origin = mapping.map_point_image_norm_to_widget(self.bounds.origin)
+        size = mapping.map_size_image_norm_to_widget(self.bounds.size)
+        original = origin + size * 0.5
+        current = original + delta
         self.adjust_part(mapping, original, current, ("all", ) + self.begin_drag(), NullModifiers())
 
-    def draw(self, ctx, ui_settings: UISettings.UISettings, mapping, is_selected=False):
+    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool = False) -> None:
         raise NotImplementedError()
 
 
@@ -926,7 +1056,7 @@ class RectangleGraphic(RectangleTypeGraphic):
         super().__init__("rect-graphic", _("Rectangle"))
 
     # rectangle
-    def adjust_part(self, mapping, original, current, part, modifiers):
+    def adjust_part(self, mapping: CoordinateMappingLike, original: Geometry.FloatPoint, current: Geometry.FloatPoint, part: DragPartDataPlus, modifiers: ModifiersLike) -> None:
         original_image = mapping.map_point_widget_to_image(original)
         current_image = mapping.map_point_widget_to_image(current)
         bounds = Geometry.FloatRect.make(part[1])
@@ -936,10 +1066,10 @@ class RectangleGraphic(RectangleTypeGraphic):
         if rotation != self.rotation:
             self.rotation = rotation
 
-    def draw(self, ctx, ui_settings: UISettings.UISettings, mapping, is_selected=False):
+    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool = False) -> None:
         # origin is top left
-        origin = mapping.map_point_image_norm_to_widget(self.bounds[0])
-        size = mapping.map_size_image_norm_to_widget(self.bounds[1])
+        origin = mapping.map_point_image_norm_to_widget(self.bounds.origin)
+        size = mapping.map_size_image_norm_to_widget(self.bounds.size)
         rect = Geometry.FloatRect(origin=origin, size=size)
         top_left = rect.top_left
         top_right = rect.top_right
@@ -1009,7 +1139,7 @@ class RectangleGraphic(RectangleTypeGraphic):
                 draw_circular_marker(ctx, rotation_point)
         self.draw_label(ctx, ui_settings, mapping)
 
-    def label_position(self, mapping, font_metrics, padding):
+    def label_position(self, mapping: CoordinateMappingLike, font_metrics: UISettings.FontMetrics, padding: float) -> typing.Optional[Geometry.FloatPoint]:
         bounds = Geometry.FloatRect.make(self.bounds)
         p = Geometry.FloatPoint.make(mapping.map_point_image_norm_to_widget(bounds.top_left))
         return p + Geometry.FloatPoint(-font_metrics.height * 0.5 - padding * 2, font_metrics.width * 0.5)
@@ -1019,12 +1149,15 @@ class EllipseGraphic(RectangleTypeGraphic):
     def __init__(self) -> None:
         super().__init__("ellipse-graphic", _("Ellipse"))
 
-    def get_mask(self, data_shape: typing.Sequence[int, ...], calibrated_origin: Geometry.FloatPoint = None) -> numpy.ndarray:
+    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: typing.Optional[Geometry.FloatPoint] = None) -> DataAndMetadata._ImageDataType:
         bounds = Geometry.FloatRect.make(self.bounds)
-        return Core.function_make_elliptical_mask(data_shape, bounds.center, bounds.size, self.rotation).data
+        mask_xdata = Core.function_make_elliptical_mask(data_shape, bounds.center.as_tuple(), bounds.size.as_tuple(), self.rotation)
+        mask_data = mask_xdata.data
+        assert mask_data is not None
+        return mask_data
 
     # rectangle
-    def adjust_part(self, mapping, original, current, part, modifiers):
+    def adjust_part(self, mapping: CoordinateMappingLike, original: Geometry.FloatPoint, current: Geometry.FloatPoint, part: DragPartDataPlus, modifiers: ModifiersLike) -> None:
         original_image = mapping.map_point_widget_to_image(original)
         current_image = mapping.map_point_widget_to_image(current)
         bounds = Geometry.FloatRect.make(part[1])
@@ -1034,7 +1167,7 @@ class EllipseGraphic(RectangleTypeGraphic):
         if rotation != self.rotation:
             self.rotation = rotation
 
-    def draw(self, ctx, ui_settings: UISettings.UISettings, mapping, is_selected=False):
+    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool = False) -> None:
         # origin is top left
         rotation = self.rotation
         stroke_style = self.used_stroke_style
@@ -1045,41 +1178,67 @@ class EllipseGraphic(RectangleTypeGraphic):
         draw_ellipse_graphic(ctx, center, size, rotation, is_selected, stroke_style, fill_style)
         self.draw_label(ctx, ui_settings, mapping)
 
-    def label_position(self, mapping, font_metrics, padding):
+    def label_position(self, mapping: CoordinateMappingLike, font_metrics: UISettings.FontMetrics, padding: float) -> typing.Optional[Geometry.FloatPoint]:
         bounds = Geometry.FloatRect.make(self.bounds)
         p = Geometry.FloatPoint.make(mapping.map_point_image_norm_to_widget(Geometry.FloatPoint(bounds.top, bounds.center.x)))
         return p + Geometry.FloatPoint(-font_metrics.height * 0.5 - padding * 2, 0.0)
 
 
 class LineTypeGraphic(Graphic):
-    def __init__(self, type, title):
+    def __init__(self, type: str, title: typing.Optional[str]) -> None:
         super().__init__(type)
         self.title = title
 
-        def read_vector(persistent_property, properties):
+        def read_vector(persistent_property: Persistence.PersistentProperty, properties: Persistence.PersistentDictType) -> typing.Any:
             # read the vector defined by persistent_property from the properties dict.
             start = properties.get("start", (0.0, 0.0))
             end = properties.get("end", (1.0, 1.0))
             return start, end
 
-        def write_vector(persistent_property, properties, value):
+        def write_vector(persistent_property: Persistence.PersistentProperty, properties: Persistence.PersistentDictType, value: typing.Any) -> None:
             # write the vector (value) defined by persistent_property to the properties dict.
             properties["start"] = value[0]
             properties["end"] = value[1]
 
         # vector is stored in image normalized coordinates
-        self.define_property("vector", ((0.0, 0.0), (1.0, 1.0)), changed=self.__vector_changed, reader=read_vector, writer=write_vector, validate=lambda value: (tuple(value[0]), tuple(value[1])))
-        self.define_property("start_arrow_enabled", False, changed=self._property_changed, validate=lambda value: bool(value))
-        self.define_property("end_arrow_enabled", False, changed=self._property_changed, validate=lambda value: bool(value))
+        self.define_property("vector", ((0.0, 0.0), (1.0, 1.0)), changed=self.__vector_changed, reader=read_vector, writer=write_vector, validate=lambda value: (tuple(value[0]), tuple(value[1])), hidden=True)
+        self.define_property("start_arrow_enabled", False, changed=self._property_changed, validate=lambda value: bool(value), hidden=True)
+        self.define_property("end_arrow_enabled", False, changed=self._property_changed, validate=lambda value: bool(value), hidden=True)
 
-    def mime_data_dict(self) -> dict:
+    @property
+    def vector(self) -> typing.Tuple[Geometry.FloatPoint, Geometry.FloatPoint]:
+        t = typing.cast(typing.Tuple[Geometry.PointFloatTuple, Geometry.PointFloatTuple], self._get_persistent_property_value("vector"))
+        return (Geometry.FloatPoint.make(t[0]), Geometry.FloatPoint.make(t[1]))
+
+    @vector.setter
+    def vector(self, value: typing.Tuple[Geometry.FloatPoint, Geometry.FloatPoint]) -> None:
+        self._set_persistent_property_value("vector", (tuple(value[0]), tuple(value[1])))
+
+    @property
+    def start_arrow_enabled(self) -> bool:
+        return typing.cast(bool, self._get_persistent_property_value("start_arrow_enabled"))
+
+    @start_arrow_enabled.setter
+    def start_arrow_enabled(self, value: bool) -> None:
+        self._set_persistent_property_value("start_arrow_enabled", value)
+
+    @property
+    def end_arrow_enabled(self) -> bool:
+        return typing.cast(bool, self._get_persistent_property_value("end_arrow_enabled"))
+
+    @end_arrow_enabled.setter
+    def end_arrow_enabled(self, value: bool) -> None:
+        self._set_persistent_property_value("end_arrow_enabled", value)
+
+    def mime_data_dict(self) -> Persistence.PersistentDictType:
         d = super().mime_data_dict()
-        d["vector"] = self.vector
+        vector = self.vector
+        d["vector"] = vector[0], vector[1]
         d["start_arrow_enabled"] = self.start_arrow_enabled
         d["end_arrow_enabled"] = self.start_arrow_enabled
         return d
 
-    def read_from_mime_data(self, graphic_dict: typing.Mapping) -> None:
+    def read_from_mime_data(self, graphic_dict: Persistence.PersistentDictType) -> None:
         super().read_from_mime_data(graphic_dict)
         self.vector = graphic_dict.get("vector", self.vector)
         self.start_arrow_enabled = graphic_dict.get("start_arrow_enabled", self.start_arrow_enabled)
@@ -1092,89 +1251,89 @@ class LineTypeGraphic(Graphic):
         self.vector = (start, end)
 
     @property
-    def start(self):
+    def start(self) -> Geometry.FloatPoint:
         return self.vector[0]
 
     @start.setter
-    def start(self, value):
-        self.vector = value, self.vector[1]
+    def start(self, value: Geometry.FloatPointTuple) -> None:
+        self.vector = Geometry.FloatPoint.make(value), self.vector[1]
 
     @property
-    def end(self):
+    def end(self) -> Geometry.FloatPoint:
         return self.vector[1]
 
     @end.setter
-    def end(self, value):
-        self.vector = self.vector[0], value
+    def end(self, value: Geometry.FloatPointTuple) -> None:
+        self.vector = self.vector[0], Geometry.FloatPoint.make(value)
 
     @property
-    def _start(self):
-        return Geometry.FloatPoint.make(self.start)
+    def _start(self) -> Geometry.FloatPoint:
+        return self.start
 
     @_start.setter
-    def _start(self, value):
+    def _start(self, value: Geometry.FloatPoint) -> None:
         self.start = value
 
     @property
-    def _end(self):
-        return Geometry.FloatPoint.make(self.end)
+    def _end(self) -> Geometry.FloatPoint:
+        return self.end
 
     @_end.setter
-    def _end(self, value):
+    def _end(self, value: Geometry.FloatPoint) -> None:
         self.end = value
 
     @property
-    def length(self):
+    def length(self) -> float:
         return Geometry.distance(self.start, self.end)
 
     @length.setter
-    def length(self, value):
+    def length(self, value: float) -> None:
         angle = self.angle
         self.end = Geometry.FloatPoint.make(self.start) + value * Geometry.FloatSize(height=-math.sin(angle), width=math.cos(angle))
 
     @property
-    def angle(self):
+    def angle(self) -> float:
         delta = Geometry.FloatPoint.make(self.end) - Geometry.FloatPoint.make(self.start)
         return -math.atan2(delta.y, delta.x)
 
     @angle.setter
-    def angle(self, value):
+    def angle(self, value: float) -> None:
         self.end = Geometry.FloatPoint.make(self.start) + self.length * Geometry.FloatSize(height=-math.sin(value), width=math.cos(value))
 
     @property
-    def start_x(self):
-        return self.start[1]
+    def start_x(self) -> float:
+        return self.start.x
 
     @start_x.setter
-    def start_x(self, value):
-        self.start = self.start[0], value
+    def start_x(self, value: float) -> None:
+        self.start = Geometry.FloatPoint(y=self.start.y, x=value)
 
     @property
-    def start_y(self):
-        return self.start[0]
+    def start_y(self) -> float:
+        return self.start.y
 
     @start_y.setter
-    def start_y(self, value):
-        self.start = value, self.start[1]
+    def start_y(self, value: float) -> None:
+        self.start = Geometry.FloatPoint(y=value, x=self.start.x)
 
     @property
-    def end_x(self):
-        return self.end[1]
+    def end_x(self) -> float:
+        return self.end.x
 
     @end_x.setter
-    def end_x(self, value):
-        self.end = self.end[0], value
+    def end_x(self, value: float) -> None:
+        self.end = Geometry.FloatPoint(y=self.end.y, x=value)
 
     @property
-    def end_y(self):
-        return self.end[0]
+    def end_y(self) -> float:
+        return self.end.y
 
     @end_y.setter
-    def end_y(self, value):
-        self.end = value, self.end[1]
+    def end_y(self, value: float) -> None:
+        self.end = Geometry.FloatPoint(y=value, x=self.end.x)
 
     # dependent properties
-    def __vector_changed(self, name, value):
+    def __vector_changed(self, name: str, value: typing.Any) -> None:
         self._property_changed(name, value)
         self.notify_property_changed("start")
         self.notify_property_changed("end")
@@ -1182,8 +1341,7 @@ class LineTypeGraphic(Graphic):
         self.notify_property_changed("angle")
 
     # test is required for Graphic interface
-    def test(self, mapping, ui_settings: UISettings.UISettings, p, move_only):
-        p = Geometry.FloatPoint.make(p)
+    def test(self, mapping: CoordinateMappingLike, ui_settings: UISettings.UISettings, p: Geometry.FloatPoint, move_only: bool) -> typing.Tuple[typing.Optional[str], bool]:
         # first convert to widget coordinates since test distances
         # are specified in widget coordinates
         p1 = mapping.map_point_image_norm_to_widget(self.start)
@@ -1201,73 +1359,72 @@ class LineTypeGraphic(Graphic):
         if self.test_label(ui_settings, mapping, p):
             return "all", False
         # didn't find anything
-        return None, None
+        return None, False
 
-    def begin_drag(self):
+    def begin_drag(self) -> DragPartData:
         return (self.start, self.end)
 
-    def end_drag(self, part_data):
+    def end_drag(self, part_data: DragPartData) -> None:
         pass
 
-    def adjust_part(self, mapping, original, current, part, modifiers):
-        o_image = mapping.map_point_widget_to_image(original)
+    def adjust_part(self, mapping: CoordinateMappingLike, original: Geometry.FloatPoint, current: Geometry.FloatPoint, part: DragPartDataPlus, modifiers: ModifiersLike) -> None:
         p_image = mapping.map_point_widget_to_image(current)
         end_image = mapping.map_point_image_norm_to_image(self.end)
         start_image = mapping.map_point_image_norm_to_image(self.start)
         constraints = self._constraints
         if part[0] == "start" and not "shape" in constraints:
-            dy = p_image[0] - end_image[0]
-            dx = p_image[1] - end_image[1]
+            dy = p_image.y - end_image.y
+            dx = p_image.x - end_image.x
             if modifiers.shift:
                 angle_degrees = math.degrees(math.atan2(abs(dy), abs(dx)))
                 if angle_degrees > 60:
-                    p_image = (p_image[0], end_image[1])
+                    p_image = Geometry.FloatPoint(p_image.y, end_image.x)
                 elif angle_degrees > 30:
                     if angle_degrees > 45:
                         if dx * dy > 0:
-                            p_image = (p_image[0], end_image[1] + dy)
+                            p_image = Geometry.FloatPoint(p_image.y, end_image.x + dy)
                         else:
-                            p_image = (p_image[0], end_image[1] - dy)
+                            p_image = Geometry.FloatPoint(p_image.y, end_image.x - dy)
                     else:
                         if dx * dy > 0:
-                            p_image = (end_image[0] + dx, p_image[1])
+                            p_image = Geometry.FloatPoint(end_image.y + dx, p_image.x)
                         else:
-                            p_image = (end_image[0] - dx, p_image[1])
+                            p_image = Geometry.FloatPoint(end_image.y - dx, p_image.x)
                 else:
-                    p_image = (end_image[0], p_image[1])
+                    p_image = Geometry.FloatPoint(end_image.y, p_image.x)
             start = mapping.map_point_image_to_image_norm(p_image)
             if "bounds" in constraints:
-                start = min(max(start[0], 0.0), 1.0), min(max(start[1], 0.0), 1.0)
+                start = Geometry.FloatPoint(min(max(start.y, 0.0), 1.0), min(max(start.x, 0.0), 1.0))
             self.start = start
         elif part[0] == "end" and not "shape" in constraints:
-            dy = p_image[0] - start_image[0]
-            dx = p_image[1] - start_image[1]
+            dy = p_image.y - start_image.y
+            dx = p_image.x - start_image.x
             if modifiers.shift:
                 angle_degrees = math.degrees(math.atan2(abs(dy), abs(dx)))
                 if angle_degrees > 60:
-                    p_image = (p_image[0], start_image[1])
+                    p_image = Geometry.FloatPoint(p_image.y, start_image.x)
                 elif angle_degrees > 30:
                     if angle_degrees > 45:
                         if dx * dy > 0:
-                            p_image = (p_image[0], start_image[1] + dy)
+                            p_image = Geometry.FloatPoint(p_image.y, start_image.x + dy)
                         else:
-                            p_image = (p_image[0], start_image[1] - dy)
+                            p_image = Geometry.FloatPoint(p_image.y, start_image.x - dy)
                     else:
                         if dx * dy > 0:
-                            p_image = (start_image[0] + dx, p_image[1])
+                            p_image = Geometry.FloatPoint(start_image.y + dx, p_image.x)
                         else:
-                            p_image = (start_image[0] - dx, p_image[1])
+                            p_image = Geometry.FloatPoint(start_image.y - dx, p_image.x)
                 else:
-                    p_image = (start_image[0], p_image[1])
+                    p_image = Geometry.FloatPoint(start_image.y, p_image.x)
             end = mapping.map_point_image_to_image_norm(p_image)
             if "bounds" in constraints:
-                end = min(max(end[0], 0.0), 1.0), min(max(end[1], 0.0), 1.0)
+                end = Geometry.FloatPoint(min(max(end.y, 0.0), 1.0), min(max(end.x, 0.0), 1.0))
             self.end = end
         elif part[0] in ["all", "line"] or "shape" in constraints:
             o = mapping.map_point_widget_to_image_norm(original)
             p = mapping.map_point_widget_to_image_norm(current)
-            delta_v = p[0] - o[0]
-            delta_h = p[1] - o[1]
+            delta_v = p.y - o.y
+            delta_h = p.x - o.x
             y0 = part[1][0]
             x0 = part[1][1]
             y1 = part[2][0]
@@ -1277,18 +1434,18 @@ class LineTypeGraphic(Graphic):
                 delta_v = min(max(delta_v, -y1), 1.0 - y1)
                 delta_h = min(max(delta_h, -x0), 1.0 - x0)
                 delta_h = min(max(delta_h, -x1), 1.0 - x1)
-            start = (y0 + delta_v, x0 + delta_h)
-            end = (y1 + delta_v, x1 + delta_h)
+            start = Geometry.FloatPoint(y0 + delta_v, x0 + delta_h)
+            end = Geometry.FloatPoint(y1 + delta_v, x1 + delta_h)
             self.vector = start, end
 
-    def nudge(self, mapping, delta):
+    def nudge(self, mapping: CoordinateMappingLike, delta: Geometry.FloatSize) -> None:
         end_image = mapping.map_point_image_norm_to_image(self.end)
         start_image = mapping.map_point_image_norm_to_image(self.start)
-        original = ((end_image[0] + start_image[0]) * 0.5, (end_image[1] + start_image[1]) * 0.5)
-        current = (original[0] + delta[0], original[1] + delta[1])
+        original = (end_image + start_image) * 0.5
+        current = original + delta
         self.adjust_part(mapping, original, current, ("all",) + self.begin_drag(), NullModifiers())
 
-    def draw(self, ctx, ui_settings: UISettings.UISettings, mapping, is_selected=False):
+    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool = False) -> None:
         raise NotImplementedError()
 
 
@@ -1296,7 +1453,7 @@ class LineGraphic(LineTypeGraphic):
     def __init__(self) -> None:
         super().__init__("line-graphic", _("Line"))
 
-    def draw(self, ctx, ui_settings: UISettings.UISettings, mapping, is_selected=False):
+    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool = False) -> None:
         p1 = mapping.map_point_image_norm_to_widget(self.start)
         p2 = mapping.map_point_image_norm_to_widget(self.end)
         with ctx.saver():
@@ -1315,7 +1472,7 @@ class LineGraphic(LineTypeGraphic):
             draw_marker(ctx, p2)
         self.draw_label(ctx, ui_settings, mapping)
 
-    def label_position(self, mapping, font_metrics, padding):
+    def label_position(self, mapping: CoordinateMappingLike, font_metrics: UISettings.FontMetrics, padding: float) -> typing.Optional[Geometry.FloatPoint]:
         p1 = mapping.map_point_image_norm_to_widget(self.start)
         p2 = mapping.map_point_image_norm_to_widget(self.end)
         return Geometry.FloatPoint(y=(p1.y + p2.y) * 0.5, x=(p1.x + p2.x) * 0.5)
@@ -1324,23 +1481,31 @@ class LineGraphic(LineTypeGraphic):
 class LineProfileGraphic(LineTypeGraphic):
     def __init__(self) -> None:
         super().__init__("line-profile-graphic", _("Line Profile"))
-        self.define_property("width", 1.0, changed=self._property_changed, validate=lambda value: float(value))
+        self.define_property("width", 1.0, changed=self._property_changed, validate=lambda value: float(value), hidden=True)
         self.define_property("interval_descriptors", list(), changed=self._property_changed)
         self.end_arrow_enabled = True
 
-    def mime_data_dict(self) -> dict:
+    @property
+    def width(self) -> float:
+        return typing.cast(float, self._get_persistent_property_value("width"))
+
+    @width.setter
+    def width(self, value: float) -> None:
+        self._set_persistent_property_value("width", value)
+
+    def mime_data_dict(self) -> Persistence.PersistentDictType:
         d = super().mime_data_dict()
         d["line_width"] = self.width
         return d
 
-    def read_from_mime_data(self, graphic_dict: typing.Mapping) -> None:
+    def read_from_mime_data(self, graphic_dict: Persistence.PersistentDictType) -> None:
         super().read_from_mime_data(graphic_dict)
         self.width = graphic_dict.get("line_width", self.width)
 
-    def draw(self, ctx, ui_settings: UISettings.UISettings, mapping, is_selected=False):
+    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool = False) -> None:
         p1 = mapping.map_point_image_norm_to_widget(self.start)
         p2 = mapping.map_point_image_norm_to_widget(self.end)
-        w = mapping.map_size_image_to_widget((self.width, 0))[0]
+        w = mapping.map_size_image_to_widget(Geometry.FloatSize(self.width, 0)).width
         with ctx.saver():
             ctx.begin_path()
             ctx.move_to(p1[1], p1[0])
@@ -1389,52 +1554,58 @@ class LineProfileGraphic(LineTypeGraphic):
             draw_marker(ctx, p2)
         self.draw_label(ctx, ui_settings, mapping)
 
-    def label_position(self, mapping, font_metrics, padding):
+    def label_position(self, mapping: CoordinateMappingLike, font_metrics: UISettings.FontMetrics, padding: float) -> typing.Optional[Geometry.FloatPoint]:
         p1 = mapping.map_point_image_norm_to_widget(self.start)
         p2 = mapping.map_point_image_norm_to_widget(self.end)
         return Geometry.FloatPoint(y=(p1.y + p2.y) * 0.5, x=(p1.x + p2.x) * 0.5)
 
 
 class PointTypeGraphic(Graphic):
-    def __init__(self, type, title):
+    def __init__(self, type: str, title: typing.Optional[str]) -> None:
         super().__init__(type)
         self.title = title
         # start and end points are stored in image normalized coordinates
-        self.define_property("position", (0.5, 0.5), changed=self._property_changed, validate=lambda value: tuple(value))
+        self.define_property("position", (0.5, 0.5), changed=self._property_changed, validate=lambda value: tuple(value), hidden=True)
 
-    def mime_data_dict(self) -> dict:
+    @property
+    def position(self) -> Geometry.FloatPoint:
+        return Geometry.FloatPoint.make(typing.cast(Geometry.PointFloatTuple, self._get_persistent_property_value("position")))
+
+    @position.setter
+    def position(self, value: Geometry.FloatPointTuple) -> None:
+        self._set_persistent_property_value("position", tuple(value))
+
+    def mime_data_dict(self) -> Persistence.PersistentDictType:
         d = super().mime_data_dict()
         d["position"] = self.position
         return d
 
-    def read_from_mime_data(self, graphic_dict: typing.Mapping) -> None:
+    def read_from_mime_data(self, graphic_dict: Persistence.PersistentDictType) -> None:
         super().read_from_mime_data(graphic_dict)
         self.position = graphic_dict.get("position", self.position)
 
     # test is required for Graphic interface
-    def test(self, mapping, ui_settings: UISettings.UISettings, p, move_only):
-        p = Geometry.FloatPoint.make(p)
+    def test(self, mapping: CoordinateMappingLike, ui_settings: UISettings.UISettings, p: Geometry.FloatPoint, move_only: bool) -> typing.Tuple[typing.Optional[str], bool]:
         # first convert to widget coordinates since test distances
         # are specified in widget coordinates
         cross_hair_size = 12
         pos = mapping.map_point_image_norm_to_widget(self.position)
-        bounds = Geometry.FloatRect.from_center_and_size(pos, Geometry.FloatSize(width=cross_hair_size * 2,
-                                                                               height=cross_hair_size * 2))
+        bounds = Geometry.FloatRect.from_center_and_size(pos, Geometry.FloatSize(width=cross_hair_size * 2, height=cross_hair_size * 2))
         if test_inside_bounds(bounds, p, ui_settings.cursor_tolerance):
             return "all", True
         # check the label
         if self.test_label(ui_settings, mapping, p):
             return "all", False
         # didn't find anything
-        return None, None
+        return None, False
 
-    def begin_drag(self):
+    def begin_drag(self) -> DragPartData:
         return (self.position,)
 
-    def end_drag(self, part_data):
+    def end_drag(self, part_data: DragPartData) -> None:
         pass
 
-    def adjust_part(self, mapping, original, current, part, modifiers):
+    def adjust_part(self, mapping: CoordinateMappingLike, original: Geometry.FloatPoint, current: Geometry.FloatPoint, part: DragPartDataPlus, modifiers: ModifiersLike) -> None:
         if part[0] in ["all", "point"]:
             o = mapping.map_point_widget_to_image_norm(original)
             p = mapping.map_point_widget_to_image_norm(current)
@@ -1442,32 +1613,32 @@ class PointTypeGraphic(Graphic):
             delta_h = p[1] - o[1]
             if modifiers.shift:
                 if abs(delta_v) > abs(delta_h):
-                    pos = part[1][0] + delta_v, part[1][1]
+                    pos = Geometry.FloatPoint(part[1][0] + delta_v, part[1][1])
                 else:
-                    pos = part[1][0], part[1][1] + delta_h
+                    pos = Geometry.FloatPoint(part[1][0], part[1][1] + delta_h)
             else:
-                pos = part[1][0] + delta_v, part[1][1] + delta_h
+                pos = Geometry.FloatPoint(part[1][0] + delta_v, part[1][1] + delta_h)
             constraints = self._constraints
             if "bounds" in constraints:
-                pos = min(max(pos[0], 0.0), 1.0), min(max(pos[1], 0.0), 1.0)
+                pos = Geometry.FloatPoint(min(max(pos[0], 0.0), 1.0), min(max(pos[1], 0.0), 1.0))
             if "position" not in constraints:
                 self.position = pos
 
-    def nudge(self, mapping, delta):
+    def nudge(self, mapping: CoordinateMappingLike, delta: Geometry.FloatSize) -> None:
         pos_image = mapping.map_point_image_norm_to_image(self.position)
         original = pos_image
         current = original + delta
         self.adjust_part(mapping, original, current, ("all",) + self.begin_drag(), NullModifiers())
 
-    def draw(self, ctx, ui_settings: UISettings.UISettings, mapping, is_selected=False):
+    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool = False) -> None:
         raise NotImplementedError()
 
     @property
-    def _position(self):
-        return Geometry.FloatPoint.make(self.position)
+    def _position(self) -> Geometry.FloatPoint:
+        return self.position
 
     @_position.setter
-    def _position(self, value):
+    def _position(self, value: Geometry.FloatPoint) -> None:
         self.position = value
 
 
@@ -1476,7 +1647,7 @@ class PointGraphic(PointTypeGraphic):
         super().__init__("point-graphic", _("Point"))
         self.cross_hair_size = 12
 
-    def draw(self, ctx, ui_settings: UISettings.UISettings, mapping, is_selected=False):
+    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool = False) -> None:
         p = mapping.map_point_image_norm_to_widget(self.position)
         with ctx.saver():
             ctx.begin_path()
@@ -1500,7 +1671,7 @@ class PointGraphic(PointTypeGraphic):
             draw_marker(ctx, p + Geometry.FloatPoint(-cross_hair_size, cross_hair_size))
             draw_marker(ctx, p + Geometry.FloatPoint(-cross_hair_size, -cross_hair_size))
 
-    def label_position(self, mapping, font_metrics, padding):
+    def label_position(self, mapping: CoordinateMappingLike, font_metrics: UISettings.FontMetrics, padding: float) -> typing.Optional[Geometry.FloatPoint]:
         p = Geometry.FloatPoint.make(mapping.map_point_image_norm_to_widget(self.position))
         return p + Geometry.FloatPoint(-self.cross_hair_size - font_metrics.height * 0.5 - padding * 2, 0.0)
 
@@ -1511,31 +1682,39 @@ class IntervalGraphic(Graphic):
         self._default_stroke_color = "#F00"
         self.title = _("Interval")
         # start and end points are stored in channel normalized coordinates
-        def read_interval(persistent_property, properties):
+        def read_interval(persistent_property: Persistence.PersistentProperty, properties: Persistence.PersistentDictType) -> typing.Any:
             # read the interval defined by persistent_property from the properties dict.
             start = properties.get("start", 0.0)
             end = properties.get("end", 1.0)
             return start, end
 
-        def write_interval(persistent_property, properties, value):
+        def write_interval(persistent_property: Persistence.PersistentProperty, properties: Persistence.PersistentDictType, value: typing.Any) -> None:
             # write the interval (value) defined by persistent_property to the properties dict.
             properties["start"] = value[0]
             properties["end"] = value[1]
 
-        def validate_interval(interval) -> typing.Tuple[float, float]:
+        def validate_interval(interval: typing.Any) -> typing.Tuple[float, float]:
             if interval is not None:
                 return float(interval[0]), float(interval[1])
             return (0.0, 1.0)
 
         # interval is stored in image normalized coordinates
-        self.define_property("interval", (0.0, 1.0), changed=self.__interval_changed, reader=read_interval, writer=write_interval, validate=validate_interval)
+        self.define_property("interval", (0.0, 1.0), changed=self.__interval_changed, reader=read_interval, writer=write_interval, validate=validate_interval, hidden=True)
 
-    def mime_data_dict(self) -> dict:
+    @property
+    def interval(self) -> typing.Tuple[float, float]:
+        return typing.cast(typing.Tuple[float, float], self._get_persistent_property_value("interval"))
+
+    @interval.setter
+    def interval(self, value: typing.Tuple[float, float]) -> None:
+        self._set_persistent_property_value("interval", value)
+
+    def mime_data_dict(self) -> Persistence.PersistentDictType:
         d = super().mime_data_dict()
         d["interval"] = self.interval
         return d
 
-    def read_from_mime_data(self, graphic_dict: typing.Mapping) -> None:
+    def read_from_mime_data(self, graphic_dict: Persistence.PersistentDictType) -> None:
         super().read_from_mime_data(graphic_dict)
         self.interval = graphic_dict.get("interval", self.interval)
 
@@ -1546,29 +1725,28 @@ class IntervalGraphic(Graphic):
         self.interval = (start, end)
 
     @property
-    def start(self):
+    def start(self) -> float:
         return self.interval[0]
 
     @start.setter
-    def start(self, value):
+    def start(self, value: float) -> None:
         self.interval = value, self.interval[1]
 
     @property
-    def end(self):
+    def end(self) -> float:
         return self.interval[1]
 
     @end.setter
-    def end(self, value):
+    def end(self, value: float) -> None:
         self.interval = self.interval[0], value
 
-    def __interval_changed(self, name, value):
+    def __interval_changed(self, name: str, value: float) -> None:
         self._property_changed(name, value)
         self.notify_property_changed("start")
         self.notify_property_changed("end")
 
     # test is required for Graphic interface
-    def test(self, mapping, ui_settings: UISettings.UISettings, p, move_only):
-        p = Geometry.FloatPoint.make(p)
+    def test(self, mapping: CoordinateMappingLike, ui_settings: UISettings.UISettings, p: Geometry.FloatPoint, move_only: bool) -> typing.Tuple[typing.Optional[str], bool]:
         # first convert to widget coordinates since test distances
         # are specified in widget coordinates
         p1 = mapping.map_point_channel_norm_to_widget(self.start)
@@ -1586,16 +1764,16 @@ class IntervalGraphic(Graphic):
         if self.test_label(ui_settings, mapping, p):
             return "all", False
         # didn't find anything
-        return None, None
+        return None, False
 
-    def begin_drag(self):
+    def begin_drag(self) -> DragPartData:
         return (self.start, self.end)
 
-    def end_drag(self, part_data):
+    def end_drag(self, part_data: DragPartData) -> None:
         if self.end < self.start:
             self.start, self.end = self.end, self.start
 
-    def adjust_part(self, mapping, original, current, part, modifiers):
+    def adjust_part(self, mapping: CoordinateMappingLike, original: Geometry.FloatPoint, current: Geometry.FloatPoint, part: DragPartDataPlus, modifiers: ModifiersLike) -> None:
         o = mapping.map_point_widget_to_channel_norm(original)
         p = mapping.map_point_widget_to_channel_norm(current)
         constraints = self._constraints
@@ -1606,15 +1784,12 @@ class IntervalGraphic(Graphic):
         elif part[0] == "all" or modifiers.control and "position" not in constraints:
             self.interval = (part[1] + (p - o), part[2] + (p - o))
 
-    def nudge(self, mapping, delta):
+    def nudge(self, mapping: CoordinateMappingLike, delta: Geometry.FloatSize) -> None:
         end_channel = mapping.map_point_channel_norm_to_channel(self.end)
         start_channel = mapping.map_point_channel_norm_to_channel(self.start)
         original = Geometry.FloatPoint(y=0.0, x=(end_channel + start_channel) * 0.5)
         current = original + delta
         self.adjust_part(mapping, original, current, ("all",) + self.begin_drag(), NullModifiers())
-
-    def label_position(self, mapping, font_metrics, padding):
-        return None
 
 
 class ChannelGraphic(Graphic):
@@ -1622,23 +1797,27 @@ class ChannelGraphic(Graphic):
         super().__init__("channel-graphic")
         self.title = _("Channel")
         # channel is stored in image normalized coordinates
-        self.define_property("position", 0.5, changed=self.__channel_changed, validate=lambda value: float(value))
+        self.define_property("position", 0.5, changed=self._property_changed, validate=lambda value: float(value), hidden=True)
 
-    def mime_data_dict(self) -> dict:
+    @property
+    def position(self) -> float:
+        return typing.cast(float, self._get_persistent_property_value("position"))
+
+    @position.setter
+    def position(self, value: float) -> None:
+        self._set_persistent_property_value("position", value)
+
+    def mime_data_dict(self) -> Persistence.PersistentDictType:
         d = super().mime_data_dict()
         d["position"] = self.position
         return d
 
-    def read_from_mime_data(self, graphic_dict: typing.Mapping) -> None:
+    def read_from_mime_data(self, graphic_dict: Persistence.PersistentDictType) -> None:
         super().read_from_mime_data(graphic_dict)
         self.position = graphic_dict.get("position", self.position)
 
-    def __channel_changed(self, name, value):
-        self._property_changed(name, value)
-
     # test is required for Graphic interface
-    def test(self, mapping, ui_settings: UISettings.UISettings, p, move_only):
-        p = Geometry.FloatPoint.make(p)
+    def test(self, mapping: CoordinateMappingLike, ui_settings: UISettings.UISettings, p: Geometry.FloatPoint, move_only: bool) -> typing.Tuple[typing.Optional[str], bool]:
         # first convert to widget coordinates since test distances
         # are specified in widget coordinates
         pos = mapping.map_point_channel_norm_to_widget(self.position)
@@ -1648,45 +1827,58 @@ class ChannelGraphic(Graphic):
         if self.test_label(ui_settings, mapping, p):
             return "all", False
         # didn't find anything
-        return None, None
+        return None, False
 
-    def begin_drag(self):
+    def begin_drag(self) -> DragPartData:
         return (self.position,)
 
-    def end_drag(self, part_data):
+    def end_drag(self, part_data: DragPartData) -> None:
         pass
 
-    def adjust_part(self, mapping, original, current, part, modifiers):
+    def adjust_part(self, mapping: CoordinateMappingLike, original: Geometry.FloatPoint, current: Geometry.FloatPoint, part: DragPartDataPlus, modifiers: ModifiersLike) -> None:
         o = mapping.map_point_widget_to_channel_norm(original)
         p = mapping.map_point_widget_to_channel_norm(current)
         constraints = self._constraints
         if part[0] == "all" and "position" not in constraints:
             self.position = part[1] + (p - o)
 
-    def nudge(self, mapping, delta):
+    def nudge(self, mapping: CoordinateMappingLike, delta: Geometry.FloatSize) -> None:
         position_channel = mapping.map_point_channel_norm_to_channel(self.position)
         original = Geometry.FloatPoint(y=0.0, x=position_channel)
         current = original + delta
         self.adjust_part(mapping, original, current, ("all",) + self.begin_drag(), NullModifiers())
-
-    def label_position(self, mapping, font_metrics, padding):
-        return None
 
 
 class SpotGraphic(Graphic):
     def __init__(self) -> None:
         super().__init__("spot-graphic")
         self.title = _("Spot")
-        self.define_property("bounds", ((0.0, 0.0), (1.0, 1.0)), validate=self.__validate_bounds, changed=self.__bounds_changed)
-        self.define_property("rotation", 0.0, changed=self._property_changed)
+        self.define_property("bounds", ((0.0, 0.0), (1.0, 1.0)), validate=self.__validate_bounds, changed=self.__bounds_changed, hidden=True)
+        self.define_property("rotation", 0.0, changed=self._property_changed, hidden=True)
 
-    def mime_data_dict(self) -> dict:
+    @property
+    def bounds(self) -> Geometry.FloatRect:
+        return Geometry.FloatRect.make(typing.cast(Geometry.RectFloatTuple, self._get_persistent_property_value("bounds")))
+
+    @bounds.setter
+    def bounds(self, value: Geometry.FloatRectTuple) -> None:
+        self._set_persistent_property_value("bounds", tuple(value))
+
+    @property
+    def rotation(self) -> float:
+        return typing.cast(float, self._get_persistent_property_value("rotation"))
+
+    @rotation.setter
+    def rotation(self, value: float) -> None:
+        self._set_persistent_property_value("rotation", value)
+
+    def mime_data_dict(self) -> Persistence.PersistentDictType:
         d = super().mime_data_dict()
         d["bounds"] = self.bounds
         d["rotation"] = self.rotation
         return d
 
-    def read_from_mime_data(self, graphic_dict: typing.Mapping) -> None:
+    def read_from_mime_data(self, graphic_dict: Persistence.PersistentDictType) -> None:
         super().read_from_mime_data(graphic_dict)
         self.bounds = graphic_dict.get("bounds", self.bounds)
         self.rotation = graphic_dict.get("rotation", self.rotation)
@@ -1697,7 +1889,7 @@ class SpotGraphic(Graphic):
 
     # accessors
 
-    def __validate_bounds(self, value):
+    def __validate_bounds(self, value: Geometry.RectFloatTuple) -> Geometry.RectFloatTuple:
         # normalize
         if value[1][0] < 0:  # height is negative
             value = ((value[0][0] + value[1][0], value[0][1]), (-value[1][0], value[1][1]))
@@ -1705,52 +1897,51 @@ class SpotGraphic(Graphic):
             value = ((value[0][0], value[0][1] + value[1][1]), (value[1][0], -value[1][1]))
         return (value[0][0], value[0][1]), (value[1][0], value[1][1])
 
-    def __bounds_changed(self, name, value):
+    def __bounds_changed(self, name: str, value: typing.Any) -> None:
         self._property_changed(name, value)
         self._property_changed("center", self.center)
         self._property_changed("size", self.size)
 
     # dependent property center
     @property
-    def center(self):
-        return self.bounds[0][0] + self.size[0] * 0.5, self.bounds[0][1] + self.size[1] * 0.5
+    def center(self) -> Geometry.FloatPoint:
+        return self.bounds.center
 
     @center.setter
-    def center(self, center):
-        self.bounds = ((center[0] - self.size[0] * 0.5, center[1] - self.size[1] * 0.5), self.size)
+    def center(self, center: Geometry.FloatPointTuple) -> None:
+        center = Geometry.FloatPoint.make(center)
+        self.bounds = Geometry.FloatRect.from_center_and_size(center, self.size)
 
     # dependent property size
     @property
-    def size(self):
-        return self.bounds[1]
+    def size(self) -> Geometry.FloatSize:
+        return self.bounds.size
 
     @size.setter
-    def size(self, size):
+    def size(self, size: Geometry.FloatSizeTuple) -> None:
         # keep center the same
-        old_origin = self.bounds[0]
-        old_size = self.bounds[1]
-        origin = old_origin[0] - (size[0] - old_size[0]) * 0.5, old_origin[1] - (size[1] - old_size[1]) * 0.5
-        self.bounds = (origin, size)
+        old_origin = self.bounds.origin
+        old_size = self.bounds.size
+        self.bounds = Geometry.FloatRect(origin=old_origin - (Geometry.FloatSize.make(size) - old_size) * 0.5, size=size)
 
     @property
-    def _bounds(self):  # useful for testing
+    def _bounds(self) -> Geometry.FloatRect:  # useful for testing
         center = self.center
         size = self.size
-        return Geometry.FloatRect(origin=(center[0] - size[0] * 0.5, center[1] - size[1] * 0.5), size=size)
+        return Geometry.FloatRect(origin=center - size * 0.5, size=size)
 
     @_bounds.setter
-    def _bounds(self, bounds):
-        self.center = bounds[0][0] + bounds[1][0] * 0.5, bounds[0][1] + bounds[1][1] * 0.5
-        self.size = bounds[1]
+    def _bounds(self, bounds: Geometry.FloatRectTuple) -> None:
+        self.bounds = Geometry.FloatRect.make(bounds)
 
-    def get_mask(self, data_shape: typing.Sequence[int, ...], calibrated_origin: Geometry.FloatPoint = None) -> numpy.ndarray:
-        data_shape = Geometry.FloatSize.make(data_shape)
+    def get_mask(self, data_shape_: DataAndMetadata.ShapeType, calibrated_origin: typing.Optional[Geometry.FloatPoint] = None) -> DataAndMetadata._ImageDataType:
+        data_shape = Geometry.IntSize.make((data_shape_[0], data_shape_[1]))
         calibrated_origin = calibrated_origin or Geometry.FloatPoint(y=data_shape[0] * 0.5 + 0.5, x=data_shape[1] * 0.5 + 0.5)
-        data_rect = Geometry.FloatRect(origin=Geometry.FloatPoint(), size=data_shape)
+        data_rect = Geometry.FloatRect(origin=Geometry.FloatPoint(), size=data_shape.to_float_size())
         origin = Geometry.map_point(calibrated_origin, data_rect, Geometry.FloatRect.unit_rect())
         bounds = Geometry.FloatRect.make(self.bounds)
-        mask1 = Core.function_make_elliptical_mask(tuple(data_shape), origin + bounds.center, bounds.size, self.rotation)
-        mask2 = Core.function_make_elliptical_mask(tuple(data_shape), origin - bounds.center, bounds.size, self.rotation)
+        mask1 = Core.function_make_elliptical_mask(tuple(data_shape), (origin + bounds.center).as_tuple(), bounds.size.as_tuple(), self.rotation)
+        mask2 = Core.function_make_elliptical_mask(tuple(data_shape), (origin - bounds.center).as_tuple(), bounds.size.as_tuple(), self.rotation)
         mask1_data = mask1.data
         mask2_data = mask2.data
         assert mask1_data is not None
@@ -1758,14 +1949,13 @@ class SpotGraphic(Graphic):
         return numpy.logical_or(mask1_data, mask2_data)
 
     # test point hit
-    def test(self, mapping, ui_settings: UISettings.UISettings, p, move_only):
-        p = Geometry.FloatPoint.make(p)
+    def test(self, mapping: CoordinateMappingLike, ui_settings: UISettings.UISettings, p: Geometry.FloatPoint, move_only: bool) -> typing.Tuple[typing.Optional[str], bool]:
         # first convert to widget coordinates since test distances
         # are specified in widget coordinates
         rotation = self.rotation
         bounds = Geometry.FloatRect.make(self.bounds)
         origin = mapping.calibrated_origin_widget
-        center = origin + mapping.map_size_image_norm_to_widget(bounds.center)
+        center = origin + mapping.map_size_image_norm_to_widget(bounds.center.as_size())
         size = mapping.map_size_image_norm_to_widget(bounds.size)
 
         part, specific = test_rectangle(p, ui_settings.cursor_tolerance, center, size, rotation)
@@ -1775,7 +1965,7 @@ class SpotGraphic(Graphic):
         rotation = self.rotation
         bounds = Geometry.FloatRect.make(self.bounds)
         origin = mapping.calibrated_origin_widget
-        center = origin - mapping.map_size_image_norm_to_widget(bounds.center)
+        center = origin - mapping.map_size_image_norm_to_widget(bounds.center.as_size())
         size = mapping.map_size_image_norm_to_widget(bounds.size)
 
         part, specific = test_rectangle(p, ui_settings.cursor_tolerance, center, size, rotation)
@@ -1799,16 +1989,16 @@ class SpotGraphic(Graphic):
             return "all", True
 
         # didn't find anything
-        return None, None
+        return None, False
 
-    def begin_drag(self):
+    def begin_drag(self) -> DragPartData:
         return (self.bounds, self.rotation)
 
-    def end_drag(self, part_data):
+    def end_drag(self, part_data: DragPartData) -> None:
         pass
 
     # rectangle
-    def adjust_part(self, mapping, original, current, part, modifiers):
+    def adjust_part(self, mapping: CoordinateMappingLike, original: Geometry.FloatPoint, current: Geometry.FloatPoint, part: DragPartDataPlus, modifiers: ModifiersLike) -> None:
         constraints = self._constraints
         part_name = part[0]
         original_bounds = Geometry.FloatRect.make(part[1])
@@ -1817,7 +2007,7 @@ class SpotGraphic(Graphic):
         inverted = part_name.startswith("inverted")
         if part_name not in ("all", "inverted-all"):
             constraints = constraints.union({"position"})
-        origin_widget = Geometry.IntPoint.make(mapping.calibrated_origin_widget)
+        origin_widget = mapping.calibrated_origin_widget
         if inverted:
             part_name = part_name[9:]
             original_bounds = origin + original_bounds
@@ -1834,21 +2024,21 @@ class SpotGraphic(Graphic):
         if new_rotation != self.rotation:
             self.rotation = new_rotation
 
-    def nudge(self, mapping, delta):
+    def nudge(self, mapping: CoordinateMappingLike, delta: Geometry.FloatSize) -> None:
         delta = Geometry.FloatSize.make(delta)
         bounds = Geometry.FloatRect.make(self.bounds)
-        original = mapping.calibrated_origin_widget + mapping.map_size_image_norm_to_widget(bounds.center)
+        original = mapping.calibrated_origin_widget + mapping.map_size_image_norm_to_widget(bounds.center.as_size())
         current = original + delta
         self.adjust_part(mapping, original, current, ("all",) + self.begin_drag(), NullModifiers())
 
-    def draw(self, ctx, ui_settings: UISettings.UISettings, mapping, is_selected=False):
+    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool = False) -> None:
         # origin is top left
         stroke_style = self.used_stroke_style
         fill_style = self.used_fill_style
         rotation = self.rotation
         bounds = Geometry.FloatRect.make(self.bounds)
         origin = mapping.calibrated_origin_widget
-        center = origin + mapping.map_size_image_norm_to_widget(bounds.center)
+        center = origin + mapping.map_size_image_norm_to_widget(bounds.center.as_size())
         size = mapping.map_size_image_norm_to_widget(bounds.size)
         draw_ellipse_graphic(ctx, center, size, rotation, is_selected, stroke_style, fill_style)
         with ctx.saver():
@@ -1858,10 +2048,10 @@ class SpotGraphic(Graphic):
             draw_ellipse_graphic(ctx, center, size, rotation, is_selected, stroke_style, fill_style)
         self.draw_label(ctx, ui_settings, mapping)
 
-    def label_position(self, mapping, font_metrics, padding):
+    def label_position(self, mapping: CoordinateMappingLike, font_metrics: UISettings.FontMetrics, padding: float) -> typing.Optional[Geometry.FloatPoint]:
         center_widget = mapping.calibrated_origin_widget
         relative_rect_widget = Geometry.FloatRect.from_center_and_size(
-            mapping.map_size_image_norm_to_widget(self.center), mapping.map_size_image_norm_to_widget(self.size))
+            mapping.map_size_image_norm_to_widget(self.center.as_size()).as_point(), mapping.map_size_image_norm_to_widget(self.size))
         rect_widget = center_widget + relative_rect_widget
         p = Geometry.FloatPoint(rect_widget.top, rect_widget.center.x)
         return p + Geometry.FloatPoint(-font_metrics.height * 0.5 - padding * 2, 0.0)
@@ -1879,14 +2069,22 @@ class WedgeGraphic(Graphic):
 
         self.__first_drag = True
         self.__inverted_drag = False
-        self.define_property("angle_interval", (0.0, math.pi), validate=validate_angles, changed=self._property_changed)
+        self.define_property("angle_interval", (0.0, math.pi), validate=validate_angles, changed=self._property_changed, hidden=True)
 
-    def mime_data_dict(self) -> dict:
+    @property
+    def angle_interval(self) -> typing.Tuple[float, float]:
+        return typing.cast(typing.Tuple[float, float], self._get_persistent_property_value("angle_interval"))
+
+    @angle_interval.setter
+    def angle_interval(self, value: typing.Tuple[float, float]) -> None:
+        self._set_persistent_property_value("angle_interval", value)
+
+    def mime_data_dict(self) -> Persistence.PersistentDictType:
         d = super().mime_data_dict()
         d["angle_interval"] = self.angle_interval
         return d
 
-    def read_from_mime_data(self, graphic_dict: typing.Mapping) -> None:
+    def read_from_mime_data(self, graphic_dict: Persistence.PersistentDictType) -> None:
         super().read_from_mime_data(graphic_dict)
         self.angle_interval = graphic_dict.get("angle_interval", self.angle_interval)
 
@@ -1933,21 +2131,22 @@ class WedgeGraphic(Graphic):
             self.end_angle = value - 2 * math.pi
 
     # test is required for Graphic interface
-    def test(self, mapping, ui_settings: UISettings.UISettings, p, move_only: bool) -> typing.Tuple[str, bool]:
-        p = Geometry.FloatPoint.make(p)
+    def test(self, mapping: CoordinateMappingLike, ui_settings: UISettings.UISettings, p: Geometry.FloatPoint, move_only: bool) -> typing.Tuple[typing.Optional[str], bool]:
         # first convert to widget coordinates since test distances
         # are specified in widget coordinates
         length = 10000  # safe line length
         center = mapping.calibrated_origin_widget
-        start_line_endpoint = (center[0] + length * math.cos(self.__start_angle_internal + math.pi / 2), center[1] + length * math.sin(self.__start_angle_internal + math.pi / 2))
-        end_line_endpoint = (center[0] + length * math.cos(self.__end_angle_internal + math.pi / 2), center[1] + length * math.sin(self.__end_angle_internal + math.pi / 2))
+        start_line_endpoint = Geometry.FloatPoint(center.y + length * math.cos(self.__start_angle_internal + math.pi / 2),
+                                                  center.x + length * math.sin(self.__start_angle_internal + math.pi / 2))
+        end_line_endpoint = Geometry.FloatPoint(center.y + length * math.cos(self.__end_angle_internal + math.pi / 2),
+                                                center.x + length * math.sin(self.__end_angle_internal + math.pi / 2))
         start_angle_inverted = (self.__start_angle_internal + math.pi) % (math.pi * 2)
         end_angle_inverted = (self.__end_angle_internal + math.pi) % (math.pi * 2)
-        start_line_endpoint_inverted = (center[0] + length * math.cos(start_angle_inverted + math.pi / 2),
-                                        center[1] + length * math.sin(start_angle_inverted + math.pi / 2))
-        end_line_endpoint_inverted = (center[0] + length * math.cos(end_angle_inverted + math.pi / 2),
-                                      center[1] + length * math.sin(end_angle_inverted + math.pi / 2))
-        angle_from_origin = math.pi - math.atan2(center[0] - p[0], center[1] - p[1])
+        start_line_endpoint_inverted = Geometry.FloatPoint(center.y + length * math.cos(start_angle_inverted + math.pi / 2),
+                                                           center.x + length * math.sin(start_angle_inverted + math.pi / 2))
+        end_line_endpoint_inverted = Geometry.FloatPoint(center.y + length * math.cos(end_angle_inverted + math.pi / 2),
+                                                         center.x + length * math.sin(end_angle_inverted + math.pi / 2))
+        angle_from_origin = math.pi - math.atan2(center.y - p.y, center.x - p.x)
         if test_line(center, start_line_endpoint, p, ui_settings.cursor_tolerance):
             return "start-angle", True
         if test_line(center, end_line_endpoint, p, ui_settings.cursor_tolerance):
@@ -1962,15 +2161,15 @@ class WedgeGraphic(Graphic):
             return "inverted-all", True
 
         # didn't find anything
-        return None, None
+        return None, False
 
-    def begin_drag(self):
+    def begin_drag(self) -> DragPartData:
         return self.__start_angle_internal, self.__end_angle_internal
 
-    def end_drag(self, part_data):
+    def end_drag(self, part_data: DragPartData) -> None:
         self.__first_drag = False
 
-    def adjust_part(self, mapping, original, current, part, modifiers):
+    def adjust_part(self, mapping: CoordinateMappingLike, original: Geometry.FloatPoint, current: Geometry.FloatPoint, part: DragPartDataPlus, modifiers: ModifiersLike) -> None:
         start_angle_original = part[1]
         end_angle_original = part[2]
         center = mapping.calibrated_origin_widget
@@ -2000,16 +2199,15 @@ class WedgeGraphic(Graphic):
             else:
                 self.__start_angle_internal = self.__end_angle_internal
             self.__inverted_drag = not self.__inverted_drag
-        return None, None
 
-    def get_mask(self, data_shape: typing.Sequence[int, ...], calibrated_origin: Geometry.FloatPoint = None) -> numpy.ndarray:
+    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: typing.Optional[Geometry.FloatPoint] = None) -> DataAndMetadata._ImageDataType:
         # a and b will be the calibrated pixel origin, expressed as pixels from top left
         calibrated_origin = calibrated_origin or Geometry.FloatPoint(y=data_shape[0] * 0.5 + 0.5,
                                                                      x=data_shape[1] * 0.5 + 0.5)
         a, b = calibrated_origin.y, calibrated_origin.x
 
         # x and y will be pixel ramps increasing from top left to bottom right and zero at the origin
-        y, x = numpy.ogrid[-a:data_shape[0] - a, -b:data_shape[1] - b]
+        y, x = numpy.ogrid[-a:data_shape[0] - a, -b:data_shape[1] - b]  # type: ignore
 
         # normalize the angles. the angles are specified as counter-clockwise rotation around the positive x-axis
         s = self.start_angle % math.tau
@@ -2036,9 +2234,9 @@ class WedgeGraphic(Graphic):
                     numpy.where(-y * s_sign <= numpy.tan(-s) * -x * s_sign, 1, 0) &
                     numpy.where(-y * e_sign <= numpy.tan(-e) * -x * e_sign, 0, 1))
 
-    def draw(self, ctx, ui_settings: UISettings.UISettings, mapping, is_selected=False):
+    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool = False) -> None:
         center = mapping.calibrated_origin_widget
-        size = mapping.map_size_image_norm_to_widget((1.0, 1.0))
+        size = mapping.map_size_image_norm_to_widget(Geometry.FloatSize(1.0, 1.0))
         bounds = Geometry.FloatRect(Geometry.FloatPoint(), size) + mapping.map_point_image_norm_to_widget(Geometry.FloatPoint())
         start_angle = self.start_angle % math.tau
         if start_angle < 0:
@@ -2089,7 +2287,7 @@ class WedgeGraphic(Graphic):
             draw_marker(ctx, center)
         self.draw_label(ctx, ui_settings, mapping)
 
-    def label_position(self, mapping, font_metrics, padding):
+    def label_position(self, mapping: CoordinateMappingLike, font_metrics: UISettings.FontMetrics, padding: float) -> typing.Optional[Geometry.FloatPoint]:
         p1 = mapping.calibrated_origin_widget
         return Geometry.FloatPoint(y=p1.y, x=p1.x)
 
@@ -2106,14 +2304,38 @@ class RingGraphic(Graphic):
         self.define_property("radius_2", 0.2, validate=validate_angles, changed=self._property_changed)
         self.define_property("mode", "band-pass", changed=self._property_changed)
 
-    def mime_data_dict(self) -> dict:
+    @property
+    def radius_1(self) -> float:
+        return typing.cast(float, self._get_persistent_property_value("radius_1"))
+
+    @radius_1.setter
+    def radius_1(self, value: float) -> None:
+        self._set_persistent_property_value("radius_1", value)
+
+    @property
+    def radius_2(self) -> float:
+        return typing.cast(float, self._get_persistent_property_value("radius_2"))
+
+    @radius_2.setter
+    def radius_2(self, value: float) -> None:
+        self._set_persistent_property_value("radius_2", value)
+
+    @property
+    def mode(self) -> str:
+        return typing.cast(str, self._get_persistent_property_value("mode"))
+
+    @mode.setter
+    def mode(self, value: str) -> None:
+        self._set_persistent_property_value("mode", value)
+
+    def mime_data_dict(self) -> Persistence.PersistentDictType:
         d = super().mime_data_dict()
         d["radius_1"] = self.radius_1
         d["radius_2"] = self.radius_2
         d["mode"] = self.mode
         return d
 
-    def read_from_mime_data(self, graphic_dict: typing.Mapping) -> None:
+    def read_from_mime_data(self, graphic_dict: Persistence.PersistentDictType) -> None:
         super().read_from_mime_data(graphic_dict)
         self.radius_1 = graphic_dict.get("radius_1", self.radius_1)
         self.radius_2 = graphic_dict.get("radius_2", self.radius_2)
@@ -2124,21 +2346,20 @@ class RingGraphic(Graphic):
         return "fourier_mask"
 
     # test is required for Graphic interface
-    def test(self, mapping, ui_settings: UISettings.UISettings, p, move_only: bool) -> typing.Tuple[str, bool]:
-        p = Geometry.FloatPoint.make(p)
+    def test(self, mapping: CoordinateMappingLike, ui_settings: UISettings.UISettings, p: Geometry.FloatPoint, move_only: bool) -> typing.Tuple[typing.Optional[str], bool]:
         # first convert to widget coordinates since test distances
         # are specified in widget coordinates
         calibrated_origin = mapping.calibrated_origin_image_norm
-        top_marker_outer = mapping.map_point_image_norm_to_widget((calibrated_origin[0], calibrated_origin[1] - self.radius_1))
-        left_marker_outer = mapping.map_point_image_norm_to_widget((calibrated_origin[0] - self.radius_1, calibrated_origin[1]))
-        right_marker_outer = mapping.map_point_image_norm_to_widget((calibrated_origin[0] + self.radius_1, calibrated_origin[1]))
-        bottom_marker_outer = mapping.map_point_image_norm_to_widget((calibrated_origin[0], calibrated_origin[1] + self.radius_1))
-        top_marker_inner = mapping.map_point_image_norm_to_widget((calibrated_origin[0], calibrated_origin[1] - self.radius_2))
-        left_marker_inner = mapping.map_point_image_norm_to_widget((calibrated_origin[0] - self.radius_2, calibrated_origin[1]))
-        right_marker_inner = mapping.map_point_image_norm_to_widget((calibrated_origin[0] + self.radius_2, calibrated_origin[1]))
-        bottom_marker_inner = mapping.map_point_image_norm_to_widget((calibrated_origin[0], calibrated_origin[1] + self.radius_2))
+        top_marker_outer = mapping.map_point_image_norm_to_widget(Geometry.FloatPoint(calibrated_origin.y, calibrated_origin.x - self.radius_1))
+        left_marker_outer = mapping.map_point_image_norm_to_widget(Geometry.FloatPoint(calibrated_origin.y - self.radius_1, calibrated_origin.x))
+        right_marker_outer = mapping.map_point_image_norm_to_widget(Geometry.FloatPoint(calibrated_origin.y + self.radius_1, calibrated_origin.x))
+        bottom_marker_outer = mapping.map_point_image_norm_to_widget(Geometry.FloatPoint(calibrated_origin.y, calibrated_origin.x + self.radius_1))
+        top_marker_inner = mapping.map_point_image_norm_to_widget(Geometry.FloatPoint(calibrated_origin.y, calibrated_origin.x - self.radius_2))
+        left_marker_inner = mapping.map_point_image_norm_to_widget(Geometry.FloatPoint(calibrated_origin.y - self.radius_2, calibrated_origin.x))
+        right_marker_inner = mapping.map_point_image_norm_to_widget(Geometry.FloatPoint(calibrated_origin.y + self.radius_2, calibrated_origin.x))
+        bottom_marker_inner = mapping.map_point_image_norm_to_widget(Geometry.FloatPoint(calibrated_origin.y, calibrated_origin.x + self.radius_2))
         image_norm_test_point = mapping.map_point_widget_to_image_norm(p)
-        test_radius = math.sqrt((image_norm_test_point[0] - calibrated_origin[0]) ** 2 + (image_norm_test_point[1] - calibrated_origin[1]) ** 2)
+        test_radius = abs(image_norm_test_point - calibrated_origin)
         if test_point(top_marker_outer, p, ui_settings.cursor_tolerance):
             return "radius_1", True
         if test_point(bottom_marker_outer, p, ui_settings.cursor_tolerance):
@@ -2169,15 +2390,15 @@ class RingGraphic(Graphic):
                 return "all", True
 
         # didn't find anything
-        return None, None
+        return None, False
 
-    def begin_drag(self):
+    def begin_drag(self) -> DragPartData:
         return self.radius_1, self.radius_2
 
-    def end_drag(self, part_data):
+    def end_drag(self, part_data: DragPartData) -> None:
         pass
 
-    def adjust_part(self, mapping, original, current, part, modifiers):
+    def adjust_part(self, mapping: CoordinateMappingLike, original: Geometry.FloatPoint, current: Geometry.FloatPoint, part: DragPartDataPlus, modifiers: ModifiersLike) -> None:
         calibrated_origin = mapping.calibrated_origin_image_norm
         current_norm = mapping.map_point_widget_to_image_norm(current)
         radius = math.sqrt((current_norm[1] - calibrated_origin[0]) ** 2 + (current_norm[0] - calibrated_origin[1]) ** 2)
@@ -2185,18 +2406,17 @@ class RingGraphic(Graphic):
             self.radius_1 = radius
         if part[0] == "radius_2":
             self.radius_2 = radius
-        return None, None
 
-    def get_mask(self, data_shape: typing.Sequence[int, ...], calibrated_origin: Geometry.FloatPoint = None):
+    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: typing.Optional[Geometry.FloatPoint] = None) -> DataAndMetadata._ImageDataType:
         calibrated_origin = calibrated_origin or Geometry.FloatPoint(y=data_shape[0] * 0.5 + 0.5, x=data_shape[1] * 0.5 + 0.5)
         mask = numpy.zeros(data_shape, dtype=float)
         bounds_int = ((0, 0), (int(data_shape[0]), int(data_shape[1])))
         a, b = calibrated_origin.y, calibrated_origin.x
-        y, x = numpy.ogrid[-a:data_shape[0] - a, -b:data_shape[1] - b]
+        y, x = numpy.ogrid[-a:data_shape[0] - a, -b:data_shape[1] - b]  # type: ignore
         outer_radius = self.radius_1 if self.radius_1 > self.radius_2 else self.radius_2
         inner_radius = self.radius_1 if self.radius_1 < self.radius_2 else self.radius_2
-        outer_eq = x * x + y * y <= (bounds_int[1][0] * outer_radius) ** 2
-        inner_eq = x * x + y * y <= (bounds_int[1][0] * inner_radius) ** 2
+        outer_eq = x * x + y * y <= (bounds_int[1][0] * outer_radius) ** 2  # type: ignore
+        inner_eq = x * x + y * y <= (bounds_int[1][0] * inner_radius) ** 2  # type: ignore
         if self.mode == "band-pass":
             mask[outer_eq] = 1
             mask[inner_eq] = 0
@@ -2209,31 +2429,31 @@ class RingGraphic(Graphic):
             mask = numpy.ones(data_shape)
         return mask
 
-    def draw(self, ctx, ui_settings: UISettings.UISettings, mapping, is_selected=False):
+    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool = False) -> None:
         # origin is top left
         center = mapping.calibrated_origin_widget
-        bounds0 = mapping.map_point_image_norm_to_widget((0.0, 0.0))
-        bounds1 = mapping.map_point_image_norm_to_widget((1.0, 1.0))
-        radius_1_widget = mapping.map_size_image_norm_to_widget((self.radius_1, self.radius_1))
-        radius_2_widget = mapping.map_size_image_norm_to_widget((self.radius_2, self.radius_2))
+        bounds0 = mapping.map_point_image_norm_to_widget(Geometry.FloatPoint(0.0, 0.0))
+        bounds1 = mapping.map_point_image_norm_to_widget(Geometry.FloatPoint(1.0, 1.0))
+        radius_1_widget = mapping.map_size_image_norm_to_widget(Geometry.FloatSize(self.radius_1, self.radius_1))
+        radius_2_widget = mapping.map_size_image_norm_to_widget(Geometry.FloatSize(self.radius_2, self.radius_2))
         with ctx.saver():
             ctx.line_width = 1
             ctx.stroke_style = self.used_stroke_style
             draw_ellipse(ctx, center, Geometry.FloatSize(width=radius_1_widget[1] * 2, height=radius_1_widget[0] * 2), self.used_stroke_style, None)
             if is_selected:
-                draw_marker(ctx, (center[0] + radius_1_widget[0], center[1]))
-                draw_marker(ctx, (center[0] - radius_1_widget[0], center[1]))
-                draw_marker(ctx, (center[0], center[1] + radius_1_widget[1]))
-                draw_marker(ctx, (center[0], center[1] - radius_1_widget[1]))
+                draw_marker(ctx, Geometry.FloatPoint(center.y + radius_1_widget[0], center.x))
+                draw_marker(ctx, Geometry.FloatPoint(center.y - radius_1_widget[0], center.x))
+                draw_marker(ctx, Geometry.FloatPoint(center.y, center.x + radius_1_widget[1]))
+                draw_marker(ctx, Geometry.FloatPoint(center.y, center.x - radius_1_widget[1]))
             if not self.mode == "low-pass" and not self.mode == "high-pass":
                 ctx.line_width = 1
                 ctx.stroke_style = self.used_stroke_style
                 draw_ellipse(ctx, center, Geometry.FloatSize(width=radius_2_widget[1] * 2, height=radius_2_widget[0] * 2), self.used_stroke_style, None)
                 if is_selected:
-                    draw_marker(ctx, (center[0] + radius_2_widget[0], center[1]))
-                    draw_marker(ctx, (center[0] - radius_2_widget[0], center[1]))
-                    draw_marker(ctx, (center[0], center[1] + radius_2_widget[1]))
-                    draw_marker(ctx, (center[0], center[1] - radius_2_widget[1]))
+                    draw_marker(ctx, Geometry.FloatPoint(center.y + radius_2_widget[0], center.x))
+                    draw_marker(ctx, Geometry.FloatPoint(center.y - radius_2_widget[0], center.x))
+                    draw_marker(ctx, Geometry.FloatPoint(center.y, center.x + radius_2_widget[1]))
+                    draw_marker(ctx, Geometry.FloatPoint(center.y, center.x - radius_2_widget[1]))
             # draw 2 thick arcs
             ctx.fill_style = self.used_fill_style
             # ctx.stroke_style = "#0000FF"
@@ -2241,16 +2461,16 @@ class RingGraphic(Graphic):
             if self.mode == "band-pass":
                 ctx.begin_path()
                 for i in numpy.arange(0, 2 * math.pi, 0.1):
-                    x = center[1] + radius_1_widget[1] * math.cos(i)
-                    y = center[0] + radius_1_widget[0] * math.sin(i)
+                    x = center.x + radius_1_widget[1] * math.cos(i)
+                    y = center.y + radius_1_widget[0] * math.sin(i)
                     if i == 0:
                         ctx.move_to(x, y)
                     else:
                         ctx.line_to(x, y)
                 ctx.close_path()
                 for i in numpy.arange(0, 2 * math.pi, 0.1):
-                    x = center[1] + radius_2_widget[1] * math.cos(2 * math.pi - i)
-                    y = center[0] + radius_2_widget[0] * math.sin(2 * math.pi - i)
+                    x = center.x + radius_2_widget[1] * math.cos(2 * math.pi - i)
+                    y = center.y + radius_2_widget[0] * math.sin(2 * math.pi - i)
                     if i == 0:
                         ctx.move_to(x, y)
                     else:
@@ -2260,26 +2480,26 @@ class RingGraphic(Graphic):
             elif self.mode == "low-pass":
                 ctx.begin_path()
                 for i in numpy.arange(0, 2 * math.pi, 0.1):
-                    x = center[1] + radius_1_widget[1] * math.cos(i)
-                    y = center[0] + radius_1_widget[0] * math.sin(i)
+                    x = center.x + radius_1_widget[1] * math.cos(i)
+                    y = center.y + radius_1_widget[0] * math.sin(i)
                     if i == 0:
                         ctx.move_to(x, y)
                     else:
                         ctx.line_to(x, y)
-                ctx.line_to(bounds1[1], center[0])
+                ctx.line_to(bounds1[1], center.y)
                 ctx.line_to(bounds1[1], bounds1[0])
                 ctx.line_to(bounds0[1], bounds1[0])
                 ctx.line_to(bounds0[1], bounds0[0])
                 ctx.line_to(bounds1[1], bounds0[0])
-                ctx.line_to(bounds1[1], center[0])
-                ctx.line_to(center[1] + radius_1_widget[1] * math.cos(6.2), center[0] + radius_1_widget[0] * math.sin(6.2))
+                ctx.line_to(bounds1[1], center.y)
+                ctx.line_to(center.x + radius_1_widget[1] * math.cos(6.2), center.y + radius_1_widget[0] * math.sin(6.2))
                 ctx.close_path()
                 ctx.fill()
             elif self.mode == "high-pass":
                 ctx.begin_path()
                 for i in numpy.arange(0, 2 * math.pi, 0.1):
-                    x = center[1] + radius_1_widget[1] * math.cos(i)
-                    y = center[0] + radius_1_widget[0] * math.sin(i)
+                    x = center.x + radius_1_widget[1] * math.cos(i)
+                    y = center.y + radius_1_widget[0] * math.sin(i)
                     if i == 0:
                         ctx.move_to(x, y)
                     else:
@@ -2288,7 +2508,7 @@ class RingGraphic(Graphic):
                 ctx.fill()
         self.draw_label(ctx, ui_settings, mapping)
 
-    def label_position(self, mapping, font_metrics, padding):
+    def label_position(self, mapping: CoordinateMappingLike, font_metrics: UISettings.FontMetrics, padding: float) -> typing.Optional[Geometry.FloatPoint]:
         p1 = mapping.calibrated_origin_widget
         return Geometry.FloatPoint(y=p1.y, x=p1.x)
 
@@ -2297,18 +2517,42 @@ class LatticeGraphic(Graphic):
     def __init__(self) -> None:
         super().__init__("lattice-graphic")
         self.title = _("Lattice")
-        self.define_property("u_pos", (0.0, 0.25), validate=lambda value: tuple(value), changed=self._property_changed)
-        self.define_property("v_pos", (-0.25, 0.0), validate=lambda value: tuple(value), changed=self._property_changed)
-        self.define_property("radius", 0.1, changed=self._property_changed)
+        self.define_property("u_pos", (0.0, 0.25), validate=lambda value: tuple(value), changed=self._property_changed, hidden=True)
+        self.define_property("v_pos", (-0.25, 0.0), validate=lambda value: tuple(value), changed=self._property_changed, hidden=True)
+        self.define_property("radius", 0.1, changed=self._property_changed, hidden=True)
 
-    def mime_data_dict(self) -> dict:
+    @property
+    def u_pos(self) -> Geometry.FloatSize:
+        return Geometry.FloatSize.make(typing.cast(Geometry.SizeFloatTuple, self._get_persistent_property_value("u_pos")))
+
+    @u_pos.setter
+    def u_pos(self, value: Geometry.FloatSizeTuple) -> None:
+        self._set_persistent_property_value("u_pos", tuple(value))
+
+    @property
+    def v_pos(self) -> Geometry.FloatSize:
+        return Geometry.FloatSize.make(typing.cast(Geometry.SizeFloatTuple, self._get_persistent_property_value("v_pos")))
+
+    @v_pos.setter
+    def v_pos(self, value: Geometry.FloatPointTuple) -> None:
+        self._set_persistent_property_value("v_pos", tuple(value))
+
+    @property
+    def radius(self) -> float:
+        return typing.cast(float, self._get_persistent_property_value("radius"))
+
+    @radius.setter
+    def radius(self, value: float) -> None:
+        self._set_persistent_property_value("radius", value)
+
+    def mime_data_dict(self) -> Persistence.PersistentDictType:
         d = super().mime_data_dict()
         d["u_pos"] = self.u_pos
         d["v_pos"] = self.v_pos
         d["radius"] = self.radius
         return d
 
-    def read_from_mime_data(self, graphic_dict: typing.Mapping) -> None:
+    def read_from_mime_data(self, graphic_dict: Persistence.PersistentDictType) -> None:
         super().read_from_mime_data(graphic_dict)
         self.u_pos = graphic_dict.get("u_pos", self.u_pos)
         self.v_pos = graphic_dict.get("v_pos", self.v_pos)
@@ -2319,13 +2563,12 @@ class LatticeGraphic(Graphic):
         return "fourier_mask"
 
     # test is required for Graphic interface
-    def test(self, mapping, ui_settings: UISettings.UISettings, p, move_only: bool) -> typing.Tuple[str, bool]:
-        p = Geometry.FloatPoint.make(p)
+    def test(self, mapping: CoordinateMappingLike, ui_settings: UISettings.UISettings, p: Geometry.FloatPoint, move_only: bool) -> typing.Tuple[typing.Optional[str], bool]:
         # first convert to widget coordinates since test distances
         # are specified in widget coordinates
         start = mapping.calibrated_origin_widget
-        u_end = start + mapping.map_size_image_norm_to_widget(Geometry.FloatSize.make(self.u_pos))
-        v_end = start + mapping.map_size_image_norm_to_widget(Geometry.FloatSize.make(self.v_pos))
+        u_end = start + mapping.map_size_image_norm_to_widget(self.u_pos)
+        v_end = start + mapping.map_size_image_norm_to_widget(self.v_pos)
         # print(f"test {u_end} {v_end} {p}")
 
         radius = self.radius
@@ -2400,15 +2643,15 @@ class LatticeGraphic(Graphic):
             return "all", False
 
         # didn't find anything
-        return None, None
+        return None, False
 
-    def begin_drag(self):
+    def begin_drag(self) -> DragPartData:
         return self.u_pos, self.v_pos, self.radius
 
-    def end_drag(self, part_data):
+    def end_drag(self, part_data: DragPartData) -> None:
         self.__first_drag = False
 
-    def adjust_part(self, mapping, original, current, part, modifiers):
+    def adjust_part(self, mapping: CoordinateMappingLike, original: Geometry.FloatPoint, current: Geometry.FloatPoint, part: DragPartDataPlus, modifiers: ModifiersLike) -> None:
         p_image = mapping.map_point_widget_to_image(current)
         p_norm = Geometry.FloatPoint.make(mapping.map_point_widget_to_image_norm(current))
         o_norm = Geometry.FloatPoint.make(mapping.map_point_widget_to_image_norm(original))
@@ -2422,57 +2665,57 @@ class LatticeGraphic(Graphic):
         size = Geometry.FloatSize(width=radius * 2, height=radius * 2)
 
         if part[0] == "u-all" and not "shape" in constraints:
-            dy = p_image[0] - start_image[0]
+            dy = p_image.y - start_image.y
             dx = p_image[1] - start_image[1]
             if modifiers.shift:
                 angle_degrees = math.degrees(math.atan2(abs(dy), abs(dx)))
                 if angle_degrees > 60:
-                    p_image = (p_image[0], start_image[1])
+                    p_image = Geometry.FloatPoint(p_image.y, start_image.x)
                 elif angle_degrees > 30:
                     if angle_degrees > 45:
                         if dx * dy > 0:
-                            p_image = (p_image[0], start_image[1] + dy)
+                            p_image = Geometry.FloatPoint(p_image.y, start_image.x + dy)
                         else:
-                            p_image = (p_image[0], start_image[1] - dy)
+                            p_image = Geometry.FloatPoint(p_image.y, start_image.x - dy)
                     else:
                         if dx * dy > 0:
-                            p_image = (start_image[0] + dx, p_image[1])
+                            p_image = Geometry.FloatPoint(start_image.y + dx, p_image.x)
                         else:
-                            p_image = (start_image[0] - dx, p_image[1])
+                            p_image = Geometry.FloatPoint(start_image.y - dx, p_image.x)
                 else:
-                    p_image = (start_image[0], p_image[1])
+                    p_image = Geometry.FloatPoint(start_image.y, p_image.x)
                 u_pos = mapping.map_point_image_to_image_norm(p_image)
             else:
                 u_pos = Geometry.FloatPoint.make(part[1]) + delta
             if "bounds" in constraints:
-                u_pos = min(max(u_pos[0], 0.0), 1.0), min(max(u_pos[1], 0.0), 1.0)
-            self.u_pos = u_pos
+                u_pos = Geometry.FloatPoint(min(max(u_pos.y, 0.0), 1.0), min(max(u_pos.x, 0.0), 1.0))
+            self.u_pos = u_pos.as_size()
         elif part[0] == "v-all" and not "shape" in constraints:
-            dy = p_image[0] - start_image[0]
-            dx = p_image[1] - start_image[1]
+            dy = p_image.y - start_image.y
+            dx = p_image.x - start_image.x
             if modifiers.shift:
                 angle_degrees = math.degrees(math.atan2(abs(dy), abs(dx)))
                 if angle_degrees > 60:
-                    p_image = (p_image[0], start_image[1])
+                    p_image = Geometry.FloatPoint(p_image.y, start_image.x)
                 elif angle_degrees > 30:
                     if angle_degrees > 45:
                         if dx * dy > 0:
-                            p_image = (p_image[0], start_image[1] + dy)
+                            p_image = Geometry.FloatPoint(p_image.y, start_image.x + dy)
                         else:
-                            p_image = (p_image[0], start_image[1] - dy)
+                            p_image = Geometry.FloatPoint(p_image.y, start_image.x - dy)
                     else:
                         if dx * dy > 0:
-                            p_image = (start_image[0] + dx, p_image[1])
+                            p_image = Geometry.FloatPoint(start_image.y + dx, p_image.x)
                         else:
-                            p_image = (start_image[0] - dx, p_image[1])
+                            p_image = Geometry.FloatPoint(start_image.y - dx, p_image.x)
                 else:
-                    p_image = (start_image[0], p_image[1])
+                    p_image = Geometry.FloatPoint(start_image.y, p_image.x)
                 v_pos = mapping.map_point_image_to_image_norm(p_image)
             else:
                 v_pos = Geometry.FloatPoint.make(part[2]) + delta
             if "bounds" in constraints:
-                v_pos = min(max(v_pos[0], 0.0), 1.0), min(max(v_pos[1], 0.0), 1.0)
-            self.v_pos = v_pos
+                v_pos = Geometry.FloatPoint(min(max(v_pos.y, 0.0), 1.0), min(max(v_pos.x, 0.0), 1.0))
+            self.v_pos = v_pos.as_size()
         elif part[0].startswith("u-") and not "shape" in constraints:
             part_constraints = constraints.union({"position", "square"})
             u_bounds = Geometry.FloatRect.from_center_and_size(part[1], size)
@@ -2490,15 +2733,13 @@ class LatticeGraphic(Graphic):
             part_bounds = Geometry.FloatRect.make(part_bounds)
             self.radius = abs(part_bounds.height / 2)
 
-        return None, None
-
-    def get_mask(self, data_shape: typing.Sequence[int, ...], calibrated_origin: Geometry.FloatPoint = None) -> numpy.ndarray:
+    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: typing.Optional[Geometry.FloatPoint] = None) -> DataAndMetadata._ImageDataType:
         calibrated_origin = calibrated_origin or Geometry.FloatPoint(y=data_shape[0] * 0.5 + 0.5, x=data_shape[1] * 0.5 + 0.5)
         mask = numpy.zeros(data_shape)
 
         start = Geometry.FloatPoint(y=calibrated_origin.y / data_shape[0], x=calibrated_origin.x / data_shape[1])
-        u_pos = Geometry.FloatPoint.make(self.u_pos)
-        v_pos = Geometry.FloatPoint.make(self.v_pos)
+        u_pos = self.u_pos
+        v_pos = self.v_pos
         radius = self.radius
         size = Geometry.FloatSize(width=radius * 2, height=radius * 2)
 
@@ -2526,7 +2767,7 @@ class LatticeGraphic(Graphic):
 
         return mask
 
-    def draw(self, ctx, ui_settings: UISettings.UISettings, mapping, is_selected=False):
+    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool = False) -> None:
         start = mapping.calibrated_origin_image_norm
         u_pos = Geometry.FloatSize.make(self.u_pos)
         v_pos = Geometry.FloatSize.make(self.v_pos)
@@ -2597,13 +2838,13 @@ class LatticeGraphic(Graphic):
             draw_rect_marker(ctx, Geometry.FloatRect.from_center_and_size(v_pos_widget, size_widget))
         self.draw_label(ctx, ui_settings, mapping)
 
-    def label_position(self, mapping, font_metrics, padding):
+    def label_position(self, mapping: CoordinateMappingLike, font_metrics: UISettings.FontMetrics, padding: float) -> typing.Optional[Geometry.FloatPoint]:
         p1 = mapping.calibrated_origin_widget
         return Geometry.FloatPoint(y=p1.y, x=p1.x)
 
 
 def factory(lookup_id: typing.Callable[[str], str]) -> Graphic:
-    build_map = {
+    build_map: typing.Dict[str, typing.Callable[[], Graphic]] = {
         "line-graphic": LineGraphic,
         "line-profile-graphic": LineProfileGraphic,
         "rect-graphic": RectangleGraphic,

@@ -2302,8 +2302,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                         line_region = region
                     else:
                         line_region = Graphics.LineProfileGraphic()
-                        line_region.start = 0.25, 0.25
-                        line_region.end = 0.75, 0.75
+                        line_region.start = Geometry.FloatPoint(0.25, 0.25)
+                        line_region.end = Geometry.FloatPoint(0.75, 0.75)
                         for k, v in region_params.items():
                             setattr(line_region, k, v)
                         if display_item:
@@ -2316,8 +2316,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                         rect_region = region
                     else:
                         rect_region = Graphics.RectangleGraphic()
-                        rect_region.center = 0.5, 0.5
-                        rect_region.size = 0.5, 0.5
+                        rect_region.center = Geometry.FloatPoint(0.5, 0.5)
+                        rect_region.size = Geometry.FloatSize(0.5, 0.5)
                         for k, v in region_params.items():
                             setattr(rect_region, k, v)
                         if display_item:
@@ -2330,8 +2330,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                         ellipse_region = region
                     else:
                         ellipse_region = Graphics.EllipseGraphic()
-                        ellipse_region.center = 0.5, 0.5
-                        ellipse_region.size = 0.5, 0.5
+                        ellipse_region.center = Geometry.FloatPoint(0.5, 0.5)
+                        ellipse_region.size = Geometry.FloatSize(0.5, 0.5)
                         for k, v in region_params.items():
                             setattr(ellipse_region, k, v)
                         if display_item:
@@ -2696,8 +2696,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         if data_item and display_item and not crop_region:
             if data_item.is_data_2d:
                 rect_region = Graphics.RectangleGraphic()
-                rect_region.center = 0.5, 0.5
-                rect_region.size = 0.5, 0.5
+                rect_region.center = Geometry.FloatPoint(0.5, 0.5)
+                rect_region.size = Geometry.FloatSize(0.5, 0.5)
                 display_item.add_graphic(rect_region)
                 new_crop_region = rect_region
             elif data_item.is_data_1d:
