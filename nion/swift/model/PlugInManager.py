@@ -11,6 +11,7 @@ import pkgutil
 import re
 import sys
 import traceback
+import typing
 import unittest
 
 from nion.swift.model import Utility
@@ -27,7 +28,7 @@ class RequirementsException(Exception):
         self.reason = reason
 
 
-api_broker_fn = None
+api_broker_fn = typing.cast(typing.Callable[[str, typing.Optional[str]], typing.Any], None)
 
 def register_api_broker_fn(new_api_broker_fn):
     global api_broker_fn

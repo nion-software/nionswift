@@ -276,4 +276,4 @@ Registry.register_component(ProcessingMappedSum(), {"processing-component"})
 Registry.register_component(ProcessingMappedAverage(), {"processing-component"})
 
 
-def init(): pass
+def init() -> None: pass
