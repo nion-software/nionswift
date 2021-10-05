@@ -1603,6 +1603,7 @@ class DocumentController(Window.Window):
         def process() -> DataItem.DataItem:
             assert display_item.data_item
             new_data_item = self.document_model.get_redimension_new(display_item, display_item.data_item, data_descriptor)
+            assert new_data_item
             new_display_item = self.document_model.get_display_item_for_data_item(new_data_item)
             assert new_display_item
             self.show_display_item(new_display_item)
@@ -1620,6 +1621,7 @@ class DocumentController(Window.Window):
         def process() -> DataItem.DataItem:
             assert display_item.data_item
             new_data_item = self.document_model.get_squeeze_new(display_item, display_item.data_item)
+            assert new_data_item
             new_display_item = self.document_model.get_display_item_for_data_item(new_data_item)
             assert new_display_item
             self.show_display_item(new_display_item)

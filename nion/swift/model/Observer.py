@@ -827,7 +827,7 @@ class AbstractItemSequenceReducer(abc.ABC):
 
 class ItemSequenceCollector(AbstractItemSequenceReducer):
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.__items = list()
 
     def close(self) -> None:
@@ -852,7 +852,7 @@ class ItemSequenceCollector(AbstractItemSequenceReducer):
 
 class ItemSequenceLength(AbstractItemSequenceReducer):
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.__items = list()
 
     def close(self) -> None:
@@ -1066,7 +1066,7 @@ class ItemMonitor(AbstractAction):
 class ObserverBuilder:
     """The observer builder base. Constructs an observable. Provides root item."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.__fns = list()
 
     def close(self) -> None:

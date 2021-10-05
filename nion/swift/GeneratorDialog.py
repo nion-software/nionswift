@@ -189,7 +189,9 @@ class GenerateDataDialog(Declarative.WindowHandler):
         document_model = self.__document_controller.document_model
 
         data_item = DataItem.DataItem(large_format=is_large)
-        data_item.title = self.title_model.value
+        title_value = self.title_model.value
+        if title_value:
+            data_item.title = title_value
         document_model.append_data_item(data_item)
 
         data_descriptor = DataAndMetadata.DataDescriptor(is_sequence, collection_rank, datum_rank)

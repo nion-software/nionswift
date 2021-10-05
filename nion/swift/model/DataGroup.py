@@ -96,7 +96,7 @@ class DataGroup(Persistence.PersistentObject):
         self.define_property("title", _("Untitled"), hidden=True, validate=self.__validate_title, changed=self.__property_changed)
         self.define_property("display_item_specifiers", list(), hidden=True, validate=self.__validate_display_item_specifiers, changed=self.__property_changed, key="display_item_references")
         self.define_relationship("data_groups", data_group_factory, insert=self.__insert_data_group, remove=self.__remove_data_group, hidden=True)
-        self.__lookup_display_item: typing.Optional[typing.Callable[[_SpecifierType], DisplayItem.DisplayItem]] = None
+        self.__lookup_display_item: typing.Optional[typing.Callable[[_SpecifierType], typing.Optional[DisplayItem.DisplayItem]]] = None
         self.__display_items: typing.List[DisplayItem.DisplayItem] = list()
         # Python 3.9+: typed counter
         self.__counted_display_items = collections.Counter()  # type: ignore
@@ -151,13 +151,14 @@ class DataGroup(Persistence.PersistentObject):
     def __property_changed(self, name: str, value: typing.Any) -> None:
         self.notify_property_changed(name)
 
-    def connect_display_items(self, lookup_display_item: typing.Callable[[_SpecifierType], DisplayItem.DisplayItem]) -> None:
+    def connect_display_items(self, lookup_display_item: typing.Callable[[_SpecifierType], typing.Optional[DisplayItem.DisplayItem]]) -> None:
         for data_group in self.data_groups:
             data_group.connect_display_items(lookup_display_item)
-        display_items = list()
+        display_items: typing.List[DisplayItem.DisplayItem] = list()
         for display_item_specifier in self.display_item_specifiers:
             display_item = lookup_display_item(display_item_specifier)
-            display_items.append(display_item)
+            if display_item:
+                display_items.append(display_item)
         self.__display_items = display_items
         self.__lookup_display_item = lookup_display_item
 
@@ -287,5 +288,5 @@ def get_display_item_in_container_by_uuid(container: _DataGroupContainer, displa
     return None
 
 
-def data_group_factory(lookup_id: typing.Callable[[str], str]) -> typing.Optional[Persistence.PersistentObject]:
+def data_group_factory(lookup_id: typing.Callable[[str], str]) -> DataGroup:
     return DataGroup()

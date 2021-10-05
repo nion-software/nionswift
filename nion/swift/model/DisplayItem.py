@@ -708,8 +708,8 @@ class DisplayDataChannel(Persistence.PersistentObject):
         self._set_persistent_property_value("data_item_reference", value)
 
     @property
-    def display_item(self) -> typing.Optional[DisplayItem]:
-        return typing.cast(typing.Optional[DisplayItem], self.container)
+    def display_item(self) -> DisplayItem:
+        return typing.cast(DisplayItem, self.container)
 
     def __deepcopy__(self, memo: typing.Dict[typing.Any, typing.Any]) -> DisplayDataChannel:
         display_data_channel = self.__class__()
@@ -1212,7 +1212,7 @@ class DisplayDataChannel(Persistence.PersistentObject):
             self.display_limits = mn, mx
 
 
-def display_data_channel_factory(lookup_id: typing.Callable[[str], str]) -> typing.Optional[Persistence.PersistentObject]:
+def display_data_channel_factory(lookup_id: typing.Callable[[str], str]) -> DisplayDataChannel:
     return DisplayDataChannel()
 
 
@@ -1221,6 +1221,10 @@ class DisplayLayer(Schema.Entity):
         super().__init__(Model.DisplayLayer)
         self.persistent_storage = None
         self.display_data_channel: typing.Optional[DisplayDataChannel] = None
+
+    @property
+    def display_item(self) -> DisplayItem:
+        return typing.cast(DisplayItem, self.container)
 
     def _create(self, context: typing.Optional[Schema.EntityContext]) -> Schema.Entity:
         display_layer = DisplayLayer()
@@ -1282,8 +1286,8 @@ class DisplayLayer(Schema.Entity):
                 persistent_storage.clear_property(typing.cast(Persistence.PersistentObject, self), name)
 
 
-def display_layer_factory(lookup_id: typing.Callable[[str], str]) -> typing.Optional[Persistence.PersistentObject]:
-    return typing.cast(Persistence.PersistentObject, DisplayLayer())
+def display_layer_factory(lookup_id: typing.Callable[[str], str]) -> DisplayLayer:
+    return DisplayLayer()
 
 
 class DisplayItem(Persistence.PersistentObject):
@@ -1301,7 +1305,7 @@ class DisplayItem(Persistence.PersistentObject):
         self.define_property("calibration_style_id", "calibrated", hidden=True, changed=self.__property_changed)
         self.define_property("display_properties", dict(), hidden=True, copy_on_read=True, changed=self.__display_properties_changed)
         self.define_relationship("graphics", Graphics.factory, insert=self.__insert_graphic, remove=self.__remove_graphic, hidden=True)
-        self.define_relationship("display_layers", display_layer_factory, insert=self.__insert_display_layer, remove=self.__remove_display_layer, hidden=True)
+        self.define_relationship("display_layers", typing.cast(Persistence._PersistentObjectFactoryFn, display_layer_factory), insert=self.__insert_display_layer, remove=self.__remove_display_layer, hidden=True)
         self.define_relationship("display_data_channels", display_data_channel_factory, insert=self.__insert_display_data_channel, remove=self.__remove_display_data_channel, hidden=True)
 
         self.__display_data_channel_property_changed_event_listeners: typing.List[Event.EventListener] = list()
@@ -1922,11 +1926,11 @@ class DisplayItem(Persistence.PersistentObject):
         self.__set_cascaded_value("description", str(value) if value is not None else str())
 
     @property
-    def session_id(self) -> str:
+    def session_id(self) -> typing.Optional[str]:
         return self.__get_used_str_value("session_id", str())
 
     @session_id.setter
-    def session_id(self, value: str) -> None:
+    def session_id(self, value: typing.Optional[str]) -> None:
         self.__set_cascaded_value("session_id", str(value) if value is not None else str())
 
     def __insert_display_data_channel(self, name: str, before_index: int, display_data_channel: DisplayDataChannel) -> None:
