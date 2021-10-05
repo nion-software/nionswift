@@ -11,14 +11,12 @@ import typing
 
 # local libraries
 from nion.data import Core
-from nion.swift.model import Changes
 from nion.swift.model import Persistence
 from nion.swift.model import UISettings
-from nion.utils import Event
 from nion.utils import Geometry
-from nion.utils import Observable
 
 if typing.TYPE_CHECKING:
+    from nion.swift.model import DisplayItem
     from nion.swift.model import Project
 
 
@@ -533,7 +531,7 @@ def test_rectangle(p: Geometry.FloatPoint, radius: float, center: Geometry.Float
 
 
 class NullModifiers(object):
-    def __init__(self):
+    def __init__(self) -> None:
         self.shift = False
         self.only_shift = False
         self.control = False
@@ -570,8 +568,12 @@ class Graphic(Persistence.PersistentObject):
         self._default_stroke_color = "#F80"
 
     @property
-    def project(self) -> typing.Optional["Project.Project"]:
-        return typing.cast("Project.Project", self.container.container) if self.container else None
+    def project(self) -> typing.Optional[Project.Project]:
+        return self.display_item.project if self.display_item else None
+
+    @property
+    def display_item(self) -> DisplayItem.DisplayItem:
+        return typing.cast("DisplayItem.DisplayItem", self.container)
 
     def create_proxy(self) -> Persistence.PersistentObjectProxy:
         project = self.project
@@ -920,7 +922,7 @@ class RectangleTypeGraphic(Graphic):
 
 
 class RectangleGraphic(RectangleTypeGraphic):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__("rect-graphic", _("Rectangle"))
 
     # rectangle
@@ -1014,7 +1016,7 @@ class RectangleGraphic(RectangleTypeGraphic):
 
 
 class EllipseGraphic(RectangleTypeGraphic):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__("ellipse-graphic", _("Ellipse"))
 
     def get_mask(self, data_shape: typing.Sequence[int, ...], calibrated_origin: Geometry.FloatPoint = None) -> numpy.ndarray:
@@ -1291,7 +1293,7 @@ class LineTypeGraphic(Graphic):
 
 
 class LineGraphic(LineTypeGraphic):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__("line-graphic", _("Line"))
 
     def draw(self, ctx, ui_settings: UISettings.UISettings, mapping, is_selected=False):
@@ -1320,7 +1322,7 @@ class LineGraphic(LineTypeGraphic):
 
 
 class LineProfileGraphic(LineTypeGraphic):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__("line-profile-graphic", _("Line Profile"))
         self.define_property("width", 1.0, changed=self._property_changed, validate=lambda value: float(value))
         self.define_property("interval_descriptors", list(), changed=self._property_changed)
@@ -1470,7 +1472,7 @@ class PointTypeGraphic(Graphic):
 
 
 class PointGraphic(PointTypeGraphic):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__("point-graphic", _("Point"))
         self.cross_hair_size = 12
 
@@ -1504,7 +1506,7 @@ class PointGraphic(PointTypeGraphic):
 
 
 class IntervalGraphic(Graphic):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__("interval-graphic")
         self._default_stroke_color = "#F00"
         self.title = _("Interval")
@@ -1616,7 +1618,7 @@ class IntervalGraphic(Graphic):
 
 
 class ChannelGraphic(Graphic):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__("channel-graphic")
         self.title = _("Channel")
         # channel is stored in image normalized coordinates
@@ -1672,7 +1674,7 @@ class ChannelGraphic(Graphic):
 
 
 class SpotGraphic(Graphic):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__("spot-graphic")
         self.title = _("Spot")
         self.define_property("bounds", ((0.0, 0.0), (1.0, 1.0)), validate=self.__validate_bounds, changed=self.__bounds_changed)
@@ -1866,7 +1868,7 @@ class SpotGraphic(Graphic):
 
 
 class WedgeGraphic(Graphic):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__("wedge-graphic")
         self.title = _("Wedge")
 
@@ -2093,7 +2095,7 @@ class WedgeGraphic(Graphic):
 
 
 class RingGraphic(Graphic):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__("ring-graphic")
         self.title = _("Annular Ring")
 
@@ -2292,7 +2294,7 @@ class RingGraphic(Graphic):
 
 
 class LatticeGraphic(Graphic):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__("lattice-graphic")
         self.title = _("Lattice")
         self.define_property("u_pos", (0.0, 0.25), validate=lambda value: tuple(value), changed=self._property_changed)
@@ -2600,7 +2602,7 @@ class LatticeGraphic(Graphic):
         return Geometry.FloatPoint(y=p1.y, x=p1.x)
 
 
-def factory(lookup_id):
+def factory(lookup_id: typing.Callable[[str], str]) -> Graphic:
     build_map = {
         "line-graphic": LineGraphic,
         "line-profile-graphic": LineProfileGraphic,

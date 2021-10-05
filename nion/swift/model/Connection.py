@@ -273,7 +273,7 @@ class IntervalListConnection(Connection):
         self.__target_reference.item_specifier = Persistence.PersistentObjectSpecifier.read(d)
 
 
-def connection_factory(lookup_id: typing.Callable[[str], str]) -> typing.Optional[Persistence.PersistentObject]:
+def connection_factory(lookup_id: typing.Callable[[str], str]) -> typing.Optional[Connection]:
     build_map = {
         "property-connection": PropertyConnection,
         "interval-list-connection": IntervalListConnection,

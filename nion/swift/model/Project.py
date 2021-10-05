@@ -43,21 +43,21 @@ class Project(Persistence.PersistentObject):
 
         self.define_type("project")
         self.define_property("title", str(), hidden=True)
-        self.define_relationship("data_items", data_item_factory, insert=self.__data_item_inserted, remove=self.__data_item_removed)
-        self.define_relationship("display_items", display_item_factory, insert=self.__display_item_inserted, remove=self.__display_item_removed)
-        self.define_relationship("computations", computation_factory, insert=self.__computation_inserted, remove=self.__computation_removed)
-        self.define_relationship("data_structures", data_structure_factory, insert=self.__data_structure_inserted, remove=self.__data_structure_removed)
-        self.define_relationship("connections", Connection.connection_factory, insert=self.__connection_inserted, remove=self.__connection_removed)
-        self.define_relationship("data_groups", DataGroup.data_group_factory, insert=self.__data_group_inserted, remove=self.__data_group_removed)
-        self.define_relationship("workspaces", WorkspaceLayout.factory)
+        self.define_relationship("data_items", data_item_factory, insert=self.__data_item_inserted, remove=self.__data_item_removed, hidden=True)
+        self.define_relationship("display_items", display_item_factory, insert=self.__display_item_inserted, remove=self.__display_item_removed, hidden=True)
+        self.define_relationship("computations", computation_factory, insert=self.__computation_inserted, remove=self.__computation_removed, hidden=True)
+        self.define_relationship("data_structures", data_structure_factory, insert=self.__data_structure_inserted, remove=self.__data_structure_removed, hidden=True)
+        self.define_relationship("connections", Connection.connection_factory, insert=self.__connection_inserted, remove=self.__connection_removed, hidden=True)
+        self.define_relationship("data_groups", DataGroup.data_group_factory, insert=self.__data_group_inserted, remove=self.__data_group_removed, hidden=True)
+        self.define_relationship("workspaces", WorkspaceLayout.factory, hidden=True)
         self.define_property("workspace_uuid", converter=Converter.UuidToStringConverter())
         self.define_property("data_item_references", dict(), hidden=True, changed=self.__property_changed)  # map string key to data item, used for data acquisition channels
         self.define_property("mapped_items", list(), changed=self.__property_changed)  # list of item references, used for shortcut variables in scripts
 
-        self.handle_start_read = None
-        self.handle_insert_model_item = None
-        self.handle_remove_model_item = None
-        self.handle_finish_read = None
+        self.handle_start_read: typing.Optional[typing.Callable[[], None]] = None
+        self.handle_insert_model_item: typing.Optional[typing.Callable[[Persistence.PersistentContainerType, str, int, Persistence.PersistentObject], None]] = None
+        self.handle_remove_model_item: typing.Optional[typing.Callable[[Persistence.PersistentContainerType, str, Persistence.PersistentObject, bool], Changes.UndeleteLog]] = None
+        self.handle_finish_read: typing.Optional[typing.Callable[[], None]] = None
 
         self.__has_been_read = False
 
@@ -84,6 +84,34 @@ class Project(Persistence.PersistentObject):
     def title(self, value: str) -> None:
         self._set_persistent_property_value("title", value)
 
+    @property
+    def data_items(self) -> typing.Sequence[DataItem.DataItem]:
+        return typing.cast(typing.Sequence[DataItem.DataItem], self._get_relationship_values("data_items"))
+
+    @property
+    def display_items(self) -> typing.Sequence[DisplayItem.DisplayItem]:
+        return typing.cast(typing.Sequence[DisplayItem.DisplayItem], self._get_relationship_values("display_items"))
+
+    @property
+    def computations(self) -> typing.Sequence[Symbolic.Computation]:
+        return typing.cast(typing.Sequence[Symbolic.Computation], self._get_relationship_values("computations"))
+
+    @property
+    def data_structures(self) -> typing.Sequence[DataStructure.DataStructure]:
+        return typing.cast(typing.Sequence[DataStructure.DataStructure], self._get_relationship_values("data_structures"))
+
+    @property
+    def connections(self) -> typing.Sequence[Connection.Connection]:
+        return typing.cast(typing.Sequence[Connection.Connection], self._get_relationship_values("connections"))
+
+    @property
+    def data_groups(self) -> typing.Sequence[DataGroup.DataGroup]:
+        return typing.cast(typing.Sequence[DataGroup.DataGroup], self._get_relationship_values("data_groups"))
+
+    @property
+    def workspaces(self) -> typing.Sequence[WorkspaceLayout.WorkspaceLayout]:
+        return typing.cast(typing.Sequence[WorkspaceLayout.WorkspaceLayout], self._get_relationship_values("workspaces"))
+
     def open(self) -> None:
         self.__storage_system.reset()  # this makes storage reusable during tests
 
@@ -107,7 +135,7 @@ class Project(Persistence.PersistentObject):
     def remove_model_item(self, container: Persistence.PersistentContainerType, name: str, item: Persistence.PersistentObject, *, safe: bool = False) -> Changes.UndeleteLog:
         # special handling to pass on to the document model
         assert callable(self.handle_remove_model_item)
-        return self.handle_remove_model_item(container, name, item, safe=safe)
+        return self.handle_remove_model_item(container, name, item, safe)
 
     @property
     def storage_system_path(self) -> pathlib.Path:
@@ -359,7 +387,7 @@ class Project(Persistence.PersistentObject):
         self._set_persistent_property_value("data_item_references", {k: v for k, v in data_item_references.items()})
 
     @property
-    def mapped_items(self) -> typing.List[typing.Union[typing.Mapping, str]]:
+    def mapped_items(self) -> typing.List[Persistence._SpecifierType]:
         return list(self._get_persistent_property_value("mapped_items"))
 
     @mapped_items.setter

@@ -733,7 +733,7 @@ class ComputationVariable(Persistence.PersistentObject):
         return self.value_type is not None and self.value_min is not None and self.value_max is not None
 
 
-def variable_factory(lookup_id: typing.Callable[[str], str]) -> typing.Optional[Persistence.PersistentObject]:
+def variable_factory(lookup_id: typing.Callable[[str], str]) -> typing.Optional[ComputationVariable]:
     build_map = {
         "variable": ComputationVariable,
     }
@@ -741,7 +741,7 @@ def variable_factory(lookup_id: typing.Callable[[str], str]) -> typing.Optional[
     return build_map[type]() if type in build_map else None
 
 
-def result_factory(lookup_id: typing.Callable[[str], str]) -> typing.Optional[Persistence.PersistentObject]:
+def result_factory(lookup_id: typing.Callable[[str], str]) -> ComputationOutput:
     return ComputationOutput()
 
 
@@ -1434,7 +1434,7 @@ class Computation(Persistence.PersistentObject):
         return typing.cast(typing.Sequence[ComputationOutput], self._get_relationship_values("results"))
 
     @property
-    def project(self) -> "Project.Project":
+    def project(self) -> Project.Project:
         return typing.cast("Project.Project", self.container)
 
     def create_proxy(self) -> Persistence.PersistentObjectProxy:

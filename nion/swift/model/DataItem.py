@@ -124,7 +124,7 @@ class SessionManager(abc.ABC):
 
     @property
     @abc.abstractmethod
-    def current_session_id(self) -> str:
+    def current_session_id(self) -> typing.Optional[str]:
         pass
 
 
@@ -209,13 +209,13 @@ class DataItem(Persistence.PersistentObject):
         self.define_property("timezone", Utility.get_local_timezone(), hidden=True, changed=self.__timezone_property_changed, recordable=False)
         self.define_property("timezone_offset", Utility.TimezoneMinutesToStringConverter().convert(Utility.local_utcoffset_minutes()), hidden=True, changed=self.__timezone_property_changed, recordable=False)
         self.define_property("metadata", dict(), hidden=True, changed=self.__metadata_property_changed)
-        self.define_property("title", UNTITLED_STR, changed=self.__property_changed)
+        self.define_property("title", UNTITLED_STR, changed=self.__property_changed, hidden=True)
         self.define_property("caption", changed=self.__property_changed)
         self.define_property("description", changed=self.__property_changed)
         self.define_property("source_specifier", changed=self.__source_specifier_changed, key="source_uuid")
         self.define_property("session_id", validate=self.__validate_session_id, changed=self.__property_changed)
         self.define_property("session", dict(), changed=self.__property_changed)
-        self.define_property("category", "persistent", changed=self.__property_changed)
+        self.define_property("category", "persistent", changed=self.__property_changed, hidden=True)
         self.__data_and_metadata: typing.Optional[DataAndMetadata.DataAndMetadata] = None
         self.__data_and_metadata_lock = threading.RLock()
         self.__intensity_calibration: typing.Optional[Calibration.Calibration] = None
@@ -309,6 +309,22 @@ class DataItem(Persistence.PersistentObject):
     @created.setter
     def created(self, value: datetime.datetime) -> None:
         self._set_persistent_property_value("created", value)
+
+    @property
+    def title(self) -> str:
+        return typing.cast(str, self._get_persistent_property_value("title"))
+
+    @title.setter
+    def title(self, value: str) -> None:
+        self._set_persistent_property_value("title", value)
+
+    @property
+    def category(self) -> str:
+        return typing.cast(str, self._get_persistent_property_value("category"))
+
+    @category.setter
+    def category(self, value: str) -> None:
+        self._set_persistent_property_value("category", value)
 
     @property
     def project(self) -> Project.Project:
