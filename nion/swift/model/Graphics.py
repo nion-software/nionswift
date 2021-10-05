@@ -606,7 +606,7 @@ class Graphic(Persistence.PersistentObject):
         self.is_shape_locked = graphic_dict.get("is_shape_locked", self.is_shape_locked)
         self.is_bounds_constrained = graphic_dict.get("is_bounds_constrained", self.is_bounds_constrained)
 
-    def read_properties_from_dict(self, d: typing.Mapping):
+    def read_properties_from_dict(self, d: Persistence.PersistentDictType) -> None:
         d = dict(d)
         stroke_color = d.pop("color", self._default_stroke_color)
         if stroke_color != self._default_stroke_color:
@@ -1083,7 +1083,7 @@ class LineTypeGraphic(Graphic):
         self.start_arrow_enabled = graphic_dict.get("start_arrow_enabled", self.start_arrow_enabled)
         self.end_arrow_enabled = graphic_dict.get("end_arrow_enabled", self.end_arrow_enabled)
 
-    def read_properties_from_dict(self, d: typing.Mapping):
+    def read_properties_from_dict(self, d: Persistence.PersistentDictType) -> None:
         super().read_from_mime_data(d)
         start = d.get("start", self.vector[0])
         end = d.get("end", self.vector[1])
@@ -1537,7 +1537,7 @@ class IntervalGraphic(Graphic):
         super().read_from_mime_data(graphic_dict)
         self.interval = graphic_dict.get("interval", self.interval)
 
-    def read_properties_from_dict(self, d: typing.Mapping):
+    def read_properties_from_dict(self, d: Persistence.PersistentDictType) -> None:
         super().read_from_mime_data(d)
         start = d.get("start", self.interval[0])
         end = d.get("end", self.interval[1])

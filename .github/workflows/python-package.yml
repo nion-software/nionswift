@@ -74,6 +74,7 @@ jobs:
           nion/swift/model/Project.py \
           nion/swift/model/Schema.py \
           nion/swift/model/StorageHandler.py \
+          nion/swift/model/Symbolic.py \
           nion/swift/model/UISettings.py \
           nion/swift/model/Utility.py \
           nion/swift/model/WorkspaceLayout.py

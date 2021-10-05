@@ -330,7 +330,7 @@ class PersistentObjectSpecifier:
         return None
 
     @staticmethod
-    def read(d: _SpecifierType) -> typing.Optional[PersistentObjectSpecifier]:
+    def read(d: typing.Optional[_SpecifierType]) -> typing.Optional[PersistentObjectSpecifier]:
         if isinstance(d, str):
             return PersistentObjectSpecifier(item_uuid=uuid.UUID(d))
         elif isinstance(d, uuid.UUID):

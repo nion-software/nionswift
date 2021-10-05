@@ -11,6 +11,7 @@ import functools
 import gettext
 import threading
 import time
+import types
 import typing
 import uuid
 import weakref
@@ -45,22 +46,29 @@ _ = gettext.gettext
 Processing.init()
 
 
-def save_item_order(items: typing.List[Persistence.PersistentObject]) -> typing.List[typing.Tuple[Project.Project, Persistence.PersistentObject]]:
+def save_item_order(items: typing.List[Persistence.PersistentObject]) -> typing.List[Persistence.PersistentObjectSpecifier]:
     return [item.item_specifier for item in items]
 
 
-def restore_item_order(project: Project.Project, uuid_order: typing.List[typing.Tuple[Project.Project, Persistence.PersistentObject]]) -> typing.List[Persistence.PersistentObject]:
-    items = list()
+def restore_item_order(project: Project.Project, uuid_order: typing.List[Persistence.PersistentObjectSpecifier]) -> typing.List[Persistence.PersistentObject]:
+    items: typing.List[Persistence.PersistentObject] = list()
     for item_specifier in uuid_order:
-        items.append(project.resolve_item_specifier(item_specifier))
+        item = project.resolve_item_specifier(item_specifier)
+        assert item
+        items.append(item)
     return items
 
-def insert_item_order(uuid_order: typing.List[typing.Tuple[Project.Project, Persistence.PersistentObject]], index: int, item: Persistence.PersistentObject) -> None:
+
+def insert_item_order(uuid_order: typing.List[Persistence.PersistentObjectSpecifier], index: int, item: Persistence.PersistentObject) -> None:
     uuid_order.insert(index, item.item_specifier)
 
 
+class Closeable(typing.Protocol):
+    def close(self) -> None: ...
+
+
 class ComputationMerge:
-    def __init__(self, computation: Symbolic.Computation, fn: typing.Optional[typing.Callable[[], None]] = None, closeables: typing.Optional[typing.List] = None):
+    def __init__(self, computation: Symbolic.Computation, fn: typing.Optional[typing.Callable[[], None]] = None, closeables: typing.Optional[typing.List[Closeable]] = None) -> None:
         self.computation = computation
         self.fn = fn
         self.closeables = closeables or list()
@@ -75,7 +83,7 @@ class ComputationMerge:
 
 
 class ComputationQueueItem:
-    def __init__(self, *, computation=None):
+    def __init__(self, *, computation: typing.Optional[Symbolic.Computation] = None) -> None:
         self.computation = computation
         self.valid = True
 
@@ -86,9 +94,9 @@ class ComputationQueueItem:
         pending_data_item_merge: typing.Optional[ComputationMerge] = None
         data_item = None
         computation = self.computation
-        if computation.expression:
-            data_item = computation.get_output("target")
         if computation and computation.needs_update:
+            if computation.expression:
+                data_item = computation.get_output("target")
             try:
                 api = PlugInManager.api_broker_fn("~1.0", None)
                 if not data_item:
@@ -96,9 +104,10 @@ class ComputationQueueItem:
                     compute_obj, error_text = computation.evaluate(api)
                     eval_time = time.perf_counter() - start_time
                     if error_text and computation.error_text != error_text:
-                        def update_error_text():
+                        def update_error_text(computation: Symbolic.Computation) -> None:
                             computation.error_text = error_text
-                        pending_data_item_merge = ComputationMerge(computation, update_error_text)
+
+                        pending_data_item_merge = ComputationMerge(computation, functools.partial(update_error_text, computation))
                         return pending_data_item_merge
                     throttle_time = max(DocumentModel.computation_min_period - (time.perf_counter() - computation.last_evaluate_data_time), 0)
                     time.sleep(max(throttle_time, min(eval_time * DocumentModel.computation_min_factor, 1.0)))
@@ -117,7 +126,7 @@ class ComputationQueueItem:
                     throttle_time = max(DocumentModel.computation_min_period - (time.perf_counter() - computation.last_evaluate_data_time), 0)
                     time.sleep(max(throttle_time, min(eval_time * DocumentModel.computation_min_factor, 1.0)))
                     if self.valid:  # TODO: race condition for 'valid'
-                        def data_item_merge(data_item, data_item_clone, data_item_clone_recorder):
+                        def data_item_merge(computation: Symbolic.Computation, data_item: DataItem.DataItem, data_item_clone: DataItem.DataItem, data_item_clone_recorder: Recorder.Recorder) -> None:
                             # merge the result item clones back into the document. this method is guaranteed to run at
                             # periodic and shouldn't do anything too time consuming.
                             data_item_data_clone_modified = data_item_clone.data_modified or datetime.datetime.min
@@ -127,7 +136,8 @@ class ComputationQueueItem:
                                 data_item_clone_recorder.apply(data_item)
                                 if computation.error_text != error_text:
                                     computation.error_text = error_text
-                        pending_data_item_merge = ComputationMerge(computation, functools.partial(data_item_merge, data_item, data_item_clone, data_item_clone_recorder), [data_item_clone, data_item_clone_recorder])
+
+                        pending_data_item_merge = ComputationMerge(computation, functools.partial(data_item_merge, computation, data_item, data_item_clone, data_item_clone_recorder), [data_item_clone, data_item_clone_recorder])
             except Exception as e:
                 import traceback
                 traceback.print_exc()
@@ -136,53 +146,54 @@ class ComputationQueueItem:
 
 
 class Transaction:
-    def __init__(self, transaction_manager: "TransactionManager", item, items):
+    def __init__(self, transaction_manager: "TransactionManager", item: Persistence.PersistentObject, items: typing.Set[Persistence.PersistentObject]) -> None:
         self.__transaction_manager = transaction_manager
         self.__item = item
         self.__items = items
 
-    def close(self):
+    def close(self) -> None:
         self.__transaction_manager._close_transaction(self)
-        self.__items = None
-        self.__transaction_manager = None
+        self.__items = typing.cast(typing.Any, None)
+        self.__transaction_manager = typing.cast(typing.Any, None)
 
-    def __enter__(self):
+    def __enter__(self) -> Transaction:
         return self
 
-    def __exit__(self, type, value, traceback):
+    def __exit__(self, exception_type: typing.Optional[typing.Type[BaseException]], value: typing.Optional[BaseException], traceback: typing.Optional[types.TracebackType]) -> typing.Optional[bool]:
         self.close()
+        return None
 
     @property
-    def item(self):
+    def item(self) -> Persistence.PersistentObject:
         return self.__item
 
     @property
-    def items(self):
+    def items(self) -> typing.Set[Persistence.PersistentObject]:
         return copy.copy(self.__items)
 
-    def replace_items(self, items):
+    def replace_items(self, items: typing.Set[Persistence.PersistentObject]) -> None:
         self.__items = items
 
 
 class TransactionManager:
-    def __init__(self, document_model: "DocumentModel"):
+    def __init__(self, document_model: "DocumentModel") -> None:
         self.__document_model = document_model
         self.__transactions_lock = threading.RLock()
-        self.__transaction_counts = collections.Counter()
-        self.__transactions = list()
+        self.__transaction_counts = collections.Counter()  # type: ignore  # Python 3.9+
+        self.__transactions: typing.List[Transaction] = list()
 
-    def close(self):
-        self.__document_model = None
-        self.__transaction_counts = None
+    def close(self) -> None:
+        self.__document_model = typing.cast(typing.Any, None)
+        self.__transaction_counts = typing.cast(typing.Any, None)
 
-    def is_in_transaction_state(self, item) -> bool:
+    def is_in_transaction_state(self, item: Persistence.PersistentObject) -> bool:
         return self.__transaction_counts[item] > 0
 
     @property
-    def transaction_count(self):
+    def transaction_count(self) -> int:
         return len(list(self.__transaction_counts.elements()))
 
-    def item_transaction(self, item) -> Transaction:
+    def item_transaction(self, item: Persistence.PersistentObject) -> Transaction:
         """Begin transaction state for item.
 
         A transaction state is exists to prevent writing out to disk, mainly for performance reasons.
@@ -195,13 +206,13 @@ class TransactionManager:
         self.__transactions.append(transaction)
         return transaction
 
-    def _close_transaction(self, transaction):
+    def _close_transaction(self, transaction: Transaction) -> None:
         items = transaction.items
         self.__close_transaction_items(items)
         self.__transactions.remove(transaction)
 
-    def __build_transaction_items(self, item):
-        items = set()
+    def __build_transaction_items(self, item: Persistence.PersistentObject) -> typing.Set[Persistence.PersistentObject]:
+        items: typing.Set[Persistence.PersistentObject] = set()
         self.__get_deep_transaction_item_set(item, items)
         with self.__transactions_lock:
             for item in items:
@@ -212,7 +223,7 @@ class TransactionManager:
                         item._transaction_state_entered()
         return items
 
-    def __close_transaction_items(self, items):
+    def __close_transaction_items(self, items: typing.Set[Persistence.PersistentObject]) -> None:
         with self.__transactions_lock:
             for item in items:
                 self.__transaction_counts.subtract({item})
@@ -220,7 +231,7 @@ class TransactionManager:
                     if callable(getattr(item, "_transaction_state_exited", None)):
                         item._transaction_state_exited()
 
-    def __get_deep_transaction_item_set(self, item, items):
+    def __get_deep_transaction_item_set(self, item: Persistence.PersistentObject, items: typing.Set[Persistence.PersistentObject]) -> None:
         if item and not item in items:
             # first the dependent items, also keep track of which items are added
             old_items = copy.copy(items)
@@ -232,7 +243,7 @@ class TransactionManager:
                 for display_data_channel in item.display_data_channels:
                     self.__get_deep_transaction_item_set(display_data_channel, items)
                 for display_layer in item.display_layers:
-                    self.__get_deep_transaction_item_set(display_layer, items)
+                    self.__get_deep_transaction_item_set(typing.cast(Persistence.PersistentObject, display_layer), items)
                 for graphic in item.graphics:
                     self.__get_deep_transaction_item_set(graphic, items)
             if isinstance(item, DisplayItem.DisplayDataChannel):
@@ -246,34 +257,39 @@ class TransactionManager:
                     self.__get_deep_transaction_item_set(display_item, items)
             if isinstance(item, DataStructure.DataStructure):
                 for referenced_object in item.referenced_objects:
-                    self.__get_deep_transaction_item_set(referenced_object, items)
+                    if referenced_object:
+                        self.__get_deep_transaction_item_set(referenced_object, items)
             if isinstance(item, Connection.Connection):
                 self.__get_deep_transaction_item_set(item._source, items)
                 self.__get_deep_transaction_item_set(item._target, items)
             for connection in self.__document_model.connections:
                 if isinstance(connection, Connection.PropertyConnection) and connection._source in items:
-                    self.__get_deep_transaction_item_set(connection._target, items)
+                    if connection._target:
+                        self.__get_deep_transaction_item_set(connection._target, items)
                 if isinstance(connection, Connection.PropertyConnection) and connection._target in items:
-                    self.__get_deep_transaction_item_set(connection._source, items)
+                    if connection._source:
+                        self.__get_deep_transaction_item_set(connection._source, items)
                 if isinstance(connection, Connection.IntervalListConnection) and connection._source in items:
-                    self.__get_deep_transaction_item_set(connection._target, items)
+                    if connection._target:
+                        self.__get_deep_transaction_item_set(connection._target, items)
             for implicit_dependency in self.__document_model.implicit_dependencies:
                 for implicit_item in implicit_dependency.get_dependents(item):
                     self.__get_deep_transaction_item_set(implicit_item, items)
             for item in items - old_items:
                 if isinstance(item, Graphics.Graphic):
-                    self.__get_deep_transaction_item_set(item.container, items)
+                    if item.container:
+                        self.__get_deep_transaction_item_set(item.container, items)
 
-    def _add_item(self, item):
+    def _add_item(self, item: Persistence.PersistentObject) -> None:
         self._rebuild_transactions()
 
-    def _remove_item(self, item):
+    def _remove_item(self, item: Persistence.PersistentObject) -> None:
         for transaction in copy.copy(self.__transactions):
             if transaction.item == item:
                 self._close_transaction(transaction)
         self._rebuild_transactions()
 
-    def _rebuild_transactions(self):
+    def _rebuild_transactions(self) -> None:
         for transaction in self.__transactions:
             old_items = transaction.items
             new_items = self.__build_transaction_items(transaction.item)

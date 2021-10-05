@@ -1274,12 +1274,15 @@ def create_mask_data(graphics: typing.Sequence[Graphics.Graphic], shape: DataAnd
 
 
 class DataSource:
-    def __init__(self, display_data_channel: DisplayItem.DisplayDataChannel, graphic: Graphics.Graphic, xdata: typing.Optional[DataAndMetadata.DataAndMetadata] = None) -> None:
+    def __init__(self, display_data_channel: DisplayItem.DisplayDataChannel, graphic: typing.Optional[Graphics.Graphic], xdata: typing.Optional[DataAndMetadata.DataAndMetadata] = None) -> None:
         self.__display_data_channel = display_data_channel
         self.__display_item = typing.cast("DisplayItem.DisplayItem", display_data_channel.container) if display_data_channel else None
         self.__data_item = display_data_channel.data_item if display_data_channel else None
         self.__graphic = graphic
         self.__xdata = xdata
+
+    def close(self) -> None:
+        pass
 
     @property
     def display_data_channel(self) -> DisplayItem.DisplayDataChannel:
@@ -1461,7 +1464,7 @@ class DataSource:
 
 
 class MonitoredDataSource(DataSource):
-    def __init__(self, display_data_channel: DisplayItem.DisplayDataChannel, graphic: Graphics.Graphic, changed_event: Event.Event) -> None:
+    def __init__(self, display_data_channel: DisplayItem.DisplayDataChannel, graphic: typing.Optional[Graphics.Graphic], changed_event: Event.Event) -> None:
         super().__init__(display_data_channel, graphic)
         self.__display_item = typing.cast("DisplayItem.DisplayItem", display_data_channel.container)
         self.__graphic = graphic
