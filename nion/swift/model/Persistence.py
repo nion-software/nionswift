@@ -767,7 +767,7 @@ class PersistentObject(Observable.Observable):
                         converter: typing.Optional[_PropertyConverterType] = None,
                         changed: typing.Optional[_PropertyChangedFn] = None, key: typing.Optional[str] = None,
                         reader: typing.Optional[_PropertyReadFn] = None,
-                 writer: typing.Optional[_PropertyWriterFn] = None) -> None:
+                        writer: typing.Optional[_PropertyWriterFn] = None) -> None:
         """ key is what is stored on disk; name is what is used when accessing the property from code. """
         if copy_on_read:
             self.__properties[name] = PersistentPropertySpecial(name, value, make, read_only, hidden, recordable, validate, converter, changed, key, reader, writer)

@@ -2330,7 +2330,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
             for graphic in graphic_drag_items:
                 index = self.__display_item.graphics.index(graphic)
                 part_data = (graphic_drag_part, ) + graphic_part_data[index]
-                graphic.adjust_part(widget_mapping, graphic_drag_start_pos, Geometry.IntPoint.make(pos), part_data, modifiers)
+                graphic.adjust_part(widget_mapping, graphic_drag_start_pos, Geometry.FloatPoint.make(pos), part_data, modifiers)
 
     def nudge_slice(self, delta) -> None:
         display_data_channel = self.__display_item.display_data_channel if self.__display_item else None

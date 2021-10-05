@@ -740,7 +740,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
                     already_selected = graphic_index in selection_indexes
                     move_only = not already_selected or multiple_items_selected
                     try:
-                        part, specific = graphic.test(widget_mapping, self.__ui_settings, start_drag_pos, move_only)
+                        part, specific = graphic.test(widget_mapping, self.__ui_settings, start_drag_pos.to_float_point(), move_only)
                     except Exception as e:
                         import traceback
                         logging.debug("Graphic Test Error: %s", e)
@@ -1051,7 +1051,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
             def get_pointer_tool_shape():
                 for graphic in self.__graphics:
                     if isinstance(graphic, (Graphics.RectangleTypeGraphic, Graphics.SpotGraphic)):
-                        part, specific = graphic.test(self.__get_mouse_mapping(), self.__ui_settings, Geometry.IntPoint(x=x, y=y), False)
+                        part, specific = graphic.test(self.__get_mouse_mapping(), self.__ui_settings, Geometry.FloatPoint(x=x, y=y), False)
                         if part and part.endswith("rotate"):
                             return "cross"
                 return "arrow"
@@ -1087,8 +1087,8 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
                     return True
             widget_mapping = self.__get_mouse_mapping()
             self.delegate.adjust_graphics(widget_mapping, self.__graphic_drag_items, self.__graphic_drag_part,
-                                          self.__graphic_part_data, self.__graphic_drag_start_pos,
-                                          Geometry.FloatPoint(y=y, x=x), modifiers)
+                                          self.__graphic_part_data, self.__graphic_drag_start_pos.to_float_point(),
+                                          Geometry.FloatPoint(y=math.floor(y), x=math.floor(x)), modifiers)
             self.__graphic_drag_changed = True
         elif self.__is_dragging:
             if not self.__undo_command:
