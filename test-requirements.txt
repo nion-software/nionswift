@@ -13,3 +13,4 @@ h5py
 pytz
 tzlocal
 pillow
+zarr

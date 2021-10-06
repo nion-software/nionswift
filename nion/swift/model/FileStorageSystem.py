@@ -15,6 +15,7 @@ import uuid
 
 from nion.swift.model import DataItem
 from nion.swift.model import HDF5Handler
+from nion.swift.model import ZarrHandler
 from nion.swift.model import Migration
 from nion.swift.model import Model
 from nion.swift.model import NDataHandler
@@ -655,7 +656,7 @@ class ProjectStorageSystem(PersistentStorageSystem):
 
 class FileProjectStorageSystem(ProjectStorageSystem):
 
-    _file_handlers = [NDataHandler.NDataHandler, HDF5Handler.HDF5Handler]
+    _file_handlers = [NDataHandler.NDataHandler, HDF5Handler.HDF5Handler, ZarrHandler.ZarrHandler]
 
     def __init__(self, project_path: pathlib.Path, project_data_path: pathlib.Path = None):
         super().__init__()
@@ -717,7 +718,7 @@ class FileProjectStorageSystem(ProjectStorageSystem):
         return self.__find_storage_handlers(self.__project_data_path)
 
     def _is_storage_handler_large_format(self, storage_handler: StorageHandler.StorageHandler) -> bool:
-        return isinstance(storage_handler, HDF5Handler.HDF5Handler)
+        return isinstance(storage_handler, (HDF5Handler.HDF5Handler, ZarrHandler.ZarrHandler))
 
     def _remove_storage_handler(self, storage_handler: StorageHandler.StorageHandler, *, safe: bool = False) -> None:
         assert self.__project_data_path is not None
@@ -752,7 +753,7 @@ class FileProjectStorageSystem(ProjectStorageSystem):
                             os.makedirs(os.path.dirname(new_file_path), exist_ok=True)
                             shutil.move(old_file_path, new_file_path)
                         self._make_storage_handler(data_item, file_handler=None).close()  # what's this line for?
-                        properties["__large_format"] = isinstance(storage_handler, HDF5Handler.HDF5Handler)
+                        properties["__large_format"] = isinstance(storage_handler, (HDF5Handler.HDF5Handler, ZarrHandler.ZarrHandler))
                         return properties
         finally:
             for storage_handler in storage_handlers:
@@ -767,7 +768,14 @@ class FileProjectStorageSystem(ProjectStorageSystem):
                 # we just delete anything in the trash at startup. future version may have an index file for
                 # tracking items in the trash. when items are again retained in the trash, update the disabled
                 # test_delete_and_undelete_from_file_storage_system_restores_data_item_after_reload
-                file_path.unlink()
+                try:
+                    file_path.unlink()
+                except (PermissionError, IsADirectoryError):
+                    try:
+                        shutil.rmtree(file_path)
+                    except:
+                        import traceback
+                        traceback.print_exc()
 
     @property
     def _trash_dir(self) -> pathlib.Path:
@@ -792,7 +800,10 @@ class FileProjectStorageSystem(ProjectStorageSystem):
             with contextlib.closing(self._make_storage_handler(old_data_item, file_handler)) as target_storage_handler:
                 if target_storage_handler and storage_handler.reference != target_storage_handler.reference:
                     os.makedirs(os.path.dirname(target_storage_handler.reference), exist_ok=True)
-                    shutil.copyfile(storage_handler.reference, target_storage_handler.reference)
+                    try:
+                        shutil.copyfile(storage_handler.reference, target_storage_handler.reference)
+                    except (PermissionError, IsADirectoryError):
+                        shutil.copytree(storage_handler.reference, target_storage_handler.reference, dirs_exist_ok=True)
                     target_storage_handler.write_properties(Migration.transform_from_latest(copy.deepcopy(properties)), datetime.datetime.now())
                     logging.getLogger("migration").info(f"Copying data item ({index + 1}/{count}) {data_item_uuid} to new library.")
                     return ReaderInfo(properties, [False], self._is_storage_handler_large_format(target_storage_handler),
