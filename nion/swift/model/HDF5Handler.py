@@ -1,6 +1,7 @@
 """
     A module for handle .h5 files for Swift.
 """
+from __future__ import annotations
 
 import datetime
 import io
@@ -12,13 +13,21 @@ import typing
 
 import h5py
 import numpy
+import numpy.typing
 
 from nion.swift.model import StorageHandler
 from nion.swift.model import Utility
 from nion.utils import Geometry
 
+if typing.TYPE_CHECKING:
+    from nion.data import DataAndMetadata
 
-def make_directory_if_needed(directory_path):
+
+PersistentDictType = typing.Dict[str, typing.Any]
+_ImageDataType = typing.Any  # TODO: numpy 1.21+
+
+
+def make_directory_if_needed(directory_path: str) -> None:
     """
         Make the directory path, if needed.
     """
@@ -29,7 +38,7 @@ def make_directory_if_needed(directory_path):
         os.makedirs(directory_path)
 
 
-def get_write_chunk_shape_for_data(data_shape, data_dtype):
+def get_write_chunk_shape_for_data(data_shape: DataAndMetadata.ShapeType, data_dtype: numpy.typing.DTypeLike) -> typing.Optional[DataAndMetadata.ShapeType]:
     """
     Calculate an appropriate write chunk shape for a given data shape and dtype.
 
@@ -53,13 +62,13 @@ def get_write_chunk_shape_for_data(data_shape, data_dtype):
     if chunk_size == 0: # This means one of the input dimensions was "0", so chunking cannot be used
         return None
 
-    chunk_size /= data_shape[counter]
+    chunk_size //= data_shape[counter]
     remaining_elements = min(max(target_chunk_size // chunk_size, 1), data_shape[counter])
     chunk_shape[counter] = int(remaining_elements)
 
     n_chunks = 1
     for i in range(len(chunk_shape)):
-        n_chunks *= data_shape[i] / chunk_shape[i]
+        n_chunks *= data_shape[i] // chunk_shape[i]
     if n_chunks < 100:
         return None
 
@@ -70,15 +79,15 @@ def get_write_chunk_shape_for_data(data_shape, data_dtype):
 class HDF5Handler(StorageHandler.StorageHandler):
     count = 0  # useful for detecting leaks in tests
 
-    def __init__(self, file_path):
+    def __init__(self, file_path: typing.Union[str, pathlib.Path]) -> None:
         self.__file_path = str(file_path)
         self.__lock = threading.RLock()
-        self.__fp = None
-        self.__dataset = None
+        self.__fp: typing.Any = None
+        self.__dataset: typing.Any = None
         self._write_count = 0
         HDF5Handler.count += 1
 
-    def close(self):
+    def close(self) -> None:
         HDF5Handler.count -= 1
         if self.__fp:
             self.__dataset = None
@@ -93,21 +102,21 @@ class HDF5Handler(StorageHandler.StorageHandler):
             self.__fp = None
 
     @property
-    def reference(self):
+    def reference(self) -> str:
         return self.__file_path
 
     @property
-    def is_valid(self):
+    def is_valid(self) -> bool:
         return True
 
     @classmethod
-    def is_matching(self, file_path):
+    def is_matching(self, file_path: str) -> bool:
         if file_path.endswith(".h5") and os.path.exists(file_path):
             return True
         return False
 
     @classmethod
-    def make(cls, file_path: pathlib.Path):
+    def make(cls, file_path: pathlib.Path) -> StorageHandler.StorageHandler:
         return cls(cls.make_path(file_path))
 
     @classmethod
@@ -118,17 +127,17 @@ class HDF5Handler(StorageHandler.StorageHandler):
     def get_extension(self) -> str:
         return ".h5"
 
-    def __ensure_open(self):
+    def __ensure_open(self) -> None:
         if not self.__fp:
             make_directory_if_needed(os.path.dirname(self.__file_path))
             self.__fp = h5py.File(self.__file_path, "a")
 
-    def __write_properties_to_dataset(self, properties):
+    def __write_properties_to_dataset(self, properties: PersistentDictType) -> None:
         with self.__lock:
             assert self.__dataset is not None
 
             class JSONEncoder(json.JSONEncoder):
-                def default(self, obj):
+                def default(self, obj: typing.Any) -> typing.Any:
                     if isinstance(obj, Geometry.IntPoint) or isinstance(obj, Geometry.IntSize) or isinstance(obj, Geometry.IntRect) or isinstance(obj, Geometry.FloatPoint) or isinstance(obj, Geometry.FloatSize) or isinstance(obj, Geometry.FloatRect):
                         return tuple(obj)
                     else:
@@ -140,7 +149,7 @@ class HDF5Handler(StorageHandler.StorageHandler):
 
             self.__dataset.attrs["properties"] = json_str
 
-    def __ensure_dataset(self):
+    def __ensure_dataset(self) -> None:
         with self.__lock:
             self.__ensure_open()
             if self.__dataset is None:
@@ -149,7 +158,7 @@ class HDF5Handler(StorageHandler.StorageHandler):
                 else:
                     self.__dataset = self.__fp.create_dataset("data", data=numpy.empty((0,)))
 
-    def write_data(self, data: numpy.ndarray, file_datetime: datetime.datetime) -> None:
+    def write_data(self, data: _ImageDataType, file_datetime: datetime.datetime) -> None:
         with self.__lock:
             assert data is not None
             self.__ensure_open()
@@ -181,7 +190,7 @@ class HDF5Handler(StorageHandler.StorageHandler):
                 self.__dataset.attrs["properties"] = json_properties
             self.__fp.flush()
 
-    def reserve_data(self, data_shape: typing.Tuple[int, ...], data_dtype: numpy.dtype, file_datetime) -> None:
+    def reserve_data(self, data_shape: DataAndMetadata.ShapeType, data_dtype: numpy.typing.DTypeLike, file_datetime: datetime.datetime) -> None:
         # reserve data of the given shape and dtype, filled with zeros
         with self.__lock:
             self.__ensure_open()
@@ -203,26 +212,26 @@ class HDF5Handler(StorageHandler.StorageHandler):
                 self.__dataset.attrs["properties"] = json_properties
             self.__fp.flush()
 
-    def __copy_data(self, data):
+    def __copy_data(self, data: _ImageDataType) -> None:
         if id(data) != id(self.__dataset):
             self.__dataset[:] = data
             self._write_count += 1
 
-    def write_properties(self, properties, file_datetime):
+    def write_properties(self, properties: PersistentDictType, file_datetime: datetime.datetime) -> None:
         with self.__lock:
             self.__ensure_open()
             self.__ensure_dataset()
             self.__write_properties_to_dataset(properties)
             self.__fp.flush()
 
-    def read_properties(self):
+    def read_properties(self) -> PersistentDictType:
         with self.__lock:
             self.__ensure_open()
             self.__ensure_dataset()
             json_properties = self.__dataset.attrs.get("properties", "")
-            return json.loads(json_properties)
+            return typing.cast(PersistentDictType, json.loads(json_properties))
 
-    def read_data(self):
+    def read_data(self) -> typing.Optional[_ImageDataType]:
         with self.__lock:
             self.__ensure_open()
             self.__ensure_dataset()
@@ -230,7 +239,7 @@ class HDF5Handler(StorageHandler.StorageHandler):
                 return None
             return self.__dataset
 
-    def remove(self):
+    def remove(self) -> None:
         if self.__fp:
             self.__dataset = None
             self.__fp.close()
