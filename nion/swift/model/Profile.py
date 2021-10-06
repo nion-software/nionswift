@@ -8,6 +8,7 @@ import json
 import logging
 import os
 import pathlib
+import types
 import typing
 import uuid
 
@@ -23,29 +24,41 @@ from nion.swift.model import Project
 from nion.swift.model import Schema
 from nion.utils import Converter
 
-
 _ = gettext.gettext
-
 
 ProfileContext = typing.TypeVar("ProfileContext")
 
 
 class ProjectReference(Persistence.PersistentObject):
 
-    def __init__(self, type: str):
+    def __init__(self, type: str) -> None:
         super().__init__()
         self.define_type(type)
-        self.define_property("project_uuid", converter=Converter.UuidToStringConverter())
-        self.define_property("last_used", None, converter=Converter.DatetimeToStringConverter())
+        self.define_property("project_uuid", converter=Converter.UuidToStringConverter(), hidden=True)
+        self.define_property("last_used", None, converter=Converter.DatetimeToStringConverter(), hidden=True)
         self.__has_project_info_been_read = False
         self.__project_version: typing.Optional[int] = None
         self.__project_state = "invalid"
         self.__document_model: typing.Optional[DocumentModel.DocumentModel] = None
-        self.storage_cache = None
-        self.project_uuid: typing.Optional[uuid.UUID] = None  # satisfy type checker
-        self.last_used: typing.Optional[datetime.datetime] = None  # satisfy type checker
+        self.storage_cache: typing.Optional[Cache.CacheLike] = None
 
-    def about_to_be_removed(self, container):
+    @property
+    def project_uuid(self) -> typing.Optional[uuid.UUID]:
+        return typing.cast(typing.Optional[uuid.UUID], self._get_persistent_property_value("project_uuid"))
+
+    @project_uuid.setter
+    def project_uuid(self, value: typing.Optional[uuid.UUID]) -> None:
+        self._set_persistent_property_value("project_uuid", value)
+
+    @property
+    def last_used(self) -> typing.Optional[datetime.datetime]:
+        return typing.cast(typing.Optional[datetime.datetime], self._get_persistent_property_value("last_used"))
+
+    @last_used.setter
+    def last_used(self, value: typing.Optional[datetime.datetime]) -> None:
+        self._set_persistent_property_value("last_used", value)
+
+    def about_to_be_removed(self, container: Persistence.PersistentObject) -> None:
         self.unload_project()
         super().about_to_be_removed(container)
 
@@ -65,7 +78,7 @@ class ProjectReference(Persistence.PersistentObject):
         # fallback when last_used is not initialized
         return self.modified
 
-    def __property_changed(self, name, value):
+    def __property_changed(self, name: str, value: typing.Any) -> None:
         self.notify_property_changed(name)
 
     @property
@@ -101,7 +114,7 @@ class ProjectReference(Persistence.PersistentObject):
         return pathlib.Path()
 
     @property
-    def project_reference_parts(self) -> typing.Tuple[str]:
+    def project_reference_parts(self) -> typing.Sequence[str]:
         raise NotImplementedError()
 
     def make_storage(self, profile_context: typing.Optional[ProfileContext]) -> typing.Optional[FileStorageSystem.ProjectStorageSystem]:
@@ -186,21 +199,37 @@ class ProjectReference(Persistence.PersistentObject):
 class IndexProjectReference(ProjectReference):
     type = "project_index"
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(self.__class__.type)
-        self.define_property("project_path", converter=Converter.PathToStringConverter())
+        self.define_property("project_path", converter=Converter.PathToStringConverter(), hidden=True)
 
     @property
-    def project_reference_parts(self) -> typing.Tuple[str]:
-        return self.project_path.parts if self.project_path else tuple()
+    def project_path(self) -> typing.Optional[pathlib.Path]:
+        return typing.cast(typing.Optional[pathlib.Path], self._get_persistent_property_value("project_path"))
+
+    @project_path.setter
+    def project_path(self, value: typing.Optional[pathlib.Path]) -> None:
+        self._set_persistent_property_value("project_path", value)
+
+    @property
+    def project_reference_parts(self) -> typing.Sequence[str]:
+        project_path = self.project_path
+        return project_path.parts if project_path else tuple()
 
     def make_storage(self, profile_context: typing.Optional[ProfileContext]) -> typing.Optional[FileStorageSystem.ProjectStorageSystem]:
-        return FileStorageSystem.make_index_project_storage_system(self.project_path)
+        project_path = self.project_path
+        if project_path:
+            return FileStorageSystem.make_index_project_storage_system(project_path)
+        return None
 
     def _get_last_used(self) -> datetime.datetime:
         # fallback when last_used is not initialized
         try:
-            return datetime.datetime.fromtimestamp(os.path.getmtime(self.project_path))
+            project_path = self.project_path
+            if project_path:
+                return datetime.datetime.fromtimestamp(os.path.getmtime(project_path))
+            else:
+                return super()._get_last_used()
         except Exception:
             return super()._get_last_used()
 
@@ -208,12 +237,20 @@ class IndexProjectReference(ProjectReference):
 class FolderProjectReference(ProjectReference):
     type = "project_folder"
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(self.__class__.type)
-        self.define_property("project_folder_path", converter=Converter.PathToStringConverter())
+        self.define_property("project_folder_path", converter=Converter.PathToStringConverter(), hidden=True)
 
     @property
-    def project_reference_parts(self) -> typing.Tuple[str]:
+    def project_folder_path(self) -> typing.Optional[pathlib.Path]:
+        return typing.cast(typing.Optional[pathlib.Path], self._get_persistent_property_value("project_folder_path"))
+
+    @project_folder_path.setter
+    def project_folder_path(self, value: typing.Optional[pathlib.Path]) -> None:
+        self._set_persistent_property_value("project_folder_path", value)
+
+    @property
+    def project_reference_parts(self) -> typing.Sequence[str]:
         return self.project_folder_path.parts if self.project_folder_path else tuple()
 
     def make_storage(self, profile_context: typing.Optional[ProfileContext]) -> typing.Optional[FileStorageSystem.ProjectStorageSystem]:
@@ -224,7 +261,11 @@ class FolderProjectReference(ProjectReference):
     def _get_last_used(self) -> datetime.datetime:
         # fallback when last_used is not initialized
         try:
-            return datetime.datetime.fromtimestamp(os.path.getmtime(self.project_folder_path))
+            project_folder_path = self.project_folder_path
+            if project_folder_path:
+                return datetime.datetime.fromtimestamp(os.path.getmtime(project_folder_path))
+            else:
+                return super()._get_last_used()
         except Exception:
             return super()._get_last_used()
 
@@ -249,7 +290,7 @@ class FolderProjectReference(ProjectReference):
         return new_project_reference
 
 
-project_reference_factory_hook = None
+project_reference_factory_hook: typing.Optional[typing.Callable[[str], typing.Optional[ProjectReference]]] = None
 
 
 def project_reference_factory(lookup_id: typing.Callable[[str], str]) -> typing.Optional[ProjectReference]:
@@ -264,13 +305,13 @@ def project_reference_factory(lookup_id: typing.Callable[[str], str]) -> typing.
 
 
 class ScriptItem(Schema.Entity):
-    def __init__(self, entity_type: Schema.EntityType, context: typing.Optional[Schema.EntityContext] = None):
+    def __init__(self, entity_type: Schema.EntityType, context: typing.Optional[Schema.EntityContext] = None) -> None:
         super().__init__(entity_type, context)
-        self.persistent_storage = None
+        self.persistent_storage: typing.Optional[Persistence.PersistentStorageInterface] = None
 
     @property
     def is_closed(self) -> bool:
-        return self._get_field_value("is_closed")
+        return typing.cast(bool, self._get_field_value("is_closed"))
 
     @is_closed.setter
     def is_closed(self, value: bool) -> None:
@@ -291,7 +332,7 @@ class ScriptItem(Schema.Entity):
 
 
 class FileScriptItem(ScriptItem):
-    def __init__(self, path: typing.Optional[pathlib.Path] = None):
+    def __init__(self, path: typing.Optional[pathlib.Path] = None) -> None:
         super().__init__(Model.FileScriptItem)
         if path:
             self.path = path
@@ -309,7 +350,7 @@ class FileScriptItem(ScriptItem):
 
 
 class FolderScriptItem(ScriptItem):
-    def __init__(self, folder_path: typing.Optional[pathlib.Path] = None, is_closed: bool = True):
+    def __init__(self, folder_path: typing.Optional[pathlib.Path] = None, is_closed: bool = True) -> None:
         super().__init__(Model.FolderScriptItem)
         if folder_path:
             self.folder_path = folder_path
@@ -328,19 +369,21 @@ class FolderScriptItem(ScriptItem):
 
 
 # casting required to use entity in place of persistent object
-def script_item_factory(lookup_id: typing.Callable[[str], str]) -> typing.Optional[Persistence.PersistentObject]:
+def script_item_factory(lookup_id: typing.Callable[[str], str]) -> typing.Optional[ScriptItem]:
     type = lookup_id("type")
     if type == Model.FileScriptItem.entity_id:
-        return typing.cast(Persistence.PersistentObject, FileScriptItem())
+        return FileScriptItem()
     if type == Model.FolderScriptItem.entity_id:
-        return typing.cast(Persistence.PersistentObject, FolderScriptItem())
+        return FolderScriptItem()
     return None
 
 
 class Profile(Persistence.PersistentObject):
     count = 0  # useful for detecting leaks in tests
 
-    def __init__(self, storage_system=None, storage_cache=None, *, profile_context: typing.Optional[ProfileContext] = None):
+    def __init__(self, storage_system: typing.Optional[FileStorageSystem.PersistentStorageSystem] = None,
+                 storage_cache: typing.Optional[Cache.CacheLike] = None, *,
+                 profile_context: typing.Optional[ProfileContext] = None) -> None:
         super().__init__()
         self.__class__.count += 1
 
@@ -350,9 +393,8 @@ class Profile(Persistence.PersistentObject):
         self.define_property("work_project_reference_uuid", converter=Converter.UuidToStringConverter())
         self.define_property("closed_items", list())
         self.define_property("script_items_updated", False, changed=self.__property_changed)
-        self.define_relationship("project_references", project_reference_factory,
-                                 insert=self.__insert_project_reference, remove=self.__remove_project_reference)
-        self.define_relationship("script_items", script_item_factory)
+        self.define_relationship("project_references", project_reference_factory, insert=self.__insert_project_reference, remove=self.__remove_project_reference, hidden=True)
+        self.define_relationship("script_items", typing.cast(typing.Callable[[typing.Callable[[str], str]], typing.Optional[Persistence.PersistentObject]], script_item_factory))
 
         self.storage_system = storage_system or FileStorageSystem.MemoryPersistentStorageSystem()
         self.storage_system.load_properties()
@@ -376,13 +418,17 @@ class Profile(Persistence.PersistentObject):
         self.storage_cache.close()
         self.storage_cache = None
         self.storage_system.close()
-        self.storage_system = None
+        self.storage_system = typing.cast(typing.Any, None)
         if self.__projects_observer:
             self.__projects_observer.close()
         self.__projects_observer = typing.cast(Observer.AbstractItemSource, None)
         self.profile_context = None
         self.__class__.count -= 1
         super().close()
+
+    @property
+    def project_references(self) -> typing.Sequence[ProjectReference]:
+        return typing.cast(typing.Sequence[ProjectReference], self._get_relationship_values("project_references"))
 
     def read_from_dict(self, properties: Persistence.PersistentDictType) -> None:
         # cleanup from beta versions
@@ -395,7 +441,7 @@ class Profile(Persistence.PersistentObject):
         properties.pop("workspaces", None)
         super().read_from_dict(properties)
 
-    def __property_changed(self, name, value):
+    def __property_changed(self, name: str, value: typing.Any) -> None:
         self.notify_property_changed(name)
 
     def __insert_project_reference(self, name: str, before_index: int, project_reference: ProjectReference) -> None:
@@ -408,9 +454,9 @@ class Profile(Persistence.PersistentObject):
         self.notify_remove_item("project_references", project_reference, index)
 
     @property
-    def projects(self) -> typing.List[Project.Project]:
+    def projects(self) -> typing.Sequence[Project.Project]:
         assert self.__projects_observer
-        return typing.cast(typing.List[Project.Project], self.__projects_observer.item)
+        return typing.cast(typing.Sequence[Project.Project], self.__projects_observer.item)
 
     def insert_script_item(self, before_index: int, script_item: ScriptItem) -> None:
         """Insert a script_item before the index, but do it through the container, so dependencies can be tracked."""
@@ -431,29 +477,33 @@ class Profile(Persistence.PersistentObject):
         self.notify_remove_item("script_items", script_item, index)
 
     @property
-    def _profile_storage_system(self) -> FileStorageSystem.PersistentStorageSystem:
+    def _profile_storage_system(self) -> typing.Optional[FileStorageSystem.PersistentStorageSystem]:
         return self.storage_system
 
-    def transaction_context(self):
+    class TransactionContext:
+        def __init__(self, profile: Profile) -> None:
+            self.__profile = profile
+
+        def __enter__(self) -> Profile.TransactionContext:
+            profile_storage_system = self.__profile._profile_storage_system
+            if profile_storage_system:
+                profile_storage_system.enter_write_delay(self.__profile)
+            for project in self.__profile.projects:
+                project.project_storage_system.enter_transaction()
+            return self
+
+        def __exit__(self, exception_type: typing.Optional[typing.Type[BaseException]], value: typing.Optional[BaseException], traceback: typing.Optional[types.TracebackType]) -> typing.Optional[bool]:
+            profile_storage_system = self.__profile._profile_storage_system
+            if profile_storage_system:
+                profile_storage_system.exit_write_delay(self.__profile)
+                profile_storage_system.rewrite_item(self.__profile)
+            for project in self.__profile.projects:
+                project.project_storage_system.exit_transaction()
+            return None
+
+    def transaction_context(self) -> contextlib.AbstractContextManager[Profile.TransactionContext]:
         """Return a context object for a document-wide transaction."""
-
-        class Transaction:
-            def __init__(self, profile):
-                self.__profile = profile
-
-            def __enter__(self):
-                self.__profile._profile_storage_system.enter_write_delay(self.__profile)
-                for project in self.__profile.projects:
-                    project.project_storage_system.enter_transaction()
-                return self
-
-            def __exit__(self, type, value, traceback):
-                self.__profile._profile_storage_system.exit_write_delay(self.__profile)
-                self.__profile._profile_storage_system.rewrite_item(self.__profile)
-                for project in self.__profile.projects:
-                    project.project_storage_system.exit_transaction()
-
-        return Transaction(self)
+        return Profile.TransactionContext(self)
 
     def read_profile(self) -> None:
         # read the properties from the storage system. called after open.
@@ -540,9 +590,10 @@ class Profile(Persistence.PersistentObject):
         project_reference.establish_last_used()
         return self.add_project_reference(project_reference, load)
 
-    def add_project_memory(self, _uuid: uuid.UUID = None, load: bool = True) -> ProjectReference:
+    def add_project_memory(self, _uuid: typing.Optional[uuid.UUID] = None, load: bool = True) -> ProjectReference:
         assert callable(project_reference_factory_hook)
         project_reference = project_reference_factory_hook("project_memory")
+        assert project_reference
         project_reference.project_uuid = _uuid or uuid.uuid4()
         project_reference.establish_last_used()
         return self.add_project_reference(project_reference, load)

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # standard libraries
 import functools
 import logging
@@ -19,8 +21,8 @@ from nion.swift.model import Persistence
 from nion.swift.model import WorkspaceLayout
 from nion.utils import Converter
 from nion.utils import ListModel
-from nion.utils import Observable
 
+PersistentDictType = typing.Dict[str, typing.Any]
 
 ProjectItemType = typing.Union[DataItem.DataItem, DisplayItem.DisplayItem, DataStructure.DataStructure, Connection.Connection, Symbolic.Computation]
 
@@ -36,9 +38,9 @@ class Project(Persistence.PersistentObject):
 
     PROJECT_VERSION = 3
 
-    _processing_descriptions: typing.Dict[str, typing.Any] = dict()
+    _processing_descriptions: PersistentDictType = dict()
 
-    def __init__(self, storage_system: FileStorageSystem.ProjectStorageSystem):
+    def __init__(self, storage_system: FileStorageSystem.ProjectStorageSystem) -> None:
         super().__init__()
 
         self.define_type("project")
@@ -61,7 +63,7 @@ class Project(Persistence.PersistentObject):
 
         self.__has_been_read = False
 
-        self._raw_properties: typing.Optional[typing.Dict] = None  # debugging
+        self._raw_properties: typing.Optional[PersistentDictType] = None  # debugging
 
         self.__storage_system = storage_system
 
@@ -73,7 +75,7 @@ class Project(Persistence.PersistentObject):
         self.handle_remove_model_item = None
         self.handle_finish_read = None
         self.__storage_system.close()
-        self.__storage_system = typing.cast(FileStorageSystem.ProjectStorageSystem, None)
+        self.__storage_system = typing.cast(typing.Any, None)
         super().close()
 
     @property
@@ -171,8 +173,9 @@ class Project(Persistence.PersistentObject):
     @property
     def project_filter(self) -> ListModel.Filter:
 
-        def is_display_item_active(project_weak_ref, display_item: DisplayItem.DisplayItem) -> bool:
-            return display_item.project == project_weak_ref()
+        # Python 3.9+ weak ref
+        def is_display_item_active(project_weak_ref: typing.Any, display_item: DisplayItem.DisplayItem) -> bool:
+            return bool(display_item.project == project_weak_ref())
 
         # use a weak reference to avoid circular references loops that prevent garbage collection
         return ListModel.PredicateFilter(functools.partial(is_display_item_active, weakref.ref(self)))
@@ -217,13 +220,13 @@ class Project(Persistence.PersistentObject):
     def __data_group_removed(self, name: str, index: int, data_group: DataGroup.DataGroup) -> None:
         self.notify_remove_item("data_groups", data_group, index)
 
-    def _get_relationship_persistent_dict(self, item, key: str, index: int) -> typing.Optional[typing.Dict]:
+    def _get_relationship_persistent_dict(self, item: Persistence.PersistentObject, key: str, index: int) -> typing.Optional[PersistentDictType]:
         if key == "data_items":
             return self.__storage_system.get_persistent_dict("data_items", item.uuid)
         else:
             return super()._get_relationship_persistent_dict(item, key, index)
 
-    def _get_relationship_persistent_dict_by_uuid(self, item, key: str) -> typing.Optional[typing.Dict]:
+    def _get_relationship_persistent_dict_by_uuid(self, item: Persistence.PersistentObject, key: str) -> typing.Optional[PersistentDictType]:
         if key == "data_items":
             return self.__storage_system.get_persistent_dict("data_items", item.uuid)
         else:
@@ -318,7 +321,7 @@ class Project(Persistence.PersistentObject):
         if callable(self.handle_finish_read):
             self.handle_finish_read()
 
-    def __property_changed(self, name, value):
+    def __property_changed(self, name: str, value: typing.Any) -> None:
         self.notify_property_changed(name)
 
     def append_data_item(self, data_item: DataItem.DataItem) -> None:
@@ -391,7 +394,7 @@ class Project(Persistence.PersistentObject):
         return list(self._get_persistent_property_value("mapped_items"))
 
     @mapped_items.setter
-    def mapped_items(self, value: typing.List[typing.Union[typing.Mapping, str]]) -> None:
+    def mapped_items(self, value: typing.List[Persistence._SpecifierType]) -> None:
         self._set_persistent_property_value("mapped_items", value)
 
     def prune(self) -> None:
@@ -419,20 +422,21 @@ class Project(Persistence.PersistentObject):
             self.unload_item("data_items", len(self.data_items) - 1)
 
 
-def data_item_factory(lookup_id):
+def data_item_factory(lookup_id: typing.Callable[[str], str]) -> DataItem.DataItem:
     data_item_uuid = uuid.UUID(lookup_id("uuid"))
-    large_format = lookup_id("__large_format", False)
+    # TODO: typing hack for default arg
+    large_format = typing.cast(typing.Callable[..., typing.Any], lookup_id)("__large_format", False)
     return DataItem.DataItem(item_uuid=data_item_uuid, large_format=large_format)
 
 
-def display_item_factory(lookup_id):
+def display_item_factory(lookup_id: typing.Callable[[str], str]) -> DisplayItem.DisplayItem:
     display_item_uuid = uuid.UUID(lookup_id("uuid"))
     return DisplayItem.DisplayItem(item_uuid=display_item_uuid)
 
 
-def computation_factory(lookup_id):
+def computation_factory(lookup_id: typing.Callable[[str], str]) -> Symbolic.Computation:
     return Symbolic.Computation()
 
 
-def data_structure_factory(lookup_id):
+def data_structure_factory(lookup_id: typing.Callable[[str], str]) -> DataStructure.DataStructure:
     return DataStructure.DataStructure()
