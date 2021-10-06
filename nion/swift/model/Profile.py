@@ -377,7 +377,8 @@ class Profile(Persistence.PersistentObject):
         self.storage_cache = None
         self.storage_system.close()
         self.storage_system = None
-        self.__projects_observer.close()
+        if self.__projects_observer:
+            self.__projects_observer.close()
         self.__projects_observer = typing.cast(Observer.AbstractItemSource, None)
         self.profile_context = None
         self.__class__.count -= 1
@@ -408,6 +409,7 @@ class Profile(Persistence.PersistentObject):
 
     @property
     def projects(self) -> typing.List[Project.Project]:
+        assert self.__projects_observer
         return typing.cast(typing.List[Project.Project], self.__projects_observer.item)
 
     def insert_script_item(self, before_index: int, script_item: ScriptItem) -> None:
