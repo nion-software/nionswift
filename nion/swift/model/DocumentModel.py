@@ -2898,7 +2898,8 @@ class ImplicitPickConnection:
         self.__observer = oo.make_observable()
 
     def close(self) -> None:
-        self.__observer.close()
+        if self.__observer:
+            self.__observer.close()
 
 
 class ConnectMapDisplay(Observer.AbstractAction):
@@ -2971,7 +2972,8 @@ class ImplicitMapConnection:
         self.__observer = oo.make_observable()
 
     def close(self) -> None:
-        self.__observer.close()
+        if self.__observer:
+            self.__observer.close()
 
 
 class IntervalListConnector(Observer.AbstractAction):
@@ -3033,7 +3035,8 @@ class ImplicitLineProfileIntervalsConnection:
         self.__observer = oo.make_observable()
 
     def close(self) -> None:
-        self.__observer.close()
+        if self.__observer:
+            self.__observer.close()
 
 
 DocumentModel.register_processing_descriptions(DocumentModel._get_builtin_processing_descriptions())

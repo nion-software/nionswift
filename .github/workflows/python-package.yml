@@ -71,6 +71,7 @@ jobs:
           nion/swift/model/Model.py \
           nion/swift/model/NDataHandler.py \
           nion/swift/model/Persistence.py \
+          nion/swift/model/Observer.py \
           nion/swift/model/PlugInManager.py \
           nion/swift/model/Profile.py \
           nion/swift/model/Project.py \
