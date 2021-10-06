@@ -1,6 +1,6 @@
-"""
-    A module for handle .ndata files for Swift.
-"""
+"""A module for handle .ndata files for Swift."""
+
+from __future__ import annotations
 
 # standard libraries
 import binascii
@@ -10,6 +10,7 @@ import io
 import logging
 import json
 import numpy
+import numpy.typing
 import os
 import pathlib
 import struct
@@ -22,13 +23,17 @@ from nion.swift.model import StorageHandler
 from nion.swift.model import Utility
 from nion.utils import Geometry
 
+PersistentDictType = typing.Dict[str, typing.Any]
+_ImageDataType = typing.Any  # numpy.typing.NDArray[typing.Any]
+
+
 # http://en.wikipedia.org/wiki/Zip_(file_format)
 # http://www.pkware.com/documents/casestudies/APPNOTE.TXT
 # https://issues.apache.org/jira/browse/COMPRESS-210
 # http://proger.i-forge.net/MS-DOS_date_and_time_format/OFz
 
 
-def make_directory_if_needed(directory_path):
+def make_directory_if_needed(directory_path: str) -> None:
     """
         Make the directory path, if needed.
     """
@@ -39,7 +44,7 @@ def make_directory_if_needed(directory_path):
         os.makedirs(directory_path)
 
 
-def write_local_file(fp, name_bytes, writer, dt):
+def write_local_file(fp: typing.BinaryIO, name_bytes: bytes, writer: typing.Callable[[typing.BinaryIO], int], dt: datetime.datetime) -> typing.Tuple[int, int]:
     """
         Writes a zip file local file header structure at the current file position.
 
@@ -79,7 +84,7 @@ def write_local_file(fp, name_bytes, writer, dt):
     return data_len, crc32
 
 
-def write_directory_data(fp, offset, name_bytes, data_len, crc32, dt):
+def write_directory_data(fp: typing.BinaryIO, offset: int, name_bytes: bytes, data_len: int, crc32: int, dt: datetime.datetime) -> None:
     """
         Write a zip fie directory entry at the current file position
 
@@ -112,7 +117,7 @@ def write_directory_data(fp, offset, name_bytes, data_len, crc32, dt):
     fp.write(name_bytes)
 
 
-def write_end_of_directory(fp, dir_size, dir_offset, count):
+def write_end_of_directory(fp: typing.BinaryIO, dir_size: int, dir_offset: int, count: int) -> None:
     """
         Write zip file end of directory header at the current file position
 
@@ -131,7 +136,8 @@ def write_end_of_directory(fp, dir_size, dir_offset, count):
     fp.write(struct.pack('H', 0))           # comment len
 
 
-def write_zip_fp(fp, data, properties, dir_data_list=None):
+def write_zip_fp(fp: typing.BinaryIO, data: _ImageDataType, properties: PersistentDictType,
+                 dir_data_list: typing.Optional[typing.List[typing.Tuple[int, bytes, int, int]]] = None) -> None:
     """
         Write custom zip file of data and properties to fp
 
@@ -156,9 +162,9 @@ def write_zip_fp(fp, data, properties, dir_data_list=None):
     dt = datetime.datetime.now()
     if data is not None:
         offset_data = fp.tell()
-        def write_data(fp):
+        def write_data(fp: typing.BinaryIO) -> int:
             numpy_start_pos = fp.tell()
-            numpy.save(fp, data)
+            numpy.save(fp, data)  # type: ignore
             numpy_end_pos = fp.tell()
             fp.seek(numpy_start_pos)
             data_c = numpy.require(data, dtype=data.dtype, requirements=["C_CONTIGUOUS"])
@@ -172,7 +178,7 @@ def write_zip_fp(fp, data, properties, dir_data_list=None):
         json_str = str()
         try:
             class JSONEncoder(json.JSONEncoder):
-                def default(self, obj):
+                def default(self, obj: typing.Any) -> typing.Any:
                     if isinstance(obj, Geometry.IntPoint) or isinstance(obj, Geometry.IntSize) or isinstance(obj, Geometry.IntRect) or isinstance(obj, Geometry.FloatPoint) or isinstance(obj, Geometry.FloatSize) or isinstance(obj, Geometry.FloatRect):
                         return tuple(obj)
                     else:
@@ -186,7 +192,7 @@ def write_zip_fp(fp, data, properties, dir_data_list=None):
             logging.error("Exception writing zip file %s" + str(e))
             traceback.print_exc()
             traceback.print_stack()
-        def write_json(fp):
+        def write_json(fp: typing.BinaryIO) -> int:
             json_bytes = bytes(json_str, 'ISO-8859-1')
             fp.write(json_bytes)
             return binascii.crc32(json_bytes) & 0xFFFFFFFF
@@ -201,7 +207,7 @@ def write_zip_fp(fp, data, properties, dir_data_list=None):
     fp.truncate()
 
 
-def write_zip(file_path, data, properties):
+def write_zip(file_path: str, data: _ImageDataType, properties: PersistentDictType) -> None:
     """
         Write custom zip file to the file path
 
@@ -218,7 +224,7 @@ def write_zip(file_path, data, properties):
         write_zip_fp(fp, data, properties)
 
 
-def parse_zip(fp):
+def parse_zip(fp: typing.BinaryIO) -> typing.Tuple[typing.Dict[int, typing.Tuple[bytes, int, int, int]], typing.Dict[bytes, typing.Tuple[int, int]], typing.Optional[typing.Tuple[int, int]]]:
     """
         Parse the zip file headers at fp
 
@@ -237,9 +243,9 @@ def parse_zip(fp):
 
         This method will seek to location 0 of fp and leave fp at end of file.
     """
-    local_files = {}
-    dir_files = {}
-    eocd = None
+    local_files: typing.Dict[int, typing.Tuple[bytes, int, int, int]] = dict()
+    dir_files: typing.Dict[bytes, typing.Tuple[int, int]] = dict()
+    eocd: typing.Optional[typing.Tuple[int, int]] = None
     fp.seek(0)
     while True:
         pos = fp.tell()
@@ -277,7 +283,7 @@ def parse_zip(fp):
     return local_files, dir_files, eocd
 
 
-def read_data(fp, local_files, dir_files, name_bytes):
+def read_data(fp: typing.BinaryIO, local_files: typing.Dict[int, typing.Tuple[bytes, int, int, int]], dir_files: typing.Dict[bytes, typing.Tuple[int, int]], name_bytes: bytes) -> typing.Optional[_ImageDataType]:
     """
         Read a numpy data array from the zip file
 
@@ -295,11 +301,11 @@ def read_data(fp, local_files, dir_files, name_bytes):
     """
     if name_bytes in dir_files:
         fp.seek(local_files[dir_files[name_bytes][1]][1])
-        return numpy.load(fp)
+        return numpy.load(fp)  # type: ignore
     return None
 
 
-def read_json(fp, local_files, dir_files, name_bytes):
+def read_json(fp: typing.BinaryIO, local_files: typing.Dict[int, typing.Tuple[bytes, int, int, int]], dir_files: typing.Dict[bytes, typing.Tuple[int, int]], name_bytes: bytes) -> PersistentDictType:
     """
         Read json properties from the zip file
 
@@ -320,11 +326,11 @@ def read_json(fp, local_files, dir_files, name_bytes):
         json_len = local_files[dir_files[name_bytes][1]][2]
         fp.seek(json_pos)
         json_properties = fp.read(json_len)
-        return json.loads(json_properties.decode("utf-8"))
-    return None
+        return typing.cast(PersistentDictType, json.loads(json_properties.decode("utf-8")))
+    return dict()
 
 
-def rewrite_zip(file_path, properties):
+def rewrite_zip(file_path: str, properties: PersistentDictType) -> None:
     """
         Rewrite the json properties in the zip file
 
@@ -353,7 +359,7 @@ def rewrite_zip(file_path, properties):
             data = None
             if b"data.npy" in dir_files:
                 fp.seek(local_files[dir_files[b"data.npy"][1]][1])
-                data = numpy.load(fp)
+                data = numpy.load(fp)  # type: ignore
             fp.seek(0)
             write_zip_fp(fp, data, properties)
 
@@ -377,12 +383,12 @@ class NDataHandler(StorageHandler.StorageHandler):
     """
     count = 0  # useful for detecting leaks in tests
 
-    def __init__(self, file_path):
+    def __init__(self, file_path: typing.Union[str, pathlib.Path]) -> None:
         self.__file_path = str(file_path)
         self.__lock = threading.RLock()
         NDataHandler.count += 1
 
-    def close(self):
+    def close(self) -> None:
         NDataHandler.count -= 1
 
     # called before the file is moved; close but don't count.
@@ -390,15 +396,15 @@ class NDataHandler(StorageHandler.StorageHandler):
         pass
 
     @property
-    def reference(self):
+    def reference(self) -> str:
         return self.__file_path
 
     @property
-    def is_valid(self):
+    def is_valid(self) -> bool:
         return True
 
     @classmethod
-    def is_matching(cls, file_path):
+    def is_matching(cls, file_path: str) -> bool:
         """
             Return whether the given absolute file path is an ndata file.
         """
@@ -419,8 +425,8 @@ class NDataHandler(StorageHandler.StorageHandler):
         return False
 
     @classmethod
-    def make(cls, file_path: pathlib.Path):
-        return cls(cls.make_path(file_path))
+    def make(cls, file_path: pathlib.Path) -> StorageHandler.StorageHandler:
+        return NDataHandler(NDataHandler.make_path(file_path))
 
     @classmethod
     def make_path(cls, file_path: pathlib.Path) -> str:
@@ -430,7 +436,7 @@ class NDataHandler(StorageHandler.StorageHandler):
     def get_extension(self) -> str:
         return ".ndata"
 
-    def write_data(self, data: numpy.ndarray, file_datetime: datetime.datetime) -> None:
+    def write_data(self, data: _ImageDataType, file_datetime: datetime.datetime) -> None:
         """
             Write data to the ndata file specified by reference.
 
@@ -443,16 +449,17 @@ class NDataHandler(StorageHandler.StorageHandler):
             #logging.debug("WRITE data file %s for %s", absolute_file_path, key)
             make_directory_if_needed(os.path.dirname(absolute_file_path))
             properties = self.read_properties() if os.path.exists(absolute_file_path) else dict()
-            write_zip(absolute_file_path, data, properties)
+            if properties is not None:
+                write_zip(absolute_file_path, data, properties)
             # convert to utc time.
             tz_minutes = Utility.local_utcoffset_minutes(file_datetime)
             timestamp = calendar.timegm(file_datetime.timetuple()) - tz_minutes * 60
             os.utime(absolute_file_path, (time.time(), timestamp))
 
-    def reserve_data(self, data_shape: typing.Tuple[int, ...], data_dtype: numpy.dtype, file_datetime) -> None:
+    def reserve_data(self, data_shape: typing.Tuple[int, ...], data_dtype: numpy.typing.DTypeLike, file_datetime: datetime.datetime) -> None:
         self.write_data(numpy.zeros(data_shape, data_dtype), file_datetime)
 
-    def write_properties(self, properties, file_datetime):
+    def write_properties(self, properties: PersistentDictType, file_datetime: datetime.datetime) -> None:
         """
             Write properties to the ndata file specified by reference.
 
@@ -477,7 +484,7 @@ class NDataHandler(StorageHandler.StorageHandler):
             timestamp = calendar.timegm(file_datetime.timetuple()) - tz_minutes * 60
             os.utime(absolute_file_path, (time.time(), timestamp))
 
-    def read_properties(self):
+    def read_properties(self) -> PersistentDictType:
         """
             Read properties from the ndata file reference
 
@@ -491,7 +498,7 @@ class NDataHandler(StorageHandler.StorageHandler):
                 properties = read_json(fp, local_files, dir_files, b"metadata.json")
             return properties
 
-    def read_data(self):
+    def read_data(self) -> typing.Optional[_ImageDataType]:
         """
             Read data from the ndata file reference
 
@@ -504,9 +511,8 @@ class NDataHandler(StorageHandler.StorageHandler):
             with open(absolute_file_path, "rb") as fp:
                 local_files, dir_files, eocd = parse_zip(fp)
                 return read_data(fp, local_files, dir_files, b"data.npy")
-            return None
 
-    def remove(self):
+    def remove(self) -> None:
         """
             Remove the ndata file reference
 

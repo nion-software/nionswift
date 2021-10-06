@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import collections
 import copy
 import datetime
@@ -8,11 +10,16 @@ import uuid
 
 from nion.swift.model import Utility
 
+if typing.TYPE_CHECKING:
+    from nion.swift.model import FileStorageSystem
+
+PersistentDictType = typing.Dict[str, typing.Any]
+
 _ = gettext.gettext
 
 
 
-def migrate_to_latest(reader_info_list, library_updates) -> None:
+def migrate_to_latest(reader_info_list: typing.List[FileStorageSystem.ReaderInfo], library_updates: typing.Dict[uuid.UUID, FileStorageSystem.PersistentDictType]) -> None:
     migrate_to_v2(reader_info_list)
     migrate_to_v3(reader_info_list)
     migrate_to_v4(reader_info_list)
@@ -32,20 +39,20 @@ def migrate_to_latest(reader_info_list, library_updates) -> None:
     # TODO: rename source_uuid and others to source_specifier
 
 
-def migrate_library_to_latest(library_properties: typing.Dict) -> None:
+def migrate_library_to_latest(library_properties: PersistentDictType) -> None:
     migrate_library_to_v2(library_properties)
     migrate_library_to_v3(library_properties)
 
 
-def transform_to_latest(properties):
+def transform_to_latest(properties: PersistentDictType) -> PersistentDictType:
     return properties
 
 
-def transform_from_latest(properties):
+def transform_from_latest(properties: PersistentDictType) -> PersistentDictType:
     return properties
 
 
-def migrate_to_v13(reader_info_list, library_updates):
+def migrate_to_v13(reader_info_list: typing.List[FileStorageSystem.ReaderInfo], library_updates: typing.Dict[uuid.UUID, FileStorageSystem.PersistentDictType]) -> None:
     for reader_info in reader_info_list:
         storage_handler = reader_info.storage_handler
         properties = reader_info.properties
@@ -122,7 +129,7 @@ def migrate_to_v13(reader_info_list, library_updates):
 
                 if len(display_properties_list) > 0:
                     display_properties = display_properties_list[0]
-                    display_item_properties = dict()
+                    display_item_properties: PersistentDictType = dict()
                     display_item_properties["type"] = "display_item"
                     display_item_properties["uuid"] = str(uuid.uuid4())
                     if "created" in properties:
@@ -195,7 +202,7 @@ def migrate_to_v13(reader_info_list, library_updates):
             traceback.print_exc()
             traceback.print_stack()
 
-def migrate_to_v12(reader_info_list, library_updates):
+def migrate_to_v12(reader_info_list: typing.List[FileStorageSystem.ReaderInfo], library_updates: typing.Dict[uuid.UUID, FileStorageSystem.PersistentDictType]) -> None:
     for reader_info in reader_info_list:
         storage_handler = reader_info.storage_handler
         properties = reader_info.properties
@@ -231,7 +238,7 @@ def migrate_to_v12(reader_info_list, library_updates):
             traceback.print_exc()
             traceback.print_stack()
 
-def migrate_to_v11(reader_info_list):
+def migrate_to_v11(reader_info_list: typing.List[FileStorageSystem.ReaderInfo]) -> None:
     for reader_info in reader_info_list:
         storage_handler = reader_info.storage_handler
         properties = reader_info.properties
@@ -296,7 +303,7 @@ def migrate_to_v11(reader_info_list):
             traceback.print_exc()
             traceback.print_stack()
 
-def migrate_to_v10(reader_info_list):
+def migrate_to_v10(reader_info_list: typing.List[FileStorageSystem.ReaderInfo]) -> None:
     translate_region_type = {"point-region": "point-graphic", "line-region": "line-profile-graphic", "rectangle-region": "rect-graphic", "ellipse-region": "ellipse-graphic",
         "interval-region": "interval-graphic"}
     for reader_info in reader_info_list:
@@ -313,7 +320,7 @@ def migrate_to_v10(reader_info_list):
                     if len(displays) > 0:
                         display = displays[0]
                         for region in data_source.get("regions", list()):
-                            graphic = dict()
+                            graphic: PersistentDictType = dict()
                             graphic["type"] = translate_region_type[region["type"]]
                             graphic["uuid"] = region["uuid"]
                             region_id = region.get("region_id")
@@ -365,7 +372,7 @@ def migrate_to_v10(reader_info_list):
             traceback.print_exc()
             traceback.print_stack()
 
-def migrate_to_v9(reader_info_list):
+def migrate_to_v9(reader_info_list: typing.List[FileStorageSystem.ReaderInfo]) -> None:
     data_source_uuid_to_data_item_uuid = dict()
     for reader_info in reader_info_list:
         storage_handler = reader_info.storage_handler
@@ -446,7 +453,7 @@ def migrate_to_v9(reader_info_list):
                             variables_list = list()
                             data_sources = operation_dict.get("data_sources", list())
                             srcs = ("src", ) if len(data_sources) < 2 else ("src1", "src2")
-                            kws = {}
+                            kws: typing.Dict[str, typing.Optional[str]] = {}
                             for src in srcs:
                                 kws[src] = None
                             for i, src_data_source in enumerate(data_sources):
@@ -496,7 +503,7 @@ def migrate_to_v9(reader_info_list):
             traceback.print_exc()
             traceback.print_stack()
 
-def migrate_to_v8(reader_info_list):
+def migrate_to_v8(reader_info_list: typing.List[FileStorageSystem.ReaderInfo]) -> None:
     for reader_info in reader_info_list:
         storage_handler = reader_info.storage_handler
         properties = reader_info.properties
@@ -548,8 +555,8 @@ def migrate_to_v8(reader_info_list):
             traceback.print_exc()
             traceback.print_stack()
 
-def migrate_to_v7(reader_info_list):
-    v7lookup = dict()  # map data_item.uuid to buffered data source.uuid
+def migrate_to_v7(reader_info_list: typing.List[FileStorageSystem.ReaderInfo]) -> None:
+    v7lookup: typing.Dict[str, str] = dict()  # map data_item.uuid to buffered data source.uuid
     for reader_info in reader_info_list:
         storage_handler = reader_info.storage_handler
         properties = reader_info.properties
@@ -558,7 +565,7 @@ def migrate_to_v7(reader_info_list):
             if version == 6:
                 reader_info.changed_ref[0] = True
                 # version 6 -> 7 changes data to be cached in the buffered data source object
-                buffered_data_source_dict = dict()
+                buffered_data_source_dict: PersistentDictType = dict()
                 buffered_data_source_dict["type"] = "buffered-data-source"
                 buffered_data_source_dict["uuid"] = v7lookup.setdefault(properties["uuid"], str(uuid.uuid4()))  # assign a new uuid
                 include_data = "master_data_shape" in properties and "master_data_dtype" in properties
@@ -598,7 +605,7 @@ def migrate_to_v7(reader_info_list):
             traceback.print_exc()
             traceback.print_stack()
 
-def migrate_to_v6(reader_info_list):
+def migrate_to_v6(reader_info_list: typing.List[FileStorageSystem.ReaderInfo]) -> None:
     for reader_info in reader_info_list:
         storage_handler = reader_info.storage_handler
         properties = reader_info.properties
@@ -636,7 +643,7 @@ def migrate_to_v6(reader_info_list):
             traceback.print_exc()
             traceback.print_stack()
 
-def migrate_to_v5(reader_info_list):
+def migrate_to_v5(reader_info_list: typing.List[FileStorageSystem.ReaderInfo]) -> None:
     for reader_info in reader_info_list:
         storage_handler = reader_info.storage_handler
         properties = reader_info.properties
@@ -661,7 +668,7 @@ def migrate_to_v5(reader_info_list):
             traceback.print_exc()
             traceback.print_stack()
 
-def migrate_to_v4(reader_info_list):
+def migrate_to_v4(reader_info_list: typing.List[FileStorageSystem.ReaderInfo]) -> None:
     for reader_info in reader_info_list:
         storage_handler = reader_info.storage_handler
         properties = reader_info.properties
@@ -686,7 +693,7 @@ def migrate_to_v4(reader_info_list):
             traceback.print_exc()
             traceback.print_stack()
 
-def migrate_to_v3(reader_info_list):
+def migrate_to_v3(reader_info_list: typing.List[FileStorageSystem.ReaderInfo]) -> None:
     for reader_info in reader_info_list:
         storage_handler = reader_info.storage_handler
         properties = reader_info.properties
@@ -709,7 +716,7 @@ def migrate_to_v3(reader_info_list):
             traceback.print_exc()
             traceback.print_stack()
 
-def migrate_to_v2(reader_info_list):
+def migrate_to_v2(reader_info_list: typing.List[FileStorageSystem.ReaderInfo]) -> None:
     for reader_info in reader_info_list:
         storage_handler = reader_info.storage_handler
         properties = reader_info.properties
@@ -747,7 +754,7 @@ def migrate_to_v2(reader_info_list):
             traceback.print_stack()
 
 
-def migrate_library_to_v2(library_properties):
+def migrate_library_to_v2(library_properties: PersistentDictType) -> None:
     if library_properties.get("version", 0) < 2:
         for data_group_properties in library_properties.get("data_groups", list()):
             data_group_properties.pop("data_groups")
@@ -759,9 +766,9 @@ def migrate_library_to_v2(library_properties):
                                             display_item_properties.get("display_data_channels", list())]
                     if data_item_uuid_str in data_item_references:
                         display_item_references.append(display_item_properties["uuid"])
-        data_item_uuid_to_display_item_uuid_map = dict()
-        data_item_uuid_to_display_item_dict_map = dict()
-        display_to_display_item_map = dict()
+        data_item_uuid_to_display_item_uuid_map: typing.Dict[str, str] = dict()
+        data_item_uuid_to_display_item_dict_map: typing.Dict[str, PersistentDictType] = dict()
+        display_to_display_item_map: typing.Dict[str, PersistentDictType] = dict()
         display_to_display_data_channel_map = dict()
         for display_item_properties in library_properties.get("display_items", list()):
             display_to_display_item_map[display_item_properties["display"]["uuid"]] = display_item_properties["uuid"]
@@ -774,7 +781,7 @@ def migrate_library_to_v2(library_properties):
                 data_item_uuid_to_display_item_dict_map.setdefault(data_item_uuid_str, display_item_properties)
             display_item_properties.pop("display", None)
         for workspace_properties in library_properties.get("workspaces", list()):
-            def replace1(d):
+            def replace1(d: PersistentDictType) -> None:
                 if "children" in d:
                     for dd in d["children"]:
                         replace1(dd)
@@ -793,7 +800,7 @@ def migrate_library_to_v2(library_properties):
                 "source_property"] == "slice_interval":
                 connection_dict["source_uuid"] = display_to_display_data_channel_map.get(source_uuid_str, None)
 
-        def fix_specifier(specifier_dict):
+        def fix_specifier(specifier_dict: PersistentDictType) -> None:
             if specifier_dict.get("type") in (
             "data_item", "display_xdata", "cropped_xdata", "cropped_display_xdata", "filter_xdata", "filtered_xdata"):
                 if specifier_dict.get("uuid") in data_item_uuid_to_display_item_dict_map:
@@ -824,7 +831,7 @@ def migrate_library_to_v2(library_properties):
         library_properties["version"] = 2
         logging.getLogger("migration").debug("Updated 1 to 2 (display items)")
 
-def migrate_library_to_v3(library_properties):
+def migrate_library_to_v3(library_properties: PersistentDictType) -> None:
     if library_properties.get("version", 0) == 2:
         library_properties.pop("data_item_variables", None)
         library_properties["version"] = 3
