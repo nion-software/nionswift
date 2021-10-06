@@ -1,5 +1,5 @@
 # standard libraries
-# None
+import typing
 
 # third party libraries
 # None
@@ -15,7 +15,7 @@ class WorkspaceLayout(Persistence.PersistentObject):
         A layout consists of a set of panels within other canvas items and includes
         content of each of those panels.
     """
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.define_type("workspace")
         self.define_property("name")
@@ -23,5 +23,5 @@ class WorkspaceLayout(Persistence.PersistentObject):
         self.define_property("workspace_id")
 
 
-def factory(lookup_id):
+def factory(lookup_id: typing.Callable[[str], str]) -> WorkspaceLayout:
     return WorkspaceLayout()

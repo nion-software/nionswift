@@ -304,7 +304,9 @@ Project = Schema.entity("project", None, 3, {
 Project.rename("workspace", "workspace_uuid")
 
 
-def transform_forward(d: typing.Dict) -> typing.Dict:
+PersistentDictType = typing.Dict[str, typing.Any]
+
+def transform_forward(d: PersistentDictType) -> PersistentDictType:
     for display_item in d.get("display_items", list()):
         display_data_channels = display_item.get("display_data_channels", list())
         for display_layer in display_item.get("display_layers", list()):
@@ -317,7 +319,7 @@ def transform_forward(d: typing.Dict) -> typing.Dict:
     return d
 
 
-def transform_backward(d: typing.Dict) -> typing.Dict:
+def transform_backward(d: PersistentDictType) -> PersistentDictType:
     for display_item in d.get("display_items", list()):
         display_data_channels = display_item.get("display_data_channels", list())
         display_data_channel_map = {display_data_channel["uuid"]: index for index, display_data_channel in enumerate(display_data_channels)}

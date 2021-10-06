@@ -145,7 +145,7 @@ class Application(UIApplication.BaseApplication):
             app_data_file_path = self.ui.get_configuration_location() / pathlib.Path("nionswift_appdata.json")
             ApplicationData.set_file_path(app_data_file_path)
             logging.info("Application data: " + str(app_data_file_path))
-            PlugInManager.load_plug_ins(self, get_root_dir() if use_root_dir else None)
+            PlugInManager.load_plug_ins(self.ui.get_document_location(), self.ui.get_data_location(), get_root_dir() if use_root_dir else None)
             color_maps_dir = self.ui.get_configuration_location() / pathlib.Path("Color Maps")
             if color_maps_dir.exists():
                 logging.info("Loading color maps from " + str(color_maps_dir))

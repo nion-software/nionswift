@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # standard libraries
 import collections
 import copy
@@ -11,42 +13,52 @@ import pkgutil
 import re
 import sys
 import traceback
+import types
 import typing
 import unittest
 
 from nion.swift.model import Utility
 from nion.ui import Declarative
 
+PersistentDictType = typing.Dict[str, typing.Any]
+_ModuleInfoType = typing.Any
 
-__modules = []
-__test_suites = []
+__modules: typing.List[types.ModuleType] = list()
+__test_suites: typing.List[unittest.suite.TestSuite] = list()
 
 
 class RequirementsException(Exception):
     """An exception for when a plug-in can't load because it can't meet the necessary requirements."""
-    def __init__(self, reason):
+
+    def __init__(self, reason: str) -> None:
         self.reason = reason
 
 
-api_broker_fn = typing.cast(typing.Callable[[str, typing.Optional[str]], typing.Any], None)
+ApiBrokerFn = typing.Callable[..., typing.Any]
+api_broker_fn = typing.cast(ApiBrokerFn, None)
 
-def register_api_broker_fn(new_api_broker_fn):
+
+def register_api_broker_fn(new_api_broker_fn: ApiBrokerFn) -> None:
     global api_broker_fn
     api_broker_fn = new_api_broker_fn
 
+
 class APIBroker:
-    def get_api(self, *args, **kwargs):
+    def get_api(self, *args: typing.Any, **kwargs: typing.Any) -> typing.Any:
         global api_broker_fn
         return api_broker_fn(*args, **kwargs)
-    def get_ui(self, version):
+
+    def get_ui(self, version: str) -> Declarative.DeclarativeUI:
         actual_version = "1.0.0"
         if Utility.compare_versions(version, actual_version) > 0:
             raise NotImplementedError("API requested version %s is greater than %s." % (version, actual_version))
         return Declarative.DeclarativeUI()
 
-extensions = []
 
-def load_plug_in(module_path: str, module_name: str):
+extensions: typing.List[typing.Any] = list()
+
+
+def load_plug_in(module_path: str, module_name: str) -> typing.Optional[types.ModuleType]:
     try:
         # First load the module.
         module = importlib.import_module(module_name)
@@ -61,7 +73,8 @@ def load_plug_in(module_path: str, module_name: str):
                                 # It is a class... add it to the test suite.
                                 tests.append(maybe_a_class[0])
                                 cls = getattr(member[1], maybe_a_class[0])
-                                __test_suites.append(unittest.TestLoader().loadTestsFromTestCase(cls))
+                                test_suite = unittest.TestLoader().loadTestsFromTestCase(cls)
+                                __test_suites.append(test_suite)
                 for maybe_a_class in inspect.getmembers(member[1]):
                     if inspect.isclass(maybe_a_class[1]):
                         if maybe_a_class[0].endswith("Extension"):
@@ -88,11 +101,11 @@ def load_plug_in(module_path: str, module_name: str):
 
 
 class ModuleAdapter:
-    def __init__(self, package_name, module_info):
+    def __init__(self, package_name: str, module_info: _ModuleInfoType) -> None:
         self.module_name = package_name + "." + module_info.name
         self.module_path = package_name
         self.manifest_path = "N/A"
-        self.manifest = dict()
+        self.manifest: PersistentDictType = dict()
         path = getattr(module_info.module_finder, 'path', None)
         if path:
             self.manifest_path = os.path.join(path, module_info.name, "manifest.json")
@@ -115,17 +128,17 @@ class ModuleAdapter:
         self.manifest.setdefault("identifier", self.module_name)
         self.manifest.setdefault("version", "0.0.0")
 
-    def load(self):
+    def load(self) -> typing.Optional[types.ModuleType]:
         return load_plug_in(self.module_path, self.module_name)
 
 
 class PlugInAdapter:
-    def __init__(self, directory, relative_path):
+    def __init__(self, directory: str, relative_path: str) -> None:
         plugin_dir = os.path.join(directory, relative_path)
         self.manifest_path = os.path.join(plugin_dir, "manifest.json")
         self.module_name = relative_path
         self.module_path = directory
-        self.manifest = None
+        self.manifest: PersistentDictType = dict()
         if os.path.exists(self.manifest_path):
             try:
                 with open(self.manifest_path) as f:
@@ -134,15 +147,17 @@ class PlugInAdapter:
                 logging.info("Cannot read manifest file from %s", self.manifest_path)
                 logging.info(e)
 
-    def load(self):
+    def load(self) -> typing.Optional[types.ModuleType]:
         return load_plug_in(self.module_path, self.module_name)
 
 
-def load_plug_ins(app, root_dir):
+class ApplicationLike(typing.Protocol):
+    pass
+
+
+def load_plug_ins(document_location: str, data_location: str, root_dir: typing.Optional[str]) -> None:
     """Load plug-ins."""
     global extensions
-
-    ui = app.ui
 
     # a list of directories in which sub-directories PlugIns will be searched.
     subdirectories = []
@@ -153,7 +168,6 @@ def load_plug_ins(app, root_dir):
 
     # also search the default data location; create directory there if it doesn't exist to make it easier for user.
     # default data location will be application specific.
-    data_location = ui.get_data_location()
     if data_location is not None:
         subdirectories.append(data_location)
         # create directories here if they don't exist
@@ -164,7 +178,6 @@ def load_plug_ins(app, root_dir):
 
     # search the Nion/Swift subdirectory of the default document location too,
     # but don't create directories here - avoid polluting user visible directories.
-    document_location = ui.get_document_location()
     if document_location is not None:
         subdirectories.append(os.path.join(document_location, "Nion", "Swift"))
         # do not create them in documents if they don't exist. this location is optional.
@@ -195,14 +208,14 @@ def load_plug_ins(app, root_dir):
         else:
             logging.info("NOT Loading plug-ins from %s (missing)", plugins_dir)
 
-    version_map = dict()
-    module_exists_map = dict()
+    version_map: PersistentDictType = dict()
+    module_exists_map: typing.Dict[str, bool] = dict()
 
-    plugin_adapters = list()
+    plugin_adapters: typing.List[typing.Union[ModuleAdapter, PlugInAdapter]] = list()
 
     import nionswift_plugin
-    for module_info in pkgutil.iter_modules(nionswift_plugin.__path__):
-        plugin_adapters.append(ModuleAdapter(nionswift_plugin.__name__, module_info))
+    for module_info in pkgutil.iter_modules(getattr(nionswift_plugin, "__path__")):
+        plugin_adapters.append(ModuleAdapter(getattr(nionswift_plugin, "__name__"), module_info))
 
     for directory, relative_path in plugin_dirs:
         plugin_adapters.append(PlugInAdapter(directory, relative_path))
@@ -283,7 +296,7 @@ def load_plug_ins(app, root_dir):
 
     notify_modules("run")
 
-def unload_plug_ins():
+def unload_plug_ins() -> None:
     global extensions
     for extension in reversed(extensions):
         try:
@@ -293,7 +306,7 @@ def unload_plug_ins():
 
     extensions = []
 
-def notify_modules(method_name, *args, **kwargs):
+def notify_modules(method_name: str, *args: typing.Any, **kwargs: typing.Any) -> None:
     for module in __modules:
         for member in inspect.getmembers(module):
             if inspect.isfunction(member[1]) and member[0] == method_name:
@@ -305,9 +318,9 @@ def notify_modules(method_name, *args, **kwargs):
                     logging.info("--------")
 
 
-def append_test_suites(suites):
+def append_test_suites(suites: typing.Sequence[unittest.suite.TestSuite]) -> None:
     __test_suites.extend(suites)
 
 
-def test_suites():
+def test_suites() -> typing.Sequence[unittest.suite.TestSuite]:
     return __test_suites

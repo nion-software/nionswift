@@ -83,7 +83,7 @@ key_map = {
 }
 
 
-def has_metadata_value(metadata_source, key: str) -> bool:
+def has_metadata_value(metadata_source: typing.Any, key: str) -> bool:
     """Return whether the metadata value for the given key exists.
 
     There are a set of predefined keys that, when used, will be type checked and be interoperable with other
@@ -116,7 +116,7 @@ def has_metadata_value(metadata_source, key: str) -> bool:
     return False
 
 
-def get_metadata_value(metadata_source, key: str) -> typing.Any:
+def get_metadata_value(metadata_source: typing.Any, key: str) -> typing.Any:
     """Get the metadata value for the given key.
 
     There are a set of predefined keys that, when used, will be type checked and be interoperable with other
@@ -149,7 +149,7 @@ def get_metadata_value(metadata_source, key: str) -> typing.Any:
     return None
 
 
-def set_metadata_value(metadata_source, key: str, value: typing.Any) -> None:
+def set_metadata_value(metadata_source: typing.Any, key: str, value: typing.Any) -> None:
     """Set the metadata value for the given key.
 
     There are a set of predefined keys that, when used, will be type checked and be interoperable with other
@@ -188,7 +188,7 @@ def set_metadata_value(metadata_source, key: str, value: typing.Any) -> None:
     raise KeyError()
 
 
-def delete_metadata_value(metadata_source, key: str) -> None:
+def delete_metadata_value(metadata_source: typing.Any, key: str) -> None:
     """Delete the metadata value for the given key.
 
     There are a set of predefined keys that, when used, will be type checked and be interoperable with other
