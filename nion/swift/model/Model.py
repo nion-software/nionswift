@@ -303,8 +303,8 @@ Project = Schema.entity("project", None, 3, {
 
 Project.rename("workspace", "workspace_uuid")
 
-
 PersistentDictType = typing.Dict[str, typing.Any]
+
 
 def transform_forward(d: PersistentDictType) -> PersistentDictType:
     for display_item in d.get("display_items", list()):

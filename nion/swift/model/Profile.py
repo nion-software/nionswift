@@ -393,8 +393,12 @@ class Profile(Persistence.PersistentObject):
         self.define_property("work_project_reference_uuid", converter=Converter.UuidToStringConverter())
         self.define_property("closed_items", list())
         self.define_property("script_items_updated", False, changed=self.__property_changed)
-        self.define_relationship("project_references", project_reference_factory, insert=self.__insert_project_reference, remove=self.__remove_project_reference, hidden=True)
-        self.define_relationship("script_items", typing.cast(typing.Callable[[typing.Callable[[str], str]], typing.Optional[Persistence.PersistentObject]], script_item_factory))
+        self.define_relationship("project_references", project_reference_factory,
+                                 insert=self.__insert_project_reference, remove=self.__remove_project_reference,
+                                 hidden=True)
+        self.define_relationship("script_items", typing.cast(
+            typing.Callable[[typing.Callable[[str], str]], typing.Optional[Persistence.PersistentObject]],
+            script_item_factory))
 
         self.storage_system = storage_system or FileStorageSystem.MemoryPersistentStorageSystem()
         self.storage_system.load_properties()
@@ -492,7 +496,9 @@ class Profile(Persistence.PersistentObject):
                 project.project_storage_system.enter_transaction()
             return self
 
-        def __exit__(self, exception_type: typing.Optional[typing.Type[BaseException]], value: typing.Optional[BaseException], traceback: typing.Optional[types.TracebackType]) -> typing.Optional[bool]:
+        def __exit__(self, exception_type: typing.Optional[typing.Type[BaseException]],
+                     value: typing.Optional[BaseException],
+                     traceback: typing.Optional[types.TracebackType]) -> typing.Optional[bool]:
             profile_storage_system = self.__profile._profile_storage_system
             if profile_storage_system:
                 profile_storage_system.exit_write_delay(self.__profile)

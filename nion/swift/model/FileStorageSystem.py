@@ -449,7 +449,9 @@ class ProjectStorageSystem(PersistentStorageSystem):
     def _get_identifier(self) -> str: ...
 
     @abc.abstractmethod
-    def _make_storage_handler(self, data_item: DataItem.DataItem, file_handler: typing.Optional[_CreateStorageHandlerFn] = None) -> StorageHandler.StorageHandler: ...
+    def _make_storage_handler(self, data_item: DataItem.DataItem,
+                              file_handler: typing.Optional[_CreateStorageHandlerFn] = None) -> StorageHandler.StorageHandler:
+        ...
 
     @abc.abstractmethod
     def _find_storage_handlers(self) -> typing.Sequence[StorageHandler.StorageHandler]: ...
@@ -723,7 +725,8 @@ class FileProjectStorageSystem(ProjectStorageSystem):
     def _get_identifier(self) -> str:
         return str(self.__project_path)
 
-    def _make_storage_handler(self, data_item: DataItem.DataItem, file_handler: typing.Optional[_CreateStorageHandlerFn] = None) -> StorageHandler.StorageHandler:
+    def _make_storage_handler(self, data_item: DataItem.DataItem,
+                              file_handler: typing.Optional[_CreateStorageHandlerFn] = None) -> StorageHandler.StorageHandler:
         # if there are two handlers, first is small, second is large
         # if there is only one handler, it is used in all cases
         large_format = hasattr(data_item, "large_format") and data_item.large_format
@@ -910,7 +913,8 @@ class FileProjectStorageSystem(ProjectStorageSystem):
 
 class MemoryStorageHandler(StorageHandler.StorageHandler):
 
-    def __init__(self, uuid_: str, data_properties_map: typing.Dict[str, PersistentDictType], data_map: typing.Dict[str, _ImageDataType], data_read_event: Event.Event) -> None:
+    def __init__(self, uuid_: str, data_properties_map: typing.Dict[str, PersistentDictType],
+                 data_map: typing.Dict[str, _ImageDataType], data_read_event: Event.Event) -> None:
         self.__uuid = uuid_
         self.__data_properties_map = data_properties_map
         self.__data_map = data_map
@@ -988,7 +992,8 @@ class MemoryProjectStorageSystem(ProjectStorageSystem):
     def _get_identifier(self) -> str:
         return "memory"
 
-    def _make_storage_handler(self, data_item: DataItem.DataItem, file_handler: typing.Optional[_CreateStorageHandlerFn] = None) -> MemoryStorageHandler:
+    def _make_storage_handler(self, data_item: DataItem.DataItem,
+                              file_handler: typing.Optional[_CreateStorageHandlerFn] = None) -> MemoryStorageHandler:
         data_item_uuid_str = str(data_item.uuid)
         return MemoryStorageHandler(data_item_uuid_str, self.__data_properties_map, self.__data_map, self._test_data_read_event)
 
