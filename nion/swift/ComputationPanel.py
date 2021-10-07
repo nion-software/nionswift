@@ -99,12 +99,12 @@ class AddVariableCommand(Undo.UndoableCommand):
         # override to allow the undo command to track state; but only use part of the state for comparison
         return state1[0] == state2[0]
 
-    def _undo(self):
+    def _undo(self) -> None:
         computation = self.__computation_proxy.item
         variable = computation.variables[self.__variable_index]
         computation.remove_variable(variable)
 
-    def _redo(self):
+    def _redo(self) -> None:
         self.perform()
 
 
@@ -142,7 +142,7 @@ class RemoveVariableCommand(Undo.UndoableCommand):
         # override to allow the undo command to track state; but only use part of the state for comparison
         return state1[0] == state2[0]
 
-    def _undo(self):
+    def _undo(self) -> None:
         computation = self.__computation_proxy.item
         variable = Symbolic.ComputationVariable()
         variable.begin_reading()
@@ -150,7 +150,7 @@ class RemoveVariableCommand(Undo.UndoableCommand):
         variable.finish_reading()
         computation.insert_variable(self.__variable_index, variable)
 
-    def _redo(self):
+    def _redo(self) -> None:
         computation = self.__computation_proxy.item
         computation.remove_variable(computation.variables[self.__variable_index])
 
@@ -183,7 +183,7 @@ class CreateComputationCommand(Undo.UndoableCommand):
     def _set_modified_state(self, modified_state: typing.Any) -> None:
         self.__document_model.modified_state = modified_state
 
-    def _undo(self):
+    def _undo(self) -> None:
         data_item = self.__data_item_proxy.item
         self.__document_model.set_data_item_computation(data_item, None)
 
@@ -223,7 +223,7 @@ class ChangeComputationCommand(Undo.UndoableCommand):
         # override to allow the undo command to track state; but only use part of the state for comparison
         return state1[0] == state2[0]
 
-    def _undo(self):
+    def _undo(self) -> None:
         computation = self.__computation_proxy.item
         properties = self.__properties
         self.__properties = computation.write_to_dict()
@@ -1407,7 +1407,7 @@ class RemoveComputationCommand(Undo.UndoableCommand):
     def _set_modified_state(self, modified_state: typing.Any) -> None:
         self.__document_controller.document_model.modified_state = modified_state
 
-    def _undo(self):
+    def _undo(self) -> None:
         self.__new_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
         for undelete_log in reversed(self.__undelete_logs):
             self.__document_controller.document_model.undelete_all(undelete_log)
@@ -1415,7 +1415,7 @@ class RemoveComputationCommand(Undo.UndoableCommand):
         self.__undelete_logs.clear()
         self.__document_controller.workspace_controller.reconstruct(self.__old_workspace_layout)
 
-    def _redo(self):
+    def _redo(self) -> None:
         self.perform()
         self.__document_controller.workspace_controller.reconstruct(self.__new_workspace_layout)
 

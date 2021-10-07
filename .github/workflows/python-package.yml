@@ -44,6 +44,7 @@ jobs:
           nion/swift/DataPanel.py \
           nion/swift/DocumentController.py \
           nion/swift/GeneratorDialog.py \
+          nion/swift/Inspector.py \
           nion/swift/LineGraphCanvasItem.py \
           nion/swift/LinePlotCanvasItem.py \
           nion/swift/MetadataPanel.py \

@@ -978,14 +978,14 @@ class InsertGraphicsCommand(Undo.UndoableCommand):
         display_item = self.__display_item_proxy.item
         display_item.modified_state, self.__document_controller.workspace_controller.document_model.modified_state = modified_state
 
-    def _redo(self):
+    def _redo(self) -> None:
         for undelete_log in reversed(self.__undelete_logs):
             self.__document_controller.document_model.undelete_all(undelete_log)
             undelete_log.close()
         self.__undelete_logs.clear()
         self.__document_controller.workspace_controller.reconstruct(self.__new_workspace_layout)
 
-    def _undo(self):
+    def _undo(self) -> None:
         display_item = self.__display_item_proxy.item
         graphics = [graphic_proxy.item for graphic_proxy in self.__graphic_proxies]
         self.__new_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
@@ -1033,13 +1033,13 @@ class AppendDisplayDataChannelCommand(Undo.UndoableCommand):
         data_item = self.__data_item_proxy.item
         data_item.modified_state, display_item.modified_state, self.__document_model.modified_state = modified_state
 
-    def _undo(self):
+    def _undo(self) -> None:
         display_item = self.__display_item_proxy.item
         display_data_channel = display_item.display_data_channels[self.__display_data_channel_index]
         display_item.remove_display_data_channel(display_data_channel, safe=True).close()
         display_item.restore_properties(self.__old_properties)
 
-    def _redo(self):
+    def _redo(self) -> None:
         self.perform()
 
 
@@ -1077,7 +1077,7 @@ class ChangeDisplayDataChannelCommand(Undo.UndoableCommand):
         # override to allow the undo command to track state; but only use part of the state for comparison
         return state1[0] == state2[0]
 
-    def _undo(self):
+    def _undo(self) -> None:
         display_data_channel = self.__display_data_channel_proxy.item
         properties = self.__properties
         self.__properties = display_data_channel.save_properties()
@@ -1222,7 +1222,7 @@ class MoveDisplayLayerCommand(Undo.UndoableCommand):
         # override to allow the undo command to track state; but only use part of the state for comparison
         return state1[0] == state2[0] and state1[1] == state2[1]
 
-    def _undo(self):
+    def _undo(self) -> None:
         for undelete_log in reversed(self.__undelete_logs):
             self.__document_model.undelete_all(undelete_log)
             undelete_log.close()
@@ -1264,7 +1264,7 @@ class AddDisplayLayerCommand(Undo.UndoableCommand):
         display_item = typing.cast(DisplayItem.DisplayItem, self.__display_item_proxy.item)
         display_item.modified_state, self.__document_model.modified_state = modified_state
 
-    def _undo(self):
+    def _undo(self) -> None:
         # remove the new display layer and restore properties
         display_item = typing.cast(DisplayItem.DisplayItem, self.__display_item_proxy.item)
         display_item.remove_display_layer(self.__index).close()
@@ -1310,7 +1310,7 @@ class RemoveDisplayLayerCommand(Undo.UndoableCommand):
         display_item = typing.cast(DisplayItem.DisplayItem, self.__display_item_proxy.item)
         display_item.modified_state, self.__document_model.modified_state = modified_state
 
-    def _undo(self):
+    def _undo(self) -> None:
         # remove the new display layer and restore properties
         display_item = typing.cast(DisplayItem.DisplayItem, self.__display_item_proxy.item)
         for undelete_log in reversed(self.__undelete_logs):
@@ -1357,7 +1357,7 @@ class ChangeDisplayCommand(Undo.UndoableCommand):
         # override to allow the undo command to track state; but only use part of the state for comparison
         return state1[0] == state2[0]
 
-    def _undo(self):
+    def _undo(self) -> None:
         display_item = self.__display_item_proxy.item
         properties = self.__properties
         self.__properties = display_item.save_properties()
@@ -1405,7 +1405,7 @@ class ChangeGraphicsCommand(Undo.UndoableCommand):
         # override to allow the undo command to track state; but only use part of the state for comparison
         return state1[0] == state2[0]
 
-    def _undo(self):
+    def _undo(self) -> None:
         display_item = self.__display_item_proxy.item
         properties = self.__properties
         graphics = [display_item.graphics[index] for index in self.__graphic_indexes]

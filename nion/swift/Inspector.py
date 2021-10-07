@@ -21,6 +21,7 @@ from nion.swift import DisplayPanel
 from nion.swift import MimeTypes
 from nion.swift import Panel
 from nion.swift import Undo
+from nion.swift.model import Changes
 from nion.swift.model import ColorMaps
 from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
@@ -29,6 +30,7 @@ from nion.swift.model import Graphics
 from nion.swift.model import Symbolic
 from nion.ui import CanvasItem
 from nion.ui import Declarative
+from nion.ui import DrawingContext
 from nion.ui import UserInterface
 from nion.ui import Widgets
 from nion.utils import Binding
@@ -38,7 +40,13 @@ from nion.utils import Model
 from nion.utils import Observable
 
 if typing.TYPE_CHECKING:
+    from nion.swift import Application
     from nion.swift import DocumentController
+    from nion.swift.model import Persistence
+    from nion.data import DataAndMetadata
+    from nion.utils import Selection
+
+_ImageDataType = Calibration._ImageDataType
 
 
 _ = gettext.gettext
@@ -51,20 +59,20 @@ class InspectorPanel(Panel.Panel):
     enclosing other containers or objects.
     """
 
-    def __init__(self, document_controller, panel_id, properties):
+    def __init__(self, document_controller: DocumentController.DocumentController, panel_id: str, properties: Persistence.PersistentDictType) -> None:
         super().__init__(document_controller, panel_id, _("Inspector"))
 
         # the currently selected display item
-        self.__display_item = None
+        self.__display_item: typing.Optional[DisplayItem.DisplayItem] = None
 
-        self.__display_inspector = None
+        self.__display_inspector: typing.Optional[DisplayInspector] = None
 
         # listen for selected display binding changes
-        self.__data_item_will_be_removed_event_listener = None
+        self.__data_item_will_be_removed_event_listener: typing.Optional[Event.EventListener] = None
         self.__display_item_changed_event_listener = document_controller.focused_display_item_changed_event.listen(self.__display_item_changed)
         self.__set_display_item(None)
 
-        def scroll_area_focus_changed(focused):
+        def scroll_area_focus_changed(focused: bool) -> None:
             # ensure that clicking outside of controls but in the scroll area refocuses the display panel.
             if focused:
                 scroll_area.request_refocus()
@@ -79,12 +87,12 @@ class InspectorPanel(Panel.Panel):
         scroll_area.content = self.column
         self.widget = scroll_area
 
-        self.__display_changed_listener = None
-        self.__display_graphic_selection_changed_event_listener = None
-        self.__display_about_to_be_removed_listener = None
-        self.__data_shape = None
-        self.__display_type = None
-        self.__display_data_shape = None
+        self.__display_changed_listener: typing.Optional[Event.EventListener] = None
+        self.__display_graphic_selection_changed_event_listener: typing.Optional[Event.EventListener] = None
+        self.__display_about_to_be_removed_listener: typing.Optional[Event.EventListener] = None
+        self.__data_shape: typing.Optional[DataAndMetadata.ShapeType] = None
+        self.__display_type: typing.Optional[str] = None
+        self.__display_data_shape: typing.Optional[DataAndMetadata.ShapeType] = None
 
     def close(self) -> None:
         if self.__data_item_will_be_removed_event_listener:
@@ -92,7 +100,7 @@ class InspectorPanel(Panel.Panel):
             self.__data_item_will_be_removed_event_listener = None
         # disconnect self as listener
         self.__display_item_changed_event_listener.close()
-        self.__display_item_changed_event_listener = None
+        self.__display_item_changed_event_listener = typing.cast(typing.Any, None)
         # close the property controller. note: this will close and create
         # a new data item inspector; so it should go before the final
         # data item inspector close, which is below.
@@ -103,12 +111,12 @@ class InspectorPanel(Panel.Panel):
         # finish closing
         super().close()
 
-    def _get_inspector_sections(self):
-        return self.__display_inspector._get_inspectors() if self.__display_inspector else None
+    def _get_inspector_sections(self) -> typing.Sequence[InspectorSection]:
+        return self.__display_inspector._get_inspectors() if self.__display_inspector else list()
 
     # close the old data item inspector, and create a new one
     # not thread safe.
-    def __update_display_inspector(self):
+    def __update_display_inspector(self) -> None:
         self.column.remove_all()
         if self.__display_inspector:
             if self.__display_changed_listener:
@@ -125,7 +133,7 @@ class InspectorPanel(Panel.Panel):
         data_item = self.__display_item.data_item if self.__display_item else None
         display_data_channel = self.__display_item.display_data_channel if self.__display_item else None
 
-        def rebuild_display_inspector():
+        def rebuild_display_inspector() -> None:
             self.document_controller.add_task("update_display_inspector" + str(id(self)), self.__update_display_inspector)
 
         self.__display_inspector = DisplayInspector(self.ui, self.document_controller, self.__display_item)
@@ -145,15 +153,15 @@ class InspectorPanel(Panel.Panel):
         # user changes the selection.
         if self.__display_item:
 
-            def display_item_about_to_be_removed():
+            def display_item_about_to_be_removed() -> None:
                 self.document_controller.clear_task("update_display_inspector" + str(id(self)))
 
-            def display_graphic_selection_changed(graphic_selection):
+            def display_graphic_selection_changed(graphic_selection: Selection.IndexedSelection) -> None:
                 # not really a recursive call; only delayed
                 # this may come in on a thread (superscan probe position connection closing). delay even more.
                 self.document_controller.add_task("update_display_inspector" + str(id(self)), self.__update_display_inspector)
 
-            def display_changed():
+            def display_changed() -> None:
                 # not really a recursive call; only delayed
                 # this may come in on a thread (superscan probe position connection closing). delay even more.
                 display_data_channel = self.__display_item.display_data_channel if self.__display_item else None
@@ -182,14 +190,14 @@ class InspectorPanel(Panel.Panel):
     # thread safe.
     def __display_item_changed(self, display_item: DisplayItem.DisplayItem) -> None:
         data_item = display_item.data_item if display_item else None
-        def data_item_will_be_removed(data_item_to_be_removed):
+        def data_item_will_be_removed(data_item_to_be_removed: DataItem.DataItem) -> None:
             if data_item_to_be_removed == data_item:
                 self.document_controller.clear_task("update_display" + str(id(self)))
                 self.document_controller.clear_task("update_display_inspector" + str(id(self)))
                 if self.__data_item_will_be_removed_event_listener:
                     self.__data_item_will_be_removed_event_listener.close()
                     self.__data_item_will_be_removed_event_listener = None
-        def update_display():
+        def update_display() -> None:
             self.__set_display_item(display_item)
             if self.__data_item_will_be_removed_event_listener:
                 self.__data_item_will_be_removed_event_listener.close()
@@ -206,16 +214,16 @@ class InspectorPanel(Panel.Panel):
 
 
 class Unbinder:
-    def __init__(self):
-        self.__unbinders = list()
-        self.__listener_map = dict()
+    def __init__(self) -> None:
+        self.__unbinders: typing.List[typing.Callable[[], None]] = list()
+        self.__listener_map: typing.Dict[Persistence.PersistentObject, Event.EventListener] = dict()
 
     def close(self) -> None:
         for listener in self.__listener_map.values():
             listener.close()
-        self.__listener_map = None
+        self.__listener_map = typing.cast(typing.Any, None)
 
-    def add(self, items, unbinders: typing.Sequence[typing.Callable[[], None]]) -> None:
+    def add(self, items: typing.Sequence[Persistence.PersistentObject], unbinders: typing.Sequence[typing.Callable[[], None]]) -> None:
         for item in items:
             if item and item not in self.__listener_map:
                 self.__listener_map[item] = item.about_to_be_removed_event.listen(self.__unbind)
@@ -237,7 +245,7 @@ class InspectorSection(Widgets.CompositeWidgetBase):
     responsible for watching for mutations to that subset of content and updating appropriately.
     """
 
-    def __init__(self, ui, section_id, section_title):
+    def __init__(self, ui: UserInterface.UserInterface, section_id: str, section_title: str) -> None:
         self.__section_content_column = ui.create_column_widget()
         super().__init__(Widgets.SectionWidget(ui, section_title, self.__section_content_column, "inspector/" + section_id + "/open"))
         self.ui = ui  # for use in subclasses
@@ -247,22 +255,22 @@ class InspectorSection(Widgets.CompositeWidgetBase):
         self._unbinder.close()
         super().close()
 
-    def add_widget_to_content(self, widget):
+    def add_widget_to_content(self, widget: UserInterface.Widget) -> None:
         """Subclasses should call this to add content in the section's top level column."""
         self.__section_content_column.add_spacing(4)
         self.__section_content_column.add(widget)
 
-    def finish_widget_content(self):
+    def finish_widget_content(self) -> None:
         """Subclasses should all this after calls to add_widget_content."""
         pass
 
     @property
-    def _section_content_for_test(self):
+    def _section_content_for_test(self) -> UserInterface.BoxWidget:
         return self.__section_content_column
 
 
 class ChangeDisplayItemPropertyCommand(Undo.UndoableCommand):
-    def __init__(self, document_model, display_item: DisplayItem.DisplayItem, property_name: str, value):
+    def __init__(self, document_model: DocumentModel.DocumentModel, display_item: DisplayItem.DisplayItem, property_name: str, value: typing.Any) -> None:
         super().__init__(_("Change Display Item Info"), command_id="change_property_" + property_name, is_mergeable=True)
         self.__document_model = document_model
         self.__display_item_proxy = display_item.create_proxy()
@@ -272,10 +280,9 @@ class ChangeDisplayItemPropertyCommand(Undo.UndoableCommand):
         self.initialize()
 
     def close(self) -> None:
-        self.__document_model = None
+        self.__document_model = typing.cast(typing.Any, None)
         self.__display_item_proxy.close()
-        self.__display_item_proxy = None
-        self.__property_name = None
+        self.__display_item_proxy = typing.cast(typing.Any, None)
         self.__new_display_layers = None
         self.__old_display_layers = None
         super().close()
@@ -286,15 +293,17 @@ class ChangeDisplayItemPropertyCommand(Undo.UndoableCommand):
 
     def _get_modified_state(self) -> typing.Any:
         display_item = self.__display_item_proxy.item
-        return display_item.modified_state, self.__document_model.modified_state
+        return display_item.modified_state if display_item else None, self.__document_model.modified_state
 
     def _set_modified_state(self, modified_state: typing.Any) -> None:
         display_item = self.__display_item_proxy.item
-        display_item.modified_state, self.__document_model.modified_state = modified_state
+        if display_item:
+            display_item.modified_state = modified_state[0]
+        self.__document_model.modified_state = modified_state[1]
 
     def _compare_modified_states(self, state1: typing.Any, state2: typing.Any) -> bool:
         # override to allow the undo command to track state; but only use part of the state for comparison
-        return state1[0] == state2[0]
+        return bool(state1[0] == state2[0])
 
     def _undo(self) -> None:
         display_item = self.__display_item_proxy.item
@@ -304,12 +313,17 @@ class ChangeDisplayItemPropertyCommand(Undo.UndoableCommand):
     def _redo(self) -> None:
         self.perform()
 
+    @property
+    def __display_item_uuid(self) -> typing.Optional[uuid.UUID]:
+        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+        return display_item.uuid if display_item else None
+
     def can_merge(self, command: Undo.UndoableCommand) -> bool:
-        return isinstance(command, ChangePropertyCommand) and self.command_id and self.command_id == command.command_id and self.__display_item_proxy.item == command.__display_item_proxy.item
+        return isinstance(command, self.__class__) and bool(self.command_id) and self.command_id == command.command_id and self.__display_item_uuid == command.__display_item_uuid
 
 
 class ChangePropertyCommand(Undo.UndoableCommand):
-    def __init__(self, document_model, data_item: DataItem.DataItem, property_name: str, value):
+    def __init__(self, document_model: DocumentModel.DocumentModel, data_item: DataItem.DataItem, property_name: str, value: typing.Any) -> None:
         super().__init__(_("Change Data Item Info"), command_id="change_property_" + property_name, is_mergeable=True)
         self.__document_model = document_model
         self.__data_item_proxy = data_item.create_proxy()
@@ -319,10 +333,9 @@ class ChangePropertyCommand(Undo.UndoableCommand):
         self.initialize()
 
     def close(self) -> None:
-        self.__document_model = None
+        self.__document_model = typing.cast(typing.Any, None)
         self.__data_item_proxy.close()
-        self.__data_item_proxy = None
-        self.__property_name = None
+        self.__data_item_proxy = typing.cast(typing.Any, None)
         self.__new_value = None
         self.__old_value = None
         super().close()
@@ -333,15 +346,17 @@ class ChangePropertyCommand(Undo.UndoableCommand):
 
     def _get_modified_state(self) -> typing.Any:
         data_item = self.__data_item_proxy.item
-        return data_item.modified_state, self.__document_model.modified_state
+        return data_item.modified_state if data_item else None, self.__document_model.modified_state
 
     def _set_modified_state(self, modified_state: typing.Any) -> None:
         data_item = self.__data_item_proxy.item
-        data_item.modified_state, self.__document_model.modified_state = modified_state
+        if data_item:
+            data_item.modified_state = modified_state[0]
+        self.__document_model.modified_state = modified_state[1]
 
     def _compare_modified_states(self, state1: typing.Any, state2: typing.Any) -> bool:
         # override to allow the undo command to track state; but only use part of the state for comparison
-        return state1[0] == state2[0]
+        return bool(state1[0] == state2[0])
 
     def _undo(self) -> None:
         data_item = self.__data_item_proxy.item
@@ -351,19 +366,27 @@ class ChangePropertyCommand(Undo.UndoableCommand):
     def _redo(self) -> None:
         self.perform()
 
+    @property
+    def __data_item_uuid(self) -> typing.Optional[uuid.UUID]:
+        data_item = typing.cast(typing.Optional[DataItem.DataItem], self.__data_item_proxy.item) if self.__data_item_proxy else None
+        return data_item.uuid if data_item else None
+
     def can_merge(self, command: Undo.UndoableCommand) -> bool:
-        return isinstance(command, ChangePropertyCommand) and self.command_id and self.command_id == command.command_id and self.__data_item_uuid == command.__data_item_uuid
+        return isinstance(command, self.__class__) and bool(self.command_id) and self.command_id == command.command_id and self.__data_item_uuid == command.__data_item_uuid
 
 
 class ChangeDisplayItemPropertyBinding(Binding.PropertyBinding):
-    def __init__(self, document_controller, display_item: DisplayItem.DisplayItem, property_name: str, converter=None, fallback=None):
+    def __init__(self, document_controller: DocumentController.DocumentController,
+                 display_item: DisplayItem.DisplayItem, property_name: str,
+                 converter: typing.Optional[Converter.ConverterLike[typing.Any, typing.Any]] = None,
+                 fallback: typing.Any = None) -> None:
         super().__init__(display_item, property_name, converter=converter, fallback=fallback)
         self.__property_name = property_name
         self.__old_source_setter = self.source_setter
 
-        def set_value(value):
+        def set_value(value: typing.Any) -> None:
             if value != getattr(display_item, property_name):
-                command = ChangeDisplayItemPropertyCommand(document_controller.document_model, self.source, self.__property_name, value)
+                command = ChangeDisplayItemPropertyCommand(document_controller.document_model, typing.cast(DisplayItem.DisplayItem, self.source), self.__property_name, value)
                 command.perform()
                 document_controller.push_undo_command(command)
 
@@ -371,13 +394,13 @@ class ChangeDisplayItemPropertyBinding(Binding.PropertyBinding):
 
 
 class ChangeDisplayPropertyBinding(Binding.Binding):
-    def __init__(self, document_controller, display_item: DisplayItem.DisplayItem, property_name: str, converter=None, fallback=None):
+    def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem, property_name: str, converter: typing.Optional[Converter.ConverterLike[typing.Any, typing.Any]] = None, fallback: typing.Any = None) -> None:
         super().__init__(display_item, converter=converter, fallback=fallback)
 
-        def get_value():
+        def get_value() -> typing.Any:
             return display_item.get_display_property(property_name)
 
-        def set_value(value):
+        def set_value(value: typing.Any) -> typing.Any:
             if value != get_value():
                 command = DisplayPanel.ChangeDisplayCommand(document_controller.document_model, display_item, title=_("Change Display"), command_id="change_display_" + property_name, is_mergeable=True, **{property_name: value})
                 command.perform()
@@ -400,17 +423,20 @@ class ChangeDisplayPropertyBinding(Binding.Binding):
 
     def close(self) -> None:
         self.__property_changed_listener.close()
-        self.__property_changed_listener = None
+        self.__property_changed_listener = typing.cast(typing.Any, None)
         super().close()
 
 
 class ChangeDisplayDataChannelPropertyBinding(Binding.PropertyBinding):
-    def __init__(self, document_controller, display_data_channel: DisplayItem.DisplayDataChannel, property_name: str, converter=None, fallback=None):
+    def __init__(self, document_controller: DocumentController.DocumentController,
+                 display_data_channel: DisplayItem.DisplayDataChannel, property_name: str,
+                 converter: typing.Optional[Converter.ConverterLike[typing.Any, typing.Any]] = None,
+                 fallback: typing.Any = None) -> None:
         super().__init__(display_data_channel, property_name, converter=converter, fallback=fallback)
         self.__property_name = property_name
         self.__old_source_setter = self.source_setter
 
-        def set_value(value):
+        def set_value(value: typing.Any) -> typing.Any:
             if value != getattr(display_data_channel, property_name):
                 command = DisplayPanel.ChangeDisplayDataChannelCommand(document_controller.document_model, display_data_channel, title=_("Change Display"), command_id="change_display_" + property_name, is_mergeable=True, **{self.__property_name: value})
                 command.perform()
@@ -420,7 +446,10 @@ class ChangeDisplayDataChannelPropertyBinding(Binding.PropertyBinding):
 
 
 class ChangeGraphicPropertyBinding(Binding.PropertyBinding):
-    def __init__(self, document_controller, display_item: DisplayItem.DisplayItem, graphic: Graphics.Graphic, property_name: str, converter=None, fallback=None):
+    def __init__(self, document_controller: DocumentController.DocumentController,
+                 display_item: DisplayItem.DisplayItem, graphic: Graphics.Graphic, property_name: str,
+                 converter: typing.Optional[Converter.ConverterLike[typing.Any, typing.Any]] = None,
+                 fallback: typing.Any = None) -> None:
         super().__init__(graphic, property_name, converter=converter, fallback=fallback)
         self.__display_item_proxy = display_item.create_proxy()
         self.__graphic_proxy = graphic.create_proxy()
@@ -433,19 +462,19 @@ class ChangeGraphicPropertyBinding(Binding.PropertyBinding):
 
     def close(self) -> None:
         self.__display_item_proxy.close()
-        self.__display_item_proxy = None
+        self.__display_item_proxy = typing.cast(typing.Any, None)
         self.__graphic_proxy.close()
-        self.__graphic_proxy = None
+        self.__graphic_proxy = typing.cast(typing.Any, None)
         super().close()
 
-    def __get_value(self):
+    def __get_value(self) -> typing.Any:
         display_item = self.__display_item_proxy.item
         graphic = self.__graphic_proxy.item
         if display_item and graphic:
             return getattr(graphic, self.__property_name)
         return None
 
-    def __set_value(self, value):
+    def __set_value(self, value: typing.Any) -> None:
         display_item = self.__display_item_proxy.item
         graphic = self.__graphic_proxy.item
         if display_item and graphic:
@@ -455,12 +484,14 @@ class ChangeGraphicPropertyBinding(Binding.PropertyBinding):
                 self.__document_controller.push_undo_command(command)
 
 
-class DisplayDataChannelPropertyCommandModel(Model.PropertyModel):
+class DisplayDataChannelPropertyCommandModel(Model.PropertyModel[typing.Any]):
 
-    def __init__(self, document_controller, display_data_channel: DisplayItem.DisplayDataChannel, property_name, title, command_id):
+    def __init__(self, document_controller: DocumentController.DocumentController,
+                 display_data_channel: DisplayItem.DisplayDataChannel, property_name: str, title: str,
+                 command_id: str) -> None:
         super().__init__(getattr(display_data_channel, property_name))
 
-        def property_changed_from_user(value):
+        def property_changed_from_user(value: typing.Any) -> None:
             if value != getattr(display_data_channel, property_name):
                 command = DisplayPanel.ChangeDisplayDataChannelCommand(document_controller.document_model, display_data_channel, title=title, command_id=command_id, is_mergeable=True, **{property_name: value})
                 command.perform()
@@ -468,7 +499,7 @@ class DisplayDataChannelPropertyCommandModel(Model.PropertyModel):
 
         self.on_value_changed = property_changed_from_user
 
-        def property_changed_from_display(name):
+        def property_changed_from_display(name: str) -> None:
             if name == property_name:
                 self.value = getattr(display_data_channel, property_name)
 
@@ -476,16 +507,18 @@ class DisplayDataChannelPropertyCommandModel(Model.PropertyModel):
 
     def close(self) -> None:
         self.__changed_listener.close()
-        self.__changed_listener = None
+        self.__changed_listener = typing.cast(typing.Any, None)
         super().close()
 
 
-class GraphicPropertyCommandModel(Model.PropertyModel):
+class GraphicPropertyCommandModel(Model.PropertyModel[typing.Any]):
 
-    def __init__(self, document_controller, display_item: DisplayItem.DisplayItem, graphic, property_name, title, command_id):
+    def __init__(self, document_controller: DocumentController.DocumentController,
+                 display_item: DisplayItem.DisplayItem, graphic: Graphics.Graphic, property_name: str, title: str,
+                 command_id: str) -> None:
         super().__init__(getattr(graphic, property_name))
 
-        def property_changed_from_user(value):
+        def property_changed_from_user(value: typing.Any) -> None:
             if value != getattr(graphic, property_name):
                 command = DisplayPanel.ChangeGraphicsCommand(document_controller.document_model, display_item, [graphic], title=title, command_id=command_id, is_mergeable=True, **{property_name: value})
                 command.perform()
@@ -493,7 +526,7 @@ class GraphicPropertyCommandModel(Model.PropertyModel):
 
         self.on_value_changed = property_changed_from_user
 
-        def property_changed_from_graphic(name):
+        def property_changed_from_graphic(name: str) -> None:
             if name == property_name:
                 self.value = getattr(graphic, property_name)
 
@@ -501,7 +534,7 @@ class GraphicPropertyCommandModel(Model.PropertyModel):
 
     def close(self) -> None:
         self.__changed_listener.close()
-        self.__changed_listener = None
+        self.__changed_listener = typing.cast(typing.Any, None)
         super().close()
 
 
@@ -511,7 +544,7 @@ class InfoInspectorSection(InspectorSection):
         Subclass InspectorSection to implement info inspector.
     """
 
-    def __init__(self, document_controller, display_item: DisplayItem.DisplayItem):
+    def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem) -> None:
         super().__init__(document_controller.ui, "info", _("Info"))
         ui = document_controller.ui
         self.widget_id = "info_inspector_section"
@@ -539,7 +572,7 @@ class InfoInspectorSection(InspectorSection):
         self.caption_static_text.bind_text(caption_binding)
         self.caption_static_button_row = self.ui.create_row_widget()
         self.caption_static_edit_button = self.ui.create_push_button_widget(_("Edit"))
-        def begin_caption_edit():
+        def begin_caption_edit() -> None:
             self.caption_editable_text.text = display_item.caption
             self.caption_static_text.unbind_text()
             self.caption_edit_stack.current_index = 1
@@ -555,12 +588,12 @@ class InfoInspectorSection(InspectorSection):
         self.caption_editable_button_row = self.ui.create_row_widget()
         self.caption_editable_save_button = self.ui.create_push_button_widget(_("Save"))
         self.caption_editable_cancel_button = self.ui.create_push_button_widget(_("Cancel"))
-        def end_caption_edit():
+        def end_caption_edit() -> None:
             caption_binding = Binding.PropertyBinding(display_item, "caption")
             caption_binding.source_setter = None
             self.caption_static_text.bind_text(caption_binding)
             self.caption_edit_stack.current_index = 0
-        def save_caption_edit():
+        def save_caption_edit() -> None:
             command = ChangeDisplayItemPropertyCommand(document_controller.document_model, display_item, "caption", self.caption_editable_text.text)
             command.perform()
             document_controller.push_undo_command(command)
@@ -606,7 +639,7 @@ class InfoInspectorSection(InspectorSection):
 
 
 class DataInfoInspectorSection(InspectorSection):
-    def __init__(self, document_controller, display_data_channel):
+    def __init__(self, document_controller: DocumentController.DocumentController, display_data_channel: DisplayItem.DisplayDataChannel) -> None:
         super().__init__(document_controller.ui, "data_info", _("Data Info"))
         # date
         self.info_section_datetime_row = self.ui.create_row_widget()
@@ -631,7 +664,7 @@ class DataInfoInspectorSection(InspectorSection):
 
 
 class ChangeDisplayLayerPropertyCommand(Undo.UndoableCommand):
-    def __init__(self, document_model: DocumentModel.DocumentModel, display_item: DisplayItem.DisplayItem, display_layer_index: int, property_name: str, value):
+    def __init__(self, document_model: DocumentModel.DocumentModel, display_item: DisplayItem.DisplayItem, display_layer_index: int, property_name: str, value: typing.Any) -> None:
         super().__init__(_("Change Display Layer Info"), command_id="change_display_layer_" + property_name, is_mergeable=True)
         self.__document_model = document_model
         self.__display_item_proxy = display_item.create_proxy()
@@ -642,12 +675,9 @@ class ChangeDisplayLayerPropertyCommand(Undo.UndoableCommand):
         self.initialize()
 
     def close(self) -> None:
-        self.__document_model = None
+        self.__document_model = typing.cast(typing.Any, None)
         self.__display_item_proxy.close()
-        self.__display_item_proxy = None
-        self.__property_name = None
-        self.__value = None
-        self.__old_properties = None
+        self.__display_item_proxy = typing.cast(typing.Any, None)
         super().close()
 
     def perform(self) -> None:
@@ -655,16 +685,18 @@ class ChangeDisplayLayerPropertyCommand(Undo.UndoableCommand):
         display_item._set_display_layer_property(self.__display_layer_index, self.__property_name, self.__value)
 
     def _get_modified_state(self) -> typing.Any:
-        display_item = typing.cast(DisplayItem.DisplayItem, self.__display_item_proxy.item)
-        return display_item.modified_state, self.__document_model.modified_state
+        display_item = self.__display_item_proxy.item
+        return display_item.modified_state if display_item else None, self.__document_model.modified_state
 
     def _set_modified_state(self, modified_state: typing.Any) -> None:
-        display_item = typing.cast(DisplayItem.DisplayItem, self.__display_item_proxy.item)
-        display_item.modified_state, self.__document_model.modified_state = modified_state
+        display_item = self.__display_item_proxy.item
+        if display_item:
+            display_item.modified_state = modified_state[0]
+        self.__document_model.modified_state = modified_state[1]
 
     def _compare_modified_states(self, state1: typing.Any, state2: typing.Any) -> bool:
         # override to allow the undo command to track state; but only use part of the state for comparison
-        return state1[0] == state2[0]
+        return bool(state1[0] == state2[0])
 
     def _undo(self) -> None:
         display_item = typing.cast(DisplayItem.DisplayItem, self.__display_item_proxy.item)
@@ -673,12 +705,17 @@ class ChangeDisplayLayerPropertyCommand(Undo.UndoableCommand):
     def _redo(self) -> None:
         self.perform()
 
+    @property
+    def __display_item_uuid(self) -> typing.Optional[uuid.UUID]:
+        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+        return display_item.uuid if display_item else None
+
     def can_merge(self, command: Undo.UndoableCommand) -> bool:
-        return isinstance(command, ChangeDisplayLayerPropertyCommand) and self.command_id and self.command_id == command.command_id and self.__display_item_proxy.item == command.__display_item_proxy.item
+        return isinstance(command, self.__class__) and bool(self.command_id) and self.command_id == command.command_id and self.__display_item_uuid == command.__display_item_uuid
 
 
 class ChangeDisplayLayerDisplayDataChannelCommand(Undo.UndoableCommand):
-    def __init__(self, document_model: DocumentModel.DocumentModel, display_item: DisplayItem.DisplayItem, display_layer_index: int, display_data_channel: DisplayItem.DisplayDataChannel):
+    def __init__(self, document_model: DocumentModel.DocumentModel, display_item: DisplayItem.DisplayItem, display_layer_index: int, display_data_channel: DisplayItem.DisplayDataChannel) -> None:
         super().__init__(_("Change Display Layer Data"), command_id="change_display_layer_data", is_mergeable=True)
         self.__document_model = document_model
         self.__display_item_proxy = display_item.create_proxy()
@@ -687,9 +724,9 @@ class ChangeDisplayLayerDisplayDataChannelCommand(Undo.UndoableCommand):
         self.initialize()
 
     def close(self) -> None:
-        self.__document_model = None
+        self.__document_model = typing.cast(typing.Any, None)
         self.__display_item_proxy.close()
-        self.__display_item_proxy = None
+        self.__display_item_proxy = typing.cast(typing.Any, None)
         if self.__display_data_channel_proxy:
             self.__display_data_channel_proxy.close()
             self.__display_data_channel_proxy = None
@@ -697,7 +734,7 @@ class ChangeDisplayLayerDisplayDataChannelCommand(Undo.UndoableCommand):
 
     def perform(self) -> None:
         display_item = typing.cast(DisplayItem.DisplayItem, self.__display_item_proxy.item)
-        display_data_channel = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_data_channel_proxy.item if self.__display_data_channel_proxy else None)
+        display_data_channel = typing.cast(typing.Optional[DisplayItem.DisplayDataChannel], self.__display_data_channel_proxy.item if self.__display_data_channel_proxy else None)
         old_display_data_channel = display_item.get_display_layer_display_data_channel(self.__display_layer_index)
         display_item.set_display_layer_display_data_channel(self.__display_layer_index, display_data_channel)
         if old_display_data_channel:
@@ -710,28 +747,35 @@ class ChangeDisplayLayerDisplayDataChannelCommand(Undo.UndoableCommand):
             self.__display_data_channel_proxy = None
 
     def _get_modified_state(self) -> typing.Any:
-        display_item = typing.cast(DisplayItem.DisplayItem, self.__display_item_proxy.item)
-        return display_item.modified_state, self.__document_model.modified_state
+        display_item = self.__display_item_proxy.item
+        return display_item.modified_state if display_item else None, self.__document_model.modified_state
 
     def _set_modified_state(self, modified_state: typing.Any) -> None:
-        display_item = typing.cast(DisplayItem.DisplayItem, self.__display_item_proxy.item)
-        display_item.modified_state, self.__document_model.modified_state = modified_state
+        display_item = self.__display_item_proxy.item
+        if display_item:
+            display_item.modified_state = modified_state[0]
+        self.__document_model.modified_state = modified_state[1]
 
     def _compare_modified_states(self, state1: typing.Any, state2: typing.Any) -> bool:
         # override to allow the undo command to track state; but only use part of the state for comparison
-        return state1[0] == state2[0]
+        return bool(state1[0] == state2[0])
 
     def _undo(self) -> None:
         self.perform()
 
+    @property
+    def __display_item_uuid(self) -> typing.Optional[uuid.UUID]:
+        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+        return display_item.uuid if display_item else None
+
     def can_merge(self, command: Undo.UndoableCommand) -> bool:
-        return isinstance(command, ChangeDisplayLayerPropertyCommand) and self.command_id and self.command_id == command.command_id and self.__display_item_proxy.item == command.__display_item_proxy.item
+        return isinstance(command, self.__class__) and bool(self.command_id) and self.command_id == command.command_id and self.__display_item_uuid == command.__display_item_uuid
 
 
 class LinePlotDisplayLayersInspectorSection(InspectorSection):
-    def __init__(self, document_controller, display_item: DisplayItem.DisplayItem):
+    def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem) -> None:
         super().__init__(document_controller.ui, "line_plot_display_layer", _("Line Plot Display Layers"))
-        ui = typing.cast(UserInterface.UserInterface, self.ui)
+        ui = self.ui
 
         def change_label(label_edit_widget: UserInterface.LineEditWidget, display_layer: DisplayItem.DisplayLayer, label: str) -> None:
             index = display_item.display_layers.index(display_layer)
@@ -766,17 +810,18 @@ class LinePlotDisplayLayersInspectorSection(InspectorSection):
             command.perform()
             document_controller.push_undo_command(command)
 
-        def change_data_index(data_index_widget: UserInterface.LineEditWidget, display_layer: DisplayItem.DisplayLayer, data_index: int) -> None:
-            data_index = Converter.IntegerToStringConverter(pass_none=True).convert_back(data_index)
+        def change_data_index(data_index_widget: UserInterface.LineEditWidget, display_layer: DisplayItem.DisplayLayer, data_index_str: str) -> None:
+            data_index = Converter.IntegerToStringConverter(pass_none=True).convert_back(data_index_str)
             display_data_channel = display_item.display_data_channels[data_index] if data_index is not None else None
-            index = display_item.display_layers.index(display_layer)
-            command = ChangeDisplayLayerDisplayDataChannelCommand(document_controller.document_model, display_item, index, display_data_channel)
-            command.perform()
-            document_controller.push_undo_command(command)
-            data_index_widget.select_all()
+            if display_data_channel:
+                index = display_item.display_layers.index(display_layer)
+                command = ChangeDisplayLayerDisplayDataChannelCommand(document_controller.document_model, display_item, index, display_data_channel)
+                command.perform()
+                document_controller.push_undo_command(command)
+                data_index_widget.select_all()
 
-        def change_data_row(data_row_widget: UserInterface.LineEditWidget, display_layer: DisplayItem.DisplayLayer, data_row: str) -> None:
-            data_row = Converter.IntegerToStringConverter().convert_back(data_row)
+        def change_data_row(data_row_widget: UserInterface.LineEditWidget, display_layer: DisplayItem.DisplayLayer, data_row_str: str) -> None:
+            data_row = Converter.IntegerToStringConverter().convert_back(data_row_str)
             index = display_item.display_layers.index(display_layer)
             command = ChangeDisplayLayerPropertyCommand(document_controller.document_model, display_item, index, "data_row", data_row)
             command.perform()
@@ -801,18 +846,18 @@ class LinePlotDisplayLayersInspectorSection(InspectorSection):
             color_edit.text = color
             color_edit.select_all()
 
-        def change_stroke_width(width_widget: UserInterface.LineEditWidget, display_layer: DisplayItem.DisplayLayer, width: str) -> None:
-            width = Converter.FloatToStringConverter(pass_none=True).convert_back(width)
+        def change_stroke_width(width_widget: UserInterface.LineEditWidget, display_layer: DisplayItem.DisplayLayer, width_str: str) -> None:
+            width = Converter.FloatToStringConverter(pass_none=True).convert_back(width_str)
             index = display_item.display_layers.index(display_layer)
             command = ChangeDisplayLayerPropertyCommand(document_controller.document_model, display_item, index, "stroke_width", width)
             command.perform()
             document_controller.push_undo_command(command)
             width_widget.select_all()
 
-
         class DisplayLayerWidget(Widgets.CompositeWidgetBase):
-            def __init__(self, display_layer: DisplayItem.DisplayLayer):
-                super().__init__(document_controller.ui.create_column_widget())
+            def __init__(self, display_layer: DisplayItem.DisplayLayer) -> None:
+                content_widget = document_controller.ui.create_column_widget()
+                super().__init__(content_widget)
                 # label
                 label_edit_widget = ui.create_line_edit_widget()
                 label_row = ui.create_row_widget(properties={"spacing": 12})
@@ -880,12 +925,12 @@ class LinePlotDisplayLayersInspectorSection(InspectorSection):
                 stroke_width_row.add_stretch()
                 stroke_width_edit.on_editing_finished = functools.partial(change_stroke_width, stroke_width_edit, display_layer)
                 # build the inner column
-                self.content_widget.add(label_row)
-                self.content_widget.add(button_row)
-                self.content_widget.add(content_row)
-                self.content_widget.add(fill_color_row)
-                self.content_widget.add(stroke_color_row)
-                self.content_widget.add(stroke_width_row)
+                content_widget.add(label_row)
+                content_widget.add(button_row)
+                content_widget.add(content_row)
+                content_widget.add(fill_color_row)
+                content_widget.add(stroke_color_row)
+                content_widget.add(stroke_width_row)
                 # complex display type
                 display_data_channel = display_layer.display_data_channel
                 if display_data_channel:
@@ -893,7 +938,7 @@ class LinePlotDisplayLayersInspectorSection(InspectorSection):
                 else:
                     complex_display_type_row, self.__complex_display_type_changed_listener = None, None
                 if complex_display_type_row:
-                    self.content_widget.add(complex_display_type_row)
+                    content_widget.add(complex_display_type_row)
                 # save for populate
                 self.__label_edit_widget = label_edit_widget
                 self.__display_data_channel_index_widget = display_data_channel_index_widget
@@ -932,17 +977,16 @@ class LinePlotDisplayLayersInspectorSection(InspectorSection):
                 display_layer_property_changed("data_row")
 
             def close(self) -> None:
-                self.__label_edit_widget = None
-                self.__display_data_channel_index_widget = None
-                self.__display_data_channel_row_widget = None
-                self.__fill_color_widget = None
-                self.__fill_color_edit = None
-                self.__stroke_color_widget = None
-                self.__stroke_color_edit = None
-                self.__stroke_width_edit = None
-                if self.__display_layer_property_changed_listener:
-                    self.__display_layer_property_changed_listener.close()
-                    self.__display_layer_property_changed_listener = None
+                self.__label_edit_widget = typing.cast(typing.Any, None)
+                self.__display_data_channel_index_widget = typing.cast(typing.Any, None)
+                self.__display_data_channel_row_widget = typing.cast(typing.Any, None)
+                self.__fill_color_widget = typing.cast(typing.Any, None)
+                self.__fill_color_edit = typing.cast(typing.Any, None)
+                self.__stroke_color_widget = typing.cast(typing.Any, None)
+                self.__stroke_color_edit = typing.cast(typing.Any, None)
+                self.__stroke_width_edit = typing.cast(typing.Any, None)
+                self.__display_layer_property_changed_listener.close()
+                self.__display_layer_property_changed_listener = typing.cast(typing.Any, None)
                 if self.__complex_display_type_changed_listener:
                     self.__complex_display_type_changed_listener.close()
                     self.__complex_display_type_changed_listener = None
@@ -989,17 +1033,15 @@ class LinePlotDisplayLayersInspectorSection(InspectorSection):
         self.finish_widget_content()
 
     def close(self) -> None:
-        if self.__display_layer_inserted_listener:
-            self.__display_layer_inserted_listener.close()
-            self.__display_layer_inserted_listener = None
-        if self.__display_layer_removed_listener:
-            self.__display_layer_removed_listener.close()
-            self.__display_layer_removed_listener = None
+        self.__display_layer_inserted_listener.close()
+        self.__display_layer_inserted_listener = typing.cast(typing.Any, None)
+        self.__display_layer_removed_listener.close()
+        self.__display_layer_removed_listener = typing.cast(typing.Any, None)
         super().close()
 
 
 class ImageDataInspectorSection(InspectorSection):
-    def __init__(self, document_controller, display_data_channel: DisplayItem.DisplayDataChannel, display_item: DisplayItem.DisplayItem):
+    def __init__(self, document_controller: DocumentController.DocumentController, display_data_channel: DisplayItem.DisplayDataChannel, display_item: DisplayItem.DisplayItem) -> None:
         super().__init__(document_controller.ui, "display-limits", _("Image Data"))
         ui = document_controller.ui
 
@@ -1017,7 +1059,7 @@ class ImageDataInspectorSection(InspectorSection):
         complex_display_type_row, self.__complex_display_type_changed_listener = make_complex_display_type_chooser(document_controller, display_data_channel)
 
         # data_range model
-        self.__data_range_model = Model.PropertyModel()
+        self.__data_range_model = Model.PropertyModel[typing.Any]()
 
         # date
         self.info_section_datetime_row = self.ui.create_row_widget()
@@ -1077,7 +1119,7 @@ class ImageDataInspectorSection(InspectorSection):
 
         self.finish_widget_content()
 
-        def handle_next_calculated_display_values():
+        def handle_next_calculated_display_values() -> None:
             calculated_display_values = display_data_channel.get_calculated_display_values(True)
             if calculated_display_values:
                 self.__data_range_model.value = calculated_display_values.data_range
@@ -1089,24 +1131,24 @@ class ImageDataInspectorSection(InspectorSection):
 
     def close(self) -> None:
         self.__display_limits_model.close()
-        self.__display_limits_model = None
+        self.__display_limits_model = typing.cast(typing.Any, None)
         self.__color_map_changed_listener.close()
-        self.__color_map_changed_listener = None
+        self.__color_map_changed_listener = typing.cast(typing.Any, None)
         if self.__complex_display_type_changed_listener:
             self.__complex_display_type_changed_listener.close()
             self.__complex_display_type_changed_listener = None
         self.__adjustment_changed_listener.close()
-        self.__adjustment_changed_listener = None
+        self.__adjustment_changed_listener = typing.cast(typing.Any, None)
         self.__next_calculated_display_values_listener.close()
-        self.__next_calculated_display_values_listener = None
+        self.__next_calculated_display_values_listener = typing.cast(typing.Any, None)
         self.__data_range_model.close()
-        self.__data_range_model = None
+        self.__data_range_model = typing.cast(typing.Any, None)
         super().close()
 
 
 class SessionInspectorSection(InspectorSection):
 
-    def __init__(self, document_controller, data_item):
+    def __init__(self, document_controller: DocumentController.DocumentController, data_item: DataItem.DataItem) -> None:
         super().__init__(document_controller.ui, "session", _("Session"))
 
         ui = document_controller.ui
@@ -1122,8 +1164,8 @@ class SessionInspectorSection(InspectorSection):
 
         widget = self.ui.create_column_widget()
 
-        def line_edit_changed(line_edit_widget, field_id, text):
-            session_metadata = data_item.session_metadata
+        def line_edit_changed(line_edit_widget: UserInterface.LineEditWidget, field_id: str, text: str) -> None:
+            session_metadata = dict(data_item.session_metadata)
             session_metadata[field_id] = str(text)
             command = ChangePropertyCommand(document_controller.document_model, data_item, "session_metadata", session_metadata)
             command.perform()
@@ -1147,11 +1189,11 @@ class SessionInspectorSection(InspectorSection):
             first_field = False
             widget.add(row)
 
-        def update_fields(fields):
+        def update_fields(fields: typing.Mapping[str, str]) -> None:
             for field_id, line_edit_widget in field_line_edit_widget_map.items():
                 line_edit_widget.text = fields.get(field_id)
 
-        def fields_changed(key):
+        def fields_changed(key: str) -> None:
             if key == 'session_metadata':
                 widget.add_task("update_fields", functools.partial(update_fields, data_item.session_metadata))
         self.__property_changed_listener = data_item.property_changed_event.listen(fields_changed) if data_item else None
@@ -1165,12 +1207,12 @@ class SessionInspectorSection(InspectorSection):
     def close(self) -> None:
         if self.__property_changed_listener:
             self.__property_changed_listener.close()
-            self.__property_changed_listener = None
+            self.__property_changed_listener = typing.cast(typing.Any, None)
         super().close()
 
 
 class ChangeIntensityCalibrationCommand(Undo.UndoableCommand):
-    def __init__(self, document_model, data_item: DataItem.DataItem, intensity_calibration: Calibration.Calibration):
+    def __init__(self, document_model: DocumentModel.DocumentModel, data_item: DataItem.DataItem, intensity_calibration: Calibration.Calibration) -> None:
         super().__init__(_("Change Intensity Calibration"), command_id="change_intensity_calibration", is_mergeable=True)
         self.__document_model = document_model
         self.__data_item_proxy = data_item.create_proxy()
@@ -1179,43 +1221,52 @@ class ChangeIntensityCalibrationCommand(Undo.UndoableCommand):
         self.initialize()
 
     def close(self) -> None:
-        self.__document_model = None
+        self.__document_model = typing.cast(typing.Any, None)
         self.__data_item_proxy.close()
-        self.__data_item_proxy = None
-        self.__new_intensity_calibration = None
-        self.__old_intensity_calibration = None
+        self.__data_item_proxy = typing.cast(typing.Any, None)
+        self.__new_intensity_calibration = typing.cast(typing.Any, None)
+        self.__old_intensity_calibration = typing.cast(typing.Any, None)
         super().close()
 
     def perform(self) -> None:
         data_item = self.__data_item_proxy.item
-        data_item.set_intensity_calibration(self.__new_intensity_calibration)
+        if data_item:
+            data_item.set_intensity_calibration(self.__new_intensity_calibration)
 
     def _get_modified_state(self) -> typing.Any:
         data_item = self.__data_item_proxy.item
-        return data_item.modified_state, self.__document_model.modified_state
+        return data_item.modified_state if data_item else None, self.__document_model.modified_state
 
     def _set_modified_state(self, modified_state: typing.Any) -> None:
         data_item = self.__data_item_proxy.item
-        data_item.modified_state, self.__document_model.modified_state = modified_state
+        if data_item:
+            data_item.modified_state = modified_state[0]
+        self.__document_model.modified_state = modified_state[1]
 
     def _compare_modified_states(self, state1: typing.Any, state2: typing.Any) -> bool:
         # override to allow the undo command to track state; but only use part of the state for comparison
-        return state1[0] == state2[0]
+        return bool(state1[0] == state2[0])
 
     def _undo(self) -> None:
         data_item = self.__data_item_proxy.item
+        assert data_item
         self.__new_intensity_calibration = data_item.intensity_calibration
         data_item.set_intensity_calibration(self.__old_intensity_calibration)
 
     def _redo(self) -> None:
         self.perform()
 
+    @property
+    def __data_item_uuid(self) -> typing.Optional[uuid.UUID]:
+        data_item = typing.cast(typing.Optional[DataItem.DataItem], self.__data_item_proxy.item) if self.__data_item_proxy else None
+        return data_item.uuid if data_item else None
+
     def can_merge(self, command: Undo.UndoableCommand) -> bool:
-        return isinstance(command, ChangeIntensityCalibrationCommand) and self.command_id and self.command_id == command.command_id and self.__data_item_uuid == command.__data_item_uuid
+        return isinstance(command, self.__class__) and bool(self.command_id) and self.command_id == command.command_id and self.__data_item_uuid == command.__data_item_uuid
 
 
 class ChangeDimensionalCalibrationsCommand(Undo.UndoableCommand):
-    def __init__(self, document_model, data_item: DataItem.DataItem, dimensional_calibrations: typing.List[Calibration.Calibration]):
+    def __init__(self, document_model: DocumentModel.DocumentModel, data_item: DataItem.DataItem, dimensional_calibrations: typing.List[Calibration.Calibration]) -> None:
         super().__init__(_("Change Intensity Calibration"), command_id="change_intensity_calibration", is_mergeable=True)
         self.__document_model = document_model
         self.__data_item_proxy = data_item.create_proxy()
@@ -1224,37 +1275,46 @@ class ChangeDimensionalCalibrationsCommand(Undo.UndoableCommand):
         self.initialize()
 
     def close(self) -> None:
-        self.__document_model = None
+        self.__document_model = typing.cast(typing.Any, None)
         self.__data_item_proxy.close()
-        self.__data_item_proxy = None
+        self.__data_item_proxy = typing.cast(typing.Any, None)
         super().close()
 
     def perform(self) -> None:
         data_item = self.__data_item_proxy.item
-        data_item.set_dimensional_calibrations(self.__new_dimensional_calibrations)
+        if data_item:
+            data_item.set_dimensional_calibrations(self.__new_dimensional_calibrations)
 
     def _get_modified_state(self) -> typing.Any:
         data_item = self.__data_item_proxy.item
-        return data_item.modified_state, self.__document_model.modified_state
+        return data_item.modified_state if data_item else None, self.__document_model.modified_state
 
     def _set_modified_state(self, modified_state: typing.Any) -> None:
         data_item = self.__data_item_proxy.item
-        data_item.modified_state, self.__document_model.modified_state = modified_state
+        if data_item:
+            data_item.modified_state = modified_state[0]
+        self.__document_model.modified_state = modified_state[1]
 
     def _compare_modified_states(self, state1: typing.Any, state2: typing.Any) -> bool:
         # override to allow the undo command to track state; but only use part of the state for comparison
-        return state1[0] == state2[0]
+        return bool(state1[0] == state2[0])
 
     def _undo(self) -> None:
         data_item = self.__data_item_proxy.item
+        assert data_item
         self.__new_dimensional_calibrations = data_item.dimensional_calibrations
         data_item.set_dimensional_calibrations(self.__old_dimensional_calibrations)
 
     def _redo(self) -> None:
         self.perform()
 
+    @property
+    def __data_item_uuid(self) -> typing.Optional[uuid.UUID]:
+        data_item = typing.cast(typing.Optional[DataItem.DataItem], self.__data_item_proxy.item) if self.__data_item_proxy else None
+        return data_item.uuid if data_item else None
+
     def can_merge(self, command: Undo.UndoableCommand) -> bool:
-        return isinstance(command, ChangeDimensionalCalibrationsCommand) and self.command_id and self.command_id == command.command_id and self.__data_item_uuid == command.__data_item_uuid
+        return isinstance(command, self.__class__) and bool(self.command_id) and self.command_id == command.command_id and self.__data_item_uuid == command.__data_item_uuid
 
 
 class CalibrationToObservable(Observable.Observable):
@@ -1266,12 +1326,13 @@ class CalibrationToObservable(Observable.Observable):
     data_source.set_dimensional_calibration(0, calibration).
     """
 
-    def __init__(self, calibration, setter_fn):
+    def __init__(self, calibration: Calibration.Calibration, setter_fn: typing.Callable[[Calibration.Calibration], None]) -> None:
         super().__init__()
         self.__calibration = calibration
         self.__cached_value = Calibration.Calibration()
         self.__setter_fn = setter_fn
-        def update_calibration(calibration):
+
+        def update_calibration(calibration: Calibration.Calibration) -> None:
             if self.__cached_value is not None:
                 if calibration.offset != self.__cached_value.offset:
                     self.notify_property_changed("offset")
@@ -1280,46 +1341,47 @@ class CalibrationToObservable(Observable.Observable):
                 if calibration.units != self.__cached_value.units:
                     self.notify_property_changed("units")
             self.__cached_value = calibration
+
         update_calibration(calibration)
 
     def close(self) -> None:
-        self.__cached_value = None
-        self.__setter_fn = None
+        self.__cached_value = typing.cast(typing.Any, None)
+        self.__setter_fn = typing.cast(typing.Any, None)
 
-    def copy_from(self, calibration):
+    def copy_from(self, calibration: Calibration.Calibration) -> None:
         self.__cached_value = calibration
         self.notify_property_changed("offset")
         self.notify_property_changed("scale")
         self.notify_property_changed("units")
 
     @property
-    def offset(self):
+    def offset(self) -> float:
         return self.__cached_value.offset
 
     @offset.setter
-    def offset(self, value):
+    def offset(self, value: float) -> None:
         calibration = self.__cached_value
         calibration.offset = value
         self.__setter_fn(calibration)
         self.notify_property_changed("offset")
 
     @property
-    def scale(self):
+    def scale(self) -> float:
         return self.__cached_value.scale
 
     @scale.setter
-    def scale(self, value):
+    def scale(self, value: float) -> None:
         calibration = self.__cached_value
         calibration.scale = value
         self.__setter_fn(calibration)
         self.notify_property_changed("scale")
 
     @property
-    def units(self):
+    def units(self) -> str:
         return self.__cached_value.units
 
     @units.setter
-    def units(self, value):
+    def units(self, value: str) -> None:
         calibration = self.__cached_value
         calibration.units = value
         self.__setter_fn(calibration)
@@ -1327,39 +1389,40 @@ class CalibrationToObservable(Observable.Observable):
 
 
 class InspectorSectionWidget(Widgets.CompositeWidgetBase):
-    def __init__(self, ui):
-        super().__init__(ui.create_column_widget())
+    def __init__(self, ui: UserInterface.UserInterface) -> None:
+        self.__content_widget = ui.create_column_widget()
+        super().__init__(self.__content_widget)
         self.__unbinder = Unbinder()
-        self.__closeables = list()
+        self.__closeables: typing.List[DocumentModel.Closeable] = list()
 
     def close(self) -> None:
         self.__unbinder.close()
         for closeable in self.__closeables:
             closeable.close()
-        self.__closeables = None
+        self.__closeables = typing.cast(typing.Any, None)
         super().close()
 
-    def add_closeable(self, closeable) -> None:
+    def add_closeable(self, closeable: DocumentModel.Closeable) -> None:
         self.__closeables.append(closeable)
 
-    def add_closeables(self, *closeables) -> None:
+    def add_closeables(self, *closeables: DocumentModel.Closeable) -> None:
         for closeable in closeables:
             self.add_closeable(closeable)
 
-    def add_unbinder(self, items, unbinders: typing.Sequence[typing.Callable[[], None]]) -> None:
+    def add_unbinder(self, items: typing.Sequence[Persistence.PersistentObject], unbinders: typing.Sequence[typing.Callable[[], None]]) -> None:
         self.__unbinder.add(items, unbinders)
 
-    def add(self, widget) -> None:
-        self.content_widget.add(widget)
+    def add(self, widget: UserInterface.Widget) -> None:
+        self.__content_widget.add(widget)
 
     def add_spacing(self, spacing: int) -> None:
-        self.content_widget.add_spacing(spacing)
+        self.__content_widget.add_spacing(spacing)
 
-    def find_widget_by_id(self, widget_id: str):
-        return self.content_widget.find_widget_by_id(widget_id)
+    def find_widget_by_id(self, widget_id: str) -> typing.Optional[UserInterface.Widget]:
+        return self.__content_widget.find_widget_by_id(widget_id)
 
 
-def make_calibration_style_chooser(document_controller, display_item: DisplayItem.DisplayItem) -> InspectorSectionWidget:
+def make_calibration_style_chooser(document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem) -> InspectorSectionWidget:
     ui = document_controller.ui
 
     calibration_styles = DisplayItem.get_calibration_styles()
@@ -1368,11 +1431,12 @@ def make_calibration_style_chooser(document_controller, display_item: DisplayIte
 
     display_calibration_style_reverse_map = {p[1]: i for i, p in enumerate(display_calibration_style_options)}
 
-    class CalibrationStyleIndexConverter:
-        def convert(self, value):
-            return display_calibration_style_reverse_map.get(value, 0)
-        def convert_back(self, value):
-            if value >= 0 and value < len(display_calibration_style_options):
+    class CalibrationStyleIndexConverter(Converter.ConverterLike[str, int]):
+        def convert(self, value: typing.Optional[str]) -> typing.Optional[int]:
+            return display_calibration_style_reverse_map.get(value or str(), 0)
+
+        def convert_back(self, value: typing.Optional[int]) -> typing.Optional[str]:
+            if value is not None and value >= 0 and value < len(display_calibration_style_options):
                 return display_calibration_style_options[value][1]
             else:
                 return calibration_styles[0].label
@@ -1389,7 +1453,9 @@ def make_calibration_style_chooser(document_controller, display_item: DisplayIte
     return widget
 
 
-def make_calibration_row_widget(ui, data_item: DataItem.DataItem, calibration_observable, label: str=None) -> InspectorSectionWidget:
+def make_calibration_row_widget(ui: UserInterface.UserInterface, data_item: DataItem.DataItem,
+                                calibration_observable: Observable.Observable,
+                                label: typing.Optional[str] = None) -> InspectorSectionWidget:
     """Called when an item (calibration_observable) is inserted into the list widget. Returns a widget."""
     widget = InspectorSectionWidget(ui)
     calibration_row = ui.create_row_widget()
@@ -1422,12 +1488,12 @@ def make_calibration_row_widget(ui, data_item: DataItem.DataItem, calibration_ob
 class CalibrationsInspectorSection(InspectorSection):
     """Calibration inspector."""
 
-    def __init__(self, document_controller, display_data_channel: DisplayItem.DisplayDataChannel, display_item: DisplayItem.DisplayItem):
+    def __init__(self, document_controller: DocumentController.DocumentController, display_data_channel: DisplayItem.DisplayDataChannel, display_item: DisplayItem.DisplayItem) -> None:
         super().__init__(document_controller.ui, "calibrations", _("Calibrations"))
         self.__document_controller = document_controller
         self.__display_data_channel = display_data_channel
         self.__display_item = display_item
-        self.__calibration_observables = list()
+        self.__calibration_observables: typing.List[CalibrationToObservable] = list()
         ui = document_controller.ui
         header_widget = self.__create_header_widget()
         header_for_empty_list_widget = self.__create_header_for_empty_list_widget()
@@ -1436,19 +1502,20 @@ class CalibrationsInspectorSection(InspectorSection):
         self.add_widget_to_content(self.__list_widget)
 
         data_item = self.__display_data_channel.data_item
+        assert data_item
 
         # create the intensity row
         intensity_calibration = (data_item.intensity_calibration if data_item else None) or Calibration.Calibration()
 
-        def change_intensity_calibration(intensity_calibration):
+        def change_intensity_calibration(data_item: DataItem.DataItem, intensity_calibration: Calibration.Calibration) -> None:
             command = ChangeIntensityCalibrationCommand(document_controller.document_model, data_item, intensity_calibration)
             command.perform()
             document_controller.push_undo_command(command)
 
-        self.__intensity_calibration_observable = CalibrationToObservable(intensity_calibration, change_intensity_calibration)
+        self.__intensity_calibration_observable = CalibrationToObservable(intensity_calibration, functools.partial(change_intensity_calibration, data_item))
         intensity_row = make_calibration_row_widget(ui, data_item, self.__intensity_calibration_observable, _("Intensity"))
 
-        def handle_data_item_changed():
+        def handle_data_item_changed() -> None:
             # handle threading specially for tests
             if threading.current_thread() != threading.main_thread():
                 self.content_widget.add_task("update_calibration_list" + str(id(self)), self.__build_calibration_list)
@@ -1473,14 +1540,14 @@ class CalibrationsInspectorSection(InspectorSection):
             self.__data_item_changed_event_listener = None
         # close the bound calibrations
         self.__intensity_calibration_observable.close()
-        self.__intensity_calibration_observable = None
+        self.__intensity_calibration_observable = typing.cast(typing.Any, None)
         for calibration_observable in self.__calibration_observables:
             calibration_observable.close()
         self.__calibration_observables = list()
         super().close()
 
     # not thread safe
-    def __build_calibration_list(self):
+    def __build_calibration_list(self) -> None:
         data_item = self.__display_data_channel.data_item
         dimensional_calibrations = (data_item.dimensional_calibrations if data_item else None) or list()
         while len(dimensional_calibrations) < self.__list_widget.list_item_count:
@@ -1490,12 +1557,13 @@ class CalibrationsInspectorSection(InspectorSection):
         while len(dimensional_calibrations) > self.__list_widget.list_item_count:
             index = self.__list_widget.list_item_count
 
-            def change_dimensional_calibration(index, dimensional_calibration):
-                dimensional_calibrations = data_item.dimensional_calibrations
-                dimensional_calibrations[index] = dimensional_calibration
-                command = ChangeDimensionalCalibrationsCommand(self.__document_controller.document_model, data_item, dimensional_calibrations)
-                command.perform()
-                self.__document_controller.push_undo_command(command)
+            def change_dimensional_calibration(index: int, dimensional_calibration: Calibration.Calibration) -> None:
+                if data_item:
+                    dimensional_calibrations = list(data_item.dimensional_calibrations)
+                    dimensional_calibrations[index] = dimensional_calibration
+                    command = ChangeDimensionalCalibrationsCommand(self.__document_controller.document_model, data_item, dimensional_calibrations)
+                    command.perform()
+                    self.__document_controller.push_undo_command(command)
 
             calibration_observable = CalibrationToObservable(dimensional_calibrations[index], functools.partial(change_dimensional_calibration, index))
             self.__calibration_observables.append(calibration_observable)
@@ -1509,11 +1577,13 @@ class CalibrationsInspectorSection(InspectorSection):
                 row_label_text = (_("Y"), _("X"))[index]
             else:
                 row_label_text = str(index)
-            self.__list_widget.list_items[index].find_widget_by_id("label").text = row_label_text
+            label_widget = typing.cast(typing.Optional[UserInterface.LabelWidget], self.__list_widget.list_items[index].find_widget_by_id("label"))
+            assert label_widget
+            label_widget.text = row_label_text
         self.__intensity_calibration_observable.copy_from((data_item.intensity_calibration if data_item else None) or Calibration.Calibration())
 
     # not thread safe
-    def __create_header_widget(self):
+    def __create_header_widget(self) -> UserInterface.BoxWidget:
         header_row = self.ui.create_row_widget()
         axis_header_label = self.ui.create_label_widget("Axis", properties={"width": 60})
         offset_header_label = self.ui.create_label_widget(_("Offset"), properties={"width": 60})
@@ -1530,7 +1600,7 @@ class CalibrationsInspectorSection(InspectorSection):
         return header_row
 
     # not thread safe
-    def __create_header_for_empty_list_widget(self):
+    def __create_header_for_empty_list_widget(self) -> UserInterface.BoxWidget:
         label_widget = self.ui.create_label_widget(_("None"))
         label_widget.text_font = "italic"
         header_for_empty_list_row = self.ui.create_row_widget()
@@ -1538,19 +1608,20 @@ class CalibrationsInspectorSection(InspectorSection):
         return header_for_empty_list_row
 
     # not thread safe.
-    def __create_list_item_widget(self, ui, calibration_observable):
+    def __create_list_item_widget(self, ui: UserInterface.UserInterface, calibration_observable: CalibrationToObservable) -> UserInterface.BoxWidget:
         """Called when an item (calibration_observable) is inserted into the list widget. Returns a widget."""
-        data_item = self.__display_data_channel.data_item
-        calibration_row = make_calibration_row_widget(ui, data_item, calibration_observable)
         column = ui.create_column_widget()
         column.add_spacing(4)
-        column.add(calibration_row)
+        data_item = self.__display_data_channel.data_item
+        if data_item:
+            calibration_row = make_calibration_row_widget(ui, data_item, calibration_observable)
+            column.add(calibration_row)
         return column
 
 
 class ChangeDisplayTypeCommand(Undo.UndoableCommand):
 
-    def __init__(self, document_model, display_item: DisplayItem.DisplayItem, display_type: str):
+    def __init__(self, document_model: DocumentModel.DocumentModel, display_item: DisplayItem.DisplayItem, display_type: typing.Optional[str]) -> None:
         super().__init__(_("Change Display Type"), command_id="change_display_type", is_mergeable=True)
         self.__document_model = document_model
         self.__display_item_proxy = display_item.create_proxy()
@@ -1559,52 +1630,61 @@ class ChangeDisplayTypeCommand(Undo.UndoableCommand):
         self.initialize()
 
     def close(self) -> None:
-        self.__document_model = None
+        self.__document_model = typing.cast(typing.Any, None)
         self.__display_item_proxy.close()
-        self.__display_item_proxy = None
+        self.__display_item_proxy = typing.cast(typing.Any, None)
         self.__old_display_type = None
         super().close()
 
     def perform(self) -> None:
-        display_item = self.__display_item_proxy.item
-        display_item.display_type = self.__display_type
+        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+        if display_item:
+            display_item.display_type = self.__display_type
 
     def _get_modified_state(self) -> typing.Any:
         display_item = self.__display_item_proxy.item
-        return display_item.modified_state, self.__document_model.modified_state
+        return display_item.modified_state if display_item else None, self.__document_model.modified_state
 
-    def _set_modified_state(self, modified_state):
+    def _set_modified_state(self, modified_state: typing.Any) -> None:
         display_item = self.__display_item_proxy.item
-        display_item.modified_state, self.__document_model.modified_state = modified_state
+        if display_item:
+            display_item.modified_state = modified_state[0]
+        self.__document_model.modified_state = modified_state[1]
 
     def _compare_modified_states(self, state1: typing.Any, state2: typing.Any) -> bool:
         # override to allow the undo command to track state; but only use part of the state for comparison
-        return state1[0] == state2[0]
+        return bool(state1[0] == state2[0])
 
-    def _undo(self):
-        display_item = self.__display_item_proxy.item
-        old_display_type = self.__old_display_type
-        self.__old_display_type = display_item.display_type
-        display_item.display_type = old_display_type
+    def _undo(self) -> None:
+        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+        if display_item:
+            old_display_type = self.__old_display_type
+            self.__old_display_type = display_item.display_type
+            display_item.display_type = old_display_type
+
+    @property
+    def __display_item_uuid(self) -> typing.Optional[uuid.UUID]:
+        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+        return display_item.uuid if display_item else None
 
     def can_merge(self, command: Undo.UndoableCommand) -> bool:
-        return isinstance(command, ChangeDisplayTypeCommand) and self.command_id and self.command_id == command.command_id and self.__display_item_proxy.item == command.__display_item_proxy.item
+        return isinstance(command, self.__class__) and bool(self.command_id) and self.command_id == command.command_id and self.__display_item_uuid == command.__display_item_uuid
 
 
-def make_display_type_chooser(document_controller, display_item: DisplayItem.DisplayItem):
+def make_display_type_chooser(document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem) -> typing.Tuple[UserInterface.BoxWidget, Event.EventListener]:
     ui = document_controller.ui
     display_type_row = ui.create_row_widget()
     display_type_items = ((_("Default"), None), (_("Line Plot"), "line_plot"), (_("Image"), "image"), (_("Display Script"), "display_script"))
     display_type_reverse_map = {None: 0, "line_plot": 1, "image": 2, "display_script": 3}
     display_type_chooser = ui.create_combo_box_widget(items=display_type_items, item_getter=operator.itemgetter(0))
 
-    def property_changed(name):
+    def property_changed(name: str) -> None:
         if name == "display_type":
             display_type_chooser.current_index = display_type_reverse_map[display_item.display_type]
 
     listener = display_item.property_changed_event.listen(property_changed)
 
-    def change_display_type(item):
+    def change_display_type(item: typing.Tuple[str, typing.Optional[str]]) -> None:
         if display_item.display_type != item[1]:
             command = ChangeDisplayTypeCommand(document_controller.document_model, display_item, display_type=item[1])
             command.perform()
@@ -1618,22 +1698,22 @@ def make_display_type_chooser(document_controller, display_item: DisplayItem.Dis
     return display_type_row, listener
 
 
-def make_color_map_chooser(document_controller, display_data_channel: DisplayItem.DisplayDataChannel):
+def make_color_map_chooser(document_controller: DocumentController.DocumentController, display_data_channel: DisplayItem.DisplayDataChannel) -> typing.Tuple[UserInterface.BoxWidget, Event.EventListener]:
     ui = document_controller.ui
     color_map_row = ui.create_row_widget()
-    color_map_options = [(_("Default"), None)]
+    color_map_options: typing.List[typing.Tuple[str, typing.Optional[str]]] = [(_("Default"), None)]
     for color_map_key, color_map in ColorMaps.color_maps.items():
         color_map_options.append((color_map.name, color_map_key))
     color_map_reverse_map = {p[1]: i for i, p in enumerate(color_map_options)}
     color_map_chooser = ui.create_combo_box_widget(items=color_map_options, item_getter=operator.itemgetter(0))
 
-    def property_changed(name):
+    def property_changed(name: str) -> None:
         if name == "color_map_id":
             color_map_chooser.current_index = color_map_reverse_map[display_data_channel.color_map_id]
 
     listener = display_data_channel.property_changed_event.listen(property_changed)
 
-    def change_color_map(item):
+    def change_color_map(item: typing.Tuple[str, str]) -> None:
         if display_data_channel.color_map_id != item[1]:
             command = DisplayPanel.ChangeDisplayDataChannelCommand(document_controller.document_model, display_data_channel, color_map_id=item[1], title=_("Change Color Map"), command_id="change_color_map", is_mergeable=True)
             command.perform()
@@ -1666,28 +1746,37 @@ def make_brightness_control(document_controller: DocumentController.DocumentCont
     return row_widget
 
 
-class ContrastStringConverter:
+class ContrastStringConverter(Converter.ConverterLike[float, str]):
 
-    def convert(self, value: float) -> str:
-        return f"{value:0.2f}" if value >= 1 else f"1 / {1/value:0.2f}"
+    def convert(self, value: typing.Optional[float]) -> typing.Optional[str]:
+        if value is not None:
+            return f"{value:0.2f}" if value >= 1 else f"1 / {1 / value:0.2f}"
+        return None
 
-    def convert_back(self, value_str: str) -> float:
-        value_str = ''.join(value_str.split())
-        if value_str.startswith("1/"):
-            return 1 / Converter.FloatToStringConverter().convert_back(value_str[2:])
-        else:
-            return Converter.FloatToStringConverter().convert_back(value_str)
+    def convert_back(self, value_str: typing.Optional[str]) -> typing.Optional[float]:
+        if value_str is not None:
+            value_str = ''.join(value_str.split())
+            if value_str.startswith("1/"):
+                value = Converter.FloatToStringConverter().convert_back(value_str[2:]) or 0.0
+                return 1 / value
+            else:
+                return Converter.FloatToStringConverter().convert_back(value_str)
+        return None
 
 
-class ContrastIntegerConverter:
-    def __init__(self, n: int):
+class ContrastIntegerConverter(Converter.ConverterLike[float, int]):
+    def __init__(self, n: int) -> None:
         self.n = n
 
-    def convert(self, value):
-        return int(math.log10(value) * self.n // 2) + (self.n // 2)
+    def convert(self, value: typing.Optional[float]) -> typing.Optional[int]:
+        if value is not None:
+            return int(math.log10(value) * self.n // 2) + (self.n // 2)
+        return None
 
-    def convert_back(self, value_int):
-        return math.pow(10, (value_int - self.n // 2) / (self.n // 2))
+    def convert_back(self, value_int: typing.Optional[int]) -> typing.Optional[float]:
+        if value_int is not None:
+            return math.pow(10, (value_int - self.n // 2) / (self.n // 2))
+        return None
 
 
 def make_contrast_control(document_controller: DocumentController.DocumentController, display_data_channel: DisplayItem.DisplayDataChannel) -> UserInterface.Widget:
@@ -1709,34 +1798,46 @@ def make_contrast_control(document_controller: DocumentController.DocumentContro
     return row_widget
 
 
-class GammaStringConverter:
+class GammaStringConverter(Converter.ConverterLike[float, str]):
 
-    def convert(self, value: float) -> str:
-        return f"{value:0.2f}" if value >= 1 else f"1 / {1/value:0.3f}"
+    def convert(self, value: typing.Optional[float]) -> typing.Optional[str]:
+        if value is not None:
+            return f"{value:0.2f}" if value >= 1 else f"1 / {1 / value:0.3f}"
+        return None
 
-    def convert_back(self, value_str: str) -> float:
-        value_str = ''.join(value_str.split())
-        if value_str.startswith("1/"):
-            return 1 / Converter.FloatToStringConverter().convert_back(value_str[2:])
-        else:
-            return Converter.FloatToStringConverter().convert_back(value_str)
+    def convert_back(self, value_str: typing.Optional[str]) -> typing.Optional[float]:
+        if value_str is not None:
+            value_str = ''.join(value_str.split())
+            if value_str.startswith("1/"):
+                value = Converter.FloatToStringConverter().convert_back(value_str[2:]) or 0.0
+                return 1 / value
+            else:
+                return Converter.FloatToStringConverter().convert_back(value_str)
+        return None
 
 
-class GammaIntegerConverter:
+class GammaIntegerConverter(Converter.ConverterLike[float, int]):
     # gamma ranges from 1/N to N
 
-    def convert(self, value: float) -> int:
-        return 100 - int(math.log(value, 10) * 50 + 50)
+    def convert(self, value: typing.Optional[float]) -> typing.Optional[int]:
+        if value is not None:
+            return 100 - int(math.log(value, 10) * 50 + 50)
+        return None
 
-    def convert_back(self, value_int: int) -> float:
-        return math.pow(10, ((100 - value_int) - 50) / 50)
+    def convert_back(self, value_int: typing.Optional[int]) -> typing.Optional[float]:
+        if value_int is not None:
+            return math.pow(10, ((100 - value_int) - 50) / 50)
+        return None
 
 
 class ChangeDisplayDataChannelAdjustmentPropertyBinding(Binding.PropertyBinding):
-    def __init__(self, document_controller, display_data_channel: DisplayItem.DisplayDataChannel, property_name: str, converter, default_value):
+    def __init__(self, document_controller: DocumentController.DocumentController,
+                 display_data_channel: DisplayItem.DisplayDataChannel, property_name: str,
+                 converter: Converter.ConverterLike[typing.Any, typing.Any],
+                 default_value: typing.Any = None) -> None:
         super().__init__(display_data_channel, "adjustments")
 
-        def set_value(value):
+        def set_value(value: typing.Any) -> typing.Any:
             if converter.convert_back(value) != display_data_channel.adjustments[0].get(property_name, None):
                 adjustment = display_data_channel.adjustments[0]
                 adjustment[property_name] = converter.convert_back(value)
@@ -1744,7 +1845,7 @@ class ChangeDisplayDataChannelAdjustmentPropertyBinding(Binding.PropertyBinding)
                 command.perform()
                 document_controller.push_undo_command(command)
 
-        def get_value():
+        def get_value() -> typing.Any:
             if len(display_data_channel.adjustments) == 1:
                 return converter.convert(display_data_channel.adjustments[0].get(property_name, default_value))
             return converter.convert(default_value)
@@ -1798,7 +1899,7 @@ def make_adjustment_chooser(document_controller: DocumentController.DocumentCont
 
     listener = display_data_channel.property_changed_event.listen(property_changed)
 
-    def change_adjustment(item) -> None:
+    def change_adjustment(item: typing.Tuple[str, typing.Optional[str]]) -> None:
         if get_current_adjustment_id() != item[1]:
             adjustments = list() if item[1] is None else [{"type": item[1], "uuid": str(uuid.uuid4())}]
             command = DisplayPanel.ChangeDisplayDataChannelCommand(document_controller.document_model, display_data_channel, adjustments=adjustments)
@@ -1819,7 +1920,9 @@ def make_adjustment_chooser(document_controller: DocumentController.DocumentCont
     return adjustment_column, listener
 
 
-def make_complex_display_type_chooser(document_controller, display_data_channel: DisplayItem.DisplayDataChannel, include_log_abs=True):
+def make_complex_display_type_chooser(document_controller: DocumentController.DocumentController,
+                                      display_data_channel: DisplayItem.DisplayDataChannel,
+                                      include_log_abs: bool = True) -> typing.Tuple[typing.Optional[UserInterface.BoxWidget], typing.Optional[Event.EventListener]]:
     if not (display_data_channel.data_item and display_data_channel.data_item.is_data_complex_type):
         return None, None
     ui = document_controller.ui
@@ -1829,20 +1932,20 @@ def make_complex_display_type_chooser(document_controller, display_data_channel:
     display_type_reverse_map = {p[1]: i for i, p in enumerate(display_type_options)}
     display_type_chooser = ui.create_combo_box_widget(items=display_type_options, item_getter=operator.itemgetter(0))
 
-    def property_changed(name):
+    def property_changed(name: str) -> None:
         if name == "complex_display_type":
-            display_type_chooser.current_index = display_type_reverse_map[display_data_channel.complex_display_type]
+            display_type_chooser.current_index = display_type_reverse_map.get(display_data_channel.complex_display_type or str(), 0)
 
     listener = display_data_channel.property_changed_event.listen(property_changed)
 
-    def change_display_type(item):
+    def change_display_type(item: typing.Tuple[str, typing.Optional[str]]) -> None:
         if display_data_channel.complex_display_type != item[1]:
             command = DisplayPanel.ChangeDisplayDataChannelCommand(document_controller.document_model, display_data_channel, complex_display_type=item[1])
             command.perform()
             document_controller.push_undo_command(command)
 
     display_type_chooser.on_current_item_changed = change_display_type
-    display_type_chooser.current_index = display_type_reverse_map.get(display_data_channel.complex_display_type, 0)
+    display_type_chooser.current_index = display_type_reverse_map.get(display_data_channel.complex_display_type or str(), 0)
     display_type_row.add(ui.create_label_widget(_("Complex Display Type:"), properties={"width": 120}))
     display_type_row.add(display_type_chooser)
     display_type_row.add_stretch()
@@ -1852,7 +1955,7 @@ def make_complex_display_type_chooser(document_controller, display_data_channel:
 class ImageDisplayInspectorSection(InspectorSection):
     """Display type inspector."""
 
-    def __init__(self, document_controller, display_item: DisplayItem.DisplayItem):
+    def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem) -> None:
         super().__init__(document_controller.ui, "display-limits", _("Image Display"))
 
         # display type
@@ -1864,24 +1967,24 @@ class ImageDisplayInspectorSection(InspectorSection):
 
     def close(self) -> None:
         self.__display_type_changed_listener.close()
-        self.__display_type_changed_listener = None
+        self.__display_type_changed_listener = typing.cast(typing.Any, None)
         super().close()
 
 
-def make_legend_position(document_controller, display_item: DisplayItem.DisplayItem):
+def make_legend_position(document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem) -> typing.Tuple[UserInterface.BoxWidget, Event.EventListener]:
     ui = document_controller.ui
     legend_position_row = ui.create_row_widget()
     legend_position_options = [(_("None"), None), (_("Top Left"), "top-left"), (_("Top Right"), "top-right")]
     legend_position_reverse_map = {p[1]: i for i, p in enumerate(legend_position_options)}
     legend_position_chooser = ui.create_combo_box_widget(items=legend_position_options, item_getter=operator.itemgetter(0))
 
-    def property_changed(name):
+    def property_changed(name: str) -> None:
         if name == "legend_position":
             legend_position_chooser.current_index = legend_position_reverse_map[display_item.get_display_property("legend_position", None)]
 
     listener = display_item.display_property_changed_event.listen(property_changed)
 
-    def change_legend_position(item):
+    def change_legend_position(item: typing.Tuple[str, typing.Optional[str]]) -> None:
         if display_item.get_display_property("legend_position", None) != item[1]:
             command = DisplayPanel.ChangeDisplayCommand(document_controller.document_model, display_item, title=_("Legend Position"), command_id="change_legend_position", is_mergeable=True, legend_position=item[1])
             command.perform()
@@ -1902,7 +2005,7 @@ class LinePlotDisplayInspectorSection(InspectorSection):
         Subclass InspectorSection to implement display limits inspector.
     """
 
-    def __init__(self, document_controller, display_item: DisplayItem.DisplayItem):
+    def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem) -> None:
         super().__init__(document_controller.ui, "line-plot", _("Line Plot Display"))
 
         # display type
@@ -1936,14 +2039,14 @@ class LinePlotDisplayInspectorSection(InspectorSection):
         self.channels_row.add(self.channels_right)
         self.channels_row.add_stretch()
 
-        class LogCheckedToCheckStateConverter:
+        class LogCheckedToCheckStateConverter(Converter.ConverterLike[str, str]):
             """ Convert between bool and checked/unchecked strings. """
 
-            def convert(self, value):
+            def convert(self, value: typing.Optional[str]) -> typing.Optional[str]:
                 """ Convert bool to checked or unchecked string """
                 return "checked" if value == "log" else "unchecked"
 
-            def convert_back(self, value):
+            def convert_back(self, value: typing.Optional[str]) -> typing.Optional[str]:
                 """ Convert checked or unchecked string to bool """
                 return "log" if value == "checked" else "linear"
 
@@ -1968,9 +2071,9 @@ class LinePlotDisplayInspectorSection(InspectorSection):
 
     def close(self) -> None:
         self.__legend_position_changed_listener.close()
-        self.__legend_position_changed_listener = None
+        self.__legend_position_changed_listener = typing.cast(typing.Any, None)
         self.__display_type_changed_listener.close()
-        self.__display_type_changed_listener = None
+        self.__display_type_changed_listener = typing.cast(typing.Any, None)
         super().close()
 
 
@@ -1980,10 +2083,11 @@ class SequenceInspectorSection(InspectorSection):
         Subclass InspectorSection to implement slice inspector.
     """
 
-    def __init__(self, document_controller, display_data_channel: DisplayItem.DisplayDataChannel):
+    def __init__(self, document_controller: DocumentController.DocumentController, display_data_channel: DisplayItem.DisplayDataChannel) -> None:
         super().__init__(document_controller.ui, "sequence", _("Sequence"))
 
         data_item = display_data_channel.data_item
+        assert data_item
 
         sequence_index_row_widget = self.ui.create_row_widget()  # use 280 pixels in row
         sequence_index_label_widget = self.ui.create_label_widget(_("Index"), properties={"width": 60})
@@ -2016,10 +2120,11 @@ class CollectionIndexInspectorSection(InspectorSection):
         Subclass InspectorSection to implement slice inspector.
     """
 
-    def __init__(self, document_controller, display_data_channel: DisplayItem.DisplayDataChannel):
+    def __init__(self, document_controller: DocumentController.DocumentController, display_data_channel: DisplayItem.DisplayDataChannel) -> None:
         super().__init__(document_controller.ui, "collection-index", _("Index"))
 
         data_item = display_data_channel.data_item
+        assert data_item
 
         column_widget = self.ui.create_column_widget()
         collection_index_base = 1 if data_item.is_sequence else 0
@@ -2053,7 +2158,7 @@ class CollectionIndexInspectorSection(InspectorSection):
 
     def close(self) -> None:
         self.__collection_index_model.close()
-        self.__collection_index_model = None
+        self.__collection_index_model = typing.cast(typing.Any, None)
         super().close()
 
 
@@ -2063,10 +2168,11 @@ class SliceInspectorSection(InspectorSection):
         Subclass InspectorSection to implement slice inspector.
     """
 
-    def __init__(self, document_controller, display_data_channel: DisplayItem.DisplayDataChannel):
+    def __init__(self, document_controller: DocumentController.DocumentController, display_data_channel: DisplayItem.DisplayDataChannel) -> None:
         super().__init__(document_controller.ui, "slice", _("Slice"))
 
         data_item = display_data_channel.data_item
+        assert data_item
 
         slice_center_row_widget = self.ui.create_row_widget()  # use 280 pixels in row
         slice_center_label_widget = self.ui.create_label_widget(_("Slice"), properties={"width": 60})
@@ -2110,24 +2216,30 @@ class SliceInspectorSection(InspectorSection):
         self._slice_width_line_edit_widget = slice_width_line_edit_widget
 
 
-class RadianToDegreeStringConverter:
+class RadianToDegreeStringConverter(Converter.ConverterLike[float, str]):
     """
         Converter object to convert from radian value to degree string and back.
     """
-    def convert(self, value):
-        return "{0:.4f}°".format(math.degrees(value))
-    def convert_back(self, str):
-        return math.radians(Converter.FloatToStringConverter().convert_back(str))
+    def convert(self, value: typing.Optional[float]) -> typing.Optional[str]:
+        if value is not None:
+            return "{0:.4f}°".format(math.degrees(value))
+        return None
+
+    def convert_back(self, value_str: typing.Optional[str]) -> typing.Optional[float]:
+        if value_str is not None:
+            return math.radians(Converter.FloatToStringConverter().convert_back(value_str) or 0.0)
+        return None
 
 
-class CalibratedValueFloatToStringConverter:
+class CalibratedValueFloatToStringConverter(Converter.ConverterLike[float, str]):
     """
         Converter object to convert from calibrated value to string and back.
     """
-    def __init__(self, display_item: DisplayItem.DisplayItem, index):
+    def __init__(self, display_item: DisplayItem.DisplayItem, index: int) -> None:
         self.__display_item = display_item
         self.__index = index
-    def __get_calibration(self):
+
+    def __get_calibration(self) -> Calibration.Calibration:
         index = self.__index
         calibrations = self.__display_item.displayed_datum_calibrations
         dimension_count = len(calibrations)
@@ -2137,46 +2249,60 @@ class CalibratedValueFloatToStringConverter:
             return calibrations[index]
         else:
             return Calibration.Calibration()
-    def __get_data_size(self):
+
+    def __get_data_size(self) -> int:
         index = self.__index
         display_data_shape = self.__display_item.display_data_shape
         dimension_count = len(display_data_shape) if display_data_shape is not None else 0
         if index < 0:
             index = dimension_count + index
-        if index >= 0 and index < dimension_count:
+        if index >= 0 and index < dimension_count and display_data_shape is not None:
             return display_data_shape[index]
         else:
-            return 1.0
-    def convert_calibrated_value_to_str(self, calibrated_value):
+            return 1
+
+    def convert_calibrated_value_to_str(self, calibrated_value: float) -> str:
         calibration = self.__get_calibration()
         return calibration.convert_calibrated_value_to_str(calibrated_value)
-    def convert_to_calibrated_value(self, value):
+
+    def convert_to_calibrated_value(self, value: float) -> float:
         calibration = self.__get_calibration()
         data_size = self.__get_data_size()
         return calibration.convert_to_calibrated_value(data_size * value)
-    def convert_from_calibrated_value(self, calibrated_value):
+
+    def convert_from_calibrated_value(self, calibrated_value: float) -> float:
         calibration = self.__get_calibration()
         data_size = self.__get_data_size()
         return calibration.convert_from_calibrated_value(calibrated_value) / data_size
-    def convert(self, value):
-        calibration = self.__get_calibration()
-        data_size = self.__get_data_size()
-        return calibration.convert_to_calibrated_value_str(data_size * value, value_range=(0, data_size), samples=data_size)
-    def convert_back(self, str):
-        calibration = self.__get_calibration()
-        data_size = self.__get_data_size()
-        return calibration.convert_from_calibrated_value(Converter.FloatToStringConverter().convert_back(str)) / data_size
+
+    def convert(self, value: typing.Optional[float]) -> typing.Optional[str]:
+        if value is not None:
+            calibration = self.__get_calibration()
+            data_size = self.__get_data_size()
+            return calibration.convert_to_calibrated_value_str(data_size * value, value_range=(0, data_size), samples=data_size)
+        return None
+
+    def convert_back(self, value_str: typing.Optional[str]) -> typing.Optional[float]:
+        if value_str is not None:
+            calibration = self.__get_calibration()
+            data_size = self.__get_data_size()
+            value = Converter.FloatToStringConverter().convert_back(value_str)
+            if value is not None:
+                return calibration.convert_from_calibrated_value(value) / data_size
+        return None
 
 
-class CalibratedSizeFloatToStringConverter:
+class CalibratedSizeFloatToStringConverter(Converter.ConverterLike[float, str]):
     """
         Converter object to convert from calibrated size to string and back.
         """
-    def __init__(self, display_item: DisplayItem.DisplayItem, index, factor=1.0):
+
+    def __init__(self, display_item: DisplayItem.DisplayItem, index: int, factor: float = 1.0) -> None:
         self.__display_item = display_item
         self.__index = index
         self.__factor = factor
-    def __get_calibration(self):
+
+    def __get_calibration(self) -> Calibration.Calibration:
         index = self.__index
         calibrations = self.__display_item.displayed_datum_calibrations
         dimension_count = len(calibrations)
@@ -2186,108 +2312,135 @@ class CalibratedSizeFloatToStringConverter:
             return self.__display_item.displayed_datum_calibrations[index]
         else:
             return Calibration.Calibration()
-    def __get_data_size(self):
+
+    def __get_data_size(self) -> int:
         index = self.__index
         display_data_shape = self.__display_item.display_data_shape
         dimension_count = len(display_data_shape) if display_data_shape else 0
         if index < 0:
             index = dimension_count + index
-        if index >= 0 and index < dimension_count:
+        if index >= 0 and index < dimension_count and display_data_shape is not None:
             return display_data_shape[index]
         else:
-            return 1.0
-    def convert_calibrated_value_to_str(self, calibrated_value):
+            return 1
+
+    def convert_calibrated_value_to_str(self, calibrated_value: float) -> str:
         calibration = self.__get_calibration()
         return calibration.convert_calibrated_size_to_str(calibrated_value)
-    def convert_to_calibrated_value(self, size):
+
+    def convert_to_calibrated_value(self, size: float) -> float:
         calibration = self.__get_calibration()
         data_size = self.__get_data_size()
         return calibration.convert_to_calibrated_size(data_size * size * self.__factor)
-    def convert(self, size):
-        calibration = self.__get_calibration()
-        data_size = self.__get_data_size()
-        return calibration.convert_to_calibrated_size_str(data_size * size * self.__factor, value_range=(0, data_size), samples=data_size)
-    def convert_back(self, str):
-        calibration = self.__get_calibration()
-        data_size = self.__get_data_size()
-        return calibration.convert_from_calibrated_size(Converter.FloatToStringConverter().convert_back(str)) / data_size / self.__factor
+
+    def convert(self, value: typing.Optional[float]) -> typing.Optional[str]:
+        if value is not None:
+            calibration = self.__get_calibration()
+            data_size = self.__get_data_size()
+            return calibration.convert_to_calibrated_size_str(data_size * value * self.__factor, value_range=(0, data_size), samples=data_size)
+        return None
+
+    def convert_back(self, value_str: typing.Optional[str]) -> typing.Optional[float]:
+        if value_str is not None:
+            calibration = self.__get_calibration()
+            data_size = self.__get_data_size()
+            value = Converter.FloatToStringConverter().convert_back(value_str)
+            if value is not None:
+                return calibration.convert_from_calibrated_size(value) / data_size / self.__factor
+        return None
 
 
 class CalibratedBinding(Binding.Binding):
-    def __init__(self, display_item: DisplayItem.DisplayItem, value_binding, converter):
+    def __init__(self, display_item: DisplayItem.DisplayItem, value_binding: Binding.Binding, converter: Converter.ConverterLike[float, str]) -> None:
         super().__init__(None, converter=converter)
         self.__value_binding = value_binding
-        def update_target(value):
+        self.__converter_x = converter  # mypy bug (it uses base self.__converter type if named the same)
+
+        def update_target(value: typing.Any) -> None:
             self.update_target_direct(self.get_target_value())
+
         self.__value_binding.target_setter = update_target
-        def calibrations_changed(k):
-            if k == "displayed_dimensional_calibrations":
+
+        def calibrations_changed(key: str) -> None:
+            if key == "displayed_dimensional_calibrations":
                 update_target(display_item.displayed_datum_calibrations)
+
         self.__calibrations_changed_event_listener = display_item.display_property_changed_event.listen(calibrations_changed)
+
     def close(self) -> None:
         self.__value_binding.close()
-        self.__value_binding = None
+        self.__value_binding = typing.cast(typing.Any, None)
         self.__calibrations_changed_event_listener.close()
-        self.__calibrations_changed_event_listener = None
+        self.__calibrations_changed_event_listener = typing.cast(typing.Any, None)
         super().close()
+
     # set the model value from the target ui element text.
-    def update_source(self, target_value):
-        converted_value = self.converter.convert_back(target_value)
+    def update_source(self, target_value: typing.Any) -> None:
+        converted_value = self.__converter_x.convert_back(target_value)
         self.__value_binding.update_source(converted_value)
+
     # get the value from the model and return it as a string suitable for the target ui element.
     # in this binding, it combines the two source bindings into one.
-    def get_target_value(self):
+    def get_target_value(self) -> typing.Optional[str]:
         value = self.__value_binding.get_target_value()
-        return self.converter.convert(value) if value is not None else None
+        return self.__converter_x.convert(value) if value is not None else None
 
 
 class CalibratedValueBinding(CalibratedBinding):
-    def __init__(self, index, display_item: DisplayItem.DisplayItem, value_binding):
+    def __init__(self, index: int, display_item: DisplayItem.DisplayItem, value_binding: Binding.Binding) -> None:
         converter = CalibratedValueFloatToStringConverter(display_item, index)
         super().__init__(display_item, value_binding, converter)
 
 
 class CalibratedSizeBinding(CalibratedBinding):
-    def __init__(self, index, display_item: DisplayItem.DisplayItem, value_binding):
+    def __init__(self, index: int, display_item: DisplayItem.DisplayItem, value_binding: Binding.Binding) -> None:
         converter = CalibratedSizeFloatToStringConverter(display_item, index)
         super().__init__(display_item, value_binding, converter)
 
 
 class CalibratedWidthBinding(CalibratedBinding):
-    def __init__(self, display_item: DisplayItem.DisplayItem, value_binding):
-        factor = 1.0 / display_item.display_data_shape[0]
+    def __init__(self, display_item: DisplayItem.DisplayItem, value_binding: Binding.Binding) -> None:
+        display_data_shape = display_item.display_data_shape
+        factor = 1.0 / (display_data_shape[0] if display_data_shape is not None else 1)
         converter = CalibratedSizeFloatToStringConverter(display_item, 0, factor)  # width is stored in pixels. argh.
         super().__init__(display_item, value_binding, converter)
 
 
 class CalibratedLengthBinding(Binding.Binding):
-    def __init__(self, display_item: DisplayItem.DisplayItem, start_binding, end_binding):
+    def __init__(self, display_item: DisplayItem.DisplayItem, start_binding: Binding.Binding, end_binding: Binding.Binding) -> None:
         super().__init__(None)
         self.__x_converter = CalibratedValueFloatToStringConverter(display_item, 1)
         self.__y_converter = CalibratedValueFloatToStringConverter(display_item, 0)
         self.__size_converter = CalibratedSizeFloatToStringConverter(display_item, 0)
         self.__start_binding = start_binding
         self.__end_binding = end_binding
-        def update_target(value):
+
+        def update_target(value: typing.Any) -> None:
             self.update_target_direct(self.get_target_value())
+
         self.__start_binding.target_setter = update_target
         self.__end_binding.target_setter = update_target
-        def calibrations_changed(k):
-            if k == "displayed_dimensional_calibrations":
+
+        def calibrations_changed(key: str) -> None:
+            if key == "displayed_dimensional_calibrations":
                 update_target(display_item.displayed_datum_calibrations)
-        self.__calibrations_changed_event_listener = display_item.display_property_changed_event.listen(calibrations_changed)
+
+        self.__calibrations_changed_event_listener = display_item.display_property_changed_event.listen(
+            calibrations_changed)
+
     def close(self) -> None:
         self.__start_binding.close()
-        self.__start_binding = None
+        self.__start_binding = typing.cast(typing.Any, None)
         self.__end_binding.close()
-        self.__end_binding = None
+        self.__end_binding = typing.cast(typing.Any, None)
         self.__calibrations_changed_event_listener.close()
-        self.__calibrations_changed_event_listener = None
+        self.__calibrations_changed_event_listener = typing.cast(typing.Any, None)
         super().close()
+
     # set the model value from the target ui element text.
-    def update_source(self, target_value):
-        start = self.__start_binding.get_target_value()
-        end = self.__end_binding.get_target_value()
+    def update_source(self, target_value: typing.Any) -> None:
+        start = self.__start_binding.get_target_value() or Geometry.FloatPoint()
+        end = self.__end_binding.get_target_value() or Geometry.FloatPoint()
         calibrated_start = Geometry.FloatPoint(y=self.__y_converter.convert_to_calibrated_value(start[0]), x=self.__x_converter.convert_to_calibrated_value(start[1]))
         calibrated_end = Geometry.FloatPoint(y=self.__y_converter.convert_to_calibrated_value(end[0]), x=self.__x_converter.convert_to_calibrated_value(end[1]))
         delta = calibrated_end - calibrated_start
@@ -2295,11 +2448,12 @@ class CalibratedLengthBinding(Binding.Binding):
         new_calibrated_end = calibrated_start + target_value * Geometry.FloatSize(height=-math.sin(angle), width=math.cos(angle))
         end = Geometry.FloatPoint(y=self.__y_converter.convert_from_calibrated_value(new_calibrated_end.y), x=self.__x_converter.convert_from_calibrated_value(new_calibrated_end.x))
         self.__end_binding.update_source(end)
+
     # get the value from the model and return it as a string suitable for the target ui element.
     # in this binding, it combines the two source bindings into one.
-    def get_target_value(self):
-        start = self.__start_binding.get_target_value()
-        end = self.__end_binding.get_target_value()
+    def get_target_value(self) -> typing.Optional[str]:
+        start = self.__start_binding.get_target_value() or Geometry.FloatPoint()
+        end = self.__end_binding.get_target_value() or Geometry.FloatPoint()
         calibrated_dy = self.__y_converter.convert_to_calibrated_value(end[0]) - self.__y_converter.convert_to_calibrated_value(start[0])
         calibrated_dx = self.__x_converter.convert_to_calibrated_value(end[1]) - self.__x_converter.convert_to_calibrated_value(start[1])
         calibrated_value = math.sqrt(calibrated_dx * calibrated_dx + calibrated_dy * calibrated_dy)
@@ -2307,52 +2461,62 @@ class CalibratedLengthBinding(Binding.Binding):
 
 
 class CalibratedAngleBinding(Binding.Binding):
-    def __init__(self, display_item: DisplayItem.DisplayItem, start_binding, end_binding):
+    def __init__(self, display_item: DisplayItem.DisplayItem, start_binding: Binding.Binding, end_binding: Binding.Binding) -> None:
         super().__init__(None)
         self.__x_converter = CalibratedValueFloatToStringConverter(display_item, 1)
         self.__y_converter = CalibratedValueFloatToStringConverter(display_item, 0)
         self.__size_converter = CalibratedSizeFloatToStringConverter(display_item, 0)
         self.__start_binding = start_binding
         self.__end_binding = end_binding
-        def update_target(value):
+
+        def update_target(value: typing.Any) -> None:
             self.update_target_direct(self.get_target_value())
+
         self.__start_binding.target_setter = update_target
         self.__end_binding.target_setter = update_target
-        def calibrations_changed(k):
-            if k == "displayed_dimensional_calibrations":
+
+        def calibrations_changed(key: str) -> None:
+            if key == "displayed_dimensional_calibrations":
                 update_target(display_item.displayed_datum_calibrations)
-        self.__calibrations_changed_event_listener = display_item.display_property_changed_event.listen(calibrations_changed)
+
+        self.__calibrations_changed_event_listener = display_item.display_property_changed_event.listen(
+            calibrations_changed)
+
     def close(self) -> None:
         self.__start_binding.close()
-        self.__start_binding = None
+        self.__start_binding = typing.cast(typing.Any, None)
         self.__end_binding.close()
-        self.__end_binding = None
+        self.__end_binding = typing.cast(typing.Any, None)
         self.__calibrations_changed_event_listener.close()
-        self.__calibrations_changed_event_listener = None
+        self.__calibrations_changed_event_listener = typing.cast(typing.Any, None)
         super().close()
+
     # set the model value from the target ui element text.
-    def update_source(self, target_value):
-        start = self.__start_binding.get_target_value()
-        end = self.__end_binding.get_target_value()
-        calibrated_start = Geometry.FloatPoint(y=self.__y_converter.convert_to_calibrated_value(start[0]), x=self.__x_converter.convert_to_calibrated_value(start[1]))
+    def update_source(self, target_value: typing.Any) -> None:
+        start = self.__start_binding.get_target_value() or Geometry.FloatPoint()
+        end = self.__end_binding.get_target_value() or Geometry.FloatPoint()
+        calibrated_start = Geometry.FloatPoint(y=self.__y_converter.convert_to_calibrated_value(start[0]),
+                                               x=self.__x_converter.convert_to_calibrated_value(start[1]))
         calibrated_dy = self.__y_converter.convert_to_calibrated_value(end[0]) - self.__y_converter.convert_to_calibrated_value(start[0])
         calibrated_dx = self.__x_converter.convert_to_calibrated_value(end[1]) - self.__x_converter.convert_to_calibrated_value(start[1])
         length = math.sqrt(calibrated_dy * calibrated_dy + calibrated_dx * calibrated_dx)
-        angle = RadianToDegreeStringConverter().convert_back(target_value)
+        angle = RadianToDegreeStringConverter().convert_back(target_value) or 0.0
         new_calibrated_end = calibrated_start + length * Geometry.FloatSize(height=-math.sin(angle), width=math.cos(angle))
-        end = Geometry.FloatPoint(y=self.__y_converter.convert_from_calibrated_value(new_calibrated_end.y), x=self.__x_converter.convert_from_calibrated_value(new_calibrated_end.x))
+        end = Geometry.FloatPoint(y=self.__y_converter.convert_from_calibrated_value(new_calibrated_end.y),
+                                  x=self.__x_converter.convert_from_calibrated_value(new_calibrated_end.x))
         self.__end_binding.update_source(end)
+
     # get the value from the model and return it as a string suitable for the target ui element.
     # in this binding, it combines the two source bindings into one.
-    def get_target_value(self):
-        start = self.__start_binding.get_target_value()
-        end = self.__end_binding.get_target_value()
+    def get_target_value(self) -> typing.Optional[str]:
+        start = self.__start_binding.get_target_value() or Geometry.FloatPoint()
+        end = self.__end_binding.get_target_value() or Geometry.FloatPoint()
         calibrated_dy = self.__y_converter.convert_to_calibrated_value(end[0]) - self.__y_converter.convert_to_calibrated_value(start[0])
         calibrated_dx = self.__x_converter.convert_to_calibrated_value(end[1]) - self.__x_converter.convert_to_calibrated_value(start[1])
         return RadianToDegreeStringConverter().convert(-math.atan2(calibrated_dy, calibrated_dx))
 
 
-def make_point_type_inspector(document_controller, display_item: DisplayItem.DisplayItem, graphic) -> InspectorSectionWidget:
+def make_point_type_inspector(document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem, graphic: Graphics.Graphic) -> InspectorSectionWidget:
     ui = document_controller.ui
     graphic_widget = InspectorSectionWidget(ui)
     # create the ui
@@ -2397,7 +2561,7 @@ def make_point_type_inspector(document_controller, display_item: DisplayItem.Dis
     return graphic_widget
 
 
-def make_line_type_inspector(document_controller, display_item: DisplayItem.DisplayItem, graphic) -> InspectorSectionWidget:
+def make_line_type_inspector(document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem, graphic: Graphics.Graphic) -> InspectorSectionWidget:
     ui = document_controller.ui
     graphic_widget = InspectorSectionWidget(ui)
     graphic_widget.content_widget.widget_id = "line_type_inspector"
@@ -2493,7 +2657,7 @@ def make_line_type_inspector(document_controller, display_item: DisplayItem.Disp
     return graphic_widget
 
 
-def make_line_profile_inspector(document_controller, display_item: DisplayItem.DisplayItem, graphic) -> InspectorSectionWidget:
+def make_line_profile_inspector(document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem, graphic: Graphics.Graphic) -> InspectorSectionWidget:
     graphic_widget = make_line_type_inspector(document_controller, display_item, graphic)
 
     ui = document_controller.ui
@@ -2517,7 +2681,7 @@ def make_line_profile_inspector(document_controller, display_item: DisplayItem.D
     return graphic_widget
 
 
-def make_rectangle_type_inspector(document_controller, display_item: DisplayItem.DisplayItem, graphic, graphic_name: str, rotation: bool = False) -> InspectorSectionWidget:
+def make_rectangle_type_inspector(document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem, graphic: Graphics.Graphic, graphic_name: str, rotation: bool = False) -> InspectorSectionWidget:
     ui = document_controller.ui
     graphic_widget = InspectorSectionWidget(ui)
     graphic_widget.content_widget.widget_id = "rectangle_type_inspector"
@@ -2614,7 +2778,7 @@ def make_rectangle_type_inspector(document_controller, display_item: DisplayItem
     return graphic_widget
 
 
-def make_spot_inspector(document_controller, display_item: DisplayItem.DisplayItem, graphic, graphic_name: str) -> InspectorSectionWidget:
+def make_spot_inspector(document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem, graphic: Graphics.Graphic, graphic_name: str) -> InspectorSectionWidget:
     ui = document_controller.ui
     graphic_widget = InspectorSectionWidget(ui)
     graphic_widget.content_widget.widget_id = "spot_inspector"
@@ -2710,7 +2874,7 @@ def make_spot_inspector(document_controller, display_item: DisplayItem.DisplayIt
     return graphic_widget
 
 
-def make_wedge_inspector(document_controller, display_item: DisplayItem.DisplayItem, graphic: Graphics.WedgeGraphic) -> InspectorSectionWidget:
+def make_wedge_inspector(document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem, graphic: Graphics.WedgeGraphic) -> InspectorSectionWidget:
     ui = document_controller.ui
     graphic_widget = InspectorSectionWidget(ui)
     graphic_widget.content_widget.widget_id = "wedge_inspector"
@@ -2744,19 +2908,18 @@ def make_wedge_inspector(document_controller, display_item: DisplayItem.DisplayI
     return graphic_widget
 
 
-def make_annular_ring_mode_chooser(document_controller, graphic_widget: InspectorSectionWidget, display_item: DisplayItem.DisplayItem, graphic: Graphics.RingGraphic):
+def make_annular_ring_mode_chooser(document_controller: DocumentController.DocumentController, graphic_widget: InspectorSectionWidget, display_item: DisplayItem.DisplayItem, graphic: Graphics.Graphic) -> UserInterface.ComboBoxWidget:
     ui = document_controller.ui
     annular_ring_mode_options = ((_("Band Pass"), "band-pass"), (_("Low Pass"), "low-pass"), (_("High Pass"), "high-pass"))
     annular_ring_mode_reverse_map = {"band-pass": 0, "low-pass": 1, "high-pass": 2}
 
-    class AnnularRingModeIndexConverter:
-        """
-            Convert from flag index (-1, 0, 1) to chooser index.
-        """
-        def convert(self, value):
-            return annular_ring_mode_reverse_map.get(value, 0)
-        def convert_back(self, value):
-            if value >= 0 and value < len(annular_ring_mode_options):
+    class AnnularRingModeIndexConverter(Converter.ConverterLike[str, int]):
+        """Convert from flag index (-1, 0, 1) to chooser index."""
+        def convert(self, value: typing.Optional[str]) -> typing.Optional[int]:
+            return annular_ring_mode_reverse_map.get(value or str(), 0)
+
+        def convert_back(self, value: typing.Optional[int]) -> typing.Optional[str]:
+            if value is not None and value >= 0 and value < len(annular_ring_mode_options):
                 return annular_ring_mode_options[value][1]
             else:
                 return "band-pass"
@@ -2769,7 +2932,7 @@ def make_annular_ring_mode_chooser(document_controller, graphic_widget: Inspecto
     return display_calibration_style_chooser
 
 
-def make_ring_inspector(document_controller, display_item: DisplayItem.DisplayItem, graphic) -> InspectorSectionWidget:
+def make_ring_inspector(document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem, graphic: Graphics.Graphic) -> InspectorSectionWidget:
     ui = document_controller.ui
     graphic_widget = InspectorSectionWidget(ui)
 
@@ -2807,7 +2970,7 @@ def make_ring_inspector(document_controller, display_item: DisplayItem.DisplayIt
     return graphic_widget
 
 
-def make_interval_type_inspector(document_controller, display_item: DisplayItem.DisplayItem, graphic) -> InspectorSectionWidget:
+def make_interval_type_inspector(document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem, graphic: Graphics.Graphic) -> InspectorSectionWidget:
     ui = document_controller.ui
     graphic_widget = InspectorSectionWidget(ui)
     # configure the bindings
@@ -2847,7 +3010,7 @@ class GraphicsInspectorSection(InspectorSection):
         Subclass InspectorSection to implement graphics inspector.
         """
 
-    def __init__(self, document_controller, display_item: DisplayItem.DisplayItem, selected_only=False):
+    def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem, selected_only: bool = False) -> None:
         super().__init__(document_controller.ui, "graphics", _("Graphics"))
         ui = document_controller.ui
         self.__document_controller = document_controller
@@ -2872,14 +3035,14 @@ class GraphicsInspectorSection(InspectorSection):
         # add unbinders
         self._unbinder.add([display_item], [])
 
-    def __create_header_widget(self):
+    def __create_header_widget(self) -> UserInterface.BoxWidget:
         return self.ui.create_row_widget()
 
-    def __create_header_for_empty_list_widget(self):
+    def __create_header_for_empty_list_widget(self) -> UserInterface.BoxWidget:
         return self.ui.create_row_widget()
 
     # not thread safe
-    def __create_list_item_widget(self, graphic):
+    def __create_list_item_widget(self, graphic: Graphics.Graphic) -> UserInterface.BoxWidget:
         # NOTE: it is not valid to access self.__graphics here. graphic may or may not be in that list due to threading.
         # graphic_section_index = self.__graphics.index(graphic)
         graphic_widget = self.ui.create_column_widget()
@@ -2951,7 +3114,9 @@ class GraphicsInspectorSection(InspectorSection):
 
 class ChangeComputationVariableCommand(Undo.UndoableCommand):
 
-    def __init__(self, document_model, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable, *, title: str=None, command_id: str=None, is_mergeable: bool=False, **kwargs):
+    def __init__(self, document_model: DocumentModel.DocumentModel, computation: Symbolic.Computation,
+                 variable: Symbolic.ComputationVariable, *, title: typing.Optional[str] = None,
+                 command_id: typing.Optional[str] = None, is_mergeable: bool = False, **kwargs: typing.Any) -> None:
         super().__init__(title if title else _("Change Computation Variable"), command_id=command_id, is_mergeable=is_mergeable)
         self.__document_model = document_model
         self.__computation_proxy = computation.create_proxy()
@@ -2961,52 +3126,64 @@ class ChangeComputationVariableCommand(Undo.UndoableCommand):
         self.initialize()
 
     def close(self) -> None:
-        self.__document_model = None
+        self.__document_model = typing.cast(typing.Any, None)
         self.__computation_proxy.close()
-        self.__computation_proxy = None
-        self.__variable_index = None
-        self.__properties = None
-        self.__value_dict = None
+        self.__computation_proxy = typing.cast(typing.Any, None)
+        self.__variable_index = typing.cast(typing.Any, None)
+        self.__properties = typing.cast(typing.Any, None)
+        self.__value_dict = typing.cast(typing.Any, None)
         super().close()
 
     def perform(self) -> None:
-        computation = self.__computation_proxy.item
-        variable = computation.variables[self.__variable_index]
-        for key, value in self.__value_dict.items():
-            setattr(variable, key, value)
+        computation = typing.cast(typing.Optional[Symbolic.Computation], self.__computation_proxy.item)
+        if computation:
+            variable = computation.variables[self.__variable_index]
+            for key, value in self.__value_dict.items():
+                setattr(variable, key, value)
 
     def _get_modified_state(self) -> typing.Any:
         computation = self.__computation_proxy.item
-        variable = computation.variables[self.__variable_index]
-        return variable.modified_state, self.__document_model.modified_state
+        variable = computation.variables[self.__variable_index] if computation else None
+        return variable.modified_state if variable else None, self.__document_model.modified_state
 
-    def _set_modified_state(self, modified_state):
+    def _set_modified_state(self, modified_state: typing.Any) -> None:
         computation = self.__computation_proxy.item
-        variable = computation.variables[self.__variable_index]
-        variable.modified_state, self.__document_model.modified_state = modified_state
+        variable = computation.variables[self.__variable_index] if computation else None
+        if variable:
+            variable.modified_state = modified_state[0]
+        self.__document_model.modified_state = modified_state[1]
 
     def _compare_modified_states(self, state1: typing.Any, state2: typing.Any) -> bool:
         # override to allow the undo command to track state; but only use part of the state for comparison
-        return state1[0] == state2[0]
+        return bool(state1[0] == state2[0])
 
-    def _undo(self):
-        computation = self.__computation_proxy.item
-        variable = computation.variables[self.__variable_index]
-        properties = self.__properties
-        self.__properties = variable.save_properties()
-        variable.restore_properties(properties)
+    def _undo(self) -> None:
+        computation = typing.cast(typing.Optional[Symbolic.Computation], self.__computation_proxy.item)
+        if computation:
+            variable = computation.variables[self.__variable_index]
+            properties = self.__properties
+            self.__properties = variable.save_properties()
+            variable.restore_properties(properties)
+
+    @property
+    def __computation_uuid(self) -> typing.Optional[uuid.UUID]:
+        computation = typing.cast(typing.Optional[Symbolic.Computation], self.__computation_proxy.item) if self.__computation_proxy else None
+        return computation.uuid if computation else None
 
     def can_merge(self, command: Undo.UndoableCommand) -> bool:
-        return isinstance(command, ChangeComputationVariableCommand) and self.command_id and self.command_id == command.command_id and self.__computation_proxy.item == command.__computation_proxy.item and self.__variable_index == command.__variable_index
+        return isinstance(command, self.__class__) and bool(self.command_id) and self.command_id == command.command_id and self.__computation_uuid == command.__computation_uuid and self.__variable_index == command.__variable_index
 
 
 class ChangeComputationVariablePropertyBinding(Binding.PropertyBinding):
-    def __init__(self, document_controller, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable, property_name: str, converter=None, fallback=None):
+    def __init__(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation,
+                 variable: Symbolic.ComputationVariable, property_name: str,
+                 converter: typing.Optional[Converter.ConverterLike[typing.Any, typing.Any]] = None,
+                 fallback: typing.Any = None) -> None:
         super().__init__(variable, property_name, converter=converter, fallback=fallback)
         self.__property_name = property_name
         self.__old_source_setter = self.source_setter
 
-        def set_value(value):
+        def set_value(value: typing.Any) -> typing.Any:
             if value != getattr(variable, property_name):
                 command = ChangeComputationVariableCommand(document_controller.document_model, computation, variable, title=_("Change Computation"), command_id="change_computation_" + property_name, is_mergeable=True, **{self.__property_name: value})
                 command.perform()
@@ -3015,7 +3192,7 @@ class ChangeComputationVariablePropertyBinding(Binding.PropertyBinding):
         self.source_setter = set_value
 
 
-def make_checkbox(document_controller, unbinder: Unbinder, computation, variable):
+def make_checkbox(document_controller: DocumentController.DocumentController, unbinder: Unbinder, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable) -> typing.Tuple[UserInterface.BoxWidget, typing.Sequence[Event.EventListener]]:
     ui = document_controller.ui
     column = ui.create_column_widget()
     row = ui.create_row_widget()
@@ -3030,7 +3207,7 @@ def make_checkbox(document_controller, unbinder: Unbinder, computation, variable
     return column, []
 
 
-def make_slider_int(document_controller, unbinder: Unbinder, computation, variable, converter):
+def make_slider_int(document_controller: DocumentController.DocumentController, unbinder: Unbinder, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable, converter: Converter.ConverterLike[typing.Any, typing.Any]) -> typing.Tuple[UserInterface.BoxWidget, typing.Sequence[Event.EventListener]]:
     ui = document_controller.ui
     column = ui.create_column_widget()
     row = ui.create_row_widget()
@@ -3056,7 +3233,7 @@ def make_slider_int(document_controller, unbinder: Unbinder, computation, variab
     return column, []
 
 
-def make_slider_float(document_controller, unbinder: Unbinder, computation, variable, converter):
+def make_slider_float(document_controller: DocumentController.DocumentController, unbinder: Unbinder, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable, converter: Converter.ConverterLike[typing.Any, typing.Any]) -> typing.Tuple[UserInterface.BoxWidget, typing.Sequence[Event.EventListener]]:
     ui = document_controller.ui
     column = ui.create_column_widget()
     row = ui.create_row_widget()
@@ -3082,7 +3259,7 @@ def make_slider_float(document_controller, unbinder: Unbinder, computation, vari
     return column, []
 
 
-def make_field(document_controller, unbinder: Unbinder, computation, variable, converter):
+def make_field(document_controller: DocumentController.DocumentController, unbinder: Unbinder, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable, converter: typing.Optional[Converter.ConverterLike[typing.Any, typing.Any]]) -> typing.Tuple[UserInterface.BoxWidget, typing.Sequence[Event.EventListener]]:
     ui = document_controller.ui
     column = ui.create_column_widget()
     row = ui.create_row_widget()
@@ -3101,8 +3278,8 @@ def make_field(document_controller, unbinder: Unbinder, computation, variable, c
     return column, []
 
 
-def make_choice(document_controller, unbinder: Unbinder, computation, variable, converter):
-    ui = typing.cast(UserInterface.UserInterface, document_controller.ui)
+def make_choice(document_controller: DocumentController.DocumentController, unbinder: Unbinder, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable) -> typing.Tuple[UserInterface.BoxWidget, typing.Sequence[Event.EventListener]]:
+    ui = document_controller.ui
     column = ui.create_column_widget()
     row = ui.create_row_widget()
     label_widget = ui.create_label_widget(variable.display_label, properties={"width": 80})
@@ -3110,14 +3287,15 @@ def make_choice(document_controller, unbinder: Unbinder, computation, variable, 
     choices = [(_("None"), "none"), (_("Mapped"), "mapped")]
     choice_widget = ui.create_combo_box_widget(items=choices, item_getter=operator.itemgetter(0))
 
-    class ChoiceConverter:
-        def convert(self, value: str) -> int:
+    class ChoiceConverter(Converter.ConverterLike[str, int]):
+        def convert(self, value: typing.Optional[str]) -> typing.Optional[int]:
             for index, choice in enumerate(choices):
                 if choice[1] == value:
                     return index
             return 0
-        def convert_back(self, value: int) -> str:
-            if value >= 0 and value < len(choices):
+
+        def convert_back(self, value: typing.Optional[int]) -> typing.Optional[str]:
+            if value is not None and value >= 0 and value < len(choices):
                 return choices[value][1]
             else:
                 return "none"
@@ -3133,7 +3311,7 @@ def make_choice(document_controller, unbinder: Unbinder, computation, variable, 
     return column, []
 
 
-def make_image_chooser(document_controller, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable):
+def make_image_chooser(document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable) -> InspectorSectionWidget:
     ui = document_controller.ui
     widget = InspectorSectionWidget(ui)
     document_model = document_controller.document_model
@@ -3149,18 +3327,18 @@ def make_image_chooser(document_controller, computation: Symbolic.Computation, v
     computation_input = computation.get_input(variable.name)
     data_item = computation_input.data_item if computation_input and not isinstance(computation_input, DataItem.DataItem) else None
 
-    def drop_mime_data(mime_data, x, y):
+    def drop_mime_data(mime_data: UserInterface.MimeData, x: int, y: int) -> str:
         display_item = MimeTypes.mime_data_get_display_item(mime_data, document_model)
         data_item = display_item.data_item if display_item else None
-        if data_item:
+        if display_item and data_item:
             specified_object = display_item.get_display_data_channel_for_data_item(data_item)
             command = ChangeComputationVariableCommand(document_controller.document_model, computation, variable, specified_object=specified_object, title=_("Change Computation Input"))
             command.perform()
             document_controller.push_undo_command(command)
             return "copy"
-        return None
+        return "ignore"
 
-    def data_item_delete():
+    def data_item_delete() -> None:
         command = ChangeComputationVariableCommand(document_controller.document_model, computation, variable, specified_object=None, title=_("Change Computation Input"))
         command.perform()
         document_controller.push_undo_command(command)
@@ -3169,7 +3347,7 @@ def make_image_chooser(document_controller, computation: Symbolic.Computation, v
     data_item_thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(ui, display_item=display_item)
     data_item_chooser_widget = DataItemThumbnailWidget.ThumbnailWidget(ui, data_item_thumbnail_source, Geometry.IntSize(80, 80))
 
-    def thumbnail_widget_drag(mime_data, thumbnail, hot_spot_x, hot_spot_y):
+    def thumbnail_widget_drag(mime_data: UserInterface.MimeData, thumbnail: _ImageDataType, hot_spot_x: int, hot_spot_y: int) -> None:
         # use this convoluted base object for drag so that it doesn't disappear after the drag.
         column.drag(mime_data, thumbnail, hot_spot_x, hot_spot_y)
 
@@ -3177,12 +3355,13 @@ def make_image_chooser(document_controller, computation: Symbolic.Computation, v
     data_item_chooser_widget.on_drop_mime_data = drop_mime_data
     data_item_chooser_widget.on_delete = data_item_delete
 
-    def property_changed(key):
+    def property_changed(key: str) -> None:
         if key == "specifier":
             computation_input = computation.get_input(variable.name)
             data_item = computation_input.data_item if computation_input else None
             display_item = document_model.get_display_item_for_data_item(data_item)
-            data_item_thumbnail_source.set_display_item(display_item)
+            if display_item:
+                data_item_thumbnail_source.set_display_item(display_item)
 
     property_changed_listener = variable.property_changed_event.listen(property_changed)
     row.add(data_item_chooser_widget)
@@ -3207,14 +3386,15 @@ class VariableWidget(Widgets.CompositeWidgetBase):
     a single child which is the UI for the variable. The child is replaced if necessary.
     """
 
-    def __init__(self, document_controller, computation, variable):
-        super().__init__(document_controller.ui.create_column_widget())
-        self.closeables = list()
+    def __init__(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable) -> None:
+        self.__content_widget = document_controller.ui.create_column_widget()
+        super().__init__(self.__content_widget)
+        self.closeables: typing.List[DocumentModel.Closeable] = list()
         self.__unbinder = Unbinder()
         self.__make_widget_from_variable(document_controller, computation, variable)
 
-        def rebuild_variable():
-            self.content_widget.remove_all()
+        def rebuild_variable() -> None:
+            self.__content_widget.remove_all()
             self.__make_widget_from_variable(document_controller, computation, variable)
 
         self.__variable_needs_rebuild_event_listener = variable.needs_rebuild_event.listen(rebuild_variable)
@@ -3223,48 +3403,49 @@ class VariableWidget(Widgets.CompositeWidgetBase):
         for closeable in self.closeables:
             closeable.close()
         self.__variable_needs_rebuild_event_listener.close()
-        self.__variable_needs_rebuild_event_listener = None
+        self.__variable_needs_rebuild_event_listener = typing.cast(typing.Any, None)
         self.__unbinder.close()
-        self.__unbinder = None
+        self.__unbinder = typing.cast(typing.Any, None)
         super().close()
 
-    def __make_widget_from_variable(self, document_controller, computation, variable):
-        ui = document_controller.ui
+    def __make_widget_from_variable(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable) -> None:
         if variable.variable_type == "boolean":
             widget, closeables = make_checkbox(document_controller, self.__unbinder, computation, variable)
-            self.content_widget.add(widget)
+            self.__content_widget.add(widget)
             self.closeables.extend(closeables)
         elif variable.variable_type == "integral" and (True or variable.control_type == "slider") and variable.has_range:
             widget, closeables = make_slider_int(document_controller, self.__unbinder, computation, variable, Converter.IntegerToStringConverter())
-            self.content_widget.add(widget)
+            self.__content_widget.add(widget)
             self.closeables.extend(closeables)
         elif variable.variable_type == "integral":
             widget, closeables = make_field(document_controller, self.__unbinder, computation, variable, Converter.IntegerToStringConverter())
-            self.content_widget.add(widget)
+            self.__content_widget.add(widget)
             self.closeables.extend(closeables)
         elif variable.variable_type == "real" and (True or variable.control_type == "slider") and variable.has_range:
             widget, closeables = make_slider_float(document_controller, self.__unbinder, computation, variable, Converter.FloatToStringConverter())
-            self.content_widget.add(widget)
+            self.__content_widget.add(widget)
             self.closeables.extend(closeables)
         elif variable.variable_type == "real":
             widget, closeables = make_field(document_controller, self.__unbinder, computation, variable, Converter.FloatToStringConverter())
-            self.content_widget.add(widget)
+            self.__content_widget.add(widget)
             self.closeables.extend(closeables)
         elif variable.variable_type in Symbolic.ComputationVariable.data_item_types:
-            self.content_widget.add(make_image_chooser(document_controller, computation, variable))
+            self.__content_widget.add(make_image_chooser(document_controller, computation, variable))
         elif variable.variable_type == "string" and variable.control_type == "choice":
-            widget, closeables = make_choice(document_controller, self.__unbinder, computation, variable, None)
-            self.content_widget.add(widget)
+            widget, closeables = make_choice(document_controller, self.__unbinder, computation, variable)
+            self.__content_widget.add(widget)
             self.closeables.extend(closeables)
         elif variable.variable_type == "string":
             widget, closeables = make_field(document_controller, self.__unbinder, computation, variable, None)
-            self.content_widget.add(widget)
+            self.__content_widget.add(widget)
             self.closeables.extend(closeables)
 
 
 class ComputationInspectorSection(InspectorSection):
-    def __init__(self, document_controller, data_item: DataItem.DataItem):
+    def __init__(self, document_controller: DocumentController.DocumentController, data_item: DataItem.DataItem) -> None:
         super().__init__(document_controller.ui, "computation", _("Computation"))
+        self.__computation_variable_inserted_event_listener: typing.Optional[Event.EventListener]
+        self.__computation_variable_removed_event_listener: typing.Optional[Event.EventListener]
         document_model = document_controller.document_model
         computation = document_model.get_data_item_computation(data_item)
         if computation:
@@ -3286,6 +3467,7 @@ class ComputationInspectorSection(InspectorSection):
 
             def variable_inserted(name: str, index: int, variable: Symbolic.ComputationVariable) -> None:
                 if name == "variables":
+                    assert computation  # mypy bug: doesn't pass the 'if computation' here
                     widget_wrapper = VariableWidget(document_controller, computation, variable)
                     self._variables_column_widget.insert(widget_wrapper, index)
 
@@ -3322,12 +3504,12 @@ from nion.utils import Event
 
 class TextButtonCell:
 
-    def __init__(self, text: str):
+    def __init__(self, text: str) -> None:
         super().__init__()
         self.update_event = Event.Event()
         self.__text = text
 
-    def paint_cell(self, drawing_context, rect, style):
+    def paint_cell(self, drawing_context: DrawingContext.DrawingContext, rect: Geometry.IntRect, style: typing.Set[str]) -> None:
 
         # disabled (default is enabled)
         # checked, partial (default is unchecked)
@@ -3362,29 +3544,33 @@ class TextButtonCell:
 
 class TextButtonCanvasItem(CanvasItem.CellCanvasItem):
 
-    def __init__(self, text: str):
+    def __init__(self, text: str) -> None:
         super().__init__()
         self.cell = TextButtonCell(text)
         self.wants_mouse_events = True
-        self.on_button_clicked = None
+        self.on_button_clicked: typing.Optional[typing.Callable[[], None]] = None
 
     def close(self) -> None:
         self.on_button_clicked = None
         super().close()
 
-    def mouse_entered(self):
+    def mouse_entered(self) -> bool:
         self._mouse_inside = True
+        return super().mouse_entered()
 
-    def mouse_exited(self):
+    def mouse_exited(self) -> bool:
         self._mouse_inside = False
+        return super().mouse_exited()
 
-    def mouse_pressed(self, x, y, modifiers):
+    def mouse_pressed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         self._mouse_pressed = True
+        return True
 
-    def mouse_released(self, x, y, modifiers):
+    def mouse_released(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         self._mouse_pressed = False
+        return True
 
-    def mouse_clicked(self, x, y, modifiers):
+    def mouse_clicked(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         if self.enabled:
             if self.on_button_clicked:
                 self.on_button_clicked()
@@ -3392,15 +3578,16 @@ class TextButtonCanvasItem(CanvasItem.CellCanvasItem):
 
 
 class TextPushButtonWidget(Widgets.CompositeWidgetBase):
-    def __init__(self, ui, text: str):
-        super().__init__(ui.create_column_widget())
-        self.on_button_clicked = None
+    def __init__(self, ui: UserInterface.UserInterface, text: str) -> None:
+        content_widget = ui.create_column_widget()
+        super().__init__(content_widget)
+        self.on_button_clicked: typing.Optional[typing.Callable[[], None]] = None
         font = "normal 11px serif"
         font_metrics = ui.get_font_metrics(font, text)
         text_button_canvas_item = TextButtonCanvasItem(text)
         text_button_canvas_item.update_sizing(text_button_canvas_item.sizing.with_fixed_size(Geometry.IntSize(height=font_metrics.height + 6, width=font_metrics.width + 6)))
 
-        def button_clicked():
+        def button_clicked() -> None:
             if callable(self.on_button_clicked):
                 self.on_button_clicked()
 
@@ -3409,68 +3596,80 @@ class TextPushButtonWidget(Widgets.CompositeWidgetBase):
         text_button_canvas_widget = ui.create_canvas_widget(properties={"height": 20, "width": 20})
         text_button_canvas_widget.canvas_item.add_canvas_item(text_button_canvas_item)
         # ugh. this is a partially working stop-gap when a canvas item is in a widget it will not get mouse exited reliably
-        text_button_canvas_widget.on_mouse_exited = text_button_canvas_item.root_container.canvas_widget.on_mouse_exited
+        root_container = text_button_canvas_item.root_container
+        assert root_container
+        text_button_canvas_widget.on_mouse_exited = root_container.canvas_widget.on_mouse_exited
 
-        self.content_widget.add(text_button_canvas_widget)
+        content_widget.add(text_button_canvas_widget)
 
 
 class RemoveDisplayDataChannelCommand(Undo.UndoableCommand):
 
-    def __init__(self, document_controller, display_item: DisplayItem.DisplayItem, display_data_channel: DisplayItem.DisplayDataChannel):
+    def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem, display_data_channel: DisplayItem.DisplayDataChannel) -> None:
         super().__init__(_("Remove Data Item"))
         self.__document_controller = document_controller
         self.__display_item_proxy = display_item.create_proxy()
-        self.__old_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
-        self.__new_workspace_layout = None
+        workspace_controller = self.__document_controller.workspace_controller
+        self.__old_workspace_layout: typing.Optional[Persistence.PersistentDictType] = workspace_controller.deconstruct() if workspace_controller else None
+        self.__new_workspace_layout: typing.Optional[Persistence.PersistentDictType] = None
         self.__display_data_channel_index = display_item.display_data_channels.index(display_data_channel)
         self.__old_display_properties = display_item.save_properties()
-        self.__undelete_logs = list()
+        self.__undelete_logs: typing.List[Changes.UndeleteLog] = list()
         self.initialize()
 
     def close(self) -> None:
-        self.__document_controller = None
+        self.__document_controller = typing.cast(typing.Any, None)
         self.__display_item_proxy.close()
-        self.__display_item_proxy = None
+        self.__display_item_proxy = typing.cast(typing.Any, None)
         self.__old_workspace_layout = None
         self.__new_workspace_layout = None
-        self.__display_data_channel_index = None
-        self.__old_display_properties = None
+        self.__old_display_properties = typing.cast(typing.Any, None)
         for undelete_log in self.__undelete_logs:
             undelete_log.close()
-        self.__undelete_logs = None
+        self.__undelete_logs = typing.cast(typing.Any, None)
         super().close()
 
     def perform(self) -> None:
-        display_item = self.__display_item_proxy.item
-        display_data_channel = display_item.display_data_channels[self.__display_data_channel_index]
-        self.__undelete_logs.append(display_item.remove_display_data_channel(display_data_channel, safe=True))
+        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+        if display_item:
+            display_data_channel = display_item.display_data_channels[self.__display_data_channel_index]
+            self.__undelete_logs.append(display_item.remove_display_data_channel(display_data_channel, safe=True))
 
     def _get_modified_state(self) -> typing.Any:
         display_item = self.__display_item_proxy.item
-        return display_item.modified_state, self.__document_controller.document_model.modified_state
+        return display_item.modified_state if display_item else None, self.__document_controller.document_model.modified_state
 
-    def _set_modified_state(self, modified_state):
+    def _set_modified_state(self, modified_state: typing.Any) -> None:
         display_item = self.__display_item_proxy.item
-        display_item.modified_state, self.__document_controller.document_model.modified_state = modified_state
+        if display_item:
+            display_item.modified_state = modified_state[0]
+        self.__document_controller.document_model.modified_state = modified_state[1]
 
-    def _undo(self):
-        self.__new_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
+    def _undo(self) -> None:
+        workspace_controller = self.__document_controller.workspace_controller
+        assert workspace_controller
+        self.__new_workspace_layout = workspace_controller.deconstruct()
         for undelete_log in reversed(self.__undelete_logs):
             self.__document_controller.document_model.undelete_all(undelete_log)
             undelete_log.close()
         self.__undelete_logs.clear()
-        self.__document_controller.workspace_controller.reconstruct(self.__old_workspace_layout)
-        display_item = self.__display_item_proxy.item
-        display_item.restore_properties(self.__old_display_properties)
+        if self.__old_workspace_layout is not None:
+            workspace_controller.reconstruct(self.__old_workspace_layout)
+        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+        if display_item:
+            display_item.restore_properties(self.__old_display_properties)
 
-    def _redo(self):
+    def _redo(self) -> None:
         self.perform()
-        self.__document_controller.workspace_controller.reconstruct(self.__new_workspace_layout)
+        workspace_controller = self.__document_controller.workspace_controller
+        if workspace_controller and self.__new_workspace_layout is not None:
+            workspace_controller.reconstruct(self.__new_workspace_layout)
 
 
 class DataItemLabelWidget(Widgets.CompositeWidgetBase):
-    def __init__(self, ui, document_controller, display_item: DisplayItem.DisplayItem, index: int):
-        super().__init__(ui.create_column_widget())
+    def __init__(self, ui: UserInterface.UserInterface, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem, index: int) -> None:
+        content_widget = ui.create_column_widget()
+        super().__init__(content_widget)
 
         remove_icon = "\N{MULTIPLICATION X}" if sys.platform != "darwin" else "\N{BALLOT X}"
         remove_display_data_channel_button = TextPushButtonWidget(ui, remove_icon)
@@ -3485,12 +3684,12 @@ class DataItemLabelWidget(Widgets.CompositeWidgetBase):
         section_title_row.add(remove_display_data_channel_button)
         section_title_row.add_spacing(20)
 
-        self.content_widget.add(section_title_row)
-        self.content_widget.add_spacing(4)
+        content_widget.add(section_title_row)
+        content_widget.add_spacing(4)
 
         display_data_channel = display_item.display_data_channels[index]
 
-        def remove_display_data_channel():
+        def remove_display_data_channel() -> None:
             command = RemoveDisplayDataChannelCommand(document_controller, display_item, display_data_channel)
             command.perform()
             document_controller.push_undo_command(command)
@@ -3499,10 +3698,11 @@ class DataItemLabelWidget(Widgets.CompositeWidgetBase):
 
 
 class DataItemGroupWidget(Widgets.CompositeWidgetBase):
-    def __init__(self, ui, document_controller, display_item: DisplayItem.DisplayItem, index: int):
-        super().__init__(ui.create_column_widget())
+    def __init__(self, ui: UserInterface.UserInterface, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem, index: int) -> None:
+        self.__content_widget = ui.create_column_widget()
+        super().__init__(self.__content_widget)
 
-        self.on_rebuild_display_data_channels = None
+        self.on_rebuild_display_data_channels: typing.Optional[typing.Callable[[], None]] = None
 
         self.__ui = ui
         self.__document_controller = document_controller
@@ -3514,12 +3714,12 @@ class DataItemGroupWidget(Widgets.CompositeWidgetBase):
         self.__display_item_item_inserted = None
         self.__display_item_item_removed = None
 
-        def display_item_item_inserted(key, value, before_index):
+        def display_item_item_inserted(key: str, value: typing.Any, before_index: int) -> None:
             if key == "display_data_channels":
                 if callable(self.on_rebuild_display_data_channels):
                     self.on_rebuild_display_data_channels()
 
-        def display_item_item_removed(key, value, index):
+        def display_item_item_removed(key: str, value: typing.Any, index: int) -> None:
             if key == "display_data_channels":
                 if callable(self.on_rebuild_display_data_channels):
                     self.on_rebuild_display_data_channels()
@@ -3529,12 +3729,12 @@ class DataItemGroupWidget(Widgets.CompositeWidgetBase):
 
     def close(self) -> None:
         self.__detach_listeners()
-        self.__ui = None
-        self.__document_controller = None
-        self.__display_item = None
+        self.__document_controller = typing.cast(typing.Any, None)
+        self.__display_item = typing.cast(typing.Any, None)
+        self.__ui = typing.cast(typing.Any, None)
         super().close()
 
-    def __detach_listeners(self):
+    def __detach_listeners(self) -> None:
         if self.__display_item_item_inserted:
             self.__display_item_item_inserted.close()
             self.__display_item_item_inserted = None
@@ -3542,21 +3742,22 @@ class DataItemGroupWidget(Widgets.CompositeWidgetBase):
             self.__display_item_item_removed.close()
             self.__display_item_item_removed = None
 
-    def __build(self):
+    def __build(self) -> None:
         if len(self.__display_item.display_data_channels) > 1:
-            self.content_widget.add(DataItemLabelWidget(self.__ui, self.__document_controller, self.__display_item, self.__index))
+            self.__content_widget.add(DataItemLabelWidget(self.__ui, self.__document_controller, self.__display_item, self.__index))
         display_data_channel = self.__display_item.display_data_channels[self.__index]
         data_item = display_data_channel.data_item
-        self.content_widget.add(DataInfoInspectorSection(self.__document_controller, display_data_channel))
-        self.content_widget.add(CalibrationsInspectorSection(self.__document_controller, display_data_channel, self.__display_item))
-        self.content_widget.add(SessionInspectorSection(self.__document_controller, data_item))
-        if display_data_channel.is_sequence:
-            self.content_widget.add(SequenceInspectorSection(self.__document_controller, display_data_channel))
-        if display_data_channel.is_sliced:
-            self.content_widget.add(SliceInspectorSection(self.__document_controller, display_data_channel))
-        elif display_data_channel.is_collection:
-            self.content_widget.add(CollectionIndexInspectorSection(self.__document_controller, display_data_channel))
-        self.content_widget.add(ComputationInspectorSection(self.__document_controller, data_item))
+        if data_item:
+            self.__content_widget.add(DataInfoInspectorSection(self.__document_controller, display_data_channel))
+            self.__content_widget.add(CalibrationsInspectorSection(self.__document_controller, display_data_channel, self.__display_item))
+            self.__content_widget.add(SessionInspectorSection(self.__document_controller, data_item))
+            if display_data_channel.is_sequence:
+                self.__content_widget.add(SequenceInspectorSection(self.__document_controller, display_data_channel))
+            if display_data_channel.is_sliced:
+                self.__content_widget.add(SliceInspectorSection(self.__document_controller, display_data_channel))
+            elif display_data_channel.is_collection:
+                self.__content_widget.add(CollectionIndexInspectorSection(self.__document_controller, display_data_channel))
+            self.__content_widget.add(ComputationInspectorSection(self.__document_controller, data_item))
 
 
 class DisplayInspector(Widgets.CompositeWidgetBase):
@@ -3566,16 +3767,16 @@ class DisplayInspector(Widgets.CompositeWidgetBase):
     within the display item mutate.
     """
 
-    def __init__(self, ui, document_controller, display_item: DisplayItem.DisplayItem):
-        super().__init__(ui.create_column_widget())
+    def __init__(self, ui: UserInterface.UserInterface, document_controller: DocumentController.DocumentController, display_item: typing.Optional[DisplayItem.DisplayItem]) -> None:
+        self.__content_widget = ui.create_column_widget()
+        super().__init__(self.__content_widget)
 
         self.ui = ui
         self.__unbinder = Unbinder()
 
-        self.on_rebuild = None
+        self.on_rebuild: typing.Optional[typing.Callable[[], None]] = None
 
-        content_widget = self.content_widget
-        content_widget.add_spacing(4)
+        self.__content_widget.add_spacing(4)
         if display_item:
             title_row = self.ui.create_row_widget()
             title_label_widget = self.ui.create_label_widget()
@@ -3584,104 +3785,109 @@ class DisplayInspector(Widgets.CompositeWidgetBase):
             title_row.add_spacing(20)
             title_row.add(title_label_widget)
             title_row.add_stretch()
-            content_widget.add(title_row)
-            content_widget.add_spacing(4)
+            self.__content_widget.add(title_row)
+            self.__content_widget.add_spacing(4)
             self.__unbinder.add([display_item], [title_label_widget.unbind_text])
 
         self.__focus_default = None
-        inspector_sections = list()
+        inspector_sections: typing.List[UserInterface.Widget] = list()
         if display_item and display_item.graphic_selection.has_selection:
             inspector_sections.append(GraphicsInspectorSection(document_controller, display_item, selected_only=True))
-            def focus_default():
+            def focus_default() -> None:
                 pass
             self.__focus_default = focus_default
         elif display_item and display_item.used_display_type == "line_plot":
-            inspector_sections.append(InfoInspectorSection(document_controller, display_item))
+            info_inspector_section = InfoInspectorSection(document_controller, display_item)
+            inspector_sections.append(info_inspector_section)
             inspector_sections.append(LinePlotDisplayInspectorSection(document_controller, display_item))
             for index, display_data_channel in enumerate(display_item.display_data_channels):
                 data_item_group_widget = DataItemGroupWidget(self.ui, document_controller, display_item, index)
-                def rebuild():
+                def rebuild() -> None:
                     if callable(self.on_rebuild):
                         self.on_rebuild()
                 data_item_group_widget.on_rebuild_display_data_channels = rebuild
-                data_item_group_widget.on_rebuild_display_layers = rebuild
                 inspector_sections.append(data_item_group_widget)
             line_plot_display_layers_inspector_section = LinePlotDisplayLayersInspectorSection(document_controller, display_item)
             inspector_sections.append(line_plot_display_layers_inspector_section)
             if len(display_item.graphics) > 0:
                 inspector_sections.append(GraphicsInspectorSection(document_controller, display_item))
-            def focus_default():
-                inspector_sections[0].info_title_label.focused = True
-                inspector_sections[0].info_title_label.request_refocus()
+            def focus_default() -> None:
+                info_inspector_section.info_title_label.focused = True
+                info_inspector_section.info_title_label.request_refocus()
             self.__focus_default = focus_default
         elif display_item and display_item.used_display_type == "image":
-            inspector_sections.append(InfoInspectorSection(document_controller, display_item))
+            info_inspector_section = InfoInspectorSection(document_controller, display_item)
+            inspector_sections.append(info_inspector_section)
             inspector_sections.append(ImageDisplayInspectorSection(document_controller, display_item))
             for display_data_channel in display_item.display_data_channels:
                 data_item = display_data_channel.data_item
-                inspector_sections.append(ImageDataInspectorSection(document_controller, display_data_channel, display_item))
-                inspector_sections.append(CalibrationsInspectorSection(document_controller, display_data_channel, display_item))
-                inspector_sections.append(SessionInspectorSection(document_controller, data_item))
-                if display_data_channel.is_sequence:
-                    inspector_sections.append(SequenceInspectorSection(document_controller, display_data_channel))
-                if display_data_channel.is_sliced:
-                    inspector_sections.append(SliceInspectorSection(document_controller, display_data_channel))
-                elif display_data_channel.is_collection:
-                    inspector_sections.append(CollectionIndexInspectorSection(document_controller, display_data_channel))
-                inspector_sections.append(ComputationInspectorSection(document_controller, data_item))
+                if data_item:
+                    inspector_sections.append(ImageDataInspectorSection(document_controller, display_data_channel, display_item))
+                    inspector_sections.append(CalibrationsInspectorSection(document_controller, display_data_channel, display_item))
+                    inspector_sections.append(SessionInspectorSection(document_controller, data_item))
+                    if display_data_channel.is_sequence:
+                        inspector_sections.append(SequenceInspectorSection(document_controller, display_data_channel))
+                    if display_data_channel.is_sliced:
+                        inspector_sections.append(SliceInspectorSection(document_controller, display_data_channel))
+                    elif display_data_channel.is_collection:
+                        inspector_sections.append(CollectionIndexInspectorSection(document_controller, display_data_channel))
+                    inspector_sections.append(ComputationInspectorSection(document_controller, data_item))
             if len(display_item.graphics) > 0:
                 inspector_sections.append(GraphicsInspectorSection(document_controller, display_item))
-            def focus_default():
-                inspector_sections[0].info_title_label.focused = True
-                inspector_sections[0].info_title_label.request_refocus()
+            def focus_default() -> None:
+                info_inspector_section.info_title_label.focused = True
+                info_inspector_section.info_title_label.request_refocus()
             self.__focus_default = focus_default
         elif display_item:
-            inspector_sections.append(InfoInspectorSection(document_controller, display_item))
+            info_inspector_section = InfoInspectorSection(document_controller, display_item)
+            inspector_sections.append(info_inspector_section)
             for display_data_channel in display_item.display_data_channels:
                 data_item = display_data_channel.data_item
                 inspector_sections.append(DataInfoInspectorSection(document_controller, display_data_channel))
-                inspector_sections.append(SessionInspectorSection(document_controller, data_item))
-            def focus_default():
-                inspector_sections[0].info_title_label.focused = True
-                inspector_sections[0].info_title_label.request_refocus()
+                if data_item:
+                    inspector_sections.append(SessionInspectorSection(document_controller, data_item))
+            def focus_default() -> None:
+                info_inspector_section.info_title_label.focused = True
+                info_inspector_section.info_title_label.request_refocus()
             self.__focus_default = focus_default
 
         for inspector_section in inspector_sections:
-            content_widget.add(inspector_section)
+            self.__content_widget.add(inspector_section)
 
-        content_widget.add_stretch()
+        self.__content_widget.add_stretch()
 
     def close(self) -> None:
         self.__unbinder.close()
-        self.__unbinder = None
+        self.__unbinder = typing.cast(typing.Any, None)
         super().close()
 
-    def _get_inspectors(self):
+    def _get_inspectors(self) -> typing.Sequence[InspectorSection]:
         """ Return a copy of the list of inspectors. """
-        return copy.copy(self.content_widget.children[:-1])
+        return typing.cast(typing.Sequence[InspectorSection], copy.copy(self.__content_widget.children[:-1]))
 
-    def focus_default(self):
+    def focus_default(self) -> None:
         if self.__focus_default:
             self.__focus_default()
 
 
 class DeclarativeImageChooserConstructor:
 
-    def __init__(self, app):
+    def __init__(self, app: Application.Application) -> None:
         self.__app = app
 
-    def construct(self, d_type: str, ui: UserInterface.UserInterface, window, d: typing.Mapping, handler, finishes: typing.Sequence[typing.Callable[[], None]] = None):
+    def construct(self, d_type: str, ui: UserInterface.UserInterface, window: typing.Optional[UserInterface.UserInterface], d: Declarative.UIDescription, handler: Declarative.HandlerLike, finishes: typing.List[typing.Callable[[], None]]) -> typing.Optional[UserInterface.Widget]:
         if d_type == "image_chooser":
             properties = Declarative.construct_sizing_properties(d)
             thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(ui, window=window)
 
-            def drop_mime_data(mime_data: UserInterface.MimeData, x: int, y: int) -> typing.Optional[str]:
+            def drop_mime_data(mime_data: UserInterface.MimeData, x: int, y: int) -> str:
                 document_model = self.__app.document_model
                 display_item = MimeTypes.mime_data_get_display_item(mime_data, document_model)
-                thumbnail_source.display_item = display_item
                 if display_item:
-                    return "copy"
-                return None
+                    thumbnail_source.display_item = display_item
+                    if display_item:
+                        return "copy"
+                return "ignore"
 
             def data_item_delete() -> None:
                 thumbnail_source.display_item = None
@@ -3698,27 +3904,29 @@ class DeclarativeImageChooserConstructor:
 
             return widget
 
+        return None
+
 
 class DeclarativeDataSourceChooserConstructor:
 
-    def __init__(self, app):
+    def __init__(self, app: Application.Application) -> None:
         self.__app = app
 
-    def construct(self, d_type: str, ui: UserInterface.UserInterface, window, d: typing.Mapping, handler, finishes: typing.Sequence[typing.Callable[[], None]] = None) -> typing.Optional[UserInterface.Widget]:
+    def construct(self, d_type: str, ui: UserInterface.UserInterface, window: typing.Optional[UserInterface.UserInterface], d: Declarative.UIDescription, handler: Declarative.HandlerLike, finishes: typing.List[typing.Callable[[], None]]) -> typing.Optional[UserInterface.Widget]:
         if d_type == "data_source_chooser":
             properties = Declarative.construct_sizing_properties(d)
             thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(ui, window=window)
 
-            def drop_mime_data(mime_data: UserInterface.MimeData, x: int, y: int) -> typing.Optional[str]:
-                on_drop_mime_data_method = d.get("on_drop_mime_data")
-                if callable(getattr(handler, on_drop_mime_data_method, None)):
-                    return getattr(handler, on_drop_mime_data_method)(mime_data, x, y)
-                return None
+            def drop_mime_data(mime_data: UserInterface.MimeData, x: int, y: int) -> str:
+                on_drop_mime_data_method = typing.cast(typing.Optional[str], d.get("on_drop_mime_data"))
+                if on_drop_mime_data_method and callable(getattr(handler, on_drop_mime_data_method, None)):
+                    return typing.cast(str, getattr(handler, on_drop_mime_data_method)(mime_data, x, y))
+                return "ignore"
 
-            def data_item_delete():
-                on_delete_method = d.get("on_delete")
-                if callable(getattr(handler, on_delete_method, None)):
-                    return getattr(handler, on_delete_method)()
+            def data_item_delete() -> None:
+                on_delete_method = typing.cast(typing.Optional[str], d.get("on_delete"))
+                if on_delete_method and callable(getattr(handler, on_delete_method, None)):
+                    getattr(handler, on_delete_method)()
 
             widget = DataItemThumbnailWidget.ThumbnailWidget(ui, thumbnail_source, properties=properties, is_expanding=True)
             widget.on_drag = widget.drag

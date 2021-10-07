@@ -18,6 +18,8 @@ from nion.utils import Geometry
 if typing.TYPE_CHECKING:
     import numpy
 
+_ImageDataType = Image._ImageDataType
+
 
 class AbstractThumbnailSource:
 
@@ -50,9 +52,9 @@ class BitmapOverlayCanvasItem(CanvasItem.CanvasItemComposition):
         self.wants_drag_events = True
         self.wants_mouse_events = True
         self.__drag_start = None
-        self.on_drop_mime_data = None
-        self.on_delete = None
-        self.on_drag_pressed = None
+        self.on_drop_mime_data: typing.Optional[typing.Callable[[UserInterface.MimeData, int, int], str]] = None
+        self.on_delete: typing.Optional[typing.Callable[[], None]] = None
+        self.on_drag_pressed: typing.Optional[typing.Callable[[int, int, UserInterface.KeyboardModifiers], None]] = None
         self.active = False
 
     def close(self) -> None:
@@ -151,9 +153,9 @@ class ThumbnailCanvasItem(CanvasItem.CanvasItemComposition):
             thumbnail_source.overlay_canvas_item.update_sizing(thumbnail_source.overlay_canvas_item.sizing.with_fixed_size(size))
         bitmap_overlay_canvas_item.add_canvas_item(thumbnail_source.overlay_canvas_item)
         self.__thumbnail_source = thumbnail_source
-        self.on_drag: typing.Optional[typing.Callable[[UserInterface.MimeData, numpy.ndarray, int, int], None]] = None
-        self.on_drop_mime_data = None
-        self.on_delete = None
+        self.on_drag: typing.Optional[typing.Callable[[UserInterface.MimeData, _ImageDataType, int, int], None]] = None
+        self.on_drop_mime_data: typing.Optional[typing.Callable[[UserInterface.MimeData, int, int], str]] = None
+        self.on_delete: typing.Optional[typing.Callable[[], None]] = None
 
         def drag_pressed(x, y, modifiers):
             on_drag = self.on_drag
@@ -227,9 +229,9 @@ class ThumbnailWidget(Widgets.CompositeWidgetBase):
         thumbnail_square.add_canvas_item(thumbnail_canvas_item)
         bitmap_canvas_widget.canvas_item.add_canvas_item(thumbnail_square)
         self.content_widget.add(bitmap_canvas_widget)
-        self.on_drop_mime_data = None
-        self.on_drag: typing.Optional[typing.Callable[[UserInterface.MimeData, numpy.ndarray, int, int], None]] = None
-        self.on_delete = None
+        self.on_drop_mime_data: typing.Optional[typing.Callable[[UserInterface.MimeData, int, int], str]] = None
+        self.on_drag: typing.Optional[typing.Callable[[UserInterface.MimeData, _ImageDataType, int, int], None]] = None
+        self.on_delete: typing.Optional[typing.Callable[[], None]] = None
 
         def drop_mime_data(mime_data: UserInterface.MimeData, x: int, y: int) -> str:
             if callable(self.on_drop_mime_data):
@@ -285,7 +287,9 @@ class DataItemBitmapOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
 
 class DataItemThumbnailSource(AbstractThumbnailSource):
 
-    def __init__(self, ui, *, display_item=None, window=None):
+    def __init__(self, ui: UserInterface.UserInterface, *,
+                 display_item: typing.Optional[DisplayItem.DisplayItem] = None,
+                 window: typing.Optional[UserInterface.UserInterface] = None) -> None:
         super().__init__()
         self.ui = ui
         self.__display_item = None
@@ -346,11 +350,11 @@ class DataItemThumbnailSource(AbstractThumbnailSource):
         return False, None
 
     @property
-    def display_item(self) -> DisplayItem.DisplayItem:
+    def display_item(self) -> typing.Optional[DisplayItem.DisplayItem]:
         return self.__display_item
 
     @display_item.setter
-    def display_item(self, value: DisplayItem.DisplayItem) -> None:
+    def display_item(self, value: typing.Optional[DisplayItem.DisplayItem]) -> None:
         self.set_display_item(value)
 
     def bind_display_item(self, binding):
