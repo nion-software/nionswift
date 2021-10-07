@@ -2619,43 +2619,43 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             cls._builtin_processing_descriptions = vs
         return cls._builtin_processing_descriptions
 
-    def get_fft_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.RectangleTypeGraphic]=None) -> typing.Optional[DataItem.DataItem]:
+    def get_fft_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
         return self.__make_computation("fft", [(display_item, data_item, crop_region)])
 
-    def get_ifft_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.RectangleTypeGraphic]=None) -> typing.Optional[DataItem.DataItem]:
+    def get_ifft_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
         return self.__make_computation("inverse-fft", [(display_item, data_item, crop_region)])
 
-    def get_auto_correlate_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.RectangleTypeGraphic]=None) -> typing.Optional[DataItem.DataItem]:
+    def get_auto_correlate_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
         return self.__make_computation("auto-correlate", [(display_item, data_item, crop_region)])
 
-    def get_cross_correlate_new(self, display_item1: DisplayItem.DisplayItem, data_item1: DataItem.DataItem, display_item2: DisplayItem.DisplayItem, data_item2: DataItem.DataItem, crop_region1: typing.Optional[Graphics.RectangleTypeGraphic]=None, crop_region2: typing.Optional[Graphics.RectangleTypeGraphic]=None) -> typing.Optional[DataItem.DataItem]:
+    def get_cross_correlate_new(self, display_item1: DisplayItem.DisplayItem, data_item1: DataItem.DataItem, display_item2: DisplayItem.DisplayItem, data_item2: DataItem.DataItem, crop_region1: typing.Optional[Graphics.Graphic]=None, crop_region2: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
         return self.__make_computation("cross-correlate", [(display_item1, data_item1, crop_region1), (display_item2, data_item2, crop_region2)])
 
-    def get_sobel_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.RectangleTypeGraphic]=None) -> typing.Optional[DataItem.DataItem]:
+    def get_sobel_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
         return self.__make_computation("sobel", [(display_item, data_item, crop_region)])
 
-    def get_laplace_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.RectangleTypeGraphic]=None) -> typing.Optional[DataItem.DataItem]:
+    def get_laplace_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
         return self.__make_computation("laplace", [(display_item, data_item, crop_region)])
 
-    def get_gaussian_blur_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.RectangleTypeGraphic]=None) -> typing.Optional[DataItem.DataItem]:
+    def get_gaussian_blur_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
         return self.__make_computation("gaussian-blur", [(display_item, data_item, crop_region)])
 
-    def get_median_filter_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.RectangleTypeGraphic]=None) -> typing.Optional[DataItem.DataItem]:
+    def get_median_filter_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
         return self.__make_computation("median-filter", [(display_item, data_item, crop_region)])
 
-    def get_uniform_filter_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.RectangleTypeGraphic]=None) -> typing.Optional[DataItem.DataItem]:
+    def get_uniform_filter_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
         return self.__make_computation("uniform-filter", [(display_item, data_item, crop_region)])
 
-    def get_transpose_flip_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.RectangleTypeGraphic]=None) -> typing.Optional[DataItem.DataItem]:
+    def get_transpose_flip_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
         return self.__make_computation("transpose-flip", [(display_item, data_item, crop_region)])
 
-    def get_rebin_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.RectangleTypeGraphic]=None) -> typing.Optional[DataItem.DataItem]:
+    def get_rebin_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
         return self.__make_computation("rebin", [(display_item, data_item, crop_region)])
 
-    def get_resample_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.RectangleTypeGraphic]=None) -> typing.Optional[DataItem.DataItem]:
+    def get_resample_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
         return self.__make_computation("resample", [(display_item, data_item, crop_region)])
 
-    def get_resize_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.RectangleTypeGraphic]=None) -> typing.Optional[DataItem.DataItem]:
+    def get_resize_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
         return self.__make_computation("resize", [(display_item, data_item, crop_region)])
 
     def get_redimension_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, data_descriptor: DataAndMetadata.DataDescriptor) -> typing.Optional[DataItem.DataItem]:
@@ -2664,34 +2664,34 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
     def get_squeeze_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem) -> typing.Optional[DataItem.DataItem]:
         return self.__make_computation("squeeze", [(display_item, data_item, None)])
 
-    def get_histogram_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.RectangleTypeGraphic]=None) -> typing.Optional[DataItem.DataItem]:
+    def get_histogram_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
         return self.__make_computation("histogram", [(display_item, data_item, crop_region)])
 
-    def get_add_new(self, display_item1: DisplayItem.DisplayItem, data_item1: DataItem.DataItem, display_item2: DisplayItem.DisplayItem, data_item2: DataItem.DataItem, crop_region1: typing.Optional[Graphics.RectangleTypeGraphic]=None, crop_region2: typing.Optional[Graphics.RectangleTypeGraphic]=None) -> typing.Optional[DataItem.DataItem]:
+    def get_add_new(self, display_item1: DisplayItem.DisplayItem, data_item1: DataItem.DataItem, display_item2: DisplayItem.DisplayItem, data_item2: DataItem.DataItem, crop_region1: typing.Optional[Graphics.Graphic]=None, crop_region2: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
         return self.__make_computation("add", [(display_item1, data_item1, crop_region1), (display_item2, data_item2, crop_region2)])
 
-    def get_subtract_new(self, display_item1: DisplayItem.DisplayItem, data_item1: DataItem.DataItem, display_item2: DisplayItem.DisplayItem, data_item2: DataItem.DataItem, crop_region1: typing.Optional[Graphics.RectangleTypeGraphic]=None, crop_region2: typing.Optional[Graphics.RectangleTypeGraphic]=None) -> typing.Optional[DataItem.DataItem]:
+    def get_subtract_new(self, display_item1: DisplayItem.DisplayItem, data_item1: DataItem.DataItem, display_item2: DisplayItem.DisplayItem, data_item2: DataItem.DataItem, crop_region1: typing.Optional[Graphics.Graphic]=None, crop_region2: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
         return self.__make_computation("subtract", [(display_item1, data_item1, crop_region1), (display_item2, data_item2, crop_region2)])
 
-    def get_multiply_new(self, display_item1: DisplayItem.DisplayItem, data_item1: DataItem.DataItem, display_item2: DisplayItem.DisplayItem, data_item2: DataItem.DataItem, crop_region1: typing.Optional[Graphics.RectangleTypeGraphic]=None, crop_region2: typing.Optional[Graphics.RectangleTypeGraphic]=None) -> typing.Optional[DataItem.DataItem]:
+    def get_multiply_new(self, display_item1: DisplayItem.DisplayItem, data_item1: DataItem.DataItem, display_item2: DisplayItem.DisplayItem, data_item2: DataItem.DataItem, crop_region1: typing.Optional[Graphics.Graphic]=None, crop_region2: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
         return self.__make_computation("multiply", [(display_item1, data_item1, crop_region1), (display_item2, data_item2, crop_region2)])
 
-    def get_divide_new(self, display_item1: DisplayItem.DisplayItem, data_item1: DataItem.DataItem, display_item2: DisplayItem.DisplayItem, data_item2: DataItem.DataItem, crop_region1: typing.Optional[Graphics.RectangleTypeGraphic]=None, crop_region2: typing.Optional[Graphics.RectangleTypeGraphic]=None) -> typing.Optional[DataItem.DataItem]:
+    def get_divide_new(self, display_item1: DisplayItem.DisplayItem, data_item1: DataItem.DataItem, display_item2: DisplayItem.DisplayItem, data_item2: DataItem.DataItem, crop_region1: typing.Optional[Graphics.Graphic]=None, crop_region2: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
         return self.__make_computation("divide", [(display_item1, data_item1, crop_region1), (display_item2, data_item2, crop_region2)])
 
-    def get_invert_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.RectangleTypeGraphic]=None) -> typing.Optional[DataItem.DataItem]:
+    def get_invert_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
         return self.__make_computation("invert", [(display_item, data_item, crop_region)])
 
-    def get_masked_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.RectangleTypeGraphic]=None) -> typing.Optional[DataItem.DataItem]:
+    def get_masked_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
         return self.__make_computation("masked", [(display_item, data_item, crop_region)])
 
-    def get_mask_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.RectangleTypeGraphic]=None) -> typing.Optional[DataItem.DataItem]:
+    def get_mask_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
         return self.__make_computation("mask", [(display_item, data_item, crop_region)])
 
-    def get_convert_to_scalar_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.RectangleTypeGraphic]=None) -> typing.Optional[DataItem.DataItem]:
+    def get_convert_to_scalar_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
         return self.__make_computation("convert-to-scalar", [(display_item, data_item, crop_region)])
 
-    def get_crop_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.RectangleTypeGraphic]=None) -> typing.Optional[DataItem.DataItem]:
+    def get_crop_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
         new_crop_region: typing.Optional[Graphics.Graphic] = crop_region
         if data_item and display_item and not crop_region:
             if data_item.is_data_2d:
@@ -2707,13 +2707,13 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 new_crop_region = interval_region
         return self.__make_computation("crop", [(display_item, data_item, new_crop_region)])
 
-    def get_projection_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.RectangleTypeGraphic]=None) -> typing.Optional[DataItem.DataItem]:
+    def get_projection_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
         return self.__make_computation("sum", [(display_item, data_item, crop_region)])
 
-    def get_slice_sum_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.RectangleTypeGraphic]=None) -> typing.Optional[DataItem.DataItem]:
+    def get_slice_sum_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
         return self.__make_computation("slice", [(display_item, data_item, crop_region)])
 
-    def get_pick_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.RectangleTypeGraphic]=None, pick_region: typing.Optional[Graphics.PointTypeGraphic]=None) -> typing.Optional[DataItem.DataItem]:
+    def get_pick_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None, pick_region: typing.Optional[Graphics.PointTypeGraphic]=None) -> typing.Optional[DataItem.DataItem]:
         new_data_item = self.__make_computation("pick-point", [(display_item, data_item, crop_region)], {"src": [pick_region]})
         if new_data_item:
             display_data_channel = display_item.display_data_channels[0]
@@ -2721,7 +2721,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 display_data_channel.slice_interval = (0.05, 0.15)
         return new_data_item
 
-    def get_pick_region_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.RectangleTypeGraphic]=None, pick_region: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
+    def get_pick_region_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None, pick_region: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
         new_data_item = self.__make_computation("pick-mask-sum", [(display_item, data_item, crop_region)], {"src": [pick_region]})
         if new_data_item:
             display_data_channel = display_item.display_data_channels[0]
@@ -2729,7 +2729,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 display_data_channel.slice_interval = (0.05, 0.15)
         return new_data_item
 
-    def get_pick_region_average_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.RectangleTypeGraphic]=None, pick_region: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
+    def get_pick_region_average_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None, pick_region: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
         new_data_item = self.__make_computation("pick-mask-average", [(display_item, data_item, crop_region)], {"src": [pick_region]})
         if new_data_item:
             display_data_channel = display_item.display_data_channels[0]
@@ -2737,13 +2737,13 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 display_data_channel.slice_interval = (0.05, 0.15)
         return new_data_item
 
-    def get_subtract_region_average_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.RectangleTypeGraphic]=None, pick_region: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
+    def get_subtract_region_average_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None, pick_region: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
         return self.__make_computation("subtract-mask-average", [(display_item, data_item, crop_region)], {"src": [pick_region]})
 
-    def get_line_profile_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.RectangleTypeGraphic]=None, line_region: typing.Optional[Graphics.LineTypeGraphic]=None) -> typing.Optional[DataItem.DataItem]:
+    def get_line_profile_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None, line_region: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
         return self.__make_computation("line-profile", [(display_item, data_item, crop_region)], {"src": [line_region]})
 
-    def get_fourier_filter_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.RectangleTypeGraphic]=None) -> typing.Optional[DataItem.DataItem]:
+    def get_fourier_filter_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
         display_data_item = display_item.data_item
         if display_data_item and display_item:
             has_mask = False
@@ -2758,45 +2758,45 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 display_item.add_graphic(graphic)
         return self.__make_computation("filter", [(display_item, display_data_item, crop_region)])
 
-    def get_processing_new(self, processing_id: str, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.RectangleTypeGraphic]=None) -> typing.Optional[DataItem.DataItem]:
+    def get_processing_new(self, processing_id: str, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
         return self.__make_computation(processing_id, [(display_item, data_item, crop_region)])
 
-    def get_sequence_measure_shifts_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.RectangleTypeGraphic]=None) -> typing.Optional[DataItem.DataItem]:
+    def get_sequence_measure_shifts_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
         return self.__make_computation("sequence-register", [(display_item, data_item, crop_region)])
 
-    def get_sequence_align_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.RectangleTypeGraphic]=None) -> typing.Optional[DataItem.DataItem]:
+    def get_sequence_align_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
         return self.__make_computation("sequence-align", [(display_item, data_item, crop_region)])
 
-    def get_sequence_fourier_align_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.RectangleTypeGraphic]=None) -> typing.Optional[DataItem.DataItem]:
+    def get_sequence_fourier_align_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
         return self.__make_computation("sequence-fourier-align", [(display_item, data_item, crop_region)])
 
-    def get_sequence_integrate_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.RectangleTypeGraphic]=None) -> typing.Optional[DataItem.DataItem]:
+    def get_sequence_integrate_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
         return self.__make_computation("sequence-integrate", [(display_item, data_item, crop_region)])
 
-    def get_sequence_trim_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.RectangleTypeGraphic]=None) -> typing.Optional[DataItem.DataItem]:
+    def get_sequence_trim_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
         return self.__make_computation("sequence-trim", [(display_item, data_item, crop_region)])
 
-    def get_sequence_extract_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.RectangleTypeGraphic]=None) -> typing.Optional[DataItem.DataItem]:
+    def get_sequence_extract_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
         return self.__make_computation("sequence-extract", [(display_item, data_item, crop_region)])
 
-    def get_rgb_new(self, display_item1: DisplayItem.DisplayItem, data_item1: DataItem.DataItem, display_item2: DisplayItem.DisplayItem, data_item2: DataItem.DataItem, display_item3: DisplayItem.DisplayItem, data_item3: DataItem.DataItem, crop_region1: typing.Optional[Graphics.RectangleTypeGraphic]=None, crop_region2: typing.Optional[Graphics.RectangleTypeGraphic]=None, crop_region3: typing.Optional[Graphics.RectangleTypeGraphic]=None) -> typing.Optional[DataItem.DataItem]:
+    def get_rgb_new(self, display_item1: DisplayItem.DisplayItem, data_item1: DataItem.DataItem, display_item2: DisplayItem.DisplayItem, data_item2: DataItem.DataItem, display_item3: DisplayItem.DisplayItem, data_item3: DataItem.DataItem, crop_region1: typing.Optional[Graphics.Graphic]=None, crop_region2: typing.Optional[Graphics.Graphic]=None, crop_region3: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
         return self.__make_computation("make-rgb", [(display_item1, data_item1, crop_region1),
                                                     (display_item2, data_item2, crop_region2),
                                                     (display_item3, data_item3, crop_region3)])
 
-    def get_rgb_alpha_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.RectangleTypeGraphic]=None) -> typing.Optional[DataItem.DataItem]:
+    def get_rgb_alpha_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
         return self.__make_computation("extract-alpha", [(display_item, data_item, crop_region)])
 
-    def get_rgb_blue_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.RectangleTypeGraphic]=None) -> typing.Optional[DataItem.DataItem]:
+    def get_rgb_blue_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
         return self.__make_computation("extract-blue", [(display_item, data_item, crop_region)])
 
-    def get_rgb_green_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.RectangleTypeGraphic]=None) -> typing.Optional[DataItem.DataItem]:
+    def get_rgb_green_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
         return self.__make_computation("extract-green", [(display_item, data_item, crop_region)])
 
-    def get_rgb_luminance_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.RectangleTypeGraphic]=None) -> typing.Optional[DataItem.DataItem]:
+    def get_rgb_luminance_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
         return self.__make_computation("extract-luminance", [(display_item, data_item, crop_region)])
 
-    def get_rgb_red_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.RectangleTypeGraphic]=None) -> typing.Optional[DataItem.DataItem]:
+    def get_rgb_red_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
         return self.__make_computation("extract-red", [(display_item, data_item, crop_region)])
 
 

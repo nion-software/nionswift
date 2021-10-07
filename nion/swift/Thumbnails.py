@@ -39,7 +39,7 @@ class ThumbnailProcessor:
         self.height = 256
         self.on_thumbnail_updated = None
 
-    def close(self):
+    def close(self) -> None:
         self.on_thumbnail_updated = None
         self.__dispatcher.close()
         self.__dispatcher = None

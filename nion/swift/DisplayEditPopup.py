@@ -72,7 +72,7 @@ def pose_title_edit_popup(document_controller: DocumentController.DocumentContro
             self.__is_rejected = True
             self.__request_close_fn()
 
-        def close(self):
+        def close(self) -> None:
             # if not rejected and title has changed, change the title.
             if not self.__is_rejected:
                 title = self.title_edit.text

@@ -1,9 +1,12 @@
+from __future__ import annotations
+
 # standard libraries
 import copy
 import gettext
 import logging
 import threading
 import time
+import typing
 
 # third party libraries
 # None
@@ -13,6 +16,9 @@ from nion.swift import Panel
 from nion.swift.model import Utility
 from nion.utils import Event
 from nion.utils import Observable
+
+if typing.TYPE_CHECKING:
+    from nion.swift import DocumentController
 
 _ = gettext.gettext
 
@@ -72,7 +78,7 @@ class TaskPanel(Panel.Panel):
         self.__task_section_controller_list = list()
         self.__task_changed_event_listeners = list()
 
-    def close(self):
+    def close(self) -> None:
         self.document_controller.clear_task(str(id(self)))
         # disconnect to the document controller
         self.__task_created_event_listener.close()
@@ -208,7 +214,7 @@ class TaskSectionController(object):
 
 class Task(Observable.Observable):
 
-    def __init__(self, title, task_type):
+    def __init__(self, title: str, task_type: str) -> None:
         super().__init__()
         self.__title = title
         self.__start_time = None
@@ -280,7 +286,7 @@ class Task(Observable.Observable):
 
     # task type
     @property
-    def task_type(self):
+    def task_type(self) -> str:
         return self.__task_type
 
     # task data
@@ -300,7 +306,7 @@ class Task(Observable.Observable):
 # all public methods are thread safe
 class TaskContextManager(object):
 
-    def __init__(self, container, task, logging):
+    def __init__(self, container: DocumentController.DocumentController, task: Task, logging: bool) -> None:
         self.__container = container
         self.__task = task
         self.__logging = logging

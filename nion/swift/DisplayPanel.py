@@ -161,7 +161,7 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
         self.on_key_released = None
         self.on_adjust_secondary_focus = None
 
-    def close(self):
+    def close(self) -> None:
         self.on_context_menu_event = None
         self.on_drag_enter = None
         self.on_drag_leave = None
@@ -426,7 +426,7 @@ class DisplayTypeMonitor:
             self.__display_changed_event_listener = display_item.display_changed_event.listen(functools.partial(self.__update_display_type, display_item))
         self.__update_display_type(display_item)
 
-    def close(self):
+    def close(self) -> None:
         if self.__display_changed_event_listener:
             self.__display_changed_event_listener.close()
             self.__display_changed_event_listener = None
@@ -890,7 +890,7 @@ class DisplayTracker:
         self.__display_type_monitor = DisplayTypeMonitor(display_item)
         self.__display_type_changed_event_listener =  self.__display_type_monitor.display_type_changed_event.listen(display_type_changed)
 
-    def close(self):
+    def close(self) -> None:
         with self.__closing_lock:  # ensures that display pipeline finishes
             self.__display_changed_event_listener.close()
             self.__display_changed_event_listener = None
@@ -946,7 +946,7 @@ class InsertGraphicsCommand(Undo.UndoableCommand):
         self.__undelete_logs = list()
         self.initialize()
 
-    def close(self):
+    def close(self) -> None:
         self.__graphics_properties = None
         self.__document_controller = None
         self.__old_workspace_layout = None
@@ -961,7 +961,7 @@ class InsertGraphicsCommand(Undo.UndoableCommand):
         self.__display_item_proxy = None
         super().close()
 
-    def perform(self):
+    def perform(self) -> None:
         display_item = self.__display_item_proxy.item
         graphics = self.__graphics
         for graphic in graphics:
@@ -970,7 +970,7 @@ class InsertGraphicsCommand(Undo.UndoableCommand):
             self.__graphic_proxies.append(new_graphic.create_proxy())
         self.__graphics = None
 
-    def _get_modified_state(self):
+    def _get_modified_state(self) -> typing.Any:
         display_item = self.__display_item_proxy.item
         return display_item.modified_state, self.__document_controller.workspace_controller.document_model.modified_state
 
@@ -996,7 +996,9 @@ class InsertGraphicsCommand(Undo.UndoableCommand):
 
 class AppendDisplayDataChannelCommand(Undo.UndoableCommand):
 
-    def __init__(self, document_model, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, *, title: str=None, command_id: str=None, **kwargs):
+    def __init__(self, document_model: DocumentModel.DocumentModel, display_item: DisplayItem.DisplayItem,
+                 data_item: DataItem.DataItem, *, title: typing.Optional[str] = None,
+                 command_id: typing.Optional[str] = None, **kwargs: typing.Any) -> None:
         super().__init__(title if title else _("Append Display"), command_id=command_id)
         self.__document_model = document_model
         self.__display_item_proxy = display_item.create_proxy()
@@ -1006,7 +1008,7 @@ class AppendDisplayDataChannelCommand(Undo.UndoableCommand):
         self.__value_dict = kwargs
         self.initialize()
 
-    def close(self):
+    def close(self) -> None:
         self.__document_model = None
         self.__display_item_proxy.close()
         self.__display_item_proxy = None
@@ -1014,14 +1016,14 @@ class AppendDisplayDataChannelCommand(Undo.UndoableCommand):
         self.__data_item_proxy = None
         super().close()
 
-    def perform(self):
+    def perform(self) -> None:
         display_item = self.__display_item_proxy.item
         data_item = self.__data_item_proxy.item
         self.__old_properties = display_item.save_properties()
         display_item.append_display_data_channel_for_data_item(data_item)
         self.__display_data_channel_index = display_item.display_data_channels.index(display_item.get_display_data_channel_for_data_item(data_item))
 
-    def _get_modified_state(self):
+    def _get_modified_state(self) -> typing.Any:
         display_item = self.__display_item_proxy.item
         data_item = self.__data_item_proxy.item
         return data_item.modified_state, display_item.modified_state, self.__document_model.modified_state
@@ -1051,19 +1053,19 @@ class ChangeDisplayDataChannelCommand(Undo.UndoableCommand):
         self.__value_dict = kwargs
         self.initialize()
 
-    def close(self):
+    def close(self) -> None:
         self.__document_model = None
         self.__display_data_channel_proxy.close()
         self.__display_data_channel_proxy = None
         self.__properties = None
         super().close()
 
-    def perform(self):
+    def perform(self) -> None:
         display_data_channel = self.__display_data_channel_proxy.item
         for key, value in self.__value_dict.items():
             setattr(display_data_channel, key, value)
 
-    def _get_modified_state(self):
+    def _get_modified_state(self) -> typing.Any:
         display_data_channel = self.__display_data_channel_proxy.item
         return display_data_channel.modified_state, self.__document_model.modified_state
 
@@ -1071,7 +1073,7 @@ class ChangeDisplayDataChannelCommand(Undo.UndoableCommand):
         display_data_channel = self.__display_data_channel_proxy.item
         display_data_channel.modified_state, self.__document_model.modified_state = modified_state
 
-    def _compare_modified_states(self, state1, state2) -> bool:
+    def _compare_modified_states(self, state1: typing.Any, state2: typing.Any) -> bool:
         # override to allow the undo command to track state; but only use part of the state for comparison
         return state1[0] == state2[0]
 
@@ -1144,7 +1146,7 @@ class MoveDisplayLayerCommand(Undo.UndoableCommand):
         self.__undelete_logs: typing.List[Changes.UndeleteLog] = list()
         self.initialize()
 
-    def close(self):
+    def close(self) -> None:
         self.__document_model = None
         self.__old_display_item_proxy.close()
         self.__old_display_item_proxy = None
@@ -1155,7 +1157,7 @@ class MoveDisplayLayerCommand(Undo.UndoableCommand):
         self.__undelete_logs = None
         super().close()
 
-    def perform(self):
+    def perform(self) -> None:
         # add display data channel and display layer to new display item
         # handle the following cases:
         #   different display item with associated display data channel used only by source display layer
@@ -1206,7 +1208,7 @@ class MoveDisplayLayerCommand(Undo.UndoableCommand):
         new_display_item.auto_display_legend()
         old_display_item.auto_display_legend()
 
-    def _get_modified_state(self):
+    def _get_modified_state(self) -> typing.Any:
         old_display_item = self.__old_display_item_proxy.item
         new_display_item = self.__new_display_item_proxy.item
         return old_display_item.modified_state, new_display_item.modified_state, self.__document_model.modified_state
@@ -1216,7 +1218,7 @@ class MoveDisplayLayerCommand(Undo.UndoableCommand):
         new_display_item = self.__new_display_item_proxy.item
         old_display_item.modified_state, new_display_item.modified_state, self.__document_model.modified_state = modified_state
 
-    def _compare_modified_states(self, state1, state2) -> bool:
+    def _compare_modified_states(self, state1: typing.Any, state2: typing.Any) -> bool:
         # override to allow the undo command to track state; but only use part of the state for comparison
         return state1[0] == state2[0] and state1[1] == state2[1]
 
@@ -1241,20 +1243,20 @@ class AddDisplayLayerCommand(Undo.UndoableCommand):
         self.__index = index
         self.initialize()
 
-    def close(self):
+    def close(self) -> None:
         self.__document_model = None
         self.__old_properties = None
         self.__display_item_proxy.close()
         self.__display_item_proxy = None
         super().close()
 
-    def perform(self):
+    def perform(self) -> None:
         # add display data channel and display layer to new display item
         display_item = typing.cast(DisplayItem.DisplayItem, self.__display_item_proxy.item)
         display_item.insert_display_layer_for_display_data_channel(self.__index, display_item.display_data_channels[0])
         display_item.auto_display_legend()
 
-    def _get_modified_state(self):
+    def _get_modified_state(self) -> typing.Any:
         display_item = typing.cast(DisplayItem.DisplayItem, self.__display_item_proxy.item)
         return display_item.modified_state, self.__document_model.modified_state
 
@@ -1284,7 +1286,7 @@ class RemoveDisplayLayerCommand(Undo.UndoableCommand):
         self.__undelete_logs = list()
         self.initialize()
 
-    def close(self):
+    def close(self) -> None:
         self.__document_model = None
         self.__old_properties = None
         self.__display_item_proxy.close()
@@ -1294,13 +1296,13 @@ class RemoveDisplayLayerCommand(Undo.UndoableCommand):
         self.__undelete_logs = None
         super().close()
 
-    def perform(self):
+    def perform(self) -> None:
         # add display data channel and display layer to new display item
         display_item = typing.cast(DisplayItem.DisplayItem, self.__display_item_proxy.item)
         self.__undelete_logs.append(display_item.remove_display_layer(self.__index))
         display_item.auto_display_legend()
 
-    def _get_modified_state(self):
+    def _get_modified_state(self) -> typing.Any:
         display_item = typing.cast(DisplayItem.DisplayItem, self.__display_item_proxy.item)
         return display_item.modified_state, self.__document_model.modified_state
 
@@ -1331,19 +1333,19 @@ class ChangeDisplayCommand(Undo.UndoableCommand):
         self.__value_dict = kwargs
         self.initialize()
 
-    def close(self):
+    def close(self) -> None:
         self.__document_model = None
         self.__display_item_proxy.close()
         self.__display_item_proxy = None
         self.__properties = None
         super().close()
 
-    def perform(self):
+    def perform(self) -> None:
         display_item = self.__display_item_proxy.item
         for key, value in self.__value_dict.items():
             display_item.set_display_property(key, value)
 
-    def _get_modified_state(self):
+    def _get_modified_state(self) -> typing.Any:
         display_item = self.__display_item_proxy.item
         return display_item.modified_state, self.__document_model.modified_state
 
@@ -1351,7 +1353,7 @@ class ChangeDisplayCommand(Undo.UndoableCommand):
         display_item = self.__display_item_proxy.item
         display_item.modified_state, self.__document_model.modified_state = modified_state
 
-    def _compare_modified_states(self, state1, state2) -> bool:
+    def _compare_modified_states(self, state1: typing.Any, state2: typing.Any) -> bool:
         # override to allow the undo command to track state; but only use part of the state for comparison
         return state1[0] == state2[0]
 
@@ -1376,7 +1378,7 @@ class ChangeGraphicsCommand(Undo.UndoableCommand):
         self.__value_dict = kwargs
         self.initialize()
 
-    def close(self):
+    def close(self) -> None:
         self.__document_model = None
         self.__properties = None
         self.__display_item_proxy.close()
@@ -1384,14 +1386,14 @@ class ChangeGraphicsCommand(Undo.UndoableCommand):
         self.__graphic_indexes = None
         super().close()
 
-    def perform(self):
+    def perform(self) -> None:
         display_item = self.__display_item_proxy.item
         graphics = [display_item.graphics[index] for index in self.__graphic_indexes]
         for key, value in self.__value_dict.items():
             for graphic in graphics:
                 setattr(graphic, key, value)
 
-    def _get_modified_state(self):
+    def _get_modified_state(self) -> typing.Any:
         display_item = self.__display_item_proxy.item
         return display_item.modified_state, self.__document_model.modified_state
 
@@ -1399,7 +1401,7 @@ class ChangeGraphicsCommand(Undo.UndoableCommand):
         display_item = self.__display_item_proxy.item
         display_item.modified_state, self.__document_model.modified_state = modified_state
 
-    def _compare_modified_states(self, state1, state2) -> bool:
+    def _compare_modified_states(self, state1: typing.Any, state2: typing.Any) -> bool:
         # override to allow the undo command to track state; but only use part of the state for comparison
         return state1[0] == state2[0]
 
@@ -1429,7 +1431,7 @@ class DisplayPanelUISettings(UISettings.UISettings):
 
 
 class FixedUISettings(UISettings.UISettings):
-    def __init__(self):
+    def __init__(self) -> None:
         pass
 
     def get_font_metrics(self, font: str, text: str) -> UISettings.FontMetrics:
@@ -1664,7 +1666,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
 
         self.__mapped_item_listener = DocumentModel.MappedItemManager().changed_event.listen(self.__update_title)
 
-    def close(self):
+    def close(self) -> None:
         self.on_contents_changed = None
 
         self.__mapped_item_listener.close()
@@ -1793,8 +1795,8 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         if self.__display_items != old_display_items:
             self.display_items_changed_event.fire()
 
-    def save_contents(self):
-        d = dict()
+    def save_contents(self) -> Persistence.PersistentDictType:
+        d: Persistence.PersistentDictType = dict()
         if self.display_panel_id:
             d["display_panel_id"] = str(self.display_panel_id)
         if self.__display_panel_controller:
@@ -1934,10 +1936,10 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
             d = {"type": "image"}
         self.change_display_panel_content(d)
 
-    def change_display_panel_content(self, d):
+    def change_display_panel_content(self, d: Persistence.PersistentDictType) -> None:
         self.__change_display_panel_content(d)
 
-    def __change_display_panel_content(self, d):
+    def __change_display_panel_content(self, d: Persistence.PersistentDictType) -> None:
         is_selected = self._is_selected()
         is_focused = self._is_focused()
 
@@ -2101,15 +2103,15 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
             self.__document_controller.selected_display_panel = self
         DisplayPanelManager().focus_changed(self, focused)
 
-    def _is_focused(self):
+    def _is_focused(self) -> bool:
         """ Used for testing. """
         return self.__content_canvas_item.focused
 
-    def request_focus(self):
+    def request_focus(self) -> None:
         self.__content_canvas_item.request_focus()
 
     @property
-    def is_result_panel(self):
+    def is_result_panel(self) -> bool:
         return self._is_result_panel
 
     # this gets called when the user initiates a drag in the drag control to move the panel around
@@ -2269,7 +2271,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         # this handles the context menu when requested from the display item
         return self.__show_context_menu([self.__display_item] if self.__display_item else [], gx, gy)
 
-    def perform_action(self, fn, *args, **keywords):
+    def perform_action(self, fn: str, *args: typing.Any, **keywords: typing.Any) -> None:
         display_canvas_item = self.display_canvas_item
         target = display_canvas_item
         if hasattr(target, fn):
@@ -2316,7 +2318,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         self.__display_item.graphic_selection.set(len(self.__display_item.graphics) - 1)
         return command
 
-    def nudge_selected_graphics(self, mapping, delta):
+    def nudge_selected_graphics(self, mapping: Graphics.CoordinateMappingLike, delta: Geometry.FloatSize) -> None:
         all_graphics = self.__display_item.graphics
         graphics = [graphic for graphic_index, graphic in enumerate(all_graphics) if self.__display_item.graphic_selection.contains(graphic_index)]
         if graphics:
@@ -2552,15 +2554,27 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         return region
 
 
+class DisplayPanelControllerLike(typing.Protocol):
+    pass
+
+
+class DisplayPanelControllerFactoryLike(typing.Protocol):
+    def make_new(self, controller_type: str, display_panel: DisplayPanel, d: Persistence.PersistentDictType) -> DisplayPanelControllerLike: ...
+    def match(self, document_model: DocumentModel.DocumentModel, data_item: DataItem.DataItem) -> Persistence.PersistentDictType: ...
+    def build_menu(self, display_type_menu: UserInterface.Menu, selected_display_panel: typing.Optional[DisplayPanel]) -> typing.Sequence[UserInterface.MenuAction]: ...
+
+    @property
+    def priority(self) -> int: return 0
+
+
 class DisplayPanelManager(metaclass=Utility.Singleton):
     """ Acts as a broker for significant events occurring regarding display panels. Listeners can attach themselves to
     this object and receive messages regarding display panels. For instance, when the user presses a key on an display
     panel that isn't handled directly, listeners will be advised of this event. """
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
-        self.__display_panel_controllers = dict()  # maps controller_type to make_fn
-        self.__display_controller_factories = dict()
+        self.__display_controller_factories: typing.Dict[str, DisplayPanelControllerFactoryLike] = dict()
         self.key_pressed_event = Event.Event()
         self.key_released_event = Event.Event()
         self.image_display_clicked_event = Event.Event()
@@ -2612,17 +2626,17 @@ class DisplayPanelManager(metaclass=Utility.Singleton):
             return True
         return self.image_display_mouse_position_changed_event.fire_any(display_panel, display_item, image_position, modifiers)
 
-    def register_display_panel_controller_factory(self, factory_id, factory):
+    def register_display_panel_controller_factory(self, factory_id: str, factory: DisplayPanelControllerFactoryLike) -> None:
         assert factory_id not in self.__display_controller_factories
         self.__display_controller_factories[factory_id] = factory
 
-    def unregister_display_panel_controller_factory(self, factory_id):
+    def unregister_display_panel_controller_factory(self, factory_id: str) -> None:
         assert factory_id in self.__display_controller_factories
         del self.__display_controller_factories[factory_id]
 
-    def detect_controller(self, document_model, data_item: DataItem.DataItem) -> dict:
+    def detect_controller(self, document_model: DocumentModel.DocumentModel, data_item: DataItem.DataItem) -> typing.Optional[Persistence.PersistentDictType]:
         priority = 0
-        result = None
+        result: typing.Optional[Persistence.PersistentDictType] = None
         for factory in self.__display_controller_factories.values():
             controller_type = factory.match(document_model, data_item)
             if controller_type and factory.priority > priority:
@@ -2630,14 +2644,14 @@ class DisplayPanelManager(metaclass=Utility.Singleton):
                 result = controller_type
         return result
 
-    def make_display_panel_controller(self, controller_type, display_panel, d):
+    def make_display_panel_controller(self, controller_type: str, display_panel: DisplayPanel, d: Persistence.PersistentDictType) -> typing.Optional[DisplayPanelControllerLike]:
         for factory in self.__display_controller_factories.values():
             display_panel_controller = factory.make_new(controller_type, display_panel, d)
             if display_panel_controller:
                 return display_panel_controller
         return None
 
-    def build_menu(self, display_type_menu, document_controller, display_panel):
+    def build_menu(self, display_type_menu: UserInterface.Menu, document_controller: DocumentController.DocumentController, display_panel: DisplayPanel) -> typing.Sequence[UserInterface.MenuAction]:
         """Build the dynamic menu for the selected display panel.
 
         The user accesses this menu by right-clicking on the display panel.
@@ -2647,7 +2661,7 @@ class DisplayPanelManager(metaclass=Utility.Singleton):
         After that, each display controller factory is given a chance to add to the menu. The display
         controllers (for instance, a scan acquisition controller), may add its own menu items.
         """
-        dynamic_live_actions = list()
+        dynamic_live_actions: typing.List[UserInterface.MenuAction] = list()
 
         for factory in self.__display_controller_factories.values():
             dynamic_live_actions.extend(factory.build_menu(display_type_menu, display_panel))

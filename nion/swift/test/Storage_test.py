@@ -130,7 +130,7 @@ class TempProfileContext:
     def __exit__(self, type_, value, traceback):
         self.close()
 
-    def close(self):
+    def close(self) -> None:
         for item in reversed(self.__items_to_close):
             item.close()
         self.__items_to_close = list()

@@ -697,7 +697,7 @@ class HardwareSource:
     def abort_recording(self):
         call_method(self, 'abort_recording')
 
-    def close(self):
+    def close(self) -> None:
         call_method(self, 'close')
 
     def create_record_task(self, frame_parameters=None, channels_enabled=None):
@@ -796,7 +796,7 @@ class Instrument:
     def _item(self):
         return self._proxy._item
 
-    def close(self):
+    def close(self) -> None:
         call_method(self, 'close')
 
     def get_control_output(self, name):

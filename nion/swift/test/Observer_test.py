@@ -90,7 +90,7 @@ class TestObserver(unittest.TestCase):
             def __init__(self, item_value):
                 nonlocal value
                 value = item_value
-            def close(self):
+            def close(self) -> None:
                 pass
         oo = Observer.ObserverBuilder()
         oo.source(model).prop("s").action(Action)
@@ -147,7 +147,7 @@ class TestObserver(unittest.TestCase):
             def __init__(self, item_value):
                 nonlocal values
                 values.append(item_value)
-            def close(self):
+            def close(self) -> None:
                 pass
         oo = Observer.ObserverBuilder()
         oo.source(model).sequence_from_array("a").for_each(oo.x.action(Action))

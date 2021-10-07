@@ -28,6 +28,7 @@ if typing.TYPE_CHECKING:
     from nion.swift import Panel
     from nion.swift.model import DisplayItem
     from nion.swift.model import DocumentModel
+    from nion.swift.model import Persistence
     from nion.swift.model import Project
 
 
@@ -163,11 +164,11 @@ class CloneWorkspaceCommand(Undo.UndoableCommand):
 
 
 class ChangeWorkspaceContentsCommand(Undo.UndoableCommand):
-    def __init__(self, workspace_controller: Workspace, title: str, old_workspace_layout: dict = None):
+    def __init__(self, workspace_controller: Workspace, title: str, old_workspace_layout: typing.Optional[Persistence.PersistentDictType] = None):
         super().__init__(title)
         self.__workspace_controller = workspace_controller
         self.__old_workspace_layout = old_workspace_layout if old_workspace_layout else workspace_controller.deconstruct()
-        self.__new_workspace_layout = typing.cast(dict, None)
+        self.__new_workspace_layout: typing.Optional[Persistence.PersistentDictType] = None
         self.initialize()
 
     @property
@@ -185,6 +186,7 @@ class ChangeWorkspaceContentsCommand(Undo.UndoableCommand):
         self.__workspace_controller.reconstruct(self.__old_workspace_layout)
 
     def _redo(self) -> None:
+        assert self.__new_workspace_layout is not None
         self.__workspace_controller.reconstruct(self.__new_workspace_layout)
 
 
@@ -321,7 +323,7 @@ class Workspace:
                         dock_panel.hide()
 
     def create_panel(self, document_controller: DocumentController.DocumentController, panel_id: str, title: str,
-                     positions: typing.Sequence[str], position: str, properties: dict) -> typing.Optional[Panel.Panel]:
+                     positions: typing.Sequence[str], position: str, properties: Persistence.PersistentDictType) -> typing.Optional[Panel.Panel]:
         try:
             panel = self.workspace_manager.create_panel_content(document_controller, panel_id, title, positions, position, properties)
             assert panel is not None, "panel is None [%s]" % panel_id
@@ -341,7 +343,7 @@ class Workspace:
                 display_panel.set_display_panel_display_item(display_item)
                 self.__sync_layout()
 
-    def _construct(self, desc: dict, display_panels: typing.List[DisplayPanel.DisplayPanel]) -> typing.Tuple[typing.Optional[CanvasItem.AbstractCanvasItem], typing.Optional[DisplayPanel.DisplayPanel]]:
+    def _construct(self, desc: Persistence.PersistentDictType, display_panels: typing.List[DisplayPanel.DisplayPanel]) -> typing.Tuple[typing.Optional[CanvasItem.AbstractCanvasItem], typing.Optional[DisplayPanel.DisplayPanel]]:
         selected_display_panel = None
         type = desc["type"]
         container = None
@@ -374,16 +376,16 @@ class Workspace:
             return container, selected_display_panel
         return item, selected_display_panel
 
-    def deconstruct(self) -> dict:
+    def deconstruct(self) -> Persistence.PersistentDictType:
         return self._deconstruct(self.__canvas_item.canvas_items[0])
 
-    def reconstruct(self, d: dict) -> None:
+    def reconstruct(self, d: Persistence.PersistentDictType) -> None:
         display_panels: typing.List[DisplayPanel.DisplayPanel] = list()
         selected_display_panel = self._reconstruct(d, self.__canvas_item, self.__canvas_item.canvas_items[0], display_panels)
         self.display_panels = display_panels
         self.document_controller.selected_display_panel = selected_display_panel
 
-    def _reconstruct(self, d: dict, container: CanvasItem.CanvasItemComposition, canvas_item: CanvasItem.AbstractCanvasItem, display_panels: typing.List[DisplayPanel.DisplayPanel]) -> typing.Optional[DisplayPanel.DisplayPanel]:
+    def _reconstruct(self, d: Persistence.PersistentDictType, container: CanvasItem.CanvasItemComposition, canvas_item: CanvasItem.AbstractCanvasItem, display_panels: typing.List[DisplayPanel.DisplayPanel]) -> typing.Optional[DisplayPanel.DisplayPanel]:
         selected_display_panel = None
         type = d["type"]
         if type == "splitter":
@@ -431,7 +433,7 @@ class Workspace:
                 return display_panel
         return None
 
-    def _deconstruct(self, canvas_item: CanvasItem.AbstractCanvasItem) -> dict:
+    def _deconstruct(self, canvas_item: CanvasItem.AbstractCanvasItem) -> Persistence.PersistentDictType:
         if isinstance(canvas_item, CanvasItem.SplitterCanvasItem):
             children = [self._deconstruct(child_canvas_item) for child_canvas_item in canvas_item.canvas_items]
             d = create_splitter_desc(canvas_item.orientation, canvas_item.splits, children)
@@ -451,7 +453,7 @@ class Workspace:
         return self.__workspace
 
     @property
-    def _workspace_layout(self) -> dict:
+    def _workspace_layout(self) -> Persistence.PersistentDictType:
         return self.deconstruct()
 
     def close_display_panels(self, display_panels: typing.Sequence[DisplayPanel.DisplayPanel]) -> None:
@@ -591,7 +593,7 @@ class Workspace:
         workspace_index = (workspace_index + 1) % len(self._project.workspaces)
         self.change_workspace(self._project.workspaces[workspace_index])
 
-    def new_workspace(self, name: typing.Optional[str] = None, layout: typing.Optional[dict] = None,
+    def new_workspace(self, name: typing.Optional[str] = None, layout: typing.Optional[Persistence.PersistentDictType] = None,
                       workspace_id: typing.Optional[str] = None,
                       index: typing.Optional[int] = None) -> WorkspaceLayout.WorkspaceLayout:
         """ Create a new workspace, insert into document_model, and return it. """
@@ -605,7 +607,7 @@ class Workspace:
             workspace.workspace_id = workspace_id
         return workspace
 
-    def ensure_workspace(self, name: str, layout: dict, workspace_id: str) -> None:
+    def ensure_workspace(self, name: str, layout: Persistence.PersistentDictType, workspace_id: str) -> None:
         """Looks for a workspace with workspace_id.
 
         If none is found, create a new one, add it, and change to it.
@@ -817,12 +819,12 @@ class Workspace:
 
     def _replace_displayed_display_item(self, display_panel: DisplayPanel.DisplayPanel,
                                         display_item: typing.Optional[DisplayItem.DisplayItem],
-                                        d: typing.Optional[dict] = None) -> Undo.UndoableCommand:
+                                        d: typing.Optional[Persistence.PersistentDictType] = None) -> Undo.UndoableCommand:
         return self.__replace_displayed_display_item(display_panel, display_item, d)
 
     def __replace_displayed_display_item(self, display_panel: DisplayPanel.DisplayPanel,
                                          display_item: typing.Optional[DisplayItem.DisplayItem],
-                                         d: typing.Optional[dict] = None) -> Undo.UndoableCommand:
+                                         d: typing.Optional[Persistence.PersistentDictType] = None) -> Undo.UndoableCommand:
         """ Used in drag/drop support. """
         self.document_controller.replaced_display_panel_content = display_panel.save_contents()
         command = ChangeWorkspaceContentsCommand(self, _("Replace Display Panel"))
@@ -836,7 +838,7 @@ class Workspace:
 
     def insert_display_panel(self, display_panel: DisplayPanel.DisplayPanel, region: str,
                              display_item: typing.Optional[DisplayItem.DisplayItem] = None,
-                             d: typing.Optional[dict] = None, new_uuid: typing.Optional[uuid.UUID] = None,
+                             d: typing.Optional[Persistence.PersistentDictType] = None, new_uuid: typing.Optional[uuid.UUID] = None,
                              new_splits: typing.Optional[typing.List[float]] = None) -> Undo.UndoableCommand:
         assert self.__workspace
         command = ChangeWorkspaceContentsCommand(self, _("Split Display Panel"))
@@ -844,7 +846,7 @@ class Workspace:
         return command
 
     def _insert_display_panel(self, display_panel: DisplayPanel.DisplayPanel, region: str,
-                              display_item: typing.Optional[DisplayItem.DisplayItem], d: typing.Optional[dict],
+                              display_item: typing.Optional[DisplayItem.DisplayItem], d: typing.Optional[Persistence.PersistentDictType],
                               new_uuid: typing.Optional[uuid.UUID],
                               new_splits: typing.Optional[typing.List[float]] = None) -> typing.Tuple[typing.Optional[typing.List[float]], typing.Optional[DisplayPanel.DisplayPanel]]:
         assert isinstance(display_panel, DisplayPanel.DisplayPanel)
@@ -1007,7 +1009,7 @@ class WorkspaceManager(metaclass=Utility.Singleton):
     def __init__(self):
         self.__panel_tuples = {}
 
-    def register_panel(self, panel_class, panel_id: str, name: str, positions: typing.List[str], position: str, properties: typing.Optional[dict]=None) -> None:
+    def register_panel(self, panel_class, panel_id: str, name: str, positions: typing.List[str], position: str, properties: typing.Optional[Persistence.PersistentDictType]=None) -> None:
         panel_tuple = panel_class, panel_id, name, positions, position, properties
         self.__panel_tuples[panel_id] = panel_tuple
 
@@ -1015,7 +1017,7 @@ class WorkspaceManager(metaclass=Utility.Singleton):
         del self.__panel_tuples[panel_id]
 
     def create_panel_content(self, document_controller: DocumentController.DocumentController, panel_id: str,
-                             title: str, positions: typing.Sequence[str], position: str, properties: dict) -> typing.Optional[Panel.Panel]:
+                             title: str, positions: typing.Sequence[str], position: str, properties: Persistence.PersistentDictType) -> typing.Optional[Panel.Panel]:
         if panel_id in self.__panel_tuples:
             tuple = self.__panel_tuples[panel_id]
             cls = tuple[0]

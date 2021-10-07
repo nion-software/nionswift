@@ -65,7 +65,7 @@ class DisplayScriptCanvasItem(CanvasItem.CanvasItemComposition):
         self.__display_frame_rate_id = None
         self.__display_frame_rate_last_index = 0
 
-    def close(self):
+    def close(self) -> None:
         # call super
         with self.__closing_lock:
             self.__closed = True

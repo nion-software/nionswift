@@ -512,7 +512,7 @@ class RunScriptDialog(Dialog.ActionDialog):
 
         self.__is_closed = False
 
-    def close(self):
+    def close(self) -> None:
         self.__is_closed = True
         for sync_event in self.__sync_events:
             sync_event.set()

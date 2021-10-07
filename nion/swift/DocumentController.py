@@ -57,13 +57,17 @@ from nion.ui import UserInterface
 from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import ListModel
+from nion.utils import Observable
 from nion.utils import Registry
 from nion.utils import Selection
-
 
 if typing.TYPE_CHECKING:
     from nion.swift import Application
 
+_DataSourceTupleType = typing.Tuple[DisplayItem.DisplayItem, typing.Optional[Graphics.Graphic]]
+_ProcessingFn = typing.Callable[[DisplayItem.DisplayItem, DataItem.DataItem, typing.Optional[Graphics.Graphic]], typing.Optional[DataItem.DataItem]]
+_Processing2Fn = typing.Callable[[DisplayItem.DisplayItem, DataItem.DataItem, DisplayItem.DisplayItem, DataItem.DataItem, typing.Optional[Graphics.Graphic], typing.Optional[Graphics.Graphic]], typing.Optional[DataItem.DataItem]]
+_Processing3Fn = typing.Callable[[DisplayItem.DisplayItem, DataItem.DataItem, DisplayItem.DisplayItem, DataItem.DataItem, DisplayItem.DisplayItem, DataItem.DataItem, typing.Optional[Graphics.Graphic], typing.Optional[Graphics.Graphic], typing.Optional[Graphics.Graphic]], typing.Optional[DataItem.DataItem]]
 
 _ = gettext.gettext
 
@@ -77,12 +81,37 @@ def is_graphic_valid_crop_for_data_item(data_item: typing.Optional[DataItem.Data
     return False
 
 
+PeriodicFn = typing.Callable[[], None]
+
+class PeriodicListener:
+    def __init__(self, interval: float, listener_fn: PeriodicFn) -> None:
+        self.interval = interval
+        # the call function is very performance critical; make it fast by using a property
+        # instead of a logic statement each time.
+        if callable(listener_fn):
+            self.call = listener_fn
+        else:
+            def void() -> None:
+                pass
+
+            self.call = void
+        self.next_scheduled_time = time.time() + interval
+
+    def close(self) -> None:
+        def void() -> None:
+            pass
+
+        self.call = void
+
+_PeriodicListenerWeakRef = typing.Callable[[], typing.Optional[PeriodicListener]]
+
+
 class DocumentController(Window.Window):
     """Manage a document window."""
     count = 0  # useful for detecting leaks in tests
 
     def __init__(self, ui: UserInterface.UserInterface, document_model: DocumentModel.DocumentModel,
-                 workspace_id: str = None, app: Application.Application = None,
+                 workspace_id: typing.Optional[str] = None, app: typing.Optional[Application.Application] = None,
                  project_reference: typing.Optional[Profile.ProjectReference] = None):
         super().__init__(ui, app)
         self.__project_reference = project_reference
@@ -98,7 +127,7 @@ class DocumentController(Window.Window):
         self.cursor_changed_event = Event.Event()
         self.tool_mode_changed_event = Event.Event()
 
-        self.__last_activity = None
+        self.__last_activity: typing.Optional[float] = None
 
         # document_model may be shared between several DocumentControllers, so use reference counting
         # to determine when to close it.
@@ -107,12 +136,12 @@ class DocumentController(Window.Window):
         self.title = _("Nion Swift")
         if project_reference:
             self.window_file_path = project_reference.path
-        self.__workspace_controller = None
-        self.replaced_display_panel_content = None  # used to facilitate display panel functionality to exchange displays
+        self.__workspace_controller: typing.Optional[Workspace.Workspace] = None
+        self.replaced_display_panel_content: typing.Optional[Persistence.PersistentDictType] = None  # used to facilitate display panel functionality to exchange displays
         self.__selected_display_panel: typing.Optional[DisplayPanel.DisplayPanel] = None
         self.__secondary_display_panels: typing.List[DisplayPanel.DisplayPanel] = list()
         self.__tool_mode = "pointer"
-        self.__weak_periodic_listeners: typing.List[weakref.ref] = []
+        self.__weak_periodic_listeners: typing.List[_PeriodicListenerWeakRef] = list()
         self.__weak_periodic_listeners_mutex = threading.RLock()
 
         self.selection = Selection.IndexedSelection()
@@ -136,11 +165,11 @@ class DocumentController(Window.Window):
             self.__display_items_model.sort_reverse = True
             typing.cast(typing.Any, self.__display_items_model).filter_id = None
 
-        def call_soon():
+        def call_soon() -> None:
             # call the function (this is guaranteed to be called on the main thread)
             self.document_model.perform_call_soon()
 
-        def queue_call_soon():
+        def queue_call_soon() -> None:
             # queue the function on the main thread
             self.queue_task(call_soon)
 
@@ -168,7 +197,7 @@ class DocumentController(Window.Window):
             for menu_handler in app.menu_handlers:  # use 'handler' to avoid name collision
                 menu_handler(self)
 
-    def close(self):
+    def close(self) -> None:
         """Close the document controller.
 
         This method must be called to shut down the document controller. There are several
@@ -195,34 +224,37 @@ class DocumentController(Window.Window):
             self.__workspace_controller.close()
             self.__workspace_controller = None
         self.__undo_stack.close()
-        self.__undo_stack = None
+        self.__undo_stack = typing.cast(typing.Any, None)
         self.__selection_changed_listener.close()
-        self.__selection_changed_listener = None
+        self.__selection_changed_listener = typing.cast(typing.Any, None)
         self.__call_soon_event_listener.close()
-        self.__call_soon_event_listener = None
+        self.__call_soon_event_listener = typing.cast(typing.Any, None)
         self.__filtered_display_items_model.close()
-        self.__filtered_display_items_model = None
+        self.__filtered_display_items_model = typing.cast(typing.Any, None)
         self.filter_controller.close()
-        self.filter_controller = None
+        self.filter_controller = typing.cast(typing.Any, None)
         self.__display_items_model.close()
-        self.__display_items_model = None
+        self.__display_items_model = typing.cast(typing.Any, None)
         # document_model may be shared between several DocumentControllers, so use reference counting
         # to determine when to close it.
         self.document_model.remove_ref()
-        self.document_model = None
+        self.document_model = typing.cast(typing.Any, None)
         self.__class__.count -= 1
         super().close()
 
-    def _register_ui_activity(self):
+    def _register_ui_activity(self) -> None:
         self.__last_activity = time.time()
 
-    def about_to_show(self):
-        geometry, state = self.workspace_controller.restore_geometry_state()
-        self.restore(geometry, state)
+    def about_to_show(self) -> None:
+        workspace_controller = self.workspace_controller
+        if workspace_controller:
+            geometry, state = workspace_controller.restore_geometry_state()
+            self.restore(geometry, state)
 
-    def about_to_close(self, geometry, state):
-        if self.workspace_controller:
-            self.workspace_controller.save_geometry_state(geometry, state)
+    def about_to_close(self, geometry: str, state: str) -> None:
+        workspace_controller = self.workspace_controller
+        if workspace_controller:
+            workspace_controller.save_geometry_state(geometry, state)
         super().about_to_close(geometry, state)
 
     def register_console(self, console: ConsoleDialog.ConsoleDialog) -> None:
@@ -235,7 +267,7 @@ class DocumentController(Window.Window):
     def consoles(self) -> typing.Sequence[ConsoleDialog.ConsoleDialog]:
         return self.__consoles
 
-    def _create_menus(self):
+    def _create_menus(self) -> None:
         # don't use default implementation
 
         processing_component_menu_items = list()
@@ -249,8 +281,11 @@ class DocumentController(Window.Window):
             for processing_component in sorted(processing_components, key=operator.attrgetter("title")):
                 processing_component_menu_items.append({"type": "item", "action_id": "processing." + processing_component.processing_id})
 
+        menu_descriptions: typing.Sequence[Persistence.PersistentDictType] = list()
         try:
-            menu_descriptions = json.loads(pkgutil.get_data(__name__, "resources/menu_config.json").decode("utf8"))
+            json_bytes = pkgutil.get_data(__name__, "resources/menu_config.json")
+            assert json_bytes is not None
+            menu_descriptions = typing.cast(typing.Sequence[Persistence.PersistentDictType], json.loads(json_bytes.decode("utf8")))
         except Exception as e:
             logging.error("Could not read menu configuration.")
 
@@ -269,62 +304,49 @@ class DocumentController(Window.Window):
 
         self.__data_menu_actions: typing.List[UserInterface.MenuAction] = list()
 
-        self.__dynamic_live_actions: typing.List[UserInterface.MenuAction] = []
+        self.__dynamic_live_actions: typing.List[UserInterface.MenuAction] = list()
 
-        self.__dynamic_view_actions: typing.List[UserInterface.MenuAction] = []
+        self.__dynamic_view_actions: typing.List[UserInterface.MenuAction] = list()
 
-        self.__dynamic_window_actions: typing.List[UserInterface.MenuAction] = []
+        self.__dynamic_window_actions: typing.List[UserInterface.MenuAction] = list()
 
-    def get_menu(self, menu_id):
+    def get_menu(self, menu_id: str) -> typing.Optional[UserInterface.Menu]:
         assert menu_id.endswith("_menu")
-        return getattr(self, menu_id, None)
+        return typing.cast(typing.Optional[UserInterface.Menu], getattr(self, menu_id, None))
 
-    def get_or_create_menu(self, menu_id, menu_title, before_menu_id):
+    def get_or_create_menu(self, menu_id: str, menu_title: str, before_menu_id: typing.Optional[str]) -> UserInterface.Menu:
         assert menu_id.endswith("_menu")
         assert before_menu_id.endswith("_menu") if before_menu_id is not None else True
         if not hasattr(self, "_" + menu_id):
             before_menu = getattr(self, "_" + before_menu_id) if before_menu_id is not None else None
             menu = self.insert_menu(menu_title, before_menu)
             setattr(self, "_" + menu_id, menu)
-        return getattr(self, "_" + menu_id)
+        return typing.cast(UserInterface.Menu, getattr(self, "_" + menu_id))
 
-    def show_about_box(self):
+    def show_about_box(self) -> None:
         typing.cast(typing.Any, self.app).show_about_box(self)
 
-    def find_dock_panel(self, dock_panel_id) -> typing.Optional[Panel.Panel]:
+    def find_dock_panel(self, dock_panel_id: str) -> typing.Optional[Panel.Panel]:
         """ Return the dock widget by id. """
-        return self.workspace_controller._find_dock_panel(dock_panel_id)
+        workspace_controller = self.workspace_controller
+        if workspace_controller:
+            return workspace_controller._find_dock_panel(dock_panel_id)
+        return None
 
-    def add_periodic(self, interval: float, listener_fn):
+    def add_periodic(self, interval: float, listener_fn: PeriodicFn) -> PeriodicListener:
         """Add a listener function and return listener token. Token can be closed or deleted to unlisten."""
-        class PeriodicListener:
-            def __init__(self, interval: float, listener_fn):
-                self.interval = interval
-                self.__listener_fn = listener_fn
-                # the call function is very performance critical; make it fast by using a property
-                # instead of a logic statement each time.
-                if callable(listener_fn):
-                    self.call = self.__listener_fn
-                else:
-                    def void(*args, **kwargs):
-                        pass
-                    self.call = void
-                self.next_scheduled_time = time.time() + interval
-            def close(self):
-                self.__listener_fn = None
-                def void(*args, **kwargs):
-                    pass
-                self.call = void
         listener = PeriodicListener(interval, listener_fn)
-        def remove_listener(weak_listener):
+
+        def remove_listener(weak_listener: _PeriodicListenerWeakRef) -> None:
             with self.__weak_periodic_listeners_mutex:
                 self.__weak_periodic_listeners.remove(weak_listener)
+
         weak_listener = weakref.ref(listener, remove_listener)
         with self.__weak_periodic_listeners_mutex:
             self.__weak_periodic_listeners.append(weak_listener)
         return listener
 
-    def periodic(self):
+    def periodic(self) -> None:
         with self.__weak_periodic_listeners_mutex:
             periodic_listeners = copy.copy(self.__weak_periodic_listeners)
         current_time = time.time()
@@ -347,7 +369,7 @@ class DocumentController(Window.Window):
             pass  # self.app.choose_library()
 
     @property
-    def _undo_stack(self):
+    def _undo_stack(self) -> Undo.UndoStack:
         return self.__undo_stack
 
     @property
@@ -364,11 +386,11 @@ class DocumentController(Window.Window):
         self.__undo_stack.pop_command()
 
     @property
-    def workspace_controller(self):
+    def workspace_controller(self) -> typing.Optional[Workspace.Workspace]:
         return self.__workspace_controller
 
     @property
-    def workspace(self):
+    def workspace(self) -> typing.Optional[Workspace.Workspace]:
         return self.__workspace_controller
 
     def _workspace_changed(self, workspace: WorkspaceLayout.WorkspaceLayout) ->  None:
@@ -380,14 +402,14 @@ class DocumentController(Window.Window):
             title += ": " + workspace.name
         self.title = title
 
-    def refocus_widget(self, widget):
+    def refocus_widget(self, widget: UserInterface.Widget) -> None:
         display_panel = self.selected_display_panel
         if display_panel:
             display_panel.request_focus()
         else:
             super().refocus_widget(widget)
 
-    def request_refocus(self):
+    def request_refocus(self) -> None:
         display_panel = self.selected_display_panel
         if display_panel:
             display_panel.request_focus()
@@ -397,11 +419,11 @@ class DocumentController(Window.Window):
         return self.document_model._project
 
     @property
-    def display_items_model(self):
+    def display_items_model(self) -> ListModel.FilteredListModel:
         return self.__display_items_model
 
     @property
-    def filtered_display_items_model(self):
+    def filtered_display_items_model(self) -> ListModel.FilteredListModel:
         return self.__filtered_display_items_model
 
     def get_filter_predicate(self, filter_id: typing.Optional[str]) -> ListModel.Filter:
@@ -471,7 +493,7 @@ class DocumentController(Window.Window):
         return selected_display_item.data_item if selected_display_item else None
 
     @property
-    def selected_display_items(self) -> typing.List[DisplayItem.DisplayItem]:
+    def selected_display_items(self) -> typing.Sequence[DisplayItem.DisplayItem]:
         """Return the selected display items.
 
         The selected display items are the display items that have keyboard focus in the display panel
@@ -480,7 +502,7 @@ class DocumentController(Window.Window):
         return list(self.__selected_display_items)  # copy
 
     @property
-    def selected_data_items(self) -> typing.List[DataItem.DataItem]:
+    def selected_data_items(self) -> typing.Sequence[DataItem.DataItem]:
         selected_data_items = list()
         for display_item in self.selected_display_items:
             for data_item in display_item.data_items:
@@ -558,7 +580,7 @@ class DocumentController(Window.Window):
         # used for testing only
         self.set_filter(filter_id)
 
-    def delete_display_items(self, display_items: typing.Sequence[DisplayItem.DisplayItem], container=None) -> None:
+    def delete_display_items(self, display_items: typing.Sequence[DisplayItem.DisplayItem], container: typing.Optional[Observable.Observable] = None) -> None:
         container = container if container else self.__display_items_model.container
         if container is self.document_model:
             if display_items:
@@ -590,7 +612,9 @@ class DocumentController(Window.Window):
             display_panel.change_display_panel_content(d)
             last_command = self.last_undo_command
             if isinstance(last_command, Workspace.ChangeWorkspaceContentsCommand):
-                command = Workspace.ChangeWorkspaceContentsCommand(self.workspace_controller,
+                workspace_controller = self.workspace_controller
+                assert workspace_controller
+                command = Workspace.ChangeWorkspaceContentsCommand(workspace_controller,
                                                                    _("Replace Display Panel"),
                                                                    last_command._old_workspace_layout)
                 self.pop_undo_command()
@@ -636,9 +660,11 @@ class DocumentController(Window.Window):
         self.__update_display_panels()
         self.__update_selected_display_items()
 
-    def __update_display_panels(self):
+    def __update_display_panels(self) -> None:
         selected_display_panel = self.selected_display_panel
-        for display_panel in self.workspace.display_panels:
+        workspace_controller = self.workspace_controller
+        display_panels = workspace_controller.display_panels if workspace_controller else list()
+        for display_panel in display_panels:
             display_panel.set_selected(display_panel == selected_display_panel)
             if display_panel in self.__secondary_display_panels:
                 display_panel.set_secondary_index(self.__secondary_display_panels.index(display_panel))
@@ -651,8 +677,10 @@ class DocumentController(Window.Window):
         self.selected_display_panel = None
         self.__update_selected_display_items()
 
-    def next_result_display_panel(self):
-        for display_panel in self.workspace.display_panels:
+    def next_result_display_panel(self) -> typing.Optional[DisplayPanel.DisplayPanel]:
+        workspace_controller = self.workspace_controller
+        display_panels = workspace_controller.display_panels if workspace_controller else list()
+        for display_panel in display_panels:
             if display_panel.is_result_panel:
                 return display_panel
         return None
@@ -663,15 +691,15 @@ class DocumentController(Window.Window):
         self.cursor_changed_event.fire(text_items)
 
     @property
-    def tool_mode(self):
+    def tool_mode(self) -> str:
         return self.__tool_mode
 
     @tool_mode.setter
-    def tool_mode(self, tool_mode):
+    def tool_mode(self, tool_mode: str) -> None:
         self.__tool_mode = tool_mode
         self.tool_mode_changed_event.fire(tool_mode)
 
-    def _import_folder(self):
+    def _import_folder(self) -> None:
         documents_dir = self.ui.get_document_location()
         workspace_dir, directory = self.ui.get_existing_directory_dialog(_("Choose Image Folder"), documents_dir)
         absolute_file_paths = set()
@@ -687,7 +715,7 @@ class DocumentController(Window.Window):
                     break  # skip other readers
         self.receive_files(readable_file_paths)
 
-    def import_file(self):
+    def import_file(self) -> None:
         # present a loadfile dialog to the user
         readers = ImportExportManager.ImportExportManager().get_readers()
         all_extensions = []
@@ -767,22 +795,22 @@ class DocumentController(Window.Window):
                 fp.write(svg)
 
     # this method creates a task. it is thread safe.
-    def create_task_context_manager(self, title, task_type, logging=True):
+    def create_task_context_manager(self, title: str, task_type: str, logging: bool = True) -> Task.TaskContextManager:
         task = Task.Task(title, task_type)  # NOTE: currently, tasks don't get deleted since they are displayed until exit.
         task_context_manager = Task.TaskContextManager(self, task, logging)
         self.task_created_event.fire(task)
         return task_context_manager
 
-    def open_preferences(self):
-        if not self.is_dialog_type_open(PreferencesDialog.PreferencesDialog):
+    def open_preferences(self) -> None:
+        if not self.is_dialog_type_open(PreferencesDialog.PreferencesDialog) and self.app:
             preferences_dialog = PreferencesDialog.PreferencesDialog(self.ui, self.app)
             preferences_dialog.show()
 
-    def new_interactive_script_dialog(self):
+    def new_interactive_script_dialog(self) -> None:
         interactive_dialog = ScriptsDialog.RunScriptDialog(self)
         interactive_dialog.show()
 
-    def new_console_dialog(self):
+    def new_console_dialog(self) -> None:
         console_dialog = ConsoleDialog.ConsoleDialog(self)
         console_dialog.show()
 
@@ -818,72 +846,72 @@ class DocumentController(Window.Window):
             elif len(computations) == 1:
                 ComputationPanel.InspectComputationDialog(self, computations[0])
 
-    def new_display_editor_dialog(self, display_item: DisplayItem.DisplayItem=None):
+    def new_display_editor_dialog(self, display_item: typing.Optional[DisplayItem.DisplayItem] = None) -> None:
         if not display_item:
             display_item = self.selected_display_item
         if display_item:
             edit_display_dialog = DisplayEditorPanel.DisplayEditorDialog(self, display_item)
             edit_display_dialog.show()
 
-    def new_recorder_dialog(self, data_item=None):
+    def new_recorder_dialog(self, data_item: typing.Optional[DataItem.DataItem] = None) -> None:
         if not data_item:
             data_item = self.selected_data_item
         if data_item:
             recorder_dialog = RecorderPanel.RecorderDialog(self, data_item)
             recorder_dialog.show()
 
-    def __deep_copy(self):
+    def __deep_copy(self) -> None:
         self._dispatch_any_to_focus_widget("handle_deep_copy")
 
-    def handle_undo(self):
+    def handle_undo(self) -> None:
         if self.__undo_stack.can_undo:
             self.__undo_stack.undo()
 
-    def get_undo_menu_item_state(self):
+    def get_undo_menu_item_state(self) -> UserInterface.MenuItemState:
         self.__undo_stack.validate()
         return UserInterface.MenuItemState(title=self.__undo_stack.undo_title, enabled=self.__undo_stack.can_undo, checked=False)
 
-    def handle_redo(self):
+    def handle_redo(self) -> None:
         if self.__undo_stack.can_redo:
             self.__undo_stack.redo()
 
-    def get_redo_menu_item_state(self):
+    def get_redo_menu_item_state(self) -> UserInterface.MenuItemState:
         return UserInterface.MenuItemState(title=self.__undo_stack.redo_title, enabled=self.__undo_stack.can_redo, checked=False)
 
-    def handle_copy(self):
+    def handle_copy(self) -> None:
         self.copy_selected_graphics()
 
-    def handle_cut(self):
+    def handle_cut(self) -> None:
         self.copy_selected_graphics()
         self.remove_selected_graphics()
 
-    def handle_paste(self):
+    def handle_paste(self) -> bool:
         display_item = self.selected_display_item
         if display_item:
             mime_data = self.ui.clipboard_mime_data()
             graphics = MimeTypes.mime_data_get_graphics(mime_data)
             if graphics:
                 display_item.graphic_selection.clear()
-                command = DisplayPanel.InsertGraphicsCommand(self, display_item, graphics)
-                command.perform()
-                self.push_undo_command(command)
+                insert_command = DisplayPanel.InsertGraphicsCommand(self, display_item, graphics)
+                insert_command.perform()
+                self.push_undo_command(insert_command)
                 for graphic in graphics:
                     display_item.graphic_selection.add(display_item.graphics.index(graphic))
                 return True
             display_item_to_paste = MimeTypes.mime_data_get_display_item(mime_data, self.document_model)
-            data_item_to_paste = display_item_to_paste.data_item if display_item else None
+            data_item_to_paste = display_item_to_paste.data_item if display_item_to_paste else None
             if data_item_to_paste:
-                command = DisplayPanel.AppendDisplayDataChannelCommand(self.document_model, display_item, data_item_to_paste)
-                command.perform()
-                self.push_undo_command(command)
+                append_command = DisplayPanel.AppendDisplayDataChannelCommand(self.document_model, display_item, data_item_to_paste)
+                append_command.perform()
+                self.push_undo_command(append_command)
         return False
 
-    def handle_delete(self):
+    def handle_delete(self) -> None:
         # delete key gets handled by key handlers, but this method gets called by menu items
         self.remove_selected_graphics()
 
     class InsertDataGroupDisplayItemsCommand(Undo.UndoableCommand):
-        def __init__(self, document_model, data_group: DataGroup.DataGroup, before_index: int, display_items: typing.Sequence[DisplayItem.DisplayItem]):
+        def __init__(self, document_model: DocumentModel.DocumentModel, data_group: DataGroup.DataGroup, before_index: int, display_items: typing.Sequence[DisplayItem.DisplayItem]) -> None:
             super().__init__("Insert Data Items")
             self.__document_model = document_model
             self.__data_group_proxy = data_group.create_proxy()
@@ -891,29 +919,28 @@ class DocumentController(Window.Window):
             self.__display_item_proxies = [display_item.create_proxy() for display_item in display_items]
             self.initialize()
 
-        def close(self):
-            self.__document_model = None
+        def close(self) -> None:
+            self.__document_model = typing.cast(typing.Any, None)
             self.__data_group_proxy.close()
-            self.__data_group_proxy = None
-            self.__before_index = None
+            self.__data_group_proxy = typing.cast(typing.Any, None)
             for display_item_proxy in self.__display_item_proxies:
                 display_item_proxy.close()
-            self.__display_item_proxies = None
+            self.__display_item_proxies = typing.cast(typing.Any, None)
             super().close()
 
-        def _get_modified_state(self):
+        def _get_modified_state(self) -> typing.Any:
             data_group = self.__data_group_proxy.item
             assert data_group
             return data_group.modified_state, self.__document_model.modified_state
 
-        def _set_modified_state(self, modified_state) -> None:
+        def _set_modified_state(self, modified_state: typing.Any) -> None:
             data_group = self.__data_group_proxy.item
             assert data_group
             data_group.modified_state, self.__document_model.modified_state = modified_state
 
-        def _compare_modified_states(self, state1, state2) -> bool:
+        def _compare_modified_states(self, state1: typing.Any, state2: typing.Any) -> bool:
             # override to allow the undo command to track state; but only use part of the state for comparison
-            return state1[0] == state2[0]
+            return bool(state1[0] == state2[0])
 
         def perform(self) -> None:
             data_group = self.__data_group_proxy.item
@@ -936,7 +963,7 @@ class DocumentController(Window.Window):
         return DocumentController.InsertDataGroupDisplayItemsCommand(self.document_model, data_group, before_index, display_items)
 
     class InsertDataGroupDataItemsCommand(Undo.UndoableCommand):
-        def __init__(self, document_controller: "DocumentController", data_group: DataGroup.DataGroup, data_items: typing.Sequence[DataItem.DataItem], index: int):
+        def __init__(self, document_controller: DocumentController, data_group: DataGroup.DataGroup, data_items: typing.Sequence[DataItem.DataItem], index: int):
             super().__init__("Insert Data Items")
             self.__document_controller = document_controller
             self.__data_group_proxy = data_group.create_proxy()
@@ -948,40 +975,41 @@ class DocumentController(Window.Window):
             self.__undelete_logs: typing.List[Changes.UndeleteLog] = list()
             self.initialize()
 
-        def close(self):
-            self.__document_controller = None
-            self.__data_group_indexes = None
+        def close(self) -> None:
+            self.__document_controller = typing.cast(typing.Any, None)
+            self.__data_group_indexes = typing.cast(typing.Any, None)
             for display_item_proxy in self.__data_group_display_item_proxies:
                 display_item_proxy.close()
-            self.__data_group_display_item_proxies = None
-            self.__display_item_index = None
+            self.__data_group_display_item_proxies = typing.cast(typing.Any, None)
             for undelete_log in self.__undelete_logs:
                 undelete_log.close()
-            self.__undelete_logs = None  # type: ignore
+            self.__undelete_logs = typing.cast(typing.Any, None)
             self.__data_group_proxy.close()
-            self.__data_group_proxy = None
+            self.__data_group_proxy = typing.cast(typing.Any, None)
             super().close()
 
-        def _get_modified_state(self):
+        def _get_modified_state(self) -> typing.Any:
             data_group = self.__data_group_proxy.item
             assert data_group
             return self.__document_controller.document_model.modified_state, data_group.modified_state
 
-        def _set_modified_state(self, modified_state) -> None:
+        def _set_modified_state(self, modified_state: typing.Any) -> None:
             data_group = self.__data_group_proxy.item
             assert data_group
             self.__document_controller.document_model.modified_state, data_group.modified_state = modified_state
 
-        def perform(self):
+        def perform(self) -> None:
             document_model = self.__document_controller.document_model
             data_group = self.__data_group_proxy.item
             assert data_group
             index = self.__display_item_index
-            display_items = list()
+            display_items: typing.List[DisplayItem.DisplayItem] = list()
             for data_item in self.__data_items:
                 document_model.append_data_item(data_item)
                 self.__display_item_indexes.append(len(document_model.display_items))
-                display_items.append(document_model.get_display_item_for_data_item(data_item))
+                maybe_display_item = document_model.get_display_item_for_data_item(data_item)
+                if maybe_display_item:
+                    display_items.append(maybe_display_item)
             for display_item in display_items:
                 if not display_item in data_group.display_items:
                     data_group.insert_display_item(index, display_item)
@@ -1017,7 +1045,7 @@ class DocumentController(Window.Window):
                     data_group.insert_display_item(index, display_item)
 
     class RemoveDataGroupDisplayItemsCommand(Undo.UndoableCommand):
-        def __init__(self, document_model, data_group: DataGroup.DataGroup, display_items: typing.Sequence[DisplayItem.DisplayItem]):
+        def __init__(self, document_model: DocumentModel.DocumentModel, data_group: DataGroup.DataGroup, display_items: typing.Sequence[DisplayItem.DisplayItem]):
             super().__init__("Remove Data Item")
             self.__document_model = document_model
             self.__data_group_proxy = data_group.create_proxy()
@@ -1027,27 +1055,27 @@ class DocumentController(Window.Window):
             self.__display_item_proxies = [display_item.create_proxy() for index, display_item in combined]
             self.initialize()
 
-        def close(self):
+        def close(self) -> None:
             self.__data_group_proxy.close()
-            self.__data_group_proxy = None
+            self.__data_group_proxy = typing.cast(typing.Any, None)
             for display_item_proxy in self.__display_item_proxies:
                 display_item_proxy.close()
-            self.__display_item_proxies = None
+            self.__display_item_proxies = typing.cast(typing.Any, None)
             super().close()
 
-        def _get_modified_state(self):
+        def _get_modified_state(self) -> typing.Any:
             data_group = self.__data_group_proxy.item
             assert data_group
             return data_group.modified_state, self.__document_model.modified_state
 
-        def _set_modified_state(self, modified_state) -> None:
+        def _set_modified_state(self, modified_state: typing.Any) -> None:
             data_group = self.__data_group_proxy.item
             assert data_group
             data_group.modified_state, self.__document_model.modified_state = modified_state
 
-        def _compare_modified_states(self, state1, state2) -> bool:
+        def _compare_modified_states(self, state1: typing.Any, state2: typing.Any) -> bool:
             # override to allow the undo command to track state; but only use part of the state for comparison
-            return state1[0] == state2[0]
+            return bool(state1[0] == state2[0])
 
         def perform(self) -> None:
             data_group = self.__data_group_proxy.item
@@ -1068,7 +1096,7 @@ class DocumentController(Window.Window):
             self.perform()
 
     class RenameDataGroupCommand(Undo.UndoableCommand):
-        def __init__(self, document_model, data_group: DataGroup.DataGroup, title: str):
+        def __init__(self, document_model: DocumentModel.DocumentModel, data_group: DataGroup.DataGroup, title: str):
             super().__init__("Rename Data Group")
             self.__document_model = document_model
             self.__data_group_proxy = data_group.create_proxy()
@@ -1076,24 +1104,24 @@ class DocumentController(Window.Window):
             self.__new_title = None
             self.initialize()
 
-        def close(self):
+        def close(self) -> None:
             self.__data_group_proxy.close()
-            self.__data_group_proxy = None
+            self.__data_group_proxy = typing.cast(typing.Any, None)
             super().close()
 
-        def _get_modified_state(self):
+        def _get_modified_state(self) -> typing.Any:
             data_group = self.__data_group_proxy.item
             assert data_group
             return data_group.modified_state, self.__document_model.modified_state
 
-        def _set_modified_state(self, modified_state) -> None:
+        def _set_modified_state(self, modified_state: typing.Any) -> None:
             data_group = self.__data_group_proxy.item
             assert data_group
             data_group.modified_state, self.__document_model.modified_state = modified_state
 
-        def _compare_modified_states(self, state1, state2) -> bool:
+        def _compare_modified_states(self, state1: typing.Any, state2: typing.Any) -> bool:
             # override to allow the undo command to track state; but only use part of the state for comparison
-            return state1[0] == state2[0]
+            return bool(state1[0] == state2[0])
 
         def perform(self) -> None:
             data_group = self.__data_group_proxy.item
@@ -1123,27 +1151,27 @@ class DocumentController(Window.Window):
             self.initialize()
             data_group.close()  # clean up
 
-        def close(self):
+        def close(self) -> None:
             if self.__data_group_proxy:
                 self.__data_group_proxy.close()
                 self.__data_group_proxy = None  # type: ignore
             self.__container_proxy.close()
-            self.__container_proxy = None
+            self.__container_proxy = typing.cast(typing.Any, None)
             super().close()
 
-        def _get_modified_state(self):
+        def _get_modified_state(self) -> typing.Any:
             container = self.__container_proxy.item
             assert container
             return container.modified_state, self.__document_model.modified_state
 
-        def _set_modified_state(self, modified_state) -> None:
+        def _set_modified_state(self, modified_state: typing.Any) -> None:
             container = self.__container_proxy.item
             assert container
             container.modified_state, self.__document_model.modified_state = modified_state
 
-        def _compare_modified_states(self, state1, state2) -> bool:
+        def _compare_modified_states(self, state1: typing.Any, state2: typing.Any) -> bool:
             # override to allow the undo command to track state; but only use part of the state for comparison
-            return state1[0] == state2[0]
+            return bool(state1[0] == state2[0])
 
         def perform(self) -> None:
             container = self.__container_proxy.item
@@ -1177,26 +1205,26 @@ class DocumentController(Window.Window):
             self.__data_group_index = None
             self.initialize()
 
-        def close(self):
+        def close(self) -> None:
             self.__data_group_proxy.close()
-            self.__data_group_proxy = None
+            self.__data_group_proxy = typing.cast(typing.Any, None)
             self.__container_proxy.close()
-            self.__container_proxy = None
+            self.__container_proxy = typing.cast(typing.Any, None)
             super().close()
 
-        def _get_modified_state(self):
+        def _get_modified_state(self) -> typing.Any:
             container = self.__container_proxy.item
             assert container
             return container.modified_state, self.__document_model.modified_state
 
-        def _set_modified_state(self, modified_state) -> None:
+        def _set_modified_state(self, modified_state: typing.Any) -> None:
             container = self.__container_proxy.item
             assert container
             container.modified_state, self.__document_model.modified_state = modified_state
 
-        def _compare_modified_states(self, state1, state2) -> bool:
+        def _compare_modified_states(self, state1: typing.Any, state2: typing.Any) -> bool:
             # override to allow the undo command to track state; but only use part of the state for comparison
-            return state1[0] == state2[0]
+            return bool(state1[0] == state2[0])
 
         def perform(self) -> None:
             container = self.__container_proxy.item
@@ -1222,14 +1250,14 @@ class DocumentController(Window.Window):
         def _redo(self) -> None:
             self.perform()
 
-    def add_group(self):
+    def add_group(self) -> None:
         data_group = DataGroup.DataGroup()
         data_group.title = _("Untitled Group")
         command = DocumentController.InsertDataGroupCommand(self.document_model, self.document_model._project, 0, data_group)
         command.perform()
         self.push_undo_command(command)
 
-    def remove_data_group_from_container(self, data_group: DataGroup.DataGroup, container: typing.Union[DataGroup.DataGroup, Project.Project]):
+    def remove_data_group_from_container(self, data_group: DataGroup.DataGroup, container: typing.Union[DataGroup.DataGroup, Project.Project]) -> None:
         data_group_empty = len(data_group.display_items) == 0 and len(data_group.data_groups) == 0
         if data_group_empty:
             assert data_group in container.data_groups
@@ -1237,12 +1265,12 @@ class DocumentController(Window.Window):
             command.perform()
             self.push_undo_command(command)
 
-    def add_line_graphic(self):
+    def add_line_graphic(self) -> typing.Optional[Graphics.Graphic]:
         display_item = self.selected_display_item
         if display_item:
             graphic = Graphics.LineGraphic()
-            graphic.start = (0.2, 0.2)
-            graphic.end = (0.8, 0.8)
+            graphic.start = Geometry.FloatPoint(0.2, 0.2)
+            graphic.end = Geometry.FloatPoint(0.8, 0.8)
             command = DisplayPanel.InsertGraphicsCommand(self, display_item, [graphic])
             command.perform()
             self.push_undo_command(command)
@@ -1250,11 +1278,11 @@ class DocumentController(Window.Window):
             return graphic
         return None
 
-    def add_rectangle_graphic(self):
+    def add_rectangle_graphic(self) -> typing.Optional[Graphics.Graphic]:
         display_item = self.selected_display_item
         if display_item:
             graphic = Graphics.RectangleGraphic()
-            graphic.bounds = ((0.25,0.25), (0.5,0.5))
+            graphic.bounds = Geometry.FloatRect(Geometry.FloatPoint(0.25,0.25), Geometry.FloatSize(0.5,0.5))
             command = DisplayPanel.InsertGraphicsCommand(self, display_item, [graphic])
             command.perform()
             self.push_undo_command(command)
@@ -1262,11 +1290,11 @@ class DocumentController(Window.Window):
             return graphic
         return None
 
-    def add_ellipse_graphic(self):
+    def add_ellipse_graphic(self) -> typing.Optional[Graphics.Graphic]:
         display_item = self.selected_display_item
         if display_item:
             graphic = Graphics.EllipseGraphic()
-            graphic.bounds = ((0.25,0.25), (0.5,0.5))
+            graphic.bounds = Geometry.FloatRect(Geometry.FloatPoint(0.25,0.25), Geometry.FloatSize(0.5,0.5))
             command = DisplayPanel.InsertGraphicsCommand(self, display_item, [graphic])
             command.perform()
             self.push_undo_command(command)
@@ -1274,11 +1302,11 @@ class DocumentController(Window.Window):
             return graphic
         return None
 
-    def add_point_graphic(self):
+    def add_point_graphic(self) -> typing.Optional[Graphics.Graphic]:
         display_item = self.selected_display_item
         if display_item:
             graphic = Graphics.PointGraphic()
-            graphic.position = (0.5,0.5)
+            graphic.position = Geometry.FloatPoint(0.5,0.5)
             command = DisplayPanel.InsertGraphicsCommand(self, display_item, [graphic])
             command.perform()
             self.push_undo_command(command)
@@ -1286,7 +1314,7 @@ class DocumentController(Window.Window):
             return graphic
         return None
 
-    def add_interval_graphic(self):
+    def add_interval_graphic(self) -> typing.Optional[Graphics.Graphic]:
         display_item = self.selected_display_item
         if display_item:
             graphic = Graphics.IntervalGraphic()
@@ -1299,7 +1327,7 @@ class DocumentController(Window.Window):
             return graphic
         return None
 
-    def add_channel_graphic(self):
+    def add_channel_graphic(self) -> typing.Optional[Graphics.Graphic]:
         display_item = self.selected_display_item
         if display_item:
             graphic = Graphics.ChannelGraphic()
@@ -1311,7 +1339,7 @@ class DocumentController(Window.Window):
             return graphic
         return None
 
-    def add_spot_graphic(self):
+    def add_spot_graphic(self) -> typing.Optional[Graphics.Graphic]:
         display_item = self.selected_display_item
         if display_item:
             graphic = Graphics.SpotGraphic()
@@ -1323,7 +1351,7 @@ class DocumentController(Window.Window):
             return graphic
         return None
 
-    def add_angle_graphic(self):
+    def add_angle_graphic(self) -> typing.Optional[Graphics.Graphic]:
         display_item = self.selected_display_item
         if display_item:
             graphic = Graphics.WedgeGraphic()
@@ -1336,7 +1364,7 @@ class DocumentController(Window.Window):
             return graphic
         return None
 
-    def add_band_pass_graphic(self):
+    def add_band_pass_graphic(self) -> typing.Optional[Graphics.Graphic]:
         display_item = self.selected_display_item
         if display_item:
             graphic = Graphics.RingGraphic()
@@ -1349,7 +1377,7 @@ class DocumentController(Window.Window):
             return graphic
         return None
 
-    def add_lattice_graphic(self):
+    def add_lattice_graphic(self) -> typing.Optional[Graphics.Graphic]:
         display_item = self.selected_display_item
         if display_item:
             graphic = Graphics.LatticeGraphic()
@@ -1364,7 +1392,7 @@ class DocumentController(Window.Window):
         display_item = self.selected_display_item
         if display_item:
             if display_item.graphic_selection.has_selection:
-                graphics = [typing.cast(Graphics.Graphic, display_item.graphics[index]) for index in display_item.graphic_selection.indexes]
+                graphics = [display_item.graphics[index] for index in display_item.graphic_selection.indexes]
                 graphics = list(itertools.filterfalse(lambda graphic: isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)), graphics))
                 if graphics:
                     command = DisplayPanel.ChangeGraphicsCommand(self.document_model, display_item, graphics, command_id="change_role", is_mergeable=True, role=role)
@@ -1379,7 +1407,7 @@ class DocumentController(Window.Window):
     def remove_graphic_mask(self) -> bool:
         return self.__change_graphics_role(None)
 
-    def copy_selected_graphics(self):
+    def copy_selected_graphics(self) -> bool:
         display_item = self.selected_display_item
         if display_item:
             mime_data = self.ui.create_mime_data()
@@ -1418,175 +1446,202 @@ class DocumentController(Window.Window):
 
     class RemoveGraphicsCommand(Undo.UndoableCommand):
 
-        def __init__(self, document_controller: "DocumentController", display_item: DisplayItem.DisplayItem, graphics: typing.Sequence[Graphics.Graphic]):
+        def __init__(self, document_controller: DocumentController, display_item: DisplayItem.DisplayItem, graphics: typing.Sequence[Graphics.Graphic]) -> None:
             super().__init__(_("Remove Graphics"))
             self.__document_controller = document_controller
             self.__display_item_proxy = display_item.create_proxy()
-            self.__old_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
-            self.__new_workspace_layout = None
+            workspace_controller = self.__document_controller.workspace_controller
+            self.__old_workspace_layout: typing.Optional[Persistence.PersistentDictType] = workspace_controller.deconstruct() if workspace_controller else None
+            self.__new_workspace_layout: typing.Optional[Persistence.PersistentDictType] = None
             self.__graphic_indexes = [display_item.graphics.index(graphic) for graphic in graphics]
             self.__undelete_logs: typing.List[Changes.UndeleteLog] = list()
             self.initialize()
 
-        def close(self):
-            self.__document_controller = None
+        def close(self) -> None:
+            self.__document_controller = typing.cast(typing.Any, None)
             self.__display_item_proxy.close()
-            self.__display_item_proxy = None
+            self.__display_item_proxy = typing.cast(typing.Any, None)
             self.__old_workspace_layout = None
             self.__new_workspace_layout = None
-            self.__graphic_indexes = None
+            self.__graphic_indexes = typing.cast(typing.Any, None)
             for undelete_log in self.__undelete_logs:
                 undelete_log.close()
-            self.__undelete_logs = None  # type: ignore
+            self.__undelete_logs = typing.cast(typing.Any, None)
             super().close()
 
-        def perform(self):
-            display_item = self.__display_item_proxy.item
-            graphics = [display_item.graphics[index] for index in self.__graphic_indexes]
-            for graphic in graphics:
-                self.__undelete_logs.append(display_item.remove_graphic(graphic, safe=True))
+        def perform(self) -> None:
+            display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+            if display_item:
+                graphics = [display_item.graphics[index] for index in self.__graphic_indexes]
+                for graphic in graphics:
+                    self.__undelete_logs.append(display_item.remove_graphic(graphic, safe=True))
 
-        def _get_modified_state(self):
+        def _get_modified_state(self) -> typing.Any:
             display_item = self.__display_item_proxy.item
+            assert display_item
             return display_item.modified_state, self.__document_controller.document_model.modified_state
 
-        def _set_modified_state(self, modified_state):
+        def _set_modified_state(self, modified_state: typing.Any) -> None:
             display_item = self.__display_item_proxy.item
+            assert display_item
             display_item.modified_state, self.__document_controller.document_model.modified_state = modified_state
 
-        def _undo(self):
-            self.__new_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
+        def _undo(self) -> None:
+            workspace_controller = self.__document_controller.workspace_controller
+            assert workspace_controller
+            self.__new_workspace_layout = workspace_controller.deconstruct()
             for undelete_log in reversed(self.__undelete_logs):
                 self.__document_controller.document_model.undelete_all(undelete_log)
                 undelete_log.close()
             self.__undelete_logs.clear()
-            self.__document_controller.workspace_controller.reconstruct(self.__old_workspace_layout)
+            assert self.__old_workspace_layout is not None
+            workspace_controller.reconstruct(self.__old_workspace_layout)
 
-        def _redo(self):
+        def _redo(self) -> None:
             self.perform()
-            self.__document_controller.workspace_controller.reconstruct(self.__new_workspace_layout)
+            workspace_controller = self.__document_controller.workspace_controller
+            assert workspace_controller
+            assert self.__new_workspace_layout is not None
+            workspace_controller.reconstruct(self.__new_workspace_layout)
 
-        def _compare_modified_states(self, state1, state2) -> bool:
+        def _compare_modified_states(self, state1: typing.Any, state2: typing.Any) -> bool:
             # after inserting, a computation may be performed and change the document. this ensures that this
             # undo is still enabled after that happens.
             return True
 
-    def create_remove_graphics_command(self, display_item, graphics):
+    def create_remove_graphics_command(self, display_item: DisplayItem.DisplayItem, graphics: typing.Sequence[Graphics.Graphic]) -> DocumentController.RemoveGraphicsCommand:
         return DocumentController.RemoveGraphicsCommand(self, display_item, graphics)
 
     class RemoveDisplayItemsCommand(Undo.UndoableCommand):
 
-        def __init__(self, document_controller: "DocumentController", display_items: typing.Sequence[DisplayItem.DisplayItem]):
+        def __init__(self, document_controller: DocumentController, display_items: typing.Sequence[DisplayItem.DisplayItem]) -> None:
             super().__init__(_("Remove Display Items"))
             self.__document_controller = document_controller
-            self.__old_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
-            self.__new_workspace_layout = None
+            workspace_controller = self.__document_controller.workspace_controller
+            self.__old_workspace_layout: typing.Optional[Persistence.PersistentDictType] = workspace_controller.deconstruct() if workspace_controller else None
+            self.__new_workspace_layout: typing.Optional[Persistence.PersistentDictType] = None
             self.__display_item_indexes = [document_controller.document_model.display_items.index(display_item) for display_item in display_items]
             self.__undelete_logs: typing.List[Changes.UndeleteLog] = list()
             self.initialize()
 
-        def close(self):
-            self.__document_controller = None
+        def close(self) -> None:
+            self.__document_controller = typing.cast(typing.Any, None)
             self.__old_workspace_layout = None
             self.__new_workspace_layout = None
-            self.__display_item_indexes = None
+            self.__display_item_indexes = typing.cast(typing.Any, None)
             for undelete_log in self.__undelete_logs:
                 undelete_log.close()
-            self.__undelete_logs = None  # type: ignore
+            self.__undelete_logs = typing.cast(typing.Any, None)
             super().close()
 
-        def perform(self):
+        def perform(self) -> None:
             document_model = self.__document_controller.document_model
             display_items = [document_model.display_items[index] for index in self.__display_item_indexes]
             for display_item in display_items:
                 if display_item in document_model.display_items:
-                    selected_display_items = self.__document_controller.selected_display_items
+                    selected_display_items = list(self.__document_controller.selected_display_items)
                     if display_item in selected_display_items:
                         selected_display_items.remove(display_item)
                     self.__undelete_logs.append(document_model.remove_display_item_with_log(display_item))
                     self.__document_controller.select_display_items_in_data_panel(selected_display_items)
 
-        def _get_modified_state(self):
+        def _get_modified_state(self) -> typing.Any:
             return self.__document_controller.document_model.modified_state
 
-        def _set_modified_state(self, modified_state):
+        def _set_modified_state(self, modified_state: typing.Any) -> None:
             self.__document_controller.document_model.modified_state = modified_state
 
-        def _undo(self):
-            self.__new_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
+        def _undo(self) -> None:
+            workspace_controller = self.__document_controller.workspace_controller
+            assert workspace_controller
+            self.__new_workspace_layout = workspace_controller.deconstruct()
             for undelete_log in reversed(self.__undelete_logs):
                 self.__document_controller.document_model.undelete_all(undelete_log)
                 undelete_log.close()
             self.__undelete_logs.clear()
-            self.__document_controller.workspace_controller.reconstruct(self.__old_workspace_layout)
+            assert self.__old_workspace_layout is not None
+            workspace_controller.reconstruct(self.__old_workspace_layout)
 
-        def _redo(self):
+        def _redo(self) -> None:
             self.perform()
-            self.__document_controller.workspace_controller.reconstruct(self.__new_workspace_layout)
+            workspace_controller = self.__document_controller.workspace_controller
+            assert workspace_controller
+            assert self.__new_workspace_layout is not None
+            workspace_controller.reconstruct(self.__new_workspace_layout)
 
     def create_remove_display_items_command(self, display_items: typing.Sequence[DisplayItem.DisplayItem]) -> Undo.UndoableCommand:
         return DocumentController.RemoveDisplayItemsCommand(self, display_items)
 
     class RemoveDataItemsCommand(Undo.UndoableCommand):
 
-        def __init__(self, document_controller: "DocumentController", data_items: typing.Sequence[DataItem.DataItem]):
+        def __init__(self, document_controller: DocumentController, data_items: typing.Sequence[DataItem.DataItem]) -> None:
             super().__init__(_("Remove Data Items"))
             self.__document_controller = document_controller
-            self.__old_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
-            self.__new_workspace_layout = None
+            workspace_controller = self.__document_controller.workspace_controller
+            self.__old_workspace_layout: typing.Optional[Persistence.PersistentDictType] = workspace_controller.deconstruct() if workspace_controller else None
+            self.__new_workspace_layout: typing.Optional[Persistence.PersistentDictType] = None
             self.__data_item_indexes = [document_controller.document_model.data_items.index(data_item) for data_item in data_items]
             self.__undelete_logs: typing.List[Changes.UndeleteLog] = list()
             self.initialize()
 
-        def close(self):
-            self.__document_controller = None
+        def close(self) -> None:
+            self.__document_controller = typing.cast(typing.Any, None)
             self.__old_workspace_layout = None
             self.__new_workspace_layout = None
-            self.__data_item_indexes = None
+            self.__data_item_indexes = typing.cast(typing.Any, None)
             for undelete_log in self.__undelete_logs:
                 undelete_log.close()
-            self.__undelete_logs = None  # type: ignore
+            self.__undelete_logs = typing.cast(typing.Any, None)
             super().close()
 
-        def perform(self):
+        def perform(self) -> None:
             document_model = self.__document_controller.document_model
             data_items = [document_model.data_items[index] for index in self.__data_item_indexes]
             for data_item in data_items:
                 if data_item in document_model.data_items:
                     self.__undelete_logs.append(document_model.remove_data_item_with_log(data_item, safe=True))
 
-        def _get_modified_state(self):
+        def _get_modified_state(self) -> typing.Any:
             return self.__document_controller.document_model.modified_state
 
-        def _set_modified_state(self, modified_state):
+        def _set_modified_state(self, modified_state: typing.Any) -> None:
             self.__document_controller.document_model.modified_state = modified_state
 
-        def _undo(self):
-            self.__new_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
+        def _undo(self) -> None:
+            workspace_controller = self.__document_controller.workspace_controller
+            assert workspace_controller
+            self.__new_workspace_layout = workspace_controller.deconstruct()
             for undelete_log in reversed(self.__undelete_logs):
                 self.__document_controller.document_model.undelete_all(undelete_log)
                 undelete_log.close()
             self.__undelete_logs.clear()
-            self.__document_controller.workspace_controller.reconstruct(self.__old_workspace_layout)
+            assert self.__old_workspace_layout is not None
+            workspace_controller.reconstruct(self.__old_workspace_layout)
 
-        def _redo(self):
+        def _redo(self) -> None:
             self.perform()
-            self.__document_controller.workspace_controller.reconstruct(self.__new_workspace_layout)
+            workspace_controller = self.__document_controller.workspace_controller
+            assert workspace_controller
+            assert self.__new_workspace_layout is not None
+            workspace_controller.reconstruct(self.__new_workspace_layout)
 
     def create_remove_data_items_command(self, data_items: typing.Sequence[DataItem.DataItem]) -> Undo.UndoableCommand:
         return DocumentController.RemoveDataItemsCommand(self, data_items)
 
-    def add_data_element(self, data_element, source_data_item=None):
+    def add_data_element(self, data_element: ImportExportManager.DataElementType, source_data_item: typing.Optional[DataItem.DataItem] = None) -> DataItem.DataItem:
         data_item = ImportExportManager.create_data_item_from_data_element(data_element)
         if data_item:
             self.document_model.append_data_item(data_item)
         return data_item
 
-    def add_data(self, data, title=None):
+    def add_data(self, data: DataAndMetadata._ImageDataType, title: typing.Optional[str] = None) -> DataItem.DataItem:
         data_element = { "data": data, "title": title }
         return self.add_data_element(data_element)
 
-    def show_display_item(self, display_item: DisplayItem.DisplayItem, *, source_display_item=None, source_data_item=None, request_focus=True) -> None:
+    def show_display_item(self, display_item: DisplayItem.DisplayItem, *,
+                          source_display_item: typing.Optional[DisplayItem.DisplayItem] = None,
+                          source_data_item: typing.Optional[DataItem.DataItem] = None,
+                          request_focus: bool = True) -> None:
         # when a new item is shown, call this to find a display panel for it.
         # request focus can be passed as False to avoid focusing on the new
         # item, as may be preferred during live acquisition (snapshot).
@@ -1613,7 +1668,6 @@ class DocumentController(Window.Window):
         assert isinstance(command, DocumentController.InsertDataItemCommand)
         if command.data_item:
             self.push_undo_command(command)
-            return command.data_item
         else:
             command.close()
 
@@ -1631,7 +1685,6 @@ class DocumentController(Window.Window):
         assert isinstance(command, DocumentController.InsertDataItemCommand)
         if command.data_item:
             self.push_undo_command(command)
-            return command.data_item
         else:
             command.close()
 
@@ -1653,7 +1706,9 @@ class DocumentController(Window.Window):
         for dynamic_window_action in self.__dynamic_window_actions:
             menu.remove_action(dynamic_window_action)
         self.__dynamic_window_actions = []
-        toggle_actions = [dock_widget.toggle_action for dock_widget in self.workspace_controller.dock_widgets]
+        workspace_controller = self.workspace_controller
+        assert workspace_controller
+        toggle_actions = [dock_widget.toggle_action for dock_widget in workspace_controller.dock_widgets]
         for toggle_action in sorted(toggle_actions, key=operator.attrgetter("title")):
             menu.add_action(toggle_action)
             self.__dynamic_window_actions.append(toggle_action)
@@ -1664,8 +1719,11 @@ class DocumentController(Window.Window):
             menu.remove_action(dynamic_view_action)
         self.__dynamic_view_actions = []
         for workspace in self.project.workspaces:
-            def switch_to_workspace(workspace):
-                self.workspace_controller.change_workspace(workspace)
+            def switch_to_workspace(workspace: WorkspaceLayout.WorkspaceLayout) -> None:
+                workspace_controller = self.workspace_controller
+                assert workspace_controller
+                workspace_controller.change_workspace(workspace)
+
             action = menu.add_menu_item(workspace.name, functools.partial(switch_to_workspace, workspace))
             action.checked = self.project.workspace_uuid == workspace.uuid
             self.__dynamic_view_actions.append(action)
@@ -1673,11 +1731,11 @@ class DocumentController(Window.Window):
     def __about_to_show_display_type_menu(self, menu: UserInterface.Menu) -> None:
         for dynamic_live_action in self.__dynamic_live_actions:
             menu.remove_action(dynamic_live_action)
-        self.__dynamic_live_actions = []
+        dynamic_live_actions: typing.List[UserInterface.MenuAction] = list()
         selected_display_panel = self.selected_display_panel
-        if not selected_display_panel:
-            return
-        self.__dynamic_live_actions.extend(DisplayPanel.DisplayPanelManager().build_menu(menu, self, selected_display_panel))
+        if selected_display_panel:
+            dynamic_live_actions.extend(DisplayPanel.DisplayPanelManager().build_menu(menu, self, selected_display_panel))
+        self.__dynamic_live_actions = dynamic_live_actions
 
     def __adjust_redimension_data_menu(self, menu: UserInterface.Menu) -> None:
         for action in self.__data_menu_actions:
@@ -1730,7 +1788,7 @@ class DocumentController(Window.Window):
                 data_descriptor = data_item_xdata.data_descriptor
                 data_shape = list(data_item_xdata.data_shape)
                 if 1 in data_shape[data_descriptor.collection_dimension_index_slice] or 1 in data_shape[data_descriptor.sequence_dimension_index_slice] and len(data_shape[data_descriptor.datum_dimension_index_slice]) > 1 and data_shape[data_descriptor.datum_dimension_index_slice].count(1) > 0:
-                    if data_descriptor.is_sequence and data_shape[data_descriptor.sequence_dimension_index_slice] == 1:
+                    if data_descriptor.is_sequence and typing.cast(int, data_shape[data_descriptor.sequence_dimension_index_slice]) == 1:
                         data_descriptor.is_sequence = False
                         data_shape = data_shape[1:]
                     while data_shape[data_descriptor.collection_dimension_index_slice].count(1) > 0:
@@ -1754,7 +1812,7 @@ class DocumentController(Window.Window):
         graphic = display_item.graphics[current_index] if display_item and (current_index is not None) else None
         return graphic if is_graphic_valid_crop_for_data_item(data_item, graphic) else None
 
-    def __get_mask_graphics(self, display_item: typing.Optional[DisplayItem.DisplayItem]) -> typing.List[Graphics.Graphic]:
+    def __get_mask_graphics(self, display_item: typing.Optional[DisplayItem.DisplayItem]) -> typing.Sequence[Graphics.Graphic]:
         mask_graphics = list()
         data_item = display_item.data_item if display_item else None
         if display_item and data_item and len(data_item.dimensional_shape) == 2:
@@ -1783,19 +1841,20 @@ class DocumentController(Window.Window):
 
     class InsertDataItemCommand(Undo.UndoableCommand):
 
-        def __init__(self, document_controller: "DocumentController", data_item_fn: typing.Callable[[], DataItem.DataItem]):
+        def __init__(self, document_controller: DocumentController, data_item_fn: typing.Callable[[], typing.Optional[DataItem.DataItem]]):
             super().__init__(_("Insert Data Item"))
             self.__document_controller = document_controller
-            self.__old_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
-            self.__new_workspace_layout = None
-            self.__data_item_proxy = None
+            workspace_controller = self.__document_controller.workspace_controller
+            self.__old_workspace_layout: typing.Optional[Persistence.PersistentDictType] = workspace_controller.deconstruct() if workspace_controller else None
+            self.__new_workspace_layout: typing.Optional[Persistence.PersistentDictType] = None
+            self.__data_item_proxy: typing.Optional[Persistence.PersistentObjectProxy] = None
             self.__data_item_fn = data_item_fn
-            self.__undelete_log = None
+            self.__undelete_log: typing.Optional[Changes.UndeleteLog] = None
             self.initialize()
 
-        def close(self):
-            self.__document_controller = None
-            self.__data_item_fn = None
+        def close(self) -> None:
+            self.__document_controller = typing.cast(typing.Any, None)
+            self.__data_item_fn = typing.cast(typing.Any, None)
             self.__old_workspace_layout = None
             self.__new_workspace_layout = None
             if self.__undelete_log:
@@ -1806,38 +1865,46 @@ class DocumentController(Window.Window):
                 self.__data_item_proxy = None
             super().close()
 
-        def perform(self):
+        def perform(self) -> None:
             data_item = self.__data_item_fn()
             self.__data_item_proxy = data_item.create_proxy() if data_item else None
 
         @property
-        def data_item(self):
-            return self.__data_item_proxy.item if self.__data_item_proxy else None
+        def data_item(self) -> typing.Optional[DataItem.DataItem]:
+            return typing.cast(typing.Optional[DataItem.DataItem], self.__data_item_proxy.item) if self.__data_item_proxy else None
 
-        def _get_modified_state(self):
+        def _get_modified_state(self) -> typing.Any:
             return self.__document_controller.document_model.modified_state
 
-        def _set_modified_state(self, modified_state) -> None:
+        def _set_modified_state(self, modified_state: typing.Any) -> None:
             self.__document_controller.document_model.modified_state = modified_state
 
-        def _compare_modified_states(self, state1, state2) -> bool:
+        def _compare_modified_states(self, state1: typing.Any, state2: typing.Any) -> bool:
             # after inserting, a computation may be performed and change the document. this ensures that this
             # undo is still enabled after that happens.
             return True
 
-        def _redo(self):
+        def _redo(self) -> None:
+            assert self.__undelete_log
             self.__document_controller.document_model.undelete_all(self.__undelete_log)
             self.__undelete_log.close()
             self.__undelete_log = None
-            self.__document_controller.workspace_controller.reconstruct(self.__new_workspace_layout)
+            workspace_controller = self.__document_controller.workspace_controller
+            assert workspace_controller
+            assert self.__new_workspace_layout is not None
+            workspace_controller.reconstruct(self.__new_workspace_layout)
 
-        def _undo(self):
+        def _undo(self) -> None:
             data_item = self.data_item
-            self.__new_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
+            assert data_item
+            workspace_controller = self.__document_controller.workspace_controller
+            assert workspace_controller
+            self.__new_workspace_layout = workspace_controller.deconstruct()
             self.__undelete_log = self.__document_controller.document_model.remove_data_item_with_log(data_item, safe=True)
-            self.__document_controller.workspace_controller.reconstruct(self.__old_workspace_layout)
+            assert self.__old_workspace_layout is not None
+            workspace_controller.reconstruct(self.__old_workspace_layout)
 
-    def create_insert_data_item_command(self, data_item_fn: typing.Callable[[], DataItem.DataItem]) -> Undo.UndoableCommand:
+    def create_insert_data_item_command(self, data_item_fn: typing.Callable[[], typing.Optional[DataItem.DataItem]]) -> Undo.UndoableCommand:
         return DocumentController.InsertDataItemCommand(self, data_item_fn)
 
     def _perform_duplicate(self, data_item: DataItem.DataItem) -> None:
@@ -1853,31 +1920,31 @@ class DocumentController(Window.Window):
         command.perform()
         self.push_undo_command(command)
 
-    def processing_duplicate(self):
+    def processing_duplicate(self) -> None:
         data_item = self.selected_data_item
         if data_item:
             self._perform_duplicate(data_item)
 
     class InsertDisplayItemCommand(Undo.UndoableCommand):
 
-        def __init__(self, document_controller: "DocumentController", display_item: DisplayItem.DisplayItem, display_item_fn: typing.Callable[[DisplayItem.DisplayItem], DisplayItem.DisplayItem]):
+        def __init__(self, document_controller: DocumentController, display_item: DisplayItem.DisplayItem, display_item_fn: typing.Callable[[DisplayItem.DisplayItem], DisplayItem.DisplayItem]) -> None:
             super().__init__(_("Insert Display Item"))
             self.__document_controller = document_controller
-            self.__old_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
-            self.__new_workspace_layout = None
-            self.__display_item_proxy = None
+            workspace_controller = self.__document_controller.workspace_controller
+            self.__old_workspace_layout: typing.Optional[Persistence.PersistentDictType] = workspace_controller.deconstruct() if workspace_controller else None
+            self.__new_workspace_layout: typing.Optional[Persistence.PersistentDictType] = None
+            self.__display_item_proxy: typing.Optional[Persistence.PersistentObjectProxy] = None
             self.__display_item = display_item
             self.__display_item_fn = display_item_fn
-            self.__display_item_index = None
-            self.__undelete_log = None
+            self.__display_item_index = 0
+            self.__undelete_log: typing.Optional[Changes.UndeleteLog] = None
             self.initialize()
 
-        def close(self):
-            self.__document_controller = None
+        def close(self) -> None:
+            self.__document_controller = typing.cast(typing.Any, None)
             if self.__display_item_proxy:
                 self.__display_item_proxy.close()
                 self.__display_item_proxy = None
-            self.__display_item_index = None
             self.__old_workspace_layout = None
             self.__new_workspace_layout = None
             if self.__undelete_log:
@@ -1885,7 +1952,7 @@ class DocumentController(Window.Window):
                 self.__undelete_log = None
             super().close()
 
-        def perform(self):
+        def perform(self) -> None:
             # regarding focus, see https://github.com/nion-software/nionswift/issues/145
             document_controller = self.__document_controller
             display_item = self.__display_item
@@ -1894,36 +1961,44 @@ class DocumentController(Window.Window):
             document_controller.show_display_item(snapshot_display_item, source_display_item=snapshot_display_item, request_focus=request_focus)
             self.__display_item_proxy = display_item.create_proxy() if display_item else None
 
-        def _get_modified_state(self):
+        def _get_modified_state(self) -> typing.Any:
             return self.__document_controller.document_model.modified_state
 
-        def _set_modified_state(self, modified_state) -> None:
+        def _set_modified_state(self, modified_state: typing.Any) -> None:
             self.__document_controller.document_model.modified_state = modified_state
 
-        def _redo(self):
+        def _redo(self) -> None:
+            assert self.__undelete_log
             self.__document_controller.document_model.undelete_all(self.__undelete_log)
             self.__undelete_log.close()
             self.__undelete_log = None
-            self.__document_controller.workspace_controller.reconstruct(self.__new_workspace_layout)
+            workspace_controller = self.__document_controller.workspace_controller
+            assert workspace_controller
+            assert self.__new_workspace_layout is not None
+            workspace_controller.reconstruct(self.__new_workspace_layout)
 
-        def _undo(self):
-            display_item = self.__display_item_proxy.item if self.__display_item_proxy else None
-            self.__new_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
+        def _undo(self) -> None:
+            display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item) if self.__display_item_proxy else None
+            assert display_item
+            workspace_controller = self.__document_controller.workspace_controller
+            assert workspace_controller
+            self.__new_workspace_layout = workspace_controller.deconstruct()
             self.__display_item_index = self.__document_controller.document_model.display_items.index(display_item)
             self.__undelete_log = self.__document_controller.document_model.remove_display_item_with_log(display_item)
-            self.__document_controller.workspace_controller.reconstruct(self.__old_workspace_layout)
+            assert self.__old_workspace_layout is not None
+            workspace_controller.reconstruct(self.__old_workspace_layout)
 
     def _perform_display_item_snapshot(self, display_item: DisplayItem.DisplayItem) -> None:
         command = DocumentController.InsertDisplayItemCommand(self, display_item, self.document_model.get_display_item_snapshot_new)
         command.perform()
         self.push_undo_command(command)
 
-    def processing_snapshot(self):
+    def processing_snapshot(self) -> None:
         display_item = self.selected_display_item
         if display_item:
             self._perform_display_item_snapshot(display_item)
 
-    def processing_display_copy(self):
+    def processing_display_copy(self) -> None:
         display_item = self.selected_display_item
         if display_item:
             command = DocumentController.InsertDisplayItemCommand(self, display_item, self.document_model.get_display_item_copy_new)
@@ -1932,62 +2007,69 @@ class DocumentController(Window.Window):
 
     class RemoveDisplayItemCommand(Undo.UndoableCommand):
 
-        def __init__(self, document_controller: "DocumentController", display_item: DisplayItem.DisplayItem):
+        def __init__(self, document_controller: DocumentController, display_item: DisplayItem.DisplayItem) -> None:
             super().__init__(_("Remove Display Item"))
             self.__document_controller = document_controller
-            self.__old_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
-            self.__new_workspace_layout = None
+            workspace_controller = self.__document_controller.workspace_controller
+            self.__old_workspace_layout: typing.Optional[Persistence.PersistentDictType] = workspace_controller.deconstruct() if workspace_controller else None
+            self.__new_workspace_layout: typing.Optional[Persistence.PersistentDictType] = None
             self.__display_item_index = document_controller.document_model.display_items.index(display_item)
             self.__undelete_logs: typing.List[Changes.UndeleteLog] = list()
             self.initialize()
 
-        def close(self):
-            self.__document_controller = None
+        def close(self) -> None:
+            self.__document_controller = typing.cast(typing.Any, None)
             self.__old_workspace_layout = None
             self.__new_workspace_layout = None
-            self.__display_item_index = None
             for undelete_log in self.__undelete_logs:
                 undelete_log.close()
-            self.__undelete_logs = None  # type: ignore
+            self.__undelete_logs = typing.cast(typing.Any, None)
             super().close()
 
-        def perform(self):
+        def perform(self) -> None:
             document_model = self.__document_controller.document_model
             display_item = document_model.display_items[self.__display_item_index]
             self.__undelete_logs.append(document_model.remove_display_item_with_log(display_item))
 
-        def _get_modified_state(self):
+        def _get_modified_state(self) -> typing.Any:
             return self.__document_controller.document_model.modified_state
 
-        def _set_modified_state(self, modified_state) -> None:
+        def _set_modified_state(self, modified_state: typing.Any) -> None:
             self.__document_controller.document_model.modified_state = modified_state
 
-        def _undo(self):
-            self.__new_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
+        def _undo(self) -> None:
+            workspace_controller = self.__document_controller.workspace_controller
+            assert workspace_controller
+            self.__new_workspace_layout = workspace_controller.deconstruct()
             for undelete_log in reversed(self.__undelete_logs):
                 self.__document_controller.document_model.undelete_all(undelete_log)
                 undelete_log.close()
             self.__undelete_logs.clear()
-            self.__document_controller.workspace_controller.reconstruct(self.__old_workspace_layout)
+            assert self.__old_workspace_layout is not None
+            workspace_controller.reconstruct(self.__old_workspace_layout)
 
-        def _redo(self):
+        def _redo(self) -> None:
             self.perform()
-            self.__document_controller.workspace_controller.reconstruct(self.__new_workspace_layout)
+            workspace_controller = self.__document_controller.workspace_controller
+            assert workspace_controller
+            assert self.__new_workspace_layout is not None
+            workspace_controller.reconstruct(self.__new_workspace_layout)
 
-    def processing_display_remove(self):
+    def processing_display_remove(self) -> None:
         display_item = self.selected_display_item
         if display_item:
             command = DocumentController.RemoveDisplayItemCommand(self, display_item)
             command.perform()
             self.push_undo_command(command)
 
-    def processing_computation(self, expression, map: typing.Mapping[str, Symbolic.ComputationItem]=None):
+    def processing_computation(self, expression: str, map: typing.Optional[typing.Mapping[str, Symbolic.ComputationItem]] = None) -> DataItem.DataItem:
         if map is None:
-            map = dict()
+            new_map: typing.Dict[str, Symbolic.ComputationItem] = dict()
             for variable_name, display_item in DocumentModel.MappedItemManager().item_map.items():
                 # add r_vars that can be evaluated to data_item, for backward compatibility
                 if display_item.data_item:
-                    map[variable_name] = Symbolic.make_item(display_item.data_item)
+                    new_map[variable_name] = Symbolic.make_item(display_item.data_item)
+            map = new_map
         data_item = DataItem.DataItem()
         data_item.ensure_data_source()
         data_item.title = _("Computation on ") + data_item.title
@@ -2006,7 +2088,7 @@ class DocumentController(Window.Window):
         self.show_display_item(new_display_item)
         return data_item
 
-    def _get_n_data_sources(self, n: int) -> typing.Tuple[typing.Tuple[DisplayItem.DisplayItem, typing.Optional[Graphics.Graphic]], ...]:
+    def _get_n_data_sources(self, n: int) -> typing.Tuple[_DataSourceTupleType, ...]:
         """Get n sensible data sources, which may be the same."""
         selected_display_items = self.selected_display_items
         if len(selected_display_items) == 1:
@@ -2025,16 +2107,17 @@ class DocumentController(Window.Window):
             return tuple(zip(selected_display_items, (self._get_crop_graphic(display_item) for display_item in selected_display_items)))
         return tuple()
 
-    def _get_two_data_sources(self):
+    def _get_two_data_sources(self) -> typing.Tuple[_DataSourceTupleType, _DataSourceTupleType]:
         """Get two sensible data sources, which may be the same."""
-        return self._get_n_data_sources(2)
+        return typing.cast(typing.Tuple[_DataSourceTupleType, _DataSourceTupleType], self._get_n_data_sources(2))
 
-    def _perform_processing2(self, display_item1: DisplayItem.DisplayItem, data_item1: DataItem.DataItem, display_item2: DisplayItem.DisplayItem, data_item2: DataItem.DataItem, crop_graphic1: typing.Optional[Graphics.Graphic], crop_graphic2: typing.Optional[Graphics.Graphic], fn) -> typing.Optional[DataItem.DataItem]:
-        def process() -> DataItem.DataItem:
+    def _perform_processing2(self, display_item1: DisplayItem.DisplayItem, data_item1: DataItem.DataItem, display_item2: DisplayItem.DisplayItem, data_item2: DataItem.DataItem, crop_graphic1: typing.Optional[Graphics.Graphic], crop_graphic2: typing.Optional[Graphics.Graphic], fn: _Processing2Fn) -> typing.Optional[DataItem.DataItem]:
+        def process() -> typing.Optional[DataItem.DataItem]:
             new_data_item = fn(display_item1, data_item1, display_item2, data_item2, crop_graphic1, crop_graphic2)
-            new_display_item = self.document_model.get_display_item_for_data_item(new_data_item)
-            assert new_display_item
-            self.show_display_item(new_display_item)
+            if new_data_item:
+                new_display_item = self.document_model.get_display_item_for_data_item(new_data_item)
+                assert new_display_item
+                self.show_display_item(new_display_item)
             return new_data_item
         command = self.create_insert_data_item_command(process)
         command.perform()
@@ -2046,12 +2129,13 @@ class DocumentController(Window.Window):
             command.close()
         return None
 
-    def _perform_processing3(self, display_item1: DisplayItem.DisplayItem, data_item1: DataItem.DataItem, display_item2: DisplayItem.DisplayItem, data_item2: DataItem.DataItem, display_item3: DisplayItem.DisplayItem, data_item3: DataItem.DataItem, crop_graphic1: typing.Optional[Graphics.Graphic], crop_graphic2: typing.Optional[Graphics.Graphic], crop_graphic3: typing.Optional[Graphics.Graphic], fn) -> typing.Optional[DataItem.DataItem]:
-        def process() -> DataItem.DataItem:
+    def _perform_processing3(self, display_item1: DisplayItem.DisplayItem, data_item1: DataItem.DataItem, display_item2: DisplayItem.DisplayItem, data_item2: DataItem.DataItem, display_item3: DisplayItem.DisplayItem, data_item3: DataItem.DataItem, crop_graphic1: typing.Optional[Graphics.Graphic], crop_graphic2: typing.Optional[Graphics.Graphic], crop_graphic3: typing.Optional[Graphics.Graphic], fn: _Processing3Fn) -> typing.Optional[DataItem.DataItem]:
+        def process() -> typing.Optional[DataItem.DataItem]:
             new_data_item = fn(display_item1, data_item1, display_item2, data_item2, display_item3, data_item3, crop_graphic1, crop_graphic2, crop_graphic3)
-            new_display_item = self.document_model.get_display_item_for_data_item(new_data_item)
-            assert new_display_item
-            self.show_display_item(new_display_item)
+            if new_data_item:
+                new_display_item = self.document_model.get_display_item_for_data_item(new_data_item)
+                assert new_display_item
+                self.show_display_item(new_display_item)
             return new_data_item
         command = self.create_insert_data_item_command(process)
         command.perform()
@@ -2063,8 +2147,8 @@ class DocumentController(Window.Window):
             command.close()
         return None
 
-    def _perform_processing(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_graphic: typing.Optional[Graphics.Graphic], fn) -> None:
-        def process() -> DataItem.DataItem:
+    def _perform_processing(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_graphic: typing.Optional[Graphics.Graphic], fn: _ProcessingFn) -> None:
+        def process() -> typing.Optional[DataItem.DataItem]:
             new_data_item = fn(display_item, data_item, crop_graphic)
             if new_data_item:
                 new_display_item = self.document_model.get_display_item_for_data_item(new_data_item)
@@ -2079,11 +2163,10 @@ class DocumentController(Window.Window):
         else:
             command.close()
 
-    def _perform_processing_select(self, display_item: DisplayItem.DisplayItem, crop_graphic: typing.Optional[Graphics.Graphic], fn) -> None:
+    def _perform_processing_select(self, display_item: DisplayItem.DisplayItem, crop_graphic: typing.Optional[Graphics.Graphic], fn: _ProcessingFn) -> None:
         def perform(display_item: DisplayItem.DisplayItem, data_item: typing.Optional[DataItem.DataItem]) -> None:
             if data_item:
-                window = typing.cast(DocumentController, self)
-                window._perform_processing(display_item, data_item, crop_graphic, fn)
+                self._perform_processing(display_item, data_item, crop_graphic, fn)
 
         if display_item.data_item:
             perform(display_item, display_item.data_item)
@@ -2091,15 +2174,17 @@ class DocumentController(Window.Window):
             Dialog.pose_select_item_pop_up(display_item.data_items, functools.partial(perform, display_item),
                                            item_getter=operator.attrgetter("title"), window=self)
 
-    def toggle_filter(self):
-        if self.workspace_controller.filter_row.visible:
+    def toggle_filter(self) -> None:
+        workspace_controller = self.workspace_controller
+        assert workspace_controller
+        if workspace_controller.filter_row.visible:
             self.__last_display_filter = self.display_filter
             self.display_filter = ListModel.Filter(True)
         else:
             self.display_filter = self.__last_display_filter
-        self.workspace_controller.filter_row.visible = not self.workspace_controller.filter_row.visible
+        workspace_controller.filter_row.visible = not workspace_controller.filter_row.visible
 
-    def copy_uuid(self):
+    def copy_uuid(self) -> None:
         display_item = self.selected_display_item
         data_item = display_item.data_item if display_item else None
         if display_item:
@@ -2127,16 +2212,19 @@ class DocumentController(Window.Window):
         command.perform()
         self.push_undo_command(command)
 
-    def create_empty_data_item(self):
+    def create_empty_data_item(self) -> None:
         self._perform_create_empty_data_item()
 
     class InsertDataItemsCommand(Undo.UndoableCommand):
 
-        def __init__(self, document_controller: "DocumentController", data_items: typing.Sequence[DataItem.DataItem], index: int, display_panel: DisplayPanel.DisplayPanel=None, *, project: Project.Project = None):
+        def __init__(self, document_controller: DocumentController, data_items: typing.Sequence[DataItem.DataItem],
+                     index: int, display_panel: typing.Optional[DisplayPanel.DisplayPanel] = None, *,
+                     project: typing.Optional[Project.Project] = None) -> None:
             super().__init__(_("Insert Data Items"))
             self.__document_controller = document_controller
-            self.__old_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
-            self.__new_workspace_layout = None
+            workspace_controller = self.__document_controller.workspace_controller
+            self.__old_workspace_layout: typing.Optional[Persistence.PersistentDictType] = workspace_controller.deconstruct() if workspace_controller else None
+            self.__new_workspace_layout: typing.Optional[Persistence.PersistentDictType] = None
             self.__data_items = data_items  # only used in perform
             self.__data_item_index = index
             self.__data_item_indexes: typing.List[int] = list()
@@ -2145,18 +2233,18 @@ class DocumentController(Window.Window):
             self.__undelete_logs: typing.List[Changes.UndeleteLog] = list()
             self.initialize()
 
-        def close(self):
-            self.__document_controller = None
+        def close(self) -> None:
+            self.__document_controller = typing.cast(typing.Any, None)
             self.__old_workspace_layout = None
             self.__new_workspace_layout = None
-            self.__data_items = None
-            self.__data_item_index = None
+            self.__data_items = typing.cast(typing.Any, None)
+            self.__data_item_index = typing.cast(typing.Any, None)
             for undelete_log in self.__undelete_logs:
                 undelete_log.close()
-            self.__undelete_logs = None  # type: ignore
+            self.__undelete_logs = typing.cast(typing.Any, None)
             super().close()
 
-        def perform(self):
+        def perform(self) -> None:
             document_model = self.__document_controller.document_model
             index = self.__data_item_index
             for data_item in self.__data_items:
@@ -2170,31 +2258,37 @@ class DocumentController(Window.Window):
                     self.__display_panel.set_display_panel_display_item(display_item)
                     self.__display_panel.request_focus()
 
-        def _get_modified_state(self):
+        def _get_modified_state(self) -> typing.Any:
             return self.__document_controller.document_model.modified_state
 
-        def _set_modified_state(self, modified_state) -> None:
+        def _set_modified_state(self, modified_state: typing.Any) -> None:
             self.__document_controller.document_model.modified_state = modified_state
 
-        def _redo(self):
+        def _redo(self) -> None:
             for undelete_log in reversed(self.__undelete_logs):
                 self.__document_controller.document_model.undelete_all(undelete_log)
                 undelete_log.close()
             self.__undelete_logs.clear()
-            self.__document_controller.workspace_controller.reconstruct(self.__new_workspace_layout)
+            workspace_controller = self.__document_controller.workspace_controller
+            assert workspace_controller
+            assert self.__new_workspace_layout is not None
+            workspace_controller.reconstruct(self.__new_workspace_layout)
 
-        def _undo(self):
-            self.__new_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
+        def _undo(self) -> None:
+            workspace_controller = self.__document_controller.workspace_controller
+            assert workspace_controller
+            self.__new_workspace_layout = workspace_controller.deconstruct()
             document_model = self.__document_controller.document_model
             data_items = [document_model.data_items[index] for index in self.__data_item_indexes]
             for data_item in data_items:
                 if data_item in document_model.data_items:
                     self.__undelete_logs.append(document_model.remove_data_item_with_log(data_item, safe=True))
-            self.__document_controller.workspace_controller.reconstruct(self.__old_workspace_layout)
+            assert self.__old_workspace_layout is not None
+            workspace_controller.reconstruct(self.__old_workspace_layout)
 
     def receive_project_files(self, file_paths: typing.Sequence[pathlib.Path], project: Project.Project, index: int = -1, threaded: bool = True) -> None:
-        def receive_files_complete(received_data_items):
-            def select_library_all():
+        def receive_files_complete(received_data_items: typing.Sequence[DataItem.DataItem]) -> None:
+            def select_library_all() -> None:
                 self.select_data_items_in_data_panel([received_data_items[0]])
 
             if len(received_data_items) > 0:
@@ -2207,23 +2301,29 @@ class DocumentController(Window.Window):
     # position in the document model (the end) and at the group at the position
     # specified by the index. if the data group is not specified, the item is added
     # at the index within the document model.
-    def receive_files(self, files: typing.Sequence[str], data_group=None, index=-1, threaded=True, completion_fn=None,
-                      display_panel: DisplayPanel.DisplayPanel = None, project: Project.Project = None) -> typing.Optional[
-        typing.List[DataItem.DataItem]]:
+    def receive_files(self, files: typing.Sequence[str],
+                      data_group: typing.Optional[DataGroup.DataGroup] = None,
+                      index: int = -1,
+                      threaded: bool = True,
+                      completion_fn: typing.Optional[typing.Callable[[typing.Sequence[DataItem.DataItem]], None]] = None,
+                      display_panel: typing.Optional[DisplayPanel.DisplayPanel] = None,
+                      project: typing.Optional[Project.Project] = None) -> typing.Optional[typing.Sequence[DataItem.DataItem]]:
         file_paths = [pathlib.Path(file_path) for file_path in files]
         return self.__receive_files(file_paths, data_group, index, threaded, completion_fn, display_panel, project=project)
 
     def __receive_files(self, file_paths: typing.Sequence[pathlib.Path],
-                        data_group=None,
-                        index=-1,
-                        threaded=True,
-                        completion_fn=None,
-                        display_panel: DisplayPanel.DisplayPanel = None, *,
-                        project: Project.Project = None) -> typing.Optional[typing.List[DataItem.DataItem]]:
+                        data_group: typing.Optional[DataGroup.DataGroup] = None,
+                        index: int = -1,
+                        threaded: bool = True,
+                        completion_fn: typing.Optional[typing.Callable[[typing.Sequence[DataItem.DataItem]], None]] = None,
+                        display_panel: typing.Optional[DisplayPanel.DisplayPanel] = None, *,
+                        project: typing.Optional[Project.Project] = None) -> typing.Optional[typing.Sequence[DataItem.DataItem]]:
         assert index is not None
 
         # this function will be called on a thread to receive files in the background.
-        def receive_files_on_thread(file_paths: typing.Sequence[pathlib.Path], data_group: typing.Optional[DataGroup.DataGroup], index: int, completion_fn) -> typing.List[DataItem.DataItem]:
+        def receive_files_on_thread(file_paths: typing.Sequence[pathlib.Path],
+                                    data_group: typing.Optional[DataGroup.DataGroup], index: int,
+                                    completion_fn: typing.Optional[typing.Callable[[typing.Sequence[DataItem.DataItem]], None]]) -> typing.Sequence[DataItem.DataItem]:
 
             received_data_items: typing.List[DataItem.DataItem] = list()
 
@@ -2253,7 +2353,8 @@ class DocumentController(Window.Window):
 
                 return received_data_items
 
-        def receive_files_complete(index, data_items):
+        def receive_files_complete(index: int, data_items: typing.Sequence[DataItem.DataItem]) -> None:
+            command: Undo.UndoableCommand
             if data_group and isinstance(data_group, DataGroup.DataGroup):
                 command = DocumentController.InsertDataGroupDataItemsCommand(self, data_group, data_items, index)
                 command.perform()
@@ -2267,7 +2368,7 @@ class DocumentController(Window.Window):
                 completion_fn(data_items)
 
         if threaded:
-            def threaded_receive_files_complete(index, data_items):
+            def threaded_receive_files_complete(index: int, data_items: typing.Sequence[DataItem.DataItem]) -> None:
                 self.queue_task(functools.partial(receive_files_complete, index, data_items))
 
             threading.Thread(target=receive_files_on_thread, args=(file_paths, data_group, index, functools.partial(threaded_receive_files_complete, index))).start()
@@ -2294,7 +2395,7 @@ class DocumentController(Window.Window):
             if len(source_data_items) > 0:
                 menu.add_separator()
                 for source_data_item in source_data_items:
-                    def show_source_data_item(data_item):
+                    def show_source_data_item(data_item: DataItem.DataItem) -> None:
                         self.select_data_item_in_data_panel(data_item)
 
                     truncated_title = self.ui.truncate_string_to_width(str(), source_data_item.title, 280,
@@ -2305,7 +2406,7 @@ class DocumentController(Window.Window):
             if len(dependent_data_items) > 0:
                 menu.add_separator()
                 for dependent_data_item in dependent_data_items:
-                    def show_dependent_data_item(data_item):
+                    def show_dependent_data_item(data_item: DataItem.DataItem) -> None:
                         self.select_data_item_in_data_panel(data_item)
 
                     truncated_title = self.ui.truncate_string_to_width(str(), dependent_data_item.title, 280,
@@ -2735,6 +2836,7 @@ class WorkspaceCloneAction(Window.Action):
         workspace_controller = window.workspace_controller
         text = self.get_string_property(context, "name")
         if text:
+            assert workspace_controller
             command = Workspace.CloneWorkspaceCommand(workspace_controller, text)
             command.perform()
             window.push_undo_command(command)
@@ -2770,6 +2872,7 @@ class WorkspaceNewAction(Window.Action):
         workspace_controller = window.workspace_controller
         text = self.get_string_property(context, "name")
         if text:
+            assert workspace_controller
             command = Workspace.CreateWorkspaceCommand(workspace_controller, text)
             command.perform()
             window.push_undo_command(command)
@@ -2825,6 +2928,7 @@ class WorkspaceRemoveAction(Window.Action):
         context = typing.cast(DocumentController.ActionContext, context)
         window = typing.cast(DocumentController, context.window)
         workspace_controller = window.workspace_controller
+        assert workspace_controller
         if len(workspace_controller._project.workspaces) > 1:
             command = Workspace.RemoveWorkspaceCommand(workspace_controller)
             command.perform()
@@ -2859,6 +2963,7 @@ class WorkspaceRenameAction(Window.Action):
         workspace_controller = window.workspace_controller
         text = self.get_string_property(context, "name")
         if text:
+            assert workspace_controller
             command = Workspace.RenameWorkspaceCommand(workspace_controller, text)
             command.perform()
             window.push_undo_command(command)
@@ -2905,8 +3010,9 @@ class WorkspaceSplitHorizontalAction(Window.Action):
         context = typing.cast(DocumentController.ActionContext, context)
         window = typing.cast(DocumentController, context.window)
         workspace_controller = window.workspace_controller
-        if workspace_controller:
-            command = workspace_controller.insert_display_panel(context.display_panel, "right")
+        display_panel = context.display_panel
+        if workspace_controller and display_panel:
+            command = workspace_controller.insert_display_panel(display_panel, "right")
             window.push_undo_command(command)
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
@@ -2924,8 +3030,9 @@ class WorkspaceSplitVerticalAction(Window.Action):
         context = typing.cast(DocumentController.ActionContext, context)
         window = typing.cast(DocumentController, context.window)
         workspace_controller = window.workspace_controller
-        if workspace_controller:
-            command = workspace_controller.insert_display_panel(context.display_panel, "bottom")
+        display_panel = context.display_panel
+        if workspace_controller and display_panel:
+            command = workspace_controller.insert_display_panel(display_panel, "bottom")
             window.push_undo_command(command)
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
@@ -2946,12 +3053,13 @@ class WorkspaceSplitAction(Window.Action):
         context = typing.cast(DocumentController.ActionContext, context)
         window = typing.cast(DocumentController, context.window)
         workspace_controller = window.workspace_controller
-        if workspace_controller:
+        display_panel = context.display_panel
+        if workspace_controller and display_panel:
             h = self.get_int_property(context, "horizontal_count")
             v = self.get_int_property(context, "vertical_count")
             h = max(1, min(8, h))
             v = max(1, min(8, v))
-            display_panels = workspace_controller.apply_layout(context.display_panel, h, v)
+            display_panels = workspace_controller.apply_layout(display_panel, h, v)
             action_result = Window.ActionResult(Window.ActionStatus.FINISHED)
             action_result.results["display_panels"] = list(display_panels)
             return action_result
@@ -3086,10 +3194,12 @@ class DisplayPanelClearAction(Window.Action):
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
         window = typing.cast(DocumentController, context.window)
+        workspace_controller = window.workspace_controller
+        assert  workspace_controller
         if context.display_panel:
-            window.workspace_controller.clear_display_panels([context.display_panel])
+            workspace_controller.clear_display_panels([context.display_panel])
         else:
-            window.workspace_controller.clear_display_panels(context.display_panels)
+            workspace_controller.clear_display_panels(context.display_panels)
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
     def is_enabled(self, context: Window.ActionContext) -> bool:
@@ -3105,10 +3215,12 @@ class DisplayPanelCloseAction(Window.Action):
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
         window = typing.cast(DocumentController, context.window)
+        workspace_controller = window.workspace_controller
+        assert workspace_controller
         if context.display_panel:
-            window.workspace_controller.close_display_panels([context.display_panel])
+            workspace_controller.close_display_panels([context.display_panel])
         else:
-            window.workspace_controller.close_display_panels(context.display_panels)
+            workspace_controller.close_display_panels(context.display_panels)
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
     def is_enabled(self, context: Window.ActionContext) -> bool:
@@ -3164,10 +3276,12 @@ class DisplayPanelSelectSiblings(Window.Action):
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
         window = typing.cast(DocumentController, context.window)
+        workspace_controller = window.workspace_controller
+        assert workspace_controller
         if context.display_panel:
-            window.workspace_controller.select_sibling_display_panels([context.display_panel])
+            workspace_controller.select_sibling_display_panels([context.display_panel])
         else:
-            window.workspace_controller.select_sibling_display_panels(context.display_panels)
+            workspace_controller.select_sibling_display_panels(context.display_panels)
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
     def is_enabled(self, context: Window.ActionContext) -> bool:
@@ -3183,9 +3297,10 @@ class DisplayPanelShowItemAction(Window.Action):
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
         window = typing.cast(DocumentController, context.window)
+        workspace_controller = window.workspace_controller
         display_panel = context.display_panel
-        if display_panel:
-            window.workspace_controller.switch_to_display_content(display_panel, "data-display-panel", display_panel.display_item)
+        if workspace_controller and display_panel:
+            workspace_controller.switch_to_display_content(display_panel, "data-display-panel", display_panel.display_item)
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
     def is_checked(self, context: Window.ActionContext) -> bool:
@@ -3205,9 +3320,10 @@ class DisplayPanelShowGridBrowserAction(Window.Action):
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
         window = typing.cast(DocumentController, context.window)
+        workspace_controller = window.workspace_controller
         display_panel = context.display_panel
-        if display_panel:
-            window.workspace_controller.switch_to_display_content(display_panel, "browser-display-panel", display_panel.display_item)
+        if workspace_controller and display_panel:
+            workspace_controller.switch_to_display_content(display_panel, "browser-display-panel", display_panel.display_item)
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
     def is_checked(self, context: Window.ActionContext) -> bool:
@@ -3227,9 +3343,10 @@ class DisplayPanelShowThumbnailBrowserAction(Window.Action):
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
         window = typing.cast(DocumentController, context.window)
+        workspace_controller = window.workspace_controller
         display_panel = context.display_panel
-        if display_panel:
-            window.workspace_controller.switch_to_display_content(display_panel, "thumbnail-browser-display-panel", display_panel.display_item)
+        if workspace_controller and display_panel:
+            workspace_controller.switch_to_display_content(display_panel, "thumbnail-browser-display-panel", display_panel.display_item)
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
     def is_checked(self, context: Window.ActionContext) -> bool:
@@ -3462,7 +3579,7 @@ class RasterDisplayMoveAction(Window.Action):
 
 
 class RasterDisplayMoveGraphicsAction(Window.Action):
-    def __init__(self, action_id: str, action_name: str, delta: Geometry.FloatPoint):
+    def __init__(self, action_id: str, action_name: str, delta: Geometry.FloatPoint) -> None:
         super().__init__()
         self.action_id = action_id
         self.action_name = action_name
@@ -3474,7 +3591,7 @@ class RasterDisplayMoveGraphicsAction(Window.Action):
         if display_panel:
             display_canvas_item = display_panel.display_canvas_item
             if display_canvas_item:
-                display_panel.nudge_selected_graphics(display_canvas_item.mouse_mapping, self.__delta)
+                display_panel.nudge_selected_graphics(display_canvas_item.mouse_mapping, self.__delta.as_size())
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
     def is_enabled(self, context: Window.ActionContext) -> bool:
@@ -3483,7 +3600,7 @@ class RasterDisplayMoveGraphicsAction(Window.Action):
 
 
 class RasterDisplayNudgeSliceAction(Window.Action):
-    def __init__(self, action_id: str, action_name: str, delta: int):
+    def __init__(self, action_id: str, action_name: str, delta: int) -> None:
         super().__init__()
         self.action_id = action_id
         self.action_name = action_name
@@ -3545,7 +3662,7 @@ class LinePlotDisplayAutoDisplayAction(Window.Action):
 
 
 class LinePlotDisplayMoveGraphicsAction(Window.Action):
-    def __init__(self, action_id: str, action_name: str, delta: Geometry.FloatPoint):
+    def __init__(self, action_id: str, action_name: str, delta: Geometry.FloatPoint) -> None:
         super().__init__()
         self.action_id = action_id
         self.action_name = action_name
@@ -3557,7 +3674,7 @@ class LinePlotDisplayMoveGraphicsAction(Window.Action):
         if display_panel:
             display_canvas_item = display_panel.display_canvas_item
             if display_canvas_item:
-                display_panel.nudge_selected_graphics(display_canvas_item.mouse_mapping, self.__delta)
+                display_panel.nudge_selected_graphics(display_canvas_item.mouse_mapping, self.__delta.as_size())
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
     def is_enabled(self, context: Window.ActionContext) -> bool:
@@ -3791,7 +3908,7 @@ Window.register_action(RemoveGraphicFromMaskAction())
 
 class ProcessingAction(Window.Action):
 
-    def execute_processing(self, context: Window.ActionContext, fn) -> Window.ActionResult:
+    def execute_processing(self, context: Window.ActionContext, fn: _ProcessingFn) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
         if context.display_item and context.data_item:
             typing.cast(DocumentController, context.window)._perform_processing(context.display_item,
@@ -3799,17 +3916,17 @@ class ProcessingAction(Window.Action):
                                                                                 context.crop_graphic, fn)
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
-    def invoke_processing(self, context: Window.ActionContext, fn) -> Window.ActionResult:
+    def invoke_processing(self, context: Window.ActionContext, fn: _ProcessingFn) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
         if context.display_item:
             typing.cast(DocumentController, context.window)._perform_processing_select(context.display_item,
                                                                                        context.crop_graphic, fn)
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
-    def execute_processing2(self, context: Window.ActionContext, fn) -> Window.ActionResult:
+    def execute_processing2(self, context: Window.ActionContext, fn: _Processing2Fn) -> Window.ActionResult:
         return self.invoke_processing2(context, fn)
 
-    def invoke_processing2(self, context: Window.ActionContext, fn) -> Window.ActionResult:
+    def invoke_processing2(self, context: Window.ActionContext, fn: _Processing2Fn) -> Window.ActionResult:
         data_sources = typing.cast(DocumentController, context.window)._get_two_data_sources()
         if data_sources:
             (display_item1, crop_graphic1), (display_item2, crop_graphic2) = data_sources
@@ -3821,10 +3938,10 @@ class ProcessingAction(Window.Action):
                                                                                      crop_graphic1, crop_graphic2, fn)
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
-    def execute_processing3(self, context: Window.ActionContext, fn) -> Window.ActionResult:
+    def execute_processing3(self, context: Window.ActionContext, fn: _Processing3Fn) -> Window.ActionResult:
         return self.invoke_processing3(context, fn)
 
-    def invoke_processing3(self, context: Window.ActionContext, fn) -> Window.ActionResult:
+    def invoke_processing3(self, context: Window.ActionContext, fn: _Processing3Fn) -> Window.ActionResult:
         data_sources = typing.cast(DocumentController, context.window)._get_n_data_sources(3)
         if data_sources:
             (display_item1, crop_graphic1), (display_item2, crop_graphic2), (display_item3, crop_graphic3) = data_sources
@@ -3911,11 +4028,11 @@ class ExtractAlphaAction(ProcessingAction):
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
-        return self.execute_processing3(context, context.model.get_rgb_alpha_new)
+        return self.execute_processing(context, context.model.get_rgb_alpha_new)
 
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
-        return self.invoke_processing3(context, context.model.get_rgb_alpha_new)
+        return self.invoke_processing(context, context.model.get_rgb_alpha_new)
 
 
 class ExtractBlueAction(ProcessingAction):
@@ -4480,7 +4597,7 @@ Window.register_action(TransformAction())
 Window.register_action(UniformFilterAction())
 
 
-def component_changed(component, component_types):
+def component_changed(component: typing.Any, component_types: typing.Set[str]) -> None:
     # when a processing component is registered, create a ProcessingComponentAction for the
     # processing component.
     if "processing-component" in component_types:

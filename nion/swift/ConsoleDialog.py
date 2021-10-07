@@ -186,7 +186,7 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
 
         self.content_widget.add(self.__text_edit_widget)
 
-    def close(self):
+    def close(self) -> None:
         super().close()
         self.__text_edit_widget = None
 
@@ -359,7 +359,7 @@ class ConsoleDialog(Dialog.ActionDialog):
 
         self._create_menus()
 
-    def close(self):
+    def close(self) -> None:
         self.__document_controller.unregister_console(self)
         super().close()
 

@@ -235,7 +235,7 @@ class HeaderCanvasItem(CanvasItem.CanvasItemComposition):
         self.on_double_clicked = None
         self.__mouse_pressed_position = None
 
-    def close(self):
+    def close(self) -> None:
         self.on_select_pressed = None
         self.on_drag_pressed = None
         self.on_close_clicked = None

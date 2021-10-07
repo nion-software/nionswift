@@ -491,7 +491,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         self.__display_frame_rate_last_index = 0
         self.__display_latency = False
 
-    def close(self):
+    def close(self) -> None:
         self.__screen_pixel_per_image_pixel_stream.remove_ref()
         self.__screen_pixel_per_image_pixel_stream = None
         if self.__undo_command:
