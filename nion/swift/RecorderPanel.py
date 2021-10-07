@@ -141,13 +141,13 @@ class Recorder:
         def _set_modified_state(self, modified_state: typing.Any) -> None:
             self.__document_controller.document_model.modified_state = modified_state
 
-        def _redo(self):
+        def _redo(self) -> None:
             self.__document_controller.document_model.undelete_all(self.__undelete_log)
             self.__undelete_log.close()
             self.__undelete_log = None
             self.__document_controller.workspace_controller.reconstruct(self.__new_workspace_layout)
 
-        def _undo(self):
+        def _undo(self) -> None:
             data_item = self.data_item
             self.__recorder.stop_recording()
             self.__new_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
