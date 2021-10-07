@@ -226,7 +226,7 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
 
         self.__cursor_changed = cursor_changed_fn
 
-    def close(self):
+    def close(self) -> None:
         self._set_histogram_data(None)
         super().close()
 
@@ -390,7 +390,7 @@ class HistogramWidget(Widgets.CompositeWidgetBase):
 
         self.content_widget.add(histogram_widget)
 
-    def close(self):
+    def close(self) -> None:
         self.__color_map_data_stream_listener.close()
         self.__color_map_data_stream_listener = None
         self.__display_item_stream.remove_ref()
@@ -460,7 +460,7 @@ class StatisticsWidget(Widgets.CompositeWidgetBase):
 
         self.content_widget.add(stats_section)
 
-    def close(self):
+    def close(self) -> None:
         self.__statistics_property_changed_event_listener.close()
         self.__statistics_property_changed_event_listener = None
         super().close()
@@ -611,7 +611,7 @@ class HistogramPanel(Panel.Panel):
         # this is necessary to make the panel happy
         self.widget = column
 
-    def close(self):
+    def close(self) -> None:
         self.__histogram_widget_data_model.close()
         self.__histogram_widget_data_model = None
         self.__color_map_data_model.close()

@@ -67,7 +67,7 @@ class AddVariableCommand(Undo.UndoableCommand):
         self.__variable_index = None
         self.initialize()
 
-    def close(self):
+    def close(self) -> None:
         self.__computation_proxy.close()
         self.__computation_proxy = None
         self.__name = None
@@ -82,20 +82,20 @@ class AddVariableCommand(Undo.UndoableCommand):
         self.__variable = None
         super().close()
 
-    def perform(self):
+    def perform(self) -> None:
         computation = typing.cast(Symbolic.Computation, self.__computation_proxy.item)
         variable = computation.create_variable(self.__name, self.__value_type, self.__value, self.__value_default, self.__value_min, self.__value_max, self.__control_type, self.__specified_item, self.__label)
         self.__variable_index = computation.variables.index(variable)
 
-    def _get_modified_state(self):
+    def _get_modified_state(self) -> typing.Any:
         computation = self.__computation_proxy.item
         return computation.modified_state, self.__document_model.modified_state
 
-    def _set_modified_state(self, modified_state) -> None:
+    def _set_modified_state(self, modified_state: typing.Any) -> None:
         computation = self.__computation_proxy.item
         computation.modified_state, self.__document_model.modified_state = modified_state
 
-    def _compare_modified_states(self, state1, state2) -> bool:
+    def _compare_modified_states(self, state1: typing.Any, state2: typing.Any) -> bool:
         # override to allow the undo command to track state; but only use part of the state for comparison
         return state1[0] == state2[0]
 
@@ -118,27 +118,27 @@ class RemoveVariableCommand(Undo.UndoableCommand):
         self.__variable_dict = variable.write_to_dict()
         self.initialize()
 
-    def close(self):
+    def close(self) -> None:
         self.__computation_proxy.close()
         self.__computation_proxy = None
         self.__variable_index = None
         self.__variable_dict = None
         super().close()
 
-    def perform(self):
+    def perform(self) -> None:
         computation = self.__computation_proxy.item
         variable = computation.variables[self.__variable_index]
         computation.remove_variable(variable)
 
-    def _get_modified_state(self):
+    def _get_modified_state(self) -> typing.Any:
         computation = self.__computation_proxy.item
         return computation.modified_state, self.__document_model.modified_state
 
-    def _set_modified_state(self, modified_state) -> None:
+    def _set_modified_state(self, modified_state: typing.Any) -> None:
         computation = self.__computation_proxy.item
         computation.modified_state, self.__document_model.modified_state = modified_state
 
-    def _compare_modified_states(self, state1, state2) -> bool:
+    def _compare_modified_states(self, state1: typing.Any, state2: typing.Any) -> bool:
         # override to allow the undo command to track state; but only use part of the state for comparison
         return state1[0] == state2[0]
 
@@ -162,7 +162,7 @@ class CreateComputationCommand(Undo.UndoableCommand):
         self.__document_model = document_model
         self.__data_item_proxy = data_item.create_proxy()
 
-    def close(self):
+    def close(self) -> None:
         self.__document_model = None
         self.__data_item_proxy.close()
         self.__data_item_proxy = None
@@ -172,15 +172,15 @@ class CreateComputationCommand(Undo.UndoableCommand):
     def _computation(self) -> Symbolic.Computation:
         return self.__document_model.create_computation()
 
-    def perform(self):
+    def perform(self) -> None:
         data_item = self.__data_item_proxy.item
         computation = self.__document_model.create_computation()
         self.__document_model.set_data_item_computation(data_item, computation)
 
-    def _get_modified_state(self):
+    def _get_modified_state(self) -> typing.Any:
         return self.__document_model.modified_state
 
-    def _set_modified_state(self, modified_state) -> None:
+    def _set_modified_state(self, modified_state: typing.Any) -> None:
         self.__document_model.modified_state = modified_state
 
     def _undo(self):
@@ -198,7 +198,7 @@ class ChangeComputationCommand(Undo.UndoableCommand):
         self.__value_dict = kwargs
         self.initialize()
 
-    def close(self):
+    def close(self) -> None:
         self.__properties = None
         self.__computation_proxy.close()
         self.__computation_proxy = None
@@ -206,20 +206,20 @@ class ChangeComputationCommand(Undo.UndoableCommand):
         self.__value_dict = None
         super().close()
 
-    def perform(self):
+    def perform(self) -> None:
         computation = self.__computation_proxy.item
         for key, value in self.__value_dict.items():
             setattr(computation, key, value)
 
-    def _get_modified_state(self):
+    def _get_modified_state(self) -> typing.Any:
         computation = self.__computation_proxy.item
         return computation.modified_state, self.__document_model.modified_state
 
-    def _set_modified_state(self, modified_state) -> None:
+    def _set_modified_state(self, modified_state: typing.Any) -> None:
         computation = self.__computation_proxy.item
         computation.modified_state, self.__document_model.modified_state = modified_state
 
-    def _compare_modified_states(self, state1, state2) -> bool:
+    def _compare_modified_states(self, state1: typing.Any, state2: typing.Any) -> bool:
         # override to allow the undo command to track state; but only use part of the state for comparison
         return state1[0] == state2[0]
 
@@ -277,7 +277,7 @@ class ComputationModel:
         self.variable_removed_event = Event.Event()
         self.variable_property_changed_event = Event.Event()
 
-    def close(self):
+    def close(self) -> None:
         self.__set_display_item(None)
 
     @property
@@ -684,7 +684,7 @@ class ComputationPanelSection:
 
         self.widget = section_widget
 
-    def close(self):
+    def close(self) -> None:
         self.__variable_type_changed_event_listener.close()
         self.__variable_type_changed_event_listener = None
 
@@ -937,7 +937,7 @@ class EditComputationDialog(Dialog.ActionDialog):
         column.add(button_row)
         column.add_spacing(6)
 
-    def close(self):
+    def close(self) -> None:
         self.document_controller.clear_task(str(id(self)))
         for listener in self.__listeners:
             listener.close()
@@ -985,7 +985,7 @@ class ClosingTuplePropertyBinding(Binding.TuplePropertyBinding):
         super().__init__(source, property_name, tuple_index, converter, fallback)
         self.__source = source
 
-    def close(self):
+    def close(self) -> None:
         super().close()
         self.__source.close()
         self.__source = None
@@ -996,7 +996,7 @@ class ClosingPropertyBinding(Binding.PropertyBinding):
         super().__init__(source, property_name, converter=converter, validator=validator, fallback=fallback)
         self.__source = source
 
-    def close(self):
+    def close(self) -> None:
         super().close()
         self.__source.close()
         self.__source = None
@@ -1386,7 +1386,7 @@ class RemoveComputationCommand(Undo.UndoableCommand):
         self.__undelete_logs: typing.List[Changes.UndeleteLog] = list()
         self.initialize()
 
-    def close(self):
+    def close(self) -> None:
         self.__document_controller = None
         self.__old_workspace_layout = None
         self.__new_workspace_layout = None
@@ -1396,15 +1396,15 @@ class RemoveComputationCommand(Undo.UndoableCommand):
         self.__undelete_logs = None  # type: ignore
         super().close()
 
-    def perform(self):
+    def perform(self) -> None:
         document_model = self.__document_controller.document_model
         computation = document_model.computations[self.__computation_index]
         self.__undelete_logs.append(document_model.remove_computation_with_log(computation))
 
-    def _get_modified_state(self):
+    def _get_modified_state(self) -> typing.Any:
         return self.__document_controller.document_model.modified_state
 
-    def _set_modified_state(self, modified_state) -> None:
+    def _set_modified_state(self, modified_state: typing.Any) -> None:
         self.__document_controller.document_model.modified_state = modified_state
 
     def _undo(self):

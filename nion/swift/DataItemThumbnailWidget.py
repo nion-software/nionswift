@@ -26,7 +26,7 @@ class AbstractThumbnailSource:
         self.__thumbnail_data = None
         self.overlay_canvas_item = CanvasItem.EmptyCanvasItem()
 
-    def close(self):
+    def close(self) -> None:
         self.on_thumbnail_data_changed = None
 
     @property
@@ -55,7 +55,7 @@ class BitmapOverlayCanvasItem(CanvasItem.CanvasItemComposition):
         self.on_drag_pressed = None
         self.active = False
 
-    def close(self):
+    def close(self) -> None:
         self.on_drop_mime_data = None
         self.on_delete = None
         self.on_drag_pressed = None
@@ -186,7 +186,7 @@ class ThumbnailCanvasItem(CanvasItem.CanvasItemComposition):
 
         self.add_canvas_item(bitmap_overlay_canvas_item)
 
-    def close(self):
+    def close(self) -> None:
         self.__thumbnail_source.close()
         self.__thumbnail_source = None
         self.on_drag = None
@@ -250,7 +250,7 @@ class ThumbnailWidget(Widgets.CompositeWidgetBase):
         thumbnail_canvas_item.on_drag = drag
         thumbnail_canvas_item.on_delete = delete
 
-    def close(self):
+    def close(self) -> None:
         self.on_drop_mime_data = None
         self.on_drag = None
         self.on_delete = None
@@ -298,7 +298,7 @@ class DataItemThumbnailSource(AbstractThumbnailSource):
             self.set_display_item(display_item)
         self.__update_display_item_task = None
 
-    def close(self):
+    def close(self) -> None:
         self.__detach_listeners()
         if self.__display_item_binding:
             self.__display_item_binding.close()
@@ -392,7 +392,7 @@ class DataItemReferenceThumbnailSource(DataItemThumbnailSource):
 
         self.__data_item_reference_changed_event_listener = data_item_reference.data_item_reference_changed_event.listen(data_item_changed)
 
-    def close(self):
+    def close(self) -> None:
         self.__data_item_reference_changed_event_listener.close()
         self.__data_item_reference_changed_event_listener = None
         super().close()

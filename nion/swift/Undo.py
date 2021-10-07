@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import abc
 import copy
 import gettext
@@ -9,27 +11,27 @@ _ = gettext.gettext
 
 class UndoableCommand(abc.ABC):
 
-    def __init__(self, title: str, *, command_id: str=None, is_mergeable: bool=False):
+    def __init__(self, title: str, *, command_id: typing.Optional[str] = None, is_mergeable: bool = False) -> None:
         self.__old_modified_state = None
         self.__new_modified_state = None
         self.__title = title
         self.__command_id = command_id
         self.__is_mergeable = is_mergeable
 
-    def close(self):
+    def close(self) -> None:
         self.__old_modified_state = None
         self.__new_modified_state = None
 
     @property
-    def title(self):
+    def title(self) -> str:
         return self.__title
 
     @property
-    def command_id(self):
+    def command_id(self) -> typing.Optional[str]:
         return self.__command_id
 
     @property
-    def is_mergeable(self):
+    def is_mergeable(self) -> bool:
         return self.__is_mergeable
 
     @property
@@ -40,49 +42,49 @@ class UndoableCommand(abc.ABC):
     def is_undo_valid(self) -> bool:
         return self._compare_modified_states(self.__new_modified_state, self._get_modified_state())
 
-    def _compare_modified_states(self, state1, state2) -> bool:
+    def _compare_modified_states(self, state1: typing.Any, state2: typing.Any) -> bool:
         # override to allow the undo command to track state; but only use part of the state for comparison
         return state1 == state2
 
-    def initialize(self, modified_state=None):
+    def initialize(self, modified_state: typing.Any = None) -> None:
         self.__old_modified_state = modified_state if modified_state else self._get_modified_state()
 
     @property
-    def _old_modified_state(self):
+    def _old_modified_state(self) -> typing.Any:
         return self.__old_modified_state
 
-    def commit(self):
+    def commit(self) -> None:
         self.__new_modified_state = self._get_modified_state()
 
-    def perform(self):
+    def perform(self) -> None:
         self._perform()
 
-    def undo(self):
+    def undo(self) -> None:
         self._undo()
         self._set_modified_state(self.__old_modified_state)
         self.__is_mergeable = False
 
-    def redo(self):
+    def redo(self) -> None:
         self._redo()
         self._set_modified_state(self.__new_modified_state)
 
-    def can_merge(self, command: "UndoableCommand") -> bool:
+    def can_merge(self, command: UndoableCommand) -> bool:
         return False
 
-    def merge(self, command: "UndoableCommand") -> None:
+    def merge(self, command: UndoableCommand) -> None:
         assert self.command_id and self.command_id == command.command_id
         self._merge(command)
         self.__new_modified_state = self._get_modified_state()
 
-    def _merge(self, command: "UndoableCommand") -> None:
+    def _merge(self, command: UndoableCommand) -> None:
         pass
 
     @abc.abstractmethod
-    def _get_modified_state(self):
+    def _get_modified_state(self) -> typing.Any:
         pass
 
     @abc.abstractmethod
-    def _set_modified_state(self, modified_state) -> None:
+    def _set_modified_state(self, modified_state: typing.Any) -> None:
         pass
 
     def _perform(self) -> None:
@@ -103,7 +105,7 @@ class AggregateUndoableCommand(UndoableCommand):
         self.__commands = copy.copy(children)
         self.initialize(self.__commands[-1]._old_modified_state)
 
-    def close(self):
+    def close(self) -> None:
         while len(self.__commands) > 0:
             self.__commands.pop().close()
         super().close()
@@ -116,10 +118,10 @@ class AggregateUndoableCommand(UndoableCommand):
     def is_undo_valid(self) -> bool:
         return self.__commands[-1].is_undo_valid if self.__commands else False
 
-    def _get_modified_state(self):
+    def _get_modified_state(self) -> typing.Any:
         return self.__commands[-1]._get_modified_state()
 
-    def _set_modified_state(self, modified_state) -> None:
+    def _set_modified_state(self, modified_state: typing.Any) -> None:
         self.__commands[-1]._set_modified_state(modified_state)
 
     def _perform(self) -> None:
@@ -137,7 +139,7 @@ class AggregateUndoableCommand(UndoableCommand):
 
 class UndoStack:
 
-    def __init__(self):
+    def __init__(self) -> None:
         # undo/redo stack. next item is at the end.
         self.__undo_stack = list()
         self.__redo_stack = list()

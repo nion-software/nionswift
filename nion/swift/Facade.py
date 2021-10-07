@@ -663,7 +663,7 @@ class Panel(PanelModule.Panel):
         super().__init__(document_controller, panel_id, panel_id)
         self.panel_delegate = panel_delegate
 
-    def close(self):
+    def close(self) -> None:
         if callable(getattr(self.panel_delegate, "close", None)):
             self.panel_delegate.close()
         super().close()
@@ -3196,7 +3196,7 @@ class API_1:
             def __del__(self):
                 self.close()
 
-            def close(self):
+            def close(self) -> None:
                 if self.__io_handler_delegate:
                     io_handler_delegate_close_fn = getattr(self.__io_handler_delegate, "close", None)
                     if io_handler_delegate_close_fn:
@@ -3238,7 +3238,7 @@ class API_1:
             def __del__(self):
                 self.close()
 
-            def close(self):
+            def close(self) -> None:
                 if self.__menu_item_handler:
                     menu_item_handler_close_fn = getattr(self.__menu_item_handler, "close", None)
                     if menu_item_handler_close_fn:
@@ -3262,7 +3262,7 @@ class API_1:
             def __del__(self):
                 self.close()
 
-            def close(self):
+            def close(self) -> None:
                 pass  # closed automatically during application shutdown
 
         return HardwareSourceReference()
@@ -3303,7 +3303,7 @@ class API_1:
             def __init__(self):
                 workspace_manager.register_panel(create_facade_panel, panel_id, panel_name, panel_positions, panel_position, properties)
 
-            def close(self):
+            def close(self) -> None:
                 pass
 
         return PanelReference()

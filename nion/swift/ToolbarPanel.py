@@ -231,7 +231,7 @@ class ToolbarPanel(Panel.Panel):
         end_divider.canvas_item.add_canvas_item(CanvasItem.DividerCanvasItem(color="#888"))
         self.__toolbar_widget_row.add(end_divider)
 
-    def close(self):
+    def close(self) -> None:
         self.__component_registered_listener.close()
         self.__component_registered_listener = None
         super().close()

@@ -1,12 +1,14 @@
 """
     FilterPanel contains classes the implement the tracking of filters for the data panel.
 """
+from __future__ import annotations
 
 # standard libraries
 import bisect
 import datetime
 import gettext
 import threading
+import typing
 import weakref
 
 # third party libraries
@@ -15,6 +17,9 @@ import weakref
 # local libraries
 from nion.swift import Panel
 from nion.utils import ListModel
+
+if typing.TYPE_CHECKING:
+    from nion.swift import DocumentController
 
 _ = gettext.gettext
 
@@ -41,7 +46,7 @@ class FilterController:
         data items.
     """
 
-    def __init__(self, document_controller):
+    def __init__(self, document_controller: DocumentController.DocumentController) -> None:
         self.ui = document_controller.ui
         self.__periodic_listener = document_controller.add_periodic(1.0, self.__periodic)
         self.item_model_controller = self.ui.create_item_model_controller()
@@ -100,7 +105,7 @@ class FilterController:
         for index, display_item in enumerate(self.__display_items_model.display_items):
             display_item_inserted("display_items", display_item, index)
 
-    def close(self):
+    def close(self) -> None:
         # Close the data model controller. Un-listen to the data item list model and close the item model controller.
         self.__display_item_inserted_listener.close()
         self.__display_item_inserted_listener = None
@@ -112,10 +117,10 @@ class FilterController:
         self.item_model_controller = None
 
     @property
-    def document_controller(self):
+    def document_controller(self) -> DocumentController.DocumentController:
         return self.__document_controller_weakref()
 
-    def __periodic(self):
+    def __periodic(self) -> None:
         self.update_all_nodes()
 
     def __display_for_tree_node(self, tree_node):

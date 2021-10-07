@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # standard libraries
 import gettext
 import numpy
@@ -20,12 +22,15 @@ from nion.utils import Geometry
 from nion.utils import Model
 from nion.utils import Registry
 
+if typing.TYPE_CHECKING:
+    from nion.swift import DocumentController
+
 _ = gettext.gettext
 
 
 class Recorder:
 
-    def __init__(self, document_controller, data_item):
+    def __init__(self, document_controller: DocumentController.DocumentController, data_item: DataItem.DataItem) -> None:
         self.__document_controller = document_controller
         self.__document_model = document_controller.document_model
         self.__data_item = data_item
@@ -84,7 +89,7 @@ class Recorder:
         data_item_content_changed()
         data_changed()
 
-    def close(self):
+    def close(self) -> None:
         self.__data_item_changed_event_listener.close()
         self.__data_item_changed_event_listener = None
         self.__item_removed_event_listener.close()
@@ -109,7 +114,7 @@ class Recorder:
             self.__undelete_log = None
             self.initialize()
 
-        def close(self):
+        def close(self) -> None:
             self.__document_controller = None
             if self.__data_item_proxy:
                 self.__data_item_proxy.close()
@@ -122,7 +127,7 @@ class Recorder:
                 self.__undelete_log = None
             super().close()
 
-        def perform(self):
+        def perform(self) -> None:
             data_item = self.__data_item_fn()
             self.__data_item_proxy = data_item.create_proxy()
 
@@ -130,10 +135,10 @@ class Recorder:
         def data_item(self):
             return self.__data_item_proxy.item if self.__data_item_proxy else None
 
-        def _get_modified_state(self):
+        def _get_modified_state(self) -> typing.Any:
             return self.__document_controller.document_model.modified_state
 
-        def _set_modified_state(self, modified_state) -> None:
+        def _set_modified_state(self, modified_state: typing.Any) -> None:
             self.__document_controller.document_model.modified_state = modified_state
 
         def _redo(self):
@@ -243,7 +248,7 @@ class Recorder:
 
 class RecorderDialog(Dialog.ActionDialog):
 
-    def __init__(self, document_controller, data_item):
+    def __init__(self, document_controller: DocumentController.DocumentController, data_item: DataItem.DataItem) -> None:
         ui = document_controller.ui
         super().__init__(ui, _("Recorder"), parent_window=document_controller, persistent_id="Recorder" + str(data_item.uuid))
 
@@ -344,7 +349,7 @@ class RecorderDialog(Dialog.ActionDialog):
         live_state_changed(data_item.is_live)
         recording_state_changed("stopped")
 
-    def close(self):
+    def close(self) -> None:
         self.__recorder.close()
         self.__recorder = None
         super().close()

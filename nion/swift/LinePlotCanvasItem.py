@@ -242,7 +242,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         self.__graphic_selection = None
         self.__pending_interval = None
 
-    def close(self):
+    def close(self) -> None:
         if self.__undo_command:
             self.__undo_command.close()
             self.__undo_command = None

@@ -55,7 +55,7 @@ class InfoPanel(Panel.Panel):
         # connect self as listener. this will result in calls to cursor_changed
         self.__cursor_changed_event_listener = self.document_controller.cursor_changed_event.listen(self.__cursor_changed)
 
-    def close(self):
+    def close(self) -> None:
         # disconnect self as listener
         self.__cursor_changed_event_listener.close()
         self.__cursor_changed_event_listener = None

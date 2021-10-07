@@ -155,7 +155,7 @@ class MemoryProfileContext:
     def __exit__(self, type_, value, traceback):
         self.close()
 
-    def close(self):
+    def close(self) -> None:
         for item in reversed(self.__items_exit):
             item()
         self.__items_exit = list()

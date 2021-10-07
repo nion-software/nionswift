@@ -396,7 +396,7 @@ class ProjectTreeWidget(Widgets.CompositeWidgetBase):
         oo.source(profile).ordered_sequence_from_array("project_references").collect_list().action_fn(project_references_changed)
         self.__projects_model_observer = oo.make_observable()
 
-    def close(self):
+    def close(self) -> None:
         self._tree_model.on_closed_items_changed = None
         self.__projects_model_observer.close()
         self.__projects_model_observer = None
@@ -409,7 +409,7 @@ class CollectionListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
         super().__init__()
         self.__collection_selection = collection_selection
 
-    def close(self):
+    def close(self) -> None:
         pass
 
     def paint_item(self, drawing_context, display_item, rect, is_selected):
@@ -568,7 +568,7 @@ class CollectionsWidget(Widgets.CompositeWidgetBase):
         # for testing
         self._collection_selection = collection_selection
 
-    def close(self):
+    def close(self) -> None:
         for controller in self.__data_group_controllers:
             controller.close()
         self.__data_group_controllers.clear()

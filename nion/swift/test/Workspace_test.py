@@ -1177,7 +1177,7 @@ class TestWorkspaceClass(unittest.TestCase):
             display_panel.set_display_item(display_panel.document_controller.document_model.get_display_item_for_data_item(data_item))
             if error: raise RuntimeError()
             self.closed = False
-        def close(self):
+        def close(self) -> None:
             self.__display_panel.footer_canvas_item.remove_canvas_item(self.__composition)
             self.__display_panel = None
             self.closed = True

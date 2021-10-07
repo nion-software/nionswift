@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 # standard libraries
 import gettext
+import typing
 
 # third party libraries
 # None
@@ -9,12 +12,16 @@ from nion.swift import DisplayPanel
 from nion.ui import Dialog
 from nion.utils import Geometry
 
+if typing.TYPE_CHECKING:
+    from nion.swift import DocumentController
+    from nion.swift.model import DisplayItem
+
 _ = gettext.gettext
 
 
 class DisplayEditorDialog(Dialog.ActionDialog):
 
-    def __init__(self, document_controller, display_item):
+    def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem) -> None:
         ui = document_controller.ui
         super().__init__(ui, _("Edit Display"), parent_window=document_controller, persistent_id="EditDisplayDialog" + str(display_item.uuid))
 

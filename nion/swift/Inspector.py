@@ -86,7 +86,7 @@ class InspectorPanel(Panel.Panel):
         self.__display_type = None
         self.__display_data_shape = None
 
-    def close(self):
+    def close(self) -> None:
         if self.__data_item_will_be_removed_event_listener:
             self.__data_item_will_be_removed_event_listener.close()
             self.__data_item_will_be_removed_event_listener = None
@@ -271,7 +271,7 @@ class ChangeDisplayItemPropertyCommand(Undo.UndoableCommand):
         self.__old_display_layers = getattr(display_item, property_name)
         self.initialize()
 
-    def close(self):
+    def close(self) -> None:
         self.__document_model = None
         self.__display_item_proxy.close()
         self.__display_item_proxy = None
@@ -280,19 +280,19 @@ class ChangeDisplayItemPropertyCommand(Undo.UndoableCommand):
         self.__old_display_layers = None
         super().close()
 
-    def perform(self):
+    def perform(self) -> None:
         display_item = self.__display_item_proxy.item
         setattr(display_item, self.__property_name, self.__new_display_layers)
 
-    def _get_modified_state(self):
+    def _get_modified_state(self) -> typing.Any:
         display_item = self.__display_item_proxy.item
         return display_item.modified_state, self.__document_model.modified_state
 
-    def _set_modified_state(self, modified_state) -> None:
+    def _set_modified_state(self, modified_state: typing.Any) -> None:
         display_item = self.__display_item_proxy.item
         display_item.modified_state, self.__document_model.modified_state = modified_state
 
-    def _compare_modified_states(self, state1, state2) -> bool:
+    def _compare_modified_states(self, state1: typing.Any, state2: typing.Any) -> bool:
         # override to allow the undo command to track state; but only use part of the state for comparison
         return state1[0] == state2[0]
 
@@ -318,7 +318,7 @@ class ChangePropertyCommand(Undo.UndoableCommand):
         self.__old_value = getattr(data_item, property_name)
         self.initialize()
 
-    def close(self):
+    def close(self) -> None:
         self.__document_model = None
         self.__data_item_proxy.close()
         self.__data_item_proxy = None
@@ -327,19 +327,19 @@ class ChangePropertyCommand(Undo.UndoableCommand):
         self.__old_value = None
         super().close()
 
-    def perform(self):
+    def perform(self) -> None:
         data_item = self.__data_item_proxy.item
         setattr(data_item, self.__property_name, self.__new_value)
 
-    def _get_modified_state(self):
+    def _get_modified_state(self) -> typing.Any:
         data_item = self.__data_item_proxy.item
         return data_item.modified_state, self.__document_model.modified_state
 
-    def _set_modified_state(self, modified_state) -> None:
+    def _set_modified_state(self, modified_state: typing.Any) -> None:
         data_item = self.__data_item_proxy.item
         data_item.modified_state, self.__document_model.modified_state = modified_state
 
-    def _compare_modified_states(self, state1, state2) -> bool:
+    def _compare_modified_states(self, state1: typing.Any, state2: typing.Any) -> bool:
         # override to allow the undo command to track state; but only use part of the state for comparison
         return state1[0] == state2[0]
 
@@ -398,7 +398,7 @@ class ChangeDisplayPropertyBinding(Binding.Binding):
 
         self.__property_changed_listener = display_item.display_property_changed_event.listen(property_changed)
 
-    def close(self):
+    def close(self) -> None:
         self.__property_changed_listener.close()
         self.__property_changed_listener = None
         super().close()
@@ -474,7 +474,7 @@ class DisplayDataChannelPropertyCommandModel(Model.PropertyModel):
 
         self.__changed_listener = display_data_channel.property_changed_event.listen(property_changed_from_display)
 
-    def close(self):
+    def close(self) -> None:
         self.__changed_listener.close()
         self.__changed_listener = None
         super().close()
@@ -499,7 +499,7 @@ class GraphicPropertyCommandModel(Model.PropertyModel):
 
         self.__changed_listener = graphic.property_changed_event.listen(property_changed_from_graphic)
 
-    def close(self):
+    def close(self) -> None:
         self.__changed_listener.close()
         self.__changed_listener = None
         super().close()
@@ -641,7 +641,7 @@ class ChangeDisplayLayerPropertyCommand(Undo.UndoableCommand):
         self.__old_properties = display_item.save_properties()
         self.initialize()
 
-    def close(self):
+    def close(self) -> None:
         self.__document_model = None
         self.__display_item_proxy.close()
         self.__display_item_proxy = None
@@ -650,19 +650,19 @@ class ChangeDisplayLayerPropertyCommand(Undo.UndoableCommand):
         self.__old_properties = None
         super().close()
 
-    def perform(self):
+    def perform(self) -> None:
         display_item = typing.cast(DisplayItem.DisplayItem, self.__display_item_proxy.item)
         display_item._set_display_layer_property(self.__display_layer_index, self.__property_name, self.__value)
 
-    def _get_modified_state(self):
+    def _get_modified_state(self) -> typing.Any:
         display_item = typing.cast(DisplayItem.DisplayItem, self.__display_item_proxy.item)
         return display_item.modified_state, self.__document_model.modified_state
 
-    def _set_modified_state(self, modified_state) -> None:
+    def _set_modified_state(self, modified_state: typing.Any) -> None:
         display_item = typing.cast(DisplayItem.DisplayItem, self.__display_item_proxy.item)
         display_item.modified_state, self.__document_model.modified_state = modified_state
 
-    def _compare_modified_states(self, state1, state2) -> bool:
+    def _compare_modified_states(self, state1: typing.Any, state2: typing.Any) -> bool:
         # override to allow the undo command to track state; but only use part of the state for comparison
         return state1[0] == state2[0]
 
@@ -686,7 +686,7 @@ class ChangeDisplayLayerDisplayDataChannelCommand(Undo.UndoableCommand):
         self.__display_data_channel_proxy = display_data_channel.create_proxy() if display_data_channel else None
         self.initialize()
 
-    def close(self):
+    def close(self) -> None:
         self.__document_model = None
         self.__display_item_proxy.close()
         self.__display_item_proxy = None
@@ -695,7 +695,7 @@ class ChangeDisplayLayerDisplayDataChannelCommand(Undo.UndoableCommand):
             self.__display_data_channel_proxy = None
         super().close()
 
-    def perform(self):
+    def perform(self) -> None:
         display_item = typing.cast(DisplayItem.DisplayItem, self.__display_item_proxy.item)
         display_data_channel = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_data_channel_proxy.item if self.__display_data_channel_proxy else None)
         old_display_data_channel = display_item.get_display_layer_display_data_channel(self.__display_layer_index)
@@ -709,15 +709,15 @@ class ChangeDisplayLayerDisplayDataChannelCommand(Undo.UndoableCommand):
             self.__display_data_channel_proxy.close()
             self.__display_data_channel_proxy = None
 
-    def _get_modified_state(self):
+    def _get_modified_state(self) -> typing.Any:
         display_item = typing.cast(DisplayItem.DisplayItem, self.__display_item_proxy.item)
         return display_item.modified_state, self.__document_model.modified_state
 
-    def _set_modified_state(self, modified_state) -> None:
+    def _set_modified_state(self, modified_state: typing.Any) -> None:
         display_item = typing.cast(DisplayItem.DisplayItem, self.__display_item_proxy.item)
         display_item.modified_state, self.__document_model.modified_state = modified_state
 
-    def _compare_modified_states(self, state1, state2) -> bool:
+    def _compare_modified_states(self, state1: typing.Any, state2: typing.Any) -> bool:
         # override to allow the undo command to track state; but only use part of the state for comparison
         return state1[0] == state2[0]
 
@@ -931,7 +931,7 @@ class LinePlotDisplayLayersInspectorSection(InspectorSection):
                 display_layer_property_changed("fill_color")
                 display_layer_property_changed("data_row")
 
-            def close(self):
+            def close(self) -> None:
                 self.__label_edit_widget = None
                 self.__display_data_channel_index_widget = None
                 self.__display_data_channel_row_widget = None
@@ -988,7 +988,7 @@ class LinePlotDisplayLayersInspectorSection(InspectorSection):
         self.add_widget_to_content(column)
         self.finish_widget_content()
 
-    def close(self):
+    def close(self) -> None:
         if self.__display_layer_inserted_listener:
             self.__display_layer_inserted_listener.close()
             self.__display_layer_inserted_listener = None
@@ -1087,7 +1087,7 @@ class ImageDataInspectorSection(InspectorSection):
         # add unbinders
         self._unbinder.add([display_item, display_data_channel], [self.info_datetime_label.unbind_text, self.info_format_label.unbind_text, self.display_limits_range_low.unbind_text, self.display_limits_range_high.unbind_text, self.display_limits_limit_low.unbind_text, self.display_limits_limit_high.unbind_text])
 
-    def close(self):
+    def close(self) -> None:
         self.__display_limits_model.close()
         self.__display_limits_model = None
         self.__color_map_changed_listener.close()
@@ -1162,7 +1162,7 @@ class SessionInspectorSection(InspectorSection):
         self.add_widget_to_content(widget)
         self.finish_widget_content()
 
-    def close(self):
+    def close(self) -> None:
         if self.__property_changed_listener:
             self.__property_changed_listener.close()
             self.__property_changed_listener = None
@@ -1178,7 +1178,7 @@ class ChangeIntensityCalibrationCommand(Undo.UndoableCommand):
         self.__old_intensity_calibration = data_item.intensity_calibration
         self.initialize()
 
-    def close(self):
+    def close(self) -> None:
         self.__document_model = None
         self.__data_item_proxy.close()
         self.__data_item_proxy = None
@@ -1186,19 +1186,19 @@ class ChangeIntensityCalibrationCommand(Undo.UndoableCommand):
         self.__old_intensity_calibration = None
         super().close()
 
-    def perform(self):
+    def perform(self) -> None:
         data_item = self.__data_item_proxy.item
         data_item.set_intensity_calibration(self.__new_intensity_calibration)
 
-    def _get_modified_state(self):
+    def _get_modified_state(self) -> typing.Any:
         data_item = self.__data_item_proxy.item
         return data_item.modified_state, self.__document_model.modified_state
 
-    def _set_modified_state(self, modified_state) -> None:
+    def _set_modified_state(self, modified_state: typing.Any) -> None:
         data_item = self.__data_item_proxy.item
         data_item.modified_state, self.__document_model.modified_state = modified_state
 
-    def _compare_modified_states(self, state1, state2) -> bool:
+    def _compare_modified_states(self, state1: typing.Any, state2: typing.Any) -> bool:
         # override to allow the undo command to track state; but only use part of the state for comparison
         return state1[0] == state2[0]
 
@@ -1223,25 +1223,25 @@ class ChangeDimensionalCalibrationsCommand(Undo.UndoableCommand):
         self.__old_dimensional_calibrations = data_item.dimensional_calibrations
         self.initialize()
 
-    def close(self):
+    def close(self) -> None:
         self.__document_model = None
         self.__data_item_proxy.close()
         self.__data_item_proxy = None
         super().close()
 
-    def perform(self):
+    def perform(self) -> None:
         data_item = self.__data_item_proxy.item
         data_item.set_dimensional_calibrations(self.__new_dimensional_calibrations)
 
-    def _get_modified_state(self):
+    def _get_modified_state(self) -> typing.Any:
         data_item = self.__data_item_proxy.item
         return data_item.modified_state, self.__document_model.modified_state
 
-    def _set_modified_state(self, modified_state) -> None:
+    def _set_modified_state(self, modified_state: typing.Any) -> None:
         data_item = self.__data_item_proxy.item
         data_item.modified_state, self.__document_model.modified_state = modified_state
 
-    def _compare_modified_states(self, state1, state2) -> bool:
+    def _compare_modified_states(self, state1: typing.Any, state2: typing.Any) -> bool:
         # override to allow the undo command to track state; but only use part of the state for comparison
         return state1[0] == state2[0]
 
@@ -1282,7 +1282,7 @@ class CalibrationToObservable(Observable.Observable):
             self.__cached_value = calibration
         update_calibration(calibration)
 
-    def close(self):
+    def close(self) -> None:
         self.__cached_value = None
         self.__setter_fn = None
 
@@ -1332,7 +1332,7 @@ class InspectorSectionWidget(Widgets.CompositeWidgetBase):
         self.__unbinder = Unbinder()
         self.__closeables = list()
 
-    def close(self):
+    def close(self) -> None:
         self.__unbinder.close()
         for closeable in self.__closeables:
             closeable.close()
@@ -1467,7 +1467,7 @@ class CalibrationsInspectorSection(InspectorSection):
         self.add_widget_to_content(self.display_calibrations_row)
         self.finish_widget_content()
 
-    def close(self):
+    def close(self) -> None:
         if self.__data_item_changed_event_listener:
             self.__data_item_changed_event_listener.close()
             self.__data_item_changed_event_listener = None
@@ -1558,18 +1558,18 @@ class ChangeDisplayTypeCommand(Undo.UndoableCommand):
         self.__display_type = display_type
         self.initialize()
 
-    def close(self):
+    def close(self) -> None:
         self.__document_model = None
         self.__display_item_proxy.close()
         self.__display_item_proxy = None
         self.__old_display_type = None
         super().close()
 
-    def perform(self):
+    def perform(self) -> None:
         display_item = self.__display_item_proxy.item
         display_item.display_type = self.__display_type
 
-    def _get_modified_state(self):
+    def _get_modified_state(self) -> typing.Any:
         display_item = self.__display_item_proxy.item
         return display_item.modified_state, self.__document_model.modified_state
 
@@ -1577,7 +1577,7 @@ class ChangeDisplayTypeCommand(Undo.UndoableCommand):
         display_item = self.__display_item_proxy.item
         display_item.modified_state, self.__document_model.modified_state = modified_state
 
-    def _compare_modified_states(self, state1, state2) -> bool:
+    def _compare_modified_states(self, state1: typing.Any, state2: typing.Any) -> bool:
         # override to allow the undo command to track state; but only use part of the state for comparison
         return state1[0] == state2[0]
 
@@ -1862,7 +1862,7 @@ class ImageDisplayInspectorSection(InspectorSection):
 
         self.finish_widget_content()
 
-    def close(self):
+    def close(self) -> None:
         self.__display_type_changed_listener.close()
         self.__display_type_changed_listener = None
         super().close()
@@ -1966,7 +1966,7 @@ class LinePlotDisplayInspectorSection(InspectorSection):
         # add unbinders
         self._unbinder.add([display_item], [self.display_limits_limit_low.unbind_text, self.display_limits_limit_high.unbind_text, self.channels_left.unbind_text, self.channels_right.unbind_text, self.style_y_log.unbind_check_state])
 
-    def close(self):
+    def close(self) -> None:
         self.__legend_position_changed_listener.close()
         self.__legend_position_changed_listener = None
         self.__display_type_changed_listener.close()
@@ -2051,7 +2051,7 @@ class CollectionIndexInspectorSection(InspectorSection):
         # for testing
         self._column_widget = column_widget
 
-    def close(self):
+    def close(self) -> None:
         self.__collection_index_model.close()
         self.__collection_index_model = None
         super().close()
@@ -2224,7 +2224,7 @@ class CalibratedBinding(Binding.Binding):
             if k == "displayed_dimensional_calibrations":
                 update_target(display_item.displayed_datum_calibrations)
         self.__calibrations_changed_event_listener = display_item.display_property_changed_event.listen(calibrations_changed)
-    def close(self):
+    def close(self) -> None:
         self.__value_binding.close()
         self.__value_binding = None
         self.__calibrations_changed_event_listener.close()
@@ -2276,7 +2276,7 @@ class CalibratedLengthBinding(Binding.Binding):
             if k == "displayed_dimensional_calibrations":
                 update_target(display_item.displayed_datum_calibrations)
         self.__calibrations_changed_event_listener = display_item.display_property_changed_event.listen(calibrations_changed)
-    def close(self):
+    def close(self) -> None:
         self.__start_binding.close()
         self.__start_binding = None
         self.__end_binding.close()
@@ -2322,7 +2322,7 @@ class CalibratedAngleBinding(Binding.Binding):
             if k == "displayed_dimensional_calibrations":
                 update_target(display_item.displayed_datum_calibrations)
         self.__calibrations_changed_event_listener = display_item.display_property_changed_event.listen(calibrations_changed)
-    def close(self):
+    def close(self) -> None:
         self.__start_binding.close()
         self.__start_binding = None
         self.__end_binding.close()
@@ -2960,7 +2960,7 @@ class ChangeComputationVariableCommand(Undo.UndoableCommand):
         self.__value_dict = kwargs
         self.initialize()
 
-    def close(self):
+    def close(self) -> None:
         self.__document_model = None
         self.__computation_proxy.close()
         self.__computation_proxy = None
@@ -2969,13 +2969,13 @@ class ChangeComputationVariableCommand(Undo.UndoableCommand):
         self.__value_dict = None
         super().close()
 
-    def perform(self):
+    def perform(self) -> None:
         computation = self.__computation_proxy.item
         variable = computation.variables[self.__variable_index]
         for key, value in self.__value_dict.items():
             setattr(variable, key, value)
 
-    def _get_modified_state(self):
+    def _get_modified_state(self) -> typing.Any:
         computation = self.__computation_proxy.item
         variable = computation.variables[self.__variable_index]
         return variable.modified_state, self.__document_model.modified_state
@@ -2985,7 +2985,7 @@ class ChangeComputationVariableCommand(Undo.UndoableCommand):
         variable = computation.variables[self.__variable_index]
         variable.modified_state, self.__document_model.modified_state = modified_state
 
-    def _compare_modified_states(self, state1, state2) -> bool:
+    def _compare_modified_states(self, state1: typing.Any, state2: typing.Any) -> bool:
         # override to allow the undo command to track state; but only use part of the state for comparison
         return state1[0] == state2[0]
 
@@ -3219,7 +3219,7 @@ class VariableWidget(Widgets.CompositeWidgetBase):
 
         self.__variable_needs_rebuild_event_listener = variable.needs_rebuild_event.listen(rebuild_variable)
 
-    def close(self):
+    def close(self) -> None:
         for closeable in self.closeables:
             closeable.close()
         self.__variable_needs_rebuild_event_listener.close()
@@ -3308,7 +3308,7 @@ class ComputationInspectorSection(InspectorSection):
             self.__computation_variable_removed_event_listener = None
         self.finish_widget_content()
 
-    def close(self):
+    def close(self) -> None:
         if self.__computation_variable_inserted_event_listener:
             self.__computation_variable_inserted_event_listener.close()
             self.__computation_variable_inserted_event_listener = None
@@ -3368,7 +3368,7 @@ class TextButtonCanvasItem(CanvasItem.CellCanvasItem):
         self.wants_mouse_events = True
         self.on_button_clicked = None
 
-    def close(self):
+    def close(self) -> None:
         self.on_button_clicked = None
         super().close()
 
@@ -3427,7 +3427,7 @@ class RemoveDisplayDataChannelCommand(Undo.UndoableCommand):
         self.__undelete_logs = list()
         self.initialize()
 
-    def close(self):
+    def close(self) -> None:
         self.__document_controller = None
         self.__display_item_proxy.close()
         self.__display_item_proxy = None
@@ -3440,12 +3440,12 @@ class RemoveDisplayDataChannelCommand(Undo.UndoableCommand):
         self.__undelete_logs = None
         super().close()
 
-    def perform(self):
+    def perform(self) -> None:
         display_item = self.__display_item_proxy.item
         display_data_channel = display_item.display_data_channels[self.__display_data_channel_index]
         self.__undelete_logs.append(display_item.remove_display_data_channel(display_data_channel, safe=True))
 
-    def _get_modified_state(self):
+    def _get_modified_state(self) -> typing.Any:
         display_item = self.__display_item_proxy.item
         return display_item.modified_state, self.__document_controller.document_model.modified_state
 
@@ -3527,7 +3527,7 @@ class DataItemGroupWidget(Widgets.CompositeWidgetBase):
         self.__display_item_item_inserted = self.__display_item.item_inserted_event.listen(display_item_item_inserted)
         self.__display_item_item_removed = self.__display_item.item_removed_event.listen(display_item_item_removed)
 
-    def close(self):
+    def close(self) -> None:
         self.__detach_listeners()
         self.__ui = None
         self.__document_controller = None
