@@ -103,7 +103,7 @@ class TestInspectorClass(unittest.TestCase):
             rect_graphic.bounds = ((0.25, 0.25), (0.5, 0.5))
             center = rect_graphic.center
             class BoolModel(Observable.Observable):
-                def __init__(self):
+                def __init__(self) -> None:
                     super(BoolModel, self).__init__()
                     self.calibration_style_id = "relative-top-left"
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))

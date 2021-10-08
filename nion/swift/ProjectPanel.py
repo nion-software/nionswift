@@ -193,7 +193,7 @@ class ProjectPanelFolderItem:
 
 class TreeNode:
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.children = dict()
         self.data = list()
 

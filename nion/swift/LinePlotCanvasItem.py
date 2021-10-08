@@ -1,5 +1,4 @@
 # standard libraries
-import collections
 import copy
 import math
 import threading
@@ -383,7 +382,6 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         def convert_to_calibrated_size_str(f):
             return u"{0}".format(dimensional_calibration.convert_to_calibrated_size_str(f, value_range=(0, data_scale), samples=data_scale, include_units=False))
 
-        RegionInfo = collections.namedtuple("RegionInfo", ["channels", "selected", "index", "left_text", "right_text", "middle_text", "label", "style", "color"])
         regions = list()
         for graphic_index, graphic in enumerate(graphics):
             if isinstance(graphic, Graphics.IntervalGraphic):
@@ -394,7 +392,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
                 left_text = convert_to_calibrated_value_str(left_channel)
                 right_text = convert_to_calibrated_value_str(right_channel)
                 middle_text = convert_to_calibrated_size_str(right_channel - left_channel)
-                region = RegionInfo((graphic_start, graphic_end), graphic_selection.contains(graphic_index), graphic_index, left_text, right_text, middle_text, graphic.label, None, graphic.color)
+                region = LineGraphCanvasItem.RegionInfo((graphic_start, graphic_end), graphic_selection.contains(graphic_index), graphic_index, left_text, right_text, middle_text, graphic.label, None, graphic.color)
                 regions.append(region)
             elif isinstance(graphic, Graphics.ChannelGraphic):
                 graphic_start, graphic_end = graphic.position, graphic.position
@@ -404,7 +402,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
                 left_text = convert_to_calibrated_value_str(left_channel)
                 right_text = convert_to_calibrated_value_str(right_channel)
                 middle_text = convert_to_calibrated_size_str(right_channel - left_channel)
-                region = RegionInfo((graphic_start, graphic_end), graphic_selection.contains(graphic_index), graphic_index, left_text, right_text, middle_text, graphic.label, "tag", graphic.color)
+                region = LineGraphCanvasItem.RegionInfo((graphic_start, graphic_end), graphic_selection.contains(graphic_index), graphic_index, left_text, right_text, middle_text, graphic.label, "tag", graphic.color)
                 regions.append(region)
 
         self.__line_graph_regions_canvas_item.set_regions(regions)

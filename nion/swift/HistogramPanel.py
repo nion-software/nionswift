@@ -35,7 +35,7 @@ class AdornmentsCanvasItem(CanvasItem.AbstractCanvasItem):
      then call update.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.display_limits = (0,1)
 
@@ -90,7 +90,7 @@ class SimpleLineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
      width of the canvas item and plotted.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.__data = None
         self.__background_color = None
@@ -157,7 +157,7 @@ class SimpleLineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
 
 class ColorMapCanvasItem(CanvasItem.AbstractCanvasItem):
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.update_sizing(self.sizing.with_fixed_height(4))
         self.__color_map_data = None

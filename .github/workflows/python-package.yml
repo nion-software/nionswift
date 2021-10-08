@@ -43,6 +43,7 @@ jobs:
         mypy --install-types --non-interactive --namespace-packages --ignore-missing-imports --follow-imports=silent \
           nion/swift/DataPanel.py \
           nion/swift/DocumentController.py \
+          nion/swift/Facade.py \
           nion/swift/GeneratorDialog.py \
           nion/swift/Inspector.py \
           nion/swift/LineGraphCanvasItem.py \

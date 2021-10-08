@@ -1903,7 +1903,7 @@ class Computation(Persistence.PersistentObject):
             assert input_item.items is None
             variable._specifier = DataStructure.get_object_specifier(input_item.item)
 
-    def set_output_item(self, name:str, output_item: ComputationItem) -> None:
+    def set_output_item(self, name:str, output_item: typing.Optional[ComputationItem]) -> None:
         result = self._get_output(name)
         if result:
             if output_item and output_item.items is not None:

@@ -1006,8 +1006,8 @@ class WorkspaceManager(metaclass=Utility.Singleton):
         The WorkspaceManager object keeps a list of workspaces and a list of panel
         types. It also creates workspace objects.
         """
-    def __init__(self):
-        self.__panel_tuples = {}
+    def __init__(self) -> None:
+        self.__panel_tuples: typing.Dict[str, typing.Tuple[typing.Type[typing.Any], str, str, typing.List[str], str, typing.Optional[Persistence.PersistentDictType]]] = dict()
 
     def register_panel(self, panel_class, panel_id: str, name: str, positions: typing.List[str], position: str, properties: typing.Optional[Persistence.PersistentDictType]=None) -> None:
         panel_tuple = panel_class, panel_id, name, positions, position, properties

@@ -42,7 +42,7 @@ def end_leaks(test_case: unittest.TestCase) -> None:
 class MemoryProfileContext:
     # used for testing
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.storage_cache = Cache.DictStorageCache()
 
         self.profile_properties = dict()
