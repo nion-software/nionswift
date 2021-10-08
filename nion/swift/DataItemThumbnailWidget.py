@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # standard libraries
 import typing
 
@@ -16,7 +18,7 @@ from nion.ui import Widgets
 from nion.utils import Geometry
 
 if typing.TYPE_CHECKING:
-    import numpy
+    from nion.ui import DrawingContext
 
 _ImageDataType = Image._ImageDataType
 
@@ -64,7 +66,7 @@ class BitmapOverlayCanvasItem(CanvasItem.CanvasItemComposition):
         super().close()
 
     @property
-    def focused(self):
+    def focused(self) -> bool:
         return self.__focused
 
     def _set_focused(self, focused):
@@ -72,7 +74,7 @@ class BitmapOverlayCanvasItem(CanvasItem.CanvasItemComposition):
             self.__focused = focused
             self.update()
 
-    def _repaint(self, drawing_context):
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
         super()._repaint(drawing_context)
         # canvas size
         canvas_width = self.canvas_size[1]
@@ -104,10 +106,10 @@ class BitmapOverlayCanvasItem(CanvasItem.CanvasItemComposition):
         self.update()
         return "ignore"
 
-    def drag_leave(self) -> None:
+    def drag_leave(self) -> str:
         self.__dropping = False
         self.update()
-        return False
+        return "ignore"
 
     def drop(self, mime_data: UserInterface.MimeData, x: int, y: int) -> str:
         if callable(self.on_drop_mime_data):
@@ -116,7 +118,7 @@ class BitmapOverlayCanvasItem(CanvasItem.CanvasItemComposition):
                 return result
         return super().drop(mime_data, x, y)
 
-    def key_pressed(self, key):
+    def key_pressed(self, key: UserInterface.Key) -> bool:
         if key.is_delete:
             on_delete = self.on_delete
             if callable(on_delete):
@@ -275,7 +277,7 @@ class DataItemBitmapOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
             self.__active = value
             self.update()
 
-    def _repaint(self, drawing_context):
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
         super()._repaint(drawing_context)
         if self.active:
             with drawing_context.saver():

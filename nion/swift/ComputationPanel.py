@@ -190,7 +190,7 @@ class CreateComputationCommand(Undo.UndoableCommand):
 
 class ChangeComputationCommand(Undo.UndoableCommand):
 
-    def __init__(self, document_model, computation: Symbolic.Computation, *, title: str=None, command_id: str=None, is_mergeable: bool=False, **kwargs):
+    def __init__(self, document_model, computation: Symbolic.Computation, *, title: typing.Optional[str] = None, command_id: typing.Optional[str] = None, is_mergeable: bool=False, **kwargs: typing.Any):
         super().__init__(title if title else _("Change Computation"), command_id=command_id, is_mergeable=is_mergeable)
         self.__document_model = document_model
         self.__computation_proxy = computation.create_proxy()
@@ -231,7 +231,7 @@ class ChangeComputationCommand(Undo.UndoableCommand):
         computation.read_properties_from_dict(properties)
 
     def can_merge(self, command: Undo.UndoableCommand) -> bool:
-        return isinstance(command, ChangeComputationCommand) and self.command_id and self.command_id == command.command_id and self.__computation_proxy.item == command.__computation_proxy.item
+        return isinstance(command, ChangeComputationCommand) and bool(self.command_id) and self.command_id == command.command_id and self.__computation_proxy.item == command.__computation_proxy.item
 
 
 def select_computation(document_model: DocumentModel.DocumentModel, display_item: DisplayItem.DisplayItem) -> typing.Optional[Symbolic.Computation]:
@@ -864,13 +864,13 @@ class EditComputationDialog(Dialog.ActionDialog):
 
         self.__error_text_changed_event_listener = self.__computation_model.error_text_changed_event.listen(error_text_changed)
 
-        self.__listeners = list()
+        self.__listeners: typing.List[Event.EventListener] = list()
 
         def rebuild_data_item_row():
             self.__data_item_row.remove_all()
             for listener in self.__listeners:
                 listener.close()
-            self.__listeners = list()
+            self.__listeners: typing.List[Event.EventListener] = list()
             self.__data_item_row.add_spacing(8)
             for section in self.__sections:
                 variable = section.variable
@@ -941,7 +941,7 @@ class EditComputationDialog(Dialog.ActionDialog):
         self.document_controller.clear_task(str(id(self)))
         for listener in self.__listeners:
             listener.close()
-        self.__listeners = list()
+        self.__listeners: typing.List[Event.EventListener] = list()
         self.__computation_label_changed_event_listener.close()
         self.__computation_label_changed_event_listener = None
         self.__computation_text_changed_event_listener.close()
@@ -1263,7 +1263,7 @@ class VariableHandler:
     def data_item_delete(self):
         data_item_delete(self.document_controller, self.computation, self.variable)
 
-    def create_handler(self, component_id: str, container=None, item=None, **kwargs):
+    def create_handler(self, component_id: str, container=None, item=None, **kwargs: typing.Any):
         if component_id == "graphic":
             graphic = self.variable.bound_item.value if self.variable.bound_item else None
             return GraphicHandler(self.document_controller, self.computation, self.variable, graphic)
@@ -1393,7 +1393,7 @@ class RemoveComputationCommand(Undo.UndoableCommand):
         self.__computation_index = None
         for undelete_log in self.__undelete_logs:
             undelete_log.close()
-        self.__undelete_logs = None  # type: ignore
+        self.__undelete_logs = typing.cast(typing.Any, None)
         super().close()
 
     def perform(self) -> None:
@@ -1449,7 +1449,7 @@ class ComputationHandler:
     def handle_cancel_delete(self, widget: Declarative.UIWidget) -> None:
         self.delete_state_model.value = 0
 
-    def create_handler(self, component_id: str, container=None, item=None, **kwargs):
+    def create_handler(self, component_id: str, container=None, item=None, **kwargs: typing.Any):
         if component_id == "variable":
             return VariableHandler(self.document_controller, self.computation, item)
         elif component_id == "result":
@@ -1556,7 +1556,7 @@ class InspectComputationDialog(Declarative.WindowHandler):
             return component
         return None
 
-    def create_handler(self, component_id: str, container=None, item=None, **kwargs):
+    def create_handler(self, component_id: str, container=None, item=None, **kwargs: typing.Any):
         if component_id == "empty":
             class Handler: pass
             return Handler()

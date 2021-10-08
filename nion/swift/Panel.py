@@ -21,6 +21,7 @@ from nion.utils import Process
 
 if typing.TYPE_CHECKING:
     from nion.swift import DocumentController
+    from nion.swift.model import UISettings
 
 
 _ = gettext.gettext
@@ -219,28 +220,29 @@ class HeaderCanvasItem(CanvasItem.CanvasItemComposition):
 
     # header_height = 20 if sys.platform == "win32" else 22
 
-    def __init__(self, metrics, title=None, label=None, display_close_control=False):
+    def __init__(self, ui_settings: UISettings.UISettings, title: typing.Optional[str] = None,
+                 label: typing.Optional[str] = None, display_close_control: bool = False) -> None:
         super().__init__()
         self.wants_mouse_events = True
         self.__title = title if title else ""
         self.__label = label if label else ""
         self.__display_close_control = display_close_control
-        self.__metrics = metrics
+        self.__ui_settings = ui_settings
         self.__set_default_style()
         self.update_sizing(self.sizing.with_fixed_height(self.header_height))
-        self.on_select_pressed = None
-        self.on_drag_pressed = None
-        self.on_close_clicked = None
-        self.on_context_menu_clicked = None
-        self.on_double_clicked = None
-        self.__mouse_pressed_position = None
+        self.on_select_pressed: typing.Optional[typing.Callable[[], None]] = None
+        self.on_drag_pressed: typing.Optional[typing.Callable[[], None]] = None
+        self.on_close_clicked: typing.Optional[typing.Callable[[], None]] = None
+        self.on_context_menu_clicked: typing.Optional[typing.Callable[[int, int, int, int], bool]] = None
+        self.on_double_clicked: typing.Optional[typing.Callable[[int, int, UserInterface.KeyboardModifiers], bool]] = None
+        self.__mouse_pressed_position: typing.Optional[Geometry.IntPoint] = None
 
     def close(self) -> None:
         self.on_select_pressed = None
         self.on_drag_pressed = None
         self.on_close_clicked = None
         self.on_context_menu_clicked = None
-        self.__metrics = None
+        self.__ui_settings = None
         super().close()
 
     def __set_default_style(self):
@@ -270,7 +272,7 @@ class HeaderCanvasItem(CanvasItem.CanvasItemComposition):
 
     @property
     def header_height(self):
-        return self.__metrics.get_font_metrics(self.__font, "abc").height + 3 + self.__text_offset
+        return self.__ui_settings.get_font_metrics(self.__font, "abc").height + 3 + self.__text_offset
 
     @property
     def title(self):
@@ -312,7 +314,7 @@ class HeaderCanvasItem(CanvasItem.CanvasItemComposition):
             self.__end_header_color = end_header_color
             self.update()
 
-    def reset_header_colors(self):
+    def reset_header_colors(self) -> None:
         self.__set_default_style()
         self.update()
 
@@ -353,12 +355,12 @@ class HeaderCanvasItem(CanvasItem.CanvasItemComposition):
         self.__mouse_pressed_position = None
         return True
 
-    def context_menu_event(self, x, y, gx, gy):
+    def context_menu_event(self, x: int, y: int, gx: int, gy: int) -> bool:
         if callable(self.on_context_menu_clicked):
             return self.on_context_menu_clicked(x, y, gx, gy)
         return False
 
-    def _repaint(self, drawing_context):
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
 
         canvas_size = self.canvas_size
 

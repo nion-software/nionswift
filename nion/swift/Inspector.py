@@ -288,15 +288,15 @@ class ChangeDisplayItemPropertyCommand(Undo.UndoableCommand):
         super().close()
 
     def perform(self) -> None:
-        display_item = self.__display_item_proxy.item
+        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
         setattr(display_item, self.__property_name, self.__new_display_layers)
 
     def _get_modified_state(self) -> typing.Any:
-        display_item = self.__display_item_proxy.item
+        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
         return display_item.modified_state if display_item else None, self.__document_model.modified_state
 
     def _set_modified_state(self, modified_state: typing.Any) -> None:
-        display_item = self.__display_item_proxy.item
+        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
         if display_item:
             display_item.modified_state = modified_state[0]
         self.__document_model.modified_state = modified_state[1]
@@ -306,7 +306,7 @@ class ChangeDisplayItemPropertyCommand(Undo.UndoableCommand):
         return bool(state1[0] == state2[0])
 
     def _undo(self) -> None:
-        display_item = self.__display_item_proxy.item
+        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
         self.__new_display_layers = getattr(display_item, self.__property_name)
         setattr(display_item, self.__property_name, self.__old_display_layers)
 
@@ -468,15 +468,15 @@ class ChangeGraphicPropertyBinding(Binding.PropertyBinding):
         super().close()
 
     def __get_value(self) -> typing.Any:
-        display_item = self.__display_item_proxy.item
-        graphic = self.__graphic_proxy.item
+        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+        graphic = typing.cast(typing.Optional[Graphics.Graphic], self.__graphic_proxy.item)
         if display_item and graphic:
             return getattr(graphic, self.__property_name)
         return None
 
     def __set_value(self, value: typing.Any) -> None:
-        display_item = self.__display_item_proxy.item
-        graphic = self.__graphic_proxy.item
+        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+        graphic = typing.cast(typing.Optional[Graphics.Graphic], self.__graphic_proxy.item)
         if display_item and graphic:
             if value != getattr(graphic, self.__property_name):
                 command = DisplayPanel.ChangeGraphicsCommand(self.__document_controller.document_model, display_item, [graphic], title=_("Change Display Type"), command_id="change_display_" + self.__property_name, is_mergeable=True, **{self.__property_name: value})
@@ -681,15 +681,16 @@ class ChangeDisplayLayerPropertyCommand(Undo.UndoableCommand):
         super().close()
 
     def perform(self) -> None:
-        display_item = typing.cast(DisplayItem.DisplayItem, self.__display_item_proxy.item)
-        display_item._set_display_layer_property(self.__display_layer_index, self.__property_name, self.__value)
+        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+        if display_item:
+            display_item._set_display_layer_property(self.__display_layer_index, self.__property_name, self.__value)
 
     def _get_modified_state(self) -> typing.Any:
-        display_item = self.__display_item_proxy.item
+        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
         return display_item.modified_state if display_item else None, self.__document_model.modified_state
 
     def _set_modified_state(self, modified_state: typing.Any) -> None:
-        display_item = self.__display_item_proxy.item
+        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
         if display_item:
             display_item.modified_state = modified_state[0]
         self.__document_model.modified_state = modified_state[1]
@@ -699,8 +700,9 @@ class ChangeDisplayLayerPropertyCommand(Undo.UndoableCommand):
         return bool(state1[0] == state2[0])
 
     def _undo(self) -> None:
-        display_item = typing.cast(DisplayItem.DisplayItem, self.__display_item_proxy.item)
-        display_item.restore_properties(self.__old_properties)
+        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+        if display_item:
+            display_item.restore_properties(self.__old_properties)
 
     def _redo(self) -> None:
         self.perform()
@@ -733,25 +735,26 @@ class ChangeDisplayLayerDisplayDataChannelCommand(Undo.UndoableCommand):
         super().close()
 
     def perform(self) -> None:
-        display_item = typing.cast(DisplayItem.DisplayItem, self.__display_item_proxy.item)
+        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
         display_data_channel = typing.cast(typing.Optional[DisplayItem.DisplayDataChannel], self.__display_data_channel_proxy.item if self.__display_data_channel_proxy else None)
-        old_display_data_channel = display_item.get_display_layer_display_data_channel(self.__display_layer_index)
-        display_item.set_display_layer_display_data_channel(self.__display_layer_index, display_data_channel)
-        if old_display_data_channel:
-            if not self.__display_data_channel_proxy:
-                self.__display_data_channel_proxy = old_display_data_channel.create_proxy() if old_display_data_channel else None
-            else:
-                self.__display_data_channel_proxy.item = old_display_data_channel
-        elif self.__display_data_channel_proxy:
-            self.__display_data_channel_proxy.close()
-            self.__display_data_channel_proxy = None
+        if display_item:
+            old_display_data_channel = display_item.get_display_layer_display_data_channel(self.__display_layer_index)
+            display_item.set_display_layer_display_data_channel(self.__display_layer_index, display_data_channel)
+            if old_display_data_channel:
+                if not self.__display_data_channel_proxy:
+                    self.__display_data_channel_proxy = old_display_data_channel.create_proxy() if old_display_data_channel else None
+                else:
+                    self.__display_data_channel_proxy.item = old_display_data_channel
+            elif self.__display_data_channel_proxy:
+                self.__display_data_channel_proxy.close()
+                self.__display_data_channel_proxy = None
 
     def _get_modified_state(self) -> typing.Any:
-        display_item = self.__display_item_proxy.item
+        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
         return display_item.modified_state if display_item else None, self.__document_model.modified_state
 
     def _set_modified_state(self, modified_state: typing.Any) -> None:
-        display_item = self.__display_item_proxy.item
+        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
         if display_item:
             display_item.modified_state = modified_state[0]
         self.__document_model.modified_state = modified_state[1]
@@ -1642,11 +1645,11 @@ class ChangeDisplayTypeCommand(Undo.UndoableCommand):
             display_item.display_type = self.__display_type
 
     def _get_modified_state(self) -> typing.Any:
-        display_item = self.__display_item_proxy.item
+        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
         return display_item.modified_state if display_item else None, self.__document_model.modified_state
 
     def _set_modified_state(self, modified_state: typing.Any) -> None:
-        display_item = self.__display_item_proxy.item
+        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
         if display_item:
             display_item.modified_state = modified_state[0]
         self.__document_model.modified_state = modified_state[1]
@@ -3636,11 +3639,11 @@ class RemoveDisplayDataChannelCommand(Undo.UndoableCommand):
             self.__undelete_logs.append(display_item.remove_display_data_channel(display_data_channel, safe=True))
 
     def _get_modified_state(self) -> typing.Any:
-        display_item = self.__display_item_proxy.item
+        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
         return display_item.modified_state if display_item else None, self.__document_controller.document_model.modified_state
 
     def _set_modified_state(self, modified_state: typing.Any) -> None:
-        display_item = self.__display_item_proxy.item
+        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
         if display_item:
             display_item.modified_state = modified_state[0]
         self.__document_controller.document_model.modified_state = modified_state[1]

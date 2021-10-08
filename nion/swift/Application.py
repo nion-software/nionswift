@@ -494,7 +494,7 @@ class Application(UIApplication.BaseApplication):
 
                 def item_handle_context_menu(self, widget: Declarative.UIWidget, *,
                                              gx: int, gy: int,
-                                             index: typing.Optional[int], **kwargs) -> bool:
+                                             index: typing.Optional[int], **kwargs: typing.Any) -> bool:
                     if index is not None:
                         project_reference_item = project_reference_items_model.project_reference_items[index]
                         menu = self.window.create_context_menu()

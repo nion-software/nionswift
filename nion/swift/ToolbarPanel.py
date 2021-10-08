@@ -26,7 +26,7 @@ class ToolModeToolbarWidget:
     toolbar_widget_id = "nion.swift.toolbar-widget.tool-mode"
     toolbar_widget_title = _("Tools")
 
-    def __init__(self, *, document_controller: DocumentController.DocumentController, **kwargs):
+    def __init__(self, *, document_controller: DocumentController.DocumentController, **kwargs: typing.Any):
         self.radio_button_value: Model.PropertyModel[int] = Model.PropertyModel(0)
 
         u = Declarative.DeclarativeUI()
@@ -92,7 +92,7 @@ class ToolModeToolbarWidget:
 
 class ActionTableToolbarWidget:
 
-    def __init__(self, actions: typing.Sequence[Window.Action], document_controller: DocumentController.DocumentController, **kwargs):
+    def __init__(self, actions: typing.Sequence[Window.Action], document_controller: DocumentController.DocumentController, **kwargs: typing.Any):
         self.__document_controller = document_controller
         u = Declarative.DeclarativeUI()
         top_row = [self.__create_action_button(actions[i]) for i in range(0, len(actions), 2)]
@@ -129,7 +129,7 @@ class RasterZoomToolbarWidget(ActionTableToolbarWidget):
     toolbar_widget_id = "nion.swift.toolbar-widget.raster-zoom"
     toolbar_widget_title = _("Zoom")  # ideally "Raster Zoom" but that makes the title wider than the controls
 
-    def __init__(self, *, document_controller: DocumentController.DocumentController, **kwargs):
+    def __init__(self, *, document_controller: DocumentController.DocumentController, **kwargs: typing.Any):
         super().__init__(
             [
                 Window.actions["raster_display.fit_view"],
@@ -146,7 +146,7 @@ class WorkspaceToolbarWidget(ActionTableToolbarWidget):
     toolbar_widget_id = "nion.swift.toolbar-widget.workspace"
     toolbar_widget_title = _("Workspace")
 
-    def __init__(self, *, document_controller: DocumentController.DocumentController, **kwargs):
+    def __init__(self, *, document_controller: DocumentController.DocumentController, **kwargs: typing.Any):
         super().__init__(
             [
                 Window.actions["workspace.split_horizontal"],
@@ -213,7 +213,7 @@ class ToolbarPanel(Panel.Panel):
             widget_section.add(widget)
             section_bar = self.ui.create_canvas_widget(properties={"width": 9, "size_policy_vertical": "expanding"})
 
-            def draw(drawing_context: DrawingContext.DrawingContext, canvas_size: Geometry.IntSize, *args, **kwargs):
+            def draw(drawing_context: DrawingContext.DrawingContext, canvas_size: Geometry.IntSize, *args, **kwargs: typing.Any):
                 with drawing_context.saver():
                     drawing_context.rect(0, 0, canvas_size.width, canvas_size.height)
                     drawing_context.fill_style = "#DDD"

@@ -135,7 +135,7 @@ def mime_data_get_panel(mime_data: UserInterface.MimeData, document_model: "Docu
     return display_item, d
 
 
-def mime_data_put_panel(mime_data: UserInterface.MimeData, display_item: typing.Optional[DisplayItem.DisplayItem], d: typing.Sequence) -> None:
+def mime_data_put_panel(mime_data: UserInterface.MimeData, display_item: typing.Optional[DisplayItem.DisplayItem], d: Persistence.PersistentDictType) -> None:
     if display_item:
         d = dict(d)
         d["display_item_specifier"] = display_item.project.create_specifier(display_item).write()

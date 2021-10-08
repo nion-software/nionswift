@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # standard libraries
 import threading
 import typing
@@ -6,11 +8,16 @@ import typing
 # None
 
 # local libraries
+from nion.swift import DisplayCanvasItem
 from nion.swift.model import UISettings
 from nion.swift.model import Utility
 from nion.ui import CanvasItem
 from nion.ui import DrawingContext
 from nion.utils import Geometry
+
+if typing.TYPE_CHECKING:
+    from nion.swift.model import DisplayItem
+    from nion.swift.model import Persistence
 
 
 class DisplayScriptCanvasItemDelegate:
@@ -32,7 +39,7 @@ class DisplayScriptCanvasItemDelegate:
     def tool_mode(self) -> str: return str()
 
 
-class DisplayScriptCanvasItem(CanvasItem.CanvasItemComposition):
+class DisplayScriptCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
     """Display a custom display using a script.
 
     Callers are expected to pass in a font metrics function and a delegate.
@@ -78,14 +85,14 @@ class DisplayScriptCanvasItem(CanvasItem.CanvasItemComposition):
     def add_display_control(self, display_control_canvas_item: CanvasItem.AbstractCanvasItem, role: typing.Optional[str] = None) -> None:
         display_control_canvas_item.close()
 
-    def update_display_values(self, display_values_list) -> None:
+    def update_display_values(self, display_values_list: typing.Sequence[typing.Optional[DisplayItem.DisplayValues]]) -> None:
         self.__display_data = display_values_list[0].data_and_metadata if display_values_list else None
 
-    def update_display_properties_and_layers(self, display_calibration_info, display_properties, display_layers) -> None:
+    def update_display_properties_and_layers(self, display_calibration_info: DisplayItem.DisplayCalibrationInfo, display_properties: Persistence.PersistentDictType, display_layers: typing.Sequence[Persistence.PersistentDictType]) -> None:
         self.__display_script = display_properties.get("display_script")
         self.update()
 
-    def update_graphics_coordinate_system(self, graphics, graphic_selection, display_calibration_info):
+    def update_graphics_coordinate_system(self, graphics: typing.Sequence[Graphics.Graphic], graphic_selection: DisplayItem.GraphicSelection, display_calibration_info: DisplayItem.DisplayCalibrationInfo) -> None:
         pass
 
     def handle_auto_display(self) -> bool:
@@ -127,7 +134,7 @@ class DisplayScriptCanvasItem(CanvasItem.CanvasItemComposition):
                     with self.__drawing_context_lock:
                         self.__drawing_context = drawing_context
 
-    def _repaint(self, drawing_context):
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
         super()._repaint(drawing_context)
 
         with self.__drawing_context_lock:
@@ -207,7 +214,7 @@ class DisplayScriptCanvasItem(CanvasItem.CanvasItemComposition):
             return True
         return False
 
-    def context_menu_event(self, x, y, gx, gy):
+    def context_menu_event(self, x: int, y: int, gx: int, gy: int) -> bool:
         return self.delegate.show_display_context_menu(gx, gy)
 
     @property

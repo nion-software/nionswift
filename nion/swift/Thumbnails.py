@@ -189,7 +189,7 @@ class ThumbnailManager(metaclass=Utility.Singleton):
                 assert thumbnail_source._ui == ui
             return thumbnail_source
 
-    def thumbnail_data_for_display_item(self, display_item: DisplayItem.DisplayItem) -> typing.Optional[numpy.ndarray]:
+    def thumbnail_data_for_display_item(self, display_item: typing.Optional[DisplayItem.DisplayItem]) -> typing.Optional[numpy.ndarray]:
         with self.__lock:
             thumbnail_source_ref = self.__thumbnail_sources.get(display_item.uuid) if display_item else None
             thumbnail_source = thumbnail_source_ref() if thumbnail_source_ref else None
