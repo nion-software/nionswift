@@ -39,7 +39,7 @@ class AdornmentsCanvasItem(CanvasItem.AbstractCanvasItem):
         super().__init__()
         self.display_limits = (0,1)
 
-    def _repaint(self, drawing_context):
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
         """Repaint the canvas item. This will occur on a thread."""
 
         # canvas size
@@ -121,7 +121,7 @@ class SimpleLineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__background_color = background_color
         self.update()
 
-    def _repaint(self, drawing_context):
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
         """Repaint the canvas item. This will occur on a thread."""
 
         # canvas size

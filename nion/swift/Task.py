@@ -76,7 +76,7 @@ class TaskPanel(Panel.Panel):
         self.__task_needs_update = set()
         self.__task_needs_update_mutex = threading.RLock()
         self.__task_section_controller_list = list()
-        self.__task_changed_event_listeners = list()
+        self.__task_changed_event_listeners: typing.List[Event.EventListener] = list()
 
     def close(self) -> None:
         self.document_controller.clear_task(str(id(self)))

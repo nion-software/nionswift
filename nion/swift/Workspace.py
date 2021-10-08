@@ -772,8 +772,8 @@ class Workspace:
             return "copy"
         return "ignore"
 
-    def handle_drag_leave(self, display_panel: DisplayPanel.DisplayPanel) -> bool:
-        return False
+    def handle_drag_leave(self, display_panel: DisplayPanel.DisplayPanel) -> str:
+        return "ignore"
 
     def handle_drag_move(self, display_panel: DisplayPanel.DisplayPanel, mime_data: UserInterface.MimeData, x: int, y: int) -> str:
         if mime_data.has_format(MimeTypes.DISPLAY_ITEM_MIME_TYPE):

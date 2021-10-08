@@ -18,6 +18,7 @@ import weakref
 from nion.data import Image
 from nion.swift import DataItemThumbnailWidget
 from nion.swift import DataPanel
+from nion.swift import DisplayCanvasItem
 from nion.swift import DisplayScriptCanvasItem
 from nion.swift import ImageCanvasItem
 from nion.swift import LinePlotCanvasItem
@@ -45,13 +46,15 @@ from nion.utils import Selection
 from nion.utils import Stream
 
 if typing.TYPE_CHECKING:
-    import numpy
     from nion.swift import DocumentController
-    from nion.swift import Workspace
 
+_DropRegionType = typing.Tuple[Geometry.IntRect, Geometry.IntRect]
+_DropRegionsMapType = typing.Mapping[str, typing.Tuple[Geometry.IntRect, Geometry.IntRect]]
+_DropRegionsDictType = typing.Dict[str, typing.Tuple[Geometry.IntRect, Geometry.IntRect]]
+_NDArray = typing.Any  # numpy 1.21
+_DocumentControllerWeakRefType = typing.Callable[[], "DocumentController.DocumentController"]
 
 _ = gettext.gettext
-
 
 _test_log_exceptions = True
 
@@ -138,7 +141,7 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
             on_key_released(key)
     """
 
-    def __init__(self, get_font_metrics_fn: typing.Callable[[str, str], UISettings.FontMetrics]):
+    def __init__(self, get_font_metrics_fn: typing.Callable[[str, str], UISettings.FontMetrics]) -> None:
         super().__init__()
         self.wants_drag_events = True
         self.__get_font_metrics = get_font_metrics_fn
@@ -148,18 +151,19 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
         self.__selected = False
         self.__selected_style = "#CCC"  # TODO: platform dependent
         self.__focused_style = "#4682B4"  # steel blue. TODO: platform dependent
-        self.__selection_number = None
-        self.__line_dash = None
-        self.__drop_regions_map = dict()
-        self.on_context_menu_event = None
-        self.on_drag_enter = None
-        self.on_drag_leave = None
-        self.on_drag_move = None
-        self.on_wants_drag_event = None
-        self.on_drop = None
-        self.on_key_pressed = None
-        self.on_key_released = None
-        self.on_adjust_secondary_focus = None
+        self.__selection_number: typing.Optional[int] = None
+        self.__line_dash: typing.Optional[int] = None
+        self.__drop_regions_map: _DropRegionsDictType = dict()
+        self.on_context_menu_event: typing.Optional[typing.Callable[[int, int, int, int], bool]] = None
+        self.on_drag_enter: typing.Optional[typing.Callable[[UserInterface.MimeData], str]] = None
+        self.on_drag_leave: typing.Optional[typing.Callable[[], str]] = None
+        self.on_drag_move: typing.Optional[typing.Callable[[UserInterface.MimeData, int, int], str]] = None
+        self.on_wants_drag_event: typing.Optional[typing.Callable[[UserInterface.MimeData], bool]] = None
+        self.on_drop: typing.Optional[typing.Callable[[UserInterface.MimeData, str, int, int], str]] = None
+        self.on_key_pressed: typing.Optional[typing.Callable[[UserInterface.Key], bool]] = None
+        self.on_key_released: typing.Optional[typing.Callable[[UserInterface.Key], bool]] = None
+        self.on_adjust_secondary_focus: typing.Optional[typing.Callable[[UserInterface.KeyboardModifiers], None]] = None
+        self.on_select_all: typing.Optional[typing.Callable[[], bool]] = None
 
     def close(self) -> None:
         self.on_context_menu_event = None
@@ -174,41 +178,41 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
         super().close()
 
     @property
-    def focused(self):
+    def focused(self) -> bool:
         return self.__focused
 
     @focused.setter
-    def focused(self, value):
+    def focused(self, value: bool) -> None:
         if self.__focused != value:
             self.__focused = value
             self.update()
 
     @property
-    def selected(self):
+    def selected(self) -> bool:
         return self.__selected
 
     @selected.setter
-    def selected(self, selected):
+    def selected(self, selected: bool) -> None:
         if self.__selected != selected:
             self.__selected = selected
             self.update()
 
     @property
-    def selected_style(self):
+    def selected_style(self) -> str:
         return self.__selected_style
 
     @selected_style.setter
-    def selected_style(self, selected_style):
+    def selected_style(self, selected_style: str) -> None:
         if self.__selected_style != selected_style:
             self.__selected_style = selected_style
             self.update()
 
     @property
-    def focused_style(self):
+    def focused_style(self) -> str:
         return self.__focused_style
 
     @focused_style.setter
-    def focused_style(self, focused_style):
+    def focused_style(self, focused_style: str) -> None:
         if self.__focused_style != focused_style:
             self.__focused_style = focused_style
             self.update()
@@ -234,14 +238,14 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
             self.update()
 
     @property
-    def drop_regions_map(self):
+    def drop_regions_map(self) -> _DropRegionsMapType:
         return self.__drop_regions_map
 
     @drop_regions_map.setter
-    def drop_regions_map(self, value):
-        self.__drop_regions_map = value if value else dict()
+    def drop_regions_map(self, value: _DropRegionsMapType) -> None:
+        self.__drop_regions_map = dict(value) if value else dict()
 
-    def __set_drop_region(self, drop_region):
+    def __set_drop_region(self, drop_region: str) -> None:
         if self.__drop_region != drop_region:
             self.__drop_region = drop_region
             self.update()
@@ -250,69 +254,68 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
         super()._repaint(drawing_context)
 
         # canvas size
-        canvas_width = self.canvas_size[1]
-        canvas_height = self.canvas_size[0]
-
-        # draw the border
-        with drawing_context.saver():
-            drawing_context.begin_path()
-            drawing_context.rect(0, 0, canvas_width, canvas_height)
-            drawing_context.line_join = "miter"
-            drawing_context.stroke_style = "#AAA"
-            drawing_context.line_width = 0.5
-            drawing_context.stroke()
-
-        drop_regions_map = self.__drop_regions_map
-
-        if self.__drop_region != "none":
+        canvas_size = self.canvas_size
+        if canvas_size:
+            # draw the border
             with drawing_context.saver():
                 drawing_context.begin_path()
-                if self.__drop_region in drop_regions_map:
-                    drop_region_hit_rect, drop_region_draw_rect = drop_regions_map[self.__drop_region]
-                    drawing_context.rect(drop_region_draw_rect.left, drop_region_draw_rect.top, drop_region_draw_rect.width, drop_region_draw_rect.height)
-                elif self.__drop_region == "left":
-                    drawing_context.rect(0, 0, int(canvas_width * 0.10), canvas_height)
-                elif self.__drop_region == "right":
-                    drawing_context.rect(int(canvas_width * 0.90), 0, int(canvas_width - canvas_width * 0.90), canvas_height)
-                elif self.__drop_region == "top":
-                    drawing_context.rect(0, 0, canvas_width, int(canvas_height * 0.10))
-                elif self.__drop_region == "bottom":
-                    drawing_context.rect(0, int(canvas_height * 0.90), canvas_width, int(canvas_height - canvas_height * 0.90))
-                else:
-                    drawing_context.rect(0, 0, canvas_width, canvas_height)
-                drawing_context.fill_style = "rgba(255, 0, 0, 0.10)"
-                drawing_context.fill()
-
-        if self.selected:
-            stroke_style = self.__focused_style if self.focused else self.__selected_style
-            if stroke_style:
+                drawing_context.rect(0, 0, canvas_size.width, canvas_size.height)
+                drawing_context.line_join = "miter"
+                drawing_context.stroke_style = "#AAA"
+                drawing_context.line_width = 0.5
+                drawing_context.stroke()
+    
+            drop_regions_map = self.__drop_regions_map
+    
+            if self.__drop_region != "none":
                 with drawing_context.saver():
                     drawing_context.begin_path()
-                    drawing_context.rect(2, 2, canvas_width - 4, canvas_height - 4)
-                    drawing_context.line_join = "miter"
-                    drawing_context.stroke_style = stroke_style
-                    drawing_context.line_width = 4.0
-                    if self.__line_dash:
-                        with drawing_context.saver():
-                            drawing_context.stroke_style = "#CCC"
-                            drawing_context.stroke()
-                        drawing_context.line_dash = self.__line_dash
-                    drawing_context.stroke()
-                if self.__selection_number:
+                    if self.__drop_region in drop_regions_map:
+                        drop_region_hit_rect, drop_region_draw_rect = drop_regions_map[self.__drop_region]
+                        drawing_context.rect(drop_region_draw_rect.left, drop_region_draw_rect.top, drop_region_draw_rect.width, drop_region_draw_rect.height)
+                    elif self.__drop_region == "left":
+                        drawing_context.rect(0, 0, int(canvas_size.width * 0.10), canvas_size.height)
+                    elif self.__drop_region == "right":
+                        drawing_context.rect(int(canvas_size.width * 0.90), 0, int(canvas_size.width - canvas_size.width * 0.90), canvas_size.height)
+                    elif self.__drop_region == "top":
+                        drawing_context.rect(0, 0, canvas_size.width, int(canvas_size.height * 0.10))
+                    elif self.__drop_region == "bottom":
+                        drawing_context.rect(0, int(canvas_size.height * 0.90), canvas_size.width, int(canvas_size.height - canvas_size.height * 0.90))
+                    else:
+                        drawing_context.rect(0, 0, canvas_size.width, canvas_size.height)
+                    drawing_context.fill_style = "rgba(255, 0, 0, 0.10)"
+                    drawing_context.fill()
+    
+            if self.selected:
+                stroke_style = self.__focused_style if self.focused else self.__selected_style
+                if stroke_style:
                     with drawing_context.saver():
-                        font = "bold 12px serif"
-                        selection_number_text = "+" + str(self.__selection_number)
-                        font_metrics = self.__get_font_metrics(font, selection_number_text)
+                        drawing_context.begin_path()
+                        drawing_context.rect(2, 2, canvas_size.width - 4, canvas_size.height - 4)
+                        drawing_context.line_join = "miter"
+                        drawing_context.stroke_style = stroke_style
+                        drawing_context.line_width = 4.0
+                        if self.__line_dash:
+                            with drawing_context.saver():
+                                drawing_context.stroke_style = "#CCC"
+                                drawing_context.stroke()
+                            drawing_context.line_dash = self.__line_dash
+                        drawing_context.stroke()
+                    if self.__selection_number:
                         with drawing_context.saver():
-                            drawing_context.fill_style = "rgba(192, 192, 192, 0.75)"
-                            drawing_context.begin_path()
-                            drawing_context.rect(6, 6, font_metrics.width + 4, font_metrics.height + 4)
-                            drawing_context.fill()
-                        drawing_context.font = font
-                        drawing_context.fill_style = stroke_style
-                        drawing_context.fill_text(selection_number_text, 6, 4 + font_metrics.height)
+                            font = "bold 12px serif"
+                            selection_number_text = "+" + str(self.__selection_number)
+                            font_metrics = self.__get_font_metrics(font, selection_number_text)
+                            with drawing_context.saver():
+                                drawing_context.fill_style = "rgba(192, 192, 192, 0.75)"
+                                drawing_context.begin_path()
+                                drawing_context.rect(6, 6, font_metrics.width + 4, font_metrics.height + 4)
+                                drawing_context.fill()
+                            drawing_context.font = font
+                            drawing_context.fill_style = stroke_style
+                            drawing_context.fill_text(selection_number_text, 6, 4 + font_metrics.height)
 
-    def context_menu_event(self, x, y, gx, gy):
+    def context_menu_event(self, x: int, y: int, gx: int, gy: int) -> bool:
         if super().context_menu_event(x, y, gx, gy):
             return True
         if self.on_context_menu_event:
@@ -331,38 +334,39 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
             self.on_drag_enter(mime_data)
         return "ignore"
 
-    def drag_leave(self):
+    def drag_leave(self) -> str:
         self.__is_dragging = False
         self.__set_drop_region("none")
         if self.on_drag_leave:
             self.on_drag_leave()
-        return False
+        return "ignore"
 
-    def drag_move(self, mime_data, x, y):
+    def drag_move(self, mime_data: UserInterface.MimeData, x: int, y: int) -> str:
         if self.on_drag_move:
             result = self.on_drag_move(mime_data, x, y)
             if result != "ignore":
-                p = Geometry.IntPoint(y=y, x=x)
-                canvas_size = Geometry.IntSize.make(self.canvas_size)
-                for drop_region, (drop_region_hit_rect, drop_region_draw_rect) in self.__drop_regions_map.items():
-                    if drop_region_hit_rect.contains_point(p):
-                        self.__set_drop_region(drop_region)
-                        return result
-                if x < int(canvas_size.width * 0.10):
-                    self.__set_drop_region("left")
-                elif x > int(canvas_size.width * 0.90):
-                    self.__set_drop_region("right")
-                elif y < int(canvas_size.height * 0.10):
-                    self.__set_drop_region("top")
-                elif y > int(canvas_size.height * 0.90):
-                    self.__set_drop_region("bottom")
-                else:
-                    self.__set_drop_region("middle")
-                return result
+                canvas_size = self.canvas_size
+                if canvas_size:
+                    p = Geometry.IntPoint(y=y, x=x)
+                    for drop_region, (drop_region_hit_rect, drop_region_draw_rect) in self.__drop_regions_map.items():
+                        if drop_region_hit_rect.contains_point(p):
+                            self.__set_drop_region(drop_region)
+                            return result
+                    if x < int(canvas_size.width * 0.10):
+                        self.__set_drop_region("left")
+                    elif x > int(canvas_size.width * 0.90):
+                        self.__set_drop_region("right")
+                    elif y < int(canvas_size.height * 0.10):
+                        self.__set_drop_region("top")
+                    elif y > int(canvas_size.height * 0.90):
+                        self.__set_drop_region("bottom")
+                    else:
+                        self.__set_drop_region("middle")
+                    return result
         self.__set_drop_region("none")
         return "ignore"
 
-    def drop(self, mime_data, x, y):
+    def drop(self, mime_data: UserInterface.MimeData, x: int, y: int) -> str:
         drop_region = self.__drop_region
         self.__is_dragging = False
         self.__set_drop_region("none")
@@ -370,19 +374,19 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
             return self.on_drop(mime_data, drop_region, x, y)
         return "ignore"
 
-    def key_pressed(self, key):
+    def key_pressed(self, key: UserInterface.Key) -> bool:
         if callable(self.on_key_pressed):
             if self.on_key_pressed(key):
                 return True
         return super().key_pressed(key)
 
-    def key_released(self, key):
+    def key_released(self, key: UserInterface.Key) -> bool:
         if callable(self.on_key_released):
             if self.on_key_released(key):
                 return True
         return super().key_released(key)
 
-    def handle_select_all(self):
+    def handle_select_all(self) -> bool:
         if callable(self.on_select_all):
             return self.on_select_all()
         return False
@@ -393,7 +397,10 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
                 self.on_adjust_secondary_focus(modifiers)
 
 
-def create_display_canvas_item(display_item: DisplayItem.DisplayItem, ui_settings: UISettings.UISettings, delegate, event_loop, draw_background: bool=True):
+def create_display_canvas_item(display_item: DisplayItem.DisplayItem, ui_settings: UISettings.UISettings,
+                               delegate: typing.Optional[DisplayCanvasItem.DisplayCanvasItemDelegate],
+                               event_loop: typing.Optional[asyncio.AbstractEventLoop],
+                               draw_background: bool = True) -> DisplayCanvasItem.DisplayCanvasItem:
     display_type = display_item.used_display_type
     if display_type == "line_plot":
         return LinePlotCanvasItem.LinePlotCanvasItem(ui_settings, delegate, event_loop, draw_background)
@@ -417,10 +424,10 @@ class DisplayTypeMonitor:
     Provides the display_type r/o property.
     """
 
-    def __init__(self, display_item: DisplayItem.DisplayItem):
+    def __init__(self, display_item: DisplayItem.DisplayItem) -> None:
         self.display_type_changed_event = Event.Event()
-        self.__display_changed_event_listener = None
-        self.__display_type = None
+        self.__display_changed_event_listener: typing.Optional[Event.EventListener] = None
+        self.__display_type: typing.Optional[str] = None
         self.__first = True  # handle case where there is no data, so display_type is always None and doesn't change
         if display_item:
             self.__display_changed_event_listener = display_item.display_changed_event.listen(functools.partial(self.__update_display_type, display_item))
@@ -439,8 +446,8 @@ class DisplayTypeMonitor:
             self.__first = False
 
 
-class DisplayDataChannelValueStream(Stream.ValueStream):
-    def __init__(self, display_item_value_stream: Stream.ValueStream):
+class DisplayDataChannelValueStream(Stream.ValueStream[DisplayItem.DisplayDataChannel]):
+    def __init__(self, display_item_value_stream: Stream.ValueStream[DisplayItem.DisplayItem]) -> None:
         super().__init__()
         self.__stream = display_item_value_stream.add_ref()
         self.__display_item_item_inserted_listener: typing.Optional[Event.EventListener] = None
@@ -456,9 +463,9 @@ class DisplayDataChannelValueStream(Stream.ValueStream):
             self.__display_item_item_removed_listener.close()
             self.__display_item_item_removed_listener = None
         self.__stream_listener.close()
-        self.__stream_listener = None
+        self.__stream_listener = typing.cast(typing.Any, None)
         self.__stream.remove_ref()
-        self.__stream = None
+        self.__stream = typing.cast(typing.Any, None)
         super().about_to_delete()
 
     def __update_display_item(self, display_item: typing.Optional[DisplayItem.DisplayItem]) -> None:
@@ -483,30 +490,23 @@ class DisplayDataChannelValueStream(Stream.ValueStream):
             self.value = self.__display_item.display_data_channel
 
 
-class IndexValueAdapter(abc.ABC):
-
-    @abc.abstractmethod
-    def get_index_value_stream(self, display_data_channel_value_stream: Stream.AbstractStream) -> Stream.AbstractStream: ...
-
-    @abc.abstractmethod
+class IndexValueAdapter(typing.Protocol):
+    def get_index_value_stream(self, display_data_channel_value_stream: Stream.AbstractStream[DisplayItem.DisplayDataChannel]) -> Stream.AbstractStream[float]: ...
     def get_index_value(self, display_data_channel: DisplayItem.DisplayDataChannel) -> float: ...
-
-    @abc.abstractmethod
     def get_index_str(self, display_data_channel: DisplayItem.DisplayDataChannel) -> str: ...
-
-    @abc.abstractmethod
     def set_index_value(self, display_data_channel: DisplayItem.DisplayDataChannel, value: float) -> None: ...
 
 
 class CollectionIndexAdapter(IndexValueAdapter):
 
-    def __init__(self, document_controller: DocumentController.DocumentController, collection_index: int):
+    def __init__(self, document_controller: DocumentController.DocumentController, collection_index: int) -> None:
         self.__document_controller = document_controller
         self.__collection_index = collection_index
 
-    def get_index_value_stream(self, display_data_channel_value_stream: Stream.AbstractStream) -> Stream.AbstractStream:
-        display_data_channel_value_stream = Stream.OptionalStream(display_data_channel_value_stream, lambda x: x and self.__collection_index < x.collection_rank and x.datum_rank == 2)
-        return Stream.MapStream(Stream.PropertyChangedEventStream(display_data_channel_value_stream, "collection_index"), lambda x: x[self.__collection_index] if x is not None else None)
+    def get_index_value_stream(self, display_data_channel_value_stream: Stream.AbstractStream[DisplayItem.DisplayDataChannel]) -> Stream.AbstractStream[float]:
+        display_data_channel_value_stream = Stream.OptionalStream(display_data_channel_value_stream, lambda x: x is not None and self.__collection_index < x.collection_rank and x.datum_rank == 2)
+        # mypy bug: typing on next line doesn't recognize OptionalStream[DisplayDataChannel] as a AbstractStream[Observable]
+        return Stream.MapStream(Stream.PropertyChangedEventStream(display_data_channel_value_stream, "collection_index"), lambda x: x[self.__collection_index] if x is not None else None)  # type: ignore
 
     def get_index_value(self, display_data_channel: DisplayItem.DisplayDataChannel) -> float:
         index = self.__collection_index + (1 if display_data_channel.is_sequence else 0)
@@ -532,12 +532,13 @@ class CollectionIndexAdapter(IndexValueAdapter):
 
 class SequenceIndexAdapter(IndexValueAdapter):
 
-    def __init__(self, document_controller: DocumentController.DocumentController):
+    def __init__(self, document_controller: DocumentController.DocumentController) -> None:
         self.__document_controller = document_controller
 
-    def get_index_value_stream(self, display_data_channel_value_stream: Stream.AbstractStream) -> Stream.AbstractStream:
-        display_data_channel_value_stream = Stream.OptionalStream(display_data_channel_value_stream, lambda x: x and x.is_sequence)
-        return Stream.PropertyChangedEventStream(display_data_channel_value_stream, "sequence_index")
+    def get_index_value_stream(self, display_data_channel_value_stream: Stream.AbstractStream[DisplayItem.DisplayDataChannel]) -> Stream.AbstractStream[float]:
+        display_data_channel_value_stream = Stream.OptionalStream(display_data_channel_value_stream, lambda x: x is not None and x.is_sequence)
+        # mypy bug: typing on next line doesn't recognize OptionalStream[DisplayDataChannel] as a AbstractStream[Observable]
+        return Stream.PropertyChangedEventStream(display_data_channel_value_stream, "sequence_index")  # type: ignore
 
     def get_index_value(self, display_data_channel: DisplayItem.DisplayDataChannel) -> float:
         sequence_length = display_data_channel.dimensional_shape[0] if display_data_channel.dimensional_shape is not None else 0
@@ -559,7 +560,7 @@ class SequenceIndexAdapter(IndexValueAdapter):
 
 
 class IndexValueSliderCanvasItem(CanvasItem.CanvasItemComposition):
-    def __init__(self, title: str, display_item_value_stream: Stream.ValueStream, index_value_adapter: IndexValueAdapter, get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]):
+    def __init__(self, title: str, display_item_value_stream: Stream.ValueStream[DisplayItem.DisplayItem], index_value_adapter: IndexValueAdapter, get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> None:
         super().__init__()
         self.layout = CanvasItem.CanvasItemRowLayout()
         self.update_sizing(self.sizing.with_preferred_height(0))
@@ -571,26 +572,26 @@ class IndexValueSliderCanvasItem(CanvasItem.CanvasItemComposition):
         self.add_spacing(12)
         self.__display_item_value_stream = display_item_value_stream.add_ref()
         self.__get_font_metrics_fn = get_font_metrics_fn
-        self.__slider_value_action: typing.Optional[Stream.ValueStreamAction] = None
+        self.__slider_value_action: typing.Optional[Stream.ValueStreamAction[float]] = None
         self.__title = title
         self.__index_value_adapter = index_value_adapter
-        display_data_channel_value_stream: Stream.AbstractStream
         display_data_channel_value_stream = DisplayDataChannelValueStream(self.__display_item_value_stream)
         index_value_stream = self.__index_value_adapter.get_index_value_stream(display_data_channel_value_stream)
-        combined_stream = Stream.CombineLatestStream([self.__display_item_value_stream, display_data_channel_value_stream, index_value_stream])
-        self.__stream_action = Stream.ValueStreamAction(combined_stream, self.__index_changed)
+        combined_stream = Stream.CombineLatestStream[typing.Any, typing.Any]([self.__display_item_value_stream, display_data_channel_value_stream, index_value_stream])
+        self.__stream_action = Stream.ValueStreamAction[typing.Tuple[DisplayItem.DisplayItem, DisplayItem.DisplayDataChannel, int]](combined_stream, self.__index_changed)
 
     def close(self) -> None:
         self.__stream_action.close()
-        self.__stream_action = typing.cast(Stream.ValueStreamAction, None)
+        self.__stream_action = typing.cast(typing.Any, None)
         if self.__slider_value_action:
             self.__slider_value_action.close()
             self.__slider_value_action = None
         self.__display_item_value_stream.remove_ref()
-        self.__display_item_value_stream = None
+        self.__display_item_value_stream = typing.cast(typing.Any, None)
         super().close()
 
-    def __index_changed(self, args: typing.Tuple[DisplayItem.DisplayItem, DisplayItem.DisplayDataChannel, int]) -> None:
+    def __index_changed(self, args: typing.Optional[typing.Tuple[DisplayItem.DisplayItem, DisplayItem.DisplayDataChannel, int]]) -> None:
+        assert args is not None
         display_item, display_data_channel, index_value = args
         if display_data_channel and index_value is not None:
             slider_canvas_item: CanvasItem.SliderCanvasItem
@@ -606,7 +607,7 @@ class IndexValueSliderCanvasItem(CanvasItem.CanvasItemComposition):
                 self.__slider_row.add_canvas_item(label)
                 self.__slider_row.add_canvas_item(slider_canvas_item)
                 self.__slider_row.add_canvas_item(slider_text)
-                slider_value_stream = Stream.PropertyChangedEventStream(slider_canvas_item, "value")
+                slider_value_stream = Stream.PropertyChangedEventStream[float](slider_canvas_item, "value")
                 self.__slider_value_action = Stream.ValueStreamAction(slider_value_stream, functools.partial(self.__index_value_adapter.set_index_value, display_data_channel))
             else:
                 slider_canvas_item = typing.cast(CanvasItem.SliderCanvasItem, self.__slider_row.canvas_items[1])
@@ -620,8 +621,10 @@ class IndexValueSliderCanvasItem(CanvasItem.CanvasItemComposition):
             self.__slider_row.remove_all_canvas_items()
 
 
-class RelatedItemsValueStream(Stream.ValueStream):
-    def __init__(self, document_model: DocumentModel.DocumentModel, display_item_value_stream: Stream.ValueStream):
+_RelatedItemsTuple = typing.Tuple[typing.List[DisplayItem.DisplayItem], typing.List[DisplayItem.DisplayItem]]
+
+class RelatedItemsValueStream(Stream.ValueStream[_RelatedItemsTuple]):
+    def __init__(self, document_model: DocumentModel.DocumentModel, display_item_value_stream: Stream.ValueStream[DisplayItem.DisplayItem]) -> None:
         super().__init__()
         self.__document_model = document_model
         self.__display_item_stream = display_item_value_stream.add_ref()
@@ -631,9 +634,9 @@ class RelatedItemsValueStream(Stream.ValueStream):
 
     def about_to_delete(self) -> None:
         self.__stream_listener.close()
-        self.__stream_listener = None
+        self.__stream_listener = typing.cast(typing.Any, None)
         self.__display_item_stream.remove_ref()
-        self.__display_item_stream = None
+        self.__display_item_stream = typing.cast(typing.Any, None)
         if self.__related_items_changed_listener:
             self.__related_items_changed_listener.close()
             self.__related_items_changed_listener = None
@@ -657,7 +660,9 @@ class RelatedItemsValueStream(Stream.ValueStream):
 
 
 class RelatedIconsCanvasItem(CanvasItem.CanvasItemComposition):
-    def __init__(self, ui: UserInterface.UserInterface, document_model: DocumentModel.DocumentModel, display_item_value_stream: Stream.ValueStream, drag_fn: typing.Callable[[UserInterface.MimeData, numpy.ndarray, int, int], None]):
+    def __init__(self, ui: UserInterface.UserInterface, document_model: DocumentModel.DocumentModel,
+                 display_item_value_stream: Stream.ValueStream[DisplayItem.DisplayItem],
+                 drag_fn: typing.Callable[[UserInterface.MimeData, _NDArray, int, int], None]) -> None:
         super().__init__()
         self.layout = CanvasItem.CanvasItemRowLayout()
         self.update_sizing(self.sizing.with_preferred_height(0))
@@ -674,23 +679,24 @@ class RelatedIconsCanvasItem(CanvasItem.CanvasItemComposition):
         self.add_canvas_item(self.__dependent_thumbnails)
         self.add_spacing(12)
         related_items_value_stream = RelatedItemsValueStream(document_model, display_item_value_stream)
-        self.__related_items_stream_action = Stream.ValueStreamAction(related_items_value_stream, self.__related_items_changed)
-        self.__related_items_changed(typing.cast(typing.Tuple[typing.List[DisplayItem.DisplayItem], typing.List[DisplayItem.DisplayItem]], related_items_value_stream.value))
+        self.__related_items_stream_action = Stream.ValueStreamAction[_RelatedItemsTuple](related_items_value_stream, self.__related_items_changed)
+        self.__related_items_changed(related_items_value_stream.value)
 
     def close(self) -> None:
         self.__related_items_stream_action.close()
-        self.__related_items_stream_action = typing.cast(Stream.ValueStreamAction, None)
+        self.__related_items_stream_action = typing.cast(typing.Any, None)
         super().close()
 
     @property
-    def _source_thumbnails(self):
+    def _source_thumbnails(self) -> CanvasItem.CanvasItemComposition:
         return self.__source_thumbnails
 
     @property
-    def _dependent_thumbnails(self):
+    def _dependent_thumbnails(self) -> CanvasItem.CanvasItemComposition:
         return self.__dependent_thumbnails
 
-    def __related_items_changed(self, items: typing.Tuple[typing.List[DisplayItem.DisplayItem], typing.List[DisplayItem.DisplayItem]]) -> None:
+    def __related_items_changed(self, items: typing.Optional[_RelatedItemsTuple]) -> None:
+        assert items is not None
         source_display_items, dependent_display_items = items
         self.__source_thumbnails.remove_all_canvas_items()
         self.__dependent_thumbnails.remove_all_canvas_items()
@@ -707,62 +713,51 @@ class RelatedIconsCanvasItem(CanvasItem.CanvasItemComposition):
             self.__dependent_thumbnails.add_canvas_item(thumbnail_canvas_item)
 
 
-class MissingDataCanvasItem(CanvasItem.CanvasItemComposition):
+class MissingDataCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
     """ Canvas item to draw background_color. """
-    def __init__(self, delegate):
+    def __init__(self, delegate: typing.Optional[DisplayCanvasItem.DisplayCanvasItemDelegate]) -> None:
         super().__init__()
         self.__delegate = delegate
 
-    def context_menu_event(self, x, y, gx, gy):
-        return self.__delegate.show_display_context_menu(gx, gy)
+    def context_menu_event(self, x: int, y: int, gx: int, gy: int) -> bool:
+        return self.__delegate.show_display_context_menu(gx, gy) if self.__delegate else False
 
     @property
     def key_contexts(self) -> typing.Sequence[str]:
         return ["display_panel"]
 
-    @property
-    def default_aspect_ratio(self):
-        return 1.0
-
     def add_display_control(self, display_control_canvas_item: CanvasItem.AbstractCanvasItem, role: typing.Optional[str] = None) -> None:
         display_control_canvas_item.close()
-
-    def update_display_values(self, display_values_list) -> None:
-        pass
-
-    def update_display_properties_and_layers(self, display_calibration_info, display_properties, display_layers) -> None:
-        pass
-
-    def update_graphics_coordinate_system(self, graphics, graphic_selection, display_calibration_info) -> None:
-        pass
 
     def handle_auto_display(self) -> bool:
         # enter key has been pressed
         return False
 
-    def _repaint(self, drawing_context):
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
         # canvas size
-        canvas_width = self.canvas_size[1]
-        canvas_height = self.canvas_size[0]
-        with drawing_context.saver():
-            drawing_context.begin_path()
-            drawing_context.rect(0, 0, canvas_width, canvas_height)
-            drawing_context.fill_style = "#CCC"
-            drawing_context.fill()
-            drawing_context.begin_path()
-            drawing_context.rect(0, 0, canvas_width, canvas_height)
-            drawing_context.move_to(0, 0)
-            drawing_context.line_to(canvas_width, canvas_height)
-            drawing_context.move_to(0, canvas_height)
-            drawing_context.line_to(canvas_width, 0)
-            drawing_context.stroke_style = "#444"
-            drawing_context.stroke()
+        canvas_size = self.canvas_size
+        if canvas_size:
+            with drawing_context.saver():
+                drawing_context.begin_path()
+                drawing_context.rect(0, 0, canvas_size.width, canvas_size.height)
+                drawing_context.fill_style = "#CCC"
+                drawing_context.fill()
+                drawing_context.begin_path()
+                drawing_context.rect(0, 0, canvas_size.width, canvas_size.height)
+                drawing_context.move_to(0, 0)
+                drawing_context.line_to(canvas_size.width, canvas_size.height)
+                drawing_context.move_to(0, canvas_size.height)
+                drawing_context.line_to(canvas_size.width, 0)
+                drawing_context.stroke_style = "#444"
+                drawing_context.stroke()
 
 
 class DisplayTracker:
     """Tracks messages from a display and passes them to associated display canvas item."""
 
-    def __init__(self, display_item, ui_settings: UISettings.UISettings, delegate, event_loop, draw_background):
+    def __init__(self, display_item: DisplayItem.DisplayItem, ui_settings: UISettings.UISettings,
+                 delegate: DisplayCanvasItem.DisplayCanvasItemDelegate, event_loop: asyncio.AbstractEventLoop,
+                 draw_background: bool) -> None:
         self.__display_item = display_item
         self.__ui_settings = ui_settings
         self.__delegate = delegate
@@ -771,18 +766,16 @@ class DisplayTracker:
 
         self.__closing_lock = threading.RLock()
 
-        self.__display_canvas_item = None
-
         # callbacks
-        self.on_clear_display = None
-        self.on_title_changed = None
-        self.on_replace_display_canvas_item = None
+        self.on_clear_display: typing.Optional[typing.Callable[[], None]] = None
+        self.on_title_changed: typing.Optional[typing.Callable[[str], None]] = None
+        self.on_replace_display_canvas_item: typing.Optional[typing.Callable[[DisplayCanvasItem.DisplayCanvasItem, DisplayCanvasItem.DisplayCanvasItem], None]] = None
 
-        def clear_display():
+        def clear_display() -> None:
             if callable(self.on_clear_display):
                 self.on_clear_display()
 
-        def display_item_property_changed(key):
+        def display_item_property_changed(key: str) -> None:
             if key == "displayed_title":
                 if callable(self.on_title_changed):
                     self.on_title_changed(display_item.displayed_title)
@@ -797,13 +790,13 @@ class DisplayTracker:
 
         self.__display_canvas_item = create_display_canvas_item(display_item, ui_settings, delegate, event_loop, draw_background=self.__draw_background)
 
-        display_data_channel_shapes_ref = [list()]
+        display_data_channel_shapes_ref: typing.List[typing.List[typing.Optional[typing.Tuple[int, ...]]]] = [list()]
 
-        def display_graphics_changed(graphic_selection):
+        def display_graphics_changed(graphic_selection: DisplayItem.GraphicSelection) -> None:
             # this message comes from the display when the graphic selection changes
             self.__display_canvas_item.update_graphics_coordinate_system(display_item.graphics, graphic_selection, DisplayItem.DisplayCalibrationInfo(display_item))
 
-        def display_values_changed():
+        def display_values_changed() -> None:
             # this notification is for the rgba values only
             # thread safe
             with self.__closing_lock:
@@ -816,10 +809,11 @@ class DisplayTracker:
             if new_display_data_channel_shapes != display_data_channel_shapes_ref[0]:
                 # use display data shape from the new shapes
                 display_data_shape = new_display_data_channel_shapes[0] if len(new_display_data_channel_shapes) > 0 else None
-                self.__display_canvas_item.update_graphics_coordinate_system(display_item.graphics, display_item.graphic_selection, DisplayItem.DisplayCalibrationInfo(display_item, display_data_shape))
+                with self.__closing_lock:
+                    self.__display_canvas_item.update_graphics_coordinate_system(display_item.graphics, display_item.graphic_selection, DisplayItem.DisplayCalibrationInfo(display_item, display_data_shape))
                 display_data_channel_shapes_ref[0] = new_display_data_channel_shapes
 
-        def display_changed():
+        def display_changed() -> None:
             # called when anything in the data item changes, including things like graphics or the data itself.
             # this notification does not cover the rgba data, which is handled in the function below.
             # thread safe
@@ -830,21 +824,22 @@ class DisplayTracker:
             if property in ("y_min", "y_max", "y_style", "left_channel", "right_channel", "image_zoom", "image_position", "image_canvas_mode"):
                 display_changed()
 
-        self.__next_calculated_display_values_listeners = list()
+        self.__next_calculated_display_values_listeners: typing.List[Event.EventListener] = list()
 
         def display_layer_property_changed(name: str) -> None:
             display_values_changed()
 
-        def display_data_channel_inserted(key, value, before_index):
+        def display_data_channel_inserted(key: str, value: typing.Any, before_index: int) -> None:
             if key == "display_data_channels":
-                self.__next_calculated_display_values_listeners.insert(before_index, value.add_calculated_display_values_listener(display_values_changed))
+                display_data_channel = typing.cast(DisplayItem.DisplayDataChannel, value)
+                self.__next_calculated_display_values_listeners.insert(before_index, display_data_channel.add_calculated_display_values_listener(display_values_changed))
                 display_values_changed()
             if key == "display_layers":
                 display_layer = typing.cast(DisplayItem.DisplayLayer, value)
                 self.__display_layer_property_changed_listeners.insert(before_index, display_layer.property_changed_event.listen(display_layer_property_changed))
                 display_values_changed()
 
-        def display_data_channel_removed(key, value, index):
+        def display_data_channel_removed(key: str, value: typing.Any, index: int) -> None:
             if key == "display_data_channels":
                 self.__next_calculated_display_values_listeners[index].close()
                 del self.__next_calculated_display_values_listeners[index]
@@ -859,7 +854,7 @@ class DisplayTracker:
         for index, display_data_channel in enumerate(display_item.display_data_channels):
             display_data_channel_inserted("display_data_channels", display_data_channel, index)
 
-        self.__display_layer_property_changed_listeners = list()
+        self.__display_layer_property_changed_listeners: typing.List[Event.EventListener] = list()
 
         for index, display_layer in enumerate(display_item.display_layers):
             display_data_channel_inserted("display_layers", display_layer, index)
@@ -876,7 +871,7 @@ class DisplayTracker:
         display_changed()
         display_graphics_changed(display_item.graphic_selection)
 
-        def display_type_changed(display_type):
+        def display_type_changed(display_type: typing.Optional[str]) -> None:
             # called when the display type of the data item changes.
             old_display_canvas_item = self.__display_canvas_item
             new_display_canvas_item = create_display_canvas_item(display_item, ui_settings, self.__delegate, self.__event_loop, draw_background=self.__draw_background)
@@ -893,105 +888,124 @@ class DisplayTracker:
     def close(self) -> None:
         with self.__closing_lock:  # ensures that display pipeline finishes
             self.__display_changed_event_listener.close()
-            self.__display_changed_event_listener = None
+            self.__display_changed_event_listener = typing.cast(typing.Any, None)
             self.__display_property_changed_listener.close()
-            self.__display_property_changed_listener = None
+            self.__display_property_changed_listener = typing.cast(typing.Any, None)
             self.__display_values_changed_event_listener.close()
-            self.__display_values_changed_event_listener = None
+            self.__display_values_changed_event_listener = typing.cast(typing.Any, None)
             self.__display_data_channel_property_changed_listener.close()
-            self.__display_data_channel_property_changed_listener = None
+            self.__display_data_channel_property_changed_listener = typing.cast(typing.Any, None)
             self.__display_graphics_changed_event_listener.close()
-            self.__display_graphics_changed_event_listener = None
+            self.__display_graphics_changed_event_listener = typing.cast(typing.Any, None)
             for next_calculated_display_values_listener in self.__next_calculated_display_values_listeners:
                 next_calculated_display_values_listener.close()
             self.__next_calculated_display_values_listeners = list()
             for display_layer_property_changed_listener in self.__display_layer_property_changed_listeners:
                 display_layer_property_changed_listener.close()
             self.__item_inserted_listener.close()
-            self.__item_inserted_listener = None
+            self.__item_inserted_listener = typing.cast(typing.Any, None)
             self.__item_removed_listener.close()
-            self.__item_removed_listener = None
+            self.__item_removed_listener = typing.cast(typing.Any, None)
         self.__display_type_changed_event_listener.close()
-        self.__display_type_changed_event_listener = None
+        self.__display_type_changed_event_listener = typing.cast(typing.Any, None)
         self.__display_type_monitor.close()
-        self.__display_type_monitor = None
+        self.__display_type_monitor = typing.cast(typing.Any, None)
         # decrement the ref count on the old item to release it from memory if no longer used.
         self.__display_item.decrement_display_ref_count()
         self.__display_about_to_be_removed_event_listener.close()
-        self.__display_about_to_be_removed_event_listener = None
+        self.__display_about_to_be_removed_event_listener = typing.cast(typing.Any, None)
         self.__display_property_changed_event_listener.close()
-        self.__display_property_changed_event_listener = None
-        self.__display_canvas_item = None
+        self.__display_property_changed_event_listener = typing.cast(typing.Any, None)
+        self.__display_canvas_item = typing.cast(typing.Any, None)
 
     @property
-    def display_canvas_item(self):
+    def display_canvas_item(self) -> DisplayCanvasItem.DisplayCanvasItem:
         return self.__display_canvas_item
 
     @display_canvas_item.setter
-    def display_canvas_item(self, value):
+    def display_canvas_item(self, value: DisplayCanvasItem.DisplayCanvasItem) -> None:
         self.__display_canvas_item = value
 
 
 class InsertGraphicsCommand(Undo.UndoableCommand):
 
-    def __init__(self, document_controller, display_item: DisplayItem.DisplayItem, graphics: typing.Sequence[Graphics.Graphic], *, existing_graphics: typing.Sequence[Graphics.Graphic] = None):
+    def __init__(self, document_controller: DocumentController.DocumentController,
+                 display_item: DisplayItem.DisplayItem, graphics: typing.Sequence[Graphics.Graphic], *,
+                 existing_graphics: typing.Optional[typing.Sequence[Graphics.Graphic]] = None) -> None:
         super().__init__(_("Insert Graphics"))
         self.__document_controller = document_controller
         self.__display_item_proxy = display_item.create_proxy()
         self.__graphics = graphics  # only used for perform
-        self.__old_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
-        self.__new_workspace_layout = None
+        workspace_controller = self.__document_controller.workspace_controller
+        assert workspace_controller
+        self.__old_workspace_layout: typing.Optional[Persistence.PersistentDictType] = workspace_controller.deconstruct()
+        self.__new_workspace_layout: typing.Optional[Persistence.PersistentDictType] = None
         self.__graphics_properties = None
         self.__graphic_proxies = [graphic.create_proxy() for graphic in existing_graphics or list()]
-        self.__undelete_logs = list()
+        self.__undelete_logs: typing.List[Changes.UndeleteLog] = list()
         self.initialize()
 
     def close(self) -> None:
         self.__graphics_properties = None
-        self.__document_controller = None
+        self.__document_controller = typing.cast(typing.Any, None)
         self.__old_workspace_layout = None
         self.__new_workspace_layout = None
         for undelete_log in self.__undelete_logs:
             undelete_log.close()
-        self.__undelete_logs = None
+        self.__undelete_logs = typing.cast(typing.Any, None)
         for graphic_proxy in self.__graphic_proxies:
             graphic_proxy.close()
-        self.__graphic_proxies = None
+        self.__graphic_proxies = typing.cast(typing.Any, None)
         self.__display_item_proxy.close()
-        self.__display_item_proxy = None
+        self.__display_item_proxy = typing.cast(typing.Any, None)
         super().close()
 
     def perform(self) -> None:
-        display_item = self.__display_item_proxy.item
-        graphics = self.__graphics
-        for graphic in graphics:
-            display_item.add_graphic(graphic)
-            new_graphic = display_item.graphics[-1]
-            self.__graphic_proxies.append(new_graphic.create_proxy())
-        self.__graphics = None
+        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+        if display_item:
+            graphics = self.__graphics
+            for graphic in graphics:
+                display_item.add_graphic(graphic)
+                new_graphic = display_item.graphics[-1]
+                self.__graphic_proxies.append(new_graphic.create_proxy())
+            self.__graphics = typing.cast(typing.Any, None)
 
     def _get_modified_state(self) -> typing.Any:
-        display_item = self.__display_item_proxy.item
-        return display_item.modified_state, self.__document_controller.workspace_controller.document_model.modified_state
+        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+        display_item_modified_state = display_item.modified_state if display_item else None
+        workspace_controller = self.__document_controller.workspace_controller
+        document_model_modified_state = workspace_controller.document_model.modified_state if workspace_controller else None
+        return display_item_modified_state, document_model_modified_state
 
-    def _set_modified_state(self, modified_state):
-        display_item = self.__display_item_proxy.item
-        display_item.modified_state, self.__document_controller.workspace_controller.document_model.modified_state = modified_state
+    def _set_modified_state(self, modified_state: typing.Any) -> None:
+        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+        if display_item:
+            display_item.modified_state = modified_state[0]
+        workspace_controller = self.__document_controller.workspace_controller
+        if workspace_controller:
+            workspace_controller.document_model.modified_state = modified_state[1]
 
     def _redo(self) -> None:
         for undelete_log in reversed(self.__undelete_logs):
             self.__document_controller.document_model.undelete_all(undelete_log)
             undelete_log.close()
         self.__undelete_logs.clear()
-        self.__document_controller.workspace_controller.reconstruct(self.__new_workspace_layout)
+        workspace_controller = self.__document_controller.workspace_controller
+        if workspace_controller and self.__new_workspace_layout is not None:
+            workspace_controller.reconstruct(self.__new_workspace_layout)
 
     def _undo(self) -> None:
-        display_item = self.__display_item_proxy.item
-        graphics = [graphic_proxy.item for graphic_proxy in self.__graphic_proxies]
-        self.__new_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
-        for graphic in graphics:
-            self.__undelete_logs.append(display_item.remove_graphic(graphic, safe=True))
-        self.__document_controller.workspace_controller.reconstruct(self.__old_workspace_layout)
+        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+        if display_item:
+            graphics = [typing.cast(typing.Optional[Graphics.Graphic], graphic_proxy.item) for graphic_proxy in self.__graphic_proxies]
+            workspace_controller = self.__document_controller.workspace_controller
+            if workspace_controller:
+                self.__new_workspace_layout = workspace_controller.deconstruct()
+                for graphic in graphics:
+                    if graphic:
+                        self.__undelete_logs.append(display_item.remove_graphic(graphic, safe=True))
+                if self.__old_workspace_layout is not None:
+                    workspace_controller.reconstruct(self.__old_workspace_layout)
 
 
 class AppendDisplayDataChannelCommand(Undo.UndoableCommand):
@@ -1003,41 +1017,50 @@ class AppendDisplayDataChannelCommand(Undo.UndoableCommand):
         self.__document_model = document_model
         self.__display_item_proxy = display_item.create_proxy()
         self.__data_item_proxy = data_item.create_proxy()
-        self.__old_properties = None
-        self.__display_data_channel_index = None
+        self.__old_properties: typing.Optional[typing.Tuple[Persistence.PersistentDictType, typing.List[Persistence.PersistentDictType], str]] = None
+        self.__display_data_channel_index = 0
         self.__value_dict = kwargs
         self.initialize()
 
     def close(self) -> None:
-        self.__document_model = None
+        self.__document_model = typing.cast(typing.Any, None)
         self.__display_item_proxy.close()
-        self.__display_item_proxy = None
+        self.__display_item_proxy = typing.cast(typing.Any, None)
         self.__data_item_proxy.close()
-        self.__data_item_proxy = None
+        self.__data_item_proxy = typing.cast(typing.Any, None)
         super().close()
 
     def perform(self) -> None:
-        display_item = self.__display_item_proxy.item
-        data_item = self.__data_item_proxy.item
-        self.__old_properties = display_item.save_properties()
-        display_item.append_display_data_channel_for_data_item(data_item)
-        self.__display_data_channel_index = display_item.display_data_channels.index(display_item.get_display_data_channel_for_data_item(data_item))
+        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+        data_item = typing.cast(typing.Optional[DataItem.DataItem], self.__data_item_proxy.item)
+        if display_item and data_item:
+            self.__old_properties = display_item.save_properties()
+            display_item.append_display_data_channel_for_data_item(data_item)
+            self.__display_data_channel_index = display_item.display_data_channels.index(display_item.get_display_data_channel_for_data_item(data_item))
 
     def _get_modified_state(self) -> typing.Any:
-        display_item = self.__display_item_proxy.item
-        data_item = self.__data_item_proxy.item
-        return data_item.modified_state, display_item.modified_state, self.__document_model.modified_state
+        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+        display_item_modified_state = display_item.modified_state if display_item else None
+        data_item = typing.cast(typing.Optional[DataItem.DataItem], self.__data_item_proxy.item)
+        data_item_modified_state = data_item.modified_state if data_item else None
+        return data_item_modified_state, display_item_modified_state, self.__document_model.modified_state
 
-    def _set_modified_state(self, modified_state):
-        display_item = self.__display_item_proxy.item
-        data_item = self.__data_item_proxy.item
-        data_item.modified_state, display_item.modified_state, self.__document_model.modified_state = modified_state
+    def _set_modified_state(self, modified_state: typing.Any) -> None:
+        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+        data_item = typing.cast(typing.Optional[DataItem.DataItem], self.__data_item_proxy.item)
+        if data_item:
+            data_item.modified_state = modified_state[0]
+        if display_item:
+            display_item.modified_state = modified_state[1]
+        self.__document_model.modified_state = modified_state[2]
 
     def _undo(self) -> None:
-        display_item = self.__display_item_proxy.item
-        display_data_channel = display_item.display_data_channels[self.__display_data_channel_index]
-        display_item.remove_display_data_channel(display_data_channel, safe=True).close()
-        display_item.restore_properties(self.__old_properties)
+        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+        if display_item:
+            display_data_channel = display_item.display_data_channels[self.__display_data_channel_index]
+            display_item.remove_display_data_channel(display_data_channel, safe=True).close()
+            if self.__old_properties is not None:
+                display_item.restore_properties(self.__old_properties)
 
     def _redo(self) -> None:
         self.perform()
@@ -1045,7 +1068,7 @@ class AppendDisplayDataChannelCommand(Undo.UndoableCommand):
 
 class ChangeDisplayDataChannelCommand(Undo.UndoableCommand):
 
-    def __init__(self, document_model, display_data_channel: DisplayItem.DisplayDataChannel, *, title: str=None, command_id: str=None, is_mergeable: bool=False, **kwargs):
+    def __init__(self, document_model: DocumentModel.DocumentModel, display_data_channel: DisplayItem.DisplayDataChannel, *, title: typing.Optional[str] = None, command_id: typing.Optional[str] = None, is_mergeable: bool=False, **kwargs: typing.Any) -> None:
         super().__init__(title if title else _("Change Display"), command_id=command_id, is_mergeable=is_mergeable)
         self.__document_model = document_model
         self.__display_data_channel_proxy = display_data_channel.create_proxy()
@@ -1054,41 +1077,46 @@ class ChangeDisplayDataChannelCommand(Undo.UndoableCommand):
         self.initialize()
 
     def close(self) -> None:
-        self.__document_model = None
+        self.__document_model = typing.cast(typing.Any, None)
         self.__display_data_channel_proxy.close()
-        self.__display_data_channel_proxy = None
-        self.__properties = None
+        self.__display_data_channel_proxy = typing.cast(typing.Any, None)
+        self.__properties = typing.cast(typing.Any, None)
         super().close()
 
     def perform(self) -> None:
-        display_data_channel = self.__display_data_channel_proxy.item
-        for key, value in self.__value_dict.items():
-            setattr(display_data_channel, key, value)
+        display_data_channel = typing.cast(typing.Optional[DisplayItem.DisplayDataChannel], self.__display_data_channel_proxy.item)
+        if display_data_channel:
+            for key, value in self.__value_dict.items():
+                setattr(display_data_channel, key, value)
 
     def _get_modified_state(self) -> typing.Any:
-        display_data_channel = self.__display_data_channel_proxy.item
-        return display_data_channel.modified_state, self.__document_model.modified_state
+        display_data_channel = typing.cast(typing.Optional[DisplayItem.DisplayDataChannel], self.__display_data_channel_proxy.item)
+        display_data_channel_modified_state = display_data_channel.modified_state if display_data_channel else None
+        return display_data_channel_modified_state, self.__document_model.modified_state
 
-    def _set_modified_state(self, modified_state):
-        display_data_channel = self.__display_data_channel_proxy.item
-        display_data_channel.modified_state, self.__document_model.modified_state = modified_state
+    def _set_modified_state(self, modified_state: typing.Any) -> None:
+        display_data_channel = typing.cast(typing.Optional[DisplayItem.DisplayDataChannel], self.__display_data_channel_proxy.item)
+        if display_data_channel:
+            display_data_channel.modified_state = modified_state[0]
+        self.__document_model.modified_state = modified_state[1]
 
     def _compare_modified_states(self, state1: typing.Any, state2: typing.Any) -> bool:
         # override to allow the undo command to track state; but only use part of the state for comparison
-        return state1[0] == state2[0]
+        return bool(state1[0] == state2[0])
 
     def _undo(self) -> None:
-        display_data_channel = self.__display_data_channel_proxy.item
-        properties = self.__properties
-        self.__properties = display_data_channel.save_properties()
-        display_data_channel.restore_properties(properties)
+        display_data_channel = typing.cast(typing.Optional[DisplayItem.DisplayDataChannel], self.__display_data_channel_proxy.item)
+        if display_data_channel:
+            properties = self.__properties
+            self.__properties = display_data_channel.save_properties()
+            display_data_channel.restore_properties(properties)
 
     def can_merge(self, command: Undo.UndoableCommand) -> bool:
-        return isinstance(command, ChangeDisplayDataChannelCommand) and self.command_id and self.command_id == command.command_id and self.__display_data_channel_proxy.item == command.__display_data_channel_proxy.item
+        return isinstance(command, ChangeDisplayDataChannelCommand) and bool(self.command_id) and self.command_id == command.command_id and self.__display_data_channel_proxy.item == command.__display_data_channel_proxy.item
 
 
 class AppendDisplayDataChannelUndo(Changes.UndeleteBase):
-    def __init__(self, display_item: DisplayItem.DisplayItem, display_data_channel: DisplayItem.DisplayDataChannel):
+    def __init__(self, display_item: DisplayItem.DisplayItem, display_data_channel: DisplayItem.DisplayDataChannel) -> None:
         self.display_item_proxy = display_item.create_proxy()
         self.index = display_item.display_data_channels.index(display_data_channel)
 
@@ -1096,13 +1124,14 @@ class AppendDisplayDataChannelUndo(Changes.UndeleteBase):
         self.display_item_proxy.close()
 
     def undelete(self, document_model: DocumentModel.DocumentModel) -> None:
-        display_item = typing.cast(DisplayItem.DisplayItem, self.display_item_proxy.item)
+        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.display_item_proxy.item)
         # use the version of remove that does not cascade
+        assert display_item
         display_item.remove_item("display_data_channels", display_item.display_data_channels[self.index])
 
 
 class AppendDisplayLayerUndo(Changes.UndeleteBase):
-    def __init__(self, display_item: DisplayItem.DisplayItem, display_layer: DisplayItem.DisplayLayer):
+    def __init__(self, display_item: DisplayItem.DisplayItem, display_layer: DisplayItem.DisplayLayer) -> None:
         self.display_item_proxy = display_item.create_proxy()
         self.index = display_item.display_layers.index(display_layer)
 
@@ -1110,13 +1139,14 @@ class AppendDisplayLayerUndo(Changes.UndeleteBase):
         self.display_item_proxy.close()
 
     def undelete(self, document_model: DocumentModel.DocumentModel) -> None:
-        display_item = typing.cast(DisplayItem.DisplayItem, self.display_item_proxy.item)
+        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.display_item_proxy.item)
         # use the version of remove that does not cascade
-        display_item.remove_item("display_layers", display_item.display_layers[self.index])
+        assert display_item
+        display_item.remove_item("display_layers", typing.cast(Persistence.PersistentObject, display_item.display_layers[self.index]))
 
 
 class SetDisplayPropertyUndo(Changes.UndeleteBase):
-    def __init__(self, display_item: DisplayItem.DisplayItem, name: str):
+    def __init__(self, display_item: DisplayItem.DisplayItem, name: str) -> None:
         self.display_item_proxy = display_item.create_proxy()
         self.name = name
         self.value = display_item.get_display_property(name)
@@ -1125,16 +1155,17 @@ class SetDisplayPropertyUndo(Changes.UndeleteBase):
         self.display_item_proxy.close()
 
     def undelete(self, document_model: DocumentModel.DocumentModel) -> None:
-        display_item = typing.cast(DisplayItem.DisplayItem, self.display_item_proxy.item)
+        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.display_item_proxy.item)
+        assert display_item
         display_item.set_display_property(self.name, self.value)
 
 
 class MoveDisplayLayerCommand(Undo.UndoableCommand):
 
-    def __init__(self, document_model,
+    def __init__(self, document_model: DocumentModel.DocumentModel,
                  old_display_item: DisplayItem.DisplayItem, old_display_layer_index: int,
                  new_display_item: DisplayItem.DisplayItem, new_display_layer_index: int,
-                 *, title: str=None, command_id: str=None, is_mergeable: bool=False, **kwargs):
+                 *, title: typing.Optional[str] = None, command_id: typing.Optional[str] = None, is_mergeable: bool=False, **kwargs: typing.Any) -> None:
         super().__init__(title if title else _("Move Display Layer"), command_id=command_id, is_mergeable=is_mergeable)
         self.__document_model = document_model
         self.__old_legend_position = old_display_item.get_display_property("legend_position")
@@ -1147,14 +1178,14 @@ class MoveDisplayLayerCommand(Undo.UndoableCommand):
         self.initialize()
 
     def close(self) -> None:
-        self.__document_model = None
+        self.__document_model = typing.cast(typing.Any, None)
         self.__old_display_item_proxy.close()
-        self.__old_display_item_proxy = None
+        self.__old_display_item_proxy = typing.cast(typing.Any, None)
         self.__new_display_item_proxy.close()
-        self.__new_display_item_proxy = None
+        self.__new_display_item_proxy = typing.cast(typing.Any, None)
         for undelete_log in self.__undelete_logs:
             undelete_log.close()
-        self.__undelete_logs = None
+        self.__undelete_logs = typing.cast(typing.Any, None)
         super().close()
 
     def perform(self) -> None:
@@ -1166,12 +1197,14 @@ class MoveDisplayLayerCommand(Undo.UndoableCommand):
         #   same display item with associated display data channel used by source display layer and others
 
         # first get info about the old display layer
-        old_display_item = typing.cast(DisplayItem.DisplayItem, self.__old_display_item_proxy.item)
+        old_display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__old_display_item_proxy.item)
+        assert old_display_item
         old_display_layer_index = self.__old_display_layer_index
         old_display_layer_properties = old_display_item.get_display_layer_properties(self.__old_display_layer_index)
         old_display_data_channel_index = old_display_item.display_data_channels.index(old_display_item.get_display_layer_display_data_channel(old_display_layer_index))
         # next get info about the new display layer
-        new_display_item = typing.cast(DisplayItem.DisplayItem, self.__new_display_item_proxy.item)
+        new_display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__new_display_item_proxy.item)
+        assert new_display_item
         new_display_layer_index = self.__new_display_layer_index
         # save undo info about legend
         undelete_log = Changes.UndeleteLog()
@@ -1209,18 +1242,24 @@ class MoveDisplayLayerCommand(Undo.UndoableCommand):
         old_display_item.auto_display_legend()
 
     def _get_modified_state(self) -> typing.Any:
-        old_display_item = self.__old_display_item_proxy.item
-        new_display_item = self.__new_display_item_proxy.item
-        return old_display_item.modified_state, new_display_item.modified_state, self.__document_model.modified_state
+        old_display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__old_display_item_proxy.item)
+        new_display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__new_display_item_proxy.item)
+        old_display_item_modified_state = old_display_item.modified_state if old_display_item else None
+        new_display_item_modified_state = new_display_item.modified_state if new_display_item else None
+        return old_display_item_modified_state, new_display_item_modified_state, self.__document_model.modified_state
 
-    def _set_modified_state(self, modified_state):
-        old_display_item = self.__old_display_item_proxy.item
-        new_display_item = self.__new_display_item_proxy.item
-        old_display_item.modified_state, new_display_item.modified_state, self.__document_model.modified_state = modified_state
+    def _set_modified_state(self, modified_state: typing.Any) -> None:
+        old_display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__old_display_item_proxy.item)
+        new_display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__new_display_item_proxy.item)
+        if old_display_item:
+            old_display_item.modified_state = modified_state[0]
+        if new_display_item:
+            new_display_item.modified_state = modified_state[1]
+        self.__document_model.modified_state = modified_state[2]
 
     def _compare_modified_states(self, state1: typing.Any, state2: typing.Any) -> bool:
         # override to allow the undo command to track state; but only use part of the state for comparison
-        return state1[0] == state2[0] and state1[1] == state2[1]
+        return bool(state1[0] == state2[0]) and bool(state1[1] == state2[1])
 
     def _undo(self) -> None:
         for undelete_log in reversed(self.__undelete_logs):
@@ -1234,8 +1273,8 @@ class MoveDisplayLayerCommand(Undo.UndoableCommand):
 
 class AddDisplayLayerCommand(Undo.UndoableCommand):
 
-    def __init__(self, document_model, display_item: DisplayItem.DisplayItem, index: int,
-                 *, title: str=None, command_id: str=None, is_mergeable: bool=False, **kwargs):
+    def __init__(self, document_model: DocumentModel.DocumentModel, display_item: DisplayItem.DisplayItem, index: int,
+                 *, title: typing.Optional[str] = None, command_id: typing.Optional[str] = None, is_mergeable: bool=False, **kwargs: typing.Any) -> None:
         super().__init__(title if title else _("Add Display Layer"), command_id=command_id, is_mergeable=is_mergeable)
         self.__document_model = document_model
         self.__old_properties = display_item.save_properties()
@@ -1244,31 +1283,36 @@ class AddDisplayLayerCommand(Undo.UndoableCommand):
         self.initialize()
 
     def close(self) -> None:
-        self.__document_model = None
-        self.__old_properties = None
+        self.__document_model = typing.cast(typing.Any, None)
+        self.__old_properties = typing.cast(typing.Any, None)
         self.__display_item_proxy.close()
-        self.__display_item_proxy = None
+        self.__display_item_proxy = typing.cast(typing.Any, None)
         super().close()
 
     def perform(self) -> None:
         # add display data channel and display layer to new display item
-        display_item = typing.cast(DisplayItem.DisplayItem, self.__display_item_proxy.item)
-        display_item.insert_display_layer_for_display_data_channel(self.__index, display_item.display_data_channels[0])
-        display_item.auto_display_legend()
+        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+        if display_item:
+            display_item.insert_display_layer_for_display_data_channel(self.__index, display_item.display_data_channels[0])
+            display_item.auto_display_legend()
 
     def _get_modified_state(self) -> typing.Any:
-        display_item = typing.cast(DisplayItem.DisplayItem, self.__display_item_proxy.item)
-        return display_item.modified_state, self.__document_model.modified_state
+        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+        display_item_modified_state = display_item.modified_state if display_item else None
+        return display_item_modified_state, self.__document_model.modified_state
 
-    def _set_modified_state(self, modified_state):
-        display_item = typing.cast(DisplayItem.DisplayItem, self.__display_item_proxy.item)
-        display_item.modified_state, self.__document_model.modified_state = modified_state
+    def _set_modified_state(self, modified_state: typing.Any) -> None:
+        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+        if display_item:
+            display_item.modified_state = modified_state[0]
+        self.__document_model.modified_state = modified_state[1]
 
     def _undo(self) -> None:
         # remove the new display layer and restore properties
-        display_item = typing.cast(DisplayItem.DisplayItem, self.__display_item_proxy.item)
-        display_item.remove_display_layer(self.__index).close()
-        display_item.restore_properties(self.__old_properties)
+        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+        if display_item:
+            display_item.remove_display_layer(self.__index).close()
+            display_item.restore_properties(self.__old_properties)
 
     def _redo(self) -> None:
         self.perform()
@@ -1276,48 +1320,53 @@ class AddDisplayLayerCommand(Undo.UndoableCommand):
 
 class RemoveDisplayLayerCommand(Undo.UndoableCommand):
 
-    def __init__(self, document_model, display_item: DisplayItem.DisplayItem, index: int,
-                 *, title: str=None, command_id: str=None, is_mergeable: bool=False, **kwargs):
+    def __init__(self, document_model: DocumentModel.DocumentModel, display_item: DisplayItem.DisplayItem, index: int,
+                 *, title: typing.Optional[str] = None, command_id: typing.Optional[str] = None, is_mergeable: bool=False, **kwargs: typing.Any) -> None:
         super().__init__(title if title else _("Remove Display Layer"), command_id=command_id, is_mergeable=is_mergeable)
         self.__document_model = document_model
         self.__old_properties = display_item.save_properties()
         self.__display_item_proxy = display_item.create_proxy()
         self.__index = index
-        self.__undelete_logs = list()
+        self.__undelete_logs: typing.List[Changes.UndeleteLog] = list()
         self.initialize()
 
     def close(self) -> None:
-        self.__document_model = None
-        self.__old_properties = None
+        self.__document_model = typing.cast(typing.Any, None)
+        self.__old_properties = typing.cast(typing.Any, None)
         self.__display_item_proxy.close()
-        self.__display_item_proxy = None
+        self.__display_item_proxy = typing.cast(typing.Any, None)
         for undelete_log in self.__undelete_logs:
             undelete_log.close()
-        self.__undelete_logs = None
+        self.__undelete_logs = typing.cast(typing.Any, None)
         super().close()
 
     def perform(self) -> None:
         # add display data channel and display layer to new display item
-        display_item = typing.cast(DisplayItem.DisplayItem, self.__display_item_proxy.item)
-        self.__undelete_logs.append(display_item.remove_display_layer(self.__index))
-        display_item.auto_display_legend()
+        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+        if display_item:
+            self.__undelete_logs.append(display_item.remove_display_layer(self.__index))
+            display_item.auto_display_legend()
 
     def _get_modified_state(self) -> typing.Any:
-        display_item = typing.cast(DisplayItem.DisplayItem, self.__display_item_proxy.item)
-        return display_item.modified_state, self.__document_model.modified_state
+        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+        display_item_modified_state = display_item.modified_state if display_item else None
+        return display_item_modified_state, self.__document_model.modified_state
 
-    def _set_modified_state(self, modified_state):
-        display_item = typing.cast(DisplayItem.DisplayItem, self.__display_item_proxy.item)
-        display_item.modified_state, self.__document_model.modified_state = modified_state
+    def _set_modified_state(self, modified_state: typing.Any) -> None:
+        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+        if display_item:
+            display_item.modified_state = modified_state[0]
+        self.__document_model.modified_state = modified_state[1]
 
     def _undo(self) -> None:
         # remove the new display layer and restore properties
-        display_item = typing.cast(DisplayItem.DisplayItem, self.__display_item_proxy.item)
-        for undelete_log in reversed(self.__undelete_logs):
-            self.__document_model.undelete_all(undelete_log)
-            undelete_log.close()
-        self.__undelete_logs.clear()
-        display_item.restore_properties(self.__old_properties)
+        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+        if display_item:
+            for undelete_log in reversed(self.__undelete_logs):
+                self.__document_model.undelete_all(undelete_log)
+                undelete_log.close()
+            self.__undelete_logs.clear()
+            display_item.restore_properties(self.__old_properties)
 
     def _redo(self) -> None:
         self.perform()
@@ -1325,7 +1374,7 @@ class RemoveDisplayLayerCommand(Undo.UndoableCommand):
 
 class ChangeDisplayCommand(Undo.UndoableCommand):
 
-    def __init__(self, document_model, display_item: DisplayItem.DisplayItem, *, title: str=None, command_id: str=None, is_mergeable: bool=False, **kwargs):
+    def __init__(self, document_model: DocumentModel.DocumentModel, display_item: DisplayItem.DisplayItem, *, title: typing.Optional[str] = None, command_id: typing.Optional[str] = None, is_mergeable: bool=False, **kwargs: typing.Any) -> None:
         super().__init__(title if title else _("Change Display"), command_id=command_id, is_mergeable=is_mergeable)
         self.__document_model = document_model
         self.__display_item_proxy = display_item.create_proxy()
@@ -1334,96 +1383,106 @@ class ChangeDisplayCommand(Undo.UndoableCommand):
         self.initialize()
 
     def close(self) -> None:
-        self.__document_model = None
+        self.__document_model = typing.cast(typing.Any, None)
         self.__display_item_proxy.close()
-        self.__display_item_proxy = None
-        self.__properties = None
+        self.__display_item_proxy = typing.cast(typing.Any, None)
+        self.__properties = typing.cast(typing.Any, None)
         super().close()
 
     def perform(self) -> None:
-        display_item = self.__display_item_proxy.item
-        for key, value in self.__value_dict.items():
-            display_item.set_display_property(key, value)
+        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+        if display_item:
+            for key, value in self.__value_dict.items():
+                display_item.set_display_property(key, value)
 
     def _get_modified_state(self) -> typing.Any:
-        display_item = self.__display_item_proxy.item
-        return display_item.modified_state, self.__document_model.modified_state
+        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+        display_item_modified_state = display_item.modified_state if display_item else None
+        return display_item_modified_state, self.__document_model.modified_state
 
-    def _set_modified_state(self, modified_state):
-        display_item = self.__display_item_proxy.item
-        display_item.modified_state, self.__document_model.modified_state = modified_state
+    def _set_modified_state(self, modified_state: typing.Any) -> None:
+        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+        if display_item:
+            display_item.modified_state = modified_state[0]
+        self.__document_model.modified_state = modified_state[1]
 
     def _compare_modified_states(self, state1: typing.Any, state2: typing.Any) -> bool:
         # override to allow the undo command to track state; but only use part of the state for comparison
-        return state1[0] == state2[0]
+        return bool(state1[0] == state2[0])
 
     def _undo(self) -> None:
-        display_item = self.__display_item_proxy.item
-        properties = self.__properties
-        self.__properties = display_item.save_properties()
-        display_item.restore_properties(properties)
+        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+        if display_item:
+            properties = self.__properties
+            self.__properties = display_item.save_properties()
+            display_item.restore_properties(properties)
 
     def can_merge(self, command: Undo.UndoableCommand) -> bool:
-        return isinstance(command, ChangeDisplayCommand) and self.command_id and self.command_id == command.command_id and self.__display_item_proxy.item == command.__display_item_proxy.item
+        return isinstance(command, ChangeDisplayCommand) and bool(self.command_id) and self.command_id == command.command_id and self.__display_item_proxy.item == command.__display_item_proxy.item
 
 
 class ChangeGraphicsCommand(Undo.UndoableCommand):
 
-    def __init__(self, document_model, display_item, graphics, *, title: str=None, command_id: str=None, is_mergeable: bool=False, **kwargs):
+    def __init__(self, document_model: DocumentModel.DocumentModel, display_item: DisplayItem.DisplayItem, graphics: typing.Sequence[Graphics.Graphic], *, title: typing.Optional[str] = None, command_id: typing.Optional[str] = None, is_mergeable: bool=False, **kwargs: typing.Any) -> None:
         super().__init__(title if title else _("Change Graphics"), command_id=command_id, is_mergeable=is_mergeable)
         self.__document_model = document_model
         self.__display_item_proxy = display_item.create_proxy()
         self.__graphic_indexes = [display_item.graphics.index(graphic) for graphic in graphics]
-        self.__properties = [graphic.write_to_dict() for graphic in graphics]
+        self.__graphic_properties = [graphic.write_to_dict() for graphic in graphics]
         self.__value_dict = kwargs
         self.initialize()
 
     def close(self) -> None:
-        self.__document_model = None
-        self.__properties = None
+        self.__document_model = typing.cast(typing.Any, None)
+        self.__graphic_properties = typing.cast(typing.Any, None)
         self.__display_item_proxy.close()
-        self.__display_item_proxy = None
-        self.__graphic_indexes = None
+        self.__display_item_proxy = typing.cast(typing.Any, None)
+        self.__graphic_indexes = typing.cast(typing.Any, None)
         super().close()
 
     def perform(self) -> None:
-        display_item = self.__display_item_proxy.item
-        graphics = [display_item.graphics[index] for index in self.__graphic_indexes]
-        for key, value in self.__value_dict.items():
-            for graphic in graphics:
-                setattr(graphic, key, value)
+        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+        if display_item:
+            graphics = [display_item.graphics[index] for index in self.__graphic_indexes]
+            for key, value in self.__value_dict.items():
+                for graphic in graphics:
+                    setattr(graphic, key, value)
 
     def _get_modified_state(self) -> typing.Any:
-        display_item = self.__display_item_proxy.item
-        return display_item.modified_state, self.__document_model.modified_state
+        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+        display_item_modified_state = display_item.modified_state if display_item else None
+        return display_item_modified_state, self.__document_model.modified_state
 
-    def _set_modified_state(self, modified_state):
-        display_item = self.__display_item_proxy.item
-        display_item.modified_state, self.__document_model.modified_state = modified_state
+    def _set_modified_state(self, modified_state: typing.Any) -> None:
+        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+        if display_item:
+            display_item.modified_state = modified_state[0]
+        self.__document_model.modified_state = modified_state[1]
 
     def _compare_modified_states(self, state1: typing.Any, state2: typing.Any) -> bool:
         # override to allow the undo command to track state; but only use part of the state for comparison
-        return state1[0] == state2[0]
+        return bool(state1[0] == state2[0])
 
     def _undo(self) -> None:
-        display_item = self.__display_item_proxy.item
-        properties = self.__properties
-        graphics = [display_item.graphics[index] for index in self.__graphic_indexes]
-        self.__properties = [graphic.write_to_dict() for graphic in graphics]
-        for graphic, properties in zip(graphics, properties):
-            # NOTE: use read_properties_from_dict (read properties only), not read_from_dict (used for initialization).
-            graphic.read_properties_from_dict(properties)
+        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+        if display_item:
+            properties = self.__graphic_properties
+            graphics = [display_item.graphics[index] for index in self.__graphic_indexes]
+            self.__graphic_properties = [graphic.write_to_dict() for graphic in graphics]
+            for graphic, graphic_properties in zip(graphics, properties):
+                # NOTE: use read_properties_from_dict (read properties only), not read_from_dict (used for initialization).
+                graphic.read_properties_from_dict(graphic_properties)
 
     def can_merge(self, command: Undo.UndoableCommand) -> bool:
-        return isinstance(command, ChangeGraphicsCommand) and self.command_id and self.command_id == command.command_id and self.__display_item_proxy.item == command.__display_item_proxy.item and self.__graphic_indexes == command.__graphic_indexes
+        return isinstance(command, ChangeGraphicsCommand) and bool(self.command_id) and self.command_id == command.command_id and self.__display_item_proxy.item == command.__display_item_proxy.item and self.__graphic_indexes == command.__graphic_indexes
 
 
 class DisplayPanelUISettings(UISettings.UISettings):
-    def __init__(self, ui: UserInterface.UserInterface):
+    def __init__(self, ui: UserInterface.UserInterface) -> None:
         self.__ui = ui
 
     def get_font_metrics(self, font: str, text: str) -> UISettings.FontMetrics:
-        return self.__ui.get_font_metrics(font, text)
+        return typing.cast(UISettings.FontMetrics, self.__ui.get_font_metrics(font, text))
 
     @property
     def cursor_tolerance(self) -> float:
@@ -1445,35 +1504,39 @@ class FixedUISettings(UISettings.UISettings):
 class DisplayPanel(CanvasItem.LayerCanvasItem):
     """A canvas item to display a library item. Allows library item to be changed."""
 
-    def __init__(self, document_controller, d, new_uuid: uuid.UUID=None):
+    def __init__(self, document_controller: DocumentController.DocumentController, d: Persistence.PersistentDictType,
+                 new_uuid: typing.Optional[uuid.UUID] = None) -> None:
         super().__init__()
         self.is_root_opaque = True  # mark it as an opaque item at the top level for drawing efficiency.
-        self.__weak_document_controller = weakref.ref(document_controller)
+        self.__weak_document_controller = typing.cast(_DocumentControllerWeakRefType, weakref.ref(document_controller))
         document_controller.register_display_panel(self)
         self.wants_mouse_events = True
         self.uuid = uuid.UUID(d.get("uuid", str(new_uuid if new_uuid else uuid.uuid4())))
-        self.__identifier = d.get("identifier", "".join([random.choice(string.ascii_uppercase) for _ in range(2)]))
+        self.__identifier: str = d.get("identifier", "".join([random.choice(string.ascii_uppercase) for _ in range(2)])) or str()
         self.ui = document_controller.ui
 
         self.on_contents_changed = None  # useful for writing changes to disk quickly
 
-        self.__content_canvas_item = DisplayPanelOverlayCanvasItem(self.ui.get_font_metrics)
+        self.__content_canvas_item = DisplayPanelOverlayCanvasItem(typing.cast(typing.Callable[[str, str], UISettings.FontMetrics], self.ui.get_font_metrics))
         self.__content_canvas_item.wants_mouse_events = True  # only when display_canvas_item is None
         self.__content_canvas_item.focusable = True
         self.__content_canvas_item.on_focus_changed = self.set_focused
         self.__content_canvas_item.on_context_menu_event = self.__handle_context_menu_event
 
-        self.__header_canvas_item = Panel.HeaderCanvasItem(document_controller, display_close_control=True)
+        self.__header_canvas_item = Panel.HeaderCanvasItem(DisplayPanelUISettings(document_controller.ui), display_close_control=True)
 
-        def header_double_clicked(x, y, modifiers):
+        def header_double_clicked(x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
             display_item = self.display_item
             if display_item:
                 from nion.swift import DisplayEditPopup
                 size = Geometry.IntSize(width=400, height=40)
                 canvas_bounds = self.__header_canvas_item.canvas_bounds
+                assert canvas_bounds
                 pos = Geometry.IntPoint(x=canvas_bounds.center.x - size.width // 2, y=canvas_bounds.top)
                 global_pos = self.__header_canvas_item.map_to_global(pos)
                 DisplayEditPopup.pose_title_edit_popup(document_controller, display_item, global_pos, size)
+                return True
+            return False
 
         self.__header_canvas_item.on_double_clicked = header_double_clicked
 
@@ -1486,11 +1549,11 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         self.add_canvas_item(self.__content_canvas_item)
         self.add_canvas_item(self.__footer_canvas_item)
 
-        self.__display_panel_id = None
+        self.__display_panel_id: typing.Optional[str] = None
 
         workspace_controller = self.__document_controller.workspace_controller
 
-        def drag_enter(mime_data):
+        def drag_enter(mime_data: UserInterface.MimeData) -> str:
             display_canvas_item = self.display_canvas_item
             if display_canvas_item and hasattr(display_canvas_item, "get_drop_regions_map"):
                 # give the display canvas item a chance to provide drop regions based on the display item being dropped
@@ -1498,31 +1561,31 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
                 if mime_data.has_format(MimeTypes.DISPLAY_PANEL_MIME_TYPE):
                     display_item, d = MimeTypes.mime_data_get_panel(mime_data, self.document_controller.document_model)
                 if not display_item:
-                    display_item = MimeTypes.mime_data_get_display_item(mime_data, document_model)
+                    display_item = MimeTypes.mime_data_get_display_item(mime_data, self.document_controller.document_model)
                 if display_item:
-                    self.__content_canvas_item.drop_regions_map = display_canvas_item.get_drop_regions_map(display_item)
+                    self.__content_canvas_item.drop_regions_map = getattr(display_canvas_item, "get_drop_regions_map")(display_item)
             else:
-                self.__content_canvas_item.drop_regions_map = None
+                self.__content_canvas_item.drop_regions_map = dict()
             if workspace_controller:
                 return workspace_controller.handle_drag_enter(self, mime_data)
             return "ignore"
 
-        def drag_leave():
+        def drag_leave() -> str:
             if workspace_controller:
                 return workspace_controller.handle_drag_leave(self)
-            return False
+            return "ignore"
 
-        def drag_move(mime_data, x, y):
+        def drag_move(mime_data: UserInterface.MimeData, x: int, y: int) -> str:
             if workspace_controller:
                 return workspace_controller.handle_drag_move(self, mime_data, x, y)
             return "ignore"
 
-        def wants_drag_event(mime_data):
+        def wants_drag_event(mime_data: UserInterface.MimeData) -> bool:
             if workspace_controller:
                 return workspace_controller.should_handle_drag_for_mime_data(mime_data)
             return False
 
-        def drop(mime_data, region, x, y):
+        def drop(mime_data: UserInterface.MimeData, region: str, x: int, y: int) -> str:
             if workspace_controller:
                 return workspace_controller.handle_drop(self, mime_data, region, x, y)
             return "ignore"
@@ -1544,8 +1607,8 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         self.__content_canvas_item.on_select_all = self.select_all
         self.__content_canvas_item.on_adjust_secondary_focus = adjust_secondary_focus
 
-        def close():
-            if len(workspace_controller.display_panels) > 1:
+        def close() -> None:
+            if workspace_controller and len(workspace_controller.display_panels) > 1:
                 command = workspace_controller.remove_display_panel(self)
                 document_controller.push_undo_command(command)
 
@@ -1555,20 +1618,20 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
 
         ui = document_controller.ui
 
-        self.__display_item = typing.cast(DisplayItem.DisplayItem, None)
-        self.__display_tracker = None
-        self.__data_item_reference_changed_event_listener = None
-        self.__data_item_reference_changed_task = None
+        self.__display_item: typing.Optional[DisplayItem.DisplayItem] = None
+        self.__display_tracker: typing.Optional[DisplayTracker] = None
+        self.__data_item_reference_changed_event_listener: typing.Optional[Event.EventListener] = None
+        self.__data_item_reference_changed_task: typing.Optional[asyncio.Task[None]] = None
 
         document_model = self.__document_controller.document_model
 
         # the display panel controller is an object which adds and controls additional UI on top of this display.
-        self.__display_panel_controller = None
+        self.__display_panel_controller: typing.Optional[DisplayPanelControllerLike] = None
 
         # used for the (optional) display canvas item
         self.__closing_lock = threading.RLock()
 
-        self.__display_item_value_stream = Stream.ValueStream().add_ref()
+        self.__display_item_value_stream = Stream.ValueStream[DisplayItem.DisplayItem]().add_ref()
 
         self.__related_icons_canvas_item: typing.Optional[RelatedIconsCanvasItem] = None
 
@@ -1586,7 +1649,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         # changed since the last time the display_items_changed_event was fired.
         self.__display_items: typing.List[DisplayItem.DisplayItem] = list()
 
-        def data_list_drag_started(mime_data, thumbnail_data: typing.Optional[numpy.ndarray]) -> None:
+        def data_list_drag_started(mime_data: UserInterface.MimeData, thumbnail_data: typing.Optional[_NDArray]) -> None:
             self.content_canvas_item.drag(mime_data, thumbnail_data)
 
         # this handles the case of a key press in a grid or list controller.
@@ -1597,22 +1660,22 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
                 return True
             return False
 
-        def map_display_item_to_display_item_adapter(display_item):
+        def map_display_item_to_display_item_adapter(display_item: DisplayItem.DisplayItem) -> DataPanel.DisplayItemAdapter:
             return DataPanel.DisplayItemAdapter(display_item, ui)
 
-        def unmap_display_item_to_display_item_adapter(display_item_adapter):
+        def unmap_display_item_to_display_item_adapter(display_item_adapter: DataPanel.DisplayItemAdapter) -> None:
             display_item_adapter.close()
 
         self.__filtered_display_item_adapters_model = ListModel.MappedListModel(container=document_controller.filtered_display_items_model, master_items_key="display_items", items_key="display_item_adapters", map_fn=map_display_item_to_display_item_adapter, unmap_fn=unmap_display_item_to_display_item_adapter)
 
-        def display_item_adapter_selection_changed(display_item_adapters):
+        def display_item_adapter_selection_changed(display_item_adapters: typing.Sequence[DataPanel.DisplayItemAdapter]) -> None:
             indexes = set()
             for index, display_item_adapter in enumerate(self.__filtered_display_item_adapters_model.display_item_adapters):
                 if display_item_adapter in display_item_adapters:
                     indexes.add(index)
             self.__selection.set_multiple(indexes)
 
-        def double_clicked(display_item_adapter):
+        def double_clicked(display_item_adapter: DataPanel.DisplayItemAdapter) -> bool:
             display_item_adapter_selection_changed([display_item_adapter])
             self.__cycle_display()
             return True
@@ -1624,7 +1687,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
             if focused:
                 self.__document_controller.selected_display_panel = self
 
-        def delete_display_item_adapters(display_item_adapters):
+        def delete_display_item_adapters(display_item_adapters: typing.Sequence[DataPanel.DisplayItemAdapter]) -> None:
             document_controller.delete_display_items([display_item_adapter.display_item for display_item_adapter in display_item_adapters])
 
         self.__horizontal_data_grid_controller = DataPanel.DataGridController(document_controller.event_loop, document_controller.ui, self.__filtered_display_item_adapters_model, self.__selection, direction=GridCanvasItem.Direction.Row, wrap=False)
@@ -1670,7 +1733,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         self.on_contents_changed = None
 
         self.__mapped_item_listener.close()
-        self.__mapped_item_listener = None
+        self.__mapped_item_listener = typing.cast(typing.Any, None)
 
         if self.__data_item_reference_changed_task:
             self.__data_item_reference_changed_task.cancel()
@@ -1680,7 +1743,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
             self.__data_item_reference_changed_event_listener = None
 
         self.__display_item_value_stream.remove_ref()
-        self.__display_item_value_stream = None
+        self.__display_item_value_stream = typing.cast(typing.Any, None)
 
         with self.__closing_lock:  # ensures that display pipeline finishes
             self.set_display_item(None)  # required before destructing display thread
@@ -1688,14 +1751,14 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         # NOTE: the enclosing canvas item should be closed AFTER this close is called.
         self.__set_display_panel_controller(None)
         self.__horizontal_data_grid_controller.close()
-        self.__horizontal_data_grid_controller = None
+        self.__horizontal_data_grid_controller = typing.cast(typing.Any, None)
         self.__grid_data_grid_controller.close()
-        self.__grid_data_grid_controller = None
+        self.__grid_data_grid_controller = typing.cast(typing.Any, None)
         self.__selection_changed_event_listener.close()
-        self.__selection_changed_event_listener = None
+        self.__selection_changed_event_listener = typing.cast(typing.Any, None)
         self.__document_controller.filtered_display_items_model.release_selection(self.__selection)
         self.__filtered_display_item_adapters_model.close()
-        self.__filtered_display_item_adapters_model = None
+        self.__filtered_display_item_adapters_model = typing.cast(typing.Any, None)
 
         # define the selection used in the thumbnail and grid browsers.
         self.__selection = Selection.IndexedSelection()
@@ -1703,11 +1766,11 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         self.__content_canvas_item.on_focus_changed = None  # only necessary during tests
 
         # release references
-        self.__content_canvas_item = None
-        self.__header_canvas_item = None
+        self.__content_canvas_item = typing.cast(typing.Any, None)
+        self.__header_canvas_item = typing.cast(typing.Any, None)
 
         self.__document_controller.unregister_display_panel(self)
-        self.__weak_document_controller = None
+        self.__weak_document_controller = typing.cast(typing.Any, None)
         super().close()
 
     @property
@@ -1719,35 +1782,35 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         return self.__weak_document_controller()
 
     @property
-    def _display_panel_controller_for_test(self):
+    def _display_panel_controller_for_test(self) -> typing.Optional[DisplayPanelControllerLike]:
         return self.__display_panel_controller
 
     @property
-    def display_panel_controller(self):
+    def display_panel_controller(self) -> typing.Optional[DisplayPanelControllerLike]:
         return self.__display_panel_controller
 
     @property
-    def _display_item_adapters_for_test(self):
-        return self.__filtered_display_item_adapters_model.display_item_adapters
+    def _display_item_adapters_for_test(self) -> typing.Sequence[DataPanel.DisplayItemAdapter]:
+        return typing.cast(typing.Sequence[DataPanel.DisplayItemAdapter], self.__filtered_display_item_adapters_model.display_item_adapters)
 
     @property
-    def _selection_for_test(self):
+    def _selection_for_test(self) -> Selection.IndexedSelection:
         return self.__selection
 
     @property
-    def _related_icons_canvas_item(self) -> RelatedIconsCanvasItem:
+    def _related_icons_canvas_item(self) -> typing.Optional[RelatedIconsCanvasItem]:
         return self.__related_icons_canvas_item
 
     @property
-    def header_canvas_item(self):
+    def header_canvas_item(self) -> Panel.HeaderCanvasItem:
         return self.__header_canvas_item
 
     @property
-    def content_canvas_item(self):
+    def content_canvas_item(self) -> DisplayPanelOverlayCanvasItem:
         return self.__content_canvas_item
 
     @property
-    def footer_canvas_item(self):
+    def footer_canvas_item(self) -> CanvasItem.CanvasItemComposition:
         return self.__footer_canvas_item
 
     @property
@@ -1755,23 +1818,23 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         return self.__identifier
 
     @property
-    def display_canvas_item(self):
+    def display_canvas_item(self) -> typing.Optional[DisplayCanvasItem.DisplayCanvasItem]:
         return self.__display_tracker.display_canvas_item if self.__display_tracker else None
 
     @property
-    def display_panel_type(self):
+    def display_panel_type(self) -> str:
         return self._display_panel_type
 
     @property
-    def display_panel_id(self):
+    def display_panel_id(self) -> typing.Optional[str]:
         return self.__display_panel_id
 
     @property
-    def data_item(self) -> DataItem.DataItem:
+    def data_item(self) -> typing.Optional[DataItem.DataItem]:
         return self.__display_item.data_item if self.__display_item else None
 
     @property
-    def display_item(self) -> DisplayItem.DisplayItem:
+    def display_item(self) -> typing.Optional[DisplayItem.DisplayItem]:
         """Return the display item selected in the display panel, if any."""
         return self.__display_item
 
@@ -1812,19 +1875,19 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         d["identifier"] = self.identifier
         return d
 
-    def restore_contents(self, d):
+    def restore_contents(self, d: Persistence.PersistentDictType) -> None:
         try:
             display_panel_id = d.get("display_panel_id")
             if display_panel_id:
                 self.__display_panel_id = display_panel_id
             self.__identifier = d.get("identifier", self.__identifier)
-            controller_type = d.get("controller_type")
+            controller_type = typing.cast(str, d.get("controller_type"))
             self.__set_display_panel_controller(DisplayPanelManager().make_display_panel_controller(controller_type, self, d))
             if not self.__display_panel_controller:
-                display_item = None
+                display_item: typing.Optional[DisplayItem.DisplayItem] = None
                 if "display_item_specifier" in d:
                     display_item_specifier = Persistence.PersistentObjectSpecifier.read(d["display_item_specifier"])
-                    display_item = self.document_controller.document_model.resolve_item_specifier(display_item_specifier)
+                    display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.document_controller.document_model.resolve_item_specifier(display_item_specifier)) if display_item_specifier else None
                 self.set_display_item(display_item)
                 if d.get("browser_type") == "horizontal":
                     self.__switch_to_horizontal_browser()
@@ -1844,7 +1907,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         return not self.__display_item and not self.__grid_browser_canvas_item.visible and not self.__display_panel_controller
 
     @property
-    def _display_panel_type(self):
+    def _display_panel_type(self) -> str:
         if self.__horizontal_browser_canvas_item.visible:
             return "horizontal"
         elif self.__grid_browser_canvas_item.visible:
@@ -1854,11 +1917,11 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         else:
             return "empty"
 
-    def handle_drop_display_item(self, region, display_item) -> bool:
+    def handle_drop_display_item(self, region: str, display_item: typing.Optional[DisplayItem.DisplayItem]) -> bool:
         if region == "plus":
             data_item = display_item.data_item if display_item else None
-            if data_item:
-                command = AppendDisplayDataChannelCommand(self.__document_controller.document_model, self.display_item, data_item)
+            if data_item and display_item:
+                command = AppendDisplayDataChannelCommand(self.__document_controller.document_model, display_item, data_item)
                 command.perform()
                 self.__document_controller.push_undo_command(command)
                 return True
@@ -1868,22 +1931,30 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         if action == "move":
             document_controller.display_panel_finish_drag(self)
 
-    def image_clicked(self, image_position: Geometry.FloatPoint, modifiers: CanvasItem.KeyboardModifiers) -> bool:
-        return DisplayPanelManager().image_display_clicked(self, self.__display_item, image_position, modifiers)
+    def image_clicked(self, image_position: Geometry.FloatPoint, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        if self.__display_item:
+            return DisplayPanelManager().image_display_clicked(self, self.__display_item, image_position, modifiers)
+        return False
 
-    def image_mouse_pressed(self, image_position: Geometry.FloatPoint, modifiers: CanvasItem.KeyboardModifiers) -> bool:
-        return DisplayPanelManager().image_display_mouse_pressed(self, self.__display_item, image_position, modifiers)
+    def image_mouse_pressed(self, image_position: Geometry.FloatPoint, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        if self.__display_item:
+            return DisplayPanelManager().image_display_mouse_pressed(self, self.__display_item, image_position, modifiers)
+        return False
 
-    def image_mouse_released(self, image_position: Geometry.FloatPoint, modifiers: CanvasItem.KeyboardModifiers) -> bool:
-        return DisplayPanelManager().image_display_mouse_released(self, self.__display_item, image_position, modifiers)
+    def image_mouse_released(self, image_position: Geometry.FloatPoint, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        if self.__display_item:
+            return DisplayPanelManager().image_display_mouse_released(self, self.__display_item, image_position, modifiers)
+        return False
 
-    def image_mouse_position_changed(self, image_position: Geometry.FloatPoint, modifiers: CanvasItem.KeyboardModifiers) -> bool:
-        return DisplayPanelManager().image_display_mouse_position_changed(self, self.__display_item, image_position, modifiers)
+    def image_mouse_position_changed(self, image_position: Geometry.FloatPoint, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        if self.__display_item:
+            return DisplayPanelManager().image_display_mouse_position_changed(self, self.__display_item, image_position, modifiers)
+        return False
 
-    def image_panel_get_font_metrics(self, font, text):
+    def image_panel_get_font_metrics(self, font: str, text: str) -> UserInterface.FontMetrics:
         return self.ui.get_font_metrics(font, text)
 
-    def __set_display_panel_controller(self, display_panel_controller):
+    def __set_display_panel_controller(self, display_panel_controller: typing.Optional[DisplayPanelControllerLike]) -> None:
         if self.__display_panel_controller:
             self.__display_panel_controller.close()
             self.__display_panel_controller = None
@@ -1904,12 +1975,12 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
             self.__data_item_reference_changed_event_listener.close()
             self.__data_item_reference_changed_event_listener = None
 
-        def handle_data_item_reference_changed():
+        def handle_data_item_reference_changed() -> None:
             if self.__data_item_reference_changed_task:
                 self.__data_item_reference_changed_task.cancel()
                 self.__data_item_reference_changed_task = None
 
-            async def update_display_item():
+            async def update_display_item() -> None:
                 self.set_display_item(self.document_controller.document_model.get_any_display_item_for_data_item(data_item_reference.data_item))
 
             self.__data_item_reference_changed_task = self.document_controller.event_loop.create_task(update_display_item())
@@ -1928,7 +1999,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
             d = {"type": "image", "display_item_specifier": display_item.project.create_specifier(display_item).write()}
             if detect_controller:
                 data_item = display_item.data_item
-                if display_item == self.document_controller.document_model.get_any_display_item_for_data_item(data_item):
+                if display_item == self.document_controller.document_model.get_any_display_item_for_data_item(data_item) and data_item:
                     d2 = DisplayPanelManager().detect_controller(self.__document_controller.document_model, data_item)
                     if d2:
                         d.update(d2)
@@ -1989,7 +2060,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
                 def handle_title_changed(title: str) -> None:
                     self.__update_title()
 
-                def add_display_controls(display_canvas_item) -> None:
+                def add_display_controls(display_canvas_item: DisplayCanvasItem.DisplayCanvasItem) -> None:
                     related_icons_canvas_item = RelatedIconsCanvasItem(self.ui, self.get_document_model(),
                                                                        self.__display_item_value_stream,
                                                                        self.document_controller.drag)
@@ -2011,7 +2082,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
                     display_canvas_item.add_display_control(c1_slider_row)
                     self.__related_icons_canvas_item = related_icons_canvas_item
 
-                def replace_display_canvas_item(old_display_canvas_item, new_display_canvas_item):
+                def replace_display_canvas_item(old_display_canvas_item: DisplayCanvasItem.DisplayCanvasItem, new_display_canvas_item: DisplayCanvasItem.DisplayCanvasItem) -> None:
                     self.__display_composition_canvas_item.replace_canvas_item(old_display_canvas_item, new_display_canvas_item)
                     add_display_controls(new_display_canvas_item)
 
@@ -2051,9 +2122,10 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         # update want mouse and selected status.
         if self.__display_composition_canvas_item:  # may be closed
             self.__display_composition_canvas_item.wants_mouse_events = self.display_canvas_item is None
-            self.__display_composition_canvas_item.selected = display_item and self._is_selected()
+            # TODO: this doesn't appear to do anything
+            # self.__display_composition_canvas_item.selected = display_item and self._is_selected()
 
-    def _select(self):
+    def _select(self) -> None:
         self.content_canvas_item.request_focus()
 
     def __update_title(self) -> None:
@@ -2079,7 +2151,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
                 self.__content_canvas_item.selection_number = None
                 self.__content_canvas_item.line_dash = None
 
-    def _is_selected(self):
+    def _is_selected(self) -> bool:
         """ Used for testing. """
         return self.__content_canvas_item.selected
 
@@ -2115,22 +2187,22 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         return self._is_result_panel
 
     # this gets called when the user initiates a drag in the drag control to move the panel around
-    def __handle_begin_drag(self):
+    def __handle_begin_drag(self) -> None:
         mime_data = self.ui.create_mime_data()
         if self.__display_item:
             MimeTypes.mime_data_put_display_item(mime_data, self.__display_item)
         MimeTypes.mime_data_put_panel(mime_data, None, self.save_contents())
         thumbnail_data = Thumbnails.ThumbnailManager().thumbnail_data_for_display_item(self.__display_item)
-        thumbnail = Image.get_rgba_data_from_rgba(Image.scaled(Image.get_rgba_view_from_rgba_data(thumbnail_data), Geometry.IntSize(w=80, h=80))) if thumbnail_data is not None else None
+        thumbnail = Image.get_rgba_data_from_rgba(Image.scaled(Image.get_rgba_view_from_rgba_data(thumbnail_data), Geometry.IntSize(w=80, h=80).as_tuple())) if thumbnail_data is not None else None
         self.__begin_drag(mime_data, thumbnail)
 
-    def __begin_drag(self, mime_data, thumbnail_data):
+    def __begin_drag(self, mime_data: UserInterface.MimeData, thumbnail_data: typing.Optional[_NDArray]) -> None:
         self.drag(mime_data, thumbnail_data, drag_finished_fn=functools.partial(self._drag_finished, self.__document_controller))
 
     def cycle_display(self) -> None:
         self.__cycle_display()
 
-    def __cycle_display(self):
+    def __cycle_display(self) -> None:
         # cycle display is only valid if there is no display panel controller.
         if self.__display_panel_controller is None:
             # the second part of the if statement below handles the case where the data item has been changed by
@@ -2149,14 +2221,14 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
                 self._select()
             self.__display_changed = False
 
-    def __update_selection_to_display(self):
+    def __update_selection_to_display(self) -> None:
         # match the selection in the browsers (thumbnail and grid) to the display item.
         # if the display item is not in the filtered display items, clear the selection.
         display_items = [display_item_adapter.display_item for display_item_adapter in self.__filtered_display_item_adapters_model.display_item_adapters if display_item_adapter.display_item is not None]
         # selection changed listener is only intended to observe external changes.
         # disable it here and re-enable it after we adjust the selection.
         self.__selection_changed_event_listener.close()
-        self.__selection_changed_event_listener = None
+        self.__selection_changed_event_listener = typing.cast(typing.Any, None)
         if self.__display_item in display_items:
             self.__selection.set(display_items.index(self.__display_item))
             self.__horizontal_data_grid_controller.make_selection_visible()
@@ -2165,17 +2237,17 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
             self.__selection.clear()
         self.__selection_changed_event_listener = self.__selection.changed_event.listen(self.__selection_changed)
 
-    def __switch_to_no_browser(self):
+    def __switch_to_no_browser(self) -> None:
         self.__display_composition_canvas_item.visible = True
         self.__horizontal_browser_canvas_item.visible = False
         self.__grid_browser_canvas_item.visible = False
 
-    def __switch_to_horizontal_browser(self):
+    def __switch_to_horizontal_browser(self) -> None:
         self.__display_composition_canvas_item.visible = True
         self.__horizontal_browser_canvas_item.visible = True
         self.__grid_browser_canvas_item.visible = False
 
-    def __switch_to_grid_browser(self):
+    def __switch_to_grid_browser(self) -> None:
         self.__display_composition_canvas_item.visible = False
         self.__horizontal_browser_canvas_item.visible = False
         self.__grid_browser_canvas_item.visible = True
@@ -2194,7 +2266,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
             elif key.key == 76 and key.modifiers.shift and key.modifiers.alt:
                 action = Window.actions["display_panel.toggle_latency"]
             else:
-                action = Window.get_action_for_key(["display_panel_browser"] + display_canvas_item.key_contexts, key)
+                action = Window.get_action_for_key(["display_panel_browser"] + list(display_canvas_item.key_contexts), key)
             if action:
                 self.document_controller.perform_action(action)
                 return True
@@ -2212,7 +2284,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
 
     # from the canvas item directly. dispatches to the display canvas item. if the display canvas item
     # doesn't handle it, gives the display controller a chance to handle it.
-    def _handle_key_released(self, key):
+    def _handle_key_released(self, key: UserInterface.Key) -> bool:
         display_canvas_item = self.display_canvas_item
         if display_canvas_item and display_canvas_item.key_released(key):
             return True
@@ -2267,7 +2339,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         # this handles the context menu when requested from the thumbnail/grid browser
         return self.__show_context_menu(self.__document_controller.selected_display_items, gx, gy)
 
-    def show_display_context_menu(self, gx, gy) -> bool:
+    def show_display_context_menu(self, gx: int, gy: int) -> bool:
         # this handles the context menu when requested from the display item
         return self.__show_context_menu([self.__display_item] if self.__display_item else [], gx, gy)
 
@@ -2277,12 +2349,12 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         if hasattr(target, fn):
             getattr(target, fn)(*args, **keywords)
 
-    def select_all(self):
+    def select_all(self) -> bool:
         if self.__display_item:
             self.__display_item.graphic_selection.add_range(range(len(self.__display_item.graphics)))
         return True
 
-    def __selection_changed(self):
+    def __selection_changed(self) -> None:
         # item displayed user deselects last item in browser => item stays displayed
         # item displayed but filter changes and no item remains => item stays displayed
         # item not displayed but user selects one item in browser => item gets displayed
@@ -2299,19 +2371,24 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
 
     # messages from the display canvas item
 
-    def add_index_to_selection(self, index):
-        self.__display_item.graphic_selection.add(index)
+    def add_index_to_selection(self, index: int) -> None:
+        if self.__display_item:
+            self.__display_item.graphic_selection.add(index)
 
-    def remove_index_from_selection(self, index):
-        self.__display_item.graphic_selection.remove(index)
+    def remove_index_from_selection(self, index: int) -> None:
+        if self.__display_item:
+            self.__display_item.graphic_selection.remove(index)
 
-    def set_selection(self, index):
-        self.__display_item.graphic_selection.set(index)
+    def set_selection(self, index: int) -> None:
+        if self.__display_item:
+            self.__display_item.graphic_selection.set(index)
 
-    def clear_selection(self):
-        self.__display_item.graphic_selection.clear()
+    def clear_selection(self) -> None:
+        if self.__display_item:
+            self.__display_item.graphic_selection.clear()
 
     def add_and_select_region(self, region: Graphics.Graphic) -> Undo.UndoableCommand:
+        assert self.__display_item
         command = InsertGraphicsCommand(self.__document_controller, self.__display_item, [region])
         command.perform()
         # hack to select it. it will be the last item.
@@ -2319,26 +2396,28 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         return command
 
     def nudge_selected_graphics(self, mapping: Graphics.CoordinateMappingLike, delta: Geometry.FloatSize) -> None:
-        all_graphics = self.__display_item.graphics
-        graphics = [graphic for graphic_index, graphic in enumerate(all_graphics) if self.__display_item.graphic_selection.contains(graphic_index)]
-        if graphics:
-            command = ChangeGraphicsCommand(self.__document_controller.document_model, self.__display_item, graphics, command_id="nudge", is_mergeable=True)
-            for graphic in graphics:
-                graphic.nudge(mapping, delta)
-            self.__document_controller.push_undo_command(command)
+        if self.__display_item:
+            all_graphics = self.__display_item.graphics
+            graphics = [graphic for graphic_index, graphic in enumerate(all_graphics) if self.__display_item.graphic_selection.contains(graphic_index)]
+            if graphics:
+                command = ChangeGraphicsCommand(self.__document_controller.document_model, self.__display_item, graphics, command_id="nudge", is_mergeable=True)
+                for graphic in graphics:
+                    graphic.nudge(mapping, delta)
+                self.__document_controller.push_undo_command(command)
 
-    def adjust_graphics(self, widget_mapping, graphic_drag_items, graphic_drag_part, graphic_part_data, graphic_drag_start_pos, pos, modifiers):
-        with self.__display_item.display_item_changes():
-            for graphic in graphic_drag_items:
-                index = self.__display_item.graphics.index(graphic)
-                part_data = (graphic_drag_part, ) + graphic_part_data[index]
-                graphic.adjust_part(widget_mapping, graphic_drag_start_pos, Geometry.FloatPoint.make(pos), part_data, modifiers)
+    def adjust_graphics(self, widget_mapping: Graphics.CoordinateMappingLike, graphic_drag_items: typing.Sequence[Graphics.Graphic], graphic_drag_part: str, graphic_part_data: Graphics.DragPartData, graphic_drag_start_pos: Geometry.FloatPoint, pos: Geometry.FloatPoint, modifiers: UserInterface.KeyboardModifiers) -> None:
+        if self.__display_item:
+            with self.__display_item.display_item_changes():
+                for graphic in graphic_drag_items:
+                    index = self.__display_item.graphics.index(graphic)
+                    part_data = (graphic_drag_part, ) + graphic_part_data[index]
+                    graphic.adjust_part(widget_mapping, graphic_drag_start_pos, pos, part_data, modifiers)
 
-    def nudge_slice(self, delta) -> None:
+    def nudge_slice(self, delta: int) -> None:
         display_data_channel = self.__display_item.display_data_channel if self.__display_item else None
         if display_data_channel:
             data_item = display_data_channel.data_item
-            if data_item.is_sequence:
+            if data_item and data_item.is_sequence:
                 mx = data_item.dimensional_shape[0] - 1  # sequence_index
                 value = display_data_channel.sequence_index + delta
                 if 0 <= value <= mx:
@@ -2346,7 +2425,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
                     command = ChangeDisplayDataChannelCommand(self.__document_controller.document_model, display_data_channel, title=_("Change Display"), command_id="change_display_" + property_name, is_mergeable=True, **{property_name: value})
                     command.perform()
                     self.__document_controller.push_undo_command(command)
-            if data_item.is_collection and data_item.collection_dimension_count == 1:
+            if data_item and data_item.is_collection and data_item.collection_dimension_count == 1:
                 # it's not a sequence at this point
                 mx = data_item.dimensional_shape[0] - 1  # sequence_index
                 value = display_data_channel.collection_index[0] + delta
@@ -2357,31 +2436,32 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
                     self.__document_controller.push_undo_command(command)
 
     @property
-    def tool_mode(self):
+    def tool_mode(self) -> str:
         return self.__document_controller.tool_mode
 
     @tool_mode.setter
-    def tool_mode(self, value):
+    def tool_mode(self, value: str) -> None:
         self.__document_controller.tool_mode = value
 
-    def begin_mouse_tracking(self):
+    def begin_mouse_tracking(self) -> None:
+        assert self.__display_item
         self.__mouse_tracking_transaction = self.__document_controller.document_model.begin_display_item_transaction(self.__display_item)
 
     def create_mime_data(self) -> UserInterface.MimeData:
         return self.ui.create_mime_data()
 
-    def create_rgba_image(self, drawing_context: DrawingContext.DrawingContext, width: int, height: int):
+    def create_rgba_image(self, drawing_context: DrawingContext.DrawingContext, width: int, height: int) -> typing.Optional[DrawingContext.RGBA32Type]:
         return self.ui.create_rgba_image(drawing_context, width, height)
 
-    def get_display_item(self) -> DisplayItem.DisplayItem:
+    def get_display_item(self) -> typing.Optional[DisplayItem.DisplayItem]:
         return self.display_item
 
     def get_document_model(self) -> DocumentModel.DocumentModel:
         return self.document_controller.document_model
 
-    def end_mouse_tracking(self, undo_command):
+    def end_mouse_tracking(self, undo_command: Undo.UndoableCommand) -> None:
         self.__mouse_tracking_transaction.close()
-        self.__mouse_tracking_transaction = None
+        self.__mouse_tracking_transaction = typing.cast(typing.Any, None)
         if undo_command:
             self.__document_controller.push_undo_command(undo_command)
 
@@ -2391,19 +2471,22 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
     def enter_key_pressed(self) -> None:
         self.handle_auto_display()
 
-    def handle_auto_display(self) -> None:
-        command = ChangeDisplayCommand(self.__document_controller.document_model, self.__display_item)
-        result = self.display_canvas_item.handle_auto_display()
-        if result:
-            self.__document_controller.push_undo_command(command)
-        else:
-            command.close()
-        return result
+    def handle_auto_display(self) -> bool:
+        if self.__display_item:
+            command = ChangeDisplayCommand(self.__document_controller.document_model, self.__display_item)
+            if self.display_canvas_item:
+                result = self.display_canvas_item.handle_auto_display()
+                if result:
+                    self.__document_controller.push_undo_command(command)
+                else:
+                    command.close()
+                return result
+        return False
 
     def cursor_changed(self, pos: typing.Optional[typing.Tuple[int, ...]]) -> None:
         position_text, value_text = str(), str()
         try:
-            if pos is not None:
+            if pos is not None and self.__display_item:
                 position_text, value_text = self.__display_item.get_value_and_position_text(pos)
         except Exception as e:
             global _test_log_exceptions
@@ -2420,7 +2503,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         else:
             self.__document_controller.cursor_changed(position_and_value_text)
 
-    def drag_graphics(self, graphics):
+    def drag_graphics(self, graphics: typing.Sequence[Graphics.Graphic]) -> None:
         display_item = self.display_item
         if display_item:
             mime_data = self.ui.create_mime_data()
@@ -2428,26 +2511,31 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
             thumbnail_data = Thumbnails.ThumbnailManager().thumbnail_data_for_display_item(display_item)
             self.__begin_drag(mime_data, thumbnail_data)
 
-    def update_display_properties(self, display_properties):
-        for key, value in iter(display_properties.items()):
-            self.__display_item.set_display_property(key, value)
+    def update_display_properties(self, display_properties: Persistence.PersistentDictType) -> None:
+        if self.__display_item:
+            for key, value in iter(display_properties.items()):
+                self.__display_item.set_display_property(key, value)
 
-    def update_display_data_channel_properties(self, display_data_channel_properties: typing.Mapping) -> None:
+    def update_display_data_channel_properties(self, display_data_channel_properties: Persistence.PersistentDictType) -> None:
         display_data_channel = self.__display_item.display_data_channel if self.__display_item else None
         if display_data_channel:
             for key, value in iter(display_data_channel_properties.items()):
                 setattr(display_data_channel, key, value)
 
     def create_insert_graphics_command(self, graphics: typing.Sequence[Graphics.Graphic]) -> InsertGraphicsCommand:
+        assert self.__display_item
         return InsertGraphicsCommand(self.__document_controller, self.__display_item, list(), existing_graphics=graphics)
 
-    def create_change_display_command(self, *, command_id: str=None, is_mergeable: bool=False) -> ChangeDisplayCommand:
+    def create_change_display_command(self, *, command_id: typing.Optional[str] = None, is_mergeable: bool=False) -> ChangeDisplayCommand:
+        assert self.__display_item
         return ChangeDisplayCommand(self.__document_controller.document_model, self.__display_item, command_id=command_id, is_mergeable=is_mergeable)
 
     def create_move_display_layer_command(self, display_item: DisplayItem.DisplayItem, src_index: int, target_index: int) -> MoveDisplayLayerCommand:
+        assert self.__display_item
         return MoveDisplayLayerCommand(self.__document_controller.document_model, display_item, src_index, self.__display_item, target_index)
 
     def create_change_graphics_command(self) -> ChangeGraphicsCommand:
+        assert self.__display_item
         all_graphics = self.__display_item.graphics
         graphics = [graphic for graphic_index, graphic in enumerate(all_graphics) if self.__display_item.graphic_selection.contains(graphic_index)]
         return ChangeGraphicsCommand(self.__document_controller.document_model, self.__display_item, graphics)
@@ -2455,26 +2543,26 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
     def push_undo_command(self, command: Undo.UndoableCommand) -> None:
         self.__document_controller.push_undo_command(command)
 
-    def create_rectangle(self, pos):
-        bounds = tuple(pos), (0, 0)
+    def create_rectangle(self, pos: Geometry.FloatPoint) -> Graphics.RectangleGraphic:
+        assert self.__display_item
         self.__display_item.graphic_selection.clear()
         region = Graphics.RectangleGraphic()
-        region.bounds = bounds
+        region.bounds = Geometry.FloatRect(pos, Geometry.FloatSize())
         self.__display_item.add_graphic(region)
         self.__display_item.graphic_selection.set(self.__display_item.graphics.index(region))
         return region
 
-    def create_ellipse(self, pos):
-        bounds = tuple(pos), (0, 0)
+    def create_ellipse(self, pos: Geometry.FloatPoint) -> Graphics.EllipseGraphic:
+        assert self.__display_item
         self.__display_item.graphic_selection.clear()
         region = Graphics.EllipseGraphic()
-        region.bounds = bounds
+        region.bounds = Geometry.FloatRect(pos, Geometry.FloatSize())
         self.__display_item.add_graphic(region)
         self.__display_item.graphic_selection.set(self.__display_item.graphics.index(region))
         return region
 
-    def create_line(self, pos):
-        pos = tuple(pos)
+    def create_line(self, pos: Geometry.FloatPoint) -> Graphics.LineGraphic:
+        assert self.__display_item
         self.__display_item.graphic_selection.clear()
         region = Graphics.LineGraphic()
         region.start = pos
@@ -2483,8 +2571,8 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         self.__display_item.graphic_selection.set(self.__display_item.graphics.index(region))
         return region
 
-    def create_point(self, pos):
-        pos = tuple(pos)
+    def create_point(self, pos: Geometry.FloatPoint) -> Graphics.PointGraphic:
+        assert self.__display_item
         self.__display_item.graphic_selection.clear()
         region = Graphics.PointGraphic()
         region.position = pos
@@ -2492,30 +2580,37 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         self.__display_item.graphic_selection.set(self.__display_item.graphics.index(region))
         return region
 
-    def create_line_profile(self, pos):
-        display_item = self.__display_item
-        if display_item:
-            pos = tuple(pos)
-            self.__display_item.graphic_selection.clear()
-            line_profile_region = Graphics.LineProfileGraphic()
-            line_profile_region.start = pos
-            line_profile_region.end = pos
-            self.__display_item.add_graphic(line_profile_region)
-            document_controller = self.__document_controller
-            document_model = document_controller.document_model
-            line_profile_data_item = document_model.get_line_profile_new(display_item, display_item.data_item, None, line_profile_region)
-            line_profile_display_item = document_model.get_display_item_for_data_item(line_profile_data_item)
-            document_controller.show_display_item(line_profile_display_item)
-            return line_profile_region
-        return None
+    def create_line_profile(self, pos: Geometry.FloatPoint) -> Graphics.LineProfileGraphic:
+        assert self.__display_item
+        data_item = self.__display_item.data_item
+        assert data_item
+        self.__display_item.graphic_selection.clear()
+        line_profile_region = Graphics.LineProfileGraphic()
+        line_profile_region.start = pos
+        line_profile_region.end = pos
+        self.__display_item.add_graphic(line_profile_region)
+        document_controller = self.__document_controller
+        document_model = document_controller.document_model
+        line_profile_data_item = document_model.get_line_profile_new(self.__display_item, data_item, None, line_profile_region)
+        assert line_profile_data_item
+        line_profile_display_item = document_model.get_display_item_for_data_item(line_profile_data_item)
+        assert line_profile_display_item
+        document_controller.show_display_item(line_profile_display_item)
+        return line_profile_region
 
-    def create_spot(self, pos):
+    def create_spot(self, pos: Geometry.FloatPoint) -> Graphics.SpotGraphic:
+        assert self.__display_item
         display_data_channel = self.__display_item.display_data_channel
         assert display_data_channel
-        element_data_and_metadata = display_data_channel.get_calculated_display_values().element_data_and_metadata
+        display_values = display_data_channel.get_calculated_display_values()
+        assert display_values
+        element_data_and_metadata = display_values.element_data_and_metadata
+        assert element_data_and_metadata
         data_shape = element_data_and_metadata.datum_dimension_shape
         mapping = ImageCanvasItem.ImageCanvasItemMapping(data_shape, None, element_data_and_metadata.datum_dimensional_calibrations)
-        bounds = Geometry.FloatRect.from_center_and_size(pos - mapping.calibrated_origin_image_norm, Geometry.FloatSize())
+        calibrated_origin_image_norm = mapping.calibrated_origin_image_norm
+        assert calibrated_origin_image_norm
+        bounds = Geometry.FloatRect.from_center_and_size(pos - calibrated_origin_image_norm, Geometry.FloatSize())
         self.__display_item.graphic_selection.clear()
         region = Graphics.SpotGraphic()
         region.bounds = bounds
@@ -2523,7 +2618,8 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         self.__display_item.graphic_selection.set(self.__display_item.graphics.index(region))
         return region
 
-    def create_wedge(self, angle):
+    def create_wedge(self, angle: float) -> Graphics.WedgeGraphic:
+        assert self.__display_item
         self.__display_item.graphic_selection.clear()
         region = Graphics.WedgeGraphic()
         region.end_angle = angle
@@ -2532,7 +2628,8 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         self.__display_item.graphic_selection.set(self.__display_item.graphics.index(region))
         return region
 
-    def create_ring(self, radius):
+    def create_ring(self, radius: float) -> Graphics.RingGraphic:
+        assert self.__display_item
         self.__display_item.graphic_selection.clear()
         region = Graphics.RingGraphic()
         region.radius_1 = radius
@@ -2540,22 +2637,32 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         self.__display_item.graphic_selection.set(self.__display_item.graphics.index(region))
         return region
 
-    def create_lattice(self, u_pos):
+    def create_lattice(self, u_pos: Geometry.FloatSize) -> Graphics.LatticeGraphic:
+        assert self.__display_item
         display_data_channel = self.__display_item.display_data_channel
         assert display_data_channel
-        element_data_and_metadata = display_data_channel.get_calculated_display_values().element_data_and_metadata
+        display_values = display_data_channel.get_calculated_display_values()
+        assert display_values
+        element_data_and_metadata = display_values.element_data_and_metadata
+        assert element_data_and_metadata
         data_shape = element_data_and_metadata.datum_dimension_shape
         mapping = ImageCanvasItem.ImageCanvasItemMapping(data_shape, None, element_data_and_metadata.datum_dimensional_calibrations)
         self.__display_item.graphic_selection.clear()
         region = Graphics.LatticeGraphic()
-        region.u_pos = u_pos - mapping.calibrated_origin_image_norm
+        calibrated_origin_image_norm = mapping.calibrated_origin_image_norm
+        assert calibrated_origin_image_norm
+        region.u_pos = u_pos - calibrated_origin_image_norm
         self.__display_item.add_graphic(region)
         self.__display_item.graphic_selection.set(self.__display_item.graphics.index(region))
         return region
 
 
 class DisplayPanelControllerLike(typing.Protocol):
-    pass
+    type: str
+    def close(self) -> None: ...
+    def save(self, d: Persistence.PersistentDictType) -> None: ...
+    def key_pressed(self, key: UserInterface.Key) -> bool: ...
+    def key_released(self, key: UserInterface.Key) -> bool: ...
 
 
 class DisplayPanelControllerFactoryLike(typing.Protocol):
@@ -2583,7 +2690,7 @@ class DisplayPanelManager(metaclass=Utility.Singleton):
         self.image_display_mouse_position_changed_event = Event.Event()
 
     def __get_kwargs(self, display_panel: DisplayPanel) -> typing.Dict[str, typing.Any]:
-        kwargs = dict()
+        kwargs: typing.Dict[str, typing.Any] = dict()
         kwargs["display_panel"] = display_panel
         if display_panel.data_item:
             kwargs["data_item"] = display_panel.data_item
@@ -2592,13 +2699,13 @@ class DisplayPanelManager(metaclass=Utility.Singleton):
         return kwargs
 
     # events from the image panels
-    def key_pressed(self, display_panel: DisplayPanel, key) -> bool:
+    def key_pressed(self, display_panel: DisplayPanel, key: UserInterface.Key) -> bool:
         if display_panel.document_controller.exec_action_events("key_pressed", key=key, **self.__get_kwargs(display_panel)):
             return True
         return self.key_pressed_event.fire_any(display_panel, key)
 
     # events from the image panels
-    def key_released(self, display_panel: DisplayPanel, key) -> bool:
+    def key_released(self, display_panel: DisplayPanel, key: UserInterface.Key) -> bool:
         if display_panel.document_controller.exec_action_events("key_released", key=key, **self.__get_kwargs(display_panel)):
             return True
         return self.key_released_event.fire_any(display_panel, key)
@@ -2606,22 +2713,22 @@ class DisplayPanelManager(metaclass=Utility.Singleton):
     def focus_changed(self, display_panel: DisplayPanel, focused: bool) -> None:
         display_panel.document_controller.exec_action_events("focused" if focused else "unfocused", **self.__get_kwargs(display_panel))
 
-    def image_display_clicked(self, display_panel: DisplayPanel, display_item: DisplayItem.DisplayItem, image_position: Geometry.FloatPoint, modifiers: CanvasItem.KeyboardModifiers) -> bool:
+    def image_display_clicked(self, display_panel: DisplayPanel, display_item: DisplayItem.DisplayItem, image_position: Geometry.FloatPoint, modifiers: UserInterface.KeyboardModifiers) -> bool:
         if display_panel.document_controller.exec_action_events("mouse_clicked", image_position=image_position, modifiers=modifiers, **self.__get_kwargs(display_panel)):
             return True
         return self.image_display_clicked_event.fire_any(display_panel, display_item, image_position, modifiers)
 
-    def image_display_mouse_pressed(self, display_panel: DisplayPanel, display_item: DisplayItem.DisplayItem, image_position: Geometry.FloatPoint, modifiers: CanvasItem.KeyboardModifiers) -> bool:
+    def image_display_mouse_pressed(self, display_panel: DisplayPanel, display_item: DisplayItem.DisplayItem, image_position: Geometry.FloatPoint, modifiers: UserInterface.KeyboardModifiers) -> bool:
         if display_panel.document_controller.exec_action_events("mouse_pressed", image_position=image_position, modifiers=modifiers, **self.__get_kwargs(display_panel)):
             return True
         return self.image_display_mouse_pressed_event.fire_any(display_panel, display_item, image_position, modifiers)
 
-    def image_display_mouse_released(self, display_panel: DisplayPanel, display_item: DisplayItem.DisplayItem, image_position: Geometry.FloatPoint, modifiers: CanvasItem.KeyboardModifiers) -> bool:
+    def image_display_mouse_released(self, display_panel: DisplayPanel, display_item: DisplayItem.DisplayItem, image_position: Geometry.FloatPoint, modifiers: UserInterface.KeyboardModifiers) -> bool:
         if display_panel.document_controller.exec_action_events("mouse_released", image_position=image_position, modifiers=modifiers, **self.__get_kwargs(display_panel)):
             return True
         return self.image_display_mouse_released_event.fire_any(display_panel, display_item, image_position, modifiers)
 
-    def image_display_mouse_position_changed(self, display_panel: DisplayPanel, display_item: DisplayItem.DisplayItem, image_position: Geometry.FloatPoint, modifiers: CanvasItem.KeyboardModifiers) -> bool:
+    def image_display_mouse_position_changed(self, display_panel: DisplayPanel, display_item: DisplayItem.DisplayItem, image_position: Geometry.FloatPoint, modifiers: UserInterface.KeyboardModifiers) -> bool:
         if display_panel.document_controller.exec_action_events("mouse_moved", image_position=image_position, modifiers=modifiers, **self.__get_kwargs(display_panel)):
             return True
         return self.image_display_mouse_position_changed_event.fire_any(display_panel, display_item, image_position, modifiers)

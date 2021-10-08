@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # standard libraries
 import copy
 import math
@@ -11,11 +13,9 @@ import numpy
 from nion.data import Calibration
 from nion.data import DataAndMetadata
 from nion.data import Image
+from nion.swift import DisplayCanvasItem
 from nion.swift import LineGraphCanvasItem
 from nion.swift import MimeTypes
-from nion.swift import Undo
-from nion.swift.model import DisplayItem
-from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.swift.model import UISettings
 from nion.swift.model import Utility
@@ -23,10 +23,16 @@ from nion.ui import CanvasItem
 from nion.utils import Geometry
 from nion.utils import Registry
 
+if typing.TYPE_CHECKING:
+    from nion.swift.model import DisplayItem
+    from nion.swift.model import Persistence
+    from nion.ui import DrawingContext
+    from nion.ui import UserInterface
+
 
 class LinePlotCanvasItemMapping:
 
-    def __init__(self, scale, plot_rect, left_channel, right_channel):
+    def __init__(self, scale, plot_rect, left_channel, right_channel) -> None:
         self.__scale = scale
         self.__plot_rect = plot_rect
         self.__left_channel = left_channel
@@ -43,59 +49,7 @@ class LinePlotCanvasItemMapping:
         return x * self.__scale
 
 
-class LinePlotCanvasItemDelegate:
-    # interface must be implemented by the delegate
-
-    def begin_mouse_tracking(self) -> None: ...
-
-    def end_mouse_tracking(self, undo_command) -> None: ...
-
-    def delete_key_pressed(self) -> None: ...
-
-    def enter_key_pressed(self) -> None: ...
-
-    def cursor_changed(self, pos: typing.Optional[typing.Tuple[int]]) -> None: ...
-
-    def update_display_properties(self, display_properties: dict) -> None: ...
-
-    def update_display_data_channel_properties(self, display_data_channel_properties: typing.Mapping) -> None: ...
-
-    def create_change_display_command(self, *, command_id: str=None, is_mergeable: bool=False) -> Undo.UndoableCommand: ...
-
-    def create_change_graphics_command(self) -> Undo.UndoableCommand: ...
-
-    def push_undo_command(self, command: Undo.UndoableCommand) -> None: ...
-
-    def add_index_to_selection(self, index: int) -> None: ...
-
-    def remove_index_from_selection(self, index: int) -> None: ...
-
-    def set_selection(self, index: int) -> None: ...
-
-    def clear_selection(self) -> None: ...
-
-    def add_and_select_region(self, region: Graphics.Graphic) -> Undo.UndoableCommand: ...
-
-    def nudge_selected_graphics(self, mapping, delta) -> None: ...
-
-    def nudge_slice(self, delta) -> None: ...
-
-    def adjust_graphics(self, widget_mapping, graphic_drag_items, graphic_drag_part, graphic_part_data, graphic_drag_start_pos, pos, modifiers) -> None: ...
-
-    def show_display_context_menu(self, gx, gy) -> bool: ...
-
-    @property
-    def tool_mode(self) -> str: return str()
-
-    @tool_mode.setter
-    def tool_mode(self, value: str) -> None: ...
-
-    def create_move_display_layer_command(self, display_item: DisplayItem.DisplayItem, src_index: int, target_index: int) -> Undo.UndoableCommand: ...
-
-    def get_document_model(self) -> DocumentModel.DocumentModel: ...
-
-
-class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
+class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
     """Display a line plot.
 
     The layout is dependent on the axes due to the dependence on the width of the text labels in the vertical axis. The
@@ -114,7 +68,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
     painting = PaintFunction(layout, plot)
     """
 
-    def __init__(self, ui_settings: UISettings.UISettings, delegate: LinePlotCanvasItemDelegate, event_loop, draw_background: bool=True):
+    def __init__(self, ui_settings: UISettings.UISettings, delegate: typing.Optional[DisplayCanvasItem.DisplayCanvasItemDelegate], event_loop, draw_background: bool=True) -> None:
         super().__init__()
 
         self.__ui_settings = ui_settings
@@ -129,7 +83,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
 
         self.___has_valid_drawn_graph_data = False
 
-        self.__xdata_list: typing.List[DataAndMetadata.DataAndMetadata] = list()
+        self.__xdata_list: typing.List[typing.Optional[DataAndMetadata.DataAndMetadata]] = list()
         self.__last_xdata_list: typing.List[DataAndMetadata.DataMetadata] = list()
 
         # frame rate
@@ -208,7 +162,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         # self.add_canvas_item(line_graph_background_canvas_item)
         self.add_canvas_item(self.__display_controls)
 
-        self.__display_values_list = None
+        self.__display_values_list: typing.List[typing.Optional[DisplayItem.DisplayValues]] = list()
 
         # used for tracking undo
         self.__undo_command = None
@@ -226,10 +180,10 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
 
         self.__axes: typing.Optional[LineGraphCanvasItem.LineGraphAxes] = None
 
-        self.__data_scale = None
-        self.__displayed_dimensional_calibration = None
-        self.__intensity_calibration = None
-        self.__calibration_style = None
+        self.__data_scale: typing.Optional[float] = None
+        self.__displayed_dimensional_calibration: typing.Optional[Calibration.Calibration] = None
+        self.__intensity_calibration: typing.Optional[Calibration.Calibration] = None
+        self.__calibration_style: typing.Optional[DisplayItem.CalibrationStyle] = None
         self.__y_min = None
         self.__y_max = None
         self.__y_style = None
@@ -238,7 +192,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         self.__legend_position = None
 
         self.__graphics: typing.List[Graphics.Graphic] = list()
-        self.__graphic_selection = None
+        self.__graphic_selection: typing.Optional[DisplayItem.GraphicSelection] = None
         self.__pending_interval = None
 
     def close(self) -> None:
@@ -289,10 +243,10 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         else:
             self.__display_controls.add_canvas_item(display_control_canvas_item)
 
-    def update_display_values(self, display_values_list) -> None:
-        self.__display_values_list = display_values_list
+    def update_display_values(self, display_values_list: typing.Sequence[typing.Optional[DisplayItem.DisplayValues]]) -> None:
+        self.__display_values_list = list(display_values_list)
 
-    def update_display_properties_and_layers(self, display_calibration_info, display_properties: typing.Mapping, display_layers: typing.Sequence[typing.Mapping]) -> None:
+    def update_display_properties_and_layers(self, display_calibration_info: DisplayItem.DisplayCalibrationInfo, display_properties: Persistence.PersistentDictType, display_layers: typing.Sequence[Persistence.PersistentDictType]) -> None:
         """Update the display values. Called from display panel.
 
         This method saves the display values and data and triggers an update. It should be as fast as possible.
@@ -313,9 +267,9 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             if self.__closed:
                 return
 
-            displayed_dimensional_scales = display_calibration_info.displayed_dimensional_scales
+            displayed_dimensional_scales: typing.Tuple[float, ...] = display_calibration_info.displayed_dimensional_scales or tuple()
             displayed_dimensional_calibrations = display_calibration_info.displayed_dimensional_calibrations
-            self.__data_scale = displayed_dimensional_scales[-1] if len(displayed_dimensional_scales) > 0 else 1
+            self.__data_scale = displayed_dimensional_scales[-1] if len(displayed_dimensional_scales) > 0 else 1.0
             self.__displayed_dimensional_calibration = displayed_dimensional_calibrations[-1] if len(displayed_dimensional_calibrations) > 0 else Calibration.Calibration(scale=displayed_dimensional_scales[-1])
             self.__intensity_calibration = display_calibration_info.displayed_intensity_calibration
             self.__calibration_style = display_calibration_info.calibration_style
@@ -327,7 +281,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             self.__legend_position = display_properties.get("legend_position")
             self.__display_layers = display_layers
 
-            if self.__display_values_list and len(self.__display_values_list) > 0:
+            if len(self.__display_values_list) > 0:
                 self.__xdata_list = [display_values.display_data_and_metadata if display_values else None for display_values in self.__display_values_list]
                 xdata0 = self.__xdata_list[0]
                 if xdata0:
@@ -364,17 +318,18 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
                 self.__last_xdata_list = copy.copy(self.__xdata_list)
         super().update()
 
-    def update_graphics_coordinate_system(self, graphics, graphic_selection, display_calibration_info):
+    def update_graphics_coordinate_system(self, graphics: typing.Sequence[Graphics.Graphic], graphic_selection: DisplayItem.GraphicSelection, display_calibration_info: DisplayItem.DisplayCalibrationInfo) -> None:
         dimensional_scales = display_calibration_info.displayed_dimensional_scales
 
-        self.__graphics = copy.copy(graphics)
+        self.__graphics = copy.copy(list(graphics))
         self.__graphic_selection = copy.copy(graphic_selection)
 
         if dimensional_scales is None or len(dimensional_scales) == 0:
             return
+        assert dimensional_scales is not None
 
         data_scale = dimensional_scales[-1]
-        dimensional_calibration = display_calibration_info.displayed_dimensional_calibrations[-1] if len(display_calibration_info.displayed_dimensional_calibrations) > 0 else Calibration.Calibration(scale=display_calibration_info.displayed_dimensional_scales[-1])
+        dimensional_calibration = display_calibration_info.displayed_dimensional_calibrations[-1] if len(display_calibration_info.displayed_dimensional_calibrations) > 0 else Calibration.Calibration(scale=data_scale)
 
         def convert_to_calibrated_value_str(f):
             return u"{0}".format(dimensional_calibration.convert_to_calibrated_value_str(f, value_range=(0, data_scale), samples=data_scale, include_units=False))
@@ -441,6 +396,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         display_left_channel = int(max(0.0, left - extra) * data_and_metadata.data_shape[-1])
         display_right_channel = int(min(1.0, right + extra) * data_and_metadata.data_shape[-1])
         # command = self.delegate.create_change_display_command()
+        assert self.delegate
         self.delegate.update_display_properties({"left_channel": display_left_channel, "right_channel": display_right_channel, "y_min": y_min, "y_max": y_max})
         # self.delegate.push_undo_command(command)
 
@@ -460,7 +416,9 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
 
     def handle_auto_display(self) -> bool:
         if len(self.__xdata_list) > 0:
-            self.__view_to_selected_graphics(self.__xdata_list[0])
+            xdata0 = self.__xdata_list[0]
+            if xdata0:
+                self.__view_to_selected_graphics(xdata0)
         return True
 
     def prepare_display(self):
@@ -609,7 +567,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         # anything has changed.
         self.prepare_display()
 
-    def _repaint(self, drawing_context):
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
         super()._repaint(drawing_context)
 
         if self.__display_frame_rate_id:
@@ -622,26 +580,26 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             fps4 = Utility.fps_get("prepare_"+self.__display_frame_rate_id)
 
             rect = self.canvas_bounds
-
-            with drawing_context.saver():
-                font = "normal 11px serif"
-                text_pos = Geometry.IntPoint(y=rect[0][0], x=rect[0][1] + rect[1][1] - 100)
-                drawing_context.begin_path()
-                drawing_context.move_to(text_pos.x, text_pos.y)
-                drawing_context.line_to(text_pos.x + 120, text_pos.y)
-                drawing_context.line_to(text_pos.x + 120, text_pos.y + 60)
-                drawing_context.line_to(text_pos.x, text_pos.y + 60)
-                drawing_context.close_path()
-                drawing_context.fill_style = "rgba(255, 255, 255, 0.6)"
-                drawing_context.fill()
-                drawing_context.font = font
-                drawing_context.text_baseline = "middle"
-                drawing_context.text_align = "left"
-                drawing_context.fill_style = "#000"
-                drawing_context.fill_text("display:" + fps, text_pos.x + 8, text_pos.y + 10)
-                drawing_context.fill_text("frame:" + fps2, text_pos.x + 8, text_pos.y + 30)
-                drawing_context.fill_text("update:" + fps3, text_pos.x + 8, text_pos.y + 50)
-                drawing_context.fill_text("prepare:" + fps4, text_pos.x + 8, text_pos.y + 70)
+            if rect:
+                with drawing_context.saver():
+                    font = "normal 11px serif"
+                    text_pos = Geometry.IntPoint(y=rect.top, x=rect.right - 100)
+                    drawing_context.begin_path()
+                    drawing_context.move_to(text_pos.x, text_pos.y)
+                    drawing_context.line_to(text_pos.x + 120, text_pos.y)
+                    drawing_context.line_to(text_pos.x + 120, text_pos.y + 60)
+                    drawing_context.line_to(text_pos.x, text_pos.y + 60)
+                    drawing_context.close_path()
+                    drawing_context.fill_style = "rgba(255, 255, 255, 0.6)"
+                    drawing_context.fill()
+                    drawing_context.font = font
+                    drawing_context.text_baseline = "middle"
+                    drawing_context.text_align = "left"
+                    drawing_context.fill_style = "#000"
+                    drawing_context.fill_text("display:" + fps, text_pos.x + 8, text_pos.y + 10)
+                    drawing_context.fill_text("frame:" + fps2, text_pos.x + 8, text_pos.y + 30)
+                    drawing_context.fill_text("update:" + fps3, text_pos.x + 8, text_pos.y + 50)
+                    drawing_context.fill_text("prepare:" + fps4, text_pos.x + 8, text_pos.y + 70)
 
     def __update_canvas_items(self, axes, legend_position: typing.Optional[str], legend_entries: typing.Sequence, display_layers: typing.Optional[typing.Sequence]):
         self.__line_graph_background_canvas_item.set_axes(axes)
@@ -789,7 +747,8 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         self.mouse_position_changed(plot_left + plot_width * end, 100, modifiers)
         self.mouse_released(plot_left + plot_width * end, 100, modifiers)
 
-    def context_menu_event(self, x, y, gx, gy):
+    def context_menu_event(self, x: int, y: int, gx: int, gy: int) -> bool:
+        assert self.delegate
         return self.delegate.show_display_context_menu(gx, gy)
 
     @property
@@ -801,7 +760,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         return key_contexts
 
     # ths message comes from the widget
-    def key_pressed(self, key):
+    def key_pressed(self, key: UserInterface.Key) -> bool:
         if super().key_pressed(key):
             return True
         # This will update the cursor shape when the user presses a modifier key.
@@ -816,13 +775,14 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         else:
             self.__display_frame_rate_id = None
 
-    def key_released(self, key):
+    def key_released(self, key: UserInterface.Key) -> bool:
         if super().key_released(key):
             return True
         # This will update the cursor shape when the user releases a modifier key
         if self.__last_mouse:
             last_mouse = self.__last_mouse
             self.mouse_position_changed(last_mouse.x, last_mouse.y, key.modifiers)
+        return True
 
     def __get_mouse_mapping(self):
         data_scale = self.__data_scale
@@ -1049,7 +1009,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
                     pos_1d = px,
             self.delegate.cursor_changed(pos_1d)
 
-    def get_drop_regions_map(self, display_item):
+    def get_drop_regions_map(self, display_item: DisplayItem.DisplayItem) -> typing.Optional[typing.Mapping[str, typing.Tuple[Geometry.IntRect, Geometry.IntRect]]]:
         if self.__line_graph_area_stack.canvas_rect and display_item and display_item.data_item and display_item.data_item.is_data_1d:
             canvas_rect = self.__line_graph_area_stack.canvas_rect
             hit_rect = Geometry.IntRect.from_center_and_size(canvas_rect.center, Geometry.IntSize(height=canvas_rect.height // 2, width=canvas_rect.width // 2))
@@ -1060,19 +1020,18 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
     def wants_drag_event(self, mime_data, x, y) -> bool:
         return mime_data.has_format(MimeTypes.LAYER_MIME_TYPE)
 
-    def drop(self, mime_data, x, y):
-        if not mime_data.has_format(MimeTypes.LAYER_MIME_TYPE):
+    def drop(self, mime_data: UserInterface.MimeData, x: int, y: int) -> str:
+        if not mime_data.has_format(MimeTypes.LAYER_MIME_TYPE) or not self.delegate:
             return "ignore"
 
         legend_data, source_display_item = MimeTypes.mime_data_get_layer(mime_data, self.delegate.get_document_model())
 
-        from_index = legend_data["index"]
-
-        # if we aren't the source item, move the display layer between display items
-        command = self.delegate.create_move_display_layer_command(source_display_item, from_index, len(self.__display_layers))
-
-        # TODO: perform only if the display channel doesn't exist in the target
-        command.perform()
-        self.delegate.push_undo_command(command)
+        if source_display_item:
+            from_index = legend_data["index"]
+            # if we aren't the source item, move the display layer between display items
+            command = self.delegate.create_move_display_layer_command(source_display_item, from_index, len(self.__display_layers))
+            # TODO: perform only if the display channel doesn't exist in the target
+            command.perform()
+            self.delegate.push_undo_command(command)
 
         return "ignore"

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # standard libraries
 import copy
 import logging
@@ -10,7 +12,7 @@ import numpy
 
 # local libraries
 from nion.data import Calibration
-from nion.swift import Undo
+from nion.swift import DisplayCanvasItem
 from nion.swift.model import Graphics
 from nion.swift.model import UISettings
 from nion.swift.model import Utility
@@ -19,10 +21,14 @@ from nion.utils import Geometry
 from nion.utils import Registry
 from nion.utils import Stream
 
+if typing.TYPE_CHECKING:
+    from nion.swift.model import DisplayItem
+    from nion.swift.model import Persistence
+
 
 class ImageCanvasItemMapping:
 
-    def __init__(self, data_shape, canvas_rect=None, calibrations=None):
+    def __init__(self, data_shape, canvas_rect=None, calibrations=None) -> None:
         assert data_shape is None or len(data_shape) == 2
         self.data_shape = data_shape
         # double check dimensions are not zero
@@ -127,7 +133,7 @@ class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):
     Callers should call update_graphics when the graphics changes.
     """
 
-    def __init__(self, ui_settings: UISettings.UISettings):
+    def __init__(self, ui_settings: UISettings.UISettings) -> None:
         super().__init__()
         self.__ui_settings = ui_settings
         self.__displayed_shape = None
@@ -158,7 +164,7 @@ class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):
         if needs_update:
             self.update()
 
-    def _repaint(self, drawing_context):
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
         if self.__graphics:
             widget_mapping = ImageCanvasItemMapping(self.__displayed_shape, self.canvas_bounds, self.__coordinate_system)
             with drawing_context.saver():
@@ -184,7 +190,7 @@ class ScaleMarkerCanvasItem(CanvasItem.AbstractCanvasItem):
     scale_marker_height = 6
     scale_marker_font = "normal 14px serif"
 
-    def __init__(self, screen_pixel_per_image_pixel_stream: Stream.ValueStream, get_font_metrics_fn: typing.Callable[[str, str], UISettings.FontMetrics]):
+    def __init__(self, screen_pixel_per_image_pixel_stream: Stream.ValueStream, get_font_metrics_fn: typing.Callable[[str, str], UISettings.FontMetrics]) -> None:
         super().__init__()
         self.__get_font_metrics_fn = get_font_metrics_fn
         self.__dimensional_calibration = None
@@ -194,9 +200,9 @@ class ScaleMarkerCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def close(self) -> None:
         self.__screen_pixel_per_image_pixel_stream.remove_ref()
-        self.__screen_pixel_per_image_pixel_stream = typing.cast(Stream.ValueStream, None)
+        self.__screen_pixel_per_image_pixel_stream = typing.cast(typing.Any, None)
         self.__screen_pixel_per_image_pixel_action.close()
-        self.__screen_pixel_per_image_pixel_action = typing.cast(Stream.ValueStreamAction, None)
+        self.__screen_pixel_per_image_pixel_action = typing.cast(typing.Any, None)
         super().close()
 
     @property
@@ -239,7 +245,7 @@ class ScaleMarkerCanvasItem(CanvasItem.AbstractCanvasItem):
             self.__update_sizing()
             self.update()
 
-    def _repaint(self, drawing_context):
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
         dimensional_calibration = self.__dimensional_calibration
         if dimensional_calibration is not None:  # display scale marker?
             screen_pixel_per_image_pixel = self.__screen_pixel_per_image_pixel_stream.value
@@ -269,82 +275,6 @@ class ScaleMarkerCanvasItem(CanvasItem.AbstractCanvasItem):
                     fm1 = self.__get_font_metrics_fn(self.scale_marker_font, text1)
                     drawing_context.fill_text(text1, 0, baseline - self.scale_marker_height - 4)
                     drawing_context.fill_text(text2, 0, baseline - self.scale_marker_height - 4 - fm1.height)
-
-
-class ImageCanvasItemDelegate:
-    # interface must be implemented by the delegate
-
-    def begin_mouse_tracking(self) -> None: ...
-
-    def end_mouse_tracking(self, undo_command) -> None: ...
-
-    def delete_key_pressed(self) -> None: ...
-
-    def enter_key_pressed(self) -> None: ...
-
-    def cursor_changed(self, pos: typing.Optional[typing.Tuple[int, ...]]) -> None: ...
-
-    def update_display_properties(self, display_properties: typing.Mapping) -> None: ...
-
-    def update_display_data_channel_properties(self, display_data_channel_properties: typing.Mapping) -> None: ...
-
-    def create_insert_graphics_command(self, graphics: typing.Sequence[Graphics.Graphic]) -> Undo.UndoableCommand: ...
-
-    def create_change_display_command(self, *, command_id: str=None, is_mergeable: bool=False) -> Undo.UndoableCommand: ...
-
-    def create_change_graphics_command(self) -> Undo.UndoableCommand: ...
-
-    def push_undo_command(self, command: Undo.UndoableCommand) -> None: ...
-
-    def add_index_to_selection(self, index: int) -> None: ...
-
-    def remove_index_from_selection(self, index: int) -> None: ...
-
-    def set_selection(self, index: int) -> None: ...
-
-    def clear_selection(self) -> None: ...
-
-    def nudge_selected_graphics(self, mapping, delta) -> None: ...
-
-    def nudge_slice(self, delta) -> None: ...
-
-    def drag_graphics(self, graphics) -> None: ...
-
-    def adjust_graphics(self, widget_mapping, graphic_drag_items, graphic_drag_part, graphic_part_data, graphic_drag_start_pos, pos, modifiers) -> None: ...
-
-    def image_clicked(self, image_position: Geometry.FloatPoint, modifiers: CanvasItem.KeyboardModifiers) -> bool: ...
-
-    def image_mouse_pressed(self, image_position: Geometry.FloatPoint, modifiers: CanvasItem.KeyboardModifiers) -> bool: ...
-
-    def image_mouse_released(self, image_position: Geometry.FloatPoint, modifiers: CanvasItem.KeyboardModifiers) -> bool: ...
-
-    def image_mouse_position_changed(self, image_position: Geometry.FloatPoint, modifiers: CanvasItem.KeyboardModifiers) -> bool: ...
-
-    def show_display_context_menu(self, gx, gy) -> bool: ...
-
-    def create_rectangle(self, pos): ...
-
-    def create_ellipse(self, pos): ...
-
-    def create_line(self, pos): ...
-
-    def create_point(self, pos): ...
-
-    def create_line_profile(self, pos): ...
-
-    def create_spot(self, pos): ...
-
-    def create_wedge(self, angle): ...
-
-    def create_ring(self, radius): ...
-
-    def create_lattice(self, radius): ...
-
-    @property
-    def tool_mode(self) -> str: return str()
-
-    @tool_mode.setter
-    def tool_mode(self, value: str) -> None: ...
 
 
 def calculate_origin_and_size(canvas_size, data_shape, image_canvas_mode, image_zoom, image_position) -> typing.Tuple[typing.Any, typing.Any]:
@@ -378,7 +308,7 @@ def calculate_origin_and_size(canvas_size, data_shape, image_canvas_mode, image_
     return image_canvas_origin, image_canvas_size
 
 
-class ImageCanvasItem(CanvasItem.CanvasItemComposition):
+class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
     """A canvas item to paint an image.
 
     Callers are expected to pass in a delegate.
@@ -404,7 +334,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         cursor_changed(pos)
     """
 
-    def __init__(self, ui_settings: UISettings.UISettings, delegate: ImageCanvasItemDelegate, event_loop, draw_background: bool=True):
+    def __init__(self, ui_settings: UISettings.UISettings, delegate: typing.Optional[DisplayCanvasItem.DisplayCanvasItemDelegate], event_loop, draw_background: bool=True) -> None:
         super().__init__()
 
         self.__ui_settings = ui_settings
@@ -493,7 +423,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
 
     def close(self) -> None:
         self.__screen_pixel_per_image_pixel_stream.remove_ref()
-        self.__screen_pixel_per_image_pixel_stream = None
+        self.__screen_pixel_per_image_pixel_stream = typing.cast(typing.Any, None)
         if self.__undo_command:
             self.__undo_command.close()
             self.__undo_command = None
@@ -517,11 +447,11 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
     def add_display_control(self, display_control_canvas_item: CanvasItem.AbstractCanvasItem, role: typing.Optional[str] = None) -> None:
         self.__overlay_canvas_item.add_canvas_item(display_control_canvas_item)
 
-    def update_display_values(self, display_values_list) -> None:
+    def update_display_values(self, display_values_list: typing.Sequence[typing.Optional[DisplayItem.DisplayValues]]) -> None:
         self.__display_values = display_values_list[0] if display_values_list else None
         self.__display_values_dirty = True
 
-    def update_display_properties_and_layers(self, display_calibration_info, display_properties: typing.Mapping, display_layers: typing.Sequence[typing.Mapping]) -> None:
+    def update_display_properties_and_layers(self, display_calibration_info: DisplayItem.DisplayCalibrationInfo, display_properties: Persistence.PersistentDictType, display_layers: typing.Sequence[Persistence.PersistentDictType]) -> None:
         # threadsafe
         data_and_metadata = self.__display_values.data_and_metadata if self.__display_values else None
         if data_and_metadata:
@@ -628,7 +558,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
                 self.__scale_marker_canvas_item.set_data_info(dimensional_calibration, info_items)
                 self.__update_scale_stream()
 
-    def update_graphics_coordinate_system(self, graphics, graphic_selection, display_calibration_info) -> None:
+    def update_graphics_coordinate_system(self, graphics: typing.Sequence[Graphics.Graphic], graphic_selection: DisplayItem.GraphicSelection, display_calibration_info: DisplayItem.DisplayCalibrationInfo) -> None:
         self.__graphics = copy.copy(graphics)
         self.__graphic_selection = copy.copy(graphic_selection)
         self.__graphics_canvas_item.update_coordinate_system(display_calibration_info.display_data_shape, display_calibration_info.datum_calibrations, self.__graphics, self.__graphic_selection)
@@ -1112,7 +1042,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         self.__update_image_canvas_position((dy, dx))
         return True
 
-    def context_menu_event(self, x, y, gx, gy):
+    def context_menu_event(self, x: int, y: int, gx: int, gy: int) -> bool:
         return self.delegate.show_display_context_menu(gx, gy)
 
     @property
@@ -1179,7 +1109,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         # anything has changed.
         self.prepare_display()
 
-    def _repaint(self, drawing_context):
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
         super()._repaint(drawing_context)
 
         if self.__display_frame_rate_id:

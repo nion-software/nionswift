@@ -2980,7 +2980,7 @@ class IntervalListConnector(Observer.AbstractAction):
 
     def __init__(self, document_model: DocumentModel, item_value: Observer.ItemValue):
         self.__document_model = document_model
-        self.__listeners = list()
+        self.__listeners: typing.List[Event.EventListener] = list()
         self.__implicit_dependency = None
 
         if item_value and isinstance(item_value, tuple):

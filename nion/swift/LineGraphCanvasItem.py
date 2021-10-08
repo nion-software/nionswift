@@ -506,7 +506,7 @@ class LineGraphBackgroundCanvasItem(CanvasItem.AbstractCanvasItem):
             self.__axes = axes
             self.update()
 
-    def _repaint(self, drawing_context):
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
         # draw the data, if any
         axes = self.__axes
         if axes and axes.is_valid:
@@ -582,7 +582,7 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
             self.__calibrated_xdata = None
             self.update()
 
-    def _repaint(self, drawing_context):
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
         # draw the data, if any
         axes = self.__axes
         calibrated_xdata = self.calibrated_xdata
@@ -775,15 +775,10 @@ class LineGraphFrameCanvasItem(CanvasItem.AbstractCanvasItem):
             self.__draw_frame = draw_frame
             self.update()
 
-    def _repaint(self, drawing_context):
-        plot_rect = self.canvas_bounds
-        plot_width = int(plot_rect[1][1]) - 1
-        plot_height = int(plot_rect[1][0]) - 1
-        plot_origin_x = int(plot_rect[0][1])
-        plot_origin_y = int(plot_rect[0][0])
-
-        if self.__draw_frame:
-            draw_frame(drawing_context, plot_height, plot_origin_x, plot_origin_y, plot_width)
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
+        canvas_bounds = self.canvas_bounds
+        if canvas_bounds and self.__draw_frame:
+            draw_frame(drawing_context, canvas_bounds.height - 1, canvas_bounds.left, canvas_bounds.top, canvas_bounds.width - 1)
 
 
 class LineGraphHorizontalAxisTicksCanvasItem(CanvasItem.AbstractCanvasItem):
@@ -800,7 +795,7 @@ class LineGraphHorizontalAxisTicksCanvasItem(CanvasItem.AbstractCanvasItem):
             self.__axes = axes
             self.update()
 
-    def _repaint(self, drawing_context):
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
 
         # draw the data, if any
         axes = self.__axes
@@ -836,7 +831,7 @@ class LineGraphHorizontalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
             self.__axes = axes
             self.update()
 
-    def _repaint(self, drawing_context):
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
 
         # draw the data, if any
         axes = self.__axes
@@ -885,7 +880,7 @@ class LineGraphHorizontalAxisLabelCanvasItem(CanvasItem.AbstractCanvasItem):
             self.size_to_content()
             self.update()
 
-    def _repaint(self, drawing_context):
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
 
         # draw the data, if any
         axes = self.__axes
@@ -920,7 +915,7 @@ class LineGraphVerticalAxisTicksCanvasItem(CanvasItem.AbstractCanvasItem):
             self.__axes = axes
             self.update()
 
-    def _repaint(self, drawing_context):
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
 
         # draw the data, if any
         axes = self.__axes
@@ -1037,15 +1032,16 @@ class LineGraphVerticalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
             self.size_to_content(ui_settings)
             self.update()
 
-    def _repaint(self, drawing_context):
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
 
         # draw the data, if any
         axes = self.__axes
-        if axes and axes.is_valid:
+        canvas_size = self.canvas_size
+        if canvas_size and axes and axes.is_valid:
 
             # canvas size
-            width = self.canvas_size[1]
-            plot_height = int(self.canvas_size[0]) - 1
+            width = canvas_size[1]
+            plot_height = int(canvas_size[0]) - 1
 
             # extract the data we need for drawing y-axis
             y_ticks = axes.calculate_y_ticks(plot_height, flag_minor=True)
@@ -1068,11 +1064,11 @@ class LineGraphVerticalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
                     drawing_context.begin_path()
                     drawing_context.stroke_style = '#888'
                     drawing_context.stroke()
-                    if include_minor_ticks or not is_minor:
+                    if (include_minor_ticks or not is_minor) and self.__ui_settings:
                         drawing_context.fill_style = "#000"
                         e.draw_scientific_notation(drawing_context, self.__ui_settings, self.__fonts, label, width, y)
                         at_least_one = True
-                if not at_least_one and y_ticks and y is not None and label is not None:
+                if not at_least_one and y_ticks and y is not None and label is not None and self.__ui_settings:
                     drawing_context.fill_style = "#000"
                     e.draw_scientific_notation(drawing_context, self.__ui_settings, self.__fonts, label, width, y)
 
@@ -1104,7 +1100,7 @@ class LineGraphVerticalAxisLabelCanvasItem(CanvasItem.AbstractCanvasItem):
             self.size_to_content()
             self.update()
 
-    def _repaint(self, drawing_context):
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
 
         # draw the data, if any
         axes = self.__axes
@@ -1337,7 +1333,7 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__generate_effective_entries()
         self.update()
 
-    def drag_leave(self):
+    def drag_leave(self) -> str:
         self._drag_start_position = None
         self.__mouse_dragging = False
         self.__mouse_pressed_for_dragging = False
@@ -1348,6 +1344,7 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
         # when we leave the drag area, update the effective entries because we're no longer previewing a shift
         self.__generate_effective_entries()
         self.update()
+        return "ignore"
 
     def drag_enter(self, mime_data: UserInterface.MimeData) -> str:
         # if a new drag comes in with layer mime data, check if we're the source or if this is a foreign layer
@@ -1407,7 +1404,7 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
     def effective_entries(self) -> typing.List[LegendEntry]:
         return self.__effective_entries
 
-    def _repaint(self, drawing_context):
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
         # don't display the canvas item if there are less than two items
         if self.__legend_entries is None or len(self.__legend_entries) < 2:
             return
@@ -1440,8 +1437,9 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
         if self.__mouse_pressed_for_dragging or self.__foreign_legend_entry is not None:
             with drawing_context.saver():
                 drawing_context.begin_path()
+                entry_to_insert = self.__entry_to_insert or 0  # for type checking
                 drawing_context.rect(0,
-                                     self.__entry_to_insert * line_height + border,
+                                     entry_to_insert * line_height + border,
                                      legend_width + border * 2 + line_height,
                                      line_height)
                 drawing_context.fill_style = "rgba(192, 192, 192, 0.5)"

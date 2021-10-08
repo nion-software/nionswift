@@ -1477,12 +1477,12 @@ class DocumentController(Window.Window):
                     self.__undelete_logs.append(display_item.remove_graphic(graphic, safe=True))
 
         def _get_modified_state(self) -> typing.Any:
-            display_item = self.__display_item_proxy.item
+            display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
             assert display_item
             return display_item.modified_state, self.__document_controller.document_model.modified_state
 
         def _set_modified_state(self, modified_state: typing.Any) -> None:
-            display_item = self.__display_item_proxy.item
+            display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
             assert display_item
             display_item.modified_state, self.__document_controller.document_model.modified_state = modified_state
 

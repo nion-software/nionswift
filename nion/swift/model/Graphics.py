@@ -151,9 +151,14 @@ def extend_line(origin: Geometry.FloatPoint, point: Geometry.FloatPoint, pixels:
 
 
 class ModifiersLike(typing.Protocol):
-    alt: bool
-    shift: bool
-    control: bool
+    @property
+    def alt(self) -> bool: raise NotImplementedError()
+
+    @property
+    def shift(self) -> bool: raise NotImplementedError()
+
+    @property
+    def control(self) -> bool: raise NotImplementedError()
 
 
 def adjust_rectangle_like(part_name: str, data_shape: Geometry.FloatSize, bounds: Geometry.FloatRect, rotation: float,
@@ -580,19 +585,17 @@ def test_rectangle(p: Geometry.FloatPoint, radius: float, center: Geometry.Float
 
 
 class NullModifiers(ModifiersLike):
-    def __init__(self) -> None:
-        self.shift = False
-        self.only_shift = False
-        self.control = False
-        self.only_control = False
-        self.alt = False
-        self.only_alt = False
-        self.option = False
-        self.only_option = False
-        self.meta = False
-        self.only_meta = False
-        self.keypad = False
-        self.only_keypad = False
+    @property
+    def alt(self) -> bool:
+        return False
+
+    @property
+    def shift(self) -> bool:
+        return False
+
+    @property
+    def control(self) -> bool:
+        return False
 
 
 # A Graphic object describes visible content, such as a shape, bitmap, video, or a line of text.

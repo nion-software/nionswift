@@ -992,7 +992,7 @@ class ItemTuple(AbstractItemSource):
 
     def __init__(self, *items: typing.Optional[AbstractItemSource]):
         self.__items = items
-        self.__item_changed_listeners = list()
+        self.__item_changed_listeners: typing.List[typing.Optional[Event.EventListener]] = list()
         self.__values: typing.List[ItemValue] = list()
         self.__item_changed_event = Event.Event()
 
