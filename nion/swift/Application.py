@@ -56,7 +56,7 @@ from nion.utils import Registry
 
 _ = gettext.gettext
 
-app = None
+app: Application = typing.cast("Application", None)
 
 
 class PersistenceHandler(UserInterface.PersistenceHandler):

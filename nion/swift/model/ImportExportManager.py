@@ -71,7 +71,7 @@ class ImportExportHandler:
         return data_items
 
     # return data
-    def read_data_elements(self, extension: str, path: pathlib.Path) -> typing.List[DataElementType]:
+    def read_data_elements(self, extension: str, path: pathlib.Path) -> typing.Sequence[DataElementType]:
         return list()
 
     def can_write(self, data_metadata: DataAndMetadata.DataMetadata, extension: str) -> bool:

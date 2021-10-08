@@ -51,6 +51,7 @@ class ProcessingComputation:
             src_name = self.processing_component.sources[0]["name"]
             data_source = typing.cast("Facade.DataSource", kwargs[src_name])
             xdata = data_source.xdata
+            assert xdata
             self.__xdata = None
             indexes = numpy.ndindex(xdata.navigation_dimension_shape)  # type: ignore
             for index in indexes:
@@ -100,25 +101,6 @@ class ProcessingBase:
         self.attributes: PersistentDictType = dict()
         self.is_mappable = False
         self.is_scalar = False
-
-    def make_xdata(self, name: str, data_source: Facade.DataSource) -> typing.Union[Facade.DataSource, DataAndMetadata.DataAndMetadata]:
-        for source in self.sources:
-            if name == source["name"]:
-                if source.get("use_display_data", True):
-                    if source.get("croppable", False):
-                        return data_source.cropped_display_xdata
-                    elif source.get("use_filtered_data", False):
-                        return data_source.display_xdata * data_source.filter_xdata
-                    else:
-                        return data_source.display_xdata
-                else:
-                    if source.get("croppable", False):
-                        return data_source.cropped_xdata
-                    elif source.get("use_filtered_data", False):
-                        return data_source.filtered_xdata
-                    else:
-                        return data_source.xdata
-        return data_source
 
     def register_computation(self) -> None:
         Symbolic.register_computation_type(self.processing_id, functools.partial(ProcessingComputation, self))

@@ -1662,7 +1662,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 return display_item
         return next(iter(display_items)) if len(display_items) == 1 else None
 
-    def get_or_create_data_group(self, group_name: str) -> typing.Optional[DataGroup.DataGroup]:
+    def get_or_create_data_group(self, group_name: str) -> DataGroup.DataGroup:
         data_group = DataGroup.get_data_group_in_container_by_title(self, group_name)
         if data_group is None:
             # we create a new group

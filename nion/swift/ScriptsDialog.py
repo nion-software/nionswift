@@ -639,7 +639,7 @@ class RunScriptDialog(Dialog.ActionDialog):
                 self.__cancelled = False  # Reset cancelled flag to make "Run again" work after a script was cancelled
 
                 class StdoutCatcher:
-                    def __init__(self):
+                    def __init__(self) -> None:
                         pass
 
                     def write(self, stuff):

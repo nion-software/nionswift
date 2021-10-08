@@ -15,7 +15,7 @@ _ = gettext.gettext
 
 class SessionPanelController:
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.__property_changed_listener = ApplicationData.get_session_metadata_model().property_changed_event.listen(self.__property_changed)
         self.on_fields_changed = None
 

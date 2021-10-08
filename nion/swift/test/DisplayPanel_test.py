@@ -59,7 +59,7 @@ def create_1d_data(length=1024, data_min=0.0, data_max=1.0):
 
 
 class TestDisplayPanel:
-    def __init__(self):
+    def __init__(self) -> None:
         self.drop_region = None
 
     def handle_drag_enter(self, mime_data: UserInterface.MimeData) -> str:

@@ -19,7 +19,7 @@ def pose_title_edit_popup(document_controller: DocumentController.DocumentContro
 
     class Handler:
 
-        def __init__(self):
+        def __init__(self) -> None:
             self.property_changed_event = Event.Event()
             self.title_edit = None
             self.caption_edit = None

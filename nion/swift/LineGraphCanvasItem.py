@@ -32,6 +32,10 @@ from nion.ui import DrawingContext
 from nion.ui import UserInterface
 from nion.utils import Geometry
 
+RegionInfo = collections.namedtuple("RegionInfo",
+                                    ["channels", "selected", "index", "left_text", "right_text", "middle_text", "label",
+                                     "style", "color"])
+
 _ = gettext.gettext
 
 
@@ -288,10 +292,10 @@ class LineGraphAxes:
         return DataAndMetadata.new_data_and_metadata(calibrated_data, dimensional_calibrations=uncalibrated_xdata.dimensional_calibrations)
 
 
-def are_axes_equal(axes1: LineGraphAxes, axes2: LineGraphAxes) -> bool:
+def are_axes_equal(axes1: typing.Optional[LineGraphAxes], axes2: typing.Optional[LineGraphAxes]) -> bool:
     if (axes1 is None) != (axes2 is None):
         return False
-    if axes1 is None:
+    if axes1 is None or axes2 is None:
         return True
     if axes1.is_valid != axes2.is_valid:
         return False
@@ -490,7 +494,7 @@ def draw_marker(drawing_context, p, fill=None, stroke=None):
 class LineGraphBackgroundCanvasItem(CanvasItem.AbstractCanvasItem):
     """Canvas item to draw the line plot background and grid lines."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.__drawing_context = None
         self.__axes = None
@@ -530,7 +534,7 @@ class LineGraphBackgroundCanvasItem(CanvasItem.AbstractCanvasItem):
 class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
     """Canvas item to draw the line plot itself."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.__drawing_context = None
         self.__axes = None
@@ -539,7 +543,7 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__stroke_width = 0.5
         self.__uncalibrated_xdata = None
         self.__calibrated_xdata = None
-        self.__retained_rebin_1d = dict()
+        self.__retained_rebin_1d: typing.Dict[str, typing.Any] = dict()
 
     def set_fill_color(self, color):
         if self.__fill_color != color:
@@ -611,12 +615,12 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
 class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
     """Canvas item to draw the line plot itself."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.font_size = 12
         self.__axes = None
         self.__calibrated_data = None
-        self.__regions = list()
+        self.__regions: typing.List[RegionInfo] = list()
 
     def set_axes(self, axes):
         if not are_axes_equal(self.__axes, axes):
@@ -761,7 +765,7 @@ class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
 class LineGraphFrameCanvasItem(CanvasItem.AbstractCanvasItem):
     """Canvas item to draw the line plot frame."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.__drawing_context = None
         self.__draw_frame = True
@@ -785,7 +789,7 @@ class LineGraphFrameCanvasItem(CanvasItem.AbstractCanvasItem):
 class LineGraphHorizontalAxisTicksCanvasItem(CanvasItem.AbstractCanvasItem):
     """Canvas item to draw the horizontal tick marks."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.__axes = None
         self.tick_height = 4
@@ -821,7 +825,7 @@ class LineGraphHorizontalAxisTicksCanvasItem(CanvasItem.AbstractCanvasItem):
 class LineGraphHorizontalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
     """Canvas item to draw the horizontal scale."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.__axes = None
         self.font_size = 12
@@ -857,7 +861,7 @@ class LineGraphHorizontalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
 class LineGraphHorizontalAxisLabelCanvasItem(CanvasItem.AbstractCanvasItem):
     """Canvas item to draw the horizontal label."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.__axes = None
         self.font_size = 12
@@ -905,7 +909,7 @@ class LineGraphHorizontalAxisLabelCanvasItem(CanvasItem.AbstractCanvasItem):
 class LineGraphVerticalAxisTicksCanvasItem(CanvasItem.AbstractCanvasItem):
     """Canvas item to draw the vertical tick marks."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.__axes = None
         self.tick_width = 4
@@ -942,8 +946,8 @@ class LineGraphVerticalAxisTicksCanvasItem(CanvasItem.AbstractCanvasItem):
 
 class Exponenter:
 
-    def __init__(self):
-        self.__labels_list = list()
+    def __init__(self) -> None:
+        self.__labels_list: typing.List[typing.List[str]] = list()
 
     def add_label(self, label: str) -> None:
         labels = label.lower().split("e")
@@ -999,12 +1003,12 @@ def calculate_scientific_notation_drawing_width(ui_settings: UISettings.UISettin
 class LineGraphVerticalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
     """Canvas item to draw the vertical scale."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
-        self.__axes = None
+        self.__axes: typing.Optional[LineGraphAxes] = None
         self.font_size = 12
         self.__fonts = ("{0:d}px".format(self.font_size), "{0:d}px".format(int(self.font_size * 0.8)))
-        self.__ui_settings = None
+        self.__ui_settings: typing.Optional[UISettings.UISettings] = None
 
     def size_to_content(self, ui_settings: UISettings.UISettings):
         """ Size the canvas item to the proper width, the maximum of any label. """
@@ -1076,7 +1080,7 @@ class LineGraphVerticalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
 class LineGraphVerticalAxisLabelCanvasItem(CanvasItem.AbstractCanvasItem):
     """Canvas item to draw the vertical label."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.__axes = None
         self.font_size = 12

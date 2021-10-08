@@ -23,7 +23,7 @@ _ImageDataType = Image._ImageDataType
 
 class AbstractThumbnailSource:
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.on_thumbnail_data_changed = None
         self.__thumbnail_data = None
         self.overlay_canvas_item = CanvasItem.EmptyCanvasItem()
@@ -44,7 +44,7 @@ class AbstractThumbnailSource:
 
 class BitmapOverlayCanvasItem(CanvasItem.CanvasItemComposition):
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.focusable = True
         self.__dropping = False
@@ -261,7 +261,7 @@ class ThumbnailWidget(Widgets.CompositeWidgetBase):
 
 class DataItemBitmapOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.__active = False
 

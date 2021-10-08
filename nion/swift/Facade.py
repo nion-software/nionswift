@@ -33,15 +33,19 @@
        * API (application programming interface) is a client calling into this application.
        * SPI (service programming interface) is this application calling into a client.
 """
+from __future__ import annotations
 
 # standard libraries
+import contextlib
 import copy
 import datetime
 import gettext
 import numbers
 import pathlib
 import threading
+import types
 import typing
+import uuid
 import uuid as uuid_module
 import weakref
 
@@ -50,30 +54,40 @@ import numpy
 
 # local libraries
 from nion.data import Calibration as CalibrationModule
-from nion.data import DataAndMetadata
 from nion.swift import Application as ApplicationModule
 from nion.swift import DisplayPanel as DisplayPanelModule
 from nion.swift import Panel as PanelModule
+from nion.swift import Task
 from nion.swift import Workspace
 from nion.swift.model import ApplicationData
-from nion.swift.model import DataStructure as DataStructureModule
+from nion.swift.model import DataGroup as DataGroupModule
 from nion.swift.model import DataItem as DataItemModule
+from nion.swift.model import DataStructure as DataStructureModule
 from nion.swift.model import DisplayItem as DisplayItemModule
 from nion.swift.model import DocumentModel as DocumentModelModule
 from nion.swift.model import Graphics
+from nion.swift.model import HardwareSource as HardwareSourceModule
 from nion.swift.model import ImportExportManager
 from nion.swift.model import Metadata
 from nion.swift.model import Persistence
 from nion.swift.model import PlugInManager
+from nion.swift.model import Profile
 from nion.swift.model import Symbolic
 from nion.swift.model import Utility
 from nion.ui import CanvasItem as CanvasItemModule
 from nion.ui import Declarative
+from nion.ui import Dialog
+from nion.ui import DrawingContext
+from nion.ui import UserInterface as UserInterfaceModule
+from nion.utils import Converter
 from nion.utils import Geometry
 from nion.utils import Registry
 
 if typing.TYPE_CHECKING:
     from nion.swift import DocumentController
+
+NDArray = typing.Any  # numpy 1.21
+
 
 __all__ = ["get_api"]
 
@@ -88,17 +102,8 @@ NormSizeType = typing.Tuple[float, float]
 NormVectorType = typing.Tuple[NormPointType, NormPointType]
 
 
-class HardwareSourceManager:
-    def register_hardware_source(self, hardware_source) -> None: ...
-    def get_all_instrument_ids(self) -> typing.List[str]: ...
-    def get_all_hardware_source_ids(self) -> typing.List[str]: ...
-    def get_instrument_by_id(self, instrument_id) -> typing.Any: ...
-    def get_hardware_source_for_hardware_source_id(self, hardware_source_id: str) -> typing.Any: ...
-    def make_delegate_hardware_source(self, delegate, hardware_source_id: str, hardware_source_name: str) -> typing.Any: ...
-
-
-def hardware_source_manager() -> HardwareSourceManager:
-    return typing.cast(HardwareSourceManager, Registry.get_component("hardware_source_manager"))
+def hardware_source_manager() -> HardwareSourceModule.HardwareSourceManagerInterface:
+    return typing.cast(HardwareSourceModule.HardwareSourceManagerInterface, Registry.get_component("hardware_source_manager"))
 
 
 # ideally these can be alphabetical, but some orders may need to be switched to ensure that
@@ -118,20 +123,23 @@ nionlib_public = [
 alias = {"API_1": "API"}
 
 
+_InstanceWeakReferenceType = typing.Any  # Python 3.9+ fix these
+
 class SharedInstance(type):
+
     """A metadclass for API objects to return the same instance if the underlying object is the same.
 
     This ensures that API objects using this metaclass can be compared for equality.
     """
-    def __init__(cls, name, bases, d):
+    def __init__(cls, name: str, bases: typing.Tuple[typing.Type[typing.Any]], d: Persistence.PersistentDictType) -> None:
         super(SharedInstance, cls).__init__(name, bases, d)
         cls.__lock = threading.RLock()
-        cls.instances = dict()
+        cls.instances: typing.Dict[typing.Any, _InstanceWeakReferenceType] = dict()
 
-    def __call__(cls, *args, **kw):
+    def __call__(cls, *args: typing.Any, **kw: typing.Any) -> typing.Any:
         assert len(args) == 1
 
-        def remove_instance_ref(instance_ref):
+        def remove_instance_ref(instance_ref: _InstanceWeakReferenceType) -> None:
             with cls.__lock:
                 cls.instances = { k: v for k, v in cls.instances.items() if v != instance_ref }
 
@@ -146,13 +154,13 @@ class SharedInstance(type):
 
 class ObjectSpecifier:
 
-    def __init__(self, object_type, object_uuid=None, object_id=None):
+    def __init__(self, object_type: str, object_uuid: typing.Optional[uuid.UUID] = None, object_id: typing.Optional[str] = None) -> None:
         self.object_type = object_type
         self.object_uuid = str(object_uuid) if object_uuid else None
         self.object_id = str(object_id) if object_id else None
 
     @property
-    def rpc_dict(self):
+    def rpc_dict(self) -> Persistence.PersistentDictType:
         d = {"version": 1, "type": self.object_type}
         if self.object_uuid:
             d["uuid"] = self.object_uuid
@@ -161,7 +169,7 @@ class ObjectSpecifier:
         return d
 
     @classmethod
-    def resolve(cls, d):
+    def resolve(cls, d: typing.Optional[Persistence.PersistentDictType]) -> typing.Any:
         if d is None:
             return get_api("~1.0", "~1.0")
         object_type = d.get("type")
@@ -178,17 +186,20 @@ class ObjectSpecifier:
             return DocumentWindow(document_controller) if document_controller else None
         elif object_type == "display_panel":
             for document_controller in ApplicationModule.app.document_controllers:
-                display_panel = next(iter(filter(lambda x: x.uuid == object_uuid, document_controller.workspace_controller.display_panels)), None)
-                if display_panel:
-                    return DisplayPanel(display_panel)
-            return None
+                workspace_controller = document_controller.workspace_controller
+                if workspace_controller:
+                    display_panel = next(iter(filter(lambda x: x.uuid == object_uuid, workspace_controller.display_panels)), None)
+                    if display_panel:
+                        return DisplayPanel(display_panel)
         elif object_type == "data_item":
             data_item_uuid = uuid_module.UUID(object_uuid_str)
             data_item_specifier = Persistence.PersistentObjectSpecifier(item_uuid=data_item_uuid)
             data_item = document_model.resolve_item_specifier(data_item_specifier)
             return DataItem(typing.cast(DataItemModule.DataItem, data_item)) if data_item else None
         elif object_type == "data_group":
-            return DataGroup(document_model.get_data_group_by_uuid(uuid_module.UUID(object_uuid_str)))
+            data_group = document_model.get_data_group_by_uuid(uuid_module.UUID(object_uuid_str))
+            if data_group:
+                return DataGroup(data_group)
         elif object_type in ("region", "graphic"):
             for display_item in document_model.display_items:
                 for graphic in display_item.graphics:
@@ -198,450 +209,433 @@ class ObjectSpecifier:
             for display_item in document_model.display_items:
                 if display_item.uuid == object_uuid:
                     return Display(display_item)
-        elif object_type == "hardware_source":
-            return HardwareSource(hardware_source_manager().get_hardware_source_for_hardware_source_id(object_id))
-        elif object_type == "instrument":
-            return Instrument(hardware_source_manager().get_instrument_by_id(object_id))
+        elif object_type == "hardware_source" and object_id is not None:
+            hardware_source = hardware_source_manager().get_hardware_source_for_hardware_source_id(object_id)
+            if hardware_source:
+                return HardwareSource(hardware_source)
+        elif object_type == "instrument" and object_id is not None:
+            instrument = hardware_source_manager().get_instrument_by_id(object_id)
+            if instrument:
+                return Instrument(instrument)
         return None
 
 
 class CanvasItem(CanvasItemModule.AbstractCanvasItem):
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
-        self.on_repaint = None
+        self.on_repaint: typing.Optional[typing.Callable[[DrawingContext.DrawingContext, Geometry.IntSize], None]] = None
 
-    def _repaint(self, drawing_context):
-        if self.on_repaint:
-            self.on_repaint(drawing_context, Geometry.IntSize.make(self.canvas_size))
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
+        canvas_size = self.canvas_size
+        if self.on_repaint and canvas_size:
+            self.on_repaint(drawing_context, canvas_size)
 
 
-class RootCanvasItem(CanvasItemModule.RootCanvasItem):
-
-    def __init__(self, ui, canvas_item, properties):
-        super().__init__(ui, properties)
-        self.__canvas_item = canvas_item
+class WidgetLike(typing.Protocol):
 
     @property
-    def _widget(self):
-        return self.canvas_widget
-
-    @property
-    def on_repaint(self):
-        return self.__canvas_item.on_repaint
-
-    @on_repaint.setter
-    def on_repaint(self, value):
-        self.__canvas_item.on_repaint = value
+    def _widget(self) -> UserInterfaceModule.Widget: raise NotImplementedError()
 
 
-class ColumnWidget:
+class ColumnWidget(WidgetLike):
 
-    def __init__(self, ui):
+    def __init__(self, ui: UserInterfaceModule.UserInterface) -> None:
         self.__ui = ui
         self.__column_widget = self.__ui.create_column_widget()
 
     @property
-    def _widget(self):
+    def _widget(self) -> UserInterfaceModule.Widget:
         return self.__column_widget
 
-    def add_spacing(self, spacing):
+    def add_spacing(self, spacing: int) -> None:
         self.__column_widget.add_spacing(spacing)
 
-    def add_stretch(self):
+    def add_stretch(self) -> None:
         self.__column_widget.add_stretch()
 
-    def add(self, widget):
+    def add(self, widget: WidgetLike) -> None:
         self.__column_widget.add(widget._widget)
 
 
-class RowWidget:
+class RowWidget(WidgetLike):
 
-    def __init__(self, ui):
+    def __init__(self, ui: UserInterfaceModule.UserInterface) -> None:
         self.__ui = ui
         self.__row_widget = self.__ui.create_row_widget()
 
     @property
-    def _widget(self):
+    def _widget(self) -> UserInterfaceModule.Widget:
         return self.__row_widget
 
-    def add_spacing(self, spacing):
+    def add_spacing(self, spacing: int) -> None:
         self.__row_widget.add_spacing(spacing)
 
-    def add_stretch(self):
+    def add_stretch(self) -> None:
         self.__row_widget.add_stretch()
 
-    def add(self, widget):
+    def add(self, widget: WidgetLike) -> None:
         self.__row_widget.add(widget._widget)
 
 
-class ComboBoxWidget:
+class ComboBoxWidget(WidgetLike):
 
-    def __init__(self, ui):
+    def __init__(self, ui: UserInterfaceModule.UserInterface) -> None:
         self.__ui = ui
         self.__combo_box_widget = self.__ui.create_combo_box_widget()
 
     @property
-    def _widget(self):
+    def _widget(self) -> UserInterfaceModule.Widget:
         return self.__combo_box_widget
 
     @property
-    def items(self):
+    def items(self) -> typing.Sequence[typing.Any]:
         return self.__combo_box_widget.items
 
     @items.setter
-    def items(self, value):
-        self.__combo_box_widget.items = value
+    def items(self, items: typing.Sequence[typing.Any]) -> None:
+        self.__combo_box_widget.items = items
 
     @property
-    def item_text_getter(self):
+    def item_text_getter(self) -> typing.Callable[[typing.Any], str]:
         return self.__combo_box_widget.item_getter
 
     @item_text_getter.setter
-    def item_text_getter(self, value):
+    def item_text_getter(self, value: typing.Callable[[typing.Any], str]) -> None:
         self.__combo_box_widget.item_getter = value
 
     @property
-    def current_item(self):
+    def current_item(self) -> typing.Optional[typing.Any]:
         return self.__combo_box_widget.current_item
 
     @current_item.setter
-    def current_item(self, value):
+    def current_item(self, value: typing.Optional[typing.Any]) -> None:
         self.__combo_box_widget.current_item = value
 
     @property
-    def current_index(self):
+    def current_index(self) -> typing.Optional[int]:
         return self.__combo_box_widget.current_index
 
     @current_index.setter
-    def current_index(self, value):
+    def current_index(self, value: typing.Optional[int]) -> None:
         self.__combo_box_widget.current_index = value
 
     @property
-    def on_current_text_changed(self):
+    def on_current_text_changed(self) -> typing.Optional[typing.Callable[[str], None]]:
         return self.__combo_box_widget.on_current_text_changed
 
     @on_current_text_changed.setter
-    def on_current_text_changed(self, value):
+    def on_current_text_changed(self, value: typing.Optional[typing.Callable[[str], None]]) -> None:
         self.__combo_box_widget.on_current_text_changed = value
 
     @property
-    def on_current_item_changed(self):
+    def on_current_item_changed(self) -> typing.Optional[typing.Callable[[typing.Any], None]]:
         return self.__combo_box_widget.on_current_item_changed
 
     @on_current_item_changed.setter
-    def on_current_item_changed(self, value):
+    def on_current_item_changed(self, value: typing.Optional[typing.Callable[[typing.Any], None]]) -> None:
         self.__combo_box_widget.on_current_item_changed = value
 
 
-class LabelWidget:
+class LabelWidget(WidgetLike):
 
-    def __init__(self, ui):
+    def __init__(self, ui: UserInterfaceModule.UserInterface) -> None:
         self.__ui = ui
         self.__label_widget = self.__ui.create_label_widget()
 
     @property
-    def _widget(self):
+    def _widget(self) -> UserInterfaceModule.Widget:
         return self.__label_widget
 
     @property
-    def text(self):
+    def text(self) -> typing.Optional[str]:
         return self.__label_widget.text
 
     @text.setter
-    def text(self, value):
+    def text(self, value: typing.Optional[str]) -> None:
         self.__label_widget.text = value
 
 
-class LineEditWidget:
+class LineEditWidget(WidgetLike):
 
-    def __init__(self, ui):
+    def __init__(self, ui: UserInterfaceModule.UserInterface) -> None:
         self.__ui = ui
         self.__line_edit_widget = self.__ui.create_line_edit_widget()
 
     @property
-    def _widget(self):
+    def _widget(self) -> UserInterfaceModule.Widget:
         return self.__line_edit_widget
 
     @property
-    def text(self):
+    def text(self) -> typing.Optional[str]:
         return self.__line_edit_widget.text
 
     @text.setter
-    def text(self, value):
+    def text(self, value: typing.Optional[str]) -> None:
         self.__line_edit_widget.text = value
 
     @property
-    def on_editing_finished(self):
+    def on_editing_finished(self) -> typing.Optional[typing.Callable[[str], None]]:
         return self.__line_edit_widget.on_editing_finished
 
     @on_editing_finished.setter
-    def on_editing_finished(self, value):
+    def on_editing_finished(self, value: typing.Optional[typing.Callable[[str], None]]) -> None:
         self.__line_edit_widget.on_editing_finished = value
 
-    def request_refocus(self):
+    def request_refocus(self) -> None:
         self.__line_edit_widget.request_refocus()
 
-    def select_all(self):
+    def select_all(self) -> None:
         self.__line_edit_widget.select_all()
 
 
-class TextEditWidget:
+class TextEditWidget(WidgetLike):
 
-    def __init__(self, ui):
+    def __init__(self, ui: UserInterfaceModule.UserInterface) -> None:
         self.__ui = ui
         self.__text_edit_widget = self.__ui.create_text_edit_widget()
 
     @property
-    def _widget(self):
+    def _widget(self) -> UserInterfaceModule.Widget:
         return self.__text_edit_widget
 
     @property
-    def text(self):
+    def text(self) -> typing.Optional[str]:
         return self.__text_edit_widget.text
 
     @text.setter
-    def text(self, value):
+    def text(self, value: typing.Optional[str]) -> None:
         self.__text_edit_widget.text = value
 
     @property
-    def on_editing_finished(self):
-        return self.__text_edit_widget.on_editing_finished
+    def on_editing_finished(self) -> typing.Optional[typing.Callable[[typing.Optional[str]], None]]:
+        return self.__text_edit_widget.on_text_edited
 
     @on_editing_finished.setter
-    def on_editing_finished(self, value):
-        self.__text_edit_widget.on_editing_finished = value
+    def on_editing_finished(self, value: typing.Optional[typing.Callable[[typing.Optional[str]], None]]) -> None:
+        self.__text_edit_widget.on_text_edited = value
 
-    def request_refocus(self):
+    def request_refocus(self) -> None:
         self.__text_edit_widget.request_refocus()
 
-    def select_all(self):
+    def select_all(self) -> None:
         self.__text_edit_widget.select_all()
 
-    def append_text(self, text):
+    def append_text(self, text: str) -> None:
         self.__text_edit_widget.append_text(text)
 
-    def insert_text(self, text):
+    def insert_text(self, text: str) -> None:
         self.__text_edit_widget.insert_text(text)
 
     @property
-    def selected_text(self):
+    def selected_text(self) -> typing.Optional[str]:
         return self.__text_edit_widget.selected_text
 
     @property
-    def cursor_position(self):
+    def cursor_position(self) -> UserInterfaceModule.CursorPosition:
         return self.__text_edit_widget.cursor_position
 
     @property
-    def selection(self):
+    def selection(self) -> UserInterfaceModule.Selection:
         return self.__text_edit_widget.selection
 
-    def clear_selection(self):
+    def clear_selection(self) -> None:
         self.__text_edit_widget.clear_selection()
 
-    def move_cursor_position(self, operation, mode=None, n=1):
+    def move_cursor_position(self, operation: str, mode: typing.Optional[str] = None, n: int = 1) -> None:
         self.__text_edit_widget.move_cursor_position(operation, mode, n)
 
 
-class PushButtonWidget:
+class PushButtonWidget(WidgetLike):
 
-    def __init__(self, ui):
+    def __init__(self, ui: UserInterfaceModule.UserInterface) -> None:
         self.__ui = ui
         self.__push_button_widget = self.__ui.create_push_button_widget()
 
     @property
-    def _widget(self):
+    def _widget(self) -> UserInterfaceModule.Widget:
         return self.__push_button_widget
 
     @property
-    def text(self):
+    def text(self) -> typing.Optional[str]:
         return self.__push_button_widget.text
 
     @text.setter
-    def text(self, value):
+    def text(self, value: typing.Optional[str]) -> None:
         self.__push_button_widget.text = value
 
     @property
-    def on_clicked(self):
+    def on_clicked(self) -> typing.Optional[typing.Callable[[], None]]:
         return self.__push_button_widget.on_clicked
 
     @on_clicked.setter
-    def on_clicked(self, value):
+    def on_clicked(self, value: typing.Optional[typing.Callable[[], None]]) -> None:
         self.__push_button_widget.on_clicked = value
 
 
-class CheckBoxWidget:
+class CheckBoxWidget(WidgetLike):
 
-    def __init__(self, ui):
+    def __init__(self, ui: UserInterfaceModule.UserInterface) -> None:
         self.__ui = ui
         self.__check_box_widget = self.__ui.create_check_box_widget()
 
     @property
-    def _widget(self):
+    def _widget(self) -> UserInterfaceModule.Widget:
         return self.__check_box_widget
 
     @property
-    def text(self):
+    def text(self) -> typing.Optional[str]:
         return self.__check_box_widget.text
 
     @text.setter
-    def text(self, value):
+    def text(self, value: typing.Optional[str]) -> None:
         self.__check_box_widget.text = value
 
     @property
-    def checked(self):
+    def checked(self) -> bool:
         return self.__check_box_widget.checked
 
     @checked.setter
-    def checked(self, value):
+    def checked(self, value: bool) -> None:
         self.__check_box_widget.checked = value
 
     @property
-    def on_checked_changed(self):
+    def on_checked_changed(self) -> typing.Optional[typing.Callable[[bool], None]]:
         return self.__check_box_widget.on_checked_changed
 
     @on_checked_changed.setter
-    def on_checked_changed(self, value):
+    def on_checked_changed(self, value: typing.Optional[typing.Callable[[bool], None]]) -> None:
         self.__check_box_widget.on_checked_changed = value
 
     @property
-    def tristate(self):
+    def tristate(self) -> bool:
         return self.__check_box_widget.tristate
 
     @tristate.setter
-    def tristate(self, value):
+    def tristate(self, value: bool) -> None:
         self.__check_box_widget.tristate = value
 
     @property
-    def check_state(self):
+    def check_state(self) -> str:
         return self.__check_box_widget.check_state
 
     @check_state.setter
-    def check_state(self, value):
+    def check_state(self, value: str) -> None:
         self.__check_box_widget.check_state = value
 
     @property
-    def on_check_state_changed(self):
+    def on_check_state_changed(self) -> typing.Optional[typing.Callable[[str], None]]:
         return self.__check_box_widget.on_check_state_changed
 
     @on_check_state_changed.setter
-    def on_check_state_changed(self, value):
+    def on_check_state_changed(self, value: typing.Optional[typing.Callable[[str], None]]) -> None:
         self.__check_box_widget.on_check_state_changed = value
 
-class ProgressBarWidget:
+class ProgressBarWidget(WidgetLike):
 
-    def __init__(self, ui):
+    def __init__(self, ui: UserInterfaceModule.UserInterface) -> None:
         self.__ui = ui
         # pass some sizing to prevent ProgressBar being collapsed by a stretch
         self.__progress_bar_widget = self.__ui.create_progress_bar_widget(properties={"height": 18, "min-width": 64})
 
     @property
-    def _widget(self):
+    def _widget(self) -> UserInterfaceModule.Widget:
         return self.__progress_bar_widget
 
     @property
-    def value(self):
+    def value(self) -> int:
         return self.__progress_bar_widget.value
 
     @value.setter
-    def value(self, value):
+    def value(self, value: int) -> None:
         self.__progress_bar_widget.value = value
 
     @property
-    def minimum(self):
+    def minimum(self) -> int:
         return self.__progress_bar_widget.minimum
 
     @minimum.setter
-    def minimum(self, value):
+    def minimum(self, value: int) -> None:
         self.__progress_bar_widget.minimum = value
 
     @property
-    def maximum(self):
+    def maximum(self) -> int:
         return self.__progress_bar_widget.maximum
 
     @maximum.setter
-    def maximum(self, value):
+    def maximum(self, value: int) -> None:
         self.__progress_bar_widget.maximum = value
 
 
 class UserInterface:
 
-    def __init__(self, ui_version, ui):
+    def __init__(self, ui_version: typing.Optional[str], ui: UserInterfaceModule.UserInterface) -> None:
         actual_version = "1.0.0"
-        if Utility.compare_versions(ui_version, actual_version) > 0:
+        if Utility.compare_versions(ui_version or str(), actual_version) > 0:
             raise NotImplementedError("UI API requested version %s is greater than %s." % (ui_version, actual_version))
         self.__ui = ui
 
     @property
-    def _ui(self):
+    def _ui(self) -> UserInterfaceModule.UserInterface:
         return self.__ui
 
-    def create_canvas_widget(self, height=None):
-        properties = dict()
-        if height is not None:
-            properties["min-height"] = height
-            properties["max-height"] = height
-        canvas_item = CanvasItem()
-        root_canvas_item = RootCanvasItem(self.__ui, canvas_item, properties=properties)
-        root_canvas_item.add_canvas_item(canvas_item)
-        return root_canvas_item
-
-    def create_column_widget(self):
+    def create_column_widget(self) -> ColumnWidget:
         return ColumnWidget(self.__ui)
 
-    def create_row_widget(self):
+    def create_row_widget(self) -> RowWidget:
         return RowWidget(self.__ui)
 
-    def create_splitter_widget(self):
+    def create_splitter_widget(self) -> WidgetLike:
         raise NotImplementedError()
 
-    def create_tab_widget(self):
+    def create_tab_widget(self) -> WidgetLike:
         raise NotImplementedError()
 
-    def create_stack_widget(self):
+    def create_stack_widget(self) -> WidgetLike:
         raise NotImplementedError()
 
-    def create_scroll_area_widget(self):
+    def create_scroll_area_widget(self) -> WidgetLike:
         raise NotImplementedError()
 
-    def create_combo_box_widget(self, items=None, item_text_getter=None):
+    def create_combo_box_widget(self, items: typing.Optional[typing.Sequence[typing.Any]] = None, item_text_getter: typing.Optional[typing.Callable[[typing.Any], str]] = None) -> ComboBoxWidget:
         combo_box_widget = ComboBoxWidget(self.__ui)
-        combo_box_widget.item_text_getter = item_text_getter
+        if item_text_getter:
+            combo_box_widget.item_text_getter = item_text_getter
         combo_box_widget.items = items if items is not None else list()
         return combo_box_widget
 
-    def create_label_widget(self, text=None):
+    def create_label_widget(self, text: typing.Optional[str] = None) -> LabelWidget:
         label_widget = LabelWidget(self.__ui)
         label_widget.text = text
         return label_widget
 
-    def create_line_edit_widget(self, text=None):
+    def create_line_edit_widget(self, text: typing.Optional[str] = None) -> LineEditWidget:
         line_edit_widget = LineEditWidget(self.__ui)
         line_edit_widget.text = text
         return line_edit_widget
 
-    def create_push_button_widget(self, text=None):
+    def create_push_button_widget(self, text: typing.Optional[str] = None) -> PushButtonWidget:
         push_button_widget = PushButtonWidget(self.__ui)
         push_button_widget.text = text
         return push_button_widget
 
-    def create_radio_button_widget(self, text=None):
+    def create_radio_button_widget(self, text: typing.Optional[str] = None) -> WidgetLike:
         raise NotImplementedError()
 
-    def create_check_box_widget(self, text=None):
+    def create_check_box_widget(self, text: typing.Optional[str] = None) -> CheckBoxWidget:
         check_box_widget = CheckBoxWidget(self.__ui)
         check_box_widget.text = text
         return check_box_widget
 
-    def create_slider_widget(self):
+    def create_slider_widget(self) -> WidgetLike:
         raise NotImplementedError()
 
-    def create_text_edit_widget(self, text=None):
+    def create_text_edit_widget(self, text: typing.Optional[str] = None) -> TextEditWidget:
         text_edit_widget = TextEditWidget(self.__ui)
         text_edit_widget.text = text
         return text_edit_widget
 
-    def create_progress_bar_widget(self, value=None, minimum=None, maximum=None):
+    def create_progress_bar_widget(self, value: typing.Optional[int] = None, minimum: typing.Optional[int] = None, maximum: typing.Optional[int] = None) -> ProgressBarWidget:
         progress_bar_widget = ProgressBarWidget(self.__ui)
         progress_bar_widget.minimum = minimum if minimum is not None else 0
         progress_bar_widget.maximum = maximum if maximum is not None else 100
@@ -649,24 +643,12 @@ class UserInterface:
         return progress_bar_widget
 
     @property
-    def data_file_path(self):
+    def data_file_path(self) -> str:
         return self.__ui.get_data_location()
 
     @property
-    def document_file_path(self):
+    def document_file_path(self) -> str:
         return self.__ui.get_document_location()
-
-
-class Panel(PanelModule.Panel):
-
-    def __init__(self, document_controller, panel_delegate, panel_id, properties):
-        super().__init__(document_controller, panel_id, panel_id)
-        self.panel_delegate = panel_delegate
-
-    def close(self) -> None:
-        if callable(getattr(self.panel_delegate, "close", None)):
-            self.panel_delegate.close()
-        super().close()
 
 
 class Graphic(metaclass=SharedInstance):
@@ -684,19 +666,19 @@ class Graphic(metaclass=SharedInstance):
         "channel-graphic": "channel-region",
     }
 
-    def __init__(self, graphic):
+    def __init__(self, graphic: Graphics.Graphic) -> None:
         self.__graphic = graphic
 
     @property
-    def _item(self):
+    def _item(self) -> Graphics.Graphic:
         return self._graphic
 
     @property
-    def _graphic(self):
+    def _graphic(self) -> Graphics.Graphic:
         return self.__graphic
 
     @property
-    def specifier(self):
+    def specifier(self) -> ObjectSpecifier:
         return ObjectSpecifier("graphic", self.__graphic.uuid)
 
     @property
@@ -719,7 +701,7 @@ class Graphic(metaclass=SharedInstance):
 
         Scriptable: Yes
         """
-        return Graphic.graphic_to_region_type_map.get(self.__graphic.type)
+        return Graphic.graphic_to_region_type_map[self.__graphic.type]
 
     @property
     def graphic_type(self) -> str:
@@ -732,11 +714,11 @@ class Graphic(metaclass=SharedInstance):
         return self.__graphic.type
 
     @property
-    def region(self) -> "Graphic":
+    def region(self) -> Graphic:
         return self
 
     @property
-    def label(self) -> str:
+    def label(self) -> typing.Optional[str]:
         """Return the graphic label.
 
         .. versionadded:: 1.0
@@ -746,7 +728,7 @@ class Graphic(metaclass=SharedInstance):
         return self.__graphic.label
 
     @label.setter
-    def label(self, value: str) -> None:
+    def label(self, value: typing.Optional[str]) -> None:
         """Set the graphic label.
 
         .. versionadded:: 1.0
@@ -775,10 +757,10 @@ class Graphic(metaclass=SharedInstance):
         """
         self.__graphic.graphic_id = value
 
-    def get_property(self, property: str):
+    def get_property(self, property: str) -> typing.Any:
         return getattr(self.__graphic, property)
 
-    def set_property(self, property: str, value) -> None:
+    def set_property(self, property: str, value: typing.Any) -> None:
         setattr(self.__graphic, property, value)
 
     def mask_xdata_with_shape(self, shape: DataAndMetadata.ShapeType) -> DataAndMetadata.DataAndMetadata:
@@ -796,7 +778,7 @@ class Graphic(metaclass=SharedInstance):
     @property
     def angle(self) -> float:
         """Return the angle (radians) property."""
-        return self.get_property("angle")
+        return typing.cast(float, self.get_property("angle"))
 
     @angle.setter
     def angle(self, value: float) -> None:
@@ -808,7 +790,7 @@ class Graphic(metaclass=SharedInstance):
         """Return the bounds property in relative coordinates.
 
         Bounds is a tuple ((top, left), (height, width))"""
-        return self.get_property("bounds")
+        return typing.cast(NormRectangleType, self.get_property("bounds"))
 
     @bounds.setter
     def bounds(self, value: NormRectangleType) -> None:
@@ -822,10 +804,10 @@ class Graphic(metaclass=SharedInstance):
         """Return the center property in relative coordinates.
 
         Center is a tuple (y, x)."""
-        return self.get_property("center")
+        return typing.cast(NormPointType, self.get_property("center"))
 
     @center.setter
-    def center(self, value) -> None:
+    def center(self, value: NormPointType) -> None:
         """Set the center in relative coordinates.
 
         Center is a tuple (y, x)."""
@@ -836,7 +818,7 @@ class Graphic(metaclass=SharedInstance):
         """Return the end property in relative coordinates.
 
         End may be a float when graphic is an Interval or a tuple (y, x) when graphic is a Line."""
-        return self.get_property("end")
+        return typing.cast(typing.Union[float, NormPointType], self.get_property("end"))
 
     @end.setter
     def end(self, value: typing.Union[float, NormPointType]) -> None:
@@ -850,7 +832,7 @@ class Graphic(metaclass=SharedInstance):
         """Return the interval property in relative coordinates.
 
         Interval is a tuple of floats (start, end)."""
-        return self.get_property("interval")
+        return typing.cast(NormIntervalType, self.get_property("interval"))
 
     @interval.setter
     def interval(self, value: NormIntervalType) -> None:
@@ -864,7 +846,7 @@ class Graphic(metaclass=SharedInstance):
         """Return the position property in relative coordinates.
 
         Position is a tuple of floats (y, x)."""
-        return self.get_property("position")
+        return typing.cast(NormPointType, self.get_property("position"))
 
     @position.setter
     def position(self, value: NormPointType) -> None:
@@ -878,7 +860,7 @@ class Graphic(metaclass=SharedInstance):
         """Return the size property in relative coordinates.
 
         Size is a tuple of floats (height, width)."""
-        return self.get_property("size")
+        return typing.cast(NormSizeType, self.get_property("size"))
 
     @size.setter
     def size(self, value: NormSizeType) -> None:
@@ -892,7 +874,7 @@ class Graphic(metaclass=SharedInstance):
         """Return the start property in relative coordinates.
 
         Start may be a float when graphic is an Interval or a tuple (y, x) when graphic is a Line."""
-        return self.get_property("start")
+        return typing.cast(typing.Union[float, NormPointType], self.get_property("start"))
 
     @start.setter
     def start(self, value: typing.Union[float, NormPointType]) -> None:
@@ -906,7 +888,7 @@ class Graphic(metaclass=SharedInstance):
         """Return the vector property in relative coordinates.
 
         Vector will be a tuple of tuples ((y_start, x_start), (y_end, x_end))."""
-        return self.get_property("vector")
+        return typing.cast(NormVectorType, self.get_property("vector"))
 
     @vector.setter
     def vector(self, value: NormVectorType) -> None:
@@ -918,7 +900,7 @@ class Graphic(metaclass=SharedInstance):
     @property
     def line_width(self) -> float:
         """Return the line width property in pixel coordinates."""
-        return self.get_property("width")
+        return typing.cast(float, self.get_property("width"))
 
     @line_width.setter
     def line_width(self, value: float) -> None:
@@ -938,11 +920,11 @@ class DataItem(metaclass=SharedInstance):
                "graphics", "display", "add_point_region", "add_rectangle_region", "add_ellipse_region",
                "add_line_region", "add_interval_region", "add_channel_region", "remove_region", "mask_xdata"]
 
-    def __init__(self, data_item: DataItemModule.DataItem):
+    def __init__(self, data_item: DataItemModule.DataItem) -> None:
         self.__data_item = data_item
 
     @property
-    def _item(self):
+    def _item(self) -> DataItemModule.DataItem:
         return self._data_item
 
     @property
@@ -950,13 +932,14 @@ class DataItem(metaclass=SharedInstance):
         return self.__data_item
 
     @property
-    def specifier(self):
+    def specifier(self) -> ObjectSpecifier:
         return ObjectSpecifier("data_item", self.__data_item.uuid)
 
     @property
-    def __display_item(self) -> DisplayItemModule.DisplayItem:
+    def __display_item(self) -> typing.Optional[DisplayItemModule.DisplayItem]:
         # TODO: remove data item / document model hack (required to access display items)
-        display_item = self.__data_item._document_model.get_best_display_item_for_data_item(self.__data_item) if self.__data_item.container else None
+        document_model = self.__data_item._document_model
+        display_item = document_model.get_best_display_item_for_data_item(self.__data_item) if document_model else None
         return display_item
 
     @property
@@ -1010,7 +993,7 @@ class DataItem(metaclass=SharedInstance):
         self.__data_item.title = value
 
     @property
-    def data(self) -> numpy.ndarray:
+    def data(self) -> NDArray:
         """Return the data as a numpy ndarray.
 
         .. versionadded:: 1.0
@@ -1020,7 +1003,7 @@ class DataItem(metaclass=SharedInstance):
         return self.__data_item.data
 
     @data.setter
-    def data(self, data: numpy.ndarray) -> None:
+    def data(self, data: NDArray) -> None:
         """Set the data.
 
         :param data: A numpy ndarray.
@@ -1029,9 +1012,9 @@ class DataItem(metaclass=SharedInstance):
 
         Scriptable: Yes
         """
-        self.__data_item.set_data(numpy.copy(data))
+        self.__data_item.set_data(numpy.copy(data))  # type: ignore
 
-    def set_data(self, data: numpy.ndarray) -> None:
+    def set_data(self, data: NDArray) -> None:
         """Set the data.
 
         :param data: A numpy ndarray.
@@ -1043,7 +1026,7 @@ class DataItem(metaclass=SharedInstance):
         self.data = data
 
     @property
-    def xdata(self) -> DataAndMetadata.DataAndMetadata:
+    def xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
         """Return the extended data of this data item.
 
         .. versionadded:: 1.0
@@ -1063,7 +1046,7 @@ class DataItem(metaclass=SharedInstance):
         self.__data_item.set_xdata(data_and_metadata)
 
     @property
-    def display_xdata(self) -> DataAndMetadata.DataAndMetadata:
+    def display_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
         """Return the extended data of this data item display.
 
         Display data will always be 1d or 2d and either int, float, or RGB data type.
@@ -1072,11 +1055,12 @@ class DataItem(metaclass=SharedInstance):
 
         Scriptable: Yes
         """
-        display_data_channel = self.__display_item.display_data_channel
-        return display_data_channel.get_calculated_display_values().display_data_and_metadata
+        display_data_channel = self.__display_item.display_data_channel if self.__display_item else None
+        display_values = display_data_channel.get_calculated_display_values() if display_data_channel else None
+        return display_values.display_data_and_metadata if display_values else None
 
     @property
-    def intensity_calibration(self) -> CalibrationModule.Calibration:
+    def intensity_calibration(self) -> typing.Optional[Calibration.Calibration]:
         """Return a copy of the intensity calibration.
 
         .. versionadded:: 1.0
@@ -1097,7 +1081,7 @@ class DataItem(metaclass=SharedInstance):
         self.__data_item.set_intensity_calibration(intensity_calibration)
 
     @property
-    def dimensional_calibrations(self) -> typing.List[CalibrationModule.Calibration]:
+    def dimensional_calibrations(self) -> DataAndMetadata.CalibrationListType:
         """Return a copy of the list of dimensional calibrations.
 
         .. versionadded:: 1.0
@@ -1106,7 +1090,7 @@ class DataItem(metaclass=SharedInstance):
         """
         return self.__data_item.dimensional_calibrations
 
-    def set_dimensional_calibrations(self, dimensional_calibrations: typing.List[CalibrationModule.Calibration]) -> None:
+    def set_dimensional_calibrations(self, dimensional_calibrations: DataAndMetadata.CalibrationListType) -> None:
         """Set the dimensional calibrations.
 
         :param dimensional_calibrations: A list of calibrations, must match the dimensions of the data.
@@ -1118,7 +1102,7 @@ class DataItem(metaclass=SharedInstance):
         self.__data_item.set_dimensional_calibrations(dimensional_calibrations)
 
     @property
-    def metadata(self) -> dict:
+    def metadata(self) -> typing.Optional[DataAndMetadata.MetadataType]:
         """Return a copy of the metadata as a dict.
 
         For best future compatibility, prefer using the ``get_metadata_value`` and ``set_metadata_value`` methods over
@@ -1130,7 +1114,7 @@ class DataItem(metaclass=SharedInstance):
         """
         return self.__data_item.metadata
 
-    def set_metadata(self, metadata: dict) -> None:
+    def set_metadata(self, metadata: DataAndMetadata.MetadataType) -> None:
         """Set the metadata dict.
 
         :param metadata: The metadata dict.
@@ -1219,7 +1203,7 @@ class DataItem(metaclass=SharedInstance):
         self._data_item.delete_metadata_value(key)
 
     @property
-    def data_and_metadata(self) -> DataAndMetadata.DataAndMetadata:
+    def data_and_metadata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
         """Return the extended data.
 
         .. versionadded:: 1.0
@@ -1242,7 +1226,7 @@ class DataItem(metaclass=SharedInstance):
         self.__data_item.set_xdata(data_and_metadata)
 
     @property
-    def regions(self) -> typing.List[Graphic]:
+    def regions(self) -> typing.Sequence[Graphic]:
         """Return the graphics attached to this data item.
 
         .. versionadded:: 1.0
@@ -1254,7 +1238,7 @@ class DataItem(metaclass=SharedInstance):
         return self.graphics
 
     @property
-    def graphics(self) -> typing.List[Graphic]:
+    def graphics(self) -> typing.Sequence[Graphic]:
         """Return the graphics attached to this data item.
 
         .. versionadded:: 1.0
@@ -1263,16 +1247,17 @@ class DataItem(metaclass=SharedInstance):
 
         Scriptable: Yes
         """
-        return [Graphic(graphic) for graphic in self.__display_item.graphics]
+        return [Graphic(graphic) for graphic in self.__display_item.graphics] if self.__display_item else list()
 
     @property
-    def display(self) -> "Display":
+    def display(self) -> Display:
         """Return a display for the data item, preferring the oldest single data item display.
 
         If no single data item display exists, return the oldest multi data item display.
 
         Scriptable: Yes
         """
+        assert self.__display_item
         return Display(self.__display_item)
 
     def add_point_region(self, y: float, x: float) -> Graphic:
@@ -1290,6 +1275,7 @@ class DataItem(metaclass=SharedInstance):
         """
         graphic = Graphics.PointGraphic()
         graphic.position = Geometry.FloatPoint(y, x)
+        assert self.__display_item
         self.__display_item.add_graphic(graphic)
         return Graphic(graphic)
 
@@ -1297,6 +1283,7 @@ class DataItem(metaclass=SharedInstance):
         graphic = Graphics.RectangleGraphic()
         graphic.center = Geometry.FloatPoint(center_y, center_x)
         graphic.size = Geometry.FloatSize(height, width)
+        assert self.__display_item
         self.__display_item.add_graphic(graphic)
         return Graphic(graphic)
 
@@ -1304,6 +1291,7 @@ class DataItem(metaclass=SharedInstance):
         graphic = Graphics.EllipseGraphic()
         graphic.center = Geometry.FloatPoint(center_y, center_x)
         graphic.size = Geometry.FloatSize(height, width)
+        assert self.__display_item
         self.__display_item.add_graphic(graphic)
         return Graphic(graphic)
 
@@ -1311,6 +1299,7 @@ class DataItem(metaclass=SharedInstance):
         graphic = Graphics.LineGraphic()
         graphic.start = Geometry.FloatPoint(start_y, start_x)
         graphic.end = Geometry.FloatPoint(end_y, end_x)
+        assert self.__display_item
         self.__display_item.add_graphic(graphic)
         return Graphic(graphic)
 
@@ -1318,55 +1307,62 @@ class DataItem(metaclass=SharedInstance):
         graphic = Graphics.IntervalGraphic()
         graphic.start = start
         graphic.end = end
+        assert self.__display_item
         self.__display_item.add_graphic(graphic)
         return Graphic(graphic)
 
     def add_channel_region(self, position: float) -> Graphic:
         graphic = Graphics.ChannelGraphic()
         graphic.position = position
+        assert self.__display_item
         self.__display_item.add_graphic(graphic)
         return Graphic(graphic)
 
     def remove_region(self, graphic: Graphic) -> None:
+        assert self.__display_item
         self.__display_item.remove_graphic(graphic._graphic).close()
 
-    def mask_xdata(self) -> DataAndMetadata.DataAndMetadata:
+    def mask_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
         """Return the mask by combining any mask graphics on this data item as extended data.
 
         .. versionadded:: 1.0
 
         Scriptable: Yes
         """
+        assert self.__display_item
         display_data_channel = self.__display_item.display_data_channel
-        shape = display_data_channel.display_data_shape
-        calibrated_origin = Geometry.FloatPoint(y=self.__display_item.datum_calibrations[0].convert_from_calibrated_value(0.0),
-                                                x=self.__display_item.datum_calibrations[1].convert_from_calibrated_value(0.0))
-        mask = DataItemModule.create_mask_data(self.__display_item.graphics, shape, calibrated_origin)
-        return DataAndMetadata.DataAndMetadata.from_data(mask)
+        if display_data_channel:
+            shape = display_data_channel.display_data_shape
+            if shape is not None:
+                calibrated_origin = Geometry.FloatPoint(y=self.__display_item.datum_calibrations[0].convert_from_calibrated_value(0.0),
+                                                        x=self.__display_item.datum_calibrations[1].convert_from_calibrated_value(0.0))
+                mask = DataItemModule.create_mask_data(self.__display_item.graphics, shape, calibrated_origin)
+                return DataAndMetadata.DataAndMetadata.from_data(mask)
+        return None
 
-    def data_item_to_svg(self):
-        drawing_context, shape = DisplayPanelModule.preview(DisplayPanelModule.FixedUISettings(), self.__display_item, 320, 240)
-
-        view_box = Geometry.IntRect(Geometry.IntPoint(), shape)
-
-        return drawing_context.to_svg(shape, view_box)
+    def data_item_to_svg(self) -> str:
+        if self.__display_item:
+            drawing_context, shape = DisplayPanelModule.preview(DisplayPanelModule.FixedUISettings(), self.__display_item, 320, 240)
+            view_box = Geometry.IntRect(Geometry.IntPoint(), shape)
+            return drawing_context.to_svg(shape, view_box)
+        return str()
 
 
 class DataSource(metaclass=SharedInstance):
 
-    def __init__(self, data_source):
+    def __init__(self, data_source: DataItemModule.DataSource) -> None:
         self.__data_source = data_source
 
     @property
-    def _item(self):
+    def _item(self) -> DataItemModule.DataSource:
         return self._data_source
 
     @property
-    def _data_source(self):
+    def _data_source(self) -> DataItemModule.DataSource:
         return self.__data_source
 
     @property
-    def specifier(self):
+    def specifier(self) -> ObjectSpecifier:
         return ObjectSpecifier("data_source", uuid_module.uuid4())
 
     @property
@@ -1374,79 +1370,85 @@ class DataSource(metaclass=SharedInstance):
         return self.__data_source.display_data_channel
 
     @property
-    def display_item(self) -> "Display":
-        return Display(self.__data_source.display_item)
+    def display_item(self) -> Display:
+        display_item = self.__data_source.display_item
+        assert display_item
+        return Display(display_item)
 
     @property
     def data_item(self) -> DataItem:
-        return DataItem(self.__data_source.data_item)
+        data_item = self.__data_source.data_item
+        assert data_item
+        return DataItem(data_item)
 
     @property
     def graphic(self) -> Graphic:
-        return Graphic(self.__data_source.graphic)
+        graphic = self.__data_source.graphic
+        assert graphic
+        return Graphic(graphic)
 
     @property
-    def cropped_element_xdata(self) -> DataAndMetadata.DataAndMetadata:
+    def cropped_element_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
         return self.__data_source.cropped_element_xdata
 
     @property
-    def cropped_display_xdata(self) -> DataAndMetadata.DataAndMetadata:
+    def cropped_display_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
         return self.__data_source.cropped_display_xdata
 
     @property
-    def cropped_normalized_xdata(self) -> DataAndMetadata.DataAndMetadata:
+    def cropped_normalized_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
         return self.__data_source.cropped_normalized_xdata
 
     @property
-    def cropped_adjusted_xdata(self) -> DataAndMetadata.DataAndMetadata:
+    def cropped_adjusted_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
         return self.__data_source.cropped_adjusted_xdata
 
     @property
-    def cropped_transformed_xdata(self) -> DataAndMetadata.DataAndMetadata:
+    def cropped_transformed_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
         return self.__data_source.cropped_transformed_xdata
 
     @property
-    def cropped_xdata(self) -> DataAndMetadata.DataAndMetadata:
+    def cropped_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
         return self.__data_source.cropped_xdata
 
     @property
-    def data(self) -> numpy.ndarray:
+    def data(self) -> typing.Optional[NDArray]:
         return self.__data_source.data
 
     @property
-    def element_xdata(self) -> DataAndMetadata.DataAndMetadata:
+    def element_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
         return self.__data_source.element_xdata
 
     @property
-    def display_xdata(self) -> DataAndMetadata.DataAndMetadata:
+    def display_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
         return self.__data_source.display_xdata
 
     @property
-    def display_rgba(self) -> DataAndMetadata.DataAndMetadata:
+    def display_rgba(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
         return self.__data_source.display_rgba
 
     @property
-    def normalized_xdata(self) -> DataAndMetadata.DataAndMetadata:
+    def normalized_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
         return self.__data_source.normalized_xdata
 
     @property
-    def adjusted_xdata(self) -> DataAndMetadata.DataAndMetadata:
+    def adjusted_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
         return self.__data_source.adjusted_xdata
 
     @property
-    def transformed_xdata(self) -> DataAndMetadata.DataAndMetadata:
+    def transformed_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
         return self.__data_source.transformed_xdata
 
     @property
-    def filter_xdata(self) -> DataAndMetadata.DataAndMetadata:
+    def filter_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
         return self.__data_source.filter_xdata
 
     @property
-    def filtered_xdata(self) -> DataAndMetadata.DataAndMetadata:
+    def filtered_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
         return self.__data_source.filtered_xdata
 
     @property
-    def xdata(self) -> DataAndMetadata.DataAndMetadata:
+    def xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
         return self.__data_source.xdata
 
 
@@ -1454,19 +1456,19 @@ class DisplayPanel(metaclass=SharedInstance):
 
     release = ["data_item", "set_data_item"]
 
-    def __init__(self, display_panel):
+    def __init__(self, display_panel: DisplayPanelModule.DisplayPanel) -> None:
         self.__display_panel = display_panel
 
     @property
-    def _display_panel(self):
+    def _display_panel(self) -> DisplayPanelModule.DisplayPanel:
         return self.__display_panel
 
     @property
-    def specifier(self):
+    def specifier(self) -> ObjectSpecifier:
         return ObjectSpecifier("display_panel", self.__display_panel.uuid)
 
     @property
-    def data_item(self) -> DataItem:
+    def data_item(self) -> typing.Optional[DataItem]:
         """Return the data item associated with this display panel.
 
         .. versionadded:: 1.0
@@ -1501,11 +1503,11 @@ class Display(metaclass=SharedInstance):
 
     release = ["uuid", "display_type", "selected_graphics", "graphics", "data_item", "data_items", "get_graphic_by_id"]
 
-    def __init__(self, display_item):
+    def __init__(self, display_item: DisplayItemModule.DisplayItem) -> None:
         self.__display_item = display_item
 
     @property
-    def _item(self):
+    def _item(self) -> DisplayItemModule.DisplayItem:
         return self._display_item
 
     @property
@@ -1517,7 +1519,7 @@ class Display(metaclass=SharedInstance):
         return self.__display_item
 
     @property
-    def specifier(self):
+    def specifier(self) -> ObjectSpecifier:
         return ObjectSpecifier("display_item", self.__display_item.uuid)
 
     @property
@@ -1531,19 +1533,19 @@ class Display(metaclass=SharedInstance):
         return self.__display_item.uuid
 
     @property
-    def display_type(self) -> str:
+    def display_type(self) -> typing.Optional[str]:
         return self.__display_item.display_type
 
     @display_type.setter
-    def display_type(self, value: str) -> None:
+    def display_type(self, value: typing.Optional[str]) -> None:
         self.__display_item.display_type = value
 
     @property
-    def selected_graphics(self) -> typing.List[Graphic]:
+    def selected_graphics(self) -> typing.Sequence[Graphic]:
         return [Graphic(graphic) for graphic in self.__display_item.selected_graphics]
 
     @property
-    def graphics(self) -> typing.List[Graphic]:
+    def graphics(self) -> typing.Sequence[Graphic]:
         """Return the graphics attached to this display.
 
         .. versionadded:: 15
@@ -1558,7 +1560,7 @@ class Display(metaclass=SharedInstance):
         return DataItem(data_item) if data_item else None
 
     @property
-    def data_items(self) -> typing.List[DataItem]:
+    def data_items(self) -> typing.Sequence[DataItem]:
         return [DataItem(data_item) for data_item in self.__display_item.data_items]
 
     @property
@@ -1566,14 +1568,14 @@ class Display(metaclass=SharedInstance):
         return self.data_item.xdata if self.data_item else None
 
     @property
-    def data(self) -> typing.Optional[numpy.ndarray]:
+    def data(self) -> typing.Optional[NDArray]:
         return self.data_item.data if self.data_item else None
 
     @property
-    def metadata(self) -> typing.Optional[typing.Dict]:
+    def metadata(self) -> typing.Optional[DataAndMetadata.MetadataType]:
         return self.data_item.metadata if self.data_item else None
 
-    def add_graphic(self, graphic_description: typing.Mapping) -> typing.Optional[Graphic]:
+    def add_graphic(self, graphic_description: Persistence.PersistentDictType) -> typing.Optional[Graphic]:
         """Add graphic described in graphic_description to the display.
 
         Graphic description must include a 'type' key with one of the following values:
@@ -1655,17 +1657,17 @@ class Display(metaclass=SharedInstance):
         attributes = ["fill_color", "graphic_id", "is_bounds_constrained", "is_position_locked",
                       "is_shape_locked", "label", "stroke_color", "role"]
         graphic = None
-        graphic_table = [
-            ["rect-graphic", Graphics.RectangleGraphic, ["bounds", "center", "size", "rotation"]],
-            ["ellipse-graphic", Graphics.EllipseGraphic, ["bounds", "center", "size", "rotation"]],
-            ["line-graphic", Graphics.LineGraphic, ["vector", "start", "end", "start_arrow_enabled", "end_arrow_enabled", "angle", "length"]],
-            ["point-graphic", Graphics.PointGraphic, ["position"]],
-            ["interval-graphic", Graphics.IntervalGraphic, ["start", "end"]],
-            ["channel-graphic", Graphics.ChannelGraphic, ["position"]],
-            ["spot-graphic", Graphics.SpotGraphic, ["bounds", "center", "size", "rotation"]],
-            ["wedge-graphic", Graphics.WedgeGraphic, ["angle_interval", "start_angle", "end_angle"]],
-            ["ring-graphic", Graphics.RingGraphic, ["radius_1", "radius_2", "mode"]],
-            ["lattice-graphic", Graphics.LatticeGraphic, ["u_pos", "v_pos", "u_count", "v_count", "radius"]],
+        graphic_table: typing.List[typing.Tuple[str, typing.Type[typing.Any], typing.List[str]]] = [
+            ("rect-graphic", Graphics.RectangleGraphic, ["bounds", "center", "size", "rotation"]),
+            ("ellipse-graphic", Graphics.EllipseGraphic, ["bounds", "center", "size", "rotation"]),
+            ("line-graphic", Graphics.LineGraphic, ["vector", "start", "end", "start_arrow_enabled", "end_arrow_enabled", "angle", "length"]),
+            ("point-graphic", Graphics.PointGraphic, ["position"]),
+            ("interval-graphic", Graphics.IntervalGraphic, ["start", "end"]),
+            ("channel-graphic", Graphics.ChannelGraphic, ["position"]),
+            ("spot-graphic", Graphics.SpotGraphic, ["bounds", "center", "size", "rotation"]),
+            ("wedge-graphic", Graphics.WedgeGraphic, ["angle_interval", "start_angle", "end_angle"]),
+            ("ring-graphic", Graphics.RingGraphic, ["radius_1", "radius_2", "mode"]),
+            ("lattice-graphic", Graphics.LatticeGraphic, ["u_pos", "v_pos", "u_count", "v_count", "radius"]),
         ]
         for graphic_entry in graphic_table:
             if graphic_description.get("type") == graphic_entry[0]:
@@ -1695,11 +1697,11 @@ class DataGroup(metaclass=SharedInstance):
 
     release = ["uuid", "add_data_item"]
 
-    def __init__(self, data_group):
+    def __init__(self, data_group: DataGroupModule.DataGroup) -> None:
         self.__data_group = data_group
 
     @property
-    def specifier(self):
+    def specifier(self) -> ObjectSpecifier:
         return ObjectSpecifier("data_group", self.__data_group.uuid)
 
     @property
@@ -1732,7 +1734,7 @@ class DataGroup(metaclass=SharedInstance):
         raise NotImplementedError()
 
     @property
-    def data_items(self) -> typing.List[DataItem]:
+    def data_items(self) -> typing.Sequence[DataItem]:
         raise AttributeError()
 
 
@@ -1740,7 +1742,7 @@ class RecordTask:
 
     release = ["close", "is_finished", "grab", "cancel"]
 
-    def __init__(self, hardware_source, frame_parameters, channels_enabled):
+    def __init__(self, hardware_source: HardwareSourceModule.HardwareSourceLike, frame_parameters: typing.Optional[typing.Mapping[str, typing.Any]], channels_enabled: typing.Optional[typing.Sequence[bool]]) -> None:
         self.__hardware_source = hardware_source
         if frame_parameters:
             self.__hardware_source.set_record_frame_parameters(self.__hardware_source.get_frame_parameters_from_dict(frame_parameters))
@@ -1748,17 +1750,17 @@ class RecordTask:
             for channel_index, channel_enabled in enumerate(channels_enabled):
                 self.__hardware_source.set_channel_enabled(channel_index, channel_enabled)
 
-        self.__data_and_metadata_list = None
+        self.__data_and_metadata_list: typing.Optional[typing.List[DataAndMetadata.DataAndMetadata]] = None
 
         # synchronize start of thread; if this sync doesn't occur, the task can be closed before the acquisition
         # is started. in that case a deadlock occurs because the abort doesn't apply and the thread is waiting
         # for the acquisition.
         self.__recording_started = threading.Event()
 
-        def record_thread():
+        def record_thread() -> None:
             self.__hardware_source.start_recording()
             self.__recording_started.set()
-            self.__data_and_metadata_list = self.__hardware_source.get_next_xdatas_to_finish()
+            self.__data_and_metadata_list = list(self.__hardware_source.get_next_xdatas_to_finish())
 
         self.__thread = threading.Thread(target=record_thread)
         self.__thread.start()
@@ -1786,7 +1788,7 @@ class RecordTask:
         """
         return not self.__thread.is_alive()
 
-    def grab(self) -> typing.List[DataAndMetadata.DataAndMetadata]:
+    def grab(self) -> typing.Sequence[DataAndMetadata.DataAndMetadata]:
         """Grab list of data/metadata from the task.
 
         .. versionadded:: 1.0
@@ -1797,7 +1799,7 @@ class RecordTask:
         :rtype: list of :py:class:`DataAndMetadata`
         """
         self.__thread.join()
-        return self.__data_and_metadata_list
+        return self.__data_and_metadata_list if self.__data_and_metadata_list else list()
 
     def cancel(self) -> None:
         self.__hardware_source.abort_recording()
@@ -1807,7 +1809,7 @@ class ViewTask:
 
     release = ["close", "grab_earliest", "grab_immediate", "grab_next_to_finish", "grab_next_to_start"]
 
-    def __init__(self, view_task):
+    def __init__(self, view_task: HardwareSourceModule.ViewTaskLike) -> None:
         self._view_task = view_task
 
     def close(self) -> None:
@@ -1819,7 +1821,7 @@ class ViewTask:
         """
         self._view_task.close()
 
-    def grab_immediate(self) -> typing.List[DataAndMetadata.DataAndMetadata]:
+    def grab_immediate(self) -> typing.Sequence[DataAndMetadata.DataAndMetadata]:
         """Grab list of data/metadata from the task.
 
         .. versionadded:: 1.0
@@ -1831,7 +1833,7 @@ class ViewTask:
         """
         return self._view_task.grab_immediate()
 
-    def grab_next_to_finish(self) -> typing.List[DataAndMetadata.DataAndMetadata]:
+    def grab_next_to_finish(self) -> typing.Sequence[DataAndMetadata.DataAndMetadata]:
         """Grab list of data/metadata from the task.
 
         .. versionadded:: 1.0
@@ -1843,7 +1845,7 @@ class ViewTask:
         """
         return self._view_task.grab_next_to_finish()
 
-    def grab_next_to_start(self) -> typing.List[DataAndMetadata.DataAndMetadata]:
+    def grab_next_to_start(self) -> typing.Sequence[DataAndMetadata.DataAndMetadata]:
         """Grab list of data/metadata from the task.
 
         .. versionadded:: 1.0
@@ -1855,7 +1857,7 @@ class ViewTask:
         """
         return self._view_task.grab_next_to_start()
 
-    def grab_earliest(self) -> typing.List[DataAndMetadata.DataAndMetadata]:
+    def grab_earliest(self) -> typing.Sequence[DataAndMetadata.DataAndMetadata]:
         """Grab list of data/metadata from the task.
 
         .. versionadded:: 1.0
@@ -1879,18 +1881,18 @@ class HardwareSource(metaclass=SharedInstance):
     threadsafe = ["record", "grab_next_to_finish", "grab_next_to_start", "set_property_as_float", "set_property_as_int", "set_property_as_bool",
         "set_property_as_str", "set_property_as_float_point"]
 
-    def __init__(self, hardware_source):
+    def __init__(self, hardware_source: HardwareSourceModule.HardwareSourceLike) -> None:
         self.__hardware_source = hardware_source
 
     @property
-    def _hardware_source(self):
+    def _hardware_source(self) -> HardwareSourceModule.HardwareSourceLike:
         return self.__hardware_source
 
     def close(self) -> None:
         pass
 
     @property
-    def specifier(self):
+    def specifier(self) -> ObjectSpecifier:
         return ObjectSpecifier("hardware_source", object_id=self.__hardware_source.hardware_source_id)
 
     @property
@@ -1901,30 +1903,30 @@ class HardwareSource(metaclass=SharedInstance):
     def profile_index(self, value: int) -> None:
         self.__hardware_source.set_selected_profile_index(value)
 
-    def get_default_frame_parameters(self) -> dict:
+    def get_default_frame_parameters(self) -> HardwareSourceModule.FrameParametersDictType:
         return self.__hardware_source.get_frame_parameters_from_dict(dict()).as_dict()
 
-    def get_frame_parameters(self) -> dict:
+    def get_frame_parameters(self) -> HardwareSourceModule.FrameParametersDictType:
         return self.__hardware_source.get_current_frame_parameters().as_dict()
 
     # TODO: deprecate this method. user should pass record parameters each time record is started, so no need to read them back.
-    def get_record_frame_parameters(self):
+    def get_record_frame_parameters(self) -> HardwareSourceModule.FrameParametersDictType:
         return self.__hardware_source.get_record_frame_parameters().as_dict()
 
-    def get_frame_parameters_for_profile_by_index(self, profile_index: int) -> dict:
+    def get_frame_parameters_for_profile_by_index(self, profile_index: int) -> HardwareSourceModule.FrameParametersDictType:
         return self.__hardware_source.get_frame_parameters(profile_index).as_dict()
 
-    def set_frame_parameters(self, frame_parameters: dict) -> None:
+    def set_frame_parameters(self, frame_parameters: HardwareSourceModule.FrameParametersDictType) -> None:
         self.__hardware_source.set_current_frame_parameters(self.__hardware_source.get_frame_parameters_from_dict(frame_parameters))
 
     # TODO: deprecate this method. user should pass record parameters each time record is started.
-    def set_record_frame_parameters(self, frame_parameters):
+    def set_record_frame_parameters(self, frame_parameters: HardwareSourceModule.FrameParametersDictType) -> None:
         self.__hardware_source.set_record_frame_parameters(self.__hardware_source.get_frame_parameters_from_dict(frame_parameters))
 
-    def set_frame_parameters_for_profile_by_index(self, profile_index: int, frame_parameters: dict) -> None:
+    def set_frame_parameters_for_profile_by_index(self, profile_index: int, frame_parameters: HardwareSourceModule.FrameParametersDictType) -> None:
         self.__hardware_source.set_frame_parameters(profile_index, self.__hardware_source.get_frame_parameters_from_dict(frame_parameters))
 
-    def start_playing(self, frame_parameters: dict=None, channels_enabled: typing.List[bool]=None) -> None:
+    def start_playing(self, frame_parameters: typing.Optional[HardwareSourceModule.FrameParametersDictType] = None, channels_enabled: typing.Optional[typing.Sequence[bool]] = None) -> None:
         if frame_parameters:
             self.__hardware_source.set_current_frame_parameters(self.__hardware_source.get_frame_parameters_from_dict(frame_parameters))
         if channels_enabled is not None:
@@ -1942,7 +1944,7 @@ class HardwareSource(metaclass=SharedInstance):
     def is_playing(self) -> bool:
         return self.__hardware_source.is_playing
 
-    def start_recording(self, frame_parameters: dict=None, channels_enabled: typing.List[bool]=None):
+    def start_recording(self, frame_parameters: typing.Optional[HardwareSourceModule.FrameParametersDictType] = None, channels_enabled: typing.Optional[typing.Sequence[bool]] = None) -> None:
         if frame_parameters is not None:
             self.__hardware_source.set_record_frame_parameters(self.__hardware_source.get_frame_parameters_from_dict(frame_parameters))
         if channels_enabled is not None:
@@ -1957,7 +1959,7 @@ class HardwareSource(metaclass=SharedInstance):
     def is_recording(self) -> bool:
         return self.__hardware_source.is_recording
 
-    def record(self, frame_parameters: dict=None, channels_enabled: typing.List[bool]=None, timeout: float=None) -> typing.List[DataAndMetadata.DataAndMetadata]:
+    def record(self, frame_parameters: typing.Optional[HardwareSourceModule.FrameParametersDictType] = None, channels_enabled: typing.Optional[typing.Sequence[bool]] = None, timeout: typing.Optional[float] = None) -> typing.Sequence[DataAndMetadata.DataAndMetadata]:
         """Record data and return a list of data_and_metadata objects.
 
         .. versionadded:: 1.0
@@ -1978,7 +1980,7 @@ class HardwareSource(metaclass=SharedInstance):
         self.__hardware_source.start_recording()
         return self.__hardware_source.get_next_xdatas_to_finish(timeout)
 
-    def create_record_task(self, frame_parameters: dict=None, channels_enabled: typing.List[bool]=None) -> RecordTask:
+    def create_record_task(self, frame_parameters: typing.Optional[HardwareSourceModule.FrameParametersDictType] = None, channels_enabled: typing.Optional[typing.Sequence[bool]] = None) -> RecordTask:
         """Create a record task for this hardware source.
 
         .. versionadded:: 1.0
@@ -1996,7 +1998,7 @@ class HardwareSource(metaclass=SharedInstance):
         """
         return RecordTask(self.__hardware_source, frame_parameters, channels_enabled)
 
-    def create_view_task(self, frame_parameters: dict=None, channels_enabled: typing.List[bool]=None, buffer_size: int=1) -> ViewTask:
+    def create_view_task(self, frame_parameters: typing.Optional[HardwareSourceModule.FrameParametersDictType] = None, channels_enabled: typing.Optional[typing.Sequence[bool]] = None, buffer_size: int = 1) -> ViewTask:
         """Create a view task for this hardware source.
 
         .. versionadded:: 1.0
@@ -2014,9 +2016,10 @@ class HardwareSource(metaclass=SharedInstance):
 
         See :py:class:`ViewTask` for examples of how to use.
         """
-        return ViewTask(self.__hardware_source.create_view_task(frame_parameters, channels_enabled, buffer_size))
+        frame_parameters_ = self.__hardware_source.get_frame_parameters_from_dict(frame_parameters or dict())
+        return ViewTask(self.__hardware_source.create_view_task(frame_parameters_, channels_enabled, buffer_size))
 
-    def grab_next_to_finish(self, timeout: float=None) -> typing.List[DataAndMetadata.DataAndMetadata]:
+    def grab_next_to_finish(self, timeout: typing.Optional[float] = None) -> typing.Sequence[DataAndMetadata.DataAndMetadata]:
         """Grabs the next frame to finish and returns it as data and metadata.
 
         .. versionadded:: 1.0
@@ -2032,45 +2035,45 @@ class HardwareSource(metaclass=SharedInstance):
         self.start_playing()
         return self.__hardware_source.get_next_xdatas_to_finish(timeout)
 
-    def grab_next_to_start(self, frame_parameters: dict=None, channels_enabled: typing.List[bool]=None, timeout: float=None) -> typing.List[DataAndMetadata.DataAndMetadata]:
+    def grab_next_to_start(self, frame_parameters: typing.Optional[HardwareSourceModule.FrameParametersDictType] = None, channels_enabled: typing.Optional[typing.Sequence[bool]] = None, timeout: typing.Optional[float] = None) -> typing.Sequence[DataAndMetadata.DataAndMetadata]:
         self.start_playing(frame_parameters, channels_enabled)
         return self.__hardware_source.get_next_xdatas_to_start(timeout)
 
-    def execute_command(self, command, args_str, kwargs_str):
+    def execute_command(self, command: str, args_str: bytes, kwargs_str: bytes) -> bytes:
         args = pickle.loads(args_str)
         kwargs = pickle.loads(kwargs_str)
         result = getattr(self.__hardware_source, command)(*args, **kwargs)
         result_str = pickle.dumps(result)
         return result_str
 
-    def get_property_as_float(self, name):
+    def get_property_as_float(self, name: str) -> float:
         return float(self.__hardware_source.get_property(name))
 
-    def set_property_as_float(self, name, value) -> None:
+    def set_property_as_float(self, name: str, value: float) -> None:
         self.__hardware_source.set_property(name, float(value))
 
-    def get_property_as_int(self, name):
+    def get_property_as_int(self, name: str) -> int:
         return int(self.__hardware_source.get_property(name))
 
-    def set_property_as_int(self, name, value) -> None:
+    def set_property_as_int(self, name: str, value: int) -> None:
         self.__hardware_source.set_property(name, int(value))
 
-    def get_property_as_bool(self, name):
+    def get_property_as_bool(self, name: str) -> bool:
         return bool(self.__hardware_source.get_property(name))
 
-    def set_property_as_bool(self, name, value) -> None:
+    def set_property_as_bool(self, name: str, value: bool) -> None:
         self.__hardware_source.set_property(name, bool(value))
 
-    def get_property_as_str(self, name):
+    def get_property_as_str(self, name: str) -> str:
         return str(self.__hardware_source.get_property(name))
 
-    def set_property_as_str(self, name, value) -> None:
+    def set_property_as_str(self, name: str, value: str) -> None:
         self.__hardware_source.set_property(name, str(value))
 
-    def get_property_as_float_point(self, name):
-        return tuple(Geometry.FloatPoint.make(self.__hardware_source.get_property(name)))
+    def get_property_as_float_point(self, name: str) -> Geometry.PointFloatTuple:
+        return Geometry.FloatPoint.make(self.__hardware_source.get_property(name)).as_tuple()
 
-    def set_property_as_float_point(self, name, value) -> None:
+    def set_property_as_float_point(self, name: str, value: Geometry.FloatPointTuple) -> None:
         self.__hardware_source.set_property(name, tuple(Geometry.FloatPoint.make(value)))
 
 
@@ -2094,17 +2097,17 @@ class Instrument(metaclass=SharedInstance):
         "get_property_as_int", "set_property_as_int", "get_property_as_bool", "set_property_as_bool", "get_property_as_str",
         "set_property_as_str", "get_property_as_float_point", "set_property_as_float_point"]
 
-    def __init__(self, instrument):
+    def __init__(self, instrument: HardwareSourceModule.InstrumentLike) -> None:
         self.__instrument = instrument
 
     def close(self) -> None:
         pass
 
     @property
-    def specifier(self):
+    def specifier(self) -> ObjectSpecifier:
         return ObjectSpecifier("instrument", object_id=self.__instrument.instrument_id)
 
-    def set_control_output(self, name: str, value: float, *, options: dict=None) -> None:
+    def set_control_output(self, name: str, value: float, *, options: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> None:
         """Set the value of a control asynchronously.
 
         :param name: The name of the control (string).
@@ -2181,7 +2184,7 @@ class Instrument(metaclass=SharedInstance):
         """
         self.__instrument.set_property(name, float(value))
 
-    def get_property_as_int(self, name:str ) -> int:
+    def get_property_as_int(self, name: str) -> int:
         return int(self.__instrument.get_property(name))
 
     def set_property_as_int(self, name: str, value: int) -> None:
@@ -2201,20 +2204,20 @@ class Instrument(metaclass=SharedInstance):
 
     def get_property_as_float_point(self, name: str) -> Geometry.FloatPoint:
         value = self.__instrument.get_property(name)
-        return Geometry.FloatPoint.make(value) if value else None
+        return Geometry.FloatPoint.make(value) if value else Geometry.FloatPoint()
 
     def set_property_as_float_point(self, name: str, value: Geometry.FloatPoint) -> None:
         self.__instrument.set_property(name, tuple(Geometry.FloatPoint.make(value)))
 
-    def get_property(self, name: str):
+    def get_property(self, name: str) -> typing.Any:
         # deprecated
         return self.__instrument.get_property(name)
 
-    def set_property(self, name: str, value) -> None:
+    def set_property(self, name: str, value: typing.Any) -> None:
         # deprecated
         self.__instrument.set_property(name, value)
 
-    def execute_command(self, command, args_str, kwargs_str):
+    def execute_command(self, command: str, args_str: bytes, kwargs_str: bytes) -> bytes:
         args = pickle.loads(args_str)
         kwargs = pickle.loads(kwargs_str)
         result = getattr(self.__instrument, command)(*args, **kwargs)
@@ -2229,7 +2232,7 @@ class DataStructure(metaclass=SharedInstance):
         self.__data_structure = data_structure
 
     @property
-    def _item(self):
+    def _item(self) -> DataStructureModule.DataStructure:
         return self._data_structure
 
     @property
@@ -2237,7 +2240,7 @@ class DataStructure(metaclass=SharedInstance):
         return self.__data_structure
 
     @property
-    def specifier(self):
+    def specifier(self) -> ObjectSpecifier:
         return ObjectSpecifier("library")
 
     @property
@@ -2250,17 +2253,17 @@ class DataStructure(metaclass=SharedInstance):
         """
         return self.__data_structure.uuid
 
-    def get_property(self, property: str):
+    def get_property(self, property: str) -> typing.Any:
         return self.__data_structure.get_property_value(property)
 
-    def set_property(self, property: str, value) -> None:
+    def set_property(self, property: str, value: typing.Any) -> None:
         self.__data_structure.set_property_value(property, value)
 
 
 class Computation(metaclass=SharedInstance):
     release = ["uuid"]
 
-    def __init__(self, computation: Symbolic.Computation):
+    def __init__(self, computation: Symbolic.Computation) -> None:
         self.__computation = computation
 
     @property
@@ -2268,7 +2271,7 @@ class Computation(metaclass=SharedInstance):
         return self.__computation
 
     @property
-    def specifier(self):
+    def specifier(self) -> ObjectSpecifier:
         return ObjectSpecifier("library")
 
     @property
@@ -2281,7 +2284,7 @@ class Computation(metaclass=SharedInstance):
         """
         return self.__computation.uuid
 
-    def set_input_value(self, name: str, value):
+    def set_input_value(self, name: str, value: typing.Any) -> None:
         # support lists here?
         if isinstance(value, (str, bool, numbers.Integral, numbers.Real, numbers.Complex)):
             self.__computation.set_input_value(name, value)
@@ -2289,18 +2292,21 @@ class Computation(metaclass=SharedInstance):
             object = value.get("object")
             object_type = value.get("type")
             if object_type == "data_source":
-                document_model = self.__computation.container.container.document_model
-                display_item = document_model.get_display_item_for_data_item(object._data_item)
-                display_data_channel = display_item.display_data_channel
+                project = self.__computation.project
+                profile = typing.cast(typing.Optional[Profile.Profile], project.container)
+                document_model = profile.document_model if profile else None
+                display_item = document_model.get_display_item_for_data_item(typing.cast(DataItem, object)._data_item) if document_model else None
+                display_data_channel = display_item.display_data_channel if display_item else None
+                assert display_data_channel
                 input_value = Symbolic.make_item(display_data_channel)
             else:
-                input_value = Symbolic.make_item(object._item)
+                input_value = Symbolic.make_item(typing.cast(Graphics.Graphic, object)._item)
             self.__computation.set_input_item(name, input_value)
         elif hasattr(value, "_item"):
             input_value = Symbolic.make_item(value._item)
             self.__computation.set_input_item(name, input_value)
 
-    def get_result(self, name: str, value=None):
+    def get_result(self, name: str, value: typing.Any = None) -> typing.Any:
         result = self.__computation.get_output(name)
         if isinstance(result, list):
             return [_new_api_object(bound_item) for bound_item in result]
@@ -2308,7 +2314,7 @@ class Computation(metaclass=SharedInstance):
             return _new_api_object(result)
         return None
 
-    def set_result(self, name: str, value) -> None:
+    def set_result(self, name: str, value: typing.Any) -> None:
         if isinstance(value, list):
             output_items = Symbolic.make_item_list([v._item for v in value])
             for result in self.__computation.results:
@@ -2324,24 +2330,26 @@ class Computation(metaclass=SharedInstance):
                     return
             self.__computation.create_output_item(name, output_item)
 
-    def set_referenced_data(self, name: str, data: numpy.ndarray) -> None:
+    def set_referenced_data(self, name: str, data: NDArray) -> None:
         data_item = self.get_result(name)
         if not data_item:
-            data_item = self.api.library.create_data_item()
+            api = API_1(None, ApplicationModule.app)
+            data_item = api.library.create_data_item()
             self.set_result(name, data_item)
         data_item.data = data
 
     def set_referenced_xdata(self, name: str, xdata: DataAndMetadata.DataAndMetadata) -> None:
         data_item = self.get_result(name)
         if not data_item:
-            data_item = self.api.library.create_data_item()
+            api = API_1(None, ApplicationModule.app)
+            data_item = api.library.create_data_item()
             self.set_result(name, data_item)
         data_item.xdata = xdata
 
     def clear_referenced_data(self, name: str) -> None:
         data_item = self.get_result(name)
         if data_item:
-            self.api.library.remove_data_item(data_item)
+            self.set_result(name, None)
 
 
 class Library(metaclass=SharedInstance):
@@ -2362,7 +2370,7 @@ class Library(metaclass=SharedInstance):
         return self.__document_model
 
     @property
-    def specifier(self):
+    def specifier(self) -> ObjectSpecifier:
         return ObjectSpecifier("library")
 
     @property
@@ -2388,7 +2396,7 @@ class Library(metaclass=SharedInstance):
         return len(self.__document_model.data_items)
 
     @property
-    def data_items(self) -> typing.List[DataItem]:
+    def data_items(self) -> typing.Sequence[DataItem]:
         """Return the list of data items.
 
         :return: The list of :py:class:`nion.swift.Facade.DataItem` objects.
@@ -2400,7 +2408,7 @@ class Library(metaclass=SharedInstance):
         return [DataItem(data_item) for data_item in self.__document_model.data_items]
 
     @property
-    def display_items(self) -> typing.List[Display]:
+    def display_items(self) -> typing.Sequence[Display]:
         """Return the list of display items.
 
         :return: The list of :py:class:`nion.swift.Facade.Display` objects.
@@ -2411,7 +2419,7 @@ class Library(metaclass=SharedInstance):
         """
         return [Display(display_item) for display_item in self.__document_model.display_items]
 
-    def get_source_data_items(self, data_item: DataItem) -> typing.List[DataItem]:
+    def get_source_data_items(self, data_item: DataItem) -> typing.Sequence[DataItem]:
         """Return the list of data items that are data sources for the data item.
 
         :return: The list of :py:class:`nion.swift.Facade.DataItem` objects.
@@ -2420,9 +2428,9 @@ class Library(metaclass=SharedInstance):
 
         Scriptable: Yes
         """
-        return [DataItem(data_item) for data_item in self._document_model.get_source_data_items(data_item._data_item)] if data_item else None
+        return [DataItem(data_item) for data_item in self._document_model.get_source_data_items(data_item._data_item)]
 
-    def get_dependent_data_items(self, data_item: DataItem) -> typing.List[DataItem]:
+    def get_dependent_data_items(self, data_item: DataItem) -> typing.Sequence[DataItem]:
         """Return the dependent data items the data item argument.
 
         :return: The list of :py:class:`nion.swift.Facade.DataItem` objects.
@@ -2431,9 +2439,9 @@ class Library(metaclass=SharedInstance):
 
         Scriptable: Yes
         """
-        return [DataItem(data_item) for data_item in self._document_model.get_dependent_data_items(data_item._data_item)] if data_item else None
+        return [DataItem(data_item) for data_item in self._document_model.get_dependent_data_items(data_item._data_item)]
 
-    def create_data_item(self, title: str=None) -> DataItem:
+    def create_data_item(self, title: typing.Optional[str] = None) -> DataItem:
         """Create an empty data item in the library.
 
         :param title: The title of the data item (optional).
@@ -2451,7 +2459,7 @@ class Library(metaclass=SharedInstance):
         self.__document_model.append_data_item(data_item)
         return DataItem(data_item)
 
-    def create_data_item_from_data(self, data: numpy.ndarray, title: str=None) -> DataItem:
+    def create_data_item_from_data(self, data: NDArray, title: typing.Optional[str] = None) -> DataItem:
         """Create a data item in the library from an ndarray.
 
         The data for the data item will be written to disk immediately and unloaded from memory. If you wish to delay
@@ -2469,7 +2477,7 @@ class Library(metaclass=SharedInstance):
         """
         return self.create_data_item_from_data_and_metadata(DataAndMetadata.DataAndMetadata.from_data(data), title)
 
-    def create_data_item_from_data_and_metadata(self, data_and_metadata: DataAndMetadata.DataAndMetadata, title: str=None) -> DataItem:
+    def create_data_item_from_data_and_metadata(self, data_and_metadata: DataAndMetadata.DataAndMetadata, title: typing.Optional[str] = None) -> DataItem:
         """Create a data item in the library from a data and metadata object.
 
         The data for the data item will be written to disk immediately and unloaded from memory. If you wish to delay
@@ -2498,9 +2506,9 @@ class Library(metaclass=SharedInstance):
 
         Scriptable: No
         """
-        data_item = copy.deepcopy(data_item._data_item)
-        self.__document_model.append_data_item(data_item)
-        return DataItem(data_item)
+        data_item_copy = copy.deepcopy(data_item._data_item)
+        self.__document_model.append_data_item(data_item_copy)
+        return DataItem(data_item_copy)
 
     def snapshot_data_item(self, data_item: DataItem) -> DataItem:
         """Snapshot a data item. Similar to copy but with a data snapshot.
@@ -2509,9 +2517,9 @@ class Library(metaclass=SharedInstance):
 
         Scriptable: No
         """
-        data_item = data_item._data_item.snapshot()
-        self.__document_model.append_data_item(data_item)
-        return DataItem(data_item)
+        data_item_copy = data_item._data_item.snapshot()
+        self.__document_model.append_data_item(data_item_copy)
+        return DataItem(data_item_copy)
 
     def get_or_create_data_group(self, title: str) -> DataGroup:
         """Get (or create) a data group.
@@ -2526,40 +2534,45 @@ class Library(metaclass=SharedInstance):
         """
         return DataGroup(self.__document_model.get_or_create_data_group(title))
 
-    def data_ref_for_data_item(self, data_item: DataItem):
+    class DataRef:
 
-        class DataRef:
+        def __init__(self, document_model: DocumentModelModule.DocumentModel, data_item: DataItem) -> None:
+            self.__document_model = document_model
+            self.__data_item = data_item
+            self.__transaction: typing.Optional[DocumentModelModule.Transaction] = None
 
-            def __init__(self, document_model, data_item):
-                self.__document_model = document_model
-                self.__data_item = data_item
+        def __enter__(self) -> Library.DataRef:
+            self.__transaction = self.__document_model.item_transaction(self.__data_item._data_item)
+            self.__data_item._data_item.increment_data_ref_count()
+            return self
 
-            def __enter__(self):
-                self.__transaction = self.__document_model.item_transaction(self.__data_item._data_item)
-                self.__data_item._data_item.increment_data_ref_count()
-                return self
-
-            def __exit__(self, type, value, traceback):
-                self.__data_item._data_item.decrement_data_ref_count()
+        def __exit__(self, exception_type: typing.Optional[typing.Type[BaseException]], value: typing.Optional[BaseException], traceback: typing.Optional[types.TracebackType]) -> typing.Optional[bool]:
+            self.__data_item._data_item.decrement_data_ref_count()
+            if self.__transaction:
                 self.__transaction.close()
                 self.__transaction = None
+            return None
 
-            @property
-            def data(self):
-                return self.__data_item.data
+        @property
+        def data(self) -> NDArray:
+            return self.__data_item.data
 
-            @data.setter
-            def data(self, data):
-                self.__data_item._data_item.set_data(data)
+        @data.setter
+        def data(self, data: NDArray) -> None:
+            self.__data_item._data_item.set_data(data)
 
-            def __setitem__(self, key, value):
-                with self.__data_item._data_item.data_ref() as data_ref:
-                    data_ref.data[key] = value
-                    data_ref.data_updated()
+        def __setitem__(self, key: str, value: typing.Any) -> None:
+            with self.__data_item._data_item.data_ref() as data_ref:
+                data_ref.data[key] = value  # type: ignore
+                data_ref.data_updated()
 
-        return DataRef(self.__document_model, data_item)
+    def data_ref_for_data_item(self, data_item: DataItem) -> contextlib.AbstractContextManager[Library.DataRef]:
+        return Library.DataRef(self.__document_model, data_item)
 
-    def get_data_item_for_hardware_source(self, hardware_source, channel_id: str=None, processor_id: str=None, create_if_needed: bool=False, large_format: bool=False) -> DataItem:
+    def get_data_item_for_hardware_source(self, hardware_source: HardwareSource,
+                                          channel_id: typing.Optional[str] = None,
+                                          processor_id: typing.Optional[str] = None, create_if_needed: bool = False,
+                                          large_format: bool = False) -> typing.Optional[DataItem]:
         """Get the data item associated with hardware source and (optional) channel id and processor_id. Optionally create if missing.
 
         :param hardware_source: The hardware_source.
@@ -2579,7 +2592,7 @@ class Library(metaclass=SharedInstance):
         data_item_reference_key = document_model.make_data_item_reference_key(hardware_source_id, channel_id, processor_id)
         return self.get_data_item_for_reference_key(data_item_reference_key, create_if_needed=create_if_needed, large_format=large_format)
 
-    def get_data_item_for_reference_key(self, data_item_reference_key: str=None, create_if_needed: bool=False, large_format: bool=False) -> DataItem:
+    def get_data_item_for_reference_key(self, data_item_reference_key: str, create_if_needed: bool = False, large_format: bool = False) -> typing.Optional[DataItem]:
         """Get the data item associated with data item reference key. Optionally create if missing.
 
         :param data_item_reference_key: The data item reference key.
@@ -2603,7 +2616,7 @@ class Library(metaclass=SharedInstance):
             data_item = document_model.get_data_item_reference(data_item_reference_key).data_item
         return DataItem(data_item) if data_item else None
 
-    def get_data_item_by_uuid(self, data_item_uuid: uuid_module.UUID) -> DataItem:
+    def get_data_item_by_uuid(self, data_item_uuid: uuid_module.UUID) -> typing.Optional[DataItem]:
         """Get the data item with the given UUID.
 
         .. versionadded:: 1.0
@@ -2619,7 +2632,7 @@ class Library(metaclass=SharedInstance):
                 data_items.append(data_item)
         return DataItem(data_items[0]) if len(data_items) == 1 else None
 
-    def get_graphic_by_uuid(self, graphic_uuid: uuid_module.UUID) -> Graphic:
+    def get_graphic_by_uuid(self, graphic_uuid: uuid_module.UUID) -> typing.Optional[Graphic]:
         """Get the graphic with the given UUID.
 
         .. versionadded:: 1.0
@@ -2636,7 +2649,7 @@ class Library(metaclass=SharedInstance):
                     graphics.append(graphic)
         return Graphic(graphics[0]) if len(graphics) == 1 else None
 
-    def get_item_by_specifier(self, item_specifier: Persistence.PersistentObjectSpecifier) -> typing.Optional[Persistence.PersistentObject]:
+    def get_item_by_specifier(self, item_specifier: Persistence.PersistentObjectSpecifier) -> typing.Any:
         """Get the library item with the given item specifier.
 
         .. versionadded:: 2.0
@@ -2707,7 +2720,7 @@ class Library(metaclass=SharedInstance):
             return
         raise KeyError()
 
-    def create_computation(self, computation_type_id, inputs, outputs) -> Computation:
+    def create_computation(self, computation_type_id: str, inputs: typing.Mapping[str, typing.Any], outputs: typing.Mapping[str, typing.Any]) -> Computation:
         computation = self.__document_model.create_computation()
         for name, item in inputs.items():
             if isinstance(item, str):
@@ -2724,11 +2737,12 @@ class Library(metaclass=SharedInstance):
                 object = item.get("object")
                 object_type = item.get("type")
                 if object_type == "data_source":
-                    display_item = self.__document_model.get_display_item_for_data_item(object._data_item)
-                    display_data_channel = display_item.display_data_channel
+                    display_item = self.__document_model.get_display_item_for_data_item(typing.cast(DataItem, object)._data_item)
+                    display_data_channel = display_item.display_data_channel if display_item else None
+                    assert display_data_channel
                     input_item = Symbolic.make_item(display_data_channel)
                 else:
-                    input_item = Symbolic.make_item(object._item, type=object_type)
+                    input_item = Symbolic.make_item(typing.cast(Graphic, object)._item, type=object_type)
                 computation.create_input_item(name, input_item)
             elif isinstance(item, list):
                 # TODO: handle more than just objects
@@ -2749,11 +2763,11 @@ class DocumentWindow(metaclass=SharedInstance):
                "show_modeless_dialog", "queue_task", "clear_queued_tasks", "add_data", "create_data_item_from_data",
                "create_data_item_from_data_and_metadata", "get_or_create_data_group"]
 
-    def __init__(self, document_controller):
+    def __init__(self, document_controller: DocumentController.DocumentController) -> None:
         self.__document_controller = document_controller
 
     @property
-    def specifier(self):
+    def specifier(self) -> ObjectSpecifier:
         return ObjectSpecifier("document_controller", self.__document_controller.uuid)
 
     @property
@@ -2775,16 +2789,17 @@ class DocumentWindow(metaclass=SharedInstance):
         return Library(self.__document_controller.document_model)
 
     @property
-    def all_display_panels(self) -> typing.List[DisplayPanel]:
+    def all_display_panels(self) -> typing.Sequence[DisplayPanel]:
         """Return the list of display panels currently visible.
 
         .. versionadded:: 1.0
 
         Scriptable: Yes
         """
-        return [DisplayPanel(display_panel) for display_panel in self.__document_controller.workspace_controller.display_panels]
+        workspace_controller = self.__document_controller.workspace_controller
+        return [DisplayPanel(display_panel) for display_panel in workspace_controller.display_panels] if workspace_controller else list()
 
-    def get_display_panel_by_id(self, identifier: str) -> DisplayPanel:
+    def get_display_panel_by_id(self, identifier: str) -> typing.Optional[DisplayPanel]:
         """Return display panel with the identifier.
 
         .. versionadded:: 1.0
@@ -2792,12 +2807,13 @@ class DocumentWindow(metaclass=SharedInstance):
         Status: Provisional
         Scriptable: Yes
         """
+        workspace_controller = self.__document_controller.workspace_controller
         display_panel = next(
-            (display_panel for display_panel in self.__document_controller.workspace_controller.display_panels if
-            display_panel.identifier.lower() == identifier.lower()), None)
+            (display_panel for display_panel in workspace_controller.display_panels if
+            display_panel.identifier.lower() == identifier.lower()), None) if workspace_controller else None
         return DisplayPanel(display_panel) if display_panel else None
 
-    def display_data_item(self, data_item: DataItem, source_display_panel=None, source_data_item=None):
+    def display_data_item(self, data_item: DataItem, source_display_panel: typing.Optional[DisplayPanel] = None, source_data_item: typing.Optional[DataItem] = None) -> typing.Optional[DisplayPanel]:
         """Display a new data item and gives it keyboard focus. Uses existing display if it is already displayed.
 
         .. versionadded:: 1.0
@@ -2805,10 +2821,12 @@ class DocumentWindow(metaclass=SharedInstance):
         Status: Provisional
         Scriptable: Yes
         """
-        for display_panel in self.__document_controller.workspace_controller.display_panels:
-            if display_panel.data_item == data_item._data_item:
-                display_panel.request_focus()
-                return DisplayPanel(display_panel)
+        workspace_controller = self.__document_controller.workspace_controller
+        if workspace_controller:
+            for display_panel in workspace_controller.display_panels:
+                if display_panel.data_item == data_item._data_item:
+                    display_panel.request_focus()
+                    return DisplayPanel(display_panel)
         result_display_panel = self.__document_controller.next_result_display_panel()
         if result_display_panel:
             display_item = self.__document_controller.document_model.get_display_item_for_data_item(data_item._data_item)
@@ -2818,23 +2836,26 @@ class DocumentWindow(metaclass=SharedInstance):
         return None
 
     @property
-    def target_display_panel(self):
+    def target_display_panel(self) -> DisplayPanel:
         raise AttributeError()
 
     @property
-    def target_display(self) -> Display:
+    def target_display(self) -> typing.Optional[Display]:
         display_item = self.__document_controller.selected_display_item
-        return Display(display_item)
+        return Display(display_item) if display_item else None
 
     @property
-    def target_data_item(self) -> DataItem:
+    def target_data_item(self) -> typing.Optional[DataItem]:
         data_item = self.__document_controller.selected_data_item
         return DataItem(data_item) if data_item else None
 
-    def create_task_context_manager(self, title, task_type):
+    def create_task_context_manager(self, title: str, task_type: str) -> Task.TaskContextManager:
         return self.__document_controller.create_task_context_manager(title, task_type)
 
-    def show_get_string_message_box(self, caption: str, text: str, accepted_fn, rejected_fn=None, accepted_text: str=None, rejected_text: str=None) -> None:
+    def show_get_string_message_box(self, caption: str, text: str, accepted_fn: typing.Callable[[str], None],
+                                    rejected_fn: typing.Optional[typing.Callable[[], None]] = None,
+                                    accepted_text: typing.Optional[str] = None,
+                                    rejected_text: typing.Optional[str] = None) -> None:
         """Show a dialog box and ask for a string.
 
         Caption describes the user prompt. Text is the initial/default string.
@@ -2849,27 +2870,34 @@ class DocumentWindow(metaclass=SharedInstance):
         Scriptable: No
         """
         workspace = self.__document_controller.workspace_controller
-        workspace.pose_get_string_message_box(caption, text, accepted_fn, rejected_fn, accepted_text, rejected_text)
+        if workspace:
+            workspace.pose_get_string_message_box(caption, text, accepted_fn, rejected_fn, accepted_text, rejected_text)
 
-    def show_confirmation_message_box(self, caption: str, accepted_fn, rejected_fn=None, accepted_text: str=None, rejected_text: str=None, display_rejected: str=False) -> None:
+    def show_confirmation_message_box(self, caption: str, accepted_fn: typing.Callable[[], None],
+                                      rejected_fn: typing.Optional[typing.Callable[[], None]] = None,
+                                      accepted_text: typing.Optional[str] = None,
+                                      rejected_text: typing.Optional[str] = None,
+                                      display_rejected: bool = False) -> None:
         workspace = self.__document_controller.workspace_controller
-        workspace.pose_confirmation_message_box(caption, accepted_fn, rejected_fn, accepted_text, rejected_text, display_rejected)
+        if workspace:
+            workspace.pose_confirmation_message_box(caption, accepted_fn, rejected_fn, accepted_text, rejected_text, display_rejected)
 
-    def show_modeless_dialog(self, item, handler=None):
+    def show_modeless_dialog(self, item: Declarative.UIDescription, handler: typing.Optional[Declarative.HandlerLike] = None) -> None:
         if isinstance(item, dict) and item.get("type") == "modeless_dialog":
             if handler and not getattr(handler, "get_object_converter", None):
-                handler.get_object_converter = lambda c: ObjectConverter(self, c)
+                getattr(handler, "get_object_converter").get_object_converter = lambda c: ObjectConverter(self, c)
             window = self._document_controller
-            dialog = Declarative.construct(window.ui, window, item, handler)
+            assert handler
+            dialog = typing.cast(Dialog.ActionDialog, Declarative.construct(window.ui, window, item, handler))
             dialog.show()
 
-    def queue_task(self, fn) -> None:
-        self.__document_controller.queue_task(fn)
+    def queue_task(self, task: typing.Callable[[], None]) -> None:
+        self.__document_controller.queue_task(task)
 
     def clear_queued_tasks(self) -> None:
         self.__document_controller.clear_queued_tasks()
 
-    def add_data(self, data: numpy.ndarray, title: str=None) -> DataItem:
+    def add_data(self, data: NDArray, title: typing.Optional[str] = None) -> DataItem:
         """Create a data item in the library from data.
 
         .. versionadded:: 1.0
@@ -2880,7 +2908,7 @@ class DocumentWindow(metaclass=SharedInstance):
         """
         return self.create_data_item_from_data(data, title)
 
-    def create_data_item_from_data(self, data: numpy.ndarray, title: str=None) -> DataItem:
+    def create_data_item_from_data(self, data: NDArray, title: typing.Optional[str] = None) -> DataItem:
         """Create a data item in the library from data.
 
         .. versionadded:: 1.0
@@ -2891,7 +2919,7 @@ class DocumentWindow(metaclass=SharedInstance):
         """
         return DataItem(self.__document_controller.add_data(data, title))
 
-    def create_data_item_from_data_and_metadata(self, data_and_metadata: DataAndMetadata.DataAndMetadata, title: str=None) -> DataItem:
+    def create_data_item_from_data_and_metadata(self, data_and_metadata: DataAndMetadata.DataAndMetadata, title: typing.Optional[str] = None) -> DataItem:
         """Create a data item in the library from the data and metadata.
 
         .. versionadded:: 1.0
@@ -2922,15 +2950,15 @@ class Application(metaclass=SharedInstance):
 
     release = ["library", "document_controllers", "document_windows", "data_location", "document_location", "configuration_location"]
 
-    def __init__(self, application):
+    def __init__(self, application: ApplicationModule.Application) -> None:
         self.__application = application
 
     @property
-    def _application(self):
+    def _application(self) -> ApplicationModule.Application:
         return self.__application
 
     @property
-    def specifier(self):
+    def specifier(self) -> ObjectSpecifier:
         return ObjectSpecifier("application")
 
     @property
@@ -2944,7 +2972,7 @@ class Application(metaclass=SharedInstance):
         return Library(self.__application.document_model)
 
     @property
-    def document_controllers(self) -> typing.List[DocumentWindow]:
+    def document_controllers(self) -> typing.Sequence[DocumentWindow]:
         """Return the document controllers.
 
         .. versionadded:: 1.0
@@ -2956,7 +2984,7 @@ class Application(metaclass=SharedInstance):
         return self.document_windows
 
     @property
-    def document_windows(self) -> typing.List[DocumentWindow]:
+    def document_windows(self) -> typing.Sequence[DocumentWindow]:
         """Return the document windows.
 
         .. versionadded:: 1.0
@@ -2966,15 +2994,15 @@ class Application(metaclass=SharedInstance):
         return [DocumentWindow(document_controller) for document_controller in self.__application.document_controllers]
 
     @property
-    def data_location(self):
+    def data_location(self) -> str:
         return self.__application.ui.get_data_location()
 
     @property
-    def document_location(self):
+    def document_location(self) -> str:
         return self.__application.ui.get_document_location()
 
     @property
-    def configuration_location(self):
+    def configuration_location(self) -> str:
         return self.__application.ui.get_configuration_location()
 
 
@@ -2982,7 +3010,7 @@ class DataAndMetadataIOHandlerInterface:
     """An interface for an IO handler delegate. Implement each of the methods and properties, as required."""
 
     @property
-    def io_hander_id(self):
+    def io_handler_id(self) -> str:
         """Unique identifier of the IO handler. This will be used to uniquely identify this IO handler.
 
         An example identifier might be "my.company.example.1".
@@ -2994,7 +3022,7 @@ class DataAndMetadataIOHandlerInterface:
         raise AttributeError()
 
     @property
-    def io_hander_name(self):
+    def io_handler_name(self) -> str:
         """Name of the IO handler. This will appear to the user.
 
         :rtype: str
@@ -3004,7 +3032,7 @@ class DataAndMetadataIOHandlerInterface:
         raise AttributeError()
 
     @property
-    def io_handler_extensions(self):
+    def io_handler_extensions(self) -> typing.Sequence[str]:
         """List of extensions handled by the IO handler.
 
         :rtype: list of str
@@ -3013,7 +3041,7 @@ class DataAndMetadataIOHandlerInterface:
         """
         raise AttributeError()
 
-    def read_data_and_metadata(self, extension, file_path):
+    def read_data_and_metadata(self, extension: str, file_path: str) -> DataAndMetadata.DataAndMetadata:
         """Read data from the file_path and return it in a data_and_metadata object.
 
         .. versionadded:: 1.0
@@ -3025,7 +3053,7 @@ class DataAndMetadataIOHandlerInterface:
         """
         raise NotImplementedError()
 
-    def can_write_data_and_metadata(self, data_and_metadata, extension):
+    def can_write_data_and_metadata(self, data_metadata: DataAndMetadata.DataMetadata, extension: typing.Sequence[str]) -> bool:
         """Return whether the data_and_metadata can be written to a file with the given extension.
 
         .. versionadded:: 1.0
@@ -3040,7 +3068,7 @@ class DataAndMetadataIOHandlerInterface:
         """
         raise NotImplementedError()
 
-    def write_data_and_metadata(self, data_and_metadata, file_path, extension):
+    def write_data_and_metadata(self, data_and_metadata: DataAndMetadata.DataAndMetadata, file_path: str, extension: str) -> None:
         """Write the data_and_metadata to the file_path with the given extension.
 
         .. versionadded:: 1.0
@@ -3082,16 +3110,16 @@ class API_1:
                "get_hardware_source_by_id", "get_instrument_by_id", "application", "library", "queue_task",
                "clear_queued_tasks"]
 
-    def __init__(self, ui_version, app):
+    def __init__(self, ui_version: typing.Optional[str], app: ApplicationModule.Application) -> None:
         super().__init__()
         self.__ui_version = ui_version
         self.__app = app
 
     @property
-    def rpc_dict(self):
-        return None
+    def rpc_dict(self) -> Persistence.PersistentDictType:
+        return dict()
 
-    def create_calibration(self, offset: float=None, scale: float=None, units: str=None) -> CalibrationModule.Calibration:
+    def create_calibration(self, offset: typing.Optional[float] = None, scale: typing.Optional[float] = None, units: typing.Optional[str] = None) -> CalibrationModule.Calibration:
         """Create a calibration object with offset, scale, and units.
 
         :param offset: The offset of the calibration.
@@ -3121,9 +3149,12 @@ class API_1:
         """
         return DataAndMetadata.DataDescriptor(is_sequence, collection_dimension_count, datum_dimension_count)
 
-    def create_data_and_metadata(self, data: numpy.ndarray, intensity_calibration: CalibrationModule.Calibration = None,
-                                 dimensional_calibrations: typing.List[CalibrationModule.Calibration] = None, metadata: dict = None,
-                                 timestamp: str = None, data_descriptor: DataAndMetadata.DataDescriptor = None) -> DataAndMetadata.DataAndMetadata:
+    def create_data_and_metadata(self, data: NDArray,
+                                 intensity_calibration: typing.Optional[CalibrationModule.Calibration] = None,
+                                 dimensional_calibrations: typing.Optional[typing.Sequence[CalibrationModule.Calibration]] = None,
+                                 metadata: typing.Optional[DataAndMetadata.MetadataType] = None,
+                                 timestamp: typing.Optional[datetime.datetime] = None,
+                                 data_descriptor: typing.Optional[DataAndMetadata.DataDescriptor] = None) -> DataAndMetadata.DataAndMetadata:
         """Create a data_and_metadata object from data.
 
         :param data: an ndarray of data.
@@ -3139,7 +3170,11 @@ class API_1:
         """
         return DataAndMetadata.new_data_and_metadata(data, intensity_calibration, dimensional_calibrations, metadata, timestamp, data_descriptor)
 
-    def create_data_and_metadata_from_data(self, data: numpy.ndarray, intensity_calibration: CalibrationModule.Calibration=None, dimensional_calibrations: typing.List[CalibrationModule.Calibration]=None, metadata: dict=None, timestamp: str=None) -> DataAndMetadata.DataAndMetadata:
+    def create_data_and_metadata_from_data(self, data: NDArray,
+                                           intensity_calibration: typing.Optional[CalibrationModule.Calibration] = None,
+                                           dimensional_calibrations: typing.Optional[typing.Sequence[CalibrationModule.Calibration]] = None,
+                                           metadata: typing.Optional[DataAndMetadata.MetadataType] = None,
+                                           timestamp: typing.Optional[datetime.datetime] = None) -> DataAndMetadata.DataAndMetadata:
         """Create a data_and_metadata object from data.
 
         .. versionadded:: 1.0
@@ -3148,9 +3183,56 @@ class API_1:
 
         Scriptable: No
         """
-        return self.create_data_and_metadata(numpy.copy(data), intensity_calibration, dimensional_calibrations, metadata, timestamp)
+        data_copy = numpy.copy(data)  # type: ignore
+        return self.create_data_and_metadata(data_copy, intensity_calibration, dimensional_calibrations, metadata, timestamp)
 
-    def create_data_and_metadata_io_handler(self, io_handler_delegate):
+    class DelegateIOHandler(ImportExportManager.ImportExportHandler):
+        def __init__(self, io_handler_delegate: DataAndMetadataIOHandlerInterface) -> None:
+            super().__init__(io_handler_delegate.io_handler_id, io_handler_delegate.io_handler_name, io_handler_delegate.io_handler_extensions)
+            self.__io_handler_delegate = io_handler_delegate
+
+        def read_data_elements(self, extension: str, file_path: pathlib.Path) -> typing.Sequence[ImportExportManager.DataElementType]:
+            data_and_metadata = self.__io_handler_delegate.read_data_and_metadata(extension, str(file_path))
+            data_element = ImportExportManager.create_data_element_from_extended_data(data_and_metadata)
+            return [data_element]
+
+        def can_write(self, data_metadata: DataAndMetadata.DataMetadata, extension: str) -> bool:
+            return self.__io_handler_delegate.can_write_data_and_metadata(data_metadata, extension)
+
+        def write_display_item(self, display_item: DisplayItemModule.DisplayItem, path: pathlib.Path, extension: str) -> None:
+            data_item = display_item.data_item
+            if data_item:
+                self.write_data_item(data_item, str(path), extension)
+
+        def write_data_item(self, data_item: DataItemModule.DataItem, file_path: str, extension: str) -> None:
+            data_and_metadata = data_item.xdata
+            data = data_and_metadata.data if data_and_metadata else None
+            if data is not None:
+                if hasattr(self.__io_handler_delegate, "write_data_item"):
+                    getattr(self.__io_handler_delegate, "write_data_item")(DataItem(data_item), file_path, extension)
+                else:
+                    assert hasattr(self.__io_handler_delegate, "write_data_and_metadata")
+                    getattr(self.__io_handler_delegate, "write_data_and_metadata")(data_and_metadata, file_path, extension)
+
+    class IOHandlerReference:
+
+        def __init__(self, io_handler_delegate: DataAndMetadataIOHandlerInterface) -> None:
+            self.__io_handler_delegate = io_handler_delegate
+            self.__io_handler = API_1.DelegateIOHandler(io_handler_delegate)
+            ImportExportManager.ImportExportManager().register_io_handler(self.__io_handler)
+
+        def __del__(self) -> None:
+            self.close()
+
+        def close(self) -> None:
+            if self.__io_handler_delegate:
+                io_handler_delegate_close_fn = getattr(self.__io_handler_delegate, "close", None)
+                if io_handler_delegate_close_fn:
+                   io_handler_delegate_close_fn()
+                ImportExportManager.ImportExportManager().unregister_io_handler(self.__io_handler)
+                self.__io_handler_delegate = typing.cast(typing.Any, None)
+
+    def create_data_and_metadata_io_handler(self, io_handler_delegate: DataAndMetadataIOHandlerInterface) -> API_1.IOHandlerReference:
         """Create an I/O handler that reads and writes a single data_and_metadata.
 
         :param io_handler_delegate: A delegate object :py:class:`DataAndMetadataIOHandlerInterface`
@@ -3159,115 +3241,103 @@ class API_1:
 
         Scriptable: No
         """
-        class DelegateIOHandler(ImportExportManager.ImportExportHandler):
-            def __init__(self):
-                super().__init__(io_handler_delegate.io_handler_id, io_handler_delegate.io_handler_name, io_handler_delegate.io_handler_extensions)
+        return API_1.IOHandlerReference(io_handler_delegate)
 
-            def read_data_elements(self, extension: str, path: pathlib.Path) -> typing.List[typing.Dict[str, typing.Any]]:
-                data_and_metadata = io_handler_delegate.read_data_and_metadata(extension, str(file_path))
-                data_element = ImportExportManager.create_data_element_from_extended_data(data_and_metadata)
-                return [data_element]
+    class MenuItemHandlerLike(typing.Protocol):
+        @property
+        def menu_item_name(self) -> str: raise NotImplementedError()
 
-            def can_write(self, data_metadata: DataAndMetadata.DataMetadata, extension: str) -> bool:
-                return io_handler_delegate.can_write_data_and_metadata(data_metadata, extension)
+        def menu_item_execute(self, window: DocumentWindow) -> None: ...
 
-            def write_display_item(self, display_item: DisplayItemModule.DisplayItem, path: pathlib.Path, extension: str) -> None:
-                data_item = display_item.data_item
-                if data_item:
-                    self.write_data_item(data_item, str(path), extension)
+    class MenuItemReference:
+        def __init__(self, app: ApplicationModule.Application, menu_item_handler: API_1.MenuItemHandlerLike) -> None:
 
-            def write_data_item(self, data_item, file_path: str, extension):
-                data_and_metadata = data_item.xdata
-                data = data_and_metadata.data
-                if data is not None:
-                    if hasattr(io_handler_delegate, "write_data_item"):
-                        io_handler_delegate.write_data_item(DataItem(data_item), file_path, extension)
-                    else:
-                        assert hasattr(io_handler_delegate, "write_data_and_metadata")
-                        io_handler_delegate.write_data_and_metadata(data_and_metadata, file_path, extension)
+            # the build_menus function will be called whenever a new document window is created.
+            # it will be passed the document_controller.
+            def build_menus(document_controller: DocumentController.DocumentController) -> None:
+                menu_id = getattr(menu_item_handler, "menu_id", None)
+                if menu_id is None:
+                    menu_id = "script_menu"
+                    menu_name = _("Scripts")
+                    menu_before_id = "window_menu"
+                else:
+                    menu_name = getattr(menu_item_handler, "menu_name", None)
+                    menu_before_id = getattr(menu_item_handler, "menu_before_id", None)
+                if menu_name is not None and menu_before_id is not None:
+                    menu = document_controller.get_or_create_menu(menu_id, menu_name, menu_before_id)
+                else:
+                    menu = document_controller.get_menu(menu_id)
+                key_sequence = getattr(menu_item_handler, "menu_item_key_sequence", None)
+                if menu:
+                    facade_document_controller = DocumentWindow(document_controller)
+                    menu.add_menu_item(menu_item_handler.menu_item_name, lambda: menu_item_handler.menu_item_execute(facade_document_controller), key_sequence=key_sequence)
 
-        class IOHandlerReference:
+            self.__menu_item_handler = menu_item_handler
+            self.__build_menus = build_menus
+            app.register_menu_handler(self.__build_menus)
 
-            def __init__(self):
-                self.__io_handler_delegate = io_handler_delegate
-                self.__io_handler = DelegateIOHandler()
-                ImportExportManager.ImportExportManager().register_io_handler(self.__io_handler)
+        def __del__(self) -> None:
+            self.close()
 
-            def __del__(self):
-                self.close()
+        def close(self) -> None:
+            if self.__menu_item_handler:
+                menu_item_handler_close_fn = getattr(self.__menu_item_handler, "close", None)
+                if menu_item_handler_close_fn:
+                   menu_item_handler_close_fn()
+                ApplicationModule.app.unregister_menu_handler(self.__build_menus)
+                self.__menu_item_handler = typing.cast(typing.Any, None)
 
-            def close(self) -> None:
-                if self.__io_handler_delegate:
-                    io_handler_delegate_close_fn = getattr(self.__io_handler_delegate, "close", None)
-                    if io_handler_delegate_close_fn:
-                       io_handler_delegate_close_fn()
-                    ImportExportManager.ImportExportManager().unregister_io_handler(self.__io_handler)
-                    self.__io_handler_delegate = None
+    def create_menu_item(self, menu_item_handler: API_1.MenuItemHandlerLike) -> API_1.MenuItemReference:
+        return API_1.MenuItemReference(self.__app, menu_item_handler)
 
-        return IOHandlerReference()
+    def create_hardware_source(self, hardware_source_delegate: typing.Any) -> typing.Any:
+        raise NotImplementedError()
 
-    def create_menu_item(self, menu_item_handler):
+    class PanelLike(typing.Protocol):
+        @property
+        def panel_id(self) -> str: raise NotImplementedError()
 
-        # the build_menus function will be called whenever a new document window is created.
-        # it will be passed the document_controller.
-        def build_menus(document_controller):
-            menu_id = getattr(menu_item_handler, "menu_id", None)
-            if menu_id is None:
-                menu_id = "script_menu"
-                menu_name = _("Scripts")
-                menu_before_id = "window_menu"
-            else:
-                menu_name = getattr(menu_item_handler, "menu_name", None)
-                menu_before_id = getattr(menu_item_handler, "menu_before_id", None)
-            if menu_name is not None and menu_before_id is not None:
-                menu = document_controller.get_or_create_menu(menu_id, menu_name, menu_before_id)
-            else:
-                menu = document_controller.get_menu(menu_id)
-            key_sequence = getattr(menu_item_handler, "menu_item_key_sequence", None)
-            if menu:
-                facade_document_controller = DocumentWindow(document_controller)
-                menu.add_menu_item(menu_item_handler.menu_item_name, lambda: menu_item_handler.menu_item_execute(
-                    facade_document_controller), key_sequence=key_sequence)
+        @property
+        def panel_name(self) -> str: raise NotImplementedError()
 
-        class MenuItemReference:
+        def close(self) -> None: ...
+        def create_panel_widget(self, ui: UserInterface, document_window: DocumentWindow) -> WidgetLike: ...
 
-            def __init__(self, app):
-                self.__menu_item_handler = menu_item_handler
-                app.register_menu_handler(build_menus)
+    class _Panel(PanelModule.Panel):
+        def __init__(self, document_controller: DocumentController.DocumentController,
+                     panel_delegate: DocumentModelModule.Closeable, panel_id: str,
+                     properties: Persistence.PersistentDictType) -> None:
+            super().__init__(document_controller, panel_id, panel_id)
+            self.panel_delegate = panel_delegate
 
-            def __del__(self):
-                self.close()
+        def close(self) -> None:
+            if callable(getattr(self.panel_delegate, "close", None)):
+                getattr(self.panel_delegate, "close")()
+            super().close()
 
-            def close(self) -> None:
-                if self.__menu_item_handler:
-                    menu_item_handler_close_fn = getattr(self.__menu_item_handler, "close", None)
-                    if menu_item_handler_close_fn:
-                       menu_item_handler_close_fn()
-                    ApplicationModule.app.unregister_menu_handler(build_menus)
-                    self.__menu_item_handler = None
+    class _PanelReference:
 
-        return MenuItemReference(self.__app)
+        def __init__(self, panel_delegate: API_1.PanelLike, ui_version: typing.Optional[str]) -> None:
+            panel_id = panel_delegate.panel_id
+            panel_name = panel_delegate.panel_name
+            panel_positions = getattr(panel_delegate, "panel_positions", ["left", "right"])
+            panel_position = getattr(panel_delegate, "panel_position", "none")
+            properties = getattr(panel_delegate, "panel_properties", None)
 
+            def create_facade_panel(document_controller: DocumentController.DocumentController, panel_id: str, properties: Persistence.PersistentDictType) -> API_1._Panel:
+                panel = API_1._Panel(document_controller, panel_delegate, panel_id, properties)
+                ui = UserInterface(ui_version, document_controller.ui)
+                document_window = DocumentWindow(document_controller)
+                panel.widget = panel_delegate.create_panel_widget(ui, document_window)._widget
+                return panel
 
-    def create_hardware_source(self, hardware_source_delegate):
+            workspace_manager = Workspace.WorkspaceManager()
+            workspace_manager.register_panel(create_facade_panel, panel_id, panel_name, panel_positions, panel_position, properties)
 
-        class HardwareSourceReference:
+        def close(self) -> None:
+            pass
 
-            def __init__(self):
-                self.__hardware_source = hardware_source_manager().make_delegate_hardware_source(
-                    hardware_source_delegate, hardware_source_delegate.hardware_source_id,
-                    hardware_source_delegate.hardware_source_name)
-                hardware_source_manager().register_hardware_source(self.__hardware_source)
-
-            def __del__(self):
-                self.close()
-
-            def close(self) -> None:
-                pass  # closed automatically during application shutdown
-
-        return HardwareSourceReference()
-
-    def create_panel(self, panel_delegate):
+    def create_panel(self, panel_delegate: API_1.PanelLike) -> API_1._PanelReference:
         """Create a utility panel that can be attached to a window.
 
         .. versionadded:: 1.0
@@ -3283,30 +3353,7 @@ class API_1:
             (method, optional) close()
         """
 
-        panel_id = panel_delegate.panel_id
-        panel_name = panel_delegate.panel_name
-        panel_positions = getattr(panel_delegate, "panel_positions", ["left", "right"])
-        panel_position = getattr(panel_delegate, "panel_position", "none")
-        properties = getattr(panel_delegate, "panel_properties", None)
-
-        workspace_manager = Workspace.WorkspaceManager()
-
-        def create_facade_panel(document_controller, panel_id, properties):
-            panel = Panel(document_controller, panel_delegate, panel_id, properties)
-            ui = UserInterface(self.__ui_version, document_controller.ui)
-            document_controller = DocumentWindow(document_controller)
-            panel.widget = panel_delegate.create_panel_widget(ui, document_controller)._widget
-            return panel
-
-        class PanelReference:
-
-            def __init__(self):
-                workspace_manager.register_panel(create_facade_panel, panel_id, panel_name, panel_positions, panel_position, properties)
-
-            def close(self) -> None:
-                pass
-
-        return PanelReference()
+        return API_1._PanelReference(panel_delegate, self.__ui_version)
 
     def create_specifier(self, item_uuid: uuid_module.UUID, context_uuid: typing.Optional[uuid_module.UUID] = None) -> Persistence.PersistentObjectSpecifier:
         """Create an item specifier from item_uuid and context_uuid.
@@ -3317,16 +3364,16 @@ class API_1:
         """
         return Persistence.PersistentObjectSpecifier(item_uuid=item_uuid)
 
-    def create_unary_operation(self, unary_operation_delegate):
-        return None
+    def create_unary_operation(self, unary_operation_delegate: typing.Any) -> typing.Any:
+        raise NotImplementedError()
 
-    def get_all_hardware_source_ids(self) -> typing.List[str]:
+    def get_all_hardware_source_ids(self) -> typing.Sequence[str]:
         return hardware_source_manager().get_all_hardware_source_ids()
 
-    def get_all_instrument_ids(self) -> typing.List[str]:
+    def get_all_instrument_ids(self) -> typing.Sequence[str]:
         return hardware_source_manager().get_all_instrument_ids()
 
-    def get_hardware_source_by_id(self, hardware_source_id: str, version: str):
+    def get_hardware_source_by_id(self, hardware_source_id: str, version: str) -> typing.Optional[HardwareSource]:
         """Return the hardware source API matching the hardware_source_id and version.
 
         .. versionadded:: 1.0
@@ -3339,7 +3386,7 @@ class API_1:
         hardware_source = hardware_source_manager().get_hardware_source_for_hardware_source_id(hardware_source_id)
         return HardwareSource(hardware_source) if hardware_source else None
 
-    def get_instrument_by_id(self, instrument_id: str, version: str):
+    def get_instrument_by_id(self, instrument_id: str, version: str) -> typing.Optional[Instrument]:
         actual_version = "1.0.0"
         if Utility.compare_versions(version, actual_version) > 0:
             raise NotImplementedError("Hardware API requested version %s is greater than %s." % (version, actual_version))
@@ -3367,10 +3414,10 @@ class API_1:
         assert self.__app.document_model
         return Library(self.__app.document_model)
 
-    def register_computation_type(self, computation_type_id, compute_class):
+    def register_computation_type(self, computation_type_id: str, compute_class: typing.Callable[[Computation], Symbolic.ComputationHandlerLike]) -> None:
         Symbolic.register_computation_type(computation_type_id, compute_class)
 
-    def show(self, item: typing.Any, *parameters) -> None:
+    def show(self, item: typing.Any, *parameters: typing.Any) -> None:
         window = self.application.document_windows[0]
         if isinstance(item, numpy.ndarray):
             data_item = self.library.create_data_item_from_data(item)
@@ -3381,7 +3428,8 @@ class API_1:
         elif isinstance(item, dict) and item.get("type") == "modeless_dialog":
             window.show_modeless_dialog(item, *parameters)
 
-    def run_script(self, *, file_path=None, stdout=None) -> None:
+    def run_script(self, *, file_path: str, stdout: typing.Any = None) -> None:
+        # stdout is not used
         import ast
         import contextlib
         import os
@@ -3391,11 +3439,11 @@ class API_1:
         script_ast = ast.parse(script, script_name, 'exec')
 
         class AddCallFunctionNodeTransformer(ast.NodeTransformer):
-            def __init__(self, func_id, arg_id):
+            def __init__(self, func_id: str, arg_id: str) -> None:
                 self.__func_id = func_id
                 self.__arg_id = arg_id
 
-            def visit_Module(self, node):
+            def visit_Module(self, node: typing.Any) -> typing.Any:
                 name_expr = ast.Name(id=self.__func_id, ctx=ast.Load())
                 arg_expr = ast.Name(id=self.__arg_id, ctx=ast.Load())
                 call_expr = ast.Expr(value=ast.Call(func=name_expr, args=[arg_expr], keywords=[]))
@@ -3413,50 +3461,55 @@ class API_1:
 
         if not stdout:
             print_fn = print
+
             class StdoutCatcher:
-                def __init__(self):
+                def __init__(self) -> None:
                     pass
-                def write(self, stuff):
+
+                def write(self, stuff: str) -> None:
                     print_fn(stuff.rstrip())
-                def flush(self):
+
+                def flush(self) -> None:
                     pass
+
             stdout = StdoutCatcher()
 
         class APIBroker:
-            def get_api(self, version, ui_version=None):
+            def get_api(self, version: str, ui_version: typing.Optional[str] = None) -> typing.Any:
                 ui_version = ui_version if ui_version else "~1.0"
                 return PlugInManager.api_broker_fn(version, ui_version)
-            def get_ui(self, version):
+
+            def get_ui(self, version: str) -> typing.Any:
                 actual_version = "1.0.0"
                 if Utility.compare_versions(version, actual_version) > 0:
                     raise NotImplementedError("API requested version %s is greater than %s." % (version, actual_version))
                 return Declarative.DeclarativeUI()
 
-        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stdout):
-            g = dict()
+        with contextlib.redirect_stdout(typing.cast(typing.Any, stdout)), contextlib.redirect_stderr(typing.cast(typing.Any, stdout)):
+            g: typing.Dict[str, typing.Any] = dict()
             g["api_broker"] = APIBroker()
             g["print"] = stdout.write
             exec(compiled, g)
 
-    def resolve_api_object_specifier(self, d):
+    def resolve_api_object_specifier(self, d: typing.Optional[Persistence.PersistentDictType]) -> typing.Any:
         return ObjectSpecifier.resolve(d)
 
-    def _new_api_object(self, object):
+    def _new_api_object(self, object: typing.Any) -> typing.Any:
         return _new_api_object(object)
 
     # provisional
-    def queue_task(self, fn) -> None:
-        self.__app.document_controllers[0].queue_task(fn)
+    def queue_task(self, task: typing.Callable[[], None]) -> None:
+        self.__app.document_controllers[0].queue_task(task)
 
     # provisional
     def clear_queued_tasks(self) -> None:
         self.__app.document_controllers[0].clear_queued_tasks()
 
-    def raise_requirements_exception(self, reason) -> None:
+    def raise_requirements_exception(self, reason: str) -> None:
         raise PlugInManager.RequirementsException(reason)
 
 
-def _new_api_object(object):
+def _new_api_object(object: typing.Any) -> typing.Any:
     if isinstance(object, DocumentModelModule.DocumentModel):
         return Library(object)
     if isinstance(object, DataItemModule.DataItem):
@@ -3474,14 +3527,14 @@ def _new_api_object(object):
     return None
 
 
-def _get_api_with_app(version: str, ui_version: str, app: ApplicationModule.Application) -> API_1:
+def _get_api_with_app(version: str, ui_version: typing.Optional[str], app: ApplicationModule.Application) -> API_1:
     actual_version = "1.0.0"
     if Utility.compare_versions(version, actual_version) > 0:
         raise NotImplementedError("API requested version %s is greater than %s." % (version, actual_version))
     return API_1(ui_version, app)
 
 
-def get_api(version: str, ui_version: str=None) -> API_1:
+def get_api(version: str, ui_version: typing.Optional[str]=None) -> API_1:
     """Get a versioned interface matching the given version and ui_version.
 
     version is a string in the form "1.0.2".
@@ -3501,42 +3554,43 @@ from nion.data import DataAndMetadata
 from xmlrpc.server import SimpleXMLRPCServer
 
 all_classes = API_1, Application, DataGroup, DataItem, Display, DisplayPanel, DocumentWindow, HardwareSource, Instrument, Library, Graphic
-class_names = {API_1: "API"}
+class_names: typing.Dict[typing.Type[typing.Any], str] = {API_1: "API"}
 all_structs = Calibration.Calibration, DataAndMetadata.DataAndMetadata
-struct_names = {DataAndMetadata.DataAndMetadata: "ExtendedData"}
+struct_names: typing.Dict[typing.Type[typing.Any], str] = {DataAndMetadata.DataAndMetadata: "ExtendedData"}
 
 
 class Pickler(pickle.Pickler):
 
     @classmethod
-    def pickle(cls, x):
+    def pickle(cls, x: typing.Any) -> str:
         f = io.BytesIO()
         cls(f).dump(x)
         return base64.b64encode(f.getvalue()).decode('utf-8')
 
-    def persistent_id(self, obj):
+    def persistent_id(self, obj: typing.Any) -> typing.Any:
         for class_ in all_classes:
             if isinstance(obj, class_):
-                obj_specifier = obj.specifier
+                obj_specifier = getattr(obj, "specifier")
                 return class_names.get(class_, class_.__name__), getattr(obj_specifier, "rpc_dict", None)
         for struct in all_structs:
             if isinstance(obj, struct):
-                return struct_names.get(struct, struct.__name__), obj.rpc_dict
+                return struct_names.get(struct, struct.__name__), getattr(obj, "rpc_dict")
         return None
 
 
 class Unpickler(pickle.Unpickler):
-    def __init__(self, file, api):
+    def __init__(self, file: typing.Any, api: API_1) -> None:
         super().__init__(file)
         self.__api = api
-    def persistent_load(self, pid):
+
+    def persistent_load(self, pid: typing.Any) -> typing.Any:
         type_tag, d = pid
         for class_ in all_classes:
             if type_tag == class_names.get(class_, class_.__name__):
                 return self.__api.resolve_api_object_specifier(d)
         for struct in all_structs:
             if type_tag == struct_names.get(struct, struct.__name__):
-                return struct.from_rpc_dict(d)
+                return getattr(struct, "from_rpc_dict")(d)
 
         # Always raises an error if you cannot return the correct object.
         # Otherwise, the unpickler will think None is the object referenced
@@ -3544,27 +3598,30 @@ class Unpickler(pickle.Unpickler):
         raise pickle.UnpicklingError("unsupported persistent object")
 
 
-def queued(method):
-    def queued(*args, **kw):
+def queued(method: typing.Any) -> typing.Any:
+    def queued(*args: typing.Any, **kw: typing.Any) -> typing.Any:
         result_ref = []
         exception_ref = []
         finished_event = threading.Event()
-        def run():
+
+        def run() -> None:
             try:
                 result_ref.append(method(*args, **kw))
             except Exception as e:
                 exception_ref.append(e)
             finally:
                 finished_event.set()
+
         args[0].queue_task(run)
         finished_event.wait()
         if len(exception_ref) > 0:
             raise exception_ref[0]
         return result_ref[0]
+
     return queued
 
 
-def call_threadsafe_method(api, pickled_object, method_name, pickled_args, pickled_kwargs):
+def call_threadsafe_method(api: API_1, pickled_object: typing.Any, method_name: str, pickled_args: str, pickled_kwargs: str) -> str:
     object = Unpickler(io.BytesIO(base64.b64decode(pickled_object.encode('utf-8'))), api).load()
     args = Unpickler(io.BytesIO(base64.b64decode(pickled_args.encode('utf-8'))), api).load()
     kwargs = Unpickler(io.BytesIO(base64.b64decode(pickled_kwargs.encode('utf-8'))), api).load()
@@ -3573,42 +3630,42 @@ def call_threadsafe_method(api, pickled_object, method_name, pickled_args, pickl
 
 
 @queued
-def call_method(api, pickled_object, method_name, pickled_args, pickled_kwargs):
+def call_method(api: API_1, pickled_object: typing.Any, method_name: str, pickled_args: str, pickled_kwargs: str) -> str:
     return call_threadsafe_method(api, pickled_object, method_name, pickled_args, pickled_kwargs)
 
 
 @queued
-def get_property(api, pickled_object, name):
+def get_property(api: API_1, pickled_object: typing.Any, name: str) -> str:
     object = Unpickler(io.BytesIO(base64.b64decode(pickled_object.encode('utf-8'))), api).load()
     return Pickler.pickle(getattr(object, name))
 
 
 @queued
-def set_property(api, pickled_object, name, pickled_value):
+def set_property(api: API_1, pickled_object: typing.Any, name: str, pickled_value: str) -> None:
     object = Unpickler(io.BytesIO(base64.b64decode(pickled_object.encode('utf-8'))), api).load()
     value = Unpickler(io.BytesIO(base64.b64decode(pickled_value.encode('utf-8'))), api).load()
     setattr(object, name, value)
 
 
-class ObjectConverter:
+class ObjectConverter(Converter.ConverterLike[typing.Any, typing.Any]):
 
-    def __init__(self, item, converter):
+    def __init__(self, item: typing.Any, converter: Converter.ConverterLike[typing.Any, typing.Any]) -> None:
         self.__converter = converter
 
-    def convert(self, value):
+    def convert(self, value: typing.Any) -> typing.Any:
         """ Convert value to string using format string """
         if value.__class__.__name__ == "Display":
             value = value._item
         return self.__converter.convert(value) if self.__converter else value
 
-    def convert_back(self, formatted_value):
+    def convert_back(self, formatted_value: typing.Any) -> typing.Any:
         """ Convert string to value using standard int conversion """
         if formatted_value.__class__.__name__ == "DisplayItem":
             formatted_value = Display(formatted_value)
         return self.__converter.convert_back(formatted_value) if self.__converter else formatted_value
 
 
-def runOnThread(api):
+def runOnThread(api: API_1) -> None:
     server = SimpleXMLRPCServer(("localhost", 8199), allow_none=True, logRequests=False)
     server.register_function(functools.partial(call_method, api), "call_method")
     server.register_function(functools.partial(call_threadsafe_method, api), "call_threadsafe_method")
@@ -3619,10 +3676,10 @@ def runOnThread(api):
 
 # this will be called when Facade is imported. this allows the plug-in manager access to the api_broker.
 # for this to work, Facade must be imported early in the startup process.
-def initialize():
+def initialize() -> None:
     PlugInManager.register_api_broker_fn(get_api)
 
-def start_server():
+def start_server() -> None:
     api = get_api(version="1", ui_version="1")
     thread = threading.Thread(target=runOnThread, args=(api, ))
     thread.daemon = True

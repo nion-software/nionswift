@@ -156,7 +156,7 @@ class TestDisplayClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_data_channel = display_item.display_data_channels[0]
             class Observer(object):
-                def __init__(self):
+                def __init__(self) -> None:
                     self.data_range = None
                     self.display_range = None
                 def next_calculated_display_values(self):
@@ -182,7 +182,7 @@ class TestDisplayClass(unittest.TestCase):
             display_item.add_graphic(graphic)
             display_data_channel = display_item.display_data_channels[0]
             class Observer:
-                def __init__(self):
+                def __init__(self) -> None:
                     self.count = 0
                 def next_calculated_display_values(self):
                     self.count += 1

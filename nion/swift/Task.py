@@ -333,7 +333,7 @@ class TaskContextManager(object):
 
 class TaskManager(metaclass=Utility.Singleton):
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.__task_ui_builder_map = dict()
 
     def register_task_type_builder(self, task_type, fn):

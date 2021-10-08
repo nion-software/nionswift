@@ -169,7 +169,7 @@ class ThumbnailSource(ReferenceCounting.ReferenceCounted):
 class ThumbnailManager(metaclass=Utility.Singleton):
     """Manages thumbnail sources for displays."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.__thumbnail_sources: typing.Dict[uuid.UUID, weakref.ReferenceType] = dict()
         self.__lock = threading.RLock()
 
