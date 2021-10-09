@@ -341,15 +341,15 @@ class ChangePropertyCommand(Undo.UndoableCommand):
         super().close()
 
     def perform(self) -> None:
-        data_item = self.__data_item_proxy.item
+        data_item = typing.cast(typing.Optional[DataItem.DataItem], self.__data_item_proxy.item)
         setattr(data_item, self.__property_name, self.__new_value)
 
     def _get_modified_state(self) -> typing.Any:
-        data_item = self.__data_item_proxy.item
+        data_item = typing.cast(typing.Optional[DataItem.DataItem], self.__data_item_proxy.item)
         return data_item.modified_state if data_item else None, self.__document_model.modified_state
 
     def _set_modified_state(self, modified_state: typing.Any) -> None:
-        data_item = self.__data_item_proxy.item
+        data_item = typing.cast(typing.Optional[DataItem.DataItem], self.__data_item_proxy.item)
         if data_item:
             data_item.modified_state = modified_state[0]
         self.__document_model.modified_state = modified_state[1]
@@ -359,7 +359,7 @@ class ChangePropertyCommand(Undo.UndoableCommand):
         return bool(state1[0] == state2[0])
 
     def _undo(self) -> None:
-        data_item = self.__data_item_proxy.item
+        data_item = typing.cast(typing.Optional[DataItem.DataItem], self.__data_item_proxy.item)
         self.__new_value = getattr(data_item, self.__property_name)
         setattr(data_item, self.__property_name, self.__old_value)
 
@@ -1219,8 +1219,8 @@ class ChangeIntensityCalibrationCommand(Undo.UndoableCommand):
         super().__init__(_("Change Intensity Calibration"), command_id="change_intensity_calibration", is_mergeable=True)
         self.__document_model = document_model
         self.__data_item_proxy = data_item.create_proxy()
-        self.__new_intensity_calibration = intensity_calibration
-        self.__old_intensity_calibration = data_item.intensity_calibration
+        self.__new_intensity_calibration: typing.Optional[Calibration.Calibration] = intensity_calibration
+        self.__old_intensity_calibration: typing.Optional[Calibration.Calibration] = data_item.intensity_calibration
         self.initialize()
 
     def close(self) -> None:
@@ -1232,16 +1232,16 @@ class ChangeIntensityCalibrationCommand(Undo.UndoableCommand):
         super().close()
 
     def perform(self) -> None:
-        data_item = self.__data_item_proxy.item
-        if data_item:
+        data_item = typing.cast(typing.Optional[DataItem.DataItem], self.__data_item_proxy.item)
+        if data_item and self.__new_intensity_calibration is not None:
             data_item.set_intensity_calibration(self.__new_intensity_calibration)
 
     def _get_modified_state(self) -> typing.Any:
-        data_item = self.__data_item_proxy.item
+        data_item = typing.cast(typing.Optional[DataItem.DataItem], self.__data_item_proxy.item)
         return data_item.modified_state if data_item else None, self.__document_model.modified_state
 
     def _set_modified_state(self, modified_state: typing.Any) -> None:
-        data_item = self.__data_item_proxy.item
+        data_item = typing.cast(typing.Optional[DataItem.DataItem], self.__data_item_proxy.item)
         if data_item:
             data_item.modified_state = modified_state[0]
         self.__document_model.modified_state = modified_state[1]
@@ -1251,10 +1251,11 @@ class ChangeIntensityCalibrationCommand(Undo.UndoableCommand):
         return bool(state1[0] == state2[0])
 
     def _undo(self) -> None:
-        data_item = self.__data_item_proxy.item
+        data_item = typing.cast(typing.Optional[DataItem.DataItem], self.__data_item_proxy.item)
         assert data_item
         self.__new_intensity_calibration = data_item.intensity_calibration
-        data_item.set_intensity_calibration(self.__old_intensity_calibration)
+        if self.__old_intensity_calibration is not None:
+            data_item.set_intensity_calibration(self.__old_intensity_calibration)
 
     def _redo(self) -> None:
         self.perform()
@@ -1269,12 +1270,12 @@ class ChangeIntensityCalibrationCommand(Undo.UndoableCommand):
 
 
 class ChangeDimensionalCalibrationsCommand(Undo.UndoableCommand):
-    def __init__(self, document_model: DocumentModel.DocumentModel, data_item: DataItem.DataItem, dimensional_calibrations: typing.List[Calibration.Calibration]) -> None:
+    def __init__(self, document_model: DocumentModel.DocumentModel, data_item: DataItem.DataItem, dimensional_calibrations: DataAndMetadata.CalibrationListType) -> None:
         super().__init__(_("Change Intensity Calibration"), command_id="change_intensity_calibration", is_mergeable=True)
         self.__document_model = document_model
         self.__data_item_proxy = data_item.create_proxy()
-        self.__new_dimensional_calibrations = dimensional_calibrations
-        self.__old_dimensional_calibrations = data_item.dimensional_calibrations
+        self.__new_dimensional_calibrations = list(dimensional_calibrations)
+        self.__old_dimensional_calibrations = list(data_item.dimensional_calibrations)
         self.initialize()
 
     def close(self) -> None:
@@ -1284,16 +1285,16 @@ class ChangeDimensionalCalibrationsCommand(Undo.UndoableCommand):
         super().close()
 
     def perform(self) -> None:
-        data_item = self.__data_item_proxy.item
+        data_item = typing.cast(typing.Optional[DataItem.DataItem], self.__data_item_proxy.item)
         if data_item:
             data_item.set_dimensional_calibrations(self.__new_dimensional_calibrations)
 
     def _get_modified_state(self) -> typing.Any:
-        data_item = self.__data_item_proxy.item
+        data_item = typing.cast(typing.Optional[DataItem.DataItem], self.__data_item_proxy.item)
         return data_item.modified_state if data_item else None, self.__document_model.modified_state
 
     def _set_modified_state(self, modified_state: typing.Any) -> None:
-        data_item = self.__data_item_proxy.item
+        data_item = typing.cast(typing.Optional[DataItem.DataItem], self.__data_item_proxy.item)
         if data_item:
             data_item.modified_state = modified_state[0]
         self.__document_model.modified_state = modified_state[1]
@@ -1303,9 +1304,9 @@ class ChangeDimensionalCalibrationsCommand(Undo.UndoableCommand):
         return bool(state1[0] == state2[0])
 
     def _undo(self) -> None:
-        data_item = self.__data_item_proxy.item
+        data_item = typing.cast(typing.Optional[DataItem.DataItem], self.__data_item_proxy.item)
         assert data_item
-        self.__new_dimensional_calibrations = data_item.dimensional_calibrations
+        self.__new_dimensional_calibrations = list(data_item.dimensional_calibrations)
         data_item.set_dimensional_calibrations(self.__old_dimensional_calibrations)
 
     def _redo(self) -> None:
@@ -3145,12 +3146,12 @@ class ChangeComputationVariableCommand(Undo.UndoableCommand):
                 setattr(variable, key, value)
 
     def _get_modified_state(self) -> typing.Any:
-        computation = self.__computation_proxy.item
+        computation = typing.cast(typing.Optional[Symbolic.Computation], self.__computation_proxy.item)
         variable = computation.variables[self.__variable_index] if computation else None
         return variable.modified_state if variable else None, self.__document_model.modified_state
 
     def _set_modified_state(self, modified_state: typing.Any) -> None:
-        computation = self.__computation_proxy.item
+        computation = typing.cast(typing.Optional[Symbolic.Computation], self.__computation_proxy.item)
         variable = computation.variables[self.__variable_index] if computation else None
         if variable:
             variable.modified_state = modified_state[0]
