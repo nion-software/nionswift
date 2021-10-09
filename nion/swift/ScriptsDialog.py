@@ -754,12 +754,12 @@ class RunScriptDialog(Dialog.ActionDialog):
         result = self.get_string(prompt, converter.convert(default_value))
         return converter.convert_back(result) or 0
 
-    def get_float(self, prompt: str, default_value: float = 0, format_str: str = None) -> float:
+    def get_float(self, prompt: str, default_value: float = 0, format_str: typing.Optional[str] = None) -> float:
         converter = Converter.FloatToStringConverter(format_str)
         result = self.get_string(prompt, converter.convert(default_value))
         return converter.convert_back(result) or 0.0
 
-    def show_ndarray(self, data: numpy.ndarray, title: str = None) -> None:
+    def show_ndarray(self, data: numpy.ndarray, title: typing.Optional[str] = None) -> None:
         with self.sync_event() as accept_event:
 
             def perform():
@@ -833,5 +833,5 @@ class RunScriptDialog(Dialog.ActionDialog):
     def confirm(self, prompt: str, accepted_text: str, rejected_text: str) -> bool:
         return self.__accept_reject(prompt, accepted_text, rejected_text, True)
 
-    def alert(self, prompt: str, button_label: str = None) -> None:
+    def alert(self, prompt: str, button_label: typing.Optional[str] = None) -> None:
         self.__accept_reject(prompt, button_label, None, False)

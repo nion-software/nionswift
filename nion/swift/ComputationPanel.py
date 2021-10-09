@@ -9,6 +9,7 @@ import random
 import string
 import sys
 import typing
+import uuid
 import weakref
 
 # third party libraries
@@ -30,8 +31,8 @@ from nion.swift.model import Symbolic
 from nion.ui import CanvasItem
 from nion.ui import Declarative
 from nion.ui import Dialog
+from nion.ui import DrawingContext
 from nion.ui import UserInterface
-from nion.ui import Window
 from nion.utils import Binding
 from nion.utils import Converter
 from nion.utils import Event
@@ -39,19 +40,25 @@ from nion.utils import Geometry
 from nion.utils import ListModel
 from nion.utils import Model
 from nion.utils import Observable
+from nion.utils import Validator
 
 if typing.TYPE_CHECKING:
     from nion.swift import DocumentController
     from nion.swift.model import DocumentModel
+
+_DocumentControllerWeakRefType = typing.Callable[[], "DocumentController.DocumentController"]
 
 _ = gettext.gettext
 
 
 class AddVariableCommand(Undo.UndoableCommand):
 
-    def __init__(self, document_model, computation: Symbolic.Computation, name: str = None, value_type: str = None,
-                 value=None, value_default=None, value_min=None, value_max=None, control_type: str = None,
-                 specified_item: typing.Optional[Persistence.PersistentObject] = None, label: str = None):
+    def __init__(self, document_model: DocumentModel.DocumentModel, computation: Symbolic.Computation,
+                 name: typing.Optional[str] = None, value_type: typing.Optional[str] = None, value: typing.Any = None,
+                 value_default: typing.Any = None, value_min: typing.Any = None, value_max: typing.Any = None,
+                 control_type: typing.Optional[str] = None,
+                 specified_item: typing.Optional[Persistence.PersistentObject] = None,
+                 label: typing.Optional[str] = None):
         super().__init__(_("Add Computation Variable"))
         self.__document_model = document_model
         self.__computation_proxy = computation.create_proxy()
@@ -64,12 +71,12 @@ class AddVariableCommand(Undo.UndoableCommand):
         self.__control_type = control_type
         self.__specified_item = specified_item
         self.__label = label
-        self.__variable_index = None
+        self.__variable_index = 0
         self.initialize()
 
     def close(self) -> None:
         self.__computation_proxy.close()
-        self.__computation_proxy = None
+        self.__computation_proxy = typing.cast(typing.Any, None)
         self.__name = None
         self.__value_type = None
         self.__value = None
@@ -83,26 +90,31 @@ class AddVariableCommand(Undo.UndoableCommand):
         super().close()
 
     def perform(self) -> None:
-        computation = typing.cast(Symbolic.Computation, self.__computation_proxy.item)
-        variable = computation.create_variable(self.__name, self.__value_type, self.__value, self.__value_default, self.__value_min, self.__value_max, self.__control_type, self.__specified_item, self.__label)
-        self.__variable_index = computation.variables.index(variable)
+        computation = typing.cast(typing.Optional[Symbolic.Computation], self.__computation_proxy.item)
+        if computation:
+            variable = computation.create_variable(self.__name, self.__value_type, self.__value, self.__value_default, self.__value_min, self.__value_max, self.__control_type, self.__specified_item, self.__label)
+            self.__variable_index = computation.variables.index(variable)
 
     def _get_modified_state(self) -> typing.Any:
-        computation = self.__computation_proxy.item
-        return computation.modified_state, self.__document_model.modified_state
+        computation = typing.cast(typing.Optional[Symbolic.Computation], self.__computation_proxy.item)
+        computation_modified_state = computation.modified_state if computation else None
+        return computation_modified_state, self.__document_model.modified_state
 
     def _set_modified_state(self, modified_state: typing.Any) -> None:
-        computation = self.__computation_proxy.item
-        computation.modified_state, self.__document_model.modified_state = modified_state
+        computation = typing.cast(typing.Optional[Symbolic.Computation], self.__computation_proxy.item)
+        if computation:
+            computation.modified_state = modified_state[0]
+        self.__document_model.modified_state = modified_state[1]
 
     def _compare_modified_states(self, state1: typing.Any, state2: typing.Any) -> bool:
         # override to allow the undo command to track state; but only use part of the state for comparison
-        return state1[0] == state2[0]
+        return bool(state1[0] == state2[0])
 
     def _undo(self) -> None:
-        computation = self.__computation_proxy.item
-        variable = computation.variables[self.__variable_index]
-        computation.remove_variable(variable)
+        computation = typing.cast(typing.Optional[Symbolic.Computation], self.__computation_proxy.item)
+        if computation:
+            variable = computation.variables[self.__variable_index]
+            computation.remove_variable(variable)
 
     def _redo(self) -> None:
         self.perform()
@@ -110,7 +122,7 @@ class AddVariableCommand(Undo.UndoableCommand):
 
 class RemoveVariableCommand(Undo.UndoableCommand):
 
-    def __init__(self, document_model, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable):
+    def __init__(self, document_model: DocumentModel.DocumentModel, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable) -> None:
         super().__init__(_("Remove Computation Variable"))
         self.__document_model = document_model
         self.__computation_proxy = computation.create_proxy()
@@ -120,52 +132,57 @@ class RemoveVariableCommand(Undo.UndoableCommand):
 
     def close(self) -> None:
         self.__computation_proxy.close()
-        self.__computation_proxy = None
-        self.__variable_index = None
-        self.__variable_dict = None
+        self.__computation_proxy = typing.cast(typing.Any, None)
+        self.__variable_dict = typing.cast(typing.Any, None)
         super().close()
 
     def perform(self) -> None:
-        computation = self.__computation_proxy.item
-        variable = computation.variables[self.__variable_index]
-        computation.remove_variable(variable)
+        computation = typing.cast(typing.Optional[Symbolic.Computation], self.__computation_proxy.item)
+        if computation:
+            variable = computation.variables[self.__variable_index]
+            computation.remove_variable(variable)
 
     def _get_modified_state(self) -> typing.Any:
-        computation = self.__computation_proxy.item
-        return computation.modified_state, self.__document_model.modified_state
+        computation = typing.cast(typing.Optional[Symbolic.Computation], self.__computation_proxy.item)
+        computation_modified_state = computation.modified_state if computation else None
+        return computation_modified_state, self.__document_model.modified_state
 
     def _set_modified_state(self, modified_state: typing.Any) -> None:
-        computation = self.__computation_proxy.item
-        computation.modified_state, self.__document_model.modified_state = modified_state
+        computation = typing.cast(typing.Optional[Symbolic.Computation], self.__computation_proxy.item)
+        if computation:
+            computation.modified_state = modified_state[0]
+        self.__document_model.modified_state = modified_state[1]
 
     def _compare_modified_states(self, state1: typing.Any, state2: typing.Any) -> bool:
         # override to allow the undo command to track state; but only use part of the state for comparison
-        return state1[0] == state2[0]
+        return bool(state1[0] == state2[0])
 
     def _undo(self) -> None:
-        computation = self.__computation_proxy.item
-        variable = Symbolic.ComputationVariable()
-        variable.begin_reading()
-        variable.read_from_dict(self.__variable_dict)
-        variable.finish_reading()
-        computation.insert_variable(self.__variable_index, variable)
+        computation = typing.cast(typing.Optional[Symbolic.Computation], self.__computation_proxy.item)
+        if computation:
+            variable = Symbolic.ComputationVariable()
+            variable.begin_reading()
+            variable.read_from_dict(self.__variable_dict)
+            variable.finish_reading()
+            computation.insert_variable(self.__variable_index, variable)
 
     def _redo(self) -> None:
-        computation = self.__computation_proxy.item
-        computation.remove_variable(computation.variables[self.__variable_index])
+        computation = typing.cast(typing.Optional[Symbolic.Computation], self.__computation_proxy.item)
+        if computation:
+            computation.remove_variable(computation.variables[self.__variable_index])
 
 
 class CreateComputationCommand(Undo.UndoableCommand):
 
-    def __init__(self, document_model, data_item):
+    def __init__(self, document_model: DocumentModel.DocumentModel, data_item: DataItem.DataItem) -> None:
         super().__init__(_("Create Computation"))
         self.__document_model = document_model
         self.__data_item_proxy = data_item.create_proxy()
 
     def close(self) -> None:
-        self.__document_model = None
+        self.__document_model = typing.cast(typing.Any, None)
         self.__data_item_proxy.close()
-        self.__data_item_proxy = None
+        self.__data_item_proxy = typing.cast(typing.Any, None)
         super().close()
 
     @property
@@ -173,9 +190,10 @@ class CreateComputationCommand(Undo.UndoableCommand):
         return self.__document_model.create_computation()
 
     def perform(self) -> None:
-        data_item = self.__data_item_proxy.item
-        computation = self.__document_model.create_computation()
-        self.__document_model.set_data_item_computation(data_item, computation)
+        data_item = typing.cast(typing.Optional[DataItem.DataItem], self.__data_item_proxy.item)
+        if data_item:
+            computation = self.__document_model.create_computation()
+            self.__document_model.set_data_item_computation(data_item, computation)
 
     def _get_modified_state(self) -> typing.Any:
         return self.__document_model.modified_state
@@ -184,13 +202,16 @@ class CreateComputationCommand(Undo.UndoableCommand):
         self.__document_model.modified_state = modified_state
 
     def _undo(self) -> None:
-        data_item = self.__data_item_proxy.item
-        self.__document_model.set_data_item_computation(data_item, None)
+        data_item = typing.cast(typing.Optional[DataItem.DataItem], self.__data_item_proxy.item)
+        if data_item:
+            self.__document_model.set_data_item_computation(data_item, None)
 
 
 class ChangeComputationCommand(Undo.UndoableCommand):
 
-    def __init__(self, document_model, computation: Symbolic.Computation, *, title: typing.Optional[str] = None, command_id: typing.Optional[str] = None, is_mergeable: bool=False, **kwargs: typing.Any):
+    def __init__(self, document_model: DocumentModel.DocumentModel, computation: Symbolic.Computation, *,
+                 title: typing.Optional[str] = None, command_id: typing.Optional[str] = None,
+                 is_mergeable: bool = False, **kwargs: typing.Any) -> None:
         super().__init__(title if title else _("Change Computation"), command_id=command_id, is_mergeable=is_mergeable)
         self.__document_model = document_model
         self.__computation_proxy = computation.create_proxy()
@@ -199,48 +220,52 @@ class ChangeComputationCommand(Undo.UndoableCommand):
         self.initialize()
 
     def close(self) -> None:
-        self.__properties = None
+        self.__properties = dict()
         self.__computation_proxy.close()
-        self.__computation_proxy = None
-        self.__properties = None
-        self.__value_dict = None
+        self.__computation_proxy = typing.cast(typing.Any, None)
+        self.__value_dict = typing.cast(typing.Any, None)
         super().close()
 
     def perform(self) -> None:
-        computation = self.__computation_proxy.item
-        for key, value in self.__value_dict.items():
-            setattr(computation, key, value)
+        computation = typing.cast(typing.Optional[Symbolic.Computation], self.__computation_proxy.item)
+        if computation:
+            for key, value in self.__value_dict.items():
+                setattr(computation, key, value)
 
     def _get_modified_state(self) -> typing.Any:
-        computation = self.__computation_proxy.item
-        return computation.modified_state, self.__document_model.modified_state
+        computation = typing.cast(typing.Optional[Symbolic.Computation], self.__computation_proxy.item)
+        computation_modified_state = computation.modified_state if computation else None
+        return computation_modified_state, self.__document_model.modified_state
 
     def _set_modified_state(self, modified_state: typing.Any) -> None:
-        computation = self.__computation_proxy.item
-        computation.modified_state, self.__document_model.modified_state = modified_state
+        computation = typing.cast(typing.Optional[Symbolic.Computation], self.__computation_proxy.item)
+        if computation:
+            computation.modified_state = modified_state[0]
+        self.__document_model.modified_state = modified_state[1]
 
     def _compare_modified_states(self, state1: typing.Any, state2: typing.Any) -> bool:
         # override to allow the undo command to track state; but only use part of the state for comparison
-        return state1[0] == state2[0]
+        return bool(state1[0] == state2[0])
 
     def _undo(self) -> None:
-        computation = self.__computation_proxy.item
-        properties = self.__properties
-        self.__properties = computation.write_to_dict()
-        # NOTE: use read_properties_from_dict (read properties only), not read_from_dict (used for initialization).
-        computation.read_properties_from_dict(properties)
+        computation = typing.cast(typing.Optional[Symbolic.Computation], self.__computation_proxy.item)
+        if computation:
+            properties = self.__properties
+            self.__properties = computation.write_to_dict()
+            # NOTE: use read_properties_from_dict (read properties only), not read_from_dict (used for initialization).
+            computation.read_properties_from_dict(properties)
 
     def can_merge(self, command: Undo.UndoableCommand) -> bool:
         return isinstance(command, ChangeComputationCommand) and bool(self.command_id) and self.command_id == command.command_id and self.__computation_proxy.item == command.__computation_proxy.item
 
 
-def select_computation(document_model: DocumentModel.DocumentModel, display_item: DisplayItem.DisplayItem) -> typing.Optional[Symbolic.Computation]:
+def select_computation(document_model: DocumentModel.DocumentModel, display_item: typing.Optional[DisplayItem.DisplayItem]) -> typing.Optional[Symbolic.Computation]:
     if display_item:
-        match_items = set()
+        match_items: typing.Set[Persistence.PersistentObject] = set()
         match_items.add(display_item)
         match_items.update(display_item.data_items)
         match_items.update(display_item.graphics)
-        computations = set()
+        computations: typing.Set[Symbolic.Computation] = set()
         for computation in document_model.computations:
             if set(computation.output_items).intersection(match_items):
                 computations.add(computation)
@@ -257,19 +282,18 @@ class ComputationModel:
     """
 
     def __init__(self, document_controller: DocumentController.DocumentController):
-        self.__weak_document_controller = weakref.ref(document_controller)
-        self.__display_item = None
-        self.__computation = None
+        self.__weak_document_controller = typing.cast(_DocumentControllerWeakRefType, weakref.ref(document_controller))
+        self.__display_item: typing.Optional[DisplayItem.DisplayItem] = None
+        self.__computation: typing.Optional[Symbolic.Computation] = None
         self.__set_display_item(None)
-        self.__computation_changed_or_mutated_event_listener = None
-        self.__computation_variable_inserted_event_listener = None
-        self.__computation_variable_removed_event_listener = None
-        self.__computation_property_changed_event_listener = None
-        self.__computation_label = None
-        self.__computation_text = None
-        self.__error_text = None
-        self.__object_property_changed_event_listeners = dict()
-        self.__variable_property_changed_event_listeners = dict()
+        self.__computation_changed_or_mutated_event_listener: typing.Optional[Event.EventListener] = None
+        self.__computation_variable_inserted_event_listener: typing.Optional[Event.EventListener] = None
+        self.__computation_variable_removed_event_listener: typing.Optional[Event.EventListener] = None
+        self.__computation_property_changed_event_listener: typing.Optional[Event.EventListener] = None
+        self.__computation_label: typing.Optional[str] = None
+        self.__computation_text: typing.Optional[str] = None
+        self.__error_text: typing.Optional[str] = None
+        self.__variable_property_changed_event_listeners: typing.Dict[uuid.UUID, Event.EventListener] = dict()
         self.computation_label_changed_event = Event.Event()
         self.computation_text_changed_event = Event.Event()
         self.error_text_changed_event = Event.Event()
@@ -285,19 +309,21 @@ class ComputationModel:
         return self.__weak_document_controller()
 
     @property
-    def display_item(self):
+    def display_item(self) -> typing.Optional[DisplayItem.DisplayItem]:
         return self.__display_item
 
     @property
-    def computation(self):
+    def computation(self) -> typing.Optional[Symbolic.Computation]:
         return self.__computation
 
-    def set_display_item(self, display_item):
+    def set_display_item(self, display_item: typing.Optional[DisplayItem.DisplayItem]) -> None:
         self.__set_display_item(display_item)
 
-    def add_variable(self, name: str = None, value_type: str = None, value=None, value_default=None, value_min=None,
-                     value_max=None, control_type: str = None,
-                     specified_item: typing.Optional[Persistence.PersistentObject] = None, label: str = None) -> None:
+    def add_variable(self, name: typing.Optional[str] = None, value_type: typing.Optional[str] = None,
+                     value: typing.Any = None, value_default: typing.Any = None, value_min: typing.Any = None,
+                     value_max: typing.Any = None, control_type: typing.Optional[str] = None,
+                     specified_item: typing.Optional[Persistence.PersistentObject] = None,
+                     label: typing.Optional[str] = None) -> None:
         computation = self.computation
         if computation:
             command = AddVariableCommand(self.document_controller.document_model, computation, name, value_type, value, value_default, value_min, value_max, control_type, specified_item, label)
@@ -312,11 +338,11 @@ class ComputationModel:
             self.document_controller.push_undo_command(command)
 
     @property
-    def computation_label(self):
+    def computation_label(self) -> typing.Optional[str]:
         return self.__computation_label
 
     @computation_label.setter
-    def computation_label(self, label):
+    def computation_label(self, label: typing.Optional[str]) -> None:
         computation = self.computation
         if computation:
             command = ChangeComputationCommand(self.document_controller.document_model, computation, command_id="computation_change_label", is_mergeable=True, label=label)
@@ -324,11 +350,11 @@ class ComputationModel:
             self.document_controller.push_undo_command(command)
 
     @property
-    def computation_text(self):
+    def computation_text(self) -> typing.Optional[str]:
         return self.__computation_text
 
     @computation_text.setter
-    def computation_text(self, computation_text):
+    def computation_text(self, computation_text: typing.Optional[str]) -> None:
         computation = self.computation
         if computation:
             command = ChangeComputationCommand(self.document_controller.document_model, computation, command_id="computation_change_label", is_mergeable=True, expression=computation_text)
@@ -336,26 +362,26 @@ class ComputationModel:
             self.document_controller.push_undo_command(command)
 
     @property
-    def error_text(self):
+    def error_text(self) -> typing.Optional[str]:
         return self.__error_text
 
-    def __update_computation_label(self, computation_label):
+    def __update_computation_label(self, computation_label: typing.Optional[str]) -> None:
         if self.__computation_label != computation_label:
             self.__computation_label = computation_label
             self.computation_label_changed_event.fire(self.__computation_label)
 
-    def __update_computation_text(self, computation_text):
+    def __update_computation_text(self, computation_text: typing.Optional[str]) -> None:
         if self.__computation_text != computation_text:
             self.__computation_text = computation_text
             self.computation_text_changed_event.fire(self.__computation_text)
 
-    def __update_error_text(self, error_text):
+    def __update_error_text(self, error_text: typing.Optional[str]) -> None:
         if self.__error_text != error_text:
             self.__error_text = error_text
             self.error_text_changed_event.fire(self.__error_text)
 
     def __update_computation_display(self) -> None:
-        def update_computation_display():
+        def update_computation_display() -> None:
             label = None
             expression = None
             error_text = None
@@ -384,8 +410,8 @@ class ComputationModel:
             del self.__variable_property_changed_event_listeners[variable.uuid]
 
     # not thread safe
-    def __set_display_item(self, display_item):
-        if self.__display_item != display_item:
+    def __set_display_item(self, display_item: typing.Optional[DisplayItem.DisplayItem]) -> None:
+        if bool(self.__display_item != display_item):
             if self.__computation_changed_or_mutated_event_listener:
                 self.__computation_changed_or_mutated_event_listener.close()
                 self.__computation_changed_or_mutated_event_listener = None
@@ -407,10 +433,10 @@ class ComputationModel:
             self.__computation = select_computation(document_model, display_item)
             computation = self.computation
             if computation:
-                def computation_updated(computation):
+                def computation_updated(computation: Symbolic.Computation) -> None:
                     if computation == self.computation:
                         self.__update_computation_display()
-                def property_changed(property):
+                def property_changed(property: str) -> None:
                     if property == "error_text":
                         self.__update_computation_display()
                 self.__computation_changed_or_mutated_event_listener = document_model.computation_updated_event.listen(computation_updated)
@@ -424,14 +450,17 @@ class ComputationModel:
 
 
 class ChangeVariableBinding(Binding.PropertyBinding):
-    def __init__(self, document_controller, computation, variable, property_name: str, converter=None, fallback=None):
+    def __init__(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation,
+                 variable: Symbolic.ComputationVariable, property_name: str,
+                 converter: typing.Optional[Converter.ConverterLike[typing.Any, typing.Any]] = None,
+                 fallback: typing.Any = None) -> None:
         super().__init__(variable, property_name, converter=converter, fallback=fallback)
         self.__property_name = property_name
         self.__old_source_setter = self.source_setter
 
-        def set_value(value):
+        def set_value(value: typing.Any) -> None:
             if value != getattr(variable, property_name):
-                command = Inspector.ChangeComputationVariableCommand(document_controller.document_model, computation, self.source, **{self.__property_name: value})
+                command = Inspector.ChangeComputationVariableCommand(document_controller.document_model, computation, typing.cast(Symbolic.ComputationVariable, self.source), **{self.__property_name: value})
                 command.perform()
                 document_controller.push_undo_command(command)
 
@@ -440,7 +469,7 @@ class ChangeVariableBinding(Binding.PropertyBinding):
 
 class ComputationPanelSection:
 
-    def __init__(self, document_controller: DocumentController.DocumentController, computation, variable, on_remove, queue_task_fn):
+    def __init__(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable, on_remove: typing.Optional[typing.Callable[[], None]], queue_task_fn: typing.Callable[[typing.Callable[[], None]], None]) -> None:
         ui = document_controller.ui
 
         self.variable = variable
@@ -461,14 +490,14 @@ class ComputationPanelSection:
 
         # boolean, integral, real, data item, region
 
-        def make_label_row(ui, label):
+        def make_label_row(ui: UserInterface.UserInterface, label: str) -> UserInterface.BoxWidget:
             label_row = ui.create_row_widget()
             label_row.add_spacing(8)
             label_row.add(ui.create_label_widget(label))
             label_row.add_stretch()
             return label_row
 
-        def make_name_type_row(ui, variable: Symbolic.ComputationVariable, on_change_type_fn, on_remove_fn):
+        def make_name_type_row(ui: UserInterface.UserInterface, variable: Symbolic.ComputationVariable, on_change_type_fn: typing.Callable[[typing.Any], None], on_remove_fn: typing.Optional[typing.Callable[[], None]]) -> UserInterface.BoxWidget:
             name_text_edit = ui.create_line_edit_widget()
             name_text_edit.bind_text(ChangeVariableBinding(document_controller, computation, variable, "name"))
 
@@ -493,7 +522,7 @@ class ComputationPanelSection:
 
             return name_type_row
 
-        def make_boolean_row(ui, variable: Symbolic.ComputationVariable, on_change_type_fn, on_remove_fn):
+        def make_boolean_row(ui: UserInterface.UserInterface, variable: Symbolic.ComputationVariable, on_change_type_fn: typing.Callable[[typing.Any], None], on_remove_fn: typing.Optional[typing.Callable[[], None]]) -> UserInterface.BoxWidget:
             name_type_row = make_name_type_row(ui, variable, on_change_type_fn, on_remove_fn)
 
             value_check_box = ui.create_check_box_widget(_("Value"))
@@ -523,7 +552,7 @@ class ComputationPanelSection:
 
             return column
 
-        def make_number_row(ui, variable: Symbolic.ComputationVariable, converter, on_change_type_fn, on_remove_fn):
+        def make_number_row(ui: UserInterface.UserInterface, variable: Symbolic.ComputationVariable, converter: typing.Optional[Converter.ConverterLike[typing.Any, typing.Any]], on_change_type_fn: typing.Callable[[typing.Any], None], on_remove_fn: typing.Optional[typing.Callable[[], None]]) -> UserInterface.BoxWidget:
             name_type_row = make_name_type_row(ui, variable, on_change_type_fn, on_remove_fn)
 
             value_text_edit = ui.create_line_edit_widget()
@@ -576,7 +605,7 @@ class ComputationPanelSection:
 
             return column
 
-        def make_string_row(ui, variable: Symbolic.ComputationVariable, converter, on_change_type_fn, on_remove_fn):
+        def make_string_row(ui: UserInterface.UserInterface, variable: Symbolic.ComputationVariable, converter: typing.Optional[Converter.ConverterLike[typing.Any, typing.Any]], on_change_type_fn: typing.Callable[[typing.Any], None], on_remove_fn: typing.Optional[typing.Callable[[], None]]) -> UserInterface.BoxWidget:
             name_type_row = make_name_type_row(ui, variable, on_change_type_fn, on_remove_fn)
 
             value_text_edit = ui.create_line_edit_widget()
@@ -611,7 +640,7 @@ class ComputationPanelSection:
 
             return column
 
-        def make_specifier_row(ui, variable: Symbolic.ComputationVariable, on_change_type_fn, on_remove_fn):
+        def make_specifier_row(ui: UserInterface.UserInterface, variable: Symbolic.ComputationVariable, on_change_type_fn: typing.Callable[[typing.Any], None], on_remove_fn: typing.Optional[typing.Callable[[], None]]) -> UserInterface.BoxWidget:
             column = ui.create_column_widget()
 
             name_type_row = make_name_type_row(ui, variable, on_change_type_fn, on_remove_fn)
@@ -631,7 +660,7 @@ class ComputationPanelSection:
 
             return column
 
-        def make_empty_row(ui, variable: Symbolic.ComputationVariable, on_change_type_fn, on_remove_fn):
+        def make_empty_row(ui: UserInterface.UserInterface, variable: Symbolic.ComputationVariable, on_change_type_fn: typing.Callable[[typing.Any], None], on_remove_fn: typing.Optional[typing.Callable[[], None]]) -> UserInterface.BoxWidget:
             column = ui.create_column_widget()
             name_type_row = make_name_type_row(ui, variable, on_change_type_fn, on_remove_fn)
             column.add(name_type_row)
@@ -642,7 +671,7 @@ class ComputationPanelSection:
         section_widget.add(stack)
         section_widget.add_spacing(4)
 
-        def toggle():
+        def toggle() -> None:
             twist_down_canvas_item.checked = not twist_down_canvas_item.checked
             stack.visible = twist_down_canvas_item.checked
         section_open = False
@@ -650,12 +679,12 @@ class ComputationPanelSection:
         stack.visible = section_open
         twist_down_canvas_item.on_button_clicked = toggle
 
-        def change_type(variable_type):
+        def change_type(variable_type: str) -> None:
             command = Inspector.ChangeComputationVariableCommand(document_controller.document_model, computation, variable, title=_("Remove Input Data Item"), variable_type=variable_type)
             command.perform()
             document_controller.push_undo_command(command)
 
-        def select_stack(stack, variable):
+        def select_stack(stack: UserInterface.BoxWidget, variable: Symbolic.ComputationVariable) -> None:
             stack.remove_all()
             variable_type = variable.variable_type
             if variable_type == "boolean":
@@ -673,7 +702,7 @@ class ComputationPanelSection:
             else:
                 stack.add(make_empty_row(ui, variable, change_type, on_remove))
 
-        def do_select_stack():
+        def do_select_stack() -> None:
             # select stack will remove the inspector widgets, so delay it until the
             # current event (combo box changed) has finished by queueing it.
             queue_task_fn(functools.partial(select_stack, stack, variable))
@@ -686,36 +715,40 @@ class ComputationPanelSection:
 
     def close(self) -> None:
         self.__variable_type_changed_event_listener.close()
-        self.__variable_type_changed_event_listener = None
+        self.__variable_type_changed_event_listener = typing.cast(typing.Any, None)
 
 
-def drop_mime_data(document_controller, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable, mime_data: UserInterface.MimeData, x: int, y: int) -> typing.Optional[str]:
+def drop_mime_data(document_controller: DocumentController.DocumentController, computation: Symbolic.Computation,
+                   variable: Symbolic.ComputationVariable, mime_data: UserInterface.MimeData, x: int, y: int) -> str:
     display_item, graphic = MimeTypes.mime_data_get_data_source(mime_data, document_controller.document_model)
     data_item = display_item.data_item if display_item else None
-    if data_item:
+    if data_item and display_item:
         properties = {"variable_type": "data_source", "secondary_specified_object": graphic, "specified_object": display_item.get_display_data_channel_for_data_item(data_item)}
-        command = Inspector.ChangeComputationVariableCommand(document_controller.document_model, computation, variable, title=_("Set Input Data Source"), **properties)
+        command = Inspector.ChangeComputationVariableCommand(document_controller.document_model, computation, variable, title=_("Set Input Data Source"), **properties)  # type: ignore
         command.perform()
         document_controller.push_undo_command(command)
         return "copy"
     display_item = MimeTypes.mime_data_get_display_item(mime_data, document_controller.document_model)
     data_item = display_item.data_item if display_item else None
-    if data_item:
+    if data_item and display_item:
         properties = {"variable_type": "data_source", "secondary_specified_object": None, "specified_object": display_item.get_display_data_channel_for_data_item(data_item)}
-        command = Inspector.ChangeComputationVariableCommand(document_controller.document_model, computation, variable, title=_("Set Input Data Source"), **properties)
+        command = Inspector.ChangeComputationVariableCommand(document_controller.document_model, computation, variable, title=_("Set Input Data Source"), **properties)  # type: ignore
         command.perform()
         document_controller.push_undo_command(command)
         return "copy"
-    return None
+    return "ignore"
 
 
-def data_item_delete(document_controller, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable) -> None:
+def data_item_delete(document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable) -> None:
     command = Inspector.ChangeComputationVariableCommand(document_controller.document_model, computation, variable, title=_("Remove Input Data Source"), specified_object=None)
     command.perform()
     document_controller.push_undo_command(command)
 
 
-def make_image_chooser(document_controller, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable, drag_fn):
+def make_image_chooser(document_controller: DocumentController.DocumentController,
+                       computation: Symbolic.Computation,
+                       variable: Symbolic.ComputationVariable,
+                       drag_fn: typing.Callable[[UserInterface.MimeData, typing.Optional[DrawingContext.RGBA32Type], typing.Optional[int], typing.Optional[int]], None]) -> typing.Tuple[UserInterface.BoxWidget, typing.Sequence[Event.EventListener]]:
     ui = document_controller.ui
     document_model = document_controller.document_model
     # drag_fn is necessary because it is unsafe to start a drag on the column containing the thumbnail
@@ -733,7 +766,7 @@ def make_image_chooser(document_controller, computation: Symbolic.Computation, v
     data_item_thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(ui, display_item=display_item)
     data_item_chooser_widget = DataItemThumbnailWidget.ThumbnailWidget(ui, data_item_thumbnail_source, Geometry.IntSize(80, 80))
 
-    def thumbnail_widget_drag(mime_data, thumbnail, hot_spot_x, hot_spot_y):
+    def thumbnail_widget_drag(mime_data: UserInterface.MimeData, thumbnail: typing.Optional[DrawingContext.RGBA32Type], hot_spot_x: int, hot_spot_y: int) -> None:
         # use this convoluted base object for drag so that it doesn't disappear after the drag.
         drag_fn(mime_data, thumbnail, hot_spot_x, hot_spot_y)
 
@@ -741,12 +774,13 @@ def make_image_chooser(document_controller, computation: Symbolic.Computation, v
     data_item_chooser_widget.on_delete = functools.partial(data_item_delete, document_controller, computation, variable)
     data_item_chooser_widget.on_drop_mime_data = functools.partial(drop_mime_data, document_controller, computation, variable)
 
-    def property_changed(key):
+    def property_changed(key: str) -> None:
         if key == "specified_object":
             computation_input = computation.get_input(variable.name)
             data_item = computation_input.data_item if computation_input else None
             display_item = document_model.get_display_item_for_data_item(data_item)
-            data_item_thumbnail_source.set_display_item(display_item)
+            if display_item:
+                data_item_thumbnail_source.set_display_item(display_item)
 
     property_changed_listener = variable.property_changed_event.listen(property_changed)
     column.add_spacing(4)
@@ -761,6 +795,7 @@ class EditComputationDialog(Dialog.ActionDialog):
     def __init__(self, document_controller: DocumentController.DocumentController, data_item: DataItem.DataItem):
 
         display_item = document_controller.document_model.get_display_item_for_data_item(data_item)
+        assert display_item
 
         ui = document_controller.ui
         super().__init__(ui, _("Edit Computation"), parent_window=document_controller, persistent_id="EditComputationDialog" + str(display_item.uuid))
@@ -770,7 +805,7 @@ class EditComputationDialog(Dialog.ActionDialog):
 
         self.__computation_model = ComputationModel(document_controller)
 
-        self.__sections = list()
+        self.__sections: typing.List[ComputationPanelSection] = list()
 
         label_edit_widget = ui.create_line_edit_widget(properties={"min-width": 120})
         label_edit_widget.placeholder_text = _("Computation Label")
@@ -800,7 +835,7 @@ class EditComputationDialog(Dialog.ActionDialog):
 
         text_edit_row = ui.create_row_widget()
         text_edit = ui.create_text_edit_widget(properties={"min-height": 180})
-        text_edit.placeholder_text = _("No Computation")
+        text_edit.placeholder = _("No Computation")
         text_edit_row.add_spacing(8)
         text_edit_row.add(text_edit)
         text_edit_row.add_spacing(8)
@@ -826,63 +861,65 @@ class EditComputationDialog(Dialog.ActionDialog):
 
         self.__variable_column = ui.create_column_widget()
 
-        def add_object_pressed():
+        def add_object_pressed() -> None:
             document_model = document_controller.document_model
             self.__computation_model.add_variable("".join([random.choice(string.ascii_lowercase) for _ in range(4)]), specified_item=document_model.data_items[0])
 
         add_object_button.on_clicked = add_object_pressed
 
-        def add_variable_pressed():
+        def add_variable_pressed() -> None:
             self.__computation_model.add_variable("".join([random.choice(string.ascii_lowercase) for _ in range(4)]), value_type="integral", value=0)
 
         add_variable_button.on_clicked = add_variable_pressed
 
-        def update_pressed():
+        def update_pressed() -> None:
             if text_edit.text:
                 self.__computation_model.computation_text = text_edit.text
 
         update_button.on_clicked = update_pressed
-        def editing_finished(text):
+        def editing_finished(text: str) -> None:
             if self.__computation_model:
                 self.__computation_model.computation_label = text
         label_edit_widget.on_editing_finished = editing_finished
 
-        def computation_label_changed(text):
+        def computation_label_changed(text: str) -> None:
             label_edit_widget.text = text
             if label_edit_widget.focused:
                 label_edit_widget.request_refocus()
 
         self.__computation_label_changed_event_listener = self.__computation_model.computation_label_changed_event.listen(computation_label_changed)
 
-        def computation_text_changed(computation_text):
+        def computation_text_changed(computation_text: str) -> None:
             text_edit.text = computation_text
 
         self.__computation_text_changed_event_listener = self.__computation_model.computation_text_changed_event.listen(computation_text_changed)
 
-        def error_text_changed(error_text):
+        def error_text_changed(error_text: str) -> None:
             error_label.text = error_text
 
         self.__error_text_changed_event_listener = self.__computation_model.error_text_changed_event.listen(error_text_changed)
 
         self.__listeners: typing.List[Event.EventListener] = list()
 
-        def rebuild_data_item_row():
+        def rebuild_data_item_row() -> None:
             self.__data_item_row.remove_all()
             for listener in self.__listeners:
                 listener.close()
-            self.__listeners: typing.List[Event.EventListener] = list()
+            self.__listeners = list()
             self.__data_item_row.add_spacing(8)
             for section in self.__sections:
                 variable = section.variable
                 if variable.variable_type in ("data_source", ):
-                    widget, listeners = make_image_chooser(document_controller, self.__computation_model.computation, variable, self.content.drag)
+                    computation = self.__computation_model.computation
+                    assert computation
+                    widget, listeners = make_image_chooser(document_controller, computation, variable, self.content.drag)
                     self.__listeners.extend(listeners)
                     self.__data_item_row.add(widget)
                     self.__data_item_row.add_spacing(8)
             self.__data_item_row.add_stretch()
             target_column = ui.create_column_widget(properties={"width": 80})
 
-            def thumbnail_widget_drag(mime_data, thumbnail, hot_spot_x, hot_spot_y):
+            def thumbnail_widget_drag(mime_data: UserInterface.MimeData, thumbnail: typing.Optional[DrawingContext.RGBA32Type], hot_spot_x: int, hot_spot_y: int) -> None:
                 # use this convoluted base object for drag so that it doesn't disappear after the drag.
                 self.content.drag(mime_data, thumbnail, hot_spot_x, hot_spot_y)
 
@@ -897,9 +934,12 @@ class EditComputationDialog(Dialog.ActionDialog):
             self.__data_item_row.add_spacing(8)
 
         def variable_inserted(index: int, variable: Symbolic.ComputationVariable) -> None:
-            def remove_variable():
+            def remove_variable() -> None:
                 self.__computation_model.remove_variable(variable)
-            section = ComputationPanelSection(document_controller, self.__computation_model.computation, variable, remove_variable, self.document_controller.queue_task)
+
+            computation = self.__computation_model.computation
+            assert computation
+            section = ComputationPanelSection(document_controller, computation, variable, remove_variable, self.document_controller.queue_task)
             self.__variable_column.insert(section.widget, index)
             self.__sections.insert(index, section)
             rebuild_data_item_row()
@@ -941,65 +981,70 @@ class EditComputationDialog(Dialog.ActionDialog):
         self.document_controller.clear_task(str(id(self)))
         for listener in self.__listeners:
             listener.close()
-        self.__listeners: typing.List[Event.EventListener] = list()
+        self.__listeners = list()
         self.__computation_label_changed_event_listener.close()
-        self.__computation_label_changed_event_listener = None
+        self.__computation_label_changed_event_listener = typing.cast(typing.Any, None)
         self.__computation_text_changed_event_listener.close()
-        self.__computation_text_changed_event_listener = None
+        self.__computation_text_changed_event_listener = typing.cast(typing.Any, None)
         self.__error_text_changed_event_listener.close()
-        self.__error_text_changed_event_listener = None
+        self.__error_text_changed_event_listener = typing.cast(typing.Any, None)
         self.__variable_inserted_event_listener.close()
-        self.__variable_inserted_event_listener = None
+        self.__variable_inserted_event_listener = typing.cast(typing.Any, None)
         self.__variable_removed_event_listener.close()
-        self.__variable_removed_event_listener = None
+        self.__variable_removed_event_listener = typing.cast(typing.Any, None)
         self.__computation_model.close()
-        self.__computation_model = None
+        self.__computation_model = typing.cast(typing.Any, None)
         super().close()
 
-    def size_changed(self, width, height):
+    def size_changed(self, width: int, height: int) -> None:
         self.__error_label.size = Geometry.IntSize(height=self.__error_label.size.height, width=self.__text_edit.size.width)
 
     @property
-    def _sections_for_testing(self):
+    def _sections_for_testing(self) -> typing.Sequence[ComputationPanelSection]:
         return self.__sections
 
     @property
-    def _variable_column_for_testing(self):
+    def _variable_column_for_testing(self) -> UserInterface.BoxWidget:
         return self.__variable_column
 
     @property
-    def _text_edit_for_testing(self):
+    def _text_edit_for_testing(self) -> UserInterface.TextEditWidget:
         return self.__text_edit
 
     @property
-    def _error_label_for_testing(self):
+    def _error_label_for_testing(self) -> UserInterface.LabelWidget:
         return self.__error_label
 
     @property
-    def _computation_model_for_testing(self):
+    def _computation_model_for_testing(self) -> ComputationModel:
         return self.__computation_model
 
 
 class ClosingTuplePropertyBinding(Binding.TuplePropertyBinding):
-    def __init__(self, source, property_name: str, tuple_index: int, converter=None, fallback=None):
-        super().__init__(source, property_name, tuple_index, converter, fallback)
+    def __init__(self, source: Observable.Observable, property_name: str, tuple_index: int,
+                 converter: typing.Optional[typing.Optional[Converter.ConverterLike[typing.Any, typing.Any]]] = None,
+                 fallback: typing.Any = None) -> None:
+        super().__init__(source, property_name, tuple_index, converter=converter, fallback=fallback)
         self.__source = source
 
     def close(self) -> None:
         super().close()
-        self.__source.close()
-        self.__source = None
+        self.__source.close()  # type: ignore  # observable closeable
+        self.__source = typing.cast(typing.Any, None)
 
 
 class ClosingPropertyBinding(Binding.PropertyBinding):
-    def __init__(self, source, property_name: str, *, converter=None, validator=None, fallback=None):
+    def __init__(self, source: Observable.Observable, property_name: str, *,
+                 converter: typing.Optional[Converter.ConverterLike[typing.Any, typing.Any]] = None,
+                 validator: typing.Optional[Validator.ValidatorLike[typing.Any]] = None,
+                 fallback: typing.Optional[typing.Any] = None) -> None:
         super().__init__(source, property_name, converter=converter, validator=validator, fallback=fallback)
         self.__source = source
 
     def close(self) -> None:
         super().close()
-        self.__source.close()
-        self.__source = None
+        self.__source.close()  # type: ignore  # observable closeable
+        self.__source = typing.cast(typing.Any, None)
 
 
 class GraphicHandler:
@@ -1009,66 +1054,70 @@ class GraphicHandler:
         self.variable = variable
         self.graphic = graphic
 
-    def get_binding(self, source, property: str, converter) -> typing.Optional[Binding.Binding]:
+    def close(self) -> None:
+        pass
+
+    def get_binding(self, source: Persistence.PersistentObject, property: str, converter: typing.Optional[Converter.ConverterLike[typing.Any, typing.Any]]) -> typing.Optional[Binding.Binding]:
         # override the regular property binding and converter to handle displayed coordinates and undo commands.
+        graphic: Graphics.Graphic
         if isinstance(source, Graphics.IntervalGraphic):
             if property in ("start", "end"):
                 graphic = source
-                display_item = graphic.container
+                display_item = graphic.display_item
                 return Inspector.CalibratedValueBinding(-1, display_item, Inspector.ChangeGraphicPropertyBinding(self.document_controller, display_item, graphic, property))
         if isinstance(source, Graphics.RectangleGraphic):
             if property in ("center_x", "center_y"):
                 graphic = source
-                display_item = graphic.container
+                display_item = graphic.display_item
                 index = 1 if property == "center_x" else 0
                 graphic_name = "rectangle"
                 property_model = Inspector.GraphicPropertyCommandModel(self.document_controller, display_item, graphic, "center", title=_("Change {} Center").format(graphic_name), command_id="change_" + graphic_name + "_center")
                 return Inspector.CalibratedValueBinding(index, display_item, ClosingTuplePropertyBinding(property_model, "value", index))
             elif property in ("width", "height"):
                 graphic = source
-                display_item = graphic.container
+                display_item = graphic.display_item
                 index = 1 if property == "width" else 0
                 graphic_name = "rectangle"
                 size_model = Inspector.GraphicPropertyCommandModel(self.document_controller, display_item, graphic, "size", title=_("Change {} Size").format(graphic_name), command_id="change_" + graphic_name + "_size")
                 return Inspector.CalibratedSizeBinding(index, display_item, ClosingTuplePropertyBinding(size_model, "value", index))
             elif property in ("rotation_deg", ):
                 graphic = source
-                display_item = graphic.container
+                display_item = graphic.display_item
                 graphic_name = "rectangle"
                 rotation_model = Inspector.GraphicPropertyCommandModel(self.document_controller, display_item, graphic, "rotation", title=_("Change {} Rotation").format(graphic_name), command_id="change_" + graphic_name + "_size")
                 return ClosingPropertyBinding(rotation_model, "value", converter=Inspector.RadianToDegreeStringConverter())
         if isinstance(source, Graphics.LineTypeGraphic):
             if property in ("start_x", "start_y"):
                 graphic = source
-                display_item = graphic.container
+                display_item = graphic.display_item
                 index = 1 if property == "start_x" else 0
                 graphic_name = "line_profile"
                 property_model = Inspector.GraphicPropertyCommandModel(self.document_controller, display_item, graphic, "start", title=_("Change {} Start").format(graphic_name), command_id="change_" + graphic_name + "_start")
                 return Inspector.CalibratedValueBinding(index, display_item, ClosingTuplePropertyBinding(property_model, "value", index))
             if property in ("end_x", "end_y"):
                 graphic = source
-                display_item = graphic.container
+                display_item = graphic.display_item
                 index = 1 if property == "end_x" else 0
                 graphic_name = "line_profile"
                 property_model = Inspector.GraphicPropertyCommandModel(self.document_controller, display_item, graphic, "end", title=_("Change {} End").format(graphic_name), command_id="change_" + graphic_name + "_end")
                 return Inspector.CalibratedValueBinding(index, display_item, ClosingTuplePropertyBinding(property_model, "value", index))
             if property == "length":
                 graphic = source
-                display_item = graphic.container
+                display_item = graphic.display_item
                 graphic_name = "line_profile"
                 property_model1 = Inspector.GraphicPropertyCommandModel(self.document_controller, display_item, graphic, "start", title=_("Change {} Length").format(graphic_name), command_id="change_" + graphic_name + "_length_start")
                 property_model2 = Inspector.GraphicPropertyCommandModel(self.document_controller, display_item, graphic, "end", title=_("Change {} Length").format(graphic_name), command_id="change_" + graphic_name + "_length_end")
                 return Inspector.CalibratedLengthBinding(display_item, ClosingPropertyBinding(property_model1, "value"), ClosingPropertyBinding(property_model2, "value"))
             if property == "angle":
                 graphic = source
-                display_item = graphic.container
+                display_item = graphic.display_item
                 graphic_name = "line_profile"
                 property_model = Inspector.GraphicPropertyCommandModel(self.document_controller, display_item, graphic, "angle", title=_("Change {} Angle").format(graphic_name), command_id="change_" + graphic_name + "_angle")
                 return Inspector.CalibratedBinding(display_item, ClosingPropertyBinding(property_model, "value"), Inspector.RadianToDegreeStringConverter())
         if isinstance(source, Graphics.LineProfileGraphic):
             if property == "width":
                 graphic = source
-                display_item = graphic.container
+                display_item = graphic.display_item
                 graphic_name = "line_profile"
                 property_model = Inspector.GraphicPropertyCommandModel(self.document_controller, display_item, graphic, "width", title=_("Change {} Line Width").format(graphic_name), command_id="change_" + graphic_name + "_line_width")
                 return Inspector.CalibratedWidthBinding(display_item, ClosingPropertyBinding(property_model, "value"))
@@ -1140,7 +1189,8 @@ class DataStructureHandler(Observable.Observable):
         self.__entity_choice = None
         self.__entity_types = list()
         self.__entity_choices = list()
-        base_entity_type = Schema.get_entity_type(self.variable.entity_id)
+        variable_entity_id = self.variable.entity_id or str()
+        base_entity_type = Schema.get_entity_type(variable_entity_id)
         if base_entity_type:
             self.__entity_types = base_entity_type.subclasses
 
@@ -1168,13 +1218,16 @@ class DataStructureHandler(Observable.Observable):
             if self.__entity_choice is None:
                 self.__entity_choice = len(self.__entity_types) + 1
 
+    def close(self) -> None:
+        pass
+
     @property
     def entity_choices(self) -> typing.List[str]:
         return self.__entity_choices
 
     @property
     def entity_choice(self) -> int:
-        return self.__entity_choice
+        return self.__entity_choice or 0
 
     @entity_choice.setter
     def entity_choice(self, value: int) -> None:
@@ -1203,7 +1256,7 @@ class VariableHandler:
 
     def close(self) -> None:
         self.__variable_property_changed_listener.close()
-        self.__variable_property_changed_listener = None
+        self.__variable_property_changed_listener = typing.cast(typing.Any, None)
 
     def __variable_property_changed(self, property_name: str) -> None:
         if property_name in ("specified_object", "secondary_specified_object"):
@@ -1213,11 +1266,11 @@ class VariableHandler:
             self.property_changed_event.fire("combo_box_index")
 
     @property
-    def variable_value(self):
+    def variable_value(self) -> typing.Any:
         return self.variable.value
 
     @variable_value.setter
-    def variable_value(self, value):
+    def variable_value(self, value: typing.Any) -> None:
         document_controller = self.document_controller
         computation = self.computation
         variable = self.variable
@@ -1227,13 +1280,13 @@ class VariableHandler:
             document_controller.push_undo_command(command)
 
     @property
-    def combo_box_index(self):
+    def combo_box_index(self) -> int:
         if self.variable.value == "mapped":
             return 1
         return 0
 
     @combo_box_index.setter
-    def combo_box_index(self, value):
+    def combo_box_index(self, value: int) -> None:
         if value == 1:
             self.variable.value = "mapped"
         else:
@@ -1260,10 +1313,10 @@ class VariableHandler:
     def drop_mime_data(self, mime_data: UserInterface.MimeData, x: int, y: int) -> typing.Optional[str]:
         return drop_mime_data(self.document_controller, self.computation, self.variable, mime_data, x, y)
 
-    def data_item_delete(self):
+    def data_item_delete(self) -> None:
         data_item_delete(self.document_controller, self.computation, self.variable)
 
-    def create_handler(self, component_id: str, container=None, item=None, **kwargs: typing.Any):
+    def create_handler(self, component_id: str, container: typing.Optional[Symbolic.ComputationVariable] = None, item: typing.Any = None, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
         if component_id == "graphic":
             graphic = self.variable.bound_item.value if self.variable.bound_item else None
             return GraphicHandler(self.document_controller, self.computation, self.variable, graphic)
@@ -1275,12 +1328,13 @@ class VariableHandler:
             return DataStructureHandler(self.document_controller, self.computation, self.variable, data_structure)
         return None
 
-    def get_resource(self, resource_id: str, container=None, item=None) -> typing.Optional[Declarative.UIDescription]:
+    def get_resource(self, resource_id: str, container: typing.Optional[Symbolic.ComputationVariable] = None, item: typing.Any = None) -> typing.Optional[Declarative.UIDescription]:
         u = Declarative.DeclarativeUI()
         if resource_id == "graphic":
             graphic = self.variable.bound_item.value if self.variable.bound_item else None
             return u.define_component(GraphicHandler.make_component_content(graphic))
         if resource_id == "graphic_item":
+            assert container
             graphic = typing.cast(Graphics.Graphic, item.value) if item and item.value else None
             graphic_content = GraphicHandler.make_component_content(graphic)
             label_row = u.create_row(
@@ -1351,6 +1405,9 @@ class ResultHandler:
         self.computation = computation
         self.result = result
 
+    def close(self) -> None:
+        pass
+
     @property
     def display_item(self) -> typing.Optional[DisplayItem.DisplayItem]:
         document_model = self.document_controller.document_model
@@ -1380,17 +1437,18 @@ class RemoveComputationCommand(Undo.UndoableCommand):
     def __init__(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation):
         super().__init__(_("Remove Computation"))
         self.__document_controller = document_controller
-        self.__old_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
-        self.__new_workspace_layout = None
+        workspace_controller = self.__document_controller.workspace_controller
+        assert workspace_controller
+        self.__old_workspace_layout: typing.Optional[Persistence.PersistentDictType] = workspace_controller.deconstruct()
+        self.__new_workspace_layout: typing.Optional[Persistence.PersistentDictType] = None
         self.__computation_index = document_controller.document_model.computations.index(computation)
         self.__undelete_logs: typing.List[Changes.UndeleteLog] = list()
         self.initialize()
 
     def close(self) -> None:
-        self.__document_controller = None
+        self.__document_controller = typing.cast(typing.Any, None)
         self.__old_workspace_layout = None
         self.__new_workspace_layout = None
-        self.__computation_index = None
         for undelete_log in self.__undelete_logs:
             undelete_log.close()
         self.__undelete_logs = typing.cast(typing.Any, None)
@@ -1408,16 +1466,21 @@ class RemoveComputationCommand(Undo.UndoableCommand):
         self.__document_controller.document_model.modified_state = modified_state
 
     def _undo(self) -> None:
-        self.__new_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
-        for undelete_log in reversed(self.__undelete_logs):
-            self.__document_controller.document_model.undelete_all(undelete_log)
-            undelete_log.close()
-        self.__undelete_logs.clear()
-        self.__document_controller.workspace_controller.reconstruct(self.__old_workspace_layout)
+        workspace_controller = self.__document_controller.workspace_controller
+        if workspace_controller:
+            self.__new_workspace_layout = workspace_controller.deconstruct()
+            for undelete_log in reversed(self.__undelete_logs):
+                self.__document_controller.document_model.undelete_all(undelete_log)
+                undelete_log.close()
+            self.__undelete_logs.clear()
+            if self.__old_workspace_layout is not None:
+                workspace_controller.reconstruct(self.__old_workspace_layout)
 
     def _redo(self) -> None:
         self.perform()
-        self.__document_controller.workspace_controller.reconstruct(self.__new_workspace_layout)
+        workspace_controller = self.__document_controller.workspace_controller
+        if workspace_controller and self.__new_workspace_layout is not None:
+            workspace_controller.reconstruct(self.__new_workspace_layout)
 
 
 class ComputationHandler:
@@ -1433,9 +1496,9 @@ class ComputationHandler:
 
     def close(self) -> None:
         self.computation_inputs_model.close()
-        self.computation_inputs_model = None
+        self.computation_inputs_model = typing.cast(typing.Any, None)
         self.computation_parameters_model.close()
-        self.computation_parameters_model = None
+        self.computation_parameters_model = typing.cast(typing.Any, None)
 
     def handle_delete(self, widget: Declarative.UIWidget) -> None:
         self.delete_state_model.value = 1
@@ -1449,14 +1512,14 @@ class ComputationHandler:
     def handle_cancel_delete(self, widget: Declarative.UIWidget) -> None:
         self.delete_state_model.value = 0
 
-    def create_handler(self, component_id: str, container=None, item=None, **kwargs: typing.Any):
+    def create_handler(self, component_id: str, container: typing.Optional[Symbolic.ComputationVariable] = None, item: typing.Any = None, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
         if component_id == "variable":
-            return VariableHandler(self.document_controller, self.computation, item)
+            return VariableHandler(self.document_controller, self.computation, typing.cast(Symbolic.ComputationVariable, item))
         elif component_id == "result":
-            return ResultHandler(self.document_controller, self.computation, item)
+            return ResultHandler(self.document_controller, self.computation, typing.cast(Symbolic.ComputationOutput, item))
         return None
 
-    def get_resource(self, resource_id: str, container=None, item=None) -> typing.Optional[Declarative.UIDescription]:
+    def get_resource(self, resource_id: str, container: typing.Optional[typing.Any] = None, item: typing.Any = None) -> typing.Optional[Declarative.UIDescription]:
         u = Declarative.DeclarativeUI()
         if resource_id == "variable":
             return u.define_component(VariableHandler.make_component_content(typing.cast(Symbolic.ComputationVariable, item)))
@@ -1488,12 +1551,12 @@ class InspectComputationDialog(Declarative.WindowHandler):
         previous_computation_inspector = getattr(document_controller, "_computation_inspector", None)
         if isinstance(previous_computation_inspector, InspectComputationDialog):
             previous_computation_inspector.close_window()
-        document_controller._computation_inspector = self
+        setattr(document_controller, "_computation_inspector", self)
 
         # define models that manage the state of the UI
         self.stack_index_model = Model.PropertyModel(0)
         self.stack_page_model = Model.PropertyModel(str())
-        self.computation_model = Model.PropertyModel()
+        self.computation_model = Model.PropertyModel[Symbolic.Computation]()
 
         # configure the models
         self.computation_model.value = computation
@@ -1501,7 +1564,7 @@ class InspectComputationDialog(Declarative.WindowHandler):
         self.stack_page_model.value = ["empty", "single"][self.stack_index_model.value]
 
         # list for computation being removed
-        def remove_computation():
+        def remove_computation() -> None:
             self.computation_model.value = None
             self.stack_index_model.value = 0
             self.stack_page_model.value = "empty"
@@ -1518,10 +1581,10 @@ class InspectComputationDialog(Declarative.WindowHandler):
         if self.__computation_about_to_be_removed_event_listener:
             self.__computation_about_to_be_removed_event_listener.close()
             self.__computation_about_to_be_removed_event_listener = None
-        self.__document_controller._computation_inspector = None
+        setattr(self.__document_controller, "_computation_inspector", None)
         super().close()
 
-    def get_resource(self, resource_id: str, container=None, item=None) -> typing.Optional[Declarative.UIDescription]:
+    def get_resource(self, resource_id: str, container: typing.Optional[Symbolic.ComputationVariable] = None, item: typing.Any = None) -> typing.Optional[Declarative.UIDescription]:
         if resource_id == "empty":
             u = Declarative.DeclarativeUI()
             content = u.create_column(u.create_label(text=_("No computation.")))
@@ -1529,6 +1592,7 @@ class InspectComputationDialog(Declarative.WindowHandler):
             return component
         if resource_id == "single":
             computation = self.computation_model.value
+            assert computation
             u = Declarative.DeclarativeUI()
             label = u.create_label(text=computation.label)
             inputs = u.create_column(items="computation_inputs_model.items", item_component_id="variable", spacing=8, size_policy_vertical="expanding")
@@ -1556,10 +1620,13 @@ class InspectComputationDialog(Declarative.WindowHandler):
             return component
         return None
 
-    def create_handler(self, component_id: str, container=None, item=None, **kwargs: typing.Any):
+    def create_handler(self, component_id: str, container: typing.Optional[Symbolic.ComputationVariable] = None, item: typing.Any = None, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
         if component_id == "empty":
-            class Handler: pass
+            class Handler:
+                def close(self) -> None: pass
             return Handler()
         if component_id == "single":
-            return ComputationHandler(self.__document_controller, self.computation_model.value)
+            computation = self.computation_model.value
+            assert computation
+            return ComputationHandler(self.__document_controller, computation)
         return None
