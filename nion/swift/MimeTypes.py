@@ -110,13 +110,16 @@ def mime_data_get_layer(mime_data: UserInterface.MimeData, document_model: "Docu
     return legend_data, display_item
 
 
-def mime_data_put_layer(mime_data: UserInterface.MimeData, index: int, display_item: DisplayItem.DisplayItem, label: str, fill_color: str, stroke_color: str) -> None:
+def mime_data_put_layer(mime_data: UserInterface.MimeData, index: int, display_item: DisplayItem.DisplayItem, label: typing.Optional[str], fill_color: typing.Optional[str], stroke_color: typing.Optional[str]) -> None:
     legend_data = {
         "index": index,
-        "label": label,
-        "fill_color": fill_color,
-        "stroke_color": stroke_color,
     }
+    if label:
+        legend_data["label"] = label
+    if fill_color:
+        legend_data["fill_color"] = fill_color
+    if stroke_color:
+        legend_data["stroke_color"] = stroke_color
     mime_dict = {
         "legend_data": legend_data,
         "display_item_specifier": display_item.project.create_specifier(display_item).write()

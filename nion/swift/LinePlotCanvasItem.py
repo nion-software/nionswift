@@ -16,6 +16,7 @@ from nion.data import Image
 from nion.swift import DisplayCanvasItem
 from nion.swift import LineGraphCanvasItem
 from nion.swift import MimeTypes
+from nion.swift.model import DisplayItem
 from nion.swift.model import Graphics
 from nion.swift.model import UISettings
 from nion.swift.model import Utility
@@ -24,28 +25,31 @@ from nion.utils import Geometry
 from nion.utils import Registry
 
 if typing.TYPE_CHECKING:
-    from nion.swift.model import DisplayItem
     from nion.swift.model import Persistence
+    from nion.swift import Undo
     from nion.ui import DrawingContext
     from nion.ui import UserInterface
 
 
-class LinePlotCanvasItemMapping:
+class LinePlotCanvasItemMapping(Graphics.CoordinateMappingLike):
 
-    def __init__(self, scale, plot_rect, left_channel, right_channel) -> None:
+    def __init__(self, scale: float, plot_rect: Geometry.IntRect, left_channel: int, right_channel: int) -> None:
         self.__scale = scale
         self.__plot_rect = plot_rect
         self.__left_channel = left_channel
         self.__right_channel = right_channel
         self.__drawn_channel_per_pixel = float(right_channel - left_channel) / plot_rect.width
+        self.data_shape: DataAndMetadata.Shape2dType = (0, 0)
+        self.calibrated_origin_widget: Geometry.FloatPoint = Geometry.FloatPoint()
+        self.calibrated_origin_image_norm: Geometry.FloatPoint = Geometry.FloatPoint()
 
-    def map_point_widget_to_channel_norm(self, pos):
+    def map_point_widget_to_channel_norm(self, pos: Geometry.FloatPoint) -> float:
         return (self.__left_channel + (pos.x - self.__plot_rect.left) * self.__drawn_channel_per_pixel) / self.__scale
 
-    def map_point_channel_norm_to_widget(self, x):
+    def map_point_channel_norm_to_widget(self, x: float) -> float:
         return (x * self.__scale - self.__left_channel) / self.__drawn_channel_per_pixel + self.__plot_rect.left
 
-    def map_point_channel_norm_to_channel(self, x):
+    def map_point_channel_norm_to_channel(self, x: float) -> float:
         return x * self.__scale
 
 
@@ -68,7 +72,8 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
     painting = PaintFunction(layout, plot)
     """
 
-    def __init__(self, ui_settings: UISettings.UISettings, delegate: typing.Optional[DisplayCanvasItem.DisplayCanvasItemDelegate], event_loop, draw_background: bool=True) -> None:
+    def __init__(self, ui_settings: UISettings.UISettings,
+                 delegate: typing.Optional[DisplayCanvasItem.DisplayCanvasItemDelegate]) -> None:
         super().__init__()
 
         self.__ui_settings = ui_settings
@@ -84,7 +89,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.___has_valid_drawn_graph_data = False
 
         self.__xdata_list: typing.List[typing.Optional[DataAndMetadata.DataAndMetadata]] = list()
-        self.__last_xdata_list: typing.List[DataAndMetadata.DataMetadata] = list()
+        self.__last_xdata_list: typing.List[typing.Optional[DataAndMetadata.DataAndMetadata]] = list()
 
         # frame rate
         self.__display_frame_rate_id: typing.Optional[str] = None
@@ -165,18 +170,21 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.__display_values_list: typing.List[typing.Optional[DisplayItem.DisplayValues]] = list()
 
         # used for tracking undo
-        self.__undo_command = None
+        self.__undo_command: typing.Optional[Undo.UndoableCommand] = None
 
         # used for dragging graphic items
         self.__graphic_drag_items: typing.List[Graphics.Graphic] = list()
         self.__graphic_drag_item: typing.Optional[Graphics.Graphic] = None
-        self.__graphic_part_data: typing.Dict[int, typing.Any] = dict()
+        self.__graphic_part_data: typing.Dict[int, Graphics.DragPartData] = dict()
         self.__graphic_drag_indexes: typing.Set[int] = set()
-        self.__last_mouse = None
+        self.__last_mouse: typing.Optional[Geometry.IntPoint] = None
         self.__mouse_in = False
         self.__tracking_selections = False
         self.__tracking_horizontal = False
         self.__tracking_vertical = False
+
+        self.__graphic_drag_start_pos: Geometry.IntPoint = Geometry.IntPoint()
+        self.__graphic_drag_changed = False
 
         self.__axes: typing.Optional[LineGraphCanvasItem.LineGraphAxes] = None
 
@@ -193,7 +201,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
         self.__graphics: typing.List[Graphics.Graphic] = list()
         self.__graphic_selection: typing.Optional[DisplayItem.GraphicSelection] = None
-        self.__pending_interval = None
+        self.__pending_interval: typing.Optional[Graphics.IntervalGraphic] = None
 
     def close(self) -> None:
         if self.__undo_command:
@@ -204,16 +212,16 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         super().close()
 
     @property
-    def line_graph_stack(self):
+    def line_graph_stack(self) -> CanvasItem.CanvasItemComposition:
         return self.__line_graph_stack
 
     @property
-    def default_aspect_ratio(self):
+    def default_aspect_ratio(self) -> float:
         return (1 + 5 ** 0.5) / 2  # golden ratio
 
     @property
-    def line_graph_canvas_item(self):
-        return self.__line_graph_stack.canvas_items[0] if self.__line_graph_stack else None
+    def line_graph_canvas_item(self) -> typing.Optional[LineGraphCanvasItem.LineGraphCanvasItem]:
+        return typing.cast(LineGraphCanvasItem.LineGraphCanvasItem, self.__line_graph_stack.canvas_items[0]) if self.__line_graph_stack else None
 
     # for testing
     @property
@@ -221,10 +229,10 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         return self.__axes
 
     @property
-    def _has_valid_drawn_graph_data(self):
+    def _has_valid_drawn_graph_data(self) -> bool:
         return self.___has_valid_drawn_graph_data
 
-    def __update_legend_origin(self):
+    def __update_legend_origin(self) -> None:
         self.__line_graph_legend_canvas_item.size_to_content()
         if self.__legend_position == "top-left":
             self.__line_graph_legend_canvas_item.visible = True
@@ -246,7 +254,9 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
     def update_display_values(self, display_values_list: typing.Sequence[typing.Optional[DisplayItem.DisplayValues]]) -> None:
         self.__display_values_list = list(display_values_list)
 
-    def update_display_properties_and_layers(self, display_calibration_info: DisplayItem.DisplayCalibrationInfo, display_properties: Persistence.PersistentDictType, display_layers: typing.Sequence[Persistence.PersistentDictType]) -> None:
+    def update_display_properties_and_layers(self, display_calibration_info: DisplayItem.DisplayCalibrationInfo,
+                                             display_properties: Persistence.PersistentDictType,
+                                             display_layers: typing.Sequence[Persistence.PersistentDictType]) -> None:
         """Update the display values. Called from display panel.
 
         This method saves the display values and data and triggers an update. It should be as fast as possible.
@@ -295,12 +305,12 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             # mark for update. prepare display will mark children for update if necesssary.
             self.update()
 
-    def __update_frame(self, metadata):
+    def __update_frame(self, metadata: DataAndMetadata.MetadataType) -> None:
         # update frame rate info
         if self.__display_frame_rate_id:
             # allow registered metadata_display components to populate a dictionary
             # the line plot canvas item will look at "frame_index"
-            d = dict()
+            d: Persistence.PersistentDictType = dict()
             for component in Registry.get_components_by_type("metadata_display"):
                 component.populate(d, metadata)
 
@@ -311,14 +321,16 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                 Utility.fps_tick("frame_"+self.__display_frame_rate_id)
                 self.__display_frame_rate_last_index = frame_index
 
-    def update(self):
+    def update(self) -> None:
         if self.__display_frame_rate_id:
             if len(self.__xdata_list) != len(self.__last_xdata_list) or not all([a is b for a, b in zip(self.__xdata_list, self.__last_xdata_list)]):
                 Utility.fps_tick("update_"+self.__display_frame_rate_id)
                 self.__last_xdata_list = copy.copy(self.__xdata_list)
         super().update()
 
-    def update_graphics_coordinate_system(self, graphics: typing.Sequence[Graphics.Graphic], graphic_selection: DisplayItem.GraphicSelection, display_calibration_info: DisplayItem.DisplayCalibrationInfo) -> None:
+    def update_graphics_coordinate_system(self, graphics: typing.Sequence[Graphics.Graphic],
+                                          graphic_selection: DisplayItem.GraphicSelection,
+                                          display_calibration_info: DisplayItem.DisplayCalibrationInfo) -> None:
         dimensional_scales = display_calibration_info.displayed_dimensional_scales
 
         self.__graphics = copy.copy(list(graphics))
@@ -331,11 +343,15 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         data_scale = dimensional_scales[-1]
         dimensional_calibration = display_calibration_info.displayed_dimensional_calibrations[-1] if len(display_calibration_info.displayed_dimensional_calibrations) > 0 else Calibration.Calibration(scale=data_scale)
 
-        def convert_to_calibrated_value_str(f):
-            return u"{0}".format(dimensional_calibration.convert_to_calibrated_value_str(f, value_range=(0, data_scale), samples=data_scale, include_units=False))
+        def convert_to_calibrated_value_str(f: float) -> str:
+            return u"{0}".format(dimensional_calibration.convert_to_calibrated_value_str(f, value_range=(0, data_scale),
+                                                                                         samples=round(data_scale),
+                                                                                         include_units=False))
 
-        def convert_to_calibrated_size_str(f):
-            return u"{0}".format(dimensional_calibration.convert_to_calibrated_size_str(f, value_range=(0, data_scale), samples=data_scale, include_units=False))
+        def convert_to_calibrated_size_str(f: float) -> str:
+            return u"{0}".format(dimensional_calibration.convert_to_calibrated_size_str(f, value_range=(0, data_scale),
+                                                                                        samples=round(data_scale),
+                                                                                        include_units=False))
 
         regions = list()
         for graphic_index, graphic in enumerate(graphics):
@@ -421,7 +437,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                 self.__view_to_selected_graphics(xdata0)
         return True
 
-    def prepare_display(self):
+    def prepare_display(self) -> None:
         """Prepare the display.
 
         This method gets called by the canvas layout/draw engine after being triggered by a call to `update`.
@@ -431,19 +447,19 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
         This method is always run on a thread and should be fast but doesn't need to be instant.
         """
-        displayed_dimensional_calibration = self.__displayed_dimensional_calibration
-        intensity_calibration = self.__intensity_calibration
-        calibration_style = self.__calibration_style
+        displayed_dimensional_calibration = self.__displayed_dimensional_calibration or Calibration.Calibration()
+        intensity_calibration = self.__intensity_calibration or Calibration.Calibration()
+        calibration_style = self.__calibration_style or DisplayItem.CalibrationStyle()
         y_min = self.__y_min
         y_max = self.__y_max
         y_style = self.__y_style
-        left_channel = self.__left_channel
-        right_channel = self.__right_channel
+        left_channel_opt = self.__left_channel
+        right_channel_opt = self.__right_channel
 
         scalar_xdata_list = None
 
-        def calculate_scalar_xdata(xdata_list):
-            scalar_xdata_list = list()
+        def calculate_scalar_xdata(xdata_list: typing.Sequence[typing.Optional[DataAndMetadata.DataAndMetadata]]) -> typing.Sequence[typing.Optional[DataAndMetadata.DataAndMetadata]]:
+            scalar_xdata_list: typing.List[typing.Optional[DataAndMetadata.DataAndMetadata]] = list()
             for xdata in xdata_list:
                 if xdata:
                     scalar_data = Image.convert_to_grayscale(numpy.array(xdata.data))  # note: ensure scalar_data is numpy.array
@@ -464,9 +480,10 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
         if data_scale is not None:
             # update the line graph data
-            left_channel = left_channel if left_channel is not None else 0
-            right_channel = right_channel if right_channel is not None else data_scale
-            left_channel, right_channel = min(left_channel, right_channel), max(left_channel, right_channel)
+            left_channel = left_channel_opt if left_channel_opt is not None else 0
+            right_channel = right_channel_opt if right_channel_opt is not None else data_scale
+            left_channel = typing.cast(int, min(left_channel, right_channel))
+            right_channel = typing.cast(int, max(left_channel, right_channel))
 
             scalar_data_list = None
             if y_min is None or y_max is None and len(xdata_list) > 0:
@@ -520,9 +537,9 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                         intensity_calibration = scalar_xdata.intensity_calibration
                         displayed_dimensional_calibration = scalar_xdata.dimensional_calibrations[-1]
                         if scalar_xdata.is_data_2d:
-                            scalar_data = scalar_xdata.data[data_row:data_row + 1, :].reshape((scalar_xdata.dimensional_shape[-1],))
+                            scalar_data = scalar_xdata.data[data_row:data_row + 1, :].reshape((scalar_xdata.dimensional_shape[-1],))  # type: ignore
                             scalar_xdata = DataAndMetadata.new_data_and_metadata(scalar_data, intensity_calibration, [displayed_dimensional_calibration])
-                    line_graph_canvas_item = self.__line_graph_stack.canvas_items[display_layer_count - (index + 1)]
+                    line_graph_canvas_item = typing.cast(LineGraphCanvasItem.LineGraphCanvasItem, self.__line_graph_stack.canvas_items[display_layer_count - (index + 1)])
                     line_graph_canvas_item.set_fill_color(fill_color)
                     line_graph_canvas_item.set_stroke_color(stroke_color)
                     line_graph_canvas_item.set_stroke_width(stroke_width)
@@ -532,7 +549,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
             # clear the remaining layers
             for index in range(len(display_layers), max_layer_count):
-                line_graph_canvas_item = self.__line_graph_stack.canvas_items[index]
+                line_graph_canvas_item = typing.cast(LineGraphCanvasItem.LineGraphCanvasItem, self.__line_graph_stack.canvas_items[index])
                 line_graph_canvas_item.set_axes(None)
                 line_graph_canvas_item.set_uncalibrated_xdata(None)
 
@@ -553,15 +570,14 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                 stroke_color = display_layer.get("stroke_color")
                 legend_entries.append(LineGraphCanvasItem.LegendEntry(label, fill_color, stroke_color))
 
-            self.__update_canvas_items(axes, legend_position, legend_entries, display_layers)
+            self.__update_canvas_items(axes, legend_entries)
         else:
-            for line_graph_canvas_item in self.__line_graph_stack.canvas_items:
+            for line_graph_canvas_item in typing.cast(typing.Sequence[LineGraphCanvasItem.LineGraphCanvasItem], self.__line_graph_stack.canvas_items):
                 line_graph_canvas_item.set_axes(None)
                 line_graph_canvas_item.set_uncalibrated_xdata(None)
-            self.__line_graph_xdata_list = list()
-            self.__update_canvas_items(LineGraphCanvasItem.LineGraphAxes(), None, list(), None)
+            self.__update_canvas_items(None, list())
 
-    def _prepare_render(self):
+    def _prepare_render(self) -> None:
         # this is called before layout and repainting. it gives this display item a chance
         # to update anything required for layout and trigger a layout before a repaint if
         # anything has changed.
@@ -601,12 +617,12 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                     drawing_context.fill_text("update:" + fps3, text_pos.x + 8, text_pos.y + 50)
                     drawing_context.fill_text("prepare:" + fps4, text_pos.x + 8, text_pos.y + 70)
 
-    def __update_canvas_items(self, axes, legend_position: typing.Optional[str], legend_entries: typing.Sequence, display_layers: typing.Optional[typing.Sequence]):
+    def __update_canvas_items(self, axes: typing.Optional[LineGraphCanvasItem.LineGraphAxes], legend_entries: typing.Sequence[LineGraphCanvasItem.LegendEntry]) -> None:
         self.__line_graph_background_canvas_item.set_axes(axes)
         self.__line_graph_regions_canvas_item.set_axes(axes)
         self.__line_graph_regions_canvas_item.set_calibrated_data(self.line_graph_canvas_item.calibrated_xdata.data if self.line_graph_canvas_item and self.line_graph_canvas_item.calibrated_xdata else None)
-        self.__line_graph_frame_canvas_item.set_draw_frame(axes.is_valid)
-        self.__line_graph_legend_canvas_item.set_legend_entries(legend_entries, display_layers)
+        self.__line_graph_frame_canvas_item.set_draw_frame(bool(axes))
+        self.__line_graph_legend_canvas_item.set_legend_entries(legend_entries)
         self.__update_legend_origin()
         self.__line_graph_vertical_axis_label_canvas_item.set_axes(axes)
         self.__line_graph_vertical_axis_scale_canvas_item.set_axes(axes, self.__ui_settings)
@@ -614,16 +630,15 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.__line_graph_horizontal_axis_label_canvas_item.set_axes(axes)
         self.__line_graph_horizontal_axis_scale_canvas_item.set_axes(axes)
         self.__line_graph_horizontal_axis_ticks_canvas_item.set_axes(axes)
-
         self.__axes = axes
 
-    def mouse_entered(self):
+    def mouse_entered(self) -> bool:
         if super().mouse_entered():
             return True
         self.__mouse_in = True
         return True
 
-    def mouse_exited(self):
+    def mouse_exited(self) -> bool:
         if super().mouse_exited():
             return True
         self.__mouse_in = False
@@ -633,35 +648,41 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             self.delegate.cursor_changed(None)
         return True
 
-    def mouse_double_clicked(self, x, y, modifiers):
+    def mouse_double_clicked(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         if super().mouse_clicked(x, y, modifiers):
             return True
-        if self.delegate.tool_mode == "pointer":
+        delegate = self.delegate
+        if delegate and delegate.tool_mode == "pointer":
             pos = Geometry.IntPoint(x=x, y=y)
-            if self.line_graph_horizontal_axis_group_canvas_item.canvas_bounds.contains_point(self.map_to_canvas_item(pos, self.line_graph_horizontal_axis_group_canvas_item)):
-                command = self.delegate.create_change_display_command()
-                self.delegate.update_display_properties({"left_channel": None, "right_channel": None})
-                self.delegate.push_undo_command(command)
+            h_axis_canvas_bounds = self.line_graph_horizontal_axis_group_canvas_item.canvas_bounds
+            v_axis_canvas_bounds = self.__line_graph_vertical_axis_group_canvas_item.canvas_bounds
+            if h_axis_canvas_bounds and h_axis_canvas_bounds.contains_point(self.map_to_canvas_item(pos, self.line_graph_horizontal_axis_group_canvas_item)):
+                command = delegate.create_change_display_command()
+                delegate.update_display_properties({"left_channel": None, "right_channel": None})
+                delegate.push_undo_command(command)
                 return True
-            elif self.__line_graph_vertical_axis_group_canvas_item.canvas_bounds.contains_point(self.map_to_canvas_item(pos, self.__line_graph_vertical_axis_group_canvas_item)):
-                command = self.delegate.create_change_display_command()
-                self.delegate.update_display_properties({"y_min": None, "y_max": None})
-                self.delegate.push_undo_command(command)
+            elif v_axis_canvas_bounds and v_axis_canvas_bounds.contains_point(self.map_to_canvas_item(pos, self.__line_graph_vertical_axis_group_canvas_item)):
+                command = delegate.create_change_display_command()
+                delegate.update_display_properties({"y_min": None, "y_max": None})
+                delegate.push_undo_command(command)
                 return True
         return False
 
-    def mouse_position_changed(self, x, y, modifiers):
+    def mouse_position_changed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         if super().mouse_position_changed(x, y, modifiers):
             return True
-        if self.delegate.tool_mode == "pointer" and not self.__graphic_drag_items:
-            if self.__axes and self.__axes.is_valid:
+        delegate = self.delegate
+        if delegate and delegate.tool_mode == "pointer" and not self.__graphic_drag_items:
+            if self.__axes:
                 pos = Geometry.IntPoint(x=x, y=y)
-                if self.line_graph_horizontal_axis_group_canvas_item.canvas_bounds.contains_point(self.map_to_canvas_item(pos, self.line_graph_horizontal_axis_group_canvas_item)):
+                h_axis_canvas_bounds = self.line_graph_horizontal_axis_group_canvas_item.canvas_bounds
+                v_axis_canvas_bounds = self.__line_graph_vertical_axis_group_canvas_item.canvas_bounds
+                if h_axis_canvas_bounds and h_axis_canvas_bounds.contains_point(self.map_to_canvas_item(pos, self.line_graph_horizontal_axis_group_canvas_item)):
                     if modifiers.control:
                         self.cursor_shape = "split_horizontal"
                     else:
                         self.cursor_shape = "hand"
-                elif self.__line_graph_vertical_axis_group_canvas_item.canvas_bounds.contains_point(self.map_to_canvas_item(pos, self.__line_graph_vertical_axis_group_canvas_item)):
+                elif v_axis_canvas_bounds and v_axis_canvas_bounds.contains_point(self.map_to_canvas_item(pos, self.__line_graph_vertical_axis_group_canvas_item)):
                     if modifiers.control:
                         self.cursor_shape = "split_vertical"
                     else:
@@ -682,7 +703,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                         self.cursor_shape = "arrow"
                 else:
                     self.cursor_shape = "arrow"
-        elif self.delegate.tool_mode == "interval":
+        elif delegate and delegate.tool_mode == "interval":
             self.cursor_shape = "cross"
         self.__last_mouse = Geometry.IntPoint(x=x, y=y)
         self.__update_cursor_info()
@@ -695,57 +716,68 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             self.begin_tracking_vertical(Geometry.IntPoint(x=x, y=y), rescale=new_rescale)
         return self.continue_tracking(Geometry.IntPoint(x=x, y=y), modifiers)
 
-    def mouse_pressed(self, x, y, modifiers):
+    def mouse_pressed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         if super().mouse_pressed(x, y, modifiers):
             return True
-        if not self.__axes or not self.__axes.is_valid:
+        if not self.__axes:
             return False
         self.__undo_command = None
         pos = Geometry.IntPoint(x=x, y=y)
-        self.delegate.begin_mouse_tracking()
-        if self.delegate.tool_mode == "pointer":
-            if self.__line_graph_regions_canvas_item.canvas_bounds.contains_point(self.map_to_canvas_item(pos, self.__line_graph_regions_canvas_item)):
-                self.begin_tracking_regions(pos, modifiers)
-                return True
-            elif self.line_graph_horizontal_axis_group_canvas_item.canvas_bounds.contains_point(self.map_to_canvas_item(pos, self.line_graph_horizontal_axis_group_canvas_item)):
-                self.begin_tracking_horizontal(pos, rescale=modifiers.control)
-                return True
-            elif self.__line_graph_vertical_axis_group_canvas_item.canvas_bounds.contains_point(self.map_to_canvas_item(pos, self.__line_graph_vertical_axis_group_canvas_item)):
-                self.begin_tracking_vertical(pos, rescale=modifiers.control)
-                return True
-        if self.delegate.tool_mode == "interval":
-            if self.__line_graph_regions_canvas_item.canvas_bounds.contains_point(self.map_to_canvas_item(pos, self.__line_graph_regions_canvas_item)):
-                widget_mapping = self.__get_mouse_mapping()
-                x = widget_mapping.map_point_widget_to_channel_norm(pos)
-                region = Graphics.IntervalGraphic()
-                region.start = x
-                region.end = x
-                self.__undo_command = self.delegate.add_and_select_region(region)
-                self.begin_tracking_regions(pos, Graphics.NullModifiers())
-                return True
+        delegate = self.delegate
+        if delegate:
+            delegate.begin_mouse_tracking()
+            regions_canvas_bounds = self.__line_graph_regions_canvas_item.canvas_bounds
+            if delegate.tool_mode == "pointer":
+                h_axis_canvas_bounds = self.line_graph_horizontal_axis_group_canvas_item.canvas_bounds
+                v_axis_canvas_bounds = self.__line_graph_vertical_axis_group_canvas_item.canvas_bounds
+                if regions_canvas_bounds and regions_canvas_bounds.contains_point(self.map_to_canvas_item(pos, self.__line_graph_regions_canvas_item)):
+                    self.begin_tracking_regions(pos, modifiers)
+                    return True
+                elif h_axis_canvas_bounds and h_axis_canvas_bounds.contains_point(self.map_to_canvas_item(pos, self.line_graph_horizontal_axis_group_canvas_item)):
+                    self.begin_tracking_horizontal(pos, rescale=modifiers.control)
+                    return True
+                elif v_axis_canvas_bounds and v_axis_canvas_bounds.contains_point(self.map_to_canvas_item(pos, self.__line_graph_vertical_axis_group_canvas_item)):
+                    self.begin_tracking_vertical(pos, rescale=modifiers.control)
+                    return True
+            if delegate.tool_mode == "interval":
+                if regions_canvas_bounds and regions_canvas_bounds.contains_point(self.map_to_canvas_item(pos, self.__line_graph_regions_canvas_item)):
+                    widget_mapping = self.__get_mouse_mapping()
+                    channel_norm = widget_mapping.map_point_widget_to_channel_norm(pos.to_float_point())
+                    region = Graphics.IntervalGraphic()
+                    region.start = channel_norm
+                    region.end = channel_norm
+                    self.__undo_command = delegate.add_and_select_region(region)
+                    self.begin_tracking_regions(pos, Graphics.NullModifiers())
+                    return True
         return False
 
-    def mouse_released(self, x, y, modifiers):
+    def mouse_released(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         if super().mouse_released(x, y, modifiers):
             return True
-        if not self.__axes or not self.__axes.is_valid:
+        if not self.__axes:
             return False
         self.end_tracking(modifiers)
-        self.delegate.end_mouse_tracking(self.__undo_command)
+        delegate = self.delegate
+        if delegate:
+            delegate.end_mouse_tracking(self.__undo_command)
         self.__undo_command = None
         return False
 
-    def _mouse_dragged(self, start: float, end: float, modifiers=None) -> None:
+    def _mouse_dragged(self, start: float, end: float, modifiers: typing.Optional[UserInterface.KeyboardModifiers] = None) -> None:
         # for testing
-        plot_origin = self.line_graph_canvas_item.map_to_canvas_item(Geometry.IntPoint(), self)
-        plot_left = self.line_graph_canvas_item.canvas_rect.left + plot_origin.x
-        plot_width = self.line_graph_canvas_item.canvas_rect.width
-        modifiers = modifiers if modifiers else CanvasItem.KeyboardModifiers()
-        self.mouse_pressed(plot_left + plot_width * start, 100, modifiers)
-        self.mouse_position_changed(plot_left + plot_width * start, 100, modifiers)
-        self.mouse_position_changed(plot_left + plot_width * (start + end) / 2, 100, modifiers)
-        self.mouse_position_changed(plot_left + plot_width * end, 100, modifiers)
-        self.mouse_released(plot_left + plot_width * end, 100, modifiers)
+        line_graph_canvas_item = self.line_graph_canvas_item
+        if line_graph_canvas_item:
+            canvas_rect = line_graph_canvas_item.canvas_rect
+            if canvas_rect:
+                plot_origin = line_graph_canvas_item.map_to_canvas_item(Geometry.IntPoint(), self)
+                plot_left = canvas_rect.left + plot_origin.x
+                plot_width = canvas_rect.width
+                modifiers = modifiers if modifiers else CanvasItem.KeyboardModifiers()
+                self.mouse_pressed(plot_left + round(plot_width * start), 100, modifiers)
+                self.mouse_position_changed(plot_left + round(plot_width * start), 100, modifiers)
+                self.mouse_position_changed(plot_left + round(plot_width * (start + end) / 2), 100, modifiers)
+                self.mouse_position_changed(plot_left + round(plot_width * end), 100, modifiers)
+                self.mouse_released(plot_left + round(plot_width * end), 100, modifiers)
 
     def context_menu_event(self, x: int, y: int, gx: int, gy: int) -> bool:
         assert self.delegate
@@ -784,23 +816,26 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             self.mouse_position_changed(last_mouse.x, last_mouse.y, key.modifiers)
         return True
 
-    def __get_mouse_mapping(self):
+    def __get_mouse_mapping(self) -> LinePlotCanvasItemMapping:
         data_scale = self.__data_scale
         plot_origin = self.__line_graph_regions_canvas_item.map_to_canvas_item(Geometry.IntPoint(), self)
-        plot_rect = self.__line_graph_regions_canvas_item.canvas_bounds.translated(plot_origin)
-        left_channel = self.__axes.drawn_left_channel
-        right_channel = self.__axes.drawn_right_channel
+        canvas_bounds = self.__line_graph_regions_canvas_item.canvas_bounds
+        assert canvas_bounds
+        assert data_scale is not None
+        plot_rect = canvas_bounds.translated(plot_origin)
+        left_channel = self.__axes.drawn_left_channel if self.__axes else 0
+        right_channel = self.__axes.drawn_right_channel if self.__axes else 0
         return LinePlotCanvasItemMapping(data_scale, plot_rect, left_channel, right_channel)
 
     @property
-    def mouse_mapping(self):
+    def mouse_mapping(self) -> LinePlotCanvasItemMapping:
         return self.__get_mouse_mapping()
 
-    def begin_tracking_regions(self, pos, modifiers):
+    def begin_tracking_regions(self, pos: Geometry.IntPoint, modifiers: Graphics.ModifiersLike) -> None:
         # keep track of general drag information
-        self.__graphic_drag_start_pos = Geometry.IntPoint.make(pos)
+        self.__graphic_drag_start_pos = pos
         self.__graphic_drag_changed = False
-        if self.__axes and self.__axes.is_valid:
+        if self.__axes and self.__graphic_selection:
             self.__tracking_selections = True
             graphics = self.__graphics
             selection_indexes = self.__graphic_selection.indexes
@@ -814,12 +849,13 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                     if part:
                         # select item and prepare for drag
                         self.graphic_drag_item_was_selected = already_selected
-                        if not self.graphic_drag_item_was_selected:
+                        delegate = self.delegate
+                        if delegate and not self.graphic_drag_item_was_selected:
                             if modifiers.control:
-                                self.delegate.add_index_to_selection(graphic_index)
+                                delegate.add_index_to_selection(graphic_index)
                                 selection_indexes.add(graphic_index)
                             else:
-                                self.delegate.set_selection(graphic_index)
+                                delegate.set_selection(graphic_index)
                                 selection_indexes.clear()
                                 selection_indexes.add(graphic_index)
                         # keep track of info for the specific item that was clicked
@@ -833,46 +869,55 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                             self.__graphic_part_data[index] = graphic.begin_drag()
                         break
 
-    def begin_tracking_horizontal(self, pos, rescale):
+    def begin_tracking_horizontal(self, pos: Geometry.IntPoint, rescale: bool) -> None:
         plot_origin = self.line_graph_horizontal_axis_group_canvas_item.map_to_canvas_item(Geometry.IntPoint(), self)
-        plot_rect = self.line_graph_horizontal_axis_group_canvas_item.canvas_bounds.translated(plot_origin)
-        self.__tracking_horizontal = True
-        self.__tracking_rescale = rescale
-        self.__tracking_start_pos = pos
-        self.__tracking_start_left_channel = self.__axes.drawn_left_channel
-        self.__tracking_start_right_channel = self.__axes.drawn_right_channel
-        self.__tracking_start_drawn_channel_per_pixel = float(self.__tracking_start_right_channel - self.__tracking_start_left_channel) / plot_rect.width
-        self.__tracking_start_origin_pixel = self.__tracking_start_pos.x - plot_rect.left
-        self.__tracking_start_channel = self.__tracking_start_left_channel + self.__tracking_start_origin_pixel * self.__tracking_start_drawn_channel_per_pixel
+        canvas_bounds = self.line_graph_horizontal_axis_group_canvas_item.canvas_bounds
+        if canvas_bounds and self.__axes:
+            plot_rect = canvas_bounds.translated(plot_origin)
+            self.__tracking_horizontal = True
+            self.__tracking_rescale = rescale
+            self.__tracking_start_pos = pos
+            self.__tracking_start_left_channel = self.__axes.drawn_left_channel
+            self.__tracking_start_right_channel = self.__axes.drawn_right_channel
+            self.__tracking_start_drawn_channel_per_pixel = float(self.__tracking_start_right_channel - self.__tracking_start_left_channel) / plot_rect.width
+            self.__tracking_start_origin_pixel = self.__tracking_start_pos.x - plot_rect.left
+            self.__tracking_start_channel = self.__tracking_start_left_channel + self.__tracking_start_origin_pixel * self.__tracking_start_drawn_channel_per_pixel
 
-    def begin_tracking_vertical(self, pos, rescale):
-        plot_height = self.__line_graph_area_stack.canvas_bounds.height - 1
-        self.__tracking_vertical = True
-        self.__tracking_rescale = rescale
-        self.__tracking_start_pos = pos
-        self.__tracking_start_calibrated_data_min = self.__axes.calibrated_data_min
-        self.__tracking_start_calibrated_data_max = self.__axes.calibrated_data_max
-        self.__tracking_start_calibrated_data_per_pixel = (self.__tracking_start_calibrated_data_max - self.__tracking_start_calibrated_data_min) / plot_height
-        plot_origin = self.__line_graph_vertical_axis_group_canvas_item.map_to_canvas_item(Geometry.IntPoint(), self)
-        plot_rect = self.__line_graph_vertical_axis_group_canvas_item.canvas_bounds.translated(plot_origin)
-        if 0.0 >= self.__tracking_start_calibrated_data_min and 0.0 <= self.__tracking_start_calibrated_data_max and not self.__axes.data_style == "log":
-            calibrated_unit_per_pixel = (self.__tracking_start_calibrated_data_max - self.__tracking_start_calibrated_data_min) / (plot_rect.height - 1) if plot_rect.height > 1 else 1.0
-            calibrated_unit_per_pixel = calibrated_unit_per_pixel if calibrated_unit_per_pixel else 1.0  # handle case where calibrated_unit_per_pixel is zero
-            origin_offset_pixels = (0.0 - self.__tracking_start_calibrated_data_min) / calibrated_unit_per_pixel
-            calibrated_origin = self.__tracking_start_calibrated_data_min + origin_offset_pixels * self.__tracking_start_calibrated_data_per_pixel
-            self.__tracking_start_origin_y = origin_offset_pixels
-            self.__tracking_start_calibrated_origin = calibrated_origin
-        else:
-            self.__tracking_start_origin_y = 0  # the distance the origin is up from the bottom
-            self.__tracking_start_calibrated_origin = self.__tracking_start_calibrated_data_min
+    def begin_tracking_vertical(self, pos: Geometry.IntPoint, rescale: bool) -> None:
+        graph_area_canvas_bounds = self.__line_graph_area_stack.canvas_bounds
+        v_axis_canvas_bounds = self.__line_graph_vertical_axis_group_canvas_item.canvas_bounds
+        if graph_area_canvas_bounds and v_axis_canvas_bounds and self.__axes:
+            plot_height = graph_area_canvas_bounds.height - 1
+            self.__tracking_vertical = True
+            self.__tracking_rescale = rescale
+            self.__tracking_start_pos = pos
+            self.__tracking_start_calibrated_data_min = self.__axes.calibrated_data_min
+            self.__tracking_start_calibrated_data_max = self.__axes.calibrated_data_max
+            self.__tracking_start_calibrated_data_per_pixel = (self.__tracking_start_calibrated_data_max - self.__tracking_start_calibrated_data_min) / plot_height
+            plot_origin = self.__line_graph_vertical_axis_group_canvas_item.map_to_canvas_item(Geometry.IntPoint(), self)
+            plot_rect = v_axis_canvas_bounds.translated(plot_origin)
+            if 0.0 >= self.__tracking_start_calibrated_data_min and 0.0 <= self.__tracking_start_calibrated_data_max and not self.__axes.data_style == "log":
+                calibrated_unit_per_pixel = (self.__tracking_start_calibrated_data_max - self.__tracking_start_calibrated_data_min) / (plot_rect.height - 1) if plot_rect.height > 1 else 1.0
+                calibrated_unit_per_pixel = calibrated_unit_per_pixel if calibrated_unit_per_pixel else 1.0  # handle case where calibrated_unit_per_pixel is zero
+                origin_offset_pixels = (0.0 - self.__tracking_start_calibrated_data_min) / calibrated_unit_per_pixel
+                calibrated_origin = self.__tracking_start_calibrated_data_min + origin_offset_pixels * self.__tracking_start_calibrated_data_per_pixel
+                self.__tracking_start_origin_y = origin_offset_pixels
+                self.__tracking_start_calibrated_origin = calibrated_origin
+            else:
+                self.__tracking_start_origin_y = 0  # the distance the origin is up from the bottom
+                self.__tracking_start_calibrated_origin = self.__tracking_start_calibrated_data_min
 
-    def continue_tracking(self, pos, modifiers):
+    def continue_tracking(self, pos: Geometry.IntPoint, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        delegate = self.delegate
+        if not delegate:
+            return False
         if self.__tracking_selections:
-            if self.__graphic_drag_item is None and not self.__graphic_drag_changed:
+            if self.__graphic_drag_item is None and not self.__graphic_drag_changed and self.__graphic_selection:
                 widget_mapping = self.__get_mouse_mapping()
-                x = widget_mapping.map_point_widget_to_channel_norm(self.__graphic_drag_start_pos)
+                x = widget_mapping.map_point_widget_to_channel_norm(self.__graphic_drag_start_pos.to_float_point())
                 if not self.__pending_interval:
-                    region = Graphics.IntervalGraphic()
+                    region: typing.Optional[Graphics.IntervalGraphic] = Graphics.IntervalGraphic()
+                    assert region
                     region.start = x
                     region.end = x
                     self.__pending_interval = region
@@ -880,8 +925,8 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                 elif abs(widget_mapping.map_point_channel_norm_to_widget(self.__pending_interval.start) - pos.x) > self.__ui_settings.cursor_tolerance:
                     region = self.__pending_interval
                     self.__pending_interval = None
-                    region.end = widget_mapping.map_point_widget_to_channel_norm(pos)
-                    self.__undo_command = self.delegate.add_and_select_region(region)
+                    region.end = widget_mapping.map_point_widget_to_channel_norm(pos.to_float_point())
+                    self.__undo_command = delegate.add_and_select_region(region)
                 else:
                     region = None
                 selection_indexes = self.__graphic_selection.indexes
@@ -890,7 +935,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                         part, specific = graphic.test(widget_mapping, self.__ui_settings, pos.to_float_point(), False)
                         if part:
                             self.graphic_drag_item_was_selected = False
-                            self.delegate.set_selection(graphic_index)
+                            delegate.set_selection(graphic_index)
                             selection_indexes.clear()
                             selection_indexes.add(graphic_index)
                             self.__graphic_drag_item = graphic
@@ -900,68 +945,75 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                             self.__graphic_part_data[graphic_index] = graphic.begin_drag()
             else:
                 if not self.__undo_command:
-                    self.__undo_command = self.delegate.create_change_graphics_command()
+                    self.__undo_command = delegate.create_change_graphics_command()
             # x,y already have transform applied
             self.__last_mouse = copy.copy(pos)
             self.__update_cursor_info()
             if self.__graphic_drag_items:
                 widget_mapping = self.__get_mouse_mapping()
-                self.delegate.adjust_graphics(widget_mapping, self.__graphic_drag_items, self.__graphic_drag_part,
-                                              self.__graphic_part_data, self.__graphic_drag_start_pos.to_float_point(), pos.to_float_point(), modifiers)
+                delegate.adjust_graphics(widget_mapping, self.__graphic_drag_items, self.__graphic_drag_part,
+                                         self.__graphic_part_data, self.__graphic_drag_start_pos.to_float_point(), pos.to_float_point(), modifiers)
                 self.__graphic_drag_changed = True
                 self.__line_graph_regions_canvas_item.update()
         elif self.__tracking_horizontal:
             if not self.__undo_command:
-                self.__undo_command = self.delegate.create_change_display_command()
-            if self.__tracking_rescale:
+                self.__undo_command = delegate.create_change_display_command()
+            h_axis_canvas_bounds = self.line_graph_horizontal_axis_group_canvas_item.canvas_bounds
+            if h_axis_canvas_bounds and self.__tracking_rescale:
                 plot_origin = self.line_graph_horizontal_axis_group_canvas_item.map_to_canvas_item(Geometry.IntPoint(), self)
-                plot_rect = self.line_graph_horizontal_axis_group_canvas_item.canvas_bounds.translated(plot_origin)
+                plot_rect = h_axis_canvas_bounds.translated(plot_origin)
                 pixel_offset_x = pos.x - self.__tracking_start_pos.x
                 scaling = math.pow(10, pixel_offset_x/96.0)  # 10x per inch of travel, assume 96dpi
                 new_drawn_channel_per_pixel = self.__tracking_start_drawn_channel_per_pixel / scaling
                 left_channel = int(round(self.__tracking_start_channel - new_drawn_channel_per_pixel * self.__tracking_start_origin_pixel))
                 right_channel = int(round(self.__tracking_start_channel + new_drawn_channel_per_pixel * (plot_rect.width - self.__tracking_start_origin_pixel)))
-                self.delegate.update_display_properties({"left_channel": left_channel, "right_channel": right_channel})
+                delegate.update_display_properties({"left_channel": left_channel, "right_channel": right_channel})
                 return True
             else:
                 delta = pos - self.__tracking_start_pos
                 left_channel = int(self.__tracking_start_left_channel - self.__tracking_start_drawn_channel_per_pixel * delta.x)
                 right_channel = int(self.__tracking_start_right_channel - self.__tracking_start_drawn_channel_per_pixel * delta.x)
-                self.delegate.update_display_properties({"left_channel": left_channel, "right_channel": right_channel})
+                delegate.update_display_properties({"left_channel": left_channel, "right_channel": right_channel})
                 return True
         elif self.__tracking_vertical:
             if not self.__undo_command:
-                self.__undo_command = self.delegate.create_change_display_command()
-            if self.__tracking_rescale:
-                plot_origin = self.__line_graph_vertical_axis_group_canvas_item.map_to_canvas_item(Geometry.IntPoint(), self)
-                plot_rect = self.__line_graph_vertical_axis_group_canvas_item.canvas_bounds.translated(plot_origin)
-                origin_y = plot_rect.bottom - 1 - self.__tracking_start_origin_y  # pixel position of y-origin
-                calibrated_offset = self.__tracking_start_calibrated_data_per_pixel * (origin_y - self.__tracking_start_pos.y)
-                pixel_offset = origin_y - pos.y
-                pixel_offset = max(pixel_offset, 1) if origin_y > self.__tracking_start_pos.y else min(pixel_offset, -1)
-                new_calibrated_data_per_pixel = calibrated_offset / pixel_offset
-                calibrated_data_min = self.__tracking_start_calibrated_origin - new_calibrated_data_per_pixel * self.__tracking_start_origin_y
-                calibrated_data_max = self.__tracking_start_calibrated_origin + new_calibrated_data_per_pixel * (plot_rect.height - 1 - self.__tracking_start_origin_y)
-                uncalibrated_data_min = self.__axes.uncalibrate_y(calibrated_data_min)
-                uncalibrated_data_max = self.__axes.uncalibrate_y(calibrated_data_max)
-                self.delegate.update_display_properties({"y_min": uncalibrated_data_min, "y_max": uncalibrated_data_max})
-                return True
-            else:
-                delta = pos - self.__tracking_start_pos
-                calibrated_data_min = self.__tracking_start_calibrated_data_min + self.__tracking_start_calibrated_data_per_pixel * delta.y
-                calibrated_data_max = self.__tracking_start_calibrated_data_max + self.__tracking_start_calibrated_data_per_pixel * delta.y
-                uncalibrated_data_min = self.__axes.uncalibrate_y(calibrated_data_min)
-                uncalibrated_data_max = self.__axes.uncalibrate_y(calibrated_data_max)
-                self.delegate.update_display_properties({"y_min": uncalibrated_data_min, "y_max": uncalibrated_data_max})
-                return True
+                self.__undo_command = delegate.create_change_display_command()
+            v_axis_canvas_bounds = self.__line_graph_vertical_axis_group_canvas_item.canvas_bounds
+            axes = self.__axes
+            if axes:
+                if v_axis_canvas_bounds and self.__tracking_rescale:
+                    plot_origin = self.__line_graph_vertical_axis_group_canvas_item.map_to_canvas_item(Geometry.IntPoint(), self)
+                    plot_rect = v_axis_canvas_bounds.translated(plot_origin)
+                    origin_y = plot_rect.bottom - 1 - self.__tracking_start_origin_y  # pixel position of y-origin
+                    calibrated_offset = self.__tracking_start_calibrated_data_per_pixel * (origin_y - self.__tracking_start_pos.y)
+                    pixel_offset = origin_y - pos.y
+                    pixel_offset = max(pixel_offset, 1) if origin_y > self.__tracking_start_pos.y else min(pixel_offset, -1)
+                    new_calibrated_data_per_pixel = calibrated_offset / pixel_offset
+                    calibrated_data_min = self.__tracking_start_calibrated_origin - new_calibrated_data_per_pixel * self.__tracking_start_origin_y
+                    calibrated_data_max = self.__tracking_start_calibrated_origin + new_calibrated_data_per_pixel * (plot_rect.height - 1 - self.__tracking_start_origin_y)
+                    uncalibrated_data_min = axes.uncalibrate_y(calibrated_data_min)
+                    uncalibrated_data_max = axes.uncalibrate_y(calibrated_data_max)
+                    delegate.update_display_properties({"y_min": uncalibrated_data_min, "y_max": uncalibrated_data_max})
+                    return True
+                else:
+                    delta = pos - self.__tracking_start_pos
+                    calibrated_data_min = self.__tracking_start_calibrated_data_min + self.__tracking_start_calibrated_data_per_pixel * delta.y
+                    calibrated_data_max = self.__tracking_start_calibrated_data_max + self.__tracking_start_calibrated_data_per_pixel * delta.y
+                    uncalibrated_data_min = axes.uncalibrate_y(calibrated_data_min)
+                    uncalibrated_data_max = axes.uncalibrate_y(calibrated_data_max)
+                    delegate.update_display_properties({"y_min": uncalibrated_data_min, "y_max": uncalibrated_data_max})
+                    return True
         return False
 
-    def end_tracking(self, modifiers):
+    def end_tracking(self, modifiers: UserInterface.KeyboardModifiers) -> None:
+        delegate = self.delegate
+        if not delegate:
+            return
         if not self.__graphic_drag_items and not modifiers.control:
-            self.delegate.clear_selection()
-        if self.__tracking_selections:
-            if self.__axes and self.__axes.is_valid:
-                graphics = self.__graphics
+            delegate.clear_selection()
+        if self.__tracking_selections and self.__graphic_drag_item:
+            graphics = self.__graphics
+            if self.__axes and graphics is not None:
                 for index in self.__graphic_drag_indexes:
                     graphic = graphics[index]
                     graphic.end_drag(self.__graphic_part_data[index])
@@ -970,26 +1022,26 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                     # user didn't move graphic
                     if not modifiers.control:
                         # user clicked on a single graphic
-                        self.delegate.set_selection(graphic_index)
+                        delegate.set_selection(graphic_index)
                     else:
                         # user control clicked. toggle selection
                         # if control is down and item is already selected, toggle selection of item
                         if self.graphic_drag_item_was_selected:
-                            self.delegate.remove_index_from_selection(graphic_index)
+                            delegate.remove_index_from_selection(graphic_index)
                         else:
-                            self.delegate.add_index_to_selection(graphic_index)
-            self.__graphic_drag_items = []
+                            delegate.add_index_to_selection(graphic_index)
+            self.__graphic_drag_items = list()
             self.__graphic_drag_item = None
-            self.__graphic_part_data = {}
-            self.__graphic_drag_indexes = []
-        self.delegate.tool_mode = "pointer"
+            self.__graphic_part_data = dict()
+            self.__graphic_drag_indexes = set()
+        delegate.tool_mode = "pointer"
         self.__tracking_horizontal = False
         self.__tracking_vertical = False
         self.__tracking_selections = False
         self.__pending_interval = None
         self.prepare_display()
 
-    def __update_cursor_info(self):
+    def __update_cursor_info(self) -> None:
         """ Map the mouse to the 1-d position within the line graph. """
 
         if not self.delegate:  # allow display to work without delegate
@@ -999,13 +1051,13 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             pos_1d = None
             axes = self.__axes
             line_graph_canvas_item = self.line_graph_canvas_item
-            if axes and axes.is_valid and line_graph_canvas_item:
+            if axes and line_graph_canvas_item:
                 mouse = self.map_to_canvas_item(self.__last_mouse, line_graph_canvas_item)
-                plot_rect = line_graph_canvas_item.canvas_bounds
-                if plot_rect.contains_point(mouse):
-                    mouse = mouse - plot_rect.origin
-                    x = float(mouse.x) / plot_rect.width
-                    px = axes.drawn_left_channel + x * (axes.drawn_right_channel - axes.drawn_left_channel)
+                canvas_bounds = line_graph_canvas_item.canvas_bounds
+                if canvas_bounds and canvas_bounds.contains_point(mouse):
+                    mouse = mouse - canvas_bounds.origin
+                    x = float(mouse.x) / canvas_bounds.width
+                    px = axes.drawn_left_channel + round(x * (axes.drawn_right_channel - axes.drawn_left_channel))
                     pos_1d = px,
             self.delegate.cursor_changed(pos_1d)
 
@@ -1017,7 +1069,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         else:
             return None
 
-    def wants_drag_event(self, mime_data, x, y) -> bool:
+    def wants_drag_event(self, mime_data: UserInterface.MimeData, x: int, y: int) -> bool:
         return mime_data.has_format(MimeTypes.LAYER_MIME_TYPE)
 
     def drop(self, mime_data: UserInterface.MimeData, x: int, y: int) -> str:

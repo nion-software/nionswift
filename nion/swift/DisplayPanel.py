@@ -403,7 +403,7 @@ def create_display_canvas_item(display_item: DisplayItem.DisplayItem, ui_setting
                                draw_background: bool = True) -> DisplayCanvasItem.DisplayCanvasItem:
     display_type = display_item.used_display_type
     if display_type == "line_plot":
-        return LinePlotCanvasItem.LinePlotCanvasItem(ui_settings, delegate, event_loop, draw_background)
+        return LinePlotCanvasItem.LinePlotCanvasItem(ui_settings, delegate)
     elif display_type == "image":
         return ImageCanvasItem.ImageCanvasItem(ui_settings, delegate, event_loop, draw_background)
     elif display_type == "display_script":
@@ -2405,7 +2405,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
                     graphic.nudge(mapping, delta)
                 self.__document_controller.push_undo_command(command)
 
-    def adjust_graphics(self, widget_mapping: Graphics.CoordinateMappingLike, graphic_drag_items: typing.Sequence[Graphics.Graphic], graphic_drag_part: str, graphic_part_data: Graphics.DragPartData, graphic_drag_start_pos: Geometry.FloatPoint, pos: Geometry.FloatPoint, modifiers: UserInterface.KeyboardModifiers) -> None:
+    def adjust_graphics(self, widget_mapping: Graphics.CoordinateMappingLike, graphic_drag_items: typing.Sequence[Graphics.Graphic], graphic_drag_part: str, graphic_part_data: typing.Dict[int, Graphics.DragPartData], graphic_drag_start_pos: Geometry.FloatPoint, pos: Geometry.FloatPoint, modifiers: UserInterface.KeyboardModifiers) -> None:
         if self.__display_item:
             with self.__display_item.display_item_changes():
                 for graphic in graphic_drag_items:
@@ -2459,7 +2459,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
     def get_document_model(self) -> DocumentModel.DocumentModel:
         return self.document_controller.document_model
 
-    def end_mouse_tracking(self, undo_command: Undo.UndoableCommand) -> None:
+    def end_mouse_tracking(self, undo_command: typing.Optional[Undo.UndoableCommand]) -> None:
         self.__mouse_tracking_transaction.close()
         self.__mouse_tracking_transaction = typing.cast(typing.Any, None)
         if undo_command:

@@ -52,6 +52,9 @@ class DrawingContextLike(typing.Protocol):
 
 
 class CoordinateMappingLike(typing.Protocol):
+    # norm is 0 -> 1; float
+    # image is pixels; float
+    # widget is UI coordinates; float (not int)
     data_shape: DataAndMetadata.Shape2dType
     calibrated_origin_widget: Geometry.FloatPoint
     calibrated_origin_image_norm: Geometry.FloatPoint
