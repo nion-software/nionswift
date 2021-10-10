@@ -2607,7 +2607,8 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         element_data_and_metadata = display_values.element_data_and_metadata
         assert element_data_and_metadata
         data_shape = element_data_and_metadata.datum_dimension_shape
-        mapping = ImageCanvasItem.ImageCanvasItemMapping(data_shape, None, element_data_and_metadata.datum_dimensional_calibrations)
+        mapping = ImageCanvasItem.ImageCanvasItemMapping.make(data_shape, Geometry.IntRect.unit_rect(), element_data_and_metadata.datum_dimensional_calibrations)
+        assert mapping
         calibrated_origin_image_norm = mapping.calibrated_origin_image_norm
         assert calibrated_origin_image_norm
         bounds = Geometry.FloatRect.from_center_and_size(pos - calibrated_origin_image_norm, Geometry.FloatSize())
@@ -2646,7 +2647,8 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         element_data_and_metadata = display_values.element_data_and_metadata
         assert element_data_and_metadata
         data_shape = element_data_and_metadata.datum_dimension_shape
-        mapping = ImageCanvasItem.ImageCanvasItemMapping(data_shape, None, element_data_and_metadata.datum_dimensional_calibrations)
+        mapping = ImageCanvasItem.ImageCanvasItemMapping.make(data_shape, Geometry.IntRect.unit_rect(), element_data_and_metadata.datum_dimensional_calibrations)
+        assert mapping
         self.__display_item.graphic_selection.clear()
         region = Graphics.LatticeGraphic()
         calibrated_origin_image_norm = mapping.calibrated_origin_image_norm

@@ -112,7 +112,7 @@ class DocumentController(Window.Window):
 
     def __init__(self, ui: UserInterface.UserInterface, document_model: DocumentModel.DocumentModel,
                  workspace_id: typing.Optional[str] = None, app: typing.Optional[Application.Application] = None,
-                 project_reference: typing.Optional[Profile.ProjectReference] = None):
+                 project_reference: typing.Optional[Profile.ProjectReference] = None) -> None:
         super().__init__(ui, app)
         self.__project_reference = project_reference
         self.__class__.count += 1
@@ -963,7 +963,7 @@ class DocumentController(Window.Window):
         return DocumentController.InsertDataGroupDisplayItemsCommand(self.document_model, data_group, before_index, display_items)
 
     class InsertDataGroupDataItemsCommand(Undo.UndoableCommand):
-        def __init__(self, document_controller: DocumentController, data_group: DataGroup.DataGroup, data_items: typing.Sequence[DataItem.DataItem], index: int):
+        def __init__(self, document_controller: DocumentController, data_group: DataGroup.DataGroup, data_items: typing.Sequence[DataItem.DataItem], index: int) -> None:
             super().__init__("Insert Data Items")
             self.__document_controller = document_controller
             self.__data_group_proxy = data_group.create_proxy()
@@ -1045,7 +1045,7 @@ class DocumentController(Window.Window):
                     data_group.insert_display_item(index, display_item)
 
     class RemoveDataGroupDisplayItemsCommand(Undo.UndoableCommand):
-        def __init__(self, document_model: DocumentModel.DocumentModel, data_group: DataGroup.DataGroup, display_items: typing.Sequence[DisplayItem.DisplayItem]):
+        def __init__(self, document_model: DocumentModel.DocumentModel, data_group: DataGroup.DataGroup, display_items: typing.Sequence[DisplayItem.DisplayItem]) -> None:
             super().__init__("Remove Data Item")
             self.__document_model = document_model
             self.__data_group_proxy = data_group.create_proxy()
@@ -1096,7 +1096,7 @@ class DocumentController(Window.Window):
             self.perform()
 
     class RenameDataGroupCommand(Undo.UndoableCommand):
-        def __init__(self, document_model: DocumentModel.DocumentModel, data_group: DataGroup.DataGroup, title: str):
+        def __init__(self, document_model: DocumentModel.DocumentModel, data_group: DataGroup.DataGroup, title: str) -> None:
             super().__init__("Rename Data Group")
             self.__document_model = document_model
             self.__data_group_proxy = data_group.create_proxy()
@@ -1141,7 +1141,7 @@ class DocumentController(Window.Window):
         return DocumentController.RenameDataGroupCommand(self.document_model, data_group, title)
 
     class InsertDataGroupCommand(Undo.UndoableCommand):
-        def __init__(self, document_model: DocumentModel.DocumentModel, container: typing.Union[DataGroup.DataGroup, Project.Project], before_index: int, data_group: DataGroup.DataGroup):
+        def __init__(self, document_model: DocumentModel.DocumentModel, container: typing.Union[DataGroup.DataGroup, Project.Project], before_index: int, data_group: DataGroup.DataGroup) -> None:
             super().__init__("Insert Data Group")
             self.__document_model = document_model
             self.__container_proxy = container.create_proxy()
@@ -1196,7 +1196,7 @@ class DocumentController(Window.Window):
             self.perform()
 
     class RemoveDataGroupCommand(Undo.UndoableCommand):
-        def __init__(self, document_model: DocumentModel.DocumentModel, container: typing.Union[DataGroup.DataGroup, Project.Project], data_group: DataGroup.DataGroup):
+        def __init__(self, document_model: DocumentModel.DocumentModel, container: typing.Union[DataGroup.DataGroup, Project.Project], data_group: DataGroup.DataGroup) -> None:
             super().__init__("Remove Data Group")
             self.__document_model = document_model
             self.__container_proxy = container.create_proxy()
@@ -1841,7 +1841,7 @@ class DocumentController(Window.Window):
 
     class InsertDataItemCommand(Undo.UndoableCommand):
 
-        def __init__(self, document_controller: DocumentController, data_item_fn: typing.Callable[[], typing.Optional[DataItem.DataItem]]):
+        def __init__(self, document_controller: DocumentController, data_item_fn: typing.Callable[[], typing.Optional[DataItem.DataItem]]) -> None:
             super().__init__(_("Insert Data Item"))
             self.__document_controller = document_controller
             workspace_controller = self.__document_controller.workspace_controller
@@ -2444,7 +2444,7 @@ class DocumentController(Window.Window):
                      display_items: typing.Sequence[DisplayItem.DisplayItem],
                      crop_graphic: typing.Optional[Graphics.Graphic],
                      data_item: typing.Optional[DataItem.DataItem],
-                     data_items: typing.Sequence[DataItem.DataItem]):
+                     data_items: typing.Sequence[DataItem.DataItem]) -> None:
             super().__init__(application, window, focus_widget)
             self.display_panel = display_panel
             self.display_panels = display_panels
@@ -2767,7 +2767,7 @@ Window.register_action(ToggleFilterAction())
 
 
 class SetToolModeAction(Window.Action):
-    def __init__(self, tool_mode: str, tool_name: str, tool_icon_filename: str, tool_tip: str):
+    def __init__(self, tool_mode: str, tool_name: str, tool_icon_filename: str, tool_tip: str) -> None:
         super().__init__()
         tool_mode_id = tool_mode.replace("_", "-")
         self.action_id = f"window.set_tool_mode.{tool_mode_id}"
@@ -3558,7 +3558,7 @@ class RasterDisplayAutoDisplayAction(Window.Action):
 
 
 class RasterDisplayMoveAction(Window.Action):
-    def __init__(self, action_id: str, action_name: str, delta: Geometry.FloatPoint):
+    def __init__(self, action_id: str, action_name: str, delta: Geometry.FloatSize) -> None:
         super().__init__()
         self.action_id = action_id
         self.action_name = action_name
@@ -3633,14 +3633,14 @@ Window.register_action(RasterDisplayMoveGraphicsAction("raster_display.move_grap
 Window.register_action(RasterDisplayMoveGraphicsAction("raster_display.move_graphics_right", _("Move Graphics Right"), Geometry.FloatPoint(x=10, y=0)))
 Window.register_action(RasterDisplayMoveGraphicsAction("raster_display.move_graphics_up", _("Move Graphics Up"), Geometry.FloatPoint(x=0, y=-10)))
 Window.register_action(RasterDisplayMoveGraphicsAction("raster_display.move_graphics_down", _("Move Graphics Down"), Geometry.FloatPoint(x=0, y=10)))
-Window.register_action(RasterDisplayMoveAction("raster_display.nudge_left", _("Nudge Display Left"), Geometry.FloatPoint(x=10, y=0)))
-Window.register_action(RasterDisplayMoveAction("raster_display.nudge_right", _("Nudge Display Right"), Geometry.FloatPoint(x=-10, y=0)))
-Window.register_action(RasterDisplayMoveAction("raster_display.nudge_up", _("Nudge Display Up"), Geometry.FloatPoint(x=0, y=10)))
-Window.register_action(RasterDisplayMoveAction("raster_display.nudge_down", _("Nudge Display Down"), Geometry.FloatPoint(x=0, y=-10)))
-Window.register_action(RasterDisplayMoveAction("raster_display.move_left", _("Move Display Left"), Geometry.FloatPoint(x=100, y=0)))
-Window.register_action(RasterDisplayMoveAction("raster_display.move_right", _("Move Display Right"), Geometry.FloatPoint(x=-100, y=0)))
-Window.register_action(RasterDisplayMoveAction("raster_display.move_up", _("Move Display Up"), Geometry.FloatPoint(x=0, y=100)))
-Window.register_action(RasterDisplayMoveAction("raster_display.move_down", _("Move Display Down"), Geometry.FloatPoint(x=0, y=-100)))
+Window.register_action(RasterDisplayMoveAction("raster_display.nudge_left", _("Nudge Display Left"), Geometry.FloatSize(width=10, height=0)))
+Window.register_action(RasterDisplayMoveAction("raster_display.nudge_right", _("Nudge Display Right"), Geometry.FloatSize(width=-10, height=0)))
+Window.register_action(RasterDisplayMoveAction("raster_display.nudge_up", _("Nudge Display Up"), Geometry.FloatSize(width=0, height=10)))
+Window.register_action(RasterDisplayMoveAction("raster_display.nudge_down", _("Nudge Display Down"), Geometry.FloatSize(width=0, height=-10)))
+Window.register_action(RasterDisplayMoveAction("raster_display.move_left", _("Move Display Left"), Geometry.FloatSize(width=100, height=0)))
+Window.register_action(RasterDisplayMoveAction("raster_display.move_right", _("Move Display Right"), Geometry.FloatSize(width=-100, height=0)))
+Window.register_action(RasterDisplayMoveAction("raster_display.move_up", _("Move Display Up"), Geometry.FloatSize(width=0, height=100)))
+Window.register_action(RasterDisplayMoveAction("raster_display.move_down", _("Move Display Down"), Geometry.FloatSize(width=0, height=-100)))
 Window.register_action(RasterDisplayNudgeSliceAction("raster_display.nudge_slice_left", _("Nudge Slice Left"), -1))
 Window.register_action(RasterDisplayNudgeSliceAction("raster_display.nudge_slice_right", _("Nudge Slice Right"), 1))
 
@@ -4527,7 +4527,7 @@ class UniformFilterAction(ProcessingAction):
 
 
 class ProcessingComponentAction(ProcessingAction):
-    def __init__(self, processing_id: str, title: str):
+    def __init__(self, processing_id: str, title: str) -> None:
         super().__init__()
         self.action_id = "processing." + processing_id
         self.action_name = title

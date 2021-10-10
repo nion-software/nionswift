@@ -39,9 +39,6 @@ class LinePlotCanvasItemMapping(Graphics.CoordinateMappingLike):
         self.__left_channel = left_channel
         self.__right_channel = right_channel
         self.__drawn_channel_per_pixel = float(right_channel - left_channel) / plot_rect.width
-        self.data_shape: DataAndMetadata.Shape2dType = (0, 0)
-        self.calibrated_origin_widget: Geometry.FloatPoint = Geometry.FloatPoint()
-        self.calibrated_origin_image_norm: Geometry.FloatPoint = Geometry.FloatPoint()
 
     def map_point_widget_to_channel_norm(self, pos: Geometry.FloatPoint) -> float:
         return (self.__left_channel + (pos.x - self.__plot_rect.left) * self.__drawn_channel_per_pixel) / self.__scale
@@ -51,6 +48,18 @@ class LinePlotCanvasItemMapping(Graphics.CoordinateMappingLike):
 
     def map_point_channel_norm_to_channel(self, x: float) -> float:
         return x * self.__scale
+
+    @property
+    def data_shape(self) -> DataAndMetadata.Shape2dType:
+        return (0, 0)
+
+    @property
+    def calibrated_origin_image_norm(self) -> Geometry.FloatPoint:
+        return Geometry.FloatPoint()
+
+    @property
+    def calibrated_origin_widget(self) -> Geometry.FloatPoint:
+        return Geometry.FloatPoint()
 
 
 class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):

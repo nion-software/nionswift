@@ -2318,7 +2318,7 @@ class DisplayCalibrationInfo:
         self.displayed_dimensional_calibrations = copy.deepcopy(display_item.displayed_dimensional_calibrations)
         self.displayed_intensity_calibration = copy.deepcopy(display_item.displayed_intensity_calibration)
         self.calibration_style = display_item.calibration_style
-        self.datum_calibrations = display_item.datum_calibrations
+        self.datum_calibrations = list(display_item.datum_calibrations)
 
     def __ne__(self, other: typing.Any) -> bool:
         if not isinstance(other, DisplayCalibrationInfo):
