@@ -27,10 +27,13 @@ DragPartDataPlus = typing.Tuple[typing.Any, ...]
 _ = gettext.gettext
 
 
+_LinearGradientLike = typing.Any
+
+
 class DrawingContextLike(typing.Protocol):
-    fill_style: typing.Optional[str]
+    fill_style: typing.Optional[typing.Union[str, _LinearGradientLike]]
     font: typing.Optional[str]
-    line_width: int
+    line_width: float
     line_dash: typing.Optional[int]
     stroke_style: typing.Optional[str]
     text_align: typing.Optional[str]
@@ -55,9 +58,16 @@ class CoordinateMappingLike(typing.Protocol):
     # norm is 0 -> 1; float
     # image is pixels; float
     # widget is UI coordinates; float (not int)
-    data_shape: DataAndMetadata.Shape2dType
-    calibrated_origin_widget: Geometry.FloatPoint
-    calibrated_origin_image_norm: Geometry.FloatPoint
+
+    @property
+    def data_shape(self) -> DataAndMetadata.Shape2dType: raise NotImplementedError()
+
+    @property
+    def calibrated_origin_widget(self) -> Geometry.FloatPoint: raise NotImplementedError()
+
+    @property
+    def calibrated_origin_image_norm(self) -> Geometry.FloatPoint: raise NotImplementedError()
+
     def map_point_channel_norm_to_channel(self, x: float) -> float: ...
     def map_point_channel_norm_to_widget(self, x: float) -> float: ...
     def map_point_widget_to_channel_norm(self, pos: Geometry.FloatPoint) -> float: ...

@@ -45,6 +45,7 @@ jobs:
           nion/swift/DocumentController.py \
           nion/swift/Facade.py \
           nion/swift/GeneratorDialog.py \
+          nion/swift/ImageCanvasItem.py \
           nion/swift/Inspector.py \
           nion/swift/LineGraphCanvasItem.py \
           nion/swift/LinePlotCanvasItem.py \
