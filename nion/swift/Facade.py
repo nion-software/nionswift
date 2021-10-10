@@ -3332,7 +3332,7 @@ class API_1:
                 return panel
 
             workspace_manager = Workspace.WorkspaceManager()
-            workspace_manager.register_panel(create_facade_panel, panel_id, panel_name, panel_positions, panel_position, properties)
+            workspace_manager.register_panel(typing.cast(typing.Any, create_facade_panel), panel_id, panel_name, panel_positions, panel_position, properties)
 
         def close(self) -> None:
             pass

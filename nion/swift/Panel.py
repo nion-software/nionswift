@@ -17,7 +17,6 @@ from nion.ui import Application
 from nion.ui import CanvasItem
 from nion.ui import UserInterface
 from nion.utils import Geometry
-from nion.utils import Process
 
 if typing.TYPE_CHECKING:
     from nion.swift import DocumentController

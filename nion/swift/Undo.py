@@ -44,7 +44,7 @@ class UndoableCommand(abc.ABC):
 
     def _compare_modified_states(self, state1: typing.Any, state2: typing.Any) -> bool:
         # override to allow the undo command to track state; but only use part of the state for comparison
-        return state1 == state2
+        return bool(state1 == state2)
 
     def initialize(self, modified_state: typing.Any = None) -> None:
         self.__old_modified_state = modified_state if modified_state else self._get_modified_state()
@@ -98,51 +98,12 @@ class UndoableCommand(abc.ABC):
         self._undo()
 
 
-class AggregateUndoableCommand(UndoableCommand):
-
-    def __init__(self, title: str, children: typing.Sequence[UndoableCommand]=None):
-        super().__init__(title)
-        self.__commands = copy.copy(children)
-        self.initialize(self.__commands[-1]._old_modified_state)
-
-    def close(self) -> None:
-        while len(self.__commands) > 0:
-            self.__commands.pop().close()
-        super().close()
-
-    @property
-    def is_redo_valid(self) -> bool:
-        return self.__commands[0].is_redo_valid if self.__commands else False
-
-    @property
-    def is_undo_valid(self) -> bool:
-        return self.__commands[-1].is_undo_valid if self.__commands else False
-
-    def _get_modified_state(self) -> typing.Any:
-        return self.__commands[-1]._get_modified_state()
-
-    def _set_modified_state(self, modified_state: typing.Any) -> None:
-        self.__commands[-1]._set_modified_state(modified_state)
-
-    def _perform(self) -> None:
-        for command in self.__commands:
-            command.perform()
-
-    def _undo(self) -> None:
-        for command in reversed(self.__commands):
-            command.undo()
-
-    def _redo(self) -> None:
-        for command in self.__commands:
-            command.redo()
-
-
 class UndoStack:
 
     def __init__(self) -> None:
         # undo/redo stack. next item is at the end.
-        self.__undo_stack = list()
-        self.__redo_stack = list()
+        self.__undo_stack: typing.List[UndoableCommand] = list()
+        self.__redo_stack: typing.List[UndoableCommand] = list()
 
     def close(self) -> None:
         self.clear()
