@@ -6,6 +6,8 @@ import functools
 import gettext
 import random
 import string
+import threading
+import time
 import typing
 import uuid
 import weakref
@@ -17,6 +19,7 @@ import weakref
 from nion.swift import DisplayPanel
 from nion.swift import FilterPanel
 from nion.swift import MimeTypes
+from nion.swift import Panel
 from nion.swift import Undo
 from nion.swift.model import Utility
 from nion.swift.model import WorkspaceLayout
@@ -25,7 +28,6 @@ from nion.ui import UserInterface
 
 if typing.TYPE_CHECKING:
     from nion.swift import DocumentController
-    from nion.swift import Panel
     from nion.swift.model import DisplayItem
     from nion.swift.model import DocumentModel
     from nion.swift.model import Persistence
@@ -35,22 +37,22 @@ if typing.TYPE_CHECKING:
 _ = gettext.gettext
 
 
-def create_image_desc():
+def create_image_desc() -> Persistence.PersistentDictType:
     return {"type": "image", "identifier": "".join([random.choice(string.ascii_uppercase) for _ in range(2)]), "uuid": str(uuid.uuid4())}
 
 
-def create_splitter_desc(orientation: str, splits, children):
-    return {"type": "splitter", "orientation": orientation, "splits": copy.copy(splits), "children": children}
+def create_splitter_desc(orientation: str, splits: typing.Sequence[float], children: typing.Sequence[Persistence.PersistentDictType]) -> Persistence.PersistentDictType:
+    return {"type": "splitter", "orientation": orientation, "splits": list(splits), "children": list(children)}
 
 
 class CreateWorkspaceCommand(Undo.UndoableCommand):
-    def __init__(self, workspace_controller: Workspace, name: str):
+    def __init__(self, workspace_controller: Workspace, name: str) -> None:
         super().__init__("Create Workspace")
         self.__workspace_controller = workspace_controller
         self.__workspace_layout_uuid = workspace_controller._workspace.uuid
         self.__new_name = name
-        self.__new_layout = None
-        self.__new_workspace_id = None
+        self.__new_layout: typing.Optional[Persistence.PersistentDictType] = None
+        self.__new_workspace_id: typing.Optional[str] = None
         self.initialize()
 
     def _get_modified_state(self) -> typing.Any:
@@ -137,7 +139,7 @@ class CloneWorkspaceCommand(Undo.UndoableCommand):
         self.__workspace_layout_uuid = workspace_controller._workspace.uuid
         self.__new_name = name
         self.__new_layout = workspace_controller._workspace.layout
-        self.__new_workspace_id = None
+        self.__new_workspace_id: typing.Optional[str] = None
         self.initialize()
 
     def _get_modified_state(self) -> typing.Any:
@@ -172,7 +174,7 @@ class ChangeWorkspaceContentsCommand(Undo.UndoableCommand):
         self.initialize()
 
     @property
-    def _old_workspace_layout(self):
+    def _old_workspace_layout(self) -> typing.Optional[Persistence.PersistentDictType]:
         return self.__old_workspace_layout
 
     def _get_modified_state(self) -> typing.Any:
@@ -206,7 +208,7 @@ class Workspace:
     def __init__(self, document_controller: DocumentController.DocumentController, workspace_id: str):
         self.__document_controller_weakref = weakref.ref(document_controller)
 
-        self.ui = self.document_controller.ui
+        self.ui = document_controller.ui
 
         self.workspace_manager = WorkspaceManager()
 
@@ -323,7 +325,8 @@ class Workspace:
                         dock_panel.hide()
 
     def create_panel(self, document_controller: DocumentController.DocumentController, panel_id: str, title: str,
-                     positions: typing.Sequence[str], position: str, properties: Persistence.PersistentDictType) -> typing.Optional[Panel.Panel]:
+                     positions: typing.Sequence[str], position: str,
+                     properties: typing.Optional[Persistence.PersistentDictType]) -> typing.Optional[Panel.Panel]:
         try:
             panel = self.workspace_manager.create_panel_content(document_controller, panel_id, title, positions, position, properties)
             assert panel is not None, "panel is None [%s]" % panel_id
@@ -337,7 +340,7 @@ class Workspace:
             traceback.print_stack()
             return None
 
-    def display_display_item_in_display_panel(self, display_item, display_panel_id):
+    def display_display_item_in_display_panel(self, display_item: DisplayItem.DisplayItem, display_panel_id: str) -> None:
         for display_panel in self.display_panels:
             if display_panel.display_panel_id == display_panel_id:
                 display_panel.set_display_panel_display_item(display_item)
@@ -348,16 +351,18 @@ class Workspace:
         type = desc["type"]
         container = None
         item = None
-        post_children_adjust = lambda: None
+        def _post_children_adjust() -> None: pass
+        post_children_adjust = _post_children_adjust
         if type == "splitter":
-            container = CanvasItem.SplitterCanvasItem(orientation=desc.get("orientation"))
-            container.on_splits_will_change = functools.partial(self._splits_will_change, container)
-            container.on_splits_changed = functools.partial(self._splits_did_change, container)
-            def splitter_post_children_adjust():
+            splitter_canvas_item = CanvasItem.SplitterCanvasItem(orientation=desc.get("orientation"))
+            splitter_canvas_item.on_splits_will_change = functools.partial(self._splits_will_change, splitter_canvas_item)
+            splitter_canvas_item.on_splits_changed = functools.partial(self._splits_did_change, splitter_canvas_item)
+            def splitter_post_children_adjust() -> None:
                 splits = desc.get("splits")
                 if splits is not None:
-                    container.splits = splits
+                    splitter_canvas_item.splits = splits
             post_children_adjust = splitter_post_children_adjust
+            container = splitter_canvas_item
         elif type == "image":
             display_panel = DisplayPanel.DisplayPanel(self.document_controller, desc)
             display_panel.on_contents_changed = self.__sync_layout
@@ -503,8 +508,8 @@ class Workspace:
             if display_panel != self.document_controller.selected_display_panel:
                 self.document_controller.add_secondary_display_panel(display_panel)
 
-    def switch_to_display_content(self, display_panel: DisplayPanel.DisplayPanel, display_panel_type, display_item: DisplayItem.DisplayItem = None) -> None:
-        d = {"type": "image", "display-panel-type": display_panel_type}
+    def switch_to_display_content(self, display_panel: DisplayPanel.DisplayPanel, display_panel_type: str, display_item: typing.Optional[DisplayItem.DisplayItem] = None) -> None:
+        d: Persistence.PersistentDictType = {"type": "image", "display-panel-type": display_panel_type}
         if display_item and display_panel_type != "empty-display-panel":
             d["display_item_specifier"] = display_item.project.create_specifier(display_item).write()
         command = ChangeWorkspaceContentsCommand(self, _("Replace Display Panel"))
@@ -539,7 +544,8 @@ class Workspace:
         display_panels: typing.List[DisplayPanel.DisplayPanel]
         try:
             display_panels = list()  # to be populated by _construct
-            canvas_item, selected_display_panel = self._construct(workspace_layout.layout, display_panels)
+            workspace_layout_d = workspace_layout.layout or dict()
+            canvas_item, selected_display_panel = self._construct(workspace_layout_d, display_panels)
             # store the new workspace
             if canvas_item:
                 self.__workspace = workspace_layout
@@ -627,7 +633,7 @@ class Workspace:
                                     rejected_fn: typing.Optional[typing.Callable[[], None]] = None,
                                     accepted_text: typing.Optional[str] = None,
                                     rejected_text: typing.Optional[str] = None,
-                                    message_box_id: typing.Optional[str] = None) -> typing.Optional[UserInterface.Widget]:
+                                    message_box_id: typing.Optional[str] = None) -> typing.Optional[UserInterface.BoxWidget]:
         message_box_id = message_box_id if message_box_id else str(uuid.uuid4())
         if message_box_id in self.__message_boxes:
             return None
@@ -640,30 +646,40 @@ class Workspace:
         caption_row.add_stretch()
         inside_row = self.ui.create_row_widget()
 
-        def reject_button_clicked():
+        def reject_button_clicked() -> bool:
             if rejected_fn: rejected_fn()
-            async def remove_widget():
+            async def remove_widget() -> None:
                 self.message_column.remove(message_box_widget)
             self.document_controller.event_loop.create_task(remove_widget())
+            assert message_box_id
             del self.__message_boxes[message_box_id]
             return False
 
-        def accept_button_clicked():
-            accepted_fn(string_edit_widget.text)
-            async def remove_widget():
+        def accept_button_clicked() -> bool:
+            accepted_fn(string_edit_widget.text or str())
+            async def remove_widget() -> None:
                 self.message_column.remove(message_box_widget)
             self.document_controller.event_loop.create_task(remove_widget())
+            assert message_box_id
             del self.__message_boxes[message_box_id]
             return False
+
+        # dummy to pass typing
+        def reject_button_clicked_() -> None:
+            reject_button_clicked()
+
+        # dummy to pass typing
+        def accept_button_clicked_() -> None:
+            accept_button_clicked()
 
         string_edit_widget = self.ui.create_line_edit_widget()
         string_edit_widget.text = text
         string_edit_widget.on_return_pressed = accept_button_clicked
         string_edit_widget.on_escape_pressed = reject_button_clicked
         reject_button = self.ui.create_push_button_widget(rejected_text)
-        reject_button.on_clicked = reject_button_clicked
+        reject_button.on_clicked = reject_button_clicked_
         accepted_button = self.ui.create_push_button_widget(accepted_text)
-        accepted_button.on_clicked = accept_button_clicked
+        accepted_button.on_clicked = accept_button_clicked_
         inside_row.add_spacing(12)
         inside_row.add(string_edit_widget)
         inside_row.add_spacing(12)
@@ -686,7 +702,7 @@ class Workspace:
                                       rejected_fn: typing.Optional[typing.Callable[[], None]] = None,
                                       accepted_text: typing.Optional[str] = None,
                                       rejected_text: typing.Optional[str] = None, display_rejected: bool = True,
-                                      message_box_id: typing.Optional[str] = None) -> typing.Optional[UserInterface.Widget]:
+                                      message_box_id: typing.Optional[str] = None) -> typing.Optional[UserInterface.BoxWidget]:
         message_box_id = message_box_id if message_box_id else str(uuid.uuid4())
         if message_box_id in self.__message_boxes:
             return None
@@ -694,14 +710,16 @@ class Workspace:
         if rejected_text is None: rejected_text = _("Cancel")
         message_box_widget = self.ui.create_column_widget()  # properties={"stylesheet": "background: #FFD"}
 
-        def reject_button_clicked():
+        def reject_button_clicked() -> None:
             if rejected_fn: rejected_fn()
             self.message_column.remove(message_box_widget)
+            assert message_box_id
             del self.__message_boxes[message_box_id]
 
-        def accept_button_clicked():
+        def accept_button_clicked() -> None:
             accepted_fn()
             self.message_column.remove(message_box_widget)
+            assert message_box_id
             del self.__message_boxes[message_box_id]
 
         reject_button = self.ui.create_push_button_widget(rejected_text)
@@ -724,25 +742,24 @@ class Workspace:
         self.__message_boxes[message_box_id] = message_box_widget
         return message_box_widget
 
-    def pose_tool_tip_box(self, caption: str, timeout: float, message_box_id: typing.Optional[str]=None) -> typing.Optional[UserInterface.Widget]:
-        import threading
-        import time
+    def pose_tool_tip_box(self, caption: str, timeout: float, message_box_id: typing.Optional[str] = None) -> typing.Optional[UserInterface.BoxWidget]:
         message_box_id = message_box_id if message_box_id else str(uuid.uuid4())
         if message_box_id in self.__message_boxes:
             return None
         accepted_text = '\u274C'
         message_box_widget = self.ui.create_column_widget()  # properties={"stylesheet": "background: #FFD"}
         lock = threading.Lock()
-        def remove_box():
+        def remove_box() -> None:
             with lock:
                 if message_box_id in self.__message_boxes:
                     self.message_column.remove(message_box_widget)
+                    assert message_box_id
                     del self.__message_boxes[message_box_id]
 
-        def accept_button_clicked():
+        def accept_button_clicked() -> None:
             remove_box()
 
-        def wait_for_timeout():
+        def wait_for_timeout() -> None:
             time.sleep(timeout)
             self.document_controller.queue_task(remove_box)
 
@@ -787,7 +804,7 @@ class Workspace:
     def should_handle_drag_for_mime_data(self, mime_data: UserInterface.MimeData) -> bool:
         return mime_data.has_format(MimeTypes.DISPLAY_ITEM_MIME_TYPE) or mime_data.has_format("text/uri-list") or mime_data.has_format(MimeTypes.DISPLAY_PANEL_MIME_TYPE)
 
-    def handle_drop(self, display_panel: DisplayPanel.DisplayPanel, mime_data: UserInterface.MimeData, region, x: int, y: int) -> str:
+    def handle_drop(self, display_panel: DisplayPanel.DisplayPanel, mime_data: UserInterface.MimeData, region: str, x: int, y: int) -> str:
         document_model = self.document_model
         if mime_data.has_format(MimeTypes.DISPLAY_PANEL_MIME_TYPE):
             display_item, d = MimeTypes.mime_data_get_panel(mime_data, self.document_model)
@@ -907,7 +924,7 @@ class Workspace:
         old_display_panel: typing.Optional[DisplayPanel.DisplayPanel] = None
         old_splits: typing.Optional[typing.List[float]] = None
         if isinstance(container, CanvasItem.SplitterCanvasItem):
-            old_splits = container.splits
+            old_splits = list(container.splits)
             if display_panel in container.canvas_items:
                 if len(container.canvas_items) > 1:
                     # configure the redo
@@ -978,7 +995,7 @@ class Workspace:
         return new_display_panels
 
     def _splits_will_change(self, splitter_canvas_item: CanvasItem.SplitterCanvasItem) -> None:
-        self.__change_splitter_splits = splitter_canvas_item.splits
+        self.__change_splitter_splits = list(splitter_canvas_item.splits)
         self.__change_splitter_command = ChangeWorkspaceContentsCommand(self, _("Change Workspace Contents"))
 
     def _splits_did_change(self, splitter_canvas_item: CanvasItem.SplitterCanvasItem) -> None:
@@ -1009,15 +1026,18 @@ class WorkspaceManager(metaclass=Utility.Singleton):
     def __init__(self) -> None:
         self.__panel_tuples: typing.Dict[str, typing.Tuple[typing.Type[typing.Any], str, str, typing.List[str], str, typing.Optional[Persistence.PersistentDictType]]] = dict()
 
-    def register_panel(self, panel_class, panel_id: str, name: str, positions: typing.List[str], position: str, properties: typing.Optional[Persistence.PersistentDictType]=None) -> None:
-        panel_tuple = panel_class, panel_id, name, positions, position, properties
+    def register_panel(self, panel_class: typing.Type[typing.Any], panel_id: str, name: str,
+                       positions: typing.Sequence[str], position: str,
+                       properties: typing.Optional[Persistence.PersistentDictType] = None) -> None:
+        panel_tuple = panel_class, panel_id, name, list(positions), position, properties
         self.__panel_tuples[panel_id] = panel_tuple
 
     def unregister_panel(self, panel_id: str) -> None:
         del self.__panel_tuples[panel_id]
 
     def create_panel_content(self, document_controller: DocumentController.DocumentController, panel_id: str,
-                             title: str, positions: typing.Sequence[str], position: str, properties: Persistence.PersistentDictType) -> typing.Optional[Panel.Panel]:
+                             title: str, positions: typing.Sequence[str], position: str,
+                             properties: typing.Optional[Persistence.PersistentDictType]) -> typing.Optional[Panel.Panel]:
         if panel_id in self.__panel_tuples:
             tuple = self.__panel_tuples[panel_id]
             cls = tuple[0]
@@ -1025,7 +1045,7 @@ class WorkspaceManager(metaclass=Utility.Singleton):
                 properties = properties if properties else {}
                 panel = cls(document_controller, panel_id, properties)
                 panel.create_dock_widget(title, positions, position)
-                return panel
+                return typing.cast(Panel.Panel, panel)
             except Exception as e:
                 import traceback
                 print("Exception creating panel '" + panel_id + "': " + str(e))
@@ -1040,7 +1060,7 @@ class WorkspaceManager(metaclass=Utility.Singleton):
         assert self.__filter_panel_class
         return self.__filter_panel_class(document_controller)
 
-    def get_panel_info(self, panel_id: str) -> typing.Tuple:
+    def get_panel_info(self, panel_id: str) -> typing.Tuple[str, typing.Sequence[str], str, typing.Optional[Persistence.PersistentDictType]]:
         assert panel_id in self.__panel_tuples
         tuple = self.__panel_tuples[panel_id]
         return tuple[2], tuple[3], tuple[4], tuple[5]
