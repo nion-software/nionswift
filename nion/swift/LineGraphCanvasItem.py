@@ -6,6 +6,7 @@
     are auto sizing in the appropriate direction. Canvas items are meant to be
     combined into a grid layout with the line graph.
 """
+from __future__ import annotations
 
 # standard libraries
 import collections
@@ -32,9 +33,19 @@ from nion.ui import DrawingContext
 from nion.ui import UserInterface
 from nion.utils import Geometry
 
-RegionInfo = collections.namedtuple("RegionInfo",
-                                    ["channels", "selected", "index", "left_text", "right_text", "middle_text", "label",
-                                     "style", "color"])
+_NDArray = typing.Any  # numpy 1.21
+
+@dataclasses.dataclass
+class RegionInfo:
+    channels: typing.Tuple[float, float]
+    selected: bool
+    index: int
+    left_text: str
+    right_text: str
+    middle_text: str
+    label: typing.Optional[str]
+    style: typing.Optional[str]
+    color: typing.Optional[str]
 
 _ = gettext.gettext
 
@@ -46,7 +57,7 @@ def nice_label(value: float, precision: int) -> str:
         return (u"{0:0." + u"{0:d}".format(precision) + "f}").format(value)
 
 
-def calculate_y_axis(uncalibrated_data_list, data_min, data_max, y_calibration, data_style):
+def calculate_y_axis(uncalibrated_data_list: typing.Sequence[_NDArray], data_min: typing.Optional[float], data_max: typing.Optional[float], y_calibration: typing.Optional[Calibration.Calibration], data_style: typing.Optional[str]) -> typing.Tuple[float, float, Geometry.Ticker]:
     y_calibration = y_calibration if y_calibration else Calibration.Calibration()
 
     min_specified = data_min is not None
@@ -86,13 +97,15 @@ def calculate_y_axis(uncalibrated_data_list, data_min, data_max, y_calibration, 
         if uncalibrated_data_max is None or not numpy.isfinite(uncalibrated_data_max):
             uncalibrated_data_max = 0.0
 
+    assert uncalibrated_data_min is not None
+    assert uncalibrated_data_max is not None
+
     calibrated_data_min = y_calibration.convert_to_calibrated_value(uncalibrated_data_min)
     calibrated_data_max = y_calibration.convert_to_calibrated_value(uncalibrated_data_max)
 
     if data_style == "log":
         calibrated_data_min = math.log10(calibrated_data_min) if calibrated_data_min > 0 else 0.0
         calibrated_data_max = math.log10(calibrated_data_max) if calibrated_data_max > 0 else 0.0
-
 
     if math.isnan(calibrated_data_min) or math.isnan(calibrated_data_max) or math.isinf(calibrated_data_min) or math.isinf(calibrated_data_max):
         calibrated_data_min = 0.0
@@ -107,6 +120,7 @@ def calculate_y_axis(uncalibrated_data_list, data_min, data_max, y_calibration, 
         calibrated_data_min -= 1.0
         calibrated_data_max += 1.0
 
+    ticker: Geometry.Ticker
     if data_style == "log":
         ticker = Geometry.LogTicker(calibrated_data_min, calibrated_data_max)
     else:
@@ -123,14 +137,17 @@ def calculate_y_axis(uncalibrated_data_list, data_min, data_max, y_calibration, 
 @dataclasses.dataclass
 class LegendEntry:
     label: str
-    fill_color: str
-    stroke_color: str
+    fill_color: typing.Optional[str]
+    stroke_color: typing.Optional[str]
 
 
 class LineGraphAxes:
     """Track information about line graph axes."""
 
-    def __init__(self, data_scale=None, calibrated_data_min=None, calibrated_data_max=None, data_left=None, data_right=None, x_calibration=None, y_calibration=None, data_style=None, y_ticker=None):
+    def __init__(self, data_scale: float, calibrated_data_min: float, calibrated_data_max: float, data_left: int,
+                 data_right: int, x_calibration: typing.Optional[Calibration.Calibration],
+                 y_calibration: typing.Optional[Calibration.Calibration], data_style: typing.Optional[str],
+                 y_ticker: Geometry.Ticker) -> None:
         # these items are considered to be input items
         self.data_scale = data_scale
         self.__uncalibrated_left_channel = data_left
@@ -143,15 +160,11 @@ class LineGraphAxes:
         self.__y_ticker = y_ticker
 
     @property
-    def is_valid(self):
-        return self.data_scale is not None and self.__uncalibrated_left_channel is not None and self.__uncalibrated_right_channel is not None and self.__calibrated_data_min is not None and self.__calibrated_data_max is not None
-
-    @property
-    def y_ticker(self):
+    def y_ticker(self) -> Geometry.Ticker:
         return self.__y_ticker
 
     @property
-    def uncalibrated_data_min(self):
+    def uncalibrated_data_min(self) -> float:
         y_calibration = self.y_calibration if self.y_calibration else Calibration.Calibration()
         calibrated_data_min = self.calibrated_data_min
         if self.data_style == "log":
@@ -160,7 +173,7 @@ class LineGraphAxes:
             return y_calibration.convert_from_calibrated_value(calibrated_data_min)
 
     @property
-    def uncalibrated_data_max(self):
+    def uncalibrated_data_max(self) -> float:
         y_calibration = self.y_calibration if self.y_calibration else Calibration.Calibration()
         calibrated_data_max = self.calibrated_data_max
         if self.data_style == "log":
@@ -169,46 +182,42 @@ class LineGraphAxes:
             return y_calibration.convert_from_calibrated_value(calibrated_data_max)
 
     @property
-    def calibrated_data_min(self):
+    def calibrated_data_min(self) -> float:
         return self.__calibrated_data_min
 
     @property
-    def calibrated_data_max(self):
+    def calibrated_data_max(self) -> float:
         return self.__calibrated_data_max
 
     @property
-    def calibrated_value_max(self):
+    def calibrated_value_max(self) -> float:
         if self.data_style == "log":
             return math.pow(10, self.__calibrated_data_max)
         return self.__calibrated_data_max
 
     @property
-    def calibrated_value_min(self):
+    def calibrated_value_min(self) -> float:
         if self.data_style == "log":
             return math.pow(10, self.__calibrated_data_min)
         return self.__calibrated_data_min
 
     @property
-    def drawn_left_channel(self):
-        assert self.is_valid
+    def drawn_left_channel(self) -> int:
         return self.__uncalibrated_left_channel
 
     @property
-    def drawn_right_channel(self):
-        assert self.is_valid
+    def drawn_right_channel(self) -> int:
         return self.__uncalibrated_right_channel
 
     @property
-    def calibrated_left_channel(self):
-        assert self.is_valid
-        return self.x_calibration.convert_to_calibrated_value(self.drawn_left_channel)
+    def calibrated_left_channel(self) -> float:
+        return self.x_calibration.convert_to_calibrated_value(self.drawn_left_channel) if self.x_calibration else float(self.__uncalibrated_left_channel)
 
     @property
-    def calibrated_right_channel(self):
-        assert self.is_valid
-        return self.x_calibration.convert_to_calibrated_value(self.drawn_right_channel)
+    def calibrated_right_channel(self) -> float:
+        return self.x_calibration.convert_to_calibrated_value(self.drawn_right_channel) if self.x_calibration else float(self.__uncalibrated_right_channel)
 
-    def calculate_y_ticks(self, plot_height, flag_minor=False):
+    def calculate_y_ticks(self, plot_height: int, flag_minor: bool = False) -> typing.Sequence[typing.Tuple[float, str, bool]]:
         """Calculate the y-axis items dependent on the plot height."""
 
         calibrated_data_min = self.calibrated_data_min
@@ -216,7 +225,7 @@ class LineGraphAxes:
         calibrated_data_range = calibrated_data_max - calibrated_data_min
 
         ticker = self.y_ticker
-        y_ticks = list()
+        y_ticks: typing.List[typing.Tuple[float, str, bool]] = list()
 
         for i, (tick_value, tick_label) in enumerate(zip(ticker.values, ticker.labels)):
             if calibrated_data_range != 0.0:
@@ -227,11 +236,11 @@ class LineGraphAxes:
                 if flag_minor:
                     y_ticks.append((y_tick, tick_label, i in ticker.minor_tick_indices))
                 else:
-                    y_ticks.append((y_tick, tick_label))
+                    y_ticks.append((y_tick, tick_label, False))
 
         return y_ticks
 
-    def uncalibrate_y(self, calibrated_y_value):
+    def uncalibrate_y(self, calibrated_y_value: float) -> float:
         y_calibration = self.y_calibration
         if self.data_style == "log":
             if y_calibration:
@@ -244,7 +253,7 @@ class LineGraphAxes:
             else:
                 return calibrated_y_value
 
-    def calculate_x_ticks(self, plot_width):
+    def calculate_x_ticks(self, plot_width: int) -> typing.Sequence[typing.Tuple[float, str]]:
         """Calculate the x-axis items dependent on the plot width."""
 
         x_calibration = self.x_calibration
@@ -260,7 +269,7 @@ class LineGraphAxes:
 
         drawn_data_width = self.drawn_right_channel - self.drawn_left_channel
 
-        x_ticks = list()
+        x_ticks: typing.List[typing.Tuple[float, str]] = list()
         if drawn_data_width > 0.0:
             for tick_value in tick_values:
                 label = nice_label(tick_value, precision)
@@ -271,22 +280,22 @@ class LineGraphAxes:
 
         return x_ticks
 
-    def calculate_calibrated_xdata(self, uncalibrated_xdata):
+    def calculate_calibrated_xdata(self, uncalibrated_xdata: DataAndMetadata.DataAndMetadata) -> DataAndMetadata.DataAndMetadata:
         calibrated_data = None
         if uncalibrated_xdata is not None:
             y_calibration = self.y_calibration
             if y_calibration:
                 if self.data_style == "log":
-                    calibrated_data = y_calibration.offset + y_calibration.scale * uncalibrated_xdata.data
-                    calibrated_data[calibrated_data <= 0] = numpy.nan
-                    numpy.log10(calibrated_data, out=calibrated_data)
+                    calibrated_data = y_calibration.offset + y_calibration.scale * uncalibrated_xdata.data  # type: ignore
+                    calibrated_data[calibrated_data <= 0] = numpy.nan  # type: ignore
+                    numpy.log10(calibrated_data, out=calibrated_data)  # type: ignore
                 else:
-                    calibrated_data = y_calibration.offset + y_calibration.scale * uncalibrated_xdata.data
+                    calibrated_data = y_calibration.offset + y_calibration.scale * uncalibrated_xdata.data  # type: ignore
             else:
                 if self.data_style == "log":
-                    calibrated_data = uncalibrated_xdata.data.copy()
-                    calibrated_data[calibrated_data <= 0] = numpy.nan
-                    numpy.log10(calibrated_data, out=calibrated_data)
+                    calibrated_data = uncalibrated_xdata.data.copy()  # type: ignore
+                    calibrated_data[calibrated_data <= 0] = numpy.nan  # type: ignore
+                    numpy.log10(calibrated_data, out=calibrated_data)  # type: ignore
                 else:
                     calibrated_data = uncalibrated_xdata.data
         return DataAndMetadata.new_data_and_metadata(calibrated_data, dimensional_calibrations=uncalibrated_xdata.dimensional_calibrations)
@@ -296,10 +305,6 @@ def are_axes_equal(axes1: typing.Optional[LineGraphAxes], axes2: typing.Optional
     if (axes1 is None) != (axes2 is None):
         return False
     if axes1 is None or axes2 is None:
-        return True
-    if axes1.is_valid != axes2.is_valid:
-        return False
-    if not axes1.is_valid:
         return True
     if axes1.drawn_left_channel != axes2.drawn_left_channel:
         return False
@@ -318,18 +323,18 @@ def are_axes_equal(axes1: typing.Optional[LineGraphAxes], axes2: typing.Optional
     return True
 
 
-def draw_background(drawing_context, plot_rect, background_color):
+def draw_background(drawing_context: DrawingContext.DrawingContext, plot_rect: Geometry.IntRect, background_color: typing.Optional[str]) -> None:
     with drawing_context.saver():
         drawing_context.begin_path()
-        drawing_context.rect(plot_rect[0][1], plot_rect[0][0], plot_rect[1][1], plot_rect[1][0])
+        drawing_context.rect(plot_rect.left, plot_rect.top, plot_rect.width, plot_rect.height)
         drawing_context.fill_style = background_color
         drawing_context.fill()
 
 
-def draw_horizontal_grid_lines(drawing_context, plot_width, plot_origin_x, y_ticks):
+def draw_horizontal_grid_lines(drawing_context: DrawingContext.DrawingContext, plot_width: float, plot_origin_x: float, y_ticks: typing.Sequence[typing.Tuple[float, str, bool]]) -> None:
     with drawing_context.saver():
         drawing_context.begin_path()
-        for y, _ in y_ticks:
+        for y, _, _ in y_ticks:
             drawing_context.move_to(plot_origin_x, y)
             drawing_context.line_to(plot_origin_x + plot_width, y)
         drawing_context.line_width = 0.5
@@ -337,7 +342,7 @@ def draw_horizontal_grid_lines(drawing_context, plot_width, plot_origin_x, y_tic
         drawing_context.stroke()
 
 
-def draw_vertical_grid_lines(drawing_context, plot_height, plot_origin_y, x_ticks):
+def draw_vertical_grid_lines(drawing_context: DrawingContext.DrawingContext, plot_height: float, plot_origin_y: float, x_ticks: typing.Sequence[typing.Tuple[float, str]]) -> None:
     with drawing_context.saver():
         drawing_context.begin_path()
         for x, _ in x_ticks:
@@ -347,7 +352,13 @@ def draw_vertical_grid_lines(drawing_context, plot_height, plot_origin_y, x_tick
         drawing_context.stroke_style = '#DDD'
         drawing_context.stroke()
 
-def draw_line_graph(drawing_context, plot_height, plot_width, plot_origin_y, plot_origin_x, calibrated_xdata, calibrated_data_min, calibrated_data_range, calibrated_left_channel, calibrated_right_channel, x_calibration, fill_color: str, stroke_color: str, rebin_cache, data_style: str, stroke_width: float):
+
+def draw_line_graph(drawing_context: DrawingContext.DrawingContext, plot_height: int, plot_width: int, plot_origin_y: int, plot_origin_x: int,
+                    calibrated_xdata: DataAndMetadata.DataAndMetadata, calibrated_data_min: float,
+                    calibrated_data_range: float, calibrated_left_channel: float, calibrated_right_channel: float,
+                    x_calibration: Calibration.Calibration, fill_color: typing.Optional[str],
+                    stroke_color: typing.Optional[str], rebin_cache: typing.Optional[typing.Dict[str, typing.Any]],
+                    data_style: str, stroke_width: float) -> None:
     # calculate how the data is displayed
     xdata_calibration = calibrated_xdata.dimensional_calibrations[-1]
     assert xdata_calibration.units == x_calibration.units
@@ -387,12 +398,12 @@ def draw_line_graph(drawing_context, plot_height, plot_width, plot_origin_y, plo
             if data_style == "log":
                 baseline = plot_origin_y + plot_height
             else:
-                baseline = plot_origin_y + plot_height - (plot_height * float(0.0 - calibrated_data_min) / calibrated_data_range)
+                baseline = plot_origin_y + plot_height - int(plot_height * float(0.0 - calibrated_data_min) / calibrated_data_range)
 
             baseline = min(plot_origin_y + plot_height, baseline)
             baseline = max(plot_origin_y, baseline)
             # rebin so that uncalibrated_width corresponds to plot width
-            calibrated_data = calibrated_xdata.data
+            calibrated_data = calibrated_xdata._data_ex
             binned_length = int(calibrated_data.shape[-1] * plot_width / uncalibrated_width)
             shape_origin_x = plot_origin_x
             shape_origin_y = baseline
@@ -452,7 +463,10 @@ def draw_line_graph(drawing_context, plot_height, plot_width, plot_origin_y, plo
                 drawing_context.stroke_style = fill_color or stroke_color
                 drawing_context.stroke()
 
-def finalize_path(drawing_context, stroke_path, path_origin_x, path_end_x, path_baseline, fill_color, stroke_color, stroke_width):
+
+def finalize_path(drawing_context: DrawingContext.DrawingContext, stroke_path: DrawingContext.DrawingContext,
+                  path_origin_x: float, path_end_x: float, path_baseline: float, fill_color: typing.Optional[str],
+                  stroke_color: typing.Optional[str], stroke_width: float) -> None:
     if fill_color:
         drawing_context.add(stroke_path)
         drawing_context.line_to(path_end_x, path_baseline)
@@ -466,7 +480,8 @@ def finalize_path(drawing_context, stroke_path, path_origin_x, path_end_x, path_
         drawing_context.stroke_style = stroke_color
         drawing_context.stroke()
 
-def draw_frame(drawing_context, plot_height, plot_origin_x, plot_origin_y, plot_width):
+
+def draw_frame(drawing_context: DrawingContext.DrawingContext, plot_height: int, plot_origin_x: int, plot_origin_y: int, plot_width: int) -> None:
     with drawing_context.saver():
         drawing_context.begin_path()
         drawing_context.rect(plot_origin_x, plot_origin_y, plot_width, plot_height)
@@ -475,13 +490,14 @@ def draw_frame(drawing_context, plot_height, plot_origin_x, plot_origin_y, plot_
         drawing_context.stroke()
 
 
-def draw_marker(drawing_context, p, fill=None, stroke=None):
+def draw_marker(drawing_context: DrawingContext.DrawingContext, p: Geometry.FloatPoint,
+                fill: typing.Optional[str] = None, stroke: typing.Optional[str] = None) -> None:
     with drawing_context.saver():
         drawing_context.begin_path()
-        drawing_context.move_to(p[1] - 3, p[0] - 3)
-        drawing_context.line_to(p[1] + 3, p[0] - 3)
-        drawing_context.line_to(p[1] + 3, p[0] + 3)
-        drawing_context.line_to(p[1] - 3, p[0] + 3)
+        drawing_context.move_to(p.x - 3, p.y - 3)
+        drawing_context.line_to(p.x + 3, p.y - 3)
+        drawing_context.line_to(p.x + 3, p.y + 3)
+        drawing_context.line_to(p.x - 3, p.y + 3)
         drawing_context.close_path()
         if fill:
             drawing_context.fill_style = fill
@@ -496,12 +512,11 @@ class LineGraphBackgroundCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def __init__(self) -> None:
         super().__init__()
-        self.__drawing_context = None
-        self.__axes = None
+        self.__axes: typing.Optional[LineGraphAxes] = None
         self.draw_grid = True
         self.background_color = "#FFF"
 
-    def set_axes(self, axes):
+    def set_axes(self, axes: typing.Optional[LineGraphAxes]) -> None:
         if not are_axes_equal(self.__axes, axes):
             self.__axes = axes
             self.update()
@@ -509,18 +524,18 @@ class LineGraphBackgroundCanvasItem(CanvasItem.AbstractCanvasItem):
     def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
         # draw the data, if any
         axes = self.__axes
-        if axes and axes.is_valid:
-            plot_rect = self.canvas_bounds
-            plot_width = int(plot_rect[1][1]) - 1
-            plot_height = int(plot_rect[1][0]) - 1
-            plot_origin_x = int(plot_rect[0][1])
-            plot_origin_y = int(plot_rect[0][0])
+        canvas_bounds = self.canvas_bounds
+        if axes and canvas_bounds:
+            plot_width = canvas_bounds.width - 1
+            plot_height = canvas_bounds.height - 1
+            plot_origin_x = canvas_bounds.left
+            plot_origin_y = canvas_bounds.top
 
             # extract the data we need for drawing axes
             y_ticks = axes.calculate_y_ticks(plot_height)
             x_ticks = axes.calculate_x_ticks(plot_width)
 
-            draw_background(drawing_context, plot_rect, self.background_color)
+            draw_background(drawing_context, canvas_bounds, self.background_color)
 
             # draw the horizontal grid lines
             if self.draw_grid:
@@ -536,47 +551,47 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def __init__(self) -> None:
         super().__init__()
-        self.__drawing_context = None
-        self.__axes = None
-        self.__fill_color = None
-        self.__stroke_color = None
+        self.__axes: typing.Optional[LineGraphAxes] = None
+        self.__fill_color: typing.Optional[str] = None
+        self.__stroke_color: typing.Optional[str] = None
         self.__stroke_width = 0.5
-        self.__uncalibrated_xdata = None
-        self.__calibrated_xdata = None
+        self.__uncalibrated_xdata: typing.Optional[DataAndMetadata.DataAndMetadata] = None
+        self.__calibrated_xdata: typing.Optional[DataAndMetadata.DataAndMetadata] = None
         self.__retained_rebin_1d: typing.Dict[str, typing.Any] = dict()
 
-    def set_fill_color(self, color):
+    def set_fill_color(self, color: typing.Optional[str]) -> None:
         if self.__fill_color != color:
             self.__fill_color = color
             self.update()
 
-    def set_stroke_color(self, color):
+    def set_stroke_color(self, color: typing.Optional[str]) -> None:
         if self.__stroke_color != color:
             self.__stroke_color = color
             self.update()
 
-    def set_stroke_width(self, width):
+    def set_stroke_width(self, width: typing.Optional[float]) -> None:
         if width is not None and self.__stroke_width != width:
             self.__stroke_width = width
             self.update()
 
-    def set_uncalibrated_xdata(self, uncalibrated_xdata):
+    def set_uncalibrated_xdata(self, uncalibrated_xdata: typing.Optional[DataAndMetadata.DataAndMetadata]) -> None:
         if not DataAndMetadata.is_equal(uncalibrated_xdata, self.__uncalibrated_xdata):
             self.__uncalibrated_xdata = uncalibrated_xdata
             self.__calibrated_xdata = None
             self.update()
 
     @property
-    def calibrated_xdata(self):
+    def calibrated_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
         if self.__calibrated_xdata is None and self.__uncalibrated_xdata is not None:
+            assert self.__axes
             self.__calibrated_xdata = self.__axes.calculate_calibrated_xdata(self.__uncalibrated_xdata)
         return self.__calibrated_xdata
 
     @property
-    def _axes(self):  # for testing only
+    def _axes(self) -> typing.Optional[LineGraphAxes]:  # for testing only
         return self.__axes
 
-    def set_axes(self, axes):
+    def set_axes(self, axes: typing.Optional[LineGraphAxes]) -> None:
         if not are_axes_equal(self.__axes, axes):
             self.__axes = axes
             self.__calibrated_xdata = None
@@ -589,13 +604,12 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
         stroke_color = self.__stroke_color
         fill_color = self.__fill_color
         stroke_width = self.__stroke_width
-        if axes and axes.is_valid and calibrated_xdata is not None:
-
-            plot_rect = self.canvas_bounds
-            plot_width = int(plot_rect[1][1]) - 1
-            plot_height = int(plot_rect[1][0]) - 1
-            plot_origin_x = int(plot_rect[0][1])
-            plot_origin_y = int(plot_rect[0][0])
+        canvas_bounds = self.canvas_bounds
+        if axes and canvas_bounds and calibrated_xdata is not None:
+            plot_width = canvas_bounds.width - 1
+            plot_height = canvas_bounds.height - 1
+            plot_origin_x = canvas_bounds.left
+            plot_origin_y = canvas_bounds.top
 
             # extract the data we need for drawing y-axis
             calibrated_data_min = axes.calibrated_data_min
@@ -608,7 +622,7 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
             x_calibration = axes.x_calibration
 
             # draw the line plot itself
-            if x_calibration.units == calibrated_xdata.dimensional_calibrations[-1].units:
+            if x_calibration and x_calibration.units == calibrated_xdata.dimensional_calibrations[-1].units:
                 draw_line_graph(drawing_context, plot_height, plot_width, plot_origin_y, plot_origin_x, calibrated_xdata, calibrated_data_min, calibrated_data_range, calibrated_left_channel, calibrated_right_channel, x_calibration, fill_color, stroke_color, self.__retained_rebin_1d, axes.data_style, stroke_width)
 
 
@@ -618,23 +632,23 @@ class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
     def __init__(self) -> None:
         super().__init__()
         self.font_size = 12
-        self.__axes = None
-        self.__calibrated_data = None
+        self.__axes: typing.Optional[LineGraphAxes] = None
+        self.__calibrated_data: typing.Optional[_NDArray] = None
         self.__regions: typing.List[RegionInfo] = list()
 
-    def set_axes(self, axes):
+    def set_axes(self, axes: typing.Optional[LineGraphAxes]) -> None:
         if not are_axes_equal(self.__axes, axes):
             self.__axes = axes
             self.update()
 
-    def set_calibrated_data(self, calibrated_data):
-        if not numpy.array_equal(calibrated_data, self.__calibrated_data):
+    def set_calibrated_data(self, calibrated_data: typing.Optional[_NDArray]) -> None:
+        if calibrated_data is None or self.__calibrated_data is None or not numpy.array_equal(calibrated_data, self.__calibrated_data):
             self.__calibrated_data = calibrated_data
             self.update()
 
-    def set_regions(self, regions):
+    def set_regions(self, regions: typing.Sequence[RegionInfo]) -> None:
         if (self.__regions is None and regions is not None) or (self.__regions != regions):
-            self.__regions = regions
+            self.__regions = list(regions)
             self.update()
 
     def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
@@ -652,7 +666,7 @@ class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
             data = data[0, ...]
 
         axes = self.__axes
-        if axes and axes.is_valid:
+        if axes:
             # extract the data we need for drawing y-axis
             calibrated_data_min = axes.calibrated_data_min
             calibrated_data_max = axes.calibrated_data_max
@@ -731,7 +745,7 @@ class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
                         drawing_context.stroke()
                         drawing_context.line_dash = 0
                         if region_selected:
-                            draw_marker(drawing_context, (level, mid_x), fill=region.color, stroke=region.color)
+                            draw_marker(drawing_context, Geometry.FloatPoint(level, mid_x), fill=region.color, stroke=region.color)
                             drawing_context.fill_style = region.color
                             drawing_context.font = "{0:d}px".format(font_size)
                             left_text = region.left_text
@@ -750,7 +764,7 @@ class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
                                 drawing_context.text_baseline = "center"
                                 drawing_context.fill_text(right_text, right + 4, level)
                         else:
-                            draw_marker(drawing_context, (level, mid_x), stroke=region.color)
+                            draw_marker(drawing_context, Geometry.FloatPoint(level, mid_x), stroke=region.color)
 
                         label = region.label
                         if label:
@@ -767,10 +781,9 @@ class LineGraphFrameCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def __init__(self) -> None:
         super().__init__()
-        self.__drawing_context = None
         self.__draw_frame = True
 
-    def set_draw_frame(self, draw_frame):
+    def set_draw_frame(self, draw_frame: bool) -> None:
         if self.__draw_frame != draw_frame:
             self.__draw_frame = draw_frame
             self.update()
@@ -786,26 +799,23 @@ class LineGraphHorizontalAxisTicksCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def __init__(self) -> None:
         super().__init__()
-        self.__axes = None
+        self.__axes: typing.Optional[LineGraphAxes] = None
         self.tick_height = 4
         self.update_sizing(self.sizing.with_fixed_height(self.tick_height))
 
-    def set_axes(self, axes):
+    def set_axes(self, axes: typing.Optional[LineGraphAxes]) -> None:
         if not are_axes_equal(self.__axes, axes):
             self.__axes = axes
             self.update()
 
     def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
-
         # draw the data, if any
         axes = self.__axes
-        if axes and axes.is_valid:
-
-            plot_width = int(self.canvas_size[1]) - 1
-
+        canvas_size = self.canvas_size
+        if axes and canvas_size:
+            plot_width = canvas_size.width - 1
             # extract the data we need for drawing x-axis
             x_ticks = axes.calculate_x_ticks(plot_width)
-
             # draw the tick marks
             with drawing_context.saver():
                 for x, _ in x_ticks:
@@ -822,11 +832,11 @@ class LineGraphHorizontalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def __init__(self) -> None:
         super().__init__()
-        self.__axes = None
+        self.__axes: typing.Optional[LineGraphAxes] = None
         self.font_size = 12
         self.update_sizing(self.sizing.with_fixed_height(self.font_size + 4))
 
-    def set_axes(self, axes):
+    def set_axes(self, axes: typing.Optional[LineGraphAxes]) -> None:
         if not are_axes_equal(self.__axes, axes):
             self.__axes = axes
             self.update()
@@ -835,13 +845,11 @@ class LineGraphHorizontalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
 
         # draw the data, if any
         axes = self.__axes
-        if axes and axes.is_valid:
-
-            height = self.canvas_size[0]
-            plot_width = int(self.canvas_size[1]) - 1
+        canvas_size = self.canvas_size
+        if axes and canvas_size:
 
             # extract the data we need for drawing x-axis
-            x_ticks = axes.calculate_x_ticks(plot_width)
+            x_ticks = axes.calculate_x_ticks(canvas_size.width - 1)
 
             # draw the tick marks
             with drawing_context.saver():
@@ -850,7 +858,7 @@ class LineGraphHorizontalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
                     drawing_context.text_align = "center"
                     drawing_context.text_baseline = "middle"
                     drawing_context.fill_style = "#000"
-                    drawing_context.fill_text(label, x, height * 0.5)
+                    drawing_context.fill_text(label, x, canvas_size.height * 0.5)
 
 
 class LineGraphHorizontalAxisLabelCanvasItem(CanvasItem.AbstractCanvasItem):
@@ -858,47 +866,43 @@ class LineGraphHorizontalAxisLabelCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def __init__(self) -> None:
         super().__init__()
-        self.__axes = None
+        self.__axes: typing.Optional[LineGraphAxes] = None
         self.font_size = 12
         self.update_sizing(self.sizing.with_fixed_height(self.font_size + 4))
 
-    def size_to_content(self):
+    def size_to_content(self) -> None:
         """ Size the canvas item to the proper height. """
         new_sizing = self.copy_sizing()
         new_sizing._minimum_height = 0
         new_sizing._maximum_height = 0
         axes = self.__axes
-        if axes and axes.is_valid:
+        if axes:
             if axes.x_calibration and axes.x_calibration.units:
                 new_sizing._minimum_height = self.font_size + 4
                 new_sizing._maximum_height = self.font_size + 4
         self.update_sizing(new_sizing)
 
-    def set_axes(self, axes):
+    def set_axes(self, axes: typing.Optional[LineGraphAxes]) -> None:
         if not are_axes_equal(self.__axes, axes):
             self.__axes = axes
             self.size_to_content()
             self.update()
 
     def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
-
         # draw the data, if any
         axes = self.__axes
-        if axes and axes.is_valid:
-
+        canvas_size = self.canvas_size
+        if axes and canvas_size:
             # draw the horizontal axis
             if axes.x_calibration and axes.x_calibration.units:
-
-                height = self.canvas_size[0]
-                plot_width = int(self.canvas_size[1]) - 1
-
+                plot_width = canvas_size.width - 1
                 with drawing_context.saver():
                     drawing_context.text_align = "center"
                     drawing_context.text_baseline = "middle"
                     drawing_context.fill_style = "#000"
                     value_str = u"({0})".format(axes.x_calibration.units)
                     drawing_context.font = "{0:d}px".format(self.font_size)
-                    drawing_context.fill_text(value_str, plot_width * 0.5, height * 0.5)
+                    drawing_context.fill_text(value_str, plot_width * 0.5, canvas_size.height * 0.5)
 
 
 class LineGraphVerticalAxisTicksCanvasItem(CanvasItem.AbstractCanvasItem):
@@ -906,34 +910,28 @@ class LineGraphVerticalAxisTicksCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def __init__(self) -> None:
         super().__init__()
-        self.__axes = None
+        self.__axes: typing.Optional[LineGraphAxes] = None
         self.tick_width = 4
         self.update_sizing(self.sizing.with_fixed_width(self.tick_width))
 
-    def set_axes(self, axes):
+    def set_axes(self, axes: typing.Optional[LineGraphAxes]) -> None:
         if not are_axes_equal(self.__axes, axes):
             self.__axes = axes
             self.update()
 
     def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
-
         # draw the data, if any
         axes = self.__axes
-        if axes and axes.is_valid:
-
-            # canvas size
-            width = self.canvas_size[1]
-            plot_height = int(self.canvas_size[0]) - 1
-
+        canvas_size = self.canvas_size
+        if axes and canvas_size:
             # extract the data we need for drawing y-axis
-            y_ticks = axes.calculate_y_ticks(plot_height)
-
+            y_ticks = axes.calculate_y_ticks(canvas_size.height - 1)
             # draw the y_ticks and labels
             with drawing_context.saver():
-                for y, _ in y_ticks:
+                for y, _, _ in y_ticks:
                     drawing_context.begin_path()
-                    drawing_context.move_to(width, y)
-                    drawing_context.line_to(width - self.tick_width, y)
+                    drawing_context.move_to(canvas_size.width, y)
+                    drawing_context.line_to(canvas_size.width - self.tick_width, y)
                     drawing_context.line_width = 1
                     drawing_context.stroke_style = '#888'
                     drawing_context.stroke()
@@ -964,7 +962,7 @@ class Exponenter:
         else:
             return labels[0], ""
 
-    def draw_scientific_notation(self, drawing_context: DrawingContext.DrawingContext, ui_settings: UISettings.UISettings, fonts: typing.Tuple[str, str], label: str, width: int, y: int) -> None:
+    def draw_scientific_notation(self, drawing_context: DrawingContext.DrawingContext, ui_settings: UISettings.UISettings, fonts: typing.Tuple[str, str], label: str, width: int, y: float) -> None:
         labels = self.used_labels(label)
         if labels[1] is not None:
             mw = max([ui_settings.get_font_metrics(fonts[1], _labels[1]).width for _labels in self.__labels_list], default=0)
@@ -981,7 +979,7 @@ class Exponenter:
 _LABEL_SIZE_CALCULATION_NORMALIZE_RE = re.compile(r"\d")
 
 
-def _normalize_label_for_size_calculation(label):
+def _normalize_label_for_size_calculation(label: str) -> str:
     return _LABEL_SIZE_CALCULATION_NORMALIZE_RE.sub("0", label)
 
 
@@ -1005,7 +1003,7 @@ class LineGraphVerticalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__fonts = ("{0:d}px".format(self.font_size), "{0:d}px".format(int(self.font_size * 0.8)))
         self.__ui_settings: typing.Optional[UISettings.UISettings] = None
 
-    def size_to_content(self, ui_settings: UISettings.UISettings):
+    def size_to_content(self, ui_settings: UISettings.UISettings) -> None:
         """ Size the canvas item to the proper width, the maximum of any label. """
         new_sizing = self.copy_sizing()
 
@@ -1013,7 +1011,7 @@ class LineGraphVerticalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
         new_sizing._maximum_width = 0
 
         axes = self.__axes
-        if axes and axes.is_valid:
+        if axes:
             # calculate the width based on the label lengths
             max_width = 0
             y_range = axes.calibrated_value_max - axes.calibrated_value_min
@@ -1026,22 +1024,23 @@ class LineGraphVerticalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
 
         self.__ui_settings = ui_settings  # hack
 
-    def set_axes(self, axes, ui_settings: UISettings.UISettings) -> None:
+    def set_axes(self, axes: typing.Optional[LineGraphAxes], ui_settings: UISettings.UISettings) -> None:
         if not are_axes_equal(self.__axes, axes):
             self.__axes = axes
             self.size_to_content(ui_settings)
             self.update()
 
     def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
-
         # draw the data, if any
         axes = self.__axes
         canvas_size = self.canvas_size
-        if canvas_size and axes and axes.is_valid:
+        if canvas_size and axes:
+            label: typing.Optional[str] = None
+            y: typing.Optional[float] = None
 
             # canvas size
-            width = canvas_size[1]
-            plot_height = int(canvas_size[0]) - 1
+            width = canvas_size.width
+            plot_height = canvas_size.height - 1
 
             # extract the data we need for drawing y-axis
             y_ticks = axes.calculate_y_ticks(plot_height, flag_minor=True)
@@ -1058,8 +1057,6 @@ class LineGraphVerticalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
             with drawing_context.saver():
                 drawing_context.text_baseline = "middle"
                 drawing_context.font = "{0:d}px".format(self.font_size)
-                label = None  # satisfy static analysis checker
-                y = None
                 for y, label, is_minor in y_ticks:
                     drawing_context.begin_path()
                     drawing_context.stroke_style = '#888'
@@ -1078,23 +1075,23 @@ class LineGraphVerticalAxisLabelCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def __init__(self) -> None:
         super().__init__()
-        self.__axes = None
+        self.__axes: typing.Optional[LineGraphAxes] = None
         self.font_size = 12
         self.update_sizing(self.sizing.with_fixed_width(self.font_size + 4))
 
-    def size_to_content(self):
+    def size_to_content(self) -> None:
         """ Size the canvas item to the proper width. """
         new_sizing = self.copy_sizing()
         new_sizing._minimum_width = 0
         new_sizing._maximum_width = 0
         axes = self.__axes
-        if axes and axes.is_valid:
+        if axes:
             if axes.y_calibration and axes.y_calibration.units:
                 new_sizing._minimum_width = self.font_size + 4
                 new_sizing._maximum_width = self.font_size + 4
         self.update_sizing(new_sizing)
 
-    def set_axes(self, axes):
+    def set_axes(self, axes: typing.Optional[LineGraphAxes]) -> None:
         if not are_axes_equal(self.__axes, axes):
             self.__axes = axes
             self.size_to_content()
@@ -1104,21 +1101,16 @@ class LineGraphVerticalAxisLabelCanvasItem(CanvasItem.AbstractCanvasItem):
 
         # draw the data, if any
         axes = self.__axes
-        if axes and axes.is_valid:
-
-            # draw
+        canvas_size = self.canvas_size
+        if axes and canvas_size:
             if axes.y_calibration and axes.y_calibration.units:
-                # canvas size
-                width = self.canvas_size[1]
-                plot_height = int(self.canvas_size[0]) - 1
-
                 with drawing_context.saver():
                     drawing_context.font = "{0:d}px".format(self.font_size)
                     drawing_context.text_align = "center"
                     drawing_context.text_baseline = "middle"
                     drawing_context.fill_style = "#000"
-                    x = width * 0.5
-                    y = int(plot_height * 0.5)
+                    x = canvas_size.width * 0.5
+                    y = (canvas_size.height - 1) // 2
                     drawing_context.translate(x, y)
                     drawing_context.rotate(-math.pi*0.5)
                     drawing_context.translate(-x, -y)
@@ -1142,17 +1134,16 @@ class LineGraphLegendCanvasItemDelegate:
 
     def get_document_model(self) -> DocumentModel.DocumentModel: ...
 
-    def create_rgba_image(self, drawing_context: DrawingContext.DrawingContext, width: int, height: int) -> numpy.ndarray: ...
+    def create_rgba_image(self, drawing_context: DrawingContext.DrawingContext, width: int, height: int) -> _NDArray: ...
 
 
 class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
     """Canvas item to draw the line plot background and grid lines."""
 
-    def __init__(self, ui_settings: UISettings.UISettings, delegate: LineGraphLegendCanvasItemDelegate):
+    def __init__(self, ui_settings: UISettings.UISettings, delegate: LineGraphLegendCanvasItemDelegate) -> None:
         super().__init__()
 
         self.__delegate = delegate
-        self.__drawing_context = None
 
         # current legend items corresponding to layers of the display item
         self.__legend_entries: typing.List[LegendEntry] = list()
@@ -1167,13 +1158,10 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__mouse_dragging = False
 
         # Tracks where the drag started from
-        self._drag_start_position = None
-
-        # The current display layers of the display item. Used to shift to different positions as needed.
-        self.__display_layers: typing.Optional[typing.Sequence[DisplayItem.DisplayLayer]] = None
+        self._drag_start_position: typing.Optional[Geometry.IntPoint] = None
 
         # The index of the local entry we're currently dragging
-        self.__dragging_index = None
+        self.__dragging_index: typing.Optional[int] = None
 
         # The entry where the mouse is over so we know where to reorder the entry to
         self.__entry_to_insert: typing.Optional[int] = None
@@ -1228,14 +1216,13 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
     def wants_drag_event(self, mime_data: UserInterface.MimeData, x: int, y: int) -> bool:
         return mime_data.has_format(MimeTypes.LAYER_MIME_TYPE)
 
-    def set_legend_entries(self, legend_entries: typing.Sequence[LegendEntry], display_layers: typing.Optional[typing.Sequence[DisplayItem.DisplayLayer]]) -> None:
-        if self.__legend_entries != legend_entries or self.__display_layers != display_layers:
+    def set_legend_entries(self, legend_entries: typing.Sequence[LegendEntry]) -> None:
+        if self.__legend_entries != legend_entries:
             self.__legend_entries = list(legend_entries)
             self.__generate_effective_entries()
-            self.__display_layers = display_layers
             self.update()
 
-    def __get_legend_index(self, x, y, ignore_y=False, insertion=False) -> int:
+    def __get_legend_index(self, x: int, y: int, ignore_y: bool = False, insertion: bool = False) -> int:
         """
         Returns the current index at a certain x and y if over a legend item, otherwise returns -1. If ignore_y is set,
         it will always return a value at the closest y value. (useful for determining where to drop an item). If
@@ -1267,7 +1254,7 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
             # return the current item, clamped to length-1 and 0
             return max(min(index, end_index), 0)
 
-    def __get_icon_for_layer(self, fill: str):
+    def __get_icon_for_layer(self, fill: typing.Optional[str]) -> _NDArray:
         border = 1
         drawing_context = DrawingContext.DrawingContext()
         icon_size = 16
@@ -1285,17 +1272,22 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
 
         return self.__delegate.create_rgba_image(drawing_context, icon_size, icon_size)
 
-    def mouse_position_changed(self, x, y, modifiers):
+    def mouse_position_changed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         # if the mouse is pressed and the distance it greater than the distance to start dragging, start the drag using
         # the selected layer as the mime type.
-        if self.__mouse_pressed_for_dragging and Geometry.distance(self._drag_start_position, Geometry.IntPoint(y=y, x=x)) > 1:
+        drag_start_position = self._drag_start_position
+        dragging_index = self.__dragging_index
+        if drag_start_position is None or dragging_index is None:
+            return False
+        if self.__mouse_pressed_for_dragging and Geometry.distance(drag_start_position.to_float_point(), Geometry.FloatPoint(y=y, x=x)) > 1:
             mime_data = self.__delegate.create_mime_data()
-            layer = self.__legend_entries[self.__dragging_index]
-            MimeTypes.mime_data_put_layer(mime_data, self.__dragging_index, self.__delegate.get_display_item(), layer.label, layer.fill_color, layer.stroke_color)
+            layer = self.__legend_entries[dragging_index]
+            MimeTypes.mime_data_put_layer(mime_data, dragging_index, self.__delegate.get_display_item(), layer.label, layer.fill_color, layer.stroke_color)
             thumbnail_data = self.__get_icon_for_layer(layer.fill_color)
             self.drag(mime_data, thumbnail_data)
             self.update()
             return True
+        return False
 
     def drag_move(self, mime_data: UserInterface.MimeData, x: int, y: int) -> str:
         # get the entry the mouse was over
@@ -1309,7 +1301,7 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
             self.update()
         return "ignore"
 
-    def mouse_pressed(self, x, y, modifiers):
+    def mouse_pressed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         # if there are less than 2 entries, ignore this because a data item can't be empty
         if self.__legend_entries and len(self.__legend_entries) > 1:
             # find the current legend index if there is one
@@ -1325,13 +1317,14 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
                 return True
         return False
 
-    def mouse_released(self, x, y, modifiers):
+    def mouse_released(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         self.__mouse_pressed_for_dragging = False
         self.__dragging_index = None
         self._drag_start_position = None
         self.__entry_to_insert = None
         self.__generate_effective_entries()
         self.update()
+        return True
 
     def drag_leave(self) -> str:
         self._drag_start_position = None
@@ -1401,7 +1394,7 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
         return "ignore"
 
     @property
-    def effective_entries(self) -> typing.List[LegendEntry]:
+    def effective_entries(self) -> typing.Sequence[LegendEntry]:
         return self.__effective_entries
 
     def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
