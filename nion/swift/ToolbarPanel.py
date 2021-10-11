@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # standard libraries
 import gettext
 import typing
@@ -19,6 +21,9 @@ from nion.utils import Geometry
 from nion.utils import Model
 from nion.utils import Registry
 
+if typing.TYPE_CHECKING:
+    from nion.swift.model import Persistence
+
 _ = gettext.gettext
 
 
@@ -26,7 +31,7 @@ class ToolModeToolbarWidget:
     toolbar_widget_id = "nion.swift.toolbar-widget.tool-mode"
     toolbar_widget_title = _("Tools")
 
-    def __init__(self, *, document_controller: DocumentController.DocumentController, **kwargs: typing.Any):
+    def __init__(self, *, document_controller: DocumentController.DocumentController, **kwargs: typing.Any) -> None:
         self.radio_button_value: Model.PropertyModel[int] = Model.PropertyModel(0)
 
         u = Declarative.DeclarativeUI()
@@ -75,7 +80,7 @@ class ToolModeToolbarWidget:
 
         tool_mode_changed(document_controller.tool_mode)
 
-        def radio_button_changed(property: str):
+        def radio_button_changed(property: str) -> None:
             if property == "value":
                 mode_index = self.radio_button_value.value
                 if mode_index is not None:
@@ -92,7 +97,7 @@ class ToolModeToolbarWidget:
 
 class ActionTableToolbarWidget:
 
-    def __init__(self, actions: typing.Sequence[Window.Action], document_controller: DocumentController.DocumentController, **kwargs: typing.Any):
+    def __init__(self, actions: typing.Sequence[Window.Action], document_controller: DocumentController.DocumentController, **kwargs: typing.Any) -> None:
         self.__document_controller = document_controller
         u = Declarative.DeclarativeUI()
         top_row = [self.__create_action_button(actions[i]) for i in range(0, len(actions), 2)]
@@ -174,7 +179,7 @@ Registry.register_component(WorkspaceToolbarWidget, {"toolbar-widget"})
 
 class ToolbarPanel(Panel.Panel):
 
-    def __init__(self, document_controller, panel_id, properties):
+    def __init__(self, document_controller: DocumentController.DocumentController, panel_id: str, properties: Persistence.PersistentDictType) -> None:
         super().__init__(document_controller, panel_id, _("Toolbar"))
 
         self.__component_registered_listener = Registry.listen_component_registered_event(self.__component_registered)
@@ -213,7 +218,7 @@ class ToolbarPanel(Panel.Panel):
             widget_section.add(widget)
             section_bar = self.ui.create_canvas_widget(properties={"width": 9, "size_policy_vertical": "expanding"})
 
-            def draw(drawing_context: DrawingContext.DrawingContext, canvas_size: Geometry.IntSize, *args, **kwargs: typing.Any):
+            def draw(drawing_context: DrawingContext.DrawingContext, canvas_size: Geometry.IntSize, *args: typing.Any, **kwargs: typing.Any) -> None:
                 with drawing_context.saver():
                     drawing_context.rect(0, 0, canvas_size.width, canvas_size.height)
                     drawing_context.fill_style = "#DDD"
@@ -233,10 +238,10 @@ class ToolbarPanel(Panel.Panel):
 
     def close(self) -> None:
         self.__component_registered_listener.close()
-        self.__component_registered_listener = None
+        self.__component_registered_listener = typing.cast(typing.Any, None)
         super().close()
 
-    def __component_registered(self, component, component_types: typing.Set[str]) -> None:
+    def __component_registered(self, component: typing.Callable[..., Declarative.HandlerLike], component_types: typing.Set[str]) -> None:
         if "toolbar-widget" in component_types:
             self.__toolbar_widget_row.add_spacing(12)
             self.__toolbar_widget_row.add(Declarative.DeclarativeWidget(self.ui, self.document_controller.event_loop, component(document_controller=self.document_controller)))

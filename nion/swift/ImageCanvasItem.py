@@ -228,7 +228,7 @@ class ScaleMarkerCanvasItem(CanvasItem.AbstractCanvasItem):
                 calibrated_scale_marker_width = Geometry.make_pretty2(scale_marker_image_width * dimensional_calibration.scale, True)
                 # update the scale marker width
                 scale_marker_image_width = calibrated_scale_marker_width / dimensional_calibration.scale
-                scale_marker_width = scale_marker_image_width * screen_pixel_per_image_pixel
+                scale_marker_width = round(scale_marker_image_width * screen_pixel_per_image_pixel)
                 text1 = dimensional_calibration.convert_to_calibrated_size_str(scale_marker_image_width)
                 text2 = self.__info_text
                 fm1 = self.__get_font_metrics_fn(self.scale_marker_font, text1)

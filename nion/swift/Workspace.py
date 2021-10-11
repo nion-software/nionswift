@@ -258,9 +258,9 @@ class Workspace:
         self.__workspace = None
         for dock_panel in self.dock_panels:
             dock_panel.close()
-        self.__content_column = typing.cast(UserInterface.BoxWidget, None)
-        self.filter_row = typing.cast(FilterPanel.FilterPanel, None)
-        self.image_row = typing.cast(UserInterface.BoxWidget, None)
+        self.__content_column = typing.cast(typing.Any, None)
+        self.filter_row = typing.cast(typing.Any, None)
+        self.image_row = typing.cast(typing.Any, None)
         self.document_controller.detach_widget()
 
     @property

@@ -24,6 +24,11 @@ from nion.utils import Registry
 
 if typing.TYPE_CHECKING:
     from nion.swift import DocumentController
+    from nion.swift.model import Changes
+    from nion.swift.model import DocumentModel
+    from nion.swift.model import Persistence
+    from nion.ui import DrawingContext
+    from nion.ui import UserInterface
 
 _ = gettext.gettext
 
@@ -35,20 +40,22 @@ class Recorder:
         self.__document_model = document_controller.document_model
         self.__data_item = data_item
 
-        self.on_live_state_changed = None
-        self.on_recording_state_changed = None
-        self.on_data_item_removed = None
+        self.on_live_state_changed: typing.Optional[typing.Callable[[bool], None]] = None
+        self.on_recording_state_changed: typing.Optional[typing.Callable[[str], None]] = None
+        self.on_data_item_removed: typing.Optional[typing.Callable[[], None]] = None
 
         self.__recording_state = "stopped"
         self.__recording_start = 0.0
         self.__recording_index = 0
-        self.__recording_data_item = None
-        self.__recording_transaction = None
+        self.__recording_data_item: typing.Optional[DataItem.DataItem] = None
+        self.__recording_transaction: typing.Optional[DocumentModel.Transaction] = None
         self.__recording_error = False
-        self.__recording_interval = None
-        self.__recording_count = None
+        self.__recording_interval = 1.0
+        self.__recording_count = 0
 
-        def data_item_content_changed():
+        self.__last_complete_xdata: typing.Optional[DataAndMetadata.DataAndMetadata] = None
+
+        def data_item_content_changed() -> None:
             is_live = data_item.is_live
             if not is_live:
                 self.__stop_recording()
@@ -57,7 +64,7 @@ class Recorder:
 
         # if the item source or recorded data item is removed, stop recording
         # called when an item is removed from the document
-        def item_removed(key, value, index):
+        def item_removed(key: str, value: DataItem.DataItem, index: int) -> None:
             if value == self.__recording_data_item:
                 self.__stop_recording()
             if value == self.__data_item:
@@ -65,12 +72,12 @@ class Recorder:
                 if callable(self.on_data_item_removed):
                     self.on_data_item_removed()
 
-        def data_changed():
+        def data_changed() -> None:
             current_xdata = self.__data_item.xdata
             if current_xdata and not current_xdata.is_sequence:
                 # allow registered metadata_display components to populate a dictionary
                 # the recorder will look at 'valid_rows'
-                d = dict()
+                d: Persistence.PersistentDictType = dict()
                 for component in Registry.get_components_by_type("metadata_display"):
                     component.populate(d, current_xdata.metadata)
                 # grab valid_rows to determine if frame is incomplete
@@ -84,18 +91,16 @@ class Recorder:
         self.__item_removed_event_listener = self.__document_model.item_removed_event.listen(item_removed)
         self.__data_item_data_changed_event_listener = self.__data_item.data_changed_event.listen(data_changed)
 
-        self.__last_complete_xdata = None
-
         data_item_content_changed()
         data_changed()
 
     def close(self) -> None:
         self.__data_item_changed_event_listener.close()
-        self.__data_item_changed_event_listener = None
+        self.__data_item_changed_event_listener = typing.cast(typing.Any, None)
         self.__item_removed_event_listener.close()
-        self.__item_removed_event_listener = None
+        self.__item_removed_event_listener = typing.cast(typing.Any, None)
         self.__data_item_data_changed_event_listener.close()
-        self.__data_item_data_changed_event_listener = None
+        self.__data_item_data_changed_event_listener = typing.cast(typing.Any, None)
 
     @property
     def recording_state(self) -> str:
@@ -103,23 +108,24 @@ class Recorder:
 
     class RecorderInsertDataItemCommandCommand(Undo.UndoableCommand):
 
-        def __init__(self, document_controller, recorder: "Recorder", data_item_fn: typing.Callable[[], DataItem.DataItem]):
+        def __init__(self, document_controller: DocumentController.DocumentController, recorder: Recorder, data_item_fn: typing.Callable[[], DataItem.DataItem]) -> None:
             super().__init__(_("Record Data Item"))
             self.__document_controller = document_controller
             self.__recorder = recorder
-            self.__old_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
-            self.__new_workspace_layout = None
-            self.__data_item_proxy = None
+            workspace_controller = self.__document_controller.workspace_controller
+            self.__old_workspace_layout: typing.Optional[Persistence.PersistentDictType] = workspace_controller.deconstruct() if workspace_controller else None
+            self.__new_workspace_layout: typing.Optional[Persistence.PersistentDictType] = None
+            self.__data_item_proxy: typing.Optional[Persistence.PersistentObjectProxy] = None
             self.__data_item_fn = data_item_fn
-            self.__undelete_log = None
+            self.__undelete_log: typing.Optional[Changes.UndeleteLog] = None
             self.initialize()
 
         def close(self) -> None:
-            self.__document_controller = None
+            self.__document_controller = typing.cast(typing.Any, None)
             if self.__data_item_proxy:
                 self.__data_item_proxy.close()
                 self.__data_item_proxy = None
-            self.__data_item_fn = None
+            self.__data_item_fn = typing.cast(typing.Any, None)
             self.__old_workspace_layout = None
             self.__new_workspace_layout = None
             if self.__undelete_log:
@@ -132,8 +138,8 @@ class Recorder:
             self.__data_item_proxy = data_item.create_proxy()
 
         @property
-        def data_item(self):
-            return self.__data_item_proxy.item if self.__data_item_proxy else None
+        def data_item(self) -> typing.Optional[DataItem.DataItem]:
+            return typing.cast(typing.Optional[DataItem.DataItem], self.__data_item_proxy.item) if self.__data_item_proxy else None
 
         def _get_modified_state(self) -> typing.Any:
             return self.__document_controller.document_model.modified_state
@@ -142,17 +148,25 @@ class Recorder:
             self.__document_controller.document_model.modified_state = modified_state
 
         def _redo(self) -> None:
+            assert self.__undelete_log
             self.__document_controller.document_model.undelete_all(self.__undelete_log)
             self.__undelete_log.close()
             self.__undelete_log = None
-            self.__document_controller.workspace_controller.reconstruct(self.__new_workspace_layout)
+            workspace_controller = self.__document_controller.workspace_controller
+            assert workspace_controller
+            assert self.__new_workspace_layout is not None
+            workspace_controller.reconstruct(self.__new_workspace_layout)
 
         def _undo(self) -> None:
             data_item = self.data_item
             self.__recorder.stop_recording()
-            self.__new_workspace_layout = self.__document_controller.workspace_controller.deconstruct()
+            assert data_item
+            workspace_controller = self.__document_controller.workspace_controller
+            assert workspace_controller
+            self.__new_workspace_layout = workspace_controller.deconstruct()
             self.__undelete_log = self.__document_controller.document_model.remove_data_item_with_log(data_item, safe=True)
-            self.__document_controller.workspace_controller.reconstruct(self.__old_workspace_layout)
+            assert self.__old_workspace_layout is not None
+            workspace_controller.reconstruct(self.__old_workspace_layout)
 
     def continue_recording(self, current_time: float) -> None:
         if self.__recording_state == "recording":
@@ -164,10 +178,11 @@ class Recorder:
                     data_item.ensure_data_source()
                     data_item.title = _("Recording of ") + self.__data_item.title
 
-                    def process():
+                    def process() -> DataItem.DataItem:
                         self.__document_model.append_data_item(data_item)
                         display_item = self.__document_controller.document_model.get_display_item_for_data_item(data_item)
-                        self.__document_controller.show_display_item(display_item)
+                        if display_item:
+                            self.__document_controller.show_display_item(display_item)
                         return data_item
 
                     command = Recorder.RecorderInsertDataItemCommandCommand(self.__document_controller, self, process)
@@ -186,13 +201,15 @@ class Recorder:
                 # now record the new data. it may or may not be a new frame at this point.
                 last_xdata = self.__recording_data_item.xdata
                 self.__recording_index += 1
-                if current_xdata and last_xdata and current_xdata.data_shape == self.__recording_data_item.data_shape[1:]:
+                recording_data_shape = self.__recording_data_item.data_shape
+                if current_xdata and last_xdata and recording_data_shape is not None and current_xdata.data_shape == recording_data_shape[1:]:
                     # continue, append the new data to existing data and update existing data item
                     intensity_calibration = last_xdata.intensity_calibration
                     dimensional_calibrations = last_xdata.dimensional_calibrations
                     data_descriptor = last_xdata.data_descriptor
+                    stacked_data = numpy.vstack([last_xdata.data, [current_xdata.data]])  # type: ignore
                     sequence_xdata = DataAndMetadata.new_data_and_metadata(
-                        numpy.vstack([last_xdata.data, [current_xdata.data]]),
+                        stacked_data,
                         intensity_calibration=intensity_calibration, dimensional_calibrations=dimensional_calibrations,
                         data_descriptor=data_descriptor)
                     self.__recording_data_item.set_xdata(sequence_xdata)
@@ -205,7 +222,8 @@ class Recorder:
                     data_descriptor = DataAndMetadata.DataDescriptor(True,
                                                                      current_xdata.data_descriptor.collection_dimension_count,
                                                                      current_xdata.data_descriptor.datum_dimension_count)
-                    sequence_xdata = DataAndMetadata.new_data_and_metadata(current_xdata.data[numpy.newaxis, ...],
+                    new_axis_data = current_xdata.data[numpy.newaxis, ...]  # type: ignore
+                    sequence_xdata = DataAndMetadata.new_data_and_metadata(new_axis_data,
                                                                            intensity_calibration=intensity_calibration,
                                                                            dimensional_calibrations=dimensional_calibrations,
                                                                            data_descriptor=data_descriptor)
@@ -229,10 +247,10 @@ class Recorder:
         if callable(self.on_recording_state_changed):
             self.on_recording_state_changed(self.__recording_state)
 
-    def stop_recording(self):
+    def stop_recording(self) -> None:
         self.__stop_recording()
 
-    def __stop_recording(self):
+    def __stop_recording(self) -> None:
         if self.__recording_state == "recording":
             self.__recording_state = "stopped"
             self.__recording_start = 0.0
@@ -261,7 +279,7 @@ class RecorderDialog(Dialog.ActionDialog):
 
         self.__record_button = ui.create_push_button_widget(_("Record"))
 
-        def thumbnail_widget_drag(mime_data, thumbnail, hot_spot_x, hot_spot_y):
+        def thumbnail_widget_drag(mime_data: UserInterface.MimeData, thumbnail: typing.Optional[DrawingContext.RGBA32Type], hot_spot_x: int, hot_spot_y: int) -> None:
             # use this convoluted base object for drag so that it doesn't disappear after the drag.
             self.content.drag(mime_data, thumbnail, hot_spot_x, hot_spot_y)
 
@@ -317,11 +335,13 @@ class RecorderDialog(Dialog.ActionDialog):
         button_row.add(column1)
         button_row.add_spacing(8)
 
-        def record_pressed():
+        def record_pressed() -> None:
             if self.__recorder.recording_state == "recording":
                 self.__recorder.stop_recording()
             else:
-                self.__recorder.start_recording(time.time(), self.__recording_interval_property.value / 1000, self.__recording_count_property.value)
+                recording_interval = self.__recording_interval_property.value or 0.0
+                recording_count = self.__recording_count_property.value or 1
+                self.__recorder.start_recording(time.time(), recording_interval / 1000, recording_count)
 
         self.__record_button.on_clicked = record_pressed
 
@@ -351,9 +371,9 @@ class RecorderDialog(Dialog.ActionDialog):
 
     def close(self) -> None:
         self.__recorder.close()
-        self.__recorder = None
+        self.__recorder = typing.cast(typing.Any, None)
         super().close()
 
-    def periodic(self):
+    def periodic(self) -> None:
         super().periodic()
         self.__recorder.continue_recording(time.time())
