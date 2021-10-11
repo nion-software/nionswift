@@ -318,7 +318,7 @@ class ProjectTreeCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
         self.__folder_indent = get_font_metrics_fn("12px", "\N{BLACK DOWN-POINTING TRIANGLE} ").width
         self.__project_indent = get_font_metrics_fn("12px", "\N{OPEN FILE FOLDER} ").width
 
-    def mouse_pressed_in_item(self, mouse_index: int, pos: Geometry.IntPoint, modifiers) -> bool:
+    def mouse_pressed_in_item(self, mouse_index: int, pos: Geometry.IntPoint, modifiers: UserInterface.KeyboardModifiers) -> bool:
         display_item = self.__tree_model.value[mouse_index]
         indent = self.__calculate_indent(display_item.indent, 0)
         if display_item.is_folder and indent < pos.x < indent + self.__folder_indent:

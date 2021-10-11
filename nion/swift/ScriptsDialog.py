@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # system imports
 import ast
 import collections
@@ -17,7 +19,7 @@ import typing
 import sys
 
 # third part imports
-import numpy
+# None
 
 # local libraries
 from nion.swift.model import PlugInManager
@@ -34,11 +36,19 @@ from nion.utils import Geometry
 
 if typing.TYPE_CHECKING:
     from nion.swift import DocumentController
+    from nion.ui import DrawingContext
+    from nion.ui import UserInterface
+
+_NDArray = typing.Any  # numpy 1.21
 
 _ = gettext.gettext
 
 
-def pose_get_string_message_box(ui, message_column, caption, text, accepted_fn, rejected_fn=None, accepted_text=None, rejected_text=None):
+def pose_get_string_message_box(ui: UserInterface.UserInterface, message_column: UserInterface.BoxWidget, caption: str,
+                                text: str, accepted_fn: typing.Callable[[str], None],
+                                rejected_fn: typing.Optional[typing.Callable[[], None]] = None,
+                                accepted_text: typing.Optional[str] = None,
+                                rejected_text: typing.Optional[str] = None) -> UserInterface.BoxWidget:
     if accepted_text is None:
         accepted_text = _("OK")
     if rejected_text is None:
@@ -50,13 +60,13 @@ def pose_get_string_message_box(ui, message_column, caption, text, accepted_fn, 
     caption_row.add_stretch()
     inside_row = ui.create_row_widget()
 
-    def reject_button_clicked():
-        if rejected_fn:
+    def reject_button_clicked() -> typing.Any:
+        if callable(rejected_fn):
             rejected_fn()
         return False
 
-    def accept_button_clicked():
-        accepted_fn(string_edit_widget.text)
+    def accept_button_clicked() -> typing.Any:
+        accepted_fn(string_edit_widget.text or str())
         return False
 
     string_edit_widget = ui.create_line_edit_widget()
@@ -85,19 +95,24 @@ def pose_get_string_message_box(ui, message_column, caption, text, accepted_fn, 
     return message_box_widget
 
 
-def pose_confirmation_message_box(ui, message_column, caption, accepted_fn, rejected_fn=None, accepted_text=None, rejected_text=None, display_rejected=True):
+def pose_confirmation_message_box(ui: UserInterface.UserInterface, message_column: UserInterface.BoxWidget,
+                                  caption: str, accepted_fn: typing.Callable[[], None],
+                                  rejected_fn: typing.Optional[typing.Callable[[], None]] = None,
+                                  accepted_text: typing.Optional[str] = None,
+                                  rejected_text: typing.Optional[str] = None,
+                                  display_rejected: bool = True) -> UserInterface.BoxWidget:
     if accepted_text is None:
         accepted_text = _("OK")
     if rejected_text is None:
         rejected_text = _("Cancel")
     message_box_widget = ui.create_column_widget()  # properties={"stylesheet": "background: #FFD"}
 
-    def reject_button_clicked():
+    def reject_button_clicked() -> typing.Any:
         if rejected_fn:
             rejected_fn()
         return False
 
-    def accept_button_clicked():
+    def accept_button_clicked() -> typing.Any:
         accepted_fn()
         return False
 
@@ -122,7 +137,7 @@ def pose_confirmation_message_box(ui, message_column, caption, accepted_fn, reje
 
 
 class ScriptListItem:
-    def __init__(self, full_path: str, indent: int = 0, indent_level: int = 0, show_dirname: bool = True):
+    def __init__(self, full_path: str, indent: int = 0, indent_level: int = 0, show_dirname: bool = True) -> None:
         self.__full_path = os.path.abspath(full_path)
         self._exists = False
         self.indent = indent
@@ -151,7 +166,7 @@ class ScriptListItem:
         return self._exists
 
     # Used by "sort"
-    def __lt__(self, other) -> bool:
+    def __lt__(self, other: typing.Any) -> bool:
         if isinstance(other, FolderListItem):
             return False
         if isinstance(other, ScriptListItem):
@@ -171,7 +186,7 @@ class FolderListItem(ScriptListItem):
     def content(self) -> typing.List[ScriptListItem]:
         return self.__content
 
-    def update_content_from_file_system(self, filter_pattern: typing.Optional[str] = None):
+    def update_content_from_file_system(self, filter_pattern: typing.Optional[str] = None) -> None:
         if os.path.isdir(self.full_path):
             dirlist = os.listdir(self.full_path)
             filtered_items = list()
@@ -183,7 +198,7 @@ class FolderListItem(ScriptListItem):
             self.__content = filtered_items
 
     # Used by "sort"
-    def __lt__(self, other) -> bool:
+    def __lt__(self, other: typing.Any) -> bool:
         if isinstance(other, FolderListItem):
             return locale.strxfrm(self.basename.casefold()) < locale.strxfrm(other.basename.casefold())
         if isinstance(other, ScriptListItem):
@@ -191,7 +206,7 @@ class FolderListItem(ScriptListItem):
         return NotImplemented
 
 
-def _build_sorted_scripts_list(scripts_list: typing.List[ScriptListItem]) -> typing.List[ScriptListItem]:
+def _build_sorted_scripts_list(scripts_list: typing.Sequence[typing.Any]) -> typing.Sequence[ScriptListItem]:
     filtered_items = []
     for item in scripts_list:
         if item.indent_level == 0:
@@ -218,7 +233,7 @@ def open_location(location: str) -> None:
 
 class ScriptListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
 
-    def __init__(self, ui, document_controller, update_list_fn: typing.Callable[[], typing.Any]):
+    def __init__(self, ui: UserInterface.UserInterface, document_controller: DocumentController.DocumentController, update_list_fn: typing.Callable[[], typing.Any]) -> None:
         super().__init__()
         self.__ui = ui
         self.__document_controller = document_controller
@@ -260,7 +275,7 @@ class ScriptListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
     def _minor_font_color() -> str:
         return "#888"
 
-    def mouse_pressed_in_item(self, mouse_index: int, pos: Geometry.IntPoint, modifiers) -> bool:
+    def mouse_pressed_in_item(self, mouse_index: int, pos: Geometry.IntPoint, modifiers: UserInterface.KeyboardModifiers) -> bool:
         display_item = self.items[mouse_index]
         width = self.__ui.get_font_metrics(self._major_font_size(), self._closed_folder_icon_strings()[0]).width
         if isinstance(display_item, FolderListItem) and display_item.indent - 4 < pos.x < display_item.indent + width + 2:
@@ -284,12 +299,12 @@ class ScriptListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
             return True
         return False
 
-    def __calculate_indent(self, display_item):
+    def __calculate_indent(self, display_item: typing.Any) -> int:
         # An item that can cause an indent_level > 0 is always an open folder
         triangle_string, icon_string = self._open_folder_icon_strings()
-        return 4 + self.__ui.get_font_metrics(self._major_font_size(), triangle_string + icon_string).width * display_item.indent_level
+        return round(4 + self.__ui.get_font_metrics(self._major_font_size(), triangle_string + icon_string).width * display_item.indent_level)
 
-    def paint_item(self, drawing_context, display_item, rect, is_selected):
+    def paint_item(self, drawing_context: DrawingContext.DrawingContext, display_item: typing.Any, rect: Geometry.IntRect, is_selected: bool) -> None:
         if isinstance(display_item, FolderListItem):
             if display_item.folder_closed:
                 triangle_string, icon_string = self._closed_folder_icon_strings()
@@ -343,7 +358,7 @@ class RunScriptDialog(Dialog.ActionDialog):
 
         self.__cancelled = False
 
-        self.__thread = None
+        self.__thread: typing.Optional[threading.Thread] = None
 
         properties = dict()
         properties["min-height"] = 180
@@ -525,10 +540,10 @@ class RunScriptDialog(Dialog.ActionDialog):
         super().close()
 
     @property
-    def cancelled(self):
+    def cancelled(self) -> bool:
         return self.__cancelled
 
-    def update_scripts_list(self, new_scripts_list):
+    def update_scripts_list(self, new_scripts_list: typing.Sequence[typing.Any]) -> None:
         for item in new_scripts_list:
             if isinstance(item, FolderListItem):
                 item.update_content_from_file_system(filter_pattern=self.script_filter_pattern)
@@ -537,11 +552,11 @@ class RunScriptDialog(Dialog.ActionDialog):
             item.check_existence()
         self.scripts_list_widget.items = items
 
-    def rebuild_scripts_list(self):
+    def rebuild_scripts_list(self) -> None:
         self.update_scripts_list(self.scripts_list_widget.items)
 
-    def __make_cancel_row(self):
-        def cancel_script():
+    def __make_cancel_row(self) -> UserInterface.BoxWidget:
+        def cancel_script() -> None:
             self.__cancelled = True
 
         cancel_button = self.ui.create_push_button_widget(_("Cancel"))
@@ -589,11 +604,11 @@ class RunScriptDialog(Dialog.ActionDialog):
             return
 
         class AddCallFunctionNodeTransformer(ast.NodeTransformer):
-            def __init__(self, func_id, arg_id):
+            def __init__(self, func_id: str, arg_id: str) -> None:
                 self.__func_id = func_id
                 self.__arg_id = arg_id
 
-            def visit_Module(self, node):
+            def visit_Module(self, node: typing.Any) -> typing.Any:
                 name_expr = ast.Name(id=self.__func_id, ctx=ast.Load())
                 arg_expr = ast.Name(id=self.__arg_id, ctx=ast.Load())
                 call_expr = ast.Expr(value=ast.Call(func=name_expr, args=[arg_expr], keywords=[]))
@@ -609,28 +624,28 @@ class RunScriptDialog(Dialog.ActionDialog):
 
         compiled = compile(script_ast, script_name, 'exec')
 
-        def run_it(compiled, interactive_session):
+        def run_it(compiled: typing.Any, interactive_session: typing.Any) -> None:
             class APIBroker:
-                def get_interactive(self, version=None):
+                def get_interactive(self, version: typing.Optional[str] = None) -> typing.Any:
                     actual_version = "1.0.0"
-                    if Utility.compare_versions(version, actual_version) > 0:
+                    if Utility.compare_versions(version or str(), actual_version) > 0:
                         raise NotImplementedError("API requested version %s is greater than %s." % (version, actual_version))
                     return interactive_session
 
-                def get_api(self, version, ui_version=None):
+                def get_api(self, version: str, ui_version: typing.Optional[str] = None) -> typing.Any:
                     ui_version = ui_version if ui_version else "~1.0"
                     api = PlugInManager.api_broker_fn(version, ui_version)
-                    queued_api = FacadeQueued.API(api, None)
-                    queued_api._queue_task = api.queue_task
+                    queued_api = FacadeQueued.API(api, None)  # type: ignore
+                    queued_api._queue_task = api.queue_task  # type: ignore
                     return queued_api
 
-                def get_ui(self, version):
+                def get_ui(self, version: str) -> Declarative.DeclarativeUI:
                     actual_version = "1.0.0"
                     if Utility.compare_versions(version, actual_version) > 0:
                         raise NotImplementedError("API requested version %s is greater than %s." % (version, actual_version))
                     return Declarative.DeclarativeUI()
             try:
-                g = dict()
+                g: typing.Dict[str, typing.Any] = dict()
                 g["api_broker"] = APIBroker()
                 g["print"] = self.print
                 g["input"] = self.get_string
@@ -642,14 +657,14 @@ class RunScriptDialog(Dialog.ActionDialog):
                     def __init__(self) -> None:
                         pass
 
-                    def write(self, stuff):
+                    def write(self, stuff: str) -> None:
                         print_fn(stuff.rstrip())
 
-                    def flush(self):
+                    def flush(self) -> None:
                         pass
 
                 stdout = StdoutCatcher()
-                with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stdout):
+                with contextlib.redirect_stdout(typing.cast(typing.Any, stdout)), contextlib.redirect_stderr(typing.cast(typing.Any, stdout)):
                     exec(compiled, g)
             except Exception:
                 self.print("{}: {}".format(_("Error"), traceback.format_exc()))
@@ -658,8 +673,8 @@ class RunScriptDialog(Dialog.ActionDialog):
 
         self.run(script_path, functools.partial(run_it, compiled))
 
-    def continue_after_parse_error(self, script_path):
-        def func_continue():
+    def continue_after_parse_error(self, script_path: str) -> None:
+        def func_continue() -> None:
             result = self.confirm(_("Finished"), _("Run Again"), _("Close"))
 
             with self.__lock:
@@ -672,8 +687,8 @@ class RunScriptDialog(Dialog.ActionDialog):
         self.__thread = threading.Thread(target=func_continue)
         self.__thread.start()
 
-    def run(self, script_path, func):
-        def func_run(func):
+    def run(self, script_path: str, func: typing.Callable[[RunScriptDialog], None]) -> None:
+        def func_run(func: typing.Callable[[RunScriptDialog], None]) -> None:
             try:
                 func(self)
             except Exception:
@@ -692,7 +707,7 @@ class RunScriptDialog(Dialog.ActionDialog):
         self.__thread = threading.Thread(target=func_run, args=(func,))
         self.__thread.start()
 
-    def __handle_output_and_q(self):
+    def __handle_output_and_q(self) -> None:
         func = None
         with self.__lock:
             while len(self.__output_queue) > 0:
@@ -703,32 +718,32 @@ class RunScriptDialog(Dialog.ActionDialog):
         if callable(func):
             func()
 
-    def print(self, text):
+    def print(self, text: typing.Any) -> None:
         with self.__lock:
             self.__output_queue.append(str(text))
             self.document_controller.add_task("print_" + str(id(self)), self.__handle_output_and_q)
 
-    def print_debug(self, text):
+    def print_debug(self, text: typing.Any) -> None:
         self.print(text)
 
-    def print_info(self, text):
+    def print_info(self, text: typing.Any) -> None:
         self.print(text)
 
-    def print_warn(self, text):
+    def print_warn(self, text: typing.Any) -> None:
         self.print(text)
 
-    def get_string(self, prompt, default_str=None) -> typing.Optional[str]:
+    def get_string(self, prompt: str, default_str: typing.Optional[str] = None) -> typing.Optional[str]:
         """Return a string value that the user enters. Raises exception for cancel."""
         with self.sync_event() as accept_event:
             result = None
 
-            def perform():
-                def accepted(text):
+            def perform() -> None:
+                def accepted(text: str) -> None:
                     nonlocal result
                     result = text
                     accept_event.set()
 
-                def rejected():
+                def rejected() -> None:
                     accept_event.set()
 
                 self.__message_column.remove_all()
@@ -741,7 +756,7 @@ class RunScriptDialog(Dialog.ActionDialog):
             if self.__is_closed:
                 raise Exception("Cancel")
 
-        def update_message_column():
+        def update_message_column() -> None:
             self.__message_column.remove_all()
             self.__message_column.add(self.__make_cancel_row())
         self.document_controller.add_task("ui_" + str(id(self)), update_message_column)
@@ -759,10 +774,10 @@ class RunScriptDialog(Dialog.ActionDialog):
         result = self.get_string(prompt, converter.convert(default_value))
         return converter.convert_back(result) or 0.0
 
-    def show_ndarray(self, data: numpy.ndarray, title: typing.Optional[str] = None) -> None:
+    def show_ndarray(self, data: _NDArray, title: typing.Optional[str] = None) -> None:
         with self.sync_event() as accept_event:
 
-            def perform():
+            def perform() -> None:
                 result_display_panel = self.document_controller.next_result_display_panel()
                 if result_display_panel:
                     data_item = self.document_controller.add_data(data, title)
@@ -785,24 +800,24 @@ class RunScriptDialog(Dialog.ActionDialog):
         self.__sync_events.remove(sync_event)
 
     @contextlib.contextmanager
-    def sync_event(self):
+    def sync_event(self) -> typing.Iterator[threading.Event]:
         sync_event = threading.Event()
         self.__register_sync_event(sync_event)
         yield sync_event
         self.__unregister_sync_event(sync_event)
 
-    def __accept_reject(self, prompt, accepted_text, rejected_text, display_rejected):
+    def __accept_reject(self, prompt: str, accepted_text: typing.Optional[str], rejected_text: typing.Optional[str], display_rejected: bool) -> bool:
         """Return a boolean value for accept/reject."""
         with self.sync_event() as accept_event:
             result = False
 
-            def perform():
-                def accepted():
+            def perform() -> None:
+                def accepted() -> None:
                     nonlocal result
                     result = True
                     accept_event.set()
 
-                def rejected():
+                def rejected() -> None:
                     nonlocal result
                     result = False
                     accept_event.set()
@@ -818,7 +833,7 @@ class RunScriptDialog(Dialog.ActionDialog):
             if self.__is_closed:
                 raise Exception("Cancel")
 
-        def update_message_column():
+        def update_message_column() -> None:
             self.__message_column.remove_all()
             self.__message_column.add(self.__make_cancel_row())
         self.document_controller.add_task("ui_" + str(id(self)), update_message_column)
