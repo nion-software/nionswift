@@ -24,6 +24,9 @@ from nion.utils import Event
 from nion.utils import ReferenceCounting
 from nion.utils import ThreadPool
 
+_NDArray = typing.Any  # numpy 1.21+
+_ThumbnailSourceWeakRef = typing.Any  # Python 3.9+
+
 
 class ThumbnailProcessor:
     """Processes thumbnails for a display in a thread."""
@@ -37,40 +40,40 @@ class ThumbnailProcessor:
         self.__cache_property_name = "thumbnail_data"
         self.width = 256
         self.height = 256
-        self.on_thumbnail_updated = None
+        self.on_thumbnail_updated: typing.Optional[typing.Callable[[], None]] = None
 
     def close(self) -> None:
         self.on_thumbnail_updated = None
         self.__dispatcher.close()
-        self.__dispatcher = None
-        self.__display_item = None
+        self.__dispatcher = typing.cast(typing.Any, None)
+        self.__display_item = typing.cast(typing.Any, None)
         self.__display_item_about_to_close_listener.close()
-        self.__display_item_about_to_close_listener = None
+        self.__display_item_about_to_close_listener = typing.cast(typing.Any, None)
 
     def __about_to_close_display_item(self) -> None:
         self.close()
 
     # used internally and for testing
     @property
-    def _is_cached_value_dirty(self):
+    def _is_cached_value_dirty(self) -> bool:
         return self.__cache.is_cached_value_dirty(self.__display_item, self.__cache_property_name)
 
     # thread safe
-    def mark_data_dirty(self):
+    def mark_data_dirty(self) -> None:
         """ Called from item to indicate its data or metadata has changed."""
         self.__cache.set_cached_value_dirty(self.__display_item, self.__cache_property_name)
 
-    def __get_cached_value(self) -> typing.Optional[numpy.ndarray]:
+    def __get_cached_value(self) -> typing.Optional[_NDArray]:
         return self.__cache.get_cached_value(self.__display_item, self.__cache_property_name)
 
-    def get_cached_data(self):
+    def get_cached_data(self) -> typing.Optional[_NDArray]:
         """Return the cached data for this processor.
 
         This method is thread safe and always returns quickly, using the cached data.
         """
         return self.__get_cached_value()
 
-    def __get_calculated_data(self, ui):
+    def __get_calculated_data(self, ui: UserInterface.UserInterface) -> typing.Optional[DrawingContext.RGBA32Type]:
         drawing_context, shape = DisplayPanel.preview(DisplayPanel.DisplayPanelUISettings(ui), self.__display_item, 512, 512)
         thumbnail_drawing_context = DrawingContext.DrawingContext()
         thumbnail_drawing_context.scale(self.width / 512, self.height / 512)
@@ -106,7 +109,7 @@ class ThumbnailProcessor:
 class ThumbnailSource(ReferenceCounting.ReferenceCounted):
     """Produce a thumbnail for a display."""
 
-    def __init__(self, ui, display_item: DisplayItem.DisplayItem):
+    def __init__(self, ui: UserInterface.UserInterface, display_item: DisplayItem.DisplayItem) -> None:
         super().__init__()
         self._ui = ui
         self._display_item = display_item
@@ -114,7 +117,7 @@ class ThumbnailSource(ReferenceCounting.ReferenceCounted):
         self.thumbnail_updated_event = Event.Event()
         self.__thumbnail_processor = ThumbnailProcessor(display_item)
 
-        def thumbnail_changed():
+        def thumbnail_changed() -> None:
             thumbnail_processor = self.__thumbnail_processor
             if thumbnail_processor:
                 thumbnail_processor.mark_data_dirty()
@@ -122,7 +125,7 @@ class ThumbnailSource(ReferenceCounting.ReferenceCounted):
 
         self.__display_changed_event_listener = display_item.display_changed_event.listen(thumbnail_changed)
 
-        def thumbnail_updated():
+        def thumbnail_updated() -> None:
             self.thumbnail_updated_event.fire()
 
         self.__thumbnail_processor.on_thumbnail_updated = thumbnail_updated
@@ -131,22 +134,21 @@ class ThumbnailSource(ReferenceCounting.ReferenceCounted):
         if self.__thumbnail_processor._is_cached_value_dirty:
             self.__thumbnail_processor.recompute(ui)
 
-        def display_item_will_close():
+        def display_item_will_close() -> None:
             if self.__thumbnail_processor:
                 self.__thumbnail_processor.close()
-                self.__thumbnail_processor = None
+                self.__thumbnail_processor = typing.cast(typing.Any, None)
 
         self.__display_will_close_listener = display_item.about_to_be_removed_event.listen(display_item_will_close)
 
     def about_to_delete(self) -> None:
         self.__display_will_close_listener.close()
-        self.__display_will_close_listener = None
+        self.__display_will_close_listener = typing.cast(typing.Any, None)
         if self.__thumbnail_processor:
             self.__thumbnail_processor.close()
-            self.__thumbnail_processor = None
-        if self.__display_changed_event_listener:
-            self.__display_changed_event_listener.close()
-            self.__display_changed_event_listener = None
+            self.__thumbnail_processor = typing.cast(typing.Any, None)
+        self.__display_changed_event_listener.close()
+        self.__display_changed_event_listener = typing.cast(typing.Any, None)
         super().about_to_delete()
 
     def add_ref(self) -> ThumbnailSource:
@@ -154,15 +156,15 @@ class ThumbnailSource(ReferenceCounting.ReferenceCounted):
         return self
 
     @property
-    def thumbnail_data(self):
+    def thumbnail_data(self) -> typing.Optional[_NDArray]:
         return self.__thumbnail_processor.get_cached_data() if self.__thumbnail_processor else None
 
-    def recompute_data(self):
+    def recompute_data(self) -> None:
         self.__thumbnail_processor.recompute_data(self._ui)
 
     # used for testing
     @property
-    def _is_thumbnail_dirty(self):
+    def _is_thumbnail_dirty(self) -> bool:
         return self.__thumbnail_processor._is_cached_value_dirty
 
 
@@ -170,13 +172,13 @@ class ThumbnailManager(metaclass=Utility.Singleton):
     """Manages thumbnail sources for displays."""
 
     def __init__(self) -> None:
-        self.__thumbnail_sources: typing.Dict[uuid.UUID, weakref.ReferenceType] = dict()
+        self.__thumbnail_sources: typing.Dict[uuid.UUID, _ThumbnailSourceWeakRef] = dict()
         self.__lock = threading.RLock()
 
-    def thumbnail_sources(self) -> typing.Dict[uuid.UUID, weakref.ReferenceType]:
+    def thumbnail_sources(self) -> typing.Dict[uuid.UUID, _ThumbnailSourceWeakRef]:
         return self.__thumbnail_sources
 
-    def thumbnail_source_for_display_item(self, ui, display_item: DisplayItem.DisplayItem) -> ThumbnailSource:
+    def thumbnail_source_for_display_item(self, ui: UserInterface.UserInterface, display_item: DisplayItem.DisplayItem) -> ThumbnailSource:
         """Returned ThumbnailSource must be closed."""
         with self.__lock:
             thumbnail_source_ref = self.__thumbnail_sources.get(display_item.uuid)
@@ -187,9 +189,9 @@ class ThumbnailManager(metaclass=Utility.Singleton):
                 weakref.finalize(thumbnail_source, self.__thumbnail_sources.pop, display_item.uuid)
             else:
                 assert thumbnail_source._ui == ui
-            return thumbnail_source
+            return typing.cast(ThumbnailSource, thumbnail_source)
 
-    def thumbnail_data_for_display_item(self, display_item: typing.Optional[DisplayItem.DisplayItem]) -> typing.Optional[numpy.ndarray]:
+    def thumbnail_data_for_display_item(self, display_item: typing.Optional[DisplayItem.DisplayItem]) -> typing.Optional[_NDArray]:
         with self.__lock:
             thumbnail_source_ref = self.__thumbnail_sources.get(display_item.uuid) if display_item else None
             thumbnail_source = thumbnail_source_ref() if thumbnail_source_ref else None
