@@ -126,15 +126,15 @@ class BitmapOverlayCanvasItem(CanvasItem.CanvasItemComposition):
                 return True
         return super().key_pressed(key)
 
-    def mouse_pressed(self, x, y, modifiers):
+    def mouse_pressed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         self.__drag_start = Geometry.IntPoint(x=x, y=y)
         return True
 
-    def mouse_released(self, x, y, modifiers):
+    def mouse_released(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         self.__drag_start = None
         return True
 
-    def mouse_position_changed(self, x, y, modifiers):
+    def mouse_position_changed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         p = Geometry.IntPoint(x=x, y=y)
         if self.__drag_start is not None and Geometry.distance(p, self.__drag_start) > 2:
             self.__drag_start = None

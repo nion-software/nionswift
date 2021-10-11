@@ -317,16 +317,16 @@ class HeaderCanvasItem(CanvasItem.CanvasItemComposition):
         self.__set_default_style()
         self.update()
 
-    def mouse_pressed(self, x, y, modifiers):
+    def mouse_pressed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         self.__mouse_pressed_position = Geometry.IntPoint(y=y, x=x)
         return True
 
-    def mouse_double_clicked(self, x, y, modifiers):
+    def mouse_double_clicked(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         if callable(self.on_double_clicked):
             return self.on_double_clicked(x, y, modifiers)
         return False
 
-    def mouse_position_changed(self, x, y, modifiers):
+    def mouse_position_changed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         pt = Geometry.IntPoint(y=y, x=x)
         if self.__mouse_pressed_position and Geometry.distance(self.__mouse_pressed_position, pt) > 12:
             on_drag_pressed = self.on_drag_pressed
@@ -334,7 +334,7 @@ class HeaderCanvasItem(CanvasItem.CanvasItemComposition):
                 self.__mouse_pressed_position = None
                 on_drag_pressed()
 
-    def mouse_released(self, x, y, modifiers):
+    def mouse_released(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         canvas_size = self.canvas_size
         select_ok = self.__mouse_pressed_position is not None
         if self.__display_close_control:
