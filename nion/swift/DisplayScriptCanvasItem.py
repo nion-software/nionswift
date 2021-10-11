@@ -175,7 +175,7 @@ class DisplayScriptCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.__mouse_in = True
         return True
 
-    def mouse_exited(self):
+    def mouse_exited(self) -> bool:
         if super().mouse_exited():
             return True
         self.__mouse_in = False
@@ -185,14 +185,14 @@ class DisplayScriptCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             self.delegate.cursor_changed(None)
         return True
 
-    def mouse_double_clicked(self, x, y, modifiers):
+    def mouse_double_clicked(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         if super().mouse_clicked(x, y, modifiers):
             return True
         if self.delegate.tool_mode == "pointer":
             pass  # pos = Geometry.IntPoint(x=x, y=y)
         return False
 
-    def mouse_position_changed(self, x, y, modifiers):
+    def mouse_position_changed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         if super().mouse_position_changed(x, y, modifiers):
             return True
         if self.delegate.tool_mode == "pointer":
@@ -201,7 +201,7 @@ class DisplayScriptCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.__update_cursor_info()
         return True
 
-    def mouse_pressed(self, x, y, modifiers):
+    def mouse_pressed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         if super().mouse_pressed(x, y, modifiers):
             return True
         self.delegate.begin_mouse_tracking()
@@ -209,7 +209,7 @@ class DisplayScriptCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             pass
         return False
 
-    def mouse_released(self, x, y, modifiers):
+    def mouse_released(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         if super().mouse_released(x, y, modifiers):
             return True
         return False

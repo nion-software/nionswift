@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 # standard libraries
+import dataclasses
 import functools
 import gettext
 import operator
@@ -8,7 +11,9 @@ import typing
 import numpy
 
 # local libraries
+from nion.data import Calibration
 from nion.data import Core
+from nion.data import DataAndMetadata
 from nion.data import Image
 from nion.swift import DisplayPanel
 from nion.swift import Panel
@@ -20,9 +25,24 @@ from nion.ui import Widgets
 from nion.utils import Binding
 from nion.utils import Event
 from nion.utils import Model
+from nion.utils import Observable
 from nion.utils import Stream
 
+from nion.utils.ReferenceCounting import weak_partial
+
+if typing.TYPE_CHECKING:
+    from nion.swift import DocumentController
+    from nion.swift.model import Persistence
+    from nion.ui import UserInterface
+
+_RGBA8ImageDataType = typing.Any  # numpy.typing.NDArray[typing.Any]
+
+_NDArray = typing.Any  # numpy 1.21
+
 _ = gettext.gettext
+
+T = typing.TypeVar('T')
+IT = typing.TypeVar('IT')
 
 
 class AdornmentsCanvasItem(CanvasItem.AbstractCanvasItem):
@@ -37,46 +57,45 @@ class AdornmentsCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def __init__(self) -> None:
         super().__init__()
-        self.display_limits = (0,1)
+        self.display_limits: typing.Tuple[float, float] = (0.0, 1.0)
 
     def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
         """Repaint the canvas item. This will occur on a thread."""
 
         # canvas size
-        canvas_width = self.canvas_size[1]
-        canvas_height = self.canvas_size[0]
+        canvas_size = self.canvas_size
+        if canvas_size:
+            left = self.display_limits[0]
+            right = self.display_limits[1]
 
-        left = self.display_limits[0]
-        right = self.display_limits[1]
+            # draw left display limit
+            if left > 0.0:
+                with drawing_context.saver():
+                    drawing_context.begin_path()
+                    drawing_context.move_to(left * canvas_size.width, 1)
+                    drawing_context.line_to(left * canvas_size.width, canvas_size.height - 1)
+                    drawing_context.line_width = 2
+                    drawing_context.stroke_style = "#000"
+                    drawing_context.stroke()
 
-        # draw left display limit
-        if left > 0.0:
+            # draw right display limit
+            if right < 1.0:
+                with drawing_context.saver():
+                    drawing_context.begin_path()
+                    drawing_context.move_to(right * canvas_size.width, 1)
+                    drawing_context.line_to(right * canvas_size.width, canvas_size.height - 1)
+                    drawing_context.line_width = 2
+                    drawing_context.stroke_style = "#FFF"
+                    drawing_context.stroke()
+
+            # draw border
             with drawing_context.saver():
                 drawing_context.begin_path()
-                drawing_context.move_to(left * canvas_width, 1)
-                drawing_context.line_to(left * canvas_width, canvas_height-1)
-                drawing_context.line_width = 2
-                drawing_context.stroke_style = "#000"
+                drawing_context.move_to(0, canvas_size.height)
+                drawing_context.line_to(canvas_size.width, canvas_size.height)
+                drawing_context.line_width = 1
+                drawing_context.stroke_style = "#444"
                 drawing_context.stroke()
-
-        # draw right display limit
-        if right < 1.0:
-            with drawing_context.saver():
-                drawing_context.begin_path()
-                drawing_context.move_to(right * canvas_width, 1)
-                drawing_context.line_to(right * canvas_width, canvas_height-1)
-                drawing_context.line_width = 2
-                drawing_context.stroke_style = "#FFF"
-                drawing_context.stroke()
-
-        # draw border
-        with drawing_context.saver():
-            drawing_context.begin_path()
-            drawing_context.move_to(0,canvas_height)
-            drawing_context.line_to(canvas_width,canvas_height)
-            drawing_context.line_width = 1
-            drawing_context.stroke_style = "#444"
-            drawing_context.stroke()
 
 
 class SimpleLineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
@@ -92,17 +111,17 @@ class SimpleLineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def __init__(self) -> None:
         super().__init__()
-        self.__data = None
-        self.__background_color = None
-        self.__retained_rebin_1d = dict()
+        self.__data: typing.Optional[_NDArray] = None
+        self.__background_color: typing.Optional[str] = None
+        self.__retained_rebin_1d: typing.Dict[str, typing.Any] = dict()
 
     @property
-    def data(self):
+    def data(self) -> typing.Optional[_NDArray]:
         """Return the data."""
         return self.__data
 
     @data.setter
-    def data(self, data):
+    def data(self, data: typing.Optional[_NDArray]) -> None:
         """Set the data and mark the canvas item for updating.
 
         Data should be a numpy array with a range from 0,1.
@@ -111,48 +130,45 @@ class SimpleLineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
         self.update()
 
     @property
-    def background_color(self):
+    def background_color(self) -> typing.Optional[str]:
         """Return the background color."""
         return self.__background_color
 
     @background_color.setter
-    def background_color(self, background_color):
+    def background_color(self, background_color: typing.Optional[str]) -> None:
         """Set the background color. Use CSS color format."""
         self.__background_color = background_color
         self.update()
 
     def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
         """Repaint the canvas item. This will occur on a thread."""
+        canvas_size = self.canvas_size
+        if canvas_size:
+            # draw background
+            if self.background_color:
+                with drawing_context.saver():
+                    drawing_context.begin_path()
+                    drawing_context.move_to(0, 0)
+                    drawing_context.line_to(canvas_size.width, 0)
+                    drawing_context.line_to(canvas_size.width, canvas_size.height)
+                    drawing_context.line_to(0, canvas_size.height)
+                    drawing_context.close_path()
+                    drawing_context.fill_style = self.background_color
+                    drawing_context.fill()
 
-        # canvas size
-        canvas_width = self.canvas_size[1]
-        canvas_height = self.canvas_size[0]
+            # draw the data, if any
+            if (self.data is not None and len(self.data) > 0):
 
-        # draw background
-        if self.background_color:
-            with drawing_context.saver():
-                drawing_context.begin_path()
-                drawing_context.move_to(0,0)
-                drawing_context.line_to(canvas_width,0)
-                drawing_context.line_to(canvas_width,canvas_height)
-                drawing_context.line_to(0,canvas_height)
-                drawing_context.close_path()
-                drawing_context.fill_style = self.background_color
-                drawing_context.fill()
-
-        # draw the data, if any
-        if (self.data is not None and len(self.data) > 0):
-
-            # draw the histogram itself
-            with drawing_context.saver():
-                drawing_context.begin_path()
-                binned_data = Image.rebin_1d(self.data, int(canvas_width), self.__retained_rebin_1d) if int(canvas_width) != self.data.shape[0] else self.data
-                for i in range(canvas_width):
-                    drawing_context.move_to(i, canvas_height)
-                    drawing_context.line_to(i, canvas_height * (1 - binned_data[i]))
-                drawing_context.line_width = 1
-                drawing_context.stroke_style = "#444"
-                drawing_context.stroke()
+                # draw the histogram itself
+                with drawing_context.saver():
+                    drawing_context.begin_path()
+                    binned_data = Image.rebin_1d(self.data, int(canvas_size.width), self.__retained_rebin_1d) if int(canvas_size.width) != self.data.shape[0] else self.data
+                    for i in range(canvas_size.width):
+                        drawing_context.move_to(i, canvas_size.height)
+                        drawing_context.line_to(i, canvas_size.height * (1 - binned_data[i]))
+                    drawing_context.line_width = 1
+                    drawing_context.stroke_style = "#444"
+                    drawing_context.stroke()
 
 
 class ColorMapCanvasItem(CanvasItem.AbstractCanvasItem):
@@ -163,12 +179,12 @@ class ColorMapCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__color_map_data = None
 
     @property
-    def color_map_data(self) -> numpy.ndarray:
+    def color_map_data(self) -> _RGBA8ImageDataType:
         """Return the data."""
         return self.__color_map_data
 
     @color_map_data.setter
-    def color_map_data(self, data: numpy.ndarray) -> None:
+    def color_map_data(self, data: _RGBA8ImageDataType) -> None:
         """Set the data and mark the canvas item for updating.
 
         Data should be an ndarray of shape (256, 3) with type uint8
@@ -176,25 +192,22 @@ class ColorMapCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__color_map_data = data
         self.update()
 
-    def _repaint(self, drawing_context: DrawingContext.DrawingContext):
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
         """Repaint the canvas item. This will occur on a thread."""
-
-        # canvas size
-        canvas_width = self.canvas_size.width
-        canvas_height = self.canvas_size.height
-
-        with drawing_context.saver():
-            if self.__color_map_data is not None:
-                rgba_image = numpy.empty((4,) + self.__color_map_data.shape[:-1], dtype=numpy.uint32)
-                Image.get_rgb_view(rgba_image)[:] = self.__color_map_data[numpy.newaxis, :, :]  # scalar data assigned to each component of rgb view
-                Image.get_alpha_view(rgba_image)[:] = 255
-                drawing_context.draw_image(rgba_image, 0, 0, canvas_width, canvas_height)
+        canvas_size = self.canvas_size
+        if canvas_size:
+            with drawing_context.saver():
+                if self.__color_map_data is not None:
+                    rgba_image = numpy.empty((4,) + self.__color_map_data.shape[:-1], dtype=numpy.uint32)
+                    Image.get_rgb_view(rgba_image)[:] = self.__color_map_data[numpy.newaxis, :, :]  # scalar data assigned to each component of rgb view
+                    Image.get_alpha_view(rgba_image)[:] = 255
+                    drawing_context.draw_image(rgba_image, 0, 0, canvas_size.width, canvas_size.height)
 
 
 class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
     """A canvas item to draw and control a histogram."""
 
-    def __init__(self, cursor_changed_fn: typing.Callable[[float], None]):
+    def __init__(self, cursor_changed_fn: typing.Callable[[typing.Optional[float]], None]) -> None:
         super().__init__()
 
         # tell the canvas item that we want mouse events.
@@ -222,7 +235,7 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
         # used for mouse tracking.
         self.__pressed = False
 
-        self.on_set_display_limits = None
+        self.on_set_display_limits: typing.Optional[typing.Callable[[typing.Optional[typing.Tuple[float, float]]], None]] = None
 
         self.__cursor_changed = cursor_changed_fn
 
@@ -231,16 +244,16 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
         super().close()
 
     @property
-    def background_color(self):
+    def background_color(self) -> typing.Optional[str]:
         """Return the background color."""
         return self.__simple_line_graph_canvas_item.background_color
 
     @background_color.setter
-    def background_color(self, background_color):
+    def background_color(self, background_color: typing.Optional[str]) -> None:
         """Set the background color, in the CSS color format."""
         self.__simple_line_graph_canvas_item.background_color = background_color
 
-    def _set_histogram_data(self, histogram_data):
+    def _set_histogram_data(self, histogram_data: typing.Optional[_NDArray]) -> None:
         # if the user is currently dragging the display limits, we don't want to update
         # from changing data at the same time. but we _do_ want to draw the updated data.
         if not self.__pressed:
@@ -252,26 +265,26 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
         self.__adornments_canvas_item.update()
 
     @property
-    def histogram_data(self):
+    def histogram_data(self) -> typing.Optional[_NDArray]:
         return self.__simple_line_graph_canvas_item.data
 
     @histogram_data.setter
-    def histogram_data(self, histogram_data):
+    def histogram_data(self, histogram_data: typing.Optional[_NDArray]) -> None:
         self.__simple_line_graph_canvas_item.data = histogram_data
 
     @property
-    def color_map_data(self) -> numpy.ndarray:
+    def color_map_data(self) -> _RGBA8ImageDataType:
         return self.__histogram_color_map_canvas_item.color_map_data
 
     @color_map_data.setter
-    def color_map_data(self, color_map_data: numpy.ndarray) -> None:
+    def color_map_data(self, color_map_data: _RGBA8ImageDataType) -> None:
         self.__histogram_color_map_canvas_item.color_map_data = color_map_data
 
-    def __set_display_limits(self, display_limits):
+    def __set_display_limits(self, display_limits: typing.Tuple[float, float]) -> None:
         self.__adornments_canvas_item.display_limits = display_limits
         self.__adornments_canvas_item.update()
 
-    def mouse_double_clicked(self, x, y, modifiers):
+    def mouse_double_clicked(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         if super().mouse_double_clicked(x, y, modifiers):
             return True
         self.__set_display_limits((0, 1))
@@ -279,15 +292,18 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
             self.on_set_display_limits(None)
         return True
 
-    def mouse_pressed(self, x, y, modifiers):
+    def mouse_pressed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         if super().mouse_pressed(x, y, modifiers):
             return True
-        self.__pressed = True
-        self.start = float(x)/self.canvas_size[1]
-        self.__set_display_limits((self.start, self.start))
-        return True
+        canvas_size = self.canvas_size
+        if canvas_size:
+            self.__pressed = True
+            self.start = float(x) / canvas_size.width
+            self.__set_display_limits((self.start, self.start))
+            return True
+        return False
 
-    def mouse_released(self, x, y, modifiers):
+    def mouse_released(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         if super().mouse_released(x, y, modifiers):
             return True
         self.__pressed = False
@@ -298,16 +314,18 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
         self.__set_display_limits((0, 1))
         return True
 
-    def mouse_position_changed(self, x, y, modifiers):
-        if callable(self.__cursor_changed):
-            self.__cursor_changed(x / self.canvas_size[1])
-        if super().mouse_position_changed(x, y, modifiers):
+    def mouse_position_changed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        canvas_size = self.canvas_size
+        if canvas_size:
+            if callable(self.__cursor_changed):
+                self.__cursor_changed(x / canvas_size.width)
+            if super().mouse_position_changed(x, y, modifiers):
+                return True
+            if self.__pressed:
+                current = float(x) / canvas_size.width
+                self.__set_display_limits((min(self.start, current), max(self.start, current)))
             return True
-        canvas_width = self.canvas_size[1]
-        if self.__pressed:
-            current = float(x)/canvas_width
-            self.__set_display_limits((min(self.start, current), max(self.start, current)))
-        return True
+        return False
 
     def mouse_exited(self) -> bool:
         if callable(self.__cursor_changed):
@@ -315,16 +333,26 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
         return True
 
 
+@dataclasses.dataclass
 class HistogramWidgetData:
-    def __init__(self, data=None, display_range=None):
-        self.data = data
-        self.display_range = display_range
+    data: typing.Optional[_NDArray] = None
+    display_range: typing.Optional[typing.Tuple[float, float]] = None
+
+    def __eq__(self, other: typing.Any) -> bool:
+        if isinstance(other, self.__class__):
+            return numpy.array_equal(self.data, other.data) and self.display_range == other.display_range  # type: ignore
+        return False
 
 
 class HistogramWidget(Widgets.CompositeWidgetBase):
 
-    def __init__(self, document_controller, display_item_stream, histogram_widget_data_model, color_map_data_model, cursor_changed_fn):
-        super().__init__(document_controller.ui.create_column_widget(properties={"min-height": 84, "max-height": 84}))
+    def __init__(self, document_controller: DocumentController.DocumentController,
+                 display_item_stream: Stream.AbstractStream[DisplayItem.DisplayItem],
+                 histogram_widget_data_model: Model.PropertyModel[HistogramWidgetData],
+                 color_map_data_model: Model.PropertyModel[_RGBA8ImageDataType],
+                 cursor_changed_fn: typing.Callable[[typing.Optional[float], typing.Optional[typing.Tuple[float, float]]], None]) -> None:
+        content_widget = document_controller.ui.create_column_widget(properties={"min-height": 84, "max-height": 84})
+        super().__init__(content_widget)
 
         ui = document_controller.ui
 
@@ -333,17 +361,18 @@ class HistogramWidget(Widgets.CompositeWidgetBase):
         self.__histogram_data_model = histogram_widget_data_model
         self.__color_map_data_model = color_map_data_model
 
-        self.__display_range = None
+        self.__display_range: typing.Optional[typing.Tuple[float, float]] = None
 
         def histogram_data_changed(key: str) -> None:
             if key == "value":
                 histogram_widget_data = self.__histogram_data_model.value
-                self.__histogram_canvas_item._set_histogram_data(histogram_widget_data.data)
-                self.__display_range = histogram_widget_data.display_range
+                if histogram_widget_data:
+                    self.__histogram_canvas_item._set_histogram_data(histogram_widget_data.data)
+                    self.__display_range = histogram_widget_data.display_range
 
         self.__histogram_data_property_changed_event_listener = self.__histogram_data_model.property_changed_event.listen(histogram_data_changed)
 
-        def set_display_limits(display_limits):
+        def set_display_limits(display_limits: typing.Optional[typing.Tuple[float, float]]) -> None:
             # display_limits in this context are in the range of 0,1
             # we ask for the display_range from the display to get actual
             # data values (never None), and create new display limits
@@ -364,7 +393,7 @@ class HistogramWidget(Widgets.CompositeWidgetBase):
                 command.perform()
                 document_controller.push_undo_command(command)
 
-        def cursor_changed(canvas_x):
+        def cursor_changed(canvas_x: typing.Optional[float]) -> None:
             if callable(cursor_changed_fn):
                 cursor_changed_fn(canvas_x, self.__display_range)
 
@@ -374,9 +403,6 @@ class HistogramWidget(Widgets.CompositeWidgetBase):
 
         histogram_widget = ui.create_canvas_widget()
         histogram_widget.canvas_item.add_canvas_item(self.__histogram_canvas_item)
-
-        def handle_update_color_map_data(color_map_data):
-            self.__histogram_canvas_item.color_map_data = color_map_data
 
         def color_map_data_changed(key: str) -> None:
             if key == "value":
@@ -388,45 +414,46 @@ class HistogramWidget(Widgets.CompositeWidgetBase):
 
         color_map_data_changed("value")
 
-        self.content_widget.add(histogram_widget)
+        content_widget.add(histogram_widget)
 
     def close(self) -> None:
         self.__color_map_data_stream_listener.close()
-        self.__color_map_data_stream_listener = None
+        self.__color_map_data_stream_listener = typing.cast(typing.Any, None)
         self.__display_item_stream.remove_ref()
-        self.__display_item_stream = None
-        self.__histogram_canvas_item = None
+        self.__display_item_stream = typing.cast(typing.Any, None)
+        self.__histogram_canvas_item = typing.cast(typing.Any, None)
         self.__histogram_data_property_changed_event_listener.close()
-        self.__histogram_data_property_changed_event_listener = None
+        self.__histogram_data_property_changed_event_listener = typing.cast(typing.Any, None)
         super().close()
 
-    def _recompute(self):
+    def _recompute(self) -> None:
         pass
 
     @property
-    def _histogram_canvas_item(self):
+    def _histogram_canvas_item(self) -> HistogramCanvasItem:
         return self.__histogram_canvas_item
 
     @property
-    def _histogram_data_func_value_model(self):
+    def _histogram_data_func_value_model(self) -> Model.PropertyModel[HistogramWidgetData]:
         # for testing
         return self.__histogram_data_model
 
 
 class StatisticsWidget(Widgets.CompositeWidgetBase):
 
-    def __init__(self, ui, statistics_model):
-        super().__init__(ui.create_column_widget(properties={"min-height": 18 * 3, "max-height": 18 * 3}))
+    def __init__(self, ui: UserInterface.UserInterface, statistics_model: Model.PropertyModel[typing.Dict[str, str]]) -> None:
+        content_widget = ui.create_column_widget(properties={"min-height": 18 * 3, "max-height": 18 * 3})
+        super().__init__(content_widget)
 
         # create property models for the UI
-        self._stats1_property = Model.PropertyModel(str())
-        self._stats2_property = Model.PropertyModel(str())
+        self._stats1_property = Model.PropertyModel[str](str())
+        self._stats2_property = Model.PropertyModel[str](str())
 
         self.__statistics_model = statistics_model
 
         def statistics_changed(key: str) -> None:
             if key == "value":
-                statistics_data = self.__statistics_model.value
+                statistics_data = self.__statistics_model.value or dict()
                 statistic_strings = list()
                 for key in sorted(statistics_data.keys()):
                     value = statistics_data[key]
@@ -458,19 +485,19 @@ class StatisticsWidget(Widgets.CompositeWidgetBase):
         stats_column1_label.bind_text(Binding.PropertyBinding(self._stats1_property, "value"))
         stats_column2_label.bind_text(Binding.PropertyBinding(self._stats2_property, "value"))
 
-        self.content_widget.add(stats_section)
+        content_widget.add(stats_section)
 
     def close(self) -> None:
         self.__statistics_property_changed_event_listener.close()
-        self.__statistics_property_changed_event_listener = None
+        self.__statistics_property_changed_event_listener = typing.cast(typing.Any, None)
         super().close()
 
     @property
-    def _statistics_func_value_model(self):
+    def _statistics_func_value_model(self) -> Model.PropertyModel[typing.Dict[str, str]]:
         # for testing
         return self.__statistics_model
 
-    def _recompute(self):
+    def _recompute(self) -> None:
         pass
 
 
@@ -479,10 +506,11 @@ class StatisticsWidget(Widgets.CompositeWidgetBase):
 class HistogramPanel(Panel.Panel):
     """ A panel to present a histogram of the selected data item. """
 
-    def __init__(self, document_controller, panel_id, properties, debounce=True, sample=True):
+    def __init__(self, document_controller: DocumentController.DocumentController, panel_id: str,
+                 properties: Persistence.PersistentDictType, debounce: bool = True, sample: bool = True) -> None:
         super().__init__(document_controller, panel_id, _("Histogram"))
 
-        def calculate_region_data(display_data_and_metadata, region):
+        def calculate_region_data(display_data_and_metadata: typing.Optional[DataAndMetadata.DataAndMetadata], region: Graphics.Graphic) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
             if region is not None and display_data_and_metadata is not None:
                 if display_data_and_metadata.is_data_1d and isinstance(region, Graphics.IntervalGraphic):
                     interval = region.interval
@@ -493,15 +521,15 @@ class HistogramPanel(Panel.Panel):
                             if cropped_data_and_metadata:
                                 return cropped_data_and_metadata
                 elif display_data_and_metadata.is_data_2d and isinstance(region, Graphics.RectangleTypeGraphic):
-                    cropped_data_and_metadata = Core.function_crop(display_data_and_metadata, region.bounds)
+                    cropped_data_and_metadata = Core.function_crop(display_data_and_metadata, region.bounds.as_tuple())
                     if cropped_data_and_metadata:
                         return cropped_data_and_metadata
             return display_data_and_metadata
 
-        def calculate_region_data_func(display_data_and_metadata, region):
+        def calculate_region_data_func(display_data_and_metadata: typing.Optional[DataAndMetadata.DataAndMetadata], region: Graphics.Graphic) -> typing.Callable[[], typing.Optional[DataAndMetadata.DataAndMetadata]]:
             return functools.partial(calculate_region_data, display_data_and_metadata, region)
 
-        def calculate_histogram_widget_data(display_data_and_metadata_func, display_range):
+        def calculate_histogram_widget_data(display_data_and_metadata_func: typing.Callable[[], typing.Optional[DataAndMetadata.DataAndMetadata]], display_range: typing.Optional[typing.Tuple[float, float]]) -> HistogramWidgetData:
             bins = 320
             subsample = 0  # hard coded subsample size
             subsample_fraction = None  # fraction of total pixels
@@ -509,60 +537,61 @@ class HistogramPanel(Panel.Panel):
             display_data_and_metadata = display_data_and_metadata_func()
             display_data = display_data_and_metadata.data if display_data_and_metadata else None
             if display_data is not None:
-                total_pixels = numpy.product(display_data.shape, dtype=numpy.uint64)
+                total_pixels = numpy.product(display_data.shape, dtype=numpy.uint64)  # type: ignore
                 if not subsample and subsample_fraction:
                     subsample = min(max(total_pixels * subsample_fraction, subsample_min), total_pixels)
                 if subsample:
                     factor = total_pixels / subsample
-                    data_sample = numpy.random.choice(display_data.reshape(numpy.product(display_data.shape, dtype=numpy.uint64)), subsample)
+                    data_sample = numpy.random.choice(display_data.reshape(numpy.product(display_data.shape, dtype=numpy.uint64)), subsample)  # type: ignore
                 else:
                     factor = 1.0
-                    data_sample = numpy.copy(display_data)
+                    data_sample = numpy.copy(display_data)  # type: ignore
                 if display_range is None or data_sample is None:
                     return HistogramWidgetData()
-                histogram_data = factor * numpy.histogram(data_sample, range=display_range, bins=bins)[0]
-                histogram_max = numpy.max(histogram_data)  # assumes that histogram_data is int
+                histogram_data = factor * numpy.histogram(data_sample, range=display_range, bins=bins)[0]  # type: ignore
+                histogram_max = numpy.max(histogram_data)  # type: ignore  # assumes that histogram_data is int
                 if histogram_max > 0:
                     histogram_data = histogram_data / float(histogram_max)
                 return HistogramWidgetData(histogram_data, display_range)
             return HistogramWidgetData()
 
-        def calculate_histogram_widget_data_func(display_data_and_metadata_model_func, display_range):
+        def calculate_histogram_widget_data_func(display_data_and_metadata_model_func: typing.Callable[[], typing.Optional[DataAndMetadata.DataAndMetadata]], display_range: typing.Optional[typing.Tuple[float, float]]) -> typing.Callable[[], HistogramWidgetData]:
             return functools.partial(calculate_histogram_widget_data, display_data_and_metadata_model_func, display_range)
 
         display_item_stream = TargetDisplayItemStream(document_controller)
-        display_data_channel_stream = StreamPropertyStream(display_item_stream, "display_data_channel")
+        display_data_channel_stream = StreamPropertyStream[DisplayItem.DisplayDataChannel](typing.cast(Stream.AbstractStream[Observable.Observable], display_item_stream), "display_data_channel")
         region_stream = TargetRegionStream(display_item_stream)
-        def compare_data(a, b):
-            return numpy.array_equal(a.data if a else None, b.data if b else None)
-        display_data_and_metadata_stream = DisplayDataChannelTransientsStream(display_data_channel_stream, "display_data_and_metadata", cmp=compare_data)
-        display_range_stream = DisplayDataChannelTransientsStream(display_data_channel_stream, "display_range")
-        region_data_and_metadata_func_stream = Stream.CombineLatestStream((display_data_and_metadata_stream, region_stream), calculate_region_data_func)
-        histogram_widget_data_func_stream = Stream.CombineLatestStream((region_data_and_metadata_func_stream, display_range_stream), calculate_histogram_widget_data_func)
-        color_map_data_stream = StreamPropertyStream(display_data_channel_stream, "color_map_data", cmp=numpy.array_equal)
+        def compare_data(a: typing.Any, b: typing.Any) -> bool:
+            return numpy.array_equal(a.data if a else None, b.data if b else None)  # type: ignore
+        display_data_and_metadata_stream = DisplayDataChannelTransientsStream[DataAndMetadata.DataAndMetadata](display_data_channel_stream, "display_data_and_metadata", cmp=compare_data)
+        display_range_stream = DisplayDataChannelTransientsStream[typing.Tuple[float, float]](display_data_channel_stream, "display_range")
+        region_data_and_metadata_func_stream = Stream.CombineLatestStream[typing.Any, typing.Callable[[], typing.Optional[DataAndMetadata.DataAndMetadata]]]((display_data_and_metadata_stream, region_stream), calculate_region_data_func)
+        histogram_widget_data_func_stream: Stream.AbstractStream[typing.Callable[[], HistogramWidgetData]]
+        histogram_widget_data_func_stream = Stream.CombineLatestStream[typing.Any, typing.Callable[[], HistogramWidgetData]]((region_data_and_metadata_func_stream, display_range_stream), calculate_histogram_widget_data_func)
+        color_map_data_stream = StreamPropertyStream[_RGBA8ImageDataType](typing.cast(Stream.AbstractStream[Observable.Observable], display_data_channel_stream), "color_map_data", cmp=typing.cast(typing.Callable[[typing.Optional[T], typing.Optional[T]], bool], numpy.array_equal))
         if debounce:
-            histogram_widget_data_func_stream = Stream.DebounceStream(histogram_widget_data_func_stream, 0.05, document_controller.event_loop)
+            histogram_widget_data_func_stream = Stream.DebounceStream[typing.Callable[[], HistogramWidgetData]](histogram_widget_data_func_stream, 0.05, document_controller.event_loop)
         if sample:
-            histogram_widget_data_func_stream = Stream.SampleStream(histogram_widget_data_func_stream, 0.5, document_controller.event_loop)
+            histogram_widget_data_func_stream = Stream.SampleStream[typing.Callable[[], HistogramWidgetData]](histogram_widget_data_func_stream, 0.5, document_controller.event_loop)
 
-        def cursor_changed_fn(canvas_x: float, display_range) -> None:
+        def cursor_changed_fn(canvas_x: typing.Optional[float], display_range: typing.Optional[typing.Tuple[float, float]]) -> None:
             if not canvas_x:
                 document_controller.cursor_changed(None)
             if display_item_stream and display_item_stream.value and canvas_x:
                 if display_range is not None:  # can be None with empty data
                     displayed_intensity_calibration = display_item_stream.value.displayed_intensity_calibration
                     adjusted_x = display_range[0] + canvas_x * (display_range[1] - display_range[0])
-                    adjusted_x = displayed_intensity_calibration.convert_to_calibrated_value_str(adjusted_x)
-                    document_controller.cursor_changed([_('Intensity: ') + str(adjusted_x)])
+                    adjusted_x_str = displayed_intensity_calibration.convert_to_calibrated_value_str(adjusted_x)
+                    document_controller.cursor_changed([_('Intensity: ') + adjusted_x_str])
                 else:
                     document_controller.cursor_changed(None)
 
-        self.__histogram_widget_data_model = Model.FuncStreamValueModel(histogram_widget_data_func_stream, document_controller.event_loop, value=HistogramWidgetData(), cmp=numpy.array_equal)
-        self.__color_map_data_model = Model.StreamValueModel(color_map_data_stream, cmp=numpy.array_equal)
+        self.__histogram_widget_data_model = Model.FuncStreamValueModel(histogram_widget_data_func_stream, document_controller.event_loop, value=HistogramWidgetData())
+        self.__color_map_data_model: Model.PropertyModel[_RGBA8ImageDataType] = Model.StreamValueModel(color_map_data_stream, cmp=numpy.array_equal)
 
         self._histogram_widget = HistogramWidget(document_controller, display_item_stream, self.__histogram_widget_data_model, self.__color_map_data_model, cursor_changed_fn)
 
-        def calculate_statistics(display_data_and_metadata_func, display_data_range, region, displayed_intensity_calibration):
+        def calculate_statistics(display_data_and_metadata_func: typing.Callable[[], typing.Optional[DataAndMetadata.DataAndMetadata]], display_data_range: typing.Optional[typing.Tuple[float, float]], region: typing.Optional[Graphics.Graphic], displayed_intensity_calibration: typing.Optional[Calibration.Calibration]) -> typing.Dict[str, str]:
             display_data_and_metadata = display_data_and_metadata_func()
             data = display_data_and_metadata.data if display_data_and_metadata else None
             data_range = display_data_range
@@ -570,7 +599,8 @@ class HistogramPanel(Panel.Panel):
                 mean = numpy.mean(data)
                 std = numpy.std(data)
                 rms = numpy.sqrt(numpy.mean(numpy.square(numpy.absolute(data))))
-                sum_data = mean * functools.reduce(operator.mul, Image.dimensional_shape_from_shape_and_dtype(data.shape, data.dtype))
+                dimensional_shape = Image.dimensional_shape_from_shape_and_dtype(data.shape, data.dtype) or (1, 1)
+                sum_data = mean * functools.reduce(operator.mul, dimensional_shape)
                 if region is None:
                     data_min, data_max = data_range if data_range is not None else (None, None)
                 else:
@@ -585,18 +615,19 @@ class HistogramPanel(Panel.Panel):
                 return { "mean": mean_str, "std": std_str, "min": data_min_str, "max": data_max_str, "rms": rms_str, "sum": sum_data_str }
             return dict()
 
-        def calculate_statistics_func(display_data_and_metadata_model_func, display_data_range, region, displayed_intensity_calibration):
+        def calculate_statistics_func(display_data_and_metadata_model_func: typing.Callable[[], typing.Optional[DataAndMetadata.DataAndMetadata]], display_data_range: typing.Optional[typing.Tuple[float, float]], region: typing.Optional[Graphics.Graphic], displayed_intensity_calibration: typing.Optional[Calibration.Calibration]) -> typing.Callable[[], typing.Dict[str, str]]:
             return functools.partial(calculate_statistics, display_data_and_metadata_model_func, display_data_range, region, displayed_intensity_calibration)
 
-        display_data_range_stream = DisplayDataChannelTransientsStream(display_data_channel_stream, "data_range")
-        displayed_intensity_calibration_stream = StreamPropertyStream(display_item_stream, 'displayed_intensity_calibration')
-        statistics_func_stream = Stream.CombineLatestStream((region_data_and_metadata_func_stream, display_data_range_stream, region_stream, displayed_intensity_calibration_stream), calculate_statistics_func)
+        display_data_range_stream = DisplayDataChannelTransientsStream[typing.Tuple[float, float]](display_data_channel_stream, "data_range")
+        displayed_intensity_calibration_stream = StreamPropertyStream[Calibration.Calibration](typing.cast(Stream.AbstractStream[Observable.Observable], display_item_stream), "displayed_intensity_calibration")
+        statistics_func_stream: Stream.AbstractStream[typing.Callable[[], typing.Dict[str, str]]]
+        statistics_func_stream = Stream.CombineLatestStream[typing.Any, typing.Callable[[], typing.Dict[str, str]]]((region_data_and_metadata_func_stream, display_data_range_stream, region_stream, displayed_intensity_calibration_stream), calculate_statistics_func)
         if debounce:
             statistics_func_stream = Stream.DebounceStream(statistics_func_stream, 0.05, document_controller.event_loop)
         if sample:
             statistics_func_stream = Stream.SampleStream(statistics_func_stream, 0.5, document_controller.event_loop)
 
-        self.__statistics_model = Model.FuncStreamValueModel(statistics_func_stream, document_controller.event_loop, value=dict(), cmp=numpy.array_equal)
+        self.__statistics_model = Model.FuncStreamValueModel(statistics_func_stream, document_controller.event_loop, value=typing.cast(typing.Dict[str, str], dict()))
 
         self._statistics_widget = StatisticsWidget(self.ui, self.__statistics_model)
 
@@ -613,18 +644,18 @@ class HistogramPanel(Panel.Panel):
 
     def close(self) -> None:
         self.__histogram_widget_data_model.close()
-        self.__histogram_widget_data_model = None
+        self.__histogram_widget_data_model = typing.cast(typing.Any, None)
         self.__color_map_data_model.close()
-        self.__color_map_data_model = None
+        self.__color_map_data_model = typing.cast(typing.Any, None)
         self.__statistics_model.close()
-        self.__statistics_model = None
-        self._statistics_widget = None
+        self.__statistics_model = typing.cast(typing.Any, None)
+        self._statistics_widget = typing.cast(typing.Any, None)
         super().close()
 
 
-class TargetDisplayItemStream(Stream.AbstractStream):
+class TargetDisplayItemStream(Stream.AbstractStream[DisplayItem.DisplayItem]):
 
-    def __init__(self, document_controller):
+    def __init__(self, document_controller: DocumentController.DocumentController):
         super().__init__()
         # outgoing messages
         self.value_stream = Event.Event()
@@ -639,11 +670,11 @@ class TargetDisplayItemStream(Stream.AbstractStream):
         # disconnect data item binding
         self.__value = None
         self.__focused_display_item_changed_event_listener.close()
-        self.__focused_display_item_changed_event_listener = None
+        self.__focused_display_item_changed_event_listener = typing.cast(typing.Any, None)
         super().about_to_delete()
 
     @property
-    def value(self):
+    def value(self) -> typing.Optional[DisplayItem.DisplayItem]:
         return self.__value
 
     def __focused_display_item_changed(self, display_item: typing.Optional[DisplayItem.DisplayItem]) -> None:
@@ -652,28 +683,28 @@ class TargetDisplayItemStream(Stream.AbstractStream):
             self.value_stream.fire(display_item)
 
 
-class TargetRegionStream(Stream.AbstractStream):
+class TargetRegionStream(Stream.AbstractStream[Graphics.Graphic]):
 
-    def __init__(self, display_item_stream):
+    def __init__(self, display_item_stream: TargetDisplayItemStream) -> None:
         super().__init__()
         # outgoing messages
         self.value_stream = Event.Event()
         # references
         self.__display_item_stream = display_item_stream.add_ref()
         # initialize
-        self.__display_graphic_selection_changed_event_listener = None
+        self.__display_graphic_selection_changed_event_listener: typing.Optional[Event.EventListener] = None
         self.__value: typing.Optional[Graphics.Graphic] = None
         # listen for display changes
         self.__display_stream_listener = display_item_stream.value_stream.listen(self.__display_item_changed)
-        self.__graphic_changed_event_listener = None
-        self.__graphic_about_to_be_removed_event_listener = None
+        self.__graphic_changed_event_listener: typing.Optional[Event.EventListener] = None
+        self.__graphic_about_to_be_removed_event_listener: typing.Optional[Event.EventListener] = None
         self.__display_item_changed(display_item_stream.value)
 
     def about_to_delete(self) -> None:
         self.__display_stream_listener.close()
-        self.__display_stream_listener = None
+        self.__display_stream_listener = typing.cast(typing.Any, None)
         self.__display_item_stream.remove_ref()
-        self.__display_item_stream = None
+        self.__display_item_stream = typing.cast(typing.Any, None)
         if self.__graphic_changed_event_listener:
             self.__graphic_changed_event_listener.close()
             self.__graphic_changed_event_listener = None
@@ -690,16 +721,17 @@ class TargetRegionStream(Stream.AbstractStream):
     def value(self) -> typing.Optional[Graphics.Graphic]:
         return self.__value
 
-    def __display_item_changed(self, display_item):
-        def display_graphic_selection_changed(graphic_selection):
+    def __display_item_changed(self, display_item: typing.Optional[DisplayItem.DisplayItem]) -> None:
+        def display_graphic_selection_changed(graphic_selection: DisplayItem.GraphicSelection) -> None:
             current_index = graphic_selection.current_index
             if current_index is not None:
+                assert display_item
                 new_value = display_item.graphics[current_index]
                 if new_value != self.__value:
                     self.__value = new_value
                     def graphic_changed(property: str) -> None:
                         self.value_stream.fire(self.__value)
-                    def graphic_removed():
+                    def graphic_removed() -> None:
                         self.__value = None
                         self.value_stream.fire(None)
                     if self.__graphic_changed_event_listener:
@@ -738,23 +770,92 @@ class TargetRegionStream(Stream.AbstractStream):
             self.value_stream.fire(None)
 
 
-class StreamPropertyStream(Stream.ConcatStream):
-    def __init__(self, stream, property_name, cmp=None):
-        super().__init__(stream, lambda x: Stream.PropertyChangedEventStream(x, property_name, cmp))
+class ConcatStream(Stream.AbstractStream[T], typing.Generic[T]):
+    """Make a new stream for each new value of input stream and concatenate new stream output."""
+
+    def __init__(self, stream: Stream.AbstractStream[Observable.Observable],
+                 concat_fn: typing.Callable[[typing.Optional[Observable.Observable]], Stream.AbstractStream[T]]) -> None:
+        super().__init__()
+        # outgoing messages
+        self.value_stream = Event.Event()
+        # references
+        self.__stream = stream.add_ref()
+        # initialize
+        self.__concat_fn = concat_fn
+        self.__value: typing.Optional[T] = None
+        self.__out_stream: typing.Optional[Stream.AbstractStream[T]] = None
+        self.__out_stream_listener: typing.Optional[Event.EventListener] = None
+
+        # define a stub and use weak_partial to avoid holding references to self.
+        def stream_changed(stream: ConcatStream[T], value: typing.Optional[Observable.Observable]) -> None:
+            stream.__stream_changed(value)
+
+        self.__stream_listener = stream.value_stream.listen(weak_partial(stream_changed, self))
+        self.__stream_changed(stream.value)
+
+    def about_to_delete(self) -> None:
+        if self.__out_stream_listener:
+            self.__out_stream_listener.close()
+            self.__out_stream_listener = None
+        if self.__out_stream:
+            self.__out_stream.remove_ref()
+            self.__out_stream = typing.cast(typing.Any, None)
+        self.__value = None
+        self.__stream_listener.close()
+        self.__stream_listener = typing.cast(Event.EventListener, None)
+        self.__stream.remove_ref()
+        self.__stream = typing.cast(typing.Any, None)
+        super().about_to_delete()
+
+    @property
+    def value(self) -> typing.Optional[T]:
+        return self.__value
+
+    def send_value(self, value: typing.Optional[T]) -> None:
+        self.__value = value
+        self.value_stream.fire(self.value)
+
+    def __stream_changed(self, item: typing.Optional[Observable.Observable]) -> None:
+        if self.__out_stream_listener:
+            self.__out_stream_listener.close()
+            self.__out_stream_listener = None
+        if self.__out_stream:
+            self.__out_stream.remove_ref()
+            self.__out_stream = typing.cast(typing.Any, None)
+        if item:
+            # define a stub and use weak_partial to avoid holding references to self.
+            def out_stream_changed(stream: ConcatStream[T], new_value: typing.Optional[T]) -> None:
+                stream.send_value(new_value)
+
+            self.__out_stream = self.__concat_fn(item)
+            self.__out_stream.add_ref()
+            self.__out_stream_listener = self.__out_stream.value_stream.listen(weak_partial(out_stream_changed, self))
+            out_stream_changed(self, self.__out_stream.value)
+        else:
+            self.__value = None
+            self.value_stream.fire(None)
 
 
-class DisplayDataChannelTransientsStream(Stream.AbstractStream):
+class StreamPropertyStream(ConcatStream[T], typing.Generic[T]):
+    def __init__(self, stream: Stream.AbstractStream[Observable.Observable], property_name: str, cmp: typing.Optional[typing.Callable[[typing.Optional[T], typing.Optional[T]], bool]] = None) -> None:
+        def fn(x: typing.Optional[Observable.Observable]) -> Stream.AbstractStream[T]:
+            assert x
+            return Stream.PropertyChangedEventStream[T](x, property_name, cmp)
+        super().__init__(stream, fn)
+
+
+class DisplayDataChannelTransientsStream(Stream.AbstractStream[T], typing.Generic[T]):
     # TODO: add a display_data_changed to Display class and use it here
 
-    def __init__(self, display_data_channel_stream, property_name, cmp=None):
+    def __init__(self, display_data_channel_stream: Stream.AbstractStream[DisplayItem.DisplayDataChannel], property_name: str, cmp: typing.Optional[typing.Callable[[typing.Optional[T], typing.Optional[T]], bool]] = None) -> None:
         super().__init__()
         # outgoing messages
         self.value_stream = Event.Event()
         # initialize
         self.__property_name = property_name
-        self.__value = None
-        self.__display_values_changed_listener = None
-        self.__next_calculated_display_values_listener = None
+        self.__value: typing.Optional[T] = None
+        self.__display_values_changed_listener: typing.Optional[Event.EventListener] = None
+        self.__next_calculated_display_values_listener: typing.Optional[Event.EventListener] = None
         self.__cmp = cmp if cmp else operator.eq
         # listen for display changes
         self.__display_data_channel_stream = display_data_channel_stream.add_ref()
@@ -770,17 +871,17 @@ class DisplayDataChannelTransientsStream(Stream.AbstractStream):
             self.__display_values_changed_listener = None
         self.__value = None
         self.__display_data_channel_stream_listener.close()
-        self.__display_data_channel_stream_listener = None
+        self.__display_data_channel_stream_listener = typing.cast(typing.Any, None)
         self.__display_data_channel_stream.remove_ref()
-        self.__display_data_channel_stream = None
+        self.__display_data_channel_stream = typing.cast(typing.Any, None)
         super().about_to_delete()
 
     @property
-    def value(self):
+    def value(self) -> typing.Optional[T]:
         return self.__value
 
-    def __display_data_channel_changed(self, display_data_channel):
-        def display_values_changed():
+    def __display_data_channel_changed(self, display_data_channel: typing.Optional[DisplayItem.DisplayDataChannel]) -> None:
+        def display_values_changed(display_data_channel: DisplayItem.DisplayDataChannel) -> None:
             display_values = display_data_channel.get_calculated_display_values(True)
             new_value = getattr(display_values, self.__property_name) if display_values else None
             if not self.__cmp(new_value, self.__value):
@@ -796,9 +897,9 @@ class DisplayDataChannelTransientsStream(Stream.AbstractStream):
             # there are two listeners - the first when new display properties have triggered new display values.
             # the second whenever actual new display values arrive. this ensures the display gets updated after
             # the user changes it. could use some rethinking.
-            self.__next_calculated_display_values_listener = display_data_channel.add_calculated_display_values_listener(display_values_changed)
-            self.__display_values_changed_listener = display_data_channel.display_values_changed_event.listen(display_values_changed)
-            display_values_changed()
+            self.__next_calculated_display_values_listener = display_data_channel.add_calculated_display_values_listener(functools.partial(display_values_changed, display_data_channel))
+            self.__display_values_changed_listener = display_data_channel.display_values_changed_event.listen(functools.partial(display_values_changed, display_data_channel))
+            display_values_changed(display_data_channel)
         else:
             self.__value = None
             self.value_stream.fire(None)
