@@ -41,7 +41,11 @@ jobs:
     - name: Type Checking
       run: |
         mypy --install-types --non-interactive --namespace-packages --ignore-missing-imports --follow-imports=silent \
+          nion/swift/Application.py \
+          nion/swift/ComputationPanel.py \
           nion/swift/DataPanel.py \
+          nion/swift/DisplayCanvasItem.py \
+          nion/swift/DisplayPanel.py \
           nion/swift/DocumentController.py \
           nion/swift/Facade.py \
           nion/swift/GeneratorDialog.py \
@@ -52,6 +56,7 @@ jobs:
           nion/swift/MetadataPanel.py \
           nion/swift/ScriptsDialog.py \
           nion/swift/ToolbarPanel.py \
+          nion/swift/Undo.py \
           nion/swift/Workspace.py
         mypy --install-types --namespace-packages --ignore-missing-imports --follow-imports=silent --strict --no-warn-unused-ignores nion/swift/model
         flake8 --max-line-length=160 \

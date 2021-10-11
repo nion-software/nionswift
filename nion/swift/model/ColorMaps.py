@@ -10,6 +10,8 @@ import colorsys
 import dataclasses
 import gettext
 import json
+import pathlib
+
 import numpy
 import numpy.typing
 import math
@@ -137,7 +139,7 @@ color_maps["plasma"] = ColorMap(_("Plasma"), generate_lookup_array('plasma'))
 color_maps["ice"] = ColorMap(_("Ice"), generate_lookup_array('ice'))
 
 
-def load_color_maps(color_maps_dir: str) -> None:
+def load_color_maps(color_maps_dir: pathlib.Path) -> None:
     for root, dirs, files in os.walk(color_maps_dir):
         for file in files:
             if not file.startswith("."):

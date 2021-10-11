@@ -2,7 +2,6 @@ from __future__ import annotations
 
 # standard libraries
 import asyncio
-import copy
 import datetime
 import functools
 import gettext
@@ -54,6 +53,9 @@ from nion.utils import ListModel
 from nion.utils import Model
 from nion.utils import Registry
 
+if typing.TYPE_CHECKING:
+    from nion.swift.model import DisplayItem
+
 _ = gettext.gettext
 
 app: Application = typing.cast("Application", None)
@@ -90,7 +92,7 @@ class PersistenceHandler(UserInterface.PersistenceHandler):
 class Application(UIApplication.BaseApplication):
     count = 0  # useful for detecting leaks in tests
 
-    def __init__(self, ui: UserInterface.UserInterface, set_global=True, resources_path=None):
+    def __init__(self, ui: UserInterface.UserInterface, set_global: bool = True) -> None:
         super().__init__(ui)
         self.__class__.count += 1
 
@@ -104,8 +106,7 @@ class Application(UIApplication.BaseApplication):
         ui.set_application_info("Nion Swift", "Nion", "nion.com")
 
         ui.set_persistence_handler(PersistenceHandler())
-        self.ui.persistence_root = "3"  # sets of preferences
-        self.__resources_path = resources_path
+        setattr(self.ui, "persistence_root", "3")  # sets of preferences
         self.version_str = "0.15.7"
 
         self.document_model_available_event = Event.Event()
@@ -113,8 +114,8 @@ class Application(UIApplication.BaseApplication):
         global app
         app = self  # hack to get the single instance set. hmm. better way?
 
-        self.__profile = None
-        self.__document_model = None
+        self.__profile: typing.Optional[Profile.Profile] = None
+        self.__document_model: typing.Optional[DocumentModel.DocumentModel] = None
 
         self.__menu_handlers: typing.List[typing.Callable[[DocumentController.DocumentController], None]] = []
 
@@ -134,13 +135,13 @@ class Application(UIApplication.BaseApplication):
         workspace_manager.register_panel(MetadataPanel.MetadataPanel, "metadata-panel", _("Metadata"), ["left", "right"], "right", {"width": 320, "height": 8})
         workspace_manager.register_filter_panel(FilterPanel.FilterPanel)
 
-    def initialize(self, *, load_plug_ins=True, use_root_dir=True):
+    def initialize(self, *, load_plug_ins: bool = True, use_root_dir: bool = True) -> None:
         super().initialize()
         # configure app data
         if load_plug_ins:
             logging.info("Launch time " + str(datetime.datetime.now()))
             logging.info("Python version " + str(sys.version.replace('\n', '')))
-            logging.info("User interface class " + type(self.ui).__name__ + " / " + type(self.ui.proxy).__name__)
+            logging.info("User interface class " + type(self.ui).__name__ + " / " + type(getattr(self.ui, "proxy")).__name__)
             logging.info("Qt version " + self.ui.get_qt_version())
             app_data_file_path = self.ui.get_configuration_location() / pathlib.Path("nionswift_appdata.json")
             ApplicationData.set_file_path(app_data_file_path)
@@ -154,7 +155,7 @@ class Application(UIApplication.BaseApplication):
                 logging.info("NOT Loading color maps from " + str(color_maps_dir) + " (missing)")
         Registry.register_component(self, {"application"})
 
-    def deinitialize(self):
+    def deinitialize(self) -> None:
         # shut down hardware source manager, unload plug-ins, and really exit ui
         Registry.unregister_component(self, {"application"})
         if self.__profile:
@@ -163,23 +164,25 @@ class Application(UIApplication.BaseApplication):
         self.__document_model = None
         PlugInManager.unload_plug_ins()
         global app
-        app = None  # hack to get the single instance set. hmm. better way?
+        app = typing.cast(Application, None)  # hack to get the single instance set. hmm. better way?
         self.__class__.count -= 1
         super().deinitialize()
 
     @property
-    def profile(self) -> typing.Optional[Profile.Profile]:
+    def profile(self) -> Profile.Profile:
+        assert self.__profile
         return self.__profile
 
     @property
-    def document_model(self):
+    def document_model(self) -> DocumentModel.DocumentModel:
+        assert self.__document_model
         return self.__document_model
 
     # for testing
-    def _set_document_model(self, document_model):
+    def _set_document_model(self, document_model: DocumentModel.DocumentModel) -> None:
         self.__document_model = document_model
 
-    def start(self, *, profile_dir: pathlib.Path = None, profile: Profile.Profile = None) -> bool:
+    def start(self, *, profile_dir: typing.Optional[pathlib.Path] = None, profile: typing.Optional[Profile.Profile] = None) -> bool:
         """Start the application.
 
         Creates the profile object using profile_path parameter (for testing), the profile path constructed from the
@@ -208,6 +211,7 @@ class Application(UIApplication.BaseApplication):
             # create the profile
             profile, is_created = self.__establish_profile(profile_path)
         self.__profile = profile
+        assert self.__profile
 
         # test code to reset script items
         # self.__profile.script_items_updated = False
@@ -224,18 +228,18 @@ class Application(UIApplication.BaseApplication):
                         folder_path_str = item_dict.get("full_path", None)
                         folder_path = pathlib.Path(folder_path_str) if folder_path_str else None
                         if folder_path:
-                            profile.append_script_item(Profile.FolderScriptItem(pathlib.Path(folder_path)))
+                            self.__profile.append_script_item(Profile.FolderScriptItem(pathlib.Path(folder_path)))
                     elif item_type == "ScriptListItem" and item_dict.get("indent_level", None) == 0:
                         script_path_str = item_dict.get("full_path", None)
                         script_path = pathlib.Path(script_path_str) if script_path_str else None
                         if script_path:
-                            profile.append_script_item(Profile.FileScriptItem(pathlib.Path(script_path)))
+                            self.__profile.append_script_item(Profile.FileScriptItem(pathlib.Path(script_path)))
             else:
                 items_old = self.ui.get_persistent_object("interactive_scripts_0", list())
                 for script_path_str in items_old:
                     script_path = pathlib.Path(script_path_str) if script_path_str else None
                     if script_path:
-                        profile.append_script_item(Profile.FileScriptItem(pathlib.Path(script_path)))
+                        self.__profile.append_script_item(Profile.FileScriptItem(pathlib.Path(script_path)))
             self.__profile.script_items_updated = True
 
         # configure the document model object.
@@ -262,7 +266,10 @@ class Application(UIApplication.BaseApplication):
 
             # construct the window handler and run it. when the dialog closes, it will continue by
             # calling open default project.
-            window_handler = FindExistingProjectsWindowHandler(completion_fn=functools.partial(self.__open_default_project, profile_dir, is_created))
+            def complete_find_existing_projects() -> None:
+                self.__open_default_project(profile_dir, is_created)
+
+            window_handler = FindExistingProjectsWindowHandler(completion_fn=complete_find_existing_projects)
             window_handler.run(window, app=self)
 
             # define an async routine that will perform the finding of the existing projects.
@@ -271,14 +278,15 @@ class Application(UIApplication.BaseApplication):
             # when finished, it asks the window to close on its next periodic call. it is
             # necessary to close this way because the close request may close the event loop
             # in which we're executing. so queueing the close request avoids that.
-            async def find_existing_projects():
+            async def find_existing_projects() -> None:
                 recent_library_paths = self.get_recent_library_paths()
                 for index, library_path in enumerate(recent_library_paths):
                     window_handler.progress_value_model.value = 100 * index // len(recent_library_paths)
                     window_handler.message_str_model.value = str(library_path.name)
                     logging.getLogger("loader").info(f"Adding existing project {index + 1}/{len(recent_library_paths)} {library_path}")
                     await asyncio.sleep(0)
-                    profile.add_project_folder(pathlib.Path(library_path), load=False)
+                    assert self.__profile
+                    self.__profile.add_project_folder(pathlib.Path(library_path), load=False)
                 window_handler.progress_value_model.value = 100
                 window_handler.message_str_model.value = _("Finished")
                 await asyncio.sleep(1)
@@ -291,12 +299,12 @@ class Application(UIApplication.BaseApplication):
             # continue with opening the default project
             return self.__open_default_project(profile_dir, is_created)
 
-    def __open_default_project(self, profile_dir: pathlib.Path, is_created: bool) -> bool:
+    def __open_default_project(self, profile_dir: typing.Optional[pathlib.Path], is_created: bool) -> bool:
         # if the default project is known, open it.
         # if it fails, ask the user to select another project.
         # if no default project is known, ask the user to choose one.
 
-        profile = self.__profile
+        profile = self.profile
 
         project_reference: typing.Optional[Profile.ProjectReference] = None
 
@@ -323,9 +331,10 @@ class Application(UIApplication.BaseApplication):
                 # output log message unless we passed a profile_dir for testing.
                 logging.getLogger("loader").info("Welcome to Nion Swift.")
 
-            if is_created and len(document_controller.document_model.display_items) > 0:
-                document_controller.selected_display_panel.set_display_panel_display_item(document_controller.document_model.display_items[0])
-                document_controller.selected_display_panel.perform_action("set_fill_mode")
+            selected_display_panel = document_controller.selected_display_panel
+            if selected_display_panel and is_created and len(document_controller.document_model.display_items) > 0:
+                selected_display_panel.set_display_panel_display_item(document_controller.document_model.display_items[0])
+                selected_display_panel.perform_action("set_fill_mode")
         else:
             self.show_choose_project_dialog()
 
@@ -336,11 +345,14 @@ class Application(UIApplication.BaseApplication):
             project_dialog = ProjectPanel.ProjectDialog(self.ui, self)
             project_dialog.show()
 
-    def open_project_window(self, project_reference: Profile.ProjectReference,
-                            update_last_project_reference: bool = True) -> DocumentController.DocumentController:
+    def open_project_window(self, project_reference: Profile.ProjectReference, update_last_project_reference: bool = True) -> DocumentController.DocumentController:
+        assert self.__profile
+
         self.__profile.read_project(project_reference)
 
         document_model = project_reference.document_model
+        assert document_model
+
         document_model.create_default_data_groups()
         document_model.start_dispatcher()
 
@@ -352,7 +364,7 @@ class Application(UIApplication.BaseApplication):
 
         project_reference.last_used = datetime.datetime.now()
 
-        def window_closed():
+        def window_closed() -> None:
             pass # print(f"CLOSED {document_controller.title}")
 
         document_controller.on_close = window_closed
@@ -360,14 +372,15 @@ class Application(UIApplication.BaseApplication):
         return document_controller
 
     def show_open_project_dialog(self) -> None:
+        profile = self.profile
         with self.prevent_close():
             ui = self.ui
-            filter = "Projects (*.nsproj);;Legacy Libraries (*.nslib);;All Files (*.*)"
+            filter_str = "Projects (*.nsproj);;Legacy Libraries (*.nslib);;All Files (*.*)"
             import_dir = ui.get_persistent_string("open_directory", ui.get_document_location())
-            paths, selected_filter, selected_directory = ui.get_file_paths_dialog(_("Add Existing Library"), import_dir, filter)
+            paths, selected_filter, selected_directory = ui.get_file_paths_dialog(_("Add Existing Library"), import_dir, filter_str)
             ui.set_persistent_string("open_directory", selected_directory)
             if len(paths) == 1:
-                project_reference = self.profile.open_project(pathlib.Path(paths[0]))
+                project_reference = profile.open_project(pathlib.Path(paths[0]))
                 if project_reference:
                     self.open_project_reference(project_reference)
                 else:
@@ -384,7 +397,7 @@ class Application(UIApplication.BaseApplication):
                                       spacing=8)
 
             project_references_model = ListModel.FilteredListModel(container=self.__profile, items_key="project_references")
-            project_references_model.filter = ListModel.PredicateFilter(lambda pr: pr.project_state != "loaded")
+            project_references_model.filter = ListModel.PredicateFilter(lambda pr: bool(pr.project_state != "loaded"))
             project_references_model.sort_key = lambda pr: pr.last_used
             project_references_model.sort_reverse = True
 
@@ -395,7 +408,7 @@ class Application(UIApplication.BaseApplication):
 
                 def __str__(self) -> str:
                     project_reference = self.project_reference
-                    project_title = project_reference.title
+                    project_title = project_reference.title or str()
                     if project_reference.project_state == "needs_upgrade":
                         project_title += " " + _("(NEEDS UPGRADE)")
                     elif project_reference.project_state != "unloaded" or project_reference.project_version != FileStorageSystem.PROJECT_VERSION:
@@ -432,39 +445,12 @@ class Application(UIApplication.BaseApplication):
             def show_new_project_dialog() -> None:
                 NewProjectAction().invoke(UIWindow.ActionContext(self, None, None))
 
-            from nion.utils import Observable
-
-            class ListPropertyModel(Observable.Observable):
-                # copied from nionutils to avoid requiring new version.
-                # remove this code once nionutils 0.3.24+ is released.
-
-                def __init__(self, list_model):
-                    super().__init__()
-                    self.__list_model = list_model
-                    self.__item_inserted_event_listener = list_model.item_inserted_event.listen(self.__item_inserted)
-                    self.__item_removed_event_listener = list_model.item_removed_event.listen(self.__item_removed)
-
-                def close(self) -> None:
-                    self.__list_model = None
-                    self.__item_inserted_event_listener = None
-                    self.__item_removed_event_listener = None
-
-                def __item_inserted(self, key: str, item, before_index: int) -> None:
-                    self.notify_property_changed("value")
-
-                def __item_removed(self, key: str, item, index: int) -> None:
-                    self.notify_property_changed("value")
-
-                @property
-                def value(self):
-                    return self.__list_model.items
-
             class ChooseProjectHandler(Declarative.WindowHandler):
                 def __init__(self, application: Application):
                     super().__init__()
                     self.__application = application
                     self.current_index = 0
-                    self.list_property_model = ListPropertyModel(project_reference_items_model)
+                    self.list_property_model = ListModel.ListPropertyModel(project_reference_items_model)
 
                 def recent_item_selected(self, widget: Declarative.UIWidget, current_index: int) -> None:
                     if 0 <= current_index < len(project_reference_items_model.project_reference_items):
@@ -503,7 +489,8 @@ class Application(UIApplication.BaseApplication):
 
                         def remove_project(index: int) -> None:
                             project_reference_item = project_reference_items_model.project_reference_items[index]
-                            self.__application.profile.remove_project_reference(project_reference_item.project_reference)
+                            profile = self.__application.profile
+                            profile.remove_project_reference(project_reference_item.project_reference)
 
                         menu.add_menu_item(_(f"Remove Project from List"), functools.partial(remove_project, index))
                         menu.popup(gx, gy)
@@ -515,7 +502,9 @@ class Application(UIApplication.BaseApplication):
         workspace_history = self.ui.get_persistent_object("workspace_history", list())
         return [pathlib.Path(file_path) for file_path in workspace_history if os.path.exists(file_path)]
 
-    def create_document_controller(self, document_model: DocumentModel.DocumentModel, workspace_id: str, display_item=None, project_reference: typing.Optional[Profile.ProjectReference] = None) -> DocumentController.DocumentController:
+    def create_document_controller(self, document_model: DocumentModel.DocumentModel, workspace_id: str,
+                                   display_item: typing.Optional[DisplayItem.DisplayItem] = None,
+                                   project_reference: typing.Optional[Profile.ProjectReference] = None) -> DocumentController.DocumentController:
         self._set_document_model(document_model)  # required to allow API to find document model
         document_controller = DocumentController.DocumentController(self.ui, document_model, workspace_id=workspace_id,
                                                                     app=self, project_reference=project_reference)
@@ -525,7 +514,7 @@ class Application(UIApplication.BaseApplication):
             display_panel = document_controller.selected_display_panel
             if display_panel:
                 display_panel.set_display_panel_display_item(display_item)
-        document_controller._dynamic_recent_project_actions = []
+        setattr(document_controller, "_dynamic_recent_project_actions", list())
         document_controller.show()
         return document_controller
 
@@ -567,8 +556,8 @@ class Application(UIApplication.BaseApplication):
         self.__menu_handlers.remove(menu_handler)
 
     @property
-    def menu_handlers(self) -> typing.List:
-        return copy.copy(self.__menu_handlers)
+    def menu_handlers(self) -> typing.Sequence[typing.Callable[[DocumentController.DocumentController], None]]:
+        return list(self.__menu_handlers)
 
     def _menu_about_to_show(self, window: UIWindow.Window, menu: UserInterface.Menu) -> bool:
         if menu.menu_id == "recent_projects":
@@ -579,10 +568,11 @@ class Application(UIApplication.BaseApplication):
     def __about_to_show_recent_projects_menu(self, window: UIWindow.Window, menu: UserInterface.Menu) -> None:
         # recent project actions are stored with the window so they can be deleted.
         if hasattr(window, "_dynamic_recent_project_actions"):
-            for recent_project_action in window._dynamic_recent_project_actions:
+            for recent_project_action in getattr(window, "_dynamic_recent_project_actions"):
                 menu.remove_action(recent_project_action)
-        window._dynamic_recent_project_actions = []
-        project_references = filter(lambda pr: pr.project_state != "loaded", self.__profile.project_references)
+        setattr(window, "_dynamic_recent_project_actions", list())
+        profile = self.profile
+        project_references: typing.List[Profile.ProjectReference] = list(filter(lambda pr: pr.project_state != "loaded", profile.project_references))
         project_references = sorted(project_references, key=operator.attrgetter("last_used"), reverse=True)
         for project_reference in project_references[:20]:
             if project_reference.project_state != "loaded":
@@ -592,10 +582,11 @@ class Application(UIApplication.BaseApplication):
                 elif project_reference.project_state != "unloaded" or project_reference.project_version != FileStorageSystem.PROJECT_VERSION:
                     project_title += " " + _("(MISSING OR UNREADABLE)")
                 action = menu.add_menu_item(project_title, functools.partial(self.open_project_reference, project_reference))
-                window._dynamic_recent_project_actions.append(action)
+                getattr(window, "_dynamic_recent_project_actions").append(action)
 
     def create_project_reference(self, directory: pathlib.Path, project_name: str) -> None:
-        project_reference = self.profile.create_project(directory, project_name)
+        profile = self.profile
+        project_reference = profile.create_project(directory, project_name)
         if project_reference:
             self.switch_project_reference(project_reference)
 
@@ -605,9 +596,10 @@ class Application(UIApplication.BaseApplication):
                 self.switch_project_reference(project_reference)
             elif project_reference.project_state == "needs_upgrade":
                 def handle_upgrade(result: bool) -> None:
-                    if result:
+                    profile = self.profile
+                    if result and profile:
                         try:
-                            new_project_reference = self.profile.upgrade(project_reference)
+                            new_project_reference = profile.upgrade(project_reference)
                         except Exception:
                             self.show_ok_dialog(_("Error Upgrading Project"), _("Unable to upgrade project."))
                             new_project_reference = None
@@ -653,14 +645,15 @@ class Application(UIApplication.BaseApplication):
                 row = self.ui.create_row_widget()
                 logo_column = self.ui.create_column_widget()
                 logo_button = self.ui.create_push_button_widget()
-                logo_button.icon = CanvasItem.load_rgba_data_from_bytes(
-                    pkgutil.get_data(__name__, "resources/Logo3.png"))
+                logo_png = pkgutil.get_data(__name__, "resources/Logo3.png")
+                assert logo_png is not None
+                logo_button.icon = CanvasItem.load_rgba_data_from_bytes(logo_png)
                 logo_column.add_spacing(26)
                 logo_column.add(logo_button)
                 logo_column.add_stretch()
                 column = self.ui.create_column_widget()
 
-                def make_label_row(label: str):
+                def make_label_row(label: str) -> UserInterface.BoxWidget:
                     row_one = self.ui.create_row_widget()
                     row_one.add_spacing(13)
                     row_one.add(self.ui.create_label_widget(label))
@@ -699,11 +692,11 @@ class Application(UIApplication.BaseApplication):
         about_dialog = AboutDialog(self.ui, parent_window, self.version_str)
         about_dialog.show()
 
-    def run_all_tests(self):
+    def run_all_tests(self) -> None:
         Test.run_all_tests()
 
 
-def get_root_dir():
+def get_root_dir() -> str:
     root_dir = os.path.dirname((os.path.dirname(os.path.abspath(__file__))))
     path_ascend_count = 2
     for i in range(path_ascend_count):
@@ -723,7 +716,7 @@ class NewProjectAction(UIWindow.Action):
 
         class NewProjectDialog(Dialog.ActionDialog):
 
-            def __init__(self, ui, app: Application, event_loop: asyncio.AbstractEventLoop, profile: Profile.Profile):
+            def __init__(self, ui: UserInterface.UserInterface, app: Application, event_loop: asyncio.AbstractEventLoop, profile: Profile.Profile) -> None:
                 super().__init__(ui, title=_("New Project"), app=app, persistent_id="new_project_dialog")
 
                 self.directory = self.ui.get_persistent_string("project_directory", self.ui.get_document_location())
@@ -737,11 +730,12 @@ class NewProjectAction(UIWindow.Action):
 
                 self.project_name = project_base_name + project_base_index_str
 
-                def safe_request_close():
+                def safe_request_close() -> bool:
                     event_loop.call_soon(self.request_close)
+                    return True
 
-                def handle_new_and_close():
-                    app.create_project_reference(pathlib.Path(self.directory), self.__project_name_field.text)
+                def handle_new_and_close() -> bool:
+                    app.create_project_reference(pathlib.Path(self.directory), self.__project_name_field.text or "untitled")
                     safe_request_close()
                     return True
 
@@ -812,13 +806,14 @@ class NewProjectAction(UIWindow.Action):
 
                 self.__project_name_field = project_name_field
 
-            def show(self, *, size: Geometry.IntSize = None, position: Geometry.IntPoint = None) -> None:
+            def show(self, *, size: typing.Optional[Geometry.IntSize] = None, position: typing.Optional[Geometry.IntPoint] = None) -> None:
                 super().show(size=size, position=position)
                 self.__project_name_field.focused = True
                 self.__project_name_field.select_all()
 
         application = typing.cast(Application, context.application)
-        new_project_dialog = NewProjectDialog(application.ui, application, application.event_loop, application.profile)
+        profile = application.profile
+        new_project_dialog = NewProjectDialog(application.ui, application, application.event_loop, profile)
         new_project_dialog.show()
 
         return UIWindow.ActionResult(UIWindow.ActionStatus.FINISHED)

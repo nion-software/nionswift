@@ -50,7 +50,7 @@ def load_tests(packages):
 
     alltests = unittest.TestSuite(suites)
 
-def run_all_tests():
+def run_all_tests() -> None:
     unittest.TextTestRunner(verbosity=2).run(alltests)
 
 def run_test(test_name):
