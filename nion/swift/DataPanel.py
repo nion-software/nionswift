@@ -18,6 +18,7 @@ from nion.swift import Panel
 from nion.swift import Thumbnails
 from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
+from nion.swift.model import Persistence
 from nion.ui import CanvasItem
 from nion.ui import DrawingContext
 from nion.ui import GridCanvasItem
@@ -28,10 +29,11 @@ from nion.utils import Geometry
 from nion.utils import ListModel
 
 if typing.TYPE_CHECKING:
-    import numpy
     from nion.swift import DocumentController
     from nion.ui import UserInterface
     from nion.utils import Selection
+
+_NDArray = typing.Any  # numpy 1.21
 
 _ = gettext.gettext
 
@@ -148,7 +150,7 @@ class DisplayItemAdapter:
     def project_str(self) -> str:
         return self.__display_item.project_str if self.__display_item else str()
 
-    def drag_started(self, ui: UserInterface.UserInterface, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> typing.Tuple[typing.Optional[UserInterface.MimeData], typing.Optional[numpy.ndarray]]:
+    def drag_started(self, ui: UserInterface.UserInterface, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> typing.Tuple[typing.Optional[UserInterface.MimeData], typing.Optional[_NDArray]]:
         if self.__display_item:
             mime_data = self.ui.create_mime_data()
             if self.__display_item:
@@ -160,12 +162,12 @@ class DisplayItemAdapter:
             return mime_data, thumbnail_data
         return None, None
 
-    def calculate_thumbnail_data(self) -> typing.Optional[numpy.ndarray]:
+    def calculate_thumbnail_data(self) -> typing.Optional[_NDArray]:
         # grab the display specifier and if there is a display, handle thumbnail updating.
         if self.__display_item and not self.__thumbnail_source:
             self.__thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.ui, self.__display_item).add_ref()
 
-            def thumbnail_updated():
+            def thumbnail_updated() -> None:
                 self.needs_update_event.fire()
 
             assert self.__thumbnail_source  # type checker
@@ -217,17 +219,17 @@ class DataListController:
         (method) drag_started(ui, x, y, modifiers), returns mime_data, thumbnail_data
     """
 
-    def __init__(self, event_loop: asyncio.AbstractEventLoop, ui: UserInterface.UserInterface, display_item_adapters_model: ListModel.MappedListModel, selection: Selection.IndexedSelection):
+    def __init__(self, event_loop: asyncio.AbstractEventLoop, ui: UserInterface.UserInterface, display_item_adapters_model: ListModel.MappedListModel, selection: Selection.IndexedSelection) -> None:
         super().__init__()
         self.__event_loop = event_loop
-        self.__pending_tasks : typing.List = list()
+        self.__pending_tasks: typing.List[asyncio.Task[None]] = list()
         self.ui = ui
         self.__selection = selection
-        self.on_delete_display_item_adapters : typing.Optional[typing.Callable[[typing.List[DisplayItemAdapter]], None]] = None
-        self.on_key_pressed : typing.Optional[typing.Callable[[UserInterface.Key], bool]] = None
+        self.on_delete_display_item_adapters: typing.Optional[typing.Callable[[typing.List[DisplayItemAdapter]], None]] = None
+        self.on_key_pressed: typing.Optional[typing.Callable[[UserInterface.Key], bool]] = None
 
-        self.__display_item_adapters : typing.List[DisplayItemAdapter] = list()
-        self.__display_item_adapter_needs_update_listeners : typing.List = list()
+        self.__display_item_adapters: typing.List[DisplayItemAdapter] = list()
+        self.__display_item_adapter_needs_update_listeners: typing.List[Event.EventListener] = list()
 
         self.__display_item_adapters_model = display_item_adapters_model
         self.__display_item_adapter_inserted_event_listener = self.__display_item_adapters_model.item_inserted_event.listen(self.__display_item_adapter_inserted)
@@ -292,7 +294,7 @@ class DataListController:
         self.selected_indexes = list()
         self.on_context_menu_event : typing.Optional[typing.Callable[[typing.Optional[DisplayItem.DisplayItem], typing.List[DisplayItem.DisplayItem], int, int, int, int], bool]] = None
         self.on_focus_changed : typing.Optional[typing.Callable[[bool], None]] = None
-        self.on_drag_started : typing.Optional[typing.Callable[[UserInterface.MimeData, typing.Optional[numpy.ndarray]], None]] = None
+        self.on_drag_started : typing.Optional[typing.Callable[[UserInterface.MimeData, typing.Optional[_NDArray]], None]] = None
 
         # changed display items keep track of items whose content has changed
         # the content changed messages may come from a thread so have to be
@@ -306,20 +308,20 @@ class DataListController:
     def close(self) -> None:
         for pending_task in self.__pending_tasks:
             pending_task.cancel()
-        self.__pending_tasks = typing.cast(typing.List, None)
+        self.__pending_tasks = typing.cast(typing.Any, None)
         if self.__selection_changed_listener:
             self.__selection_changed_listener.close()
             self.__selection_changed_listener = None
         for display_item_adapter_needs_update_listener in self.__display_item_adapter_needs_update_listeners:
             display_item_adapter_needs_update_listener.close()
-        self.__display_item_adapter_needs_update_listeners = typing.cast(typing.List, None)
+        self.__display_item_adapter_needs_update_listeners = typing.cast(typing.Any, None)
         self.__display_item_adapter_inserted_event_listener.close()
         self.__display_item_adapter_inserted_event_listener = typing.cast(Event.EventListener, None)
         self.__display_item_adapter_removed_event_listener.close()
         self.__display_item_adapter_removed_event_listener = typing.cast(Event.EventListener, None)
         self.__display_item_adapter_end_changes_event_listener.close()
         self.__display_item_adapter_end_changes_event_listener = typing.cast(Event.EventListener, None)
-        self.__display_item_adapters = typing.cast(typing.List, None)
+        self.__display_item_adapters = typing.cast(typing.Any, None)
         self.__display_item_adapters_model = typing.cast(ListModel.MappedListModel, None)
         self.on_context_menu_event = None
         self.on_drag_started = None
@@ -450,10 +452,12 @@ class DataGridController:
         (method) drag_started(ui, x, y, modifiers), returns mime_data, thumbnail_data
     """
 
-    def __init__(self, event_loop: asyncio.AbstractEventLoop, ui: UserInterface.UserInterface, display_item_adapters_model, selection, direction=GridCanvasItem.Direction.Row, wrap=True):
+    def __init__(self, event_loop: asyncio.AbstractEventLoop, ui: UserInterface.UserInterface,
+                 display_item_adapters_model: ListModel.MappedListModel, selection: Selection.IndexedSelection,
+                 direction: GridCanvasItem.Direction = GridCanvasItem.Direction.Row, wrap: bool = True) -> None:
         super().__init__()
         self.__event_loop = event_loop
-        self.__pending_tasks : typing.List = list()
+        self.__pending_tasks: typing.List[asyncio.Task[None]] = list()
         self.ui = ui
         self.__selection = selection
         self.on_delete_display_item_adapters : typing.Optional[typing.Callable[[typing.List[DisplayItemAdapter]], None]] = None
@@ -461,10 +465,10 @@ class DataGridController:
         self.on_display_item_adapter_double_clicked : typing.Optional[typing.Callable[[DisplayItemAdapter], bool]] = None
         self.on_context_menu_event : typing.Optional[typing.Callable[[typing.Optional[DisplayItem.DisplayItem], typing.List[DisplayItem.DisplayItem], int, int, int, int], bool]] = None
         self.on_focus_changed : typing.Optional[typing.Callable[[bool], None]] = None
-        self.on_drag_started : typing.Optional[typing.Callable[[UserInterface.MimeData, typing.Optional[numpy.ndarray]], None]] = None
+        self.on_drag_started : typing.Optional[typing.Callable[[UserInterface.MimeData, typing.Optional[_NDArray]], None]] = None
 
         self.__display_item_adapters : typing.List[DisplayItemAdapter] = list()
-        self.__display_item_adapter_needs_update_listeners : typing.List = list()
+        self.__display_item_adapter_needs_update_listeners: typing.List[Event.EventListener] = list()
 
         self.__display_item_adapters_model = display_item_adapters_model
         self.__display_item_adapter_inserted_event_listener = self.__display_item_adapters_model.item_inserted_event.listen(self.__display_item_adapter_inserted)
@@ -558,21 +562,21 @@ class DataGridController:
         assert not self.__closed
         for pending_task in self.__pending_tasks:
             pending_task.cancel()
-        self.__pending_tasks = typing.cast(typing.List, None)
+        self.__pending_tasks = typing.cast(typing.Any, None)
         self.icon_view_canvas_item.detach_delegate()
         self.__selection_changed_listener.close()
-        self.__selection_changed_listener = None
+        self.__selection_changed_listener = typing.cast(typing.Any, None)
         self.__display_item_adapter_inserted_event_listener.close()
-        self.__display_item_adapter_inserted_event_listener = None
+        self.__display_item_adapter_inserted_event_listener = typing.cast(typing.Any, None)
         self.__display_item_adapter_removed_event_listener.close()
-        self.__display_item_adapter_removed_event_listener = None
+        self.__display_item_adapter_removed_event_listener = typing.cast(typing.Any, None)
         self.__display_item_adapter_end_changes_event_listener.close()
-        self.__display_item_adapter_end_changes_event_listener = None
+        self.__display_item_adapter_end_changes_event_listener = typing.cast(typing.Any, None)
         for display_item_adapter_needs_update_listener in self.__display_item_adapter_needs_update_listeners:
             display_item_adapter_needs_update_listener.close()
-        self.__display_item_adapter_needs_update_listeners = typing.cast(typing.List, None)
-        self.__display_item_adapters = typing.cast(typing.List, None)
-        self.__display_item_adapters_model = None
+        self.__display_item_adapter_needs_update_listeners = typing.cast(typing.Any, None)
+        self.__display_item_adapters = typing.cast(typing.Any, None)
+        self.__display_item_adapters_model = typing.cast(typing.Any, None)
         self.on_context_menu_event = None
         self.on_drag_started = None
         self.on_focus_changed = None
@@ -685,7 +689,7 @@ class DataListWidget(Widgets.CompositeWidgetBase):
         data_list_widget.canvas_item.add_canvas_item(data_list_controller.canvas_item)
         content_widget.add(data_list_widget)
 
-        def data_list_drag_started(mime_data: UserInterface.MimeData, thumbnail_data: typing.Optional[numpy.ndarray]) -> None:
+        def data_list_drag_started(mime_data: UserInterface.MimeData, thumbnail_data: typing.Optional[_NDArray]) -> None:
             self.drag(mime_data, thumbnail_data)
 
         data_list_controller.on_drag_started = data_list_drag_started
@@ -706,7 +710,7 @@ class DataGridWidget(Widgets.CompositeWidgetBase):
         data_grid_widget.canvas_item.add_canvas_item(data_grid_controller.canvas_item)
         content_widget.add(data_grid_widget)
 
-        def data_list_drag_started(mime_data: UserInterface.MimeData, thumbnail_data: typing.Optional[numpy.ndarray]) -> None:
+        def data_list_drag_started(mime_data: UserInterface.MimeData, thumbnail_data: typing.Optional[_NDArray]) -> None:
             self.drag(mime_data, thumbnail_data)
 
         data_grid_controller.on_drag_started = data_list_drag_started
@@ -719,7 +723,7 @@ class DataGridWidget(Widgets.CompositeWidgetBase):
 
 class DataPanel(Panel.Panel):
 
-    def __init__(self, document_controller: DocumentController.DocumentController, panel_id: str, properties: typing.Dict):
+    def __init__(self, document_controller: DocumentController.DocumentController, panel_id: str, properties: Persistence.PersistentDictType) -> None:
         super().__init__(document_controller, panel_id, _("Data Items"))
 
         ui = document_controller.ui
