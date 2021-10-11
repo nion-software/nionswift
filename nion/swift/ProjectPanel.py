@@ -23,11 +23,13 @@ from nion.utils import Binding
 from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import ListModel
+from nion.utils import Observable
 from nion.utils import Selection
 
 if typing.TYPE_CHECKING:
     from nion.swift import Application
     from nion.swift import DocumentController
+    from nion.swift.model import Persistence
 
 _ = gettext.gettext
 
@@ -57,7 +59,7 @@ class ProjectCounterDisplayItem:
         self.__project_reference = project_reference
 
         self.__count = 0
-        self.on_title_changed = None
+        self.on_title_changed: typing.Optional[typing.Callable[[str], None]] = None
 
         def count_changed(count: Observer.ItemValue) -> None:
             self.__count = count
@@ -66,12 +68,12 @@ class ProjectCounterDisplayItem:
 
         oo = Observer.ObserverBuilder()
         oo.source(self.__project_reference).prop("project").sequence_from_array("display_items").len().action_fn(count_changed)
-        self.__count_observer = oo.make_observable()
+        self.__count_observer = typing.cast(Observer.AbstractItemSource, oo.make_observable())
 
     def close(self) -> None:
         self.__count_observer.close()
-        self.__count_observer = None
-        self.__project_reference = None
+        self.__count_observer = typing.cast(typing.Any, None)
+        self.__project_reference = typing.cast(typing.Any, None)
         self.on_title_changed = None
 
     @property
@@ -90,7 +92,7 @@ class CollectionDisplayItemCounter:
         self.__data_group = data_group
         self.__filter_id = filter_id
         self.__filter_predicate = document_controller.get_filter_predicate(filter_id) if self.__filter_id else ListModel.Filter(True)
-        self.on_title_changed = None
+        self.on_title_changed: typing.Optional[typing.Callable[[str], None]] = None
         self.__count = 0
 
         # useful for drag and drop
@@ -106,15 +108,15 @@ class CollectionDisplayItemCounter:
 
         oo = Observer.ObserverBuilder()
         oo.source(container).sequence_from_array("display_items", predicate=self.__filter_predicate.matches).len().action_fn(count_changed)
-        self.__count_observer = oo.make_observable()
+        self.__count_observer = typing.cast(Observer.AbstractItemSource, oo.make_observable())
 
     def close(self) -> None:
         self.on_title_changed = None
         self.__count_observer.close()
-        self.__count_observer = None
+        self.__count_observer = typing.cast(typing.Any, None)
         self.__data_group = None
-        self.document_controller = None
-        self.document_model = None
+        self.document_controller = typing.cast(typing.Any, None)
+        self.document_model = typing.cast(typing.Any, None)
 
     @property
     def title(self) -> str:
@@ -133,18 +135,24 @@ class CollectionDisplayItemCounter:
         return self.__data_group
 
 
-class ProjectPanelProjectItem:
+class ProjectPanelItemLike(typing.Protocol):
+    folder_key: str
+    indent: int
+    is_folder: bool
+
+
+class ProjectPanelProjectItem(ProjectPanelItemLike):
 
     def __init__(self, indent: int, project_reference: Profile.ProjectReference, display_item_controller: ProjectCounterDisplayItem):
         self.is_folder = False
         self.indent = indent
         self.project_reference = project_reference
         self.display_item_controller = display_item_controller
+        self.folder_key = str()
 
     @property
     def __state_str(self) -> str:
         project_reference = self.project_reference
-        project_uuid = project_reference.project_uuid
         project_version = project_reference.project_version
         project_state = project_reference.project_state
         if project_state == "loaded":
@@ -163,10 +171,10 @@ class ProjectPanelProjectItem:
 
     @property
     def is_enabled(self) -> bool:
-        return self.project_reference.project and self.project_reference.project.project_state == "loaded"
+        return self.project_reference.project is not None and self.project_reference.project.project_state == "loaded"
 
 
-class ProjectPanelFolderItem:
+class ProjectPanelFolderItem(ProjectPanelItemLike):
 
     def __init__(self, node: TreeNode, indent: int, folder_name: str, folder_closed: bool, folder_key: str):
         self.node = node
@@ -194,15 +202,17 @@ class ProjectPanelFolderItem:
 class TreeNode:
 
     def __init__(self) -> None:
-        self.children = dict()
-        self.data = list()
+        self.children: typing.Dict[str, TreeNode] = dict()
+        self.data: typing.List[Profile.ProjectReference] = list()
 
 
-class TreeModel:
+class TreeModel(Observable.Observable):
 
-    def __init__(self, profile: Profile.Profile):
+    def __init__(self, profile: Profile.Profile) -> None:
+        super().__init__()
+
         # cache
-        self.__project_panel_items = None
+        self.__project_panel_items: typing.Optional[typing.List[ProjectPanelItemLike]] = None
 
         # define the top level list
         self.__root_node = TreeNode()
@@ -212,7 +222,7 @@ class TreeModel:
 
         # define the closed items
         self.__closed_items = set(profile.closed_items)
-        self.on_closed_items_changed = None
+        self.on_closed_items_changed: typing.Optional[typing.Callable[[typing.Set[str]], None]] = None
 
         def update_items(item: Observer.ItemValue) -> None:
             if self.__project_panel_items is not None:
@@ -223,14 +233,14 @@ class TreeModel:
         oo.source(profile).tuple(
             oo.x.ordered_sequence_from_array("project_references").collect_list()).action_fn(update_items)
 
-        self.__profile_observer = oo.make_observable()
+        self.__profile_observer = typing.cast(Observer.AbstractItemSource, oo.make_observable())
 
     def close(self) -> None:
         self.__profile_observer.close()
-        self.__profile_observer = None
+        self.__profile_observer = typing.cast(typing.Any, None)
         self.__project_panel_items = None
 
-    def update_project_references(self, project_references: typing.Sequence[Profile.ProjectReference]):
+    def update_project_references(self, project_references: typing.Sequence[Profile.ProjectReference]) -> None:
         # build hierarchy of nodes reflecting the project reference parts (strings).
         # this is called when the projects model changes.
         self.__project_panel_items = None
@@ -245,15 +255,16 @@ class TreeModel:
         self.property_changed_event.fire("value")
 
     # recursively construct the project panel items
-    def __construct_project_panel_items(self, key_path: typing.List[str], node: TreeNode, closed: bool, project_panel_items: typing.List, closed_items: typing.Set, encountered_items: typing.Set) -> None:
+    def __construct_project_panel_items(self, key_path: typing.Sequence[str], node: TreeNode, closed: bool, project_panel_items: typing.List[ProjectPanelItemLike], closed_items: typing.Set[str], encountered_items: typing.Set[str]) -> None:
         # if the node has no data (no projects) and no children, do not display it; move down a level.
+        key_path_list = list(key_path)
         if len(node.data) == 0 and len(node.children) == 1:
             # this node represents a directory that only has a sub directory.
             # start by extracting the key and only child.
             key, child = list(node.children.items())[0]
             # if not root (the key path is not empty), combine the child with the key (directory path).
-            if len(key_path) > 0:
-                new_key = key_path[:-1] + [key_path[-1] + (key if key_path[-1].endswith("/") else "/" + key)]
+            if len(key_path_list) > 0:
+                new_key = key_path_list[:-1] + [key_path_list[-1] + (key if key_path_list[-1].endswith("/") else "/" + key)]
             # otherwise combine the child with the key (directory path).
             else:
                 new_key = [key]
@@ -261,17 +272,17 @@ class TreeModel:
             self.__construct_project_panel_items(new_key, child, closed, project_panel_items, closed_items, encountered_items)
         else:
             # this node represents a directory that more than one of either sub directory or project.
-            folder_key = "/".join(key_path)
+            folder_key = "/".join(key_path_list)
             folder_closed = folder_key in self.__closed_items or closed
-            if len(key_path) > 0:
+            if len(key_path_list) > 0:
                 encountered_items.add(folder_key)
                 if not closed:  # closed indicates whether the parent is closed
-                    project_panel_items.append(ProjectPanelFolderItem(node, len(key_path) - 1, key_path[-1], folder_closed, folder_key))
+                    project_panel_items.append(ProjectPanelFolderItem(node, len(key_path_list) - 1, key_path_list[-1], folder_closed, folder_key))
             for key, child in node.children.items():
-                self.__construct_project_panel_items(key_path + [key], child, folder_closed, project_panel_items, closed_items, encountered_items)
+                self.__construct_project_panel_items(key_path_list + [key], child, folder_closed, project_panel_items, closed_items, encountered_items)
             for project_reference in typing.cast(typing.Sequence[Profile.ProjectReference], node.data):
                 project_reference_parts = project_reference.project_reference_parts
-                project_key = "/".join(key_path + [project_reference_parts[-1]]) if project_reference_parts else str(id(project_reference))
+                project_key = "/".join(key_path_list + [project_reference_parts[-1]]) if project_reference_parts else str(id(project_reference))
                 encountered_items.add(project_key)
                 if not folder_closed:
 
@@ -280,17 +291,17 @@ class TreeModel:
 
                     display_item_counter = ProjectCounterDisplayItem(project_reference)
                     display_item_counter.on_title_changed = handle_item_controller_title_changed
-                    project_panel_items.append(ProjectPanelProjectItem(len(key_path), project_reference, display_item_counter))
+                    project_panel_items.append(ProjectPanelProjectItem(len(key_path_list), project_reference, display_item_counter))
 
     @property
-    def value(self) -> typing.List:
+    def value(self) -> typing.Sequence[ProjectPanelItemLike]:
         # build the value reflecting a compact version of the node hierarchy.
         # nodes with only one child are combined with that child.
         # building the project panel is expensive; so cache it.
 
         if not self.__project_panel_items:
-            project_panel_items = list()
-            encountered_items = set()
+            project_panel_items: typing.List[ProjectPanelItemLike] = list()
+            encountered_items: typing.Set[str] = set()
             self.__construct_project_panel_items(list(), self.__root_node, False, project_panel_items, self.__closed_items, encountered_items)
             self.__closed_items = self.__closed_items.intersection(encountered_items)
             self.__project_panel_items = project_panel_items
@@ -310,13 +321,13 @@ class TreeModel:
 
 class ProjectTreeCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
 
-    def __init__(self, window: Window.Window, tree_model: TreeModel):
+    def __init__(self, window: Window.Window, tree_model: TreeModel) -> None:
         super().__init__()
         self.__window = window
         self.__tree_model = tree_model
         get_font_metrics_fn = self.__window.ui.get_font_metrics
-        self.__folder_indent = get_font_metrics_fn("12px", "\N{BLACK DOWN-POINTING TRIANGLE} ").width
-        self.__project_indent = get_font_metrics_fn("12px", "\N{OPEN FILE FOLDER} ").width
+        self.__folder_indent = typing.cast(int, get_font_metrics_fn("12px", "\N{BLACK DOWN-POINTING TRIANGLE} ").width)
+        self.__project_indent = typing.cast(int, get_font_metrics_fn("12px", "\N{OPEN FILE FOLDER} ").width)
 
     def mouse_pressed_in_item(self, mouse_index: int, pos: Geometry.IntPoint, modifiers: UserInterface.KeyboardModifiers) -> bool:
         display_item = self.__tree_model.value[mouse_index]
@@ -326,7 +337,7 @@ class ProjectTreeCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
             return True
         return False
 
-    def paint_item(self, drawing_context: DrawingContext.DrawingContext, display_item, rect, is_selected):
+    def paint_item(self, drawing_context: DrawingContext.DrawingContext, display_item: typing.Any, rect: Geometry.IntRect, is_selected: bool) -> None:
         item_string = str(display_item)
         with drawing_context.saver():
             drawing_context.fill_style = "#000"
@@ -335,7 +346,7 @@ class ProjectTreeCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
             drawing_context.text_baseline = 'bottom'
             # drawing_context.fill_text("\N{BALLOT BOX}", rect[0][1] + 4, rect[0][0] + 20 - 4)
             extra_indent = self.__project_indent if not display_item.is_folder else 0
-            drawing_context.fill_text(item_string, rect[0][1] + self.__calculate_indent(display_item.indent, extra_indent), rect[0][0] + 20 - 4)
+            drawing_context.fill_text(item_string, rect.left + self.__calculate_indent(display_item.indent, extra_indent), rect.top + 20 - 4)
 
     def item_tool_tip(self, index: int) -> typing.Optional[str]:
         display_item = self.__tree_model.value[index]
@@ -343,32 +354,33 @@ class ProjectTreeCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
             return str(display_item.project_reference.project.storage_system_path if display_item.project_reference.project else _("Missing"))
         return None
 
-    def context_menu_event(self, index: int, x: int, y: int, gx: int, gy: int) -> bool:
-        display_item = self.__tree_model.value[index]
-        menu = self.__window.ui.create_context_menu(self.__window)
-        if isinstance(display_item, ProjectPanelProjectItem) and display_item.project_reference.project:
-            menu.add_menu_item(_(f"Open Project Location"), functools.partial(reveal_project, display_item.project_reference))
-        elif isinstance(display_item, ProjectPanelFolderItem):
-            menu.add_menu_item(_(f"Open Folder Location"), functools.partial(open_location, pathlib.Path(display_item.folder_key)))
-        menu.popup(gx, gy)
-        return True
+    def context_menu_event(self, index: typing.Optional[int], x: int, y: int, gx: int, gy: int) -> bool:
+        if index is not None:
+            display_item = self.__tree_model.value[index]
+            menu = self.__window.ui.create_context_menu(typing.cast(UserInterface.Window, self.__window))  # TODO: why is this cast required? something is ill-defined.
+            if isinstance(display_item, ProjectPanelProjectItem) and display_item.project_reference.project:
+                menu.add_menu_item(_(f"Open Project Location"), functools.partial(reveal_project, display_item.project_reference))
+            elif isinstance(display_item, ProjectPanelFolderItem):
+                menu.add_menu_item(_(f"Open Folder Location"), functools.partial(open_location, pathlib.Path(display_item.folder_key)))
+            menu.popup(gx, gy)
+            return True
+        return False
 
-    def __calculate_indent(self, display_item_indent, extra_indent):
+    def __calculate_indent(self, display_item_indent: int, extra_indent: int) -> int:
         return display_item_indent * self.__folder_indent + extra_indent
 
 
 class ProjectTreeWidget(Widgets.CompositeWidgetBase):
 
     def __init__(self, window: Window.Window, profile: Profile.Profile):
-        super().__init__(window.ui.create_column_widget())
+        content_widget = window.ui.create_column_widget()
+        super().__init__(content_widget)
 
         ui = window.ui
 
-        column = self.content_widget
-
         self._tree_model = TreeModel(profile)
 
-        def closed_items_changed(closed_items: typing.Set[str]):
+        def closed_items_changed(closed_items: typing.Set[str]) -> None:
             profile.closed_items = list(closed_items)
 
         self._tree_model.on_closed_items_changed = closed_items_changed
@@ -382,7 +394,7 @@ class ProjectTreeWidget(Widgets.CompositeWidgetBase):
         projects_section = Widgets.SectionWidget(ui, _("Projects"), projects_list_widget)
         projects_section.expanded = True
 
-        column.add(projects_section)
+        content_widget.add(projects_section)
 
         # configure an observer for watching for project references changes.
         # this serves as the master updater for changes. move to document controller?
@@ -394,12 +406,12 @@ class ProjectTreeWidget(Widgets.CompositeWidgetBase):
 
         oo = Observer.ObserverBuilder()
         oo.source(profile).ordered_sequence_from_array("project_references").collect_list().action_fn(project_references_changed)
-        self.__projects_model_observer = oo.make_observable()
+        self.__projects_model_observer = typing.cast(Observer.AbstractItemSource, oo.make_observable())
 
     def close(self) -> None:
         self._tree_model.on_closed_items_changed = None
         self.__projects_model_observer.close()
-        self.__projects_model_observer = None
+        self.__projects_model_observer = typing.cast(typing.Any, None)
         super().close()
 
 
@@ -412,7 +424,7 @@ class CollectionListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
     def close(self) -> None:
         pass
 
-    def paint_item(self, drawing_context, display_item, rect, is_selected):
+    def paint_item(self, drawing_context: DrawingContext.DrawingContext, display_item: typing.Any, rect: Geometry.IntRect, is_selected: bool) -> None:
         is_smart_collection = display_item.is_smart_collection if display_item else False
         title = ("\N{LEDGER} " if is_smart_collection else "\N{NOTEBOOK} ") + (display_item.title if display_item else str())
 
@@ -423,7 +435,7 @@ class CollectionListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
             drawing_context.text_baseline = 'bottom'
             drawing_context.fill_text(title, rect[0][1] + 4, rect[0][0] + 20 - 4)
 
-    def item_can_drop_mime_data(self, mime_data, action: str, drop_index: int) -> bool:
+    def item_can_drop_mime_data(self, mime_data: UserInterface.MimeData, action: str, drop_index: int) -> bool:
         list_display_item = self.items[drop_index]
         is_smart_collection = list_display_item.is_smart_collection if list_display_item else False
         display_items = MimeTypes.mime_data_get_display_items(mime_data, list_display_item.document_model)
@@ -434,7 +446,7 @@ class CollectionListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
             return True
         return False
 
-    def item_drop_mime_data(self, mime_data, action: str, drop_index: int) -> str:
+    def item_drop_mime_data(self, mime_data: UserInterface.MimeData, action: str, drop_index: int) -> str:
         list_display_item = self.items[drop_index]
         is_smart_collection = list_display_item.is_smart_collection if list_display_item else False
         display_items = MimeTypes.mime_data_get_display_items(mime_data, list_display_item.document_model)
@@ -460,10 +472,9 @@ class CollectionListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
 
 class CollectionsWidget(Widgets.CompositeWidgetBase):
 
-    def __init__(self, ui, document_controller):
-        super().__init__(ui.create_column_widget())
-
-        column = self.content_widget
+    def __init__(self, ui: UserInterface.UserInterface, document_controller: DocumentController.DocumentController) -> None:
+        content_widget = ui.create_column_widget()
+        super().__init__(content_widget)
 
         document_model = document_controller.document_model
 
@@ -479,14 +490,14 @@ class CollectionsWidget(Widgets.CompositeWidgetBase):
             latest_items_controller
         ]
 
-        self.__data_group_controllers = list()
+        self.__data_group_controllers: typing.List[CollectionDisplayItemCounter] = list()
 
         collection_selection = Selection.IndexedSelection(Selection.Style.single_or_none)
 
         collections_list_widget = Widgets.ListWidget(ui, CollectionListCanvasItemDelegate(collection_selection), selection=collection_selection, v_scroll_enabled=False, v_auto_resize=True)
         collections_list_widget.wants_drag_events = True
 
-        def filter_changed(data_group: DataGroup.DataGroup, filter_id: str) -> None:
+        def filter_changed(data_group: typing.Optional[DataGroup.DataGroup], filter_id: typing.Optional[str]) -> None:
             if data_group:
                 for index, controller in enumerate(collections_list_widget.items):
                     if data_group == controller.data_group:
@@ -517,7 +528,7 @@ class CollectionsWidget(Widgets.CompositeWidgetBase):
         live_items_controller.on_title_changed = collections_changed
         latest_items_controller.on_title_changed = collections_changed
 
-        def document_model_item_inserted(key: str, value, before_index: int) -> None:
+        def document_model_item_inserted(key: str, value: typing.Any, before_index: int) -> None:
             if key == "data_groups":
                 data_group = value
                 controller = CollectionDisplayItemCounter(data_group.title, data_group, None, document_controller)
@@ -525,7 +536,7 @@ class CollectionsWidget(Widgets.CompositeWidgetBase):
                 controller.on_title_changed = collections_changed
                 collections_changed(str())
 
-        def document_model_item_removed(key: str, value, index: int) -> None:
+        def document_model_item_removed(key: str, value: typing.Any, index: int) -> None:
             if key == "data_groups":
                 controller = self.__data_group_controllers.pop(index)
                 controller.close()
@@ -534,14 +545,15 @@ class CollectionsWidget(Widgets.CompositeWidgetBase):
         self.__document_model_item_inserted_listener = document_model.item_inserted_event.listen(document_model_item_inserted)
         self.__document_model_item_removed_listener = document_model.item_removed_event.listen(document_model_item_removed)
 
-        filter_changed(*document_controller.get_data_group_and_filter_id())
+        data_group, filter_id = document_controller.get_data_group_and_filter_id()
+        filter_changed(data_group, filter_id)
 
         for index, data_group in enumerate(document_model.data_groups):
             document_model_item_inserted("data_groups", data_group, index)
 
         collections_changed(str())
 
-        def collections_selection_changed(indexes: typing.Set) -> None:
+        def collections_selection_changed(indexes: typing.AbstractSet[int]) -> None:
             if len(indexes) == 0:
                 controller = collections_list_widget.items[0]
                 document_controller.set_filter(controller.filter_id)
@@ -562,8 +574,8 @@ class CollectionsWidget(Widgets.CompositeWidgetBase):
         collections_section = Widgets.SectionWidget(ui, _("Collections"), collections_column)
         collections_section.expanded = True
 
-        column.add(collections_section)
-        column.add_stretch()
+        content_widget.add(collections_section)
+        content_widget.add_stretch()
 
         # for testing
         self._collection_selection = collection_selection
@@ -576,17 +588,17 @@ class CollectionsWidget(Widgets.CompositeWidgetBase):
             item_controller.close()
         self.__item_controllers.clear()
         self.__filter_changed_event_listener.close()
-        self.__filter_changed_event_listener = None
+        self.__filter_changed_event_listener = typing.cast(typing.Any, None)
         self.__document_model_item_inserted_listener.close()
-        self.__document_model_item_inserted_listener = None
+        self.__document_model_item_inserted_listener = typing.cast(typing.Any, None)
         self.__document_model_item_removed_listener.close()
-        self.__document_model_item_removed_listener = None
+        self.__document_model_item_removed_listener = typing.cast(typing.Any, None)
         super().close()
 
 
 class CollectionsPanel(Panel.Panel):
 
-    def __init__(self, document_controller: DocumentController.DocumentController, panel_id, properties):
+    def __init__(self, document_controller: DocumentController.DocumentController, panel_id: str, properties: Persistence.PersistentDictType) -> None:
         super().__init__(document_controller, panel_id, _("Collections"))
 
         ui = document_controller.ui
@@ -610,7 +622,7 @@ class CollectionsPanel(Panel.Panel):
 
 class ProjectDialog(Dialog.ActionDialog):
 
-    def __init__(self, ui: UserInterface.UserInterface, app: Application.Application):
+    def __init__(self, ui: UserInterface.UserInterface, app: Application.Application) -> None:
         super().__init__(ui, _("Project Manager"), app=app, window_style="window", persistent_id="ProjectsDialog")
 
         projects_section = ProjectTreeWidget(self, app.profile)

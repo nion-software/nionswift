@@ -1,17 +1,20 @@
-import abc
-import collections
+import dataclasses
+import typing
 
 
-FontMetrics = collections.namedtuple("FontMetrics", ["width", "height", "ascent", "descent", "leading"])
+@dataclasses.dataclass
+class FontMetrics:
+    width: int
+    height: int
+    ascent: int
+    descent: int
+    leading: int
 
 
-class UISettings(abc.ABC):
+class UISettings(typing.Protocol):
 
-    @abc.abstractmethod
     def get_font_metrics(self, font: str, text: str) -> FontMetrics:
         ...
 
     @property
-    @abc.abstractmethod
-    def cursor_tolerance(self) -> float:
-        ...
+    def cursor_tolerance(self) -> float: raise NotImplementedError()

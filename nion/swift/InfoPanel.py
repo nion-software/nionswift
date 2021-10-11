@@ -1,3 +1,5 @@
+from __future__ import  annotations
+
 # standard libraries
 import gettext
 import typing
@@ -7,6 +9,11 @@ import typing
 
 # local libraries
 from nion.swift import Panel
+
+if typing.TYPE_CHECKING:
+    from nion.swift import DocumentController
+    from nion.swift.model import Persistence
+    from nion.ui import UserInterface
 
 _ = gettext.gettext
 
@@ -21,8 +28,8 @@ class InfoPanel(Panel.Panel):
     to do ui updates from the main thread.
     """
 
-    def __init__(self, document_controller, panel_id, properties):
-        super(InfoPanel, self).__init__(document_controller, panel_id, _("Info"))
+    def __init__(self, document_controller: DocumentController.DocumentController, panel_id: str, properties: Persistence.PersistentDictType) -> None:
+        super().__init__(document_controller, panel_id, _("Info"))
 
         ui = document_controller.ui
 
@@ -58,14 +65,14 @@ class InfoPanel(Panel.Panel):
     def close(self) -> None:
         # disconnect self as listener
         self.__cursor_changed_event_listener.close()
-        self.__cursor_changed_event_listener = None
+        self.__cursor_changed_event_listener = typing.cast(typing.Any, None)
         self.clear_task("position_and_value")
         # finish closing
         super(InfoPanel, self).close()
 
     # this message is received from the document controller.
     def __cursor_changed(self, text_items: typing.Optional[typing.List[str]]) -> None:
-        def update_position_and_value(text_items: typing.Optional[typing.List[str]]):
+        def update_position_and_value(text_items: typing.Optional[typing.List[str]]) -> None:
             self.label_row_1.text = text_items[0] if text_items and len(text_items) > 0 else None
             self.label_row_2.text = text_items[1] if text_items and len(text_items) > 1 else None
             self.label_row_3.text = text_items[2] if text_items and len(text_items) > 2 else None

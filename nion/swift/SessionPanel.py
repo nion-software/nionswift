@@ -1,6 +1,9 @@
+from __future__ import annotations
+
 # standard libraries
 import functools
 import gettext
+import typing
 
 # third party libraries
 # None
@@ -9,6 +12,11 @@ import gettext
 from nion.swift import Panel
 from nion.swift.model import ApplicationData
 
+if typing.TYPE_CHECKING:
+    from nion.swift import DocumentController
+    from nion.swift.model import Persistence
+    from nion.ui import UserInterface
+    from nion.utils import StructuredModel
 
 _ = gettext.gettext
 
@@ -17,18 +25,18 @@ class SessionPanelController:
 
     def __init__(self) -> None:
         self.__property_changed_listener = ApplicationData.get_session_metadata_model().property_changed_event.listen(self.__property_changed)
-        self.on_fields_changed = None
+        self.on_fields_changed: typing.Optional[typing.Callable[[StructuredModel.DictValue], None]] = None
 
     def close(self) -> None:
         self.__property_changed_listener.close()
-        self.__property_changed_listener = None
+        self.__property_changed_listener = typing.cast(typing.Any, None)
         self.on_fields_changed = None
 
     @property
-    def field_values(self):
+    def field_values(self) -> StructuredModel.DictValue:
         return ApplicationData.get_session_metadata_model().to_dict_value()
 
-    def __property_changed(self, key):
+    def __property_changed(self, key: str) -> None:
         if callable(self.on_fields_changed):
             self.on_fields_changed(self.field_values)
 
@@ -38,7 +46,7 @@ class SessionPanelController:
 
 class SessionPanel(Panel.Panel):
 
-    def __init__(self, document_controller, panel_id, properties):
+    def __init__(self, document_controller: DocumentController.DocumentController, panel_id: str, properties: Persistence.PersistentDictType) -> None:
         super().__init__(document_controller, panel_id, _("Session"))
 
         self.__controller = SessionPanelController()
@@ -62,7 +70,7 @@ class SessionPanel(Panel.Panel):
         intro_row.add(intro_label_widget)
         intro_row.add_stretch()
 
-        def line_edit_changed(line_edit_widget, field_id, text):
+        def line_edit_changed(line_edit_widget: UserInterface.LineEditWidget, field_id: str, text: str) -> None:
             self.__controller.set_field(field_id, text)
             line_edit_widget.request_refocus()
 
@@ -85,9 +93,9 @@ class SessionPanel(Panel.Panel):
         widget.add_spacing(8)
         widget.add_stretch()
 
-        def fields_changed(fields):
+        def fields_changed(fields: StructuredModel.DictValue) -> None:
             for field_id, line_edit_widget in field_line_edit_widget_map.items():
-                line_edit_widget.text = fields.get(field_id)
+                line_edit_widget.text = typing.cast(typing.Dict[str, str], fields).get(field_id)
 
         self.__controller.on_fields_changed = fields_changed
         fields_changed(self.__controller.field_values)

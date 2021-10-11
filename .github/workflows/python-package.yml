@@ -45,16 +45,23 @@ jobs:
           nion/swift/ComputationPanel.py \
           nion/swift/DataPanel.py \
           nion/swift/DisplayCanvasItem.py \
+          nion/swift/DisplayEditorPanel.py \
           nion/swift/DisplayPanel.py \
           nion/swift/DocumentController.py \
           nion/swift/Facade.py \
+          nion/swift/FilterPanel.py \
           nion/swift/GeneratorDialog.py \
           nion/swift/HistogramPanel.py \
           nion/swift/ImageCanvasItem.py \
+          nion/swift/InfoPanel.py \
           nion/swift/Inspector.py \
           nion/swift/LineGraphCanvasItem.py \
           nion/swift/LinePlotCanvasItem.py \
           nion/swift/MetadataPanel.py \
+          nion/swift/Panel.py \
+          nion/swift/ProjectPanel.py \
+          nion/swift/RecorderPanel.py \
+          nion/swift/SessionPanel.py \
           nion/swift/ScriptsDialog.py \
           nion/swift/ToolbarPanel.py \
           nion/swift/Undo.py \

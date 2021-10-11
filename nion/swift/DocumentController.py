@@ -438,7 +438,7 @@ class DocumentController(Window.Window):
         else:  # "all"
             return ListModel.Filter(True)
 
-    def set_data_group(self, data_group: DataGroup.DataGroup) -> None:
+    def set_data_group(self, data_group: typing.Optional[DataGroup.DataGroup]) -> None:
         if self.__display_items_model is not None:
             container = data_group if data_group else self.document_model
             if container != self.__display_items_model.container:

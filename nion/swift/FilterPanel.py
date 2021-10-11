@@ -16,10 +16,19 @@ import weakref
 
 # local libraries
 from nion.swift import Panel
+from nion.swift.model import DisplayItem
+from nion.swift.model import UISettings
 from nion.utils import ListModel
 
 if typing.TYPE_CHECKING:
     from nion.swift import DocumentController
+
+_DocumentControllerWeakRefType = typing.Callable[[], "DocumentController.DocumentController"]
+_TreeNodeWeakRefType = typing.Callable[[], "TreeNode"]
+_KeyType = typing.Any
+_KeySequenceType = typing.Sequence[_KeyType]
+_KeyListType = typing.List[_KeyType]
+_ValueType = DisplayItem.DisplayItem
 
 _ = gettext.gettext
 
@@ -50,7 +59,7 @@ class FilterController:
         self.ui = document_controller.ui
         self.__periodic_listener = document_controller.add_periodic(1.0, self.__periodic)
         self.item_model_controller = self.ui.create_item_model_controller()
-        self.__document_controller_weakref = weakref.ref(document_controller)
+        self.__weak_document_controller = typing.cast(_DocumentControllerWeakRefType, weakref.ref(document_controller))
 
         self.__display_item_tree = TreeNode(reversed=True)
         self.__display_item_tree_mutex = threading.RLock()
@@ -60,7 +69,7 @@ class FilterController:
         self.__display_item_tree.tree_node_updated = self.__update_tree_node
 
         # thread safe.
-        def display_item_inserted(key, display_item, before_index):
+        def display_item_inserted(key: str, display_item: _ValueType, before_index: int) -> None:
             """
                 This method will be called from the data item list model, which comes from the document controller to
                 notify that the list of data items in the document has changed.
@@ -74,7 +83,7 @@ class FilterController:
                 self.__display_item_tree.insert_value(indexes, display_item)
 
         # thread safe.
-        def display_item_removed(key, display_item, index):
+        def display_item_removed(key: str, display_item: _ValueType, index: int) -> None:
             """
                 This method will be called from the data item list model, which comes from the document controller to
                 notify that the list of data items in the document has changed.
@@ -99,8 +108,8 @@ class FilterController:
         self.__mapping[id(self.__display_item_tree)] = self.item_model_controller.root
         self.__node_counts_dirty = False
 
-        self.__date_filter = None
-        self.__text_filter = None
+        self.__date_filter: typing.Optional[ListModel.Filter] = None
+        self.__text_filter: typing.Optional[ListModel.Filter] = None
 
         for index, display_item in enumerate(self.__display_items_model.display_items):
             display_item_inserted("display_items", display_item, index)
@@ -108,22 +117,22 @@ class FilterController:
     def close(self) -> None:
         # Close the data model controller. Un-listen to the data item list model and close the item model controller.
         self.__display_item_inserted_listener.close()
-        self.__display_item_inserted_listener = None
+        self.__display_item_inserted_listener = typing.cast(typing.Any, None)
         self.__display_item_removed_listener.close()
-        self.__display_item_removed_listener = None
+        self.__display_item_removed_listener = typing.cast(typing.Any, None)
         self.__periodic_listener.close()
-        self.__periodic_listener = None
+        self.__periodic_listener = typing.cast(typing.Any, None)
         self.item_model_controller.close()
-        self.item_model_controller = None
+        self.item_model_controller = typing.cast(typing.Any, None)
 
     @property
     def document_controller(self) -> DocumentController.DocumentController:
-        return self.__document_controller_weakref()
+        return self.__weak_document_controller()
 
     def __periodic(self) -> None:
         self.update_all_nodes()
 
-    def __display_for_tree_node(self, tree_node):
+    def __display_for_tree_node(self, tree_node: TreeNode) -> str:
         """ Return the text display for the given tree node. Based on number of keys associated with tree node. """
         keys = tree_node.keys
         if len(keys) == 1:
@@ -137,7 +146,7 @@ class FilterController:
             date = datetime.date(tree_node.keys[0], tree_node.keys[1], tree_node.keys[2])
             return "{0} - {1} ({2})".format(tree_node.keys[2], weekdays[date.weekday()], tree_node.count)
 
-    def __insert_child(self, parent_tree_node, index, tree_node):
+    def __insert_child(self, parent_tree_node: TreeNode, index: int, tree_node: TreeNode) -> None:
         """
             Called from the root tree node when a new node is inserted into tree. This method creates properties
             to represent the node for display and inserts it into the item model controller.
@@ -145,7 +154,7 @@ class FilterController:
         # manage the item model
         parent_item = self.__mapping[id(parent_tree_node)]
         self.item_model_controller.begin_insert(index, index, parent_item.row, parent_item.id)
-        properties = {
+        properties: typing.Dict[str, typing.Any] = {
             "display": self.__display_for_tree_node(tree_node),
             "tree_node": tree_node  # used for removal and other lookup
         }
@@ -154,7 +163,7 @@ class FilterController:
         self.__mapping[id(tree_node)] = item
         self.item_model_controller.end_insert()
 
-    def __remove_child(self, parent_tree_node, index):
+    def __remove_child(self, parent_tree_node: TreeNode, index: int) -> None:
         """
             Called from the root tree node when a node is removed from the tree. This method removes it into the
             item model controller.
@@ -168,11 +177,11 @@ class FilterController:
         self.__mapping.pop(id(child_item.data["tree_node"]))
         self.item_model_controller.end_remove()
 
-    def __update_tree_node(self, tree_node):
+    def __update_tree_node(self, tree_node: TreeNode) -> None:
         """ Mark the fact that tree node counts need updating when convenient. """
         self.__node_counts_dirty = True
 
-    def update_all_nodes(self):
+    def update_all_nodes(self) -> None:
         """ Update all tree item displays if needed. Usually for count updates. """
         item_model_controller = self.item_model_controller
         if item_model_controller:
@@ -184,7 +193,7 @@ class FilterController:
                         item_model_controller.data_changed(item.row, item.parent.row, item.parent.id)
                 self.__node_counts_dirty = False
 
-    def date_browser_selection_changed(self, selected_indexes):
+    def date_browser_selection_changed(self, selected_indexes: typing.Sequence[typing.Tuple[int, int, int]]) -> None:
         """
             Called to handle selection changes in the tree widget.
 
@@ -209,7 +218,7 @@ class FilterController:
 
         self.__update_filter()
 
-    def text_filter_changed(self, text):
+    def text_filter_changed(self, text: typing.Optional[str]) -> None:
         """
             Called to handle changes to the text filter.
 
@@ -224,11 +233,11 @@ class FilterController:
 
         self.__update_filter()
 
-    def __update_filter(self):
+    def __update_filter(self) -> None:
         """
             Create a combined filter. Set the resulting filter into the document controller.
         """
-        filters = list()
+        filters: typing.List[ListModel.Filter] = list()
         if self.__date_filter:
             filters.append(self.__date_filter)
         if self.__text_filter:
@@ -242,7 +251,7 @@ class FilterPanel:
         A object to hold the widget for the filter panel.
     """
 
-    def __init__(self, document_controller):
+    def __init__(self, document_controller: DocumentController.DocumentController) -> None:
 
         ui = document_controller.ui
         self.document_controller = document_controller
@@ -262,7 +271,8 @@ class FilterPanel:
         date_browser.add(date_browser_tree_widget)
         date_browser.add_stretch()
 
-        header_canvas_item = Panel.HeaderCanvasItem(document_controller, _("Filter"))
+        # TODO: clean up UISettings FontMetrics definition
+        header_canvas_item = Panel.HeaderCanvasItem(typing.cast(UISettings.UISettings, document_controller), _("Filter"))
 
         header_widget = ui.create_canvas_widget(properties={"height": header_canvas_item.header_height})
         header_widget.canvas_item.add_canvas_item(header_canvas_item)
@@ -273,7 +283,7 @@ class FilterPanel:
         filter_text_widget.placeholder_text = _("No Filter")
         filter_text_widget.on_text_edited = self.__filter_controller.text_filter_changed
         clear_filter_text_widget = ui.create_push_button_widget(_("Clear"))
-        def clear_filter():
+        def clear_filter() -> None:
             filter_text_widget.text = ""
             self.__filter_controller.text_filter_changed("")
         clear_filter_text_widget.on_clicked = clear_filter
@@ -302,44 +312,58 @@ class TreeNode:
         Tracks cumulative child count.
     """
 
-    def __init__(self, key=None, children=None, values=None, reversed=False):
+    def __init__(self, key: typing.Optional[_KeyType] = None, *, reversed: bool = False) -> None:
         self.key = key
         self.count = 0
         self.reversed = reversed
-        self.__weak_parent = None
-        self.children = children if children is not None else list()
-        self.values = values if values is not None else list()
-        self.__value_reverse_mapping = dict()
-        self.child_inserted = None
-        self.child_removed = None
-        self.tree_node_updated = None
+        self.__weak_parent: typing.Optional[_TreeNodeWeakRefType] = None
+        self.children: typing.List[TreeNode] = list()
+        self.values: typing.List[_ValueType] = list()
+        self.__value_reverse_mapping: typing.Dict[_ValueType, _KeyListType] = dict()
+        self.child_inserted: typing.Optional[typing.Callable[[TreeNode, int, TreeNode], None]] = None
+        self.child_removed: typing.Optional[typing.Callable[[TreeNode, int], None]] = None
+        self.tree_node_updated: typing.Optional[typing.Callable[[TreeNode], None]] = None
 
-    def __lt__(self, other):
-        return self.key < other.key if not self.reversed else other.key < self.key
+    # TODO: clean up filter panel value typing in comparisons
 
-    def __le__(self, other):
-        return self.key <= other.key if not self.reversed else other.key <= self.key
+    def __lt__(self, other: typing.Any) -> bool:
+        if isinstance(other, TreeNode):
+            return self.key < other.key if not self.reversed else other.key < self.key  # type: ignore
+        return False
 
-    def __eq__(self, other):
-        return self.key == other.key
+    def __le__(self, other: typing.Any) -> bool:
+        if isinstance(other, TreeNode):
+            return self.key <= other.key if not self.reversed else other.key <= self.key  # type: ignore
+        return False
 
-    def __ne__(self, other):
-        return self.key != other.key
+    def __eq__(self, other: typing.Any) -> bool:
+        if isinstance(other, TreeNode):
+            return self.key == other.key  # type: ignore
+        return False
 
-    def __gt__(self, other):
-        return self.key > other.key if not self.reversed else other.key > self.key
+    def __ne__(self, other: typing.Any) -> bool:
+        if isinstance(other, TreeNode):
+            return self.key != other.key  # type: ignore
+        return False
 
-    def __ge__(self, other):
-        return self.key >= other.key if not self.reversed else other.key >= self.key
+    def __gt__(self, other: typing.Any) -> bool:
+        if isinstance(other, TreeNode):
+            return self.key > other.key if not self.reversed else other.key > self.key  # type: ignore
+        return False
 
-    def __hash__(self):
+    def __ge__(self, other: typing.Any) -> bool:
+        if isinstance(other, TreeNode):
+            return self.key >= other.key if not self.reversed else other.key >= self.key  # type: ignore
+        return False
+
+    def __hash__(self) -> int:
         return self.key.__hash__()
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{0}/{1}:{2}{3}".format(self.key, self.count, " {0}".format(self.children) if self.children else str(),
                                        " <{0}>".format(len(self.values)) if self.values else str())
 
-    def __get_parent(self):
+    def __get_parent(self) -> typing.Optional[TreeNode]:
         """
             Return the parent tree node, if any. Read only.
 
@@ -349,21 +373,21 @@ class TreeNode:
         return self.__weak_parent() if self.__weak_parent else None
     parent = property(__get_parent)
 
-    def __set_parent(self, parent):
+    def __set_parent(self, parent: typing.Optional[TreeNode]) -> None:
         """ Set the parent tree node. Private. """
-        self.__weak_parent = weakref.ref(parent) if parent else None
+        self.__weak_parent = typing.cast(_TreeNodeWeakRefType, weakref.ref(parent)) if parent else None
 
-    def __get_keys(self):
+    @property
+    def keys(self) -> _KeyListType:
         """ Return the keys associated with this node by adding its key and then adding parent keys recursively. """
-        keys = list()
+        keys: _KeyListType = list()
         tree_node = self
         while tree_node is not None and tree_node.key is not None:
             keys.insert(0, tree_node.key)
             tree_node = tree_node.parent
         return keys
-    keys = property(__get_keys)
 
-    def insert_value(self, keys, value):
+    def insert_value(self, keys: _KeySequenceType, value: _ValueType) -> None:
         """
             Insert a value (data item) into this tree node and then its
             children. This will be called in response to a new data item being
@@ -372,14 +396,14 @@ class TreeNode:
         """
         self.count += 1
         if not self.key:
-            self.__value_reverse_mapping[value] = keys
+            self.__value_reverse_mapping[value] = list(keys)
         if len(keys) == 0:
             self.values.append(value)
         else:
             key = keys[0]
             index = bisect.bisect_left(self.children, TreeNode(key, reversed=self.reversed))
             if index == len(self.children) or self.children[index].key != key:
-                new_tree_node = TreeNode(key, list(), reversed=self.reversed)
+                new_tree_node = TreeNode(key, reversed=self.reversed)
                 new_tree_node.child_inserted = self.child_inserted
                 new_tree_node.child_removed = self.child_removed
                 new_tree_node.tree_node_updated = self.tree_node_updated
@@ -392,7 +416,7 @@ class TreeNode:
             if self.tree_node_updated:
                 self.tree_node_updated(child)
 
-    def remove_value(self, keys, value):
+    def remove_value(self, keys: _KeySequenceType, value: _ValueType) -> None:
         """
             Remove a value (data item) from this tree node and its children.
             Also updates the tree node's cumulative child count.

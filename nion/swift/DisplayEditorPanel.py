@@ -36,7 +36,7 @@ class DisplayEditorDialog(Dialog.ActionDialog):
 
         text_edit_row = ui.create_row_widget(properties={"min-height": 180})
         text_edit = ui.create_text_edit_widget()
-        text_edit.placeholder_text = _("No Display Script")
+        text_edit.placeholder = _("No Display Script")
         text_edit_row.add_spacing(8)
         text_edit_row.add(text_edit)
         text_edit_row.add_spacing(8)
@@ -56,7 +56,7 @@ class DisplayEditorDialog(Dialog.ActionDialog):
         button_row.add(update_button)
         button_row.add_spacing(8)
 
-        def update_pressed():
+        def update_pressed() -> None:
             display_script = text_edit.text if text_edit.text else None
             command = DisplayPanel.ChangeDisplayCommand(document_controller.document_model, display_item, title=_("Change Display Script"), display_script=display_script)
             command.perform()
@@ -78,5 +78,5 @@ class DisplayEditorDialog(Dialog.ActionDialog):
 
         text_edit.text = display_item.get_display_property("display_script")
 
-    def size_changed(self, width, height):
+    def size_changed(self, width: int, height: int) -> None:
         self.__error_label.size = Geometry.IntSize(height=self.__error_label.size.height, width=self.__text_edit.size.width)

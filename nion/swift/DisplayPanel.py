@@ -1494,7 +1494,7 @@ class FixedUISettings(UISettings.UISettings):
         pass
 
     def get_font_metrics(self, font: str, text: str) -> UISettings.FontMetrics:
-        return UISettings.FontMetrics(width=6.5 * len(text), height=15, ascent=12, descent=3, leading=0)
+        return UISettings.FontMetrics(width=round(6.5 * len(text)), height=15, ascent=12, descent=3, leading=0)
 
     @property
     def cursor_tolerance(self) -> float:
@@ -2136,7 +2136,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
                 displayed_title = f"{displayed_title} ({r_var})"
             self.header_canvas_item.title = displayed_title
         else:
-            self.header_canvas_item.title = None
+            self.header_canvas_item.title = str()
 
     # handle selection. selection means that the display panel is the most recent
     # item to have focus within the workspace, although it can be selected without
