@@ -33,6 +33,7 @@ from nion.ui import Declarative
 from nion.ui import DrawingContext
 from nion.ui import UserInterface
 from nion.ui import Widgets
+from nion.ui import Window
 from nion.utils import Binding
 from nion.utils import Converter
 from nion.utils import Geometry
@@ -3879,7 +3880,7 @@ class DeclarativeImageChooserConstructor:
     def __init__(self, app: Application.Application) -> None:
         self.__app = app
 
-    def construct(self, d_type: str, ui: UserInterface.UserInterface, window: typing.Optional[UserInterface.UserInterface], d: Declarative.UIDescription, handler: Declarative.HandlerLike, finishes: typing.List[typing.Callable[[], None]]) -> typing.Optional[UserInterface.Widget]:
+    def construct(self, d_type: str, ui: UserInterface.UserInterface, window: typing.Optional[Window.Window], d: Declarative.UIDescription, handler: Declarative.HandlerLike, finishes: typing.List[typing.Callable[[], None]]) -> typing.Optional[UserInterface.Widget]:
         if d_type == "image_chooser":
             properties = Declarative.construct_sizing_properties(d)
             thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(ui, window=window)
@@ -3916,7 +3917,7 @@ class DeclarativeDataSourceChooserConstructor:
     def __init__(self, app: Application.Application) -> None:
         self.__app = app
 
-    def construct(self, d_type: str, ui: UserInterface.UserInterface, window: typing.Optional[UserInterface.UserInterface], d: Declarative.UIDescription, handler: Declarative.HandlerLike, finishes: typing.List[typing.Callable[[], None]]) -> typing.Optional[UserInterface.Widget]:
+    def construct(self, d_type: str, ui: UserInterface.UserInterface, window: typing.Optional[Window.Window], d: Declarative.UIDescription, handler: Declarative.HandlerLike, finishes: typing.List[typing.Callable[[], None]]) -> typing.Optional[UserInterface.Widget]:
         if d_type == "data_source_chooser":
             properties = Declarative.construct_sizing_properties(d)
             thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(ui, window=window)

@@ -43,6 +43,7 @@ jobs:
         mypy --install-types --non-interactive --namespace-packages --ignore-missing-imports --follow-imports=silent \
           nion/swift/Application.py \
           nion/swift/ComputationPanel.py \
+          nion/swift/DataItemThumbnailWidget.py \
           nion/swift/DataPanel.py \
           nion/swift/DisplayCanvasItem.py \
           nion/swift/DisplayEditorPanel.py \
@@ -63,6 +64,7 @@ jobs:
           nion/swift/RecorderPanel.py \
           nion/swift/SessionPanel.py \
           nion/swift/ScriptsDialog.py \
+          nion/swift/Thumbnails.py \
           nion/swift/ToolbarPanel.py \
           nion/swift/Undo.py \
           nion/swift/Workspace.py
