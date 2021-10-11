@@ -233,7 +233,8 @@ def open_location(location: str) -> None:
 
 class ScriptListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
 
-    def __init__(self, ui: UserInterface.UserInterface, document_controller: DocumentController.DocumentController, update_list_fn: typing.Callable[[], typing.Any]) -> None:
+    def __init__(self, ui: UserInterface.UserInterface, document_controller: DocumentController.DocumentController,
+                 update_list_fn: typing.Callable[[], typing.Any]) -> None:
         super().__init__()
         self.__ui = ui
         self.__document_controller = document_controller

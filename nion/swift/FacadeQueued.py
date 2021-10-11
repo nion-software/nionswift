@@ -1,3 +1,5 @@
+# type: ignore
+
 ### this file is partially generated, but the generated portion is copied from Classes.py
 ### see comment below
 

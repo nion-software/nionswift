@@ -3,6 +3,7 @@ import importlib
 import inspect
 import os
 import sys
+import typing
 import unittest
 
 # third party libraries
@@ -12,14 +13,14 @@ import unittest
 from nion.swift.model import PlugInManager
 
 
-suites = []
-suite_dict = {}
-alltests = None
+suites: typing.List[unittest.suite.TestSuite] = list()
+suite_dict: typing.Dict[str, unittest.suite.TestSuite] = dict()
+alltests: typing.Optional[unittest.TestSuite] = None
 
 
 # scan through directory and look for tests (files ending in test.py)
 # load the module and add the tests
-def load_tests(packages):
+def load_tests(packages: typing.Sequence[str]) -> None:
     global suites
     global suite_dict
     global alltests
@@ -51,7 +52,8 @@ def load_tests(packages):
     alltests = unittest.TestSuite(suites)
 
 def run_all_tests() -> None:
-    unittest.TextTestRunner(verbosity=2).run(alltests)
+    if alltests:
+        unittest.TextTestRunner(verbosity=2).run(alltests)
 
-def run_test(test_name):
+def run_test(test_name: str) -> None:
     unittest.TextTestRunner(verbosity=2).run(suite_dict[test_name])

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # system imports
 import code
 import contextlib
@@ -26,17 +28,17 @@ _ = gettext.gettext
 class ConsoleWidgetStateController:
     delims = " \t\n`~!@#$%^&*()-=+[{]}\\|;:\'\",<>/?"
 
-    def __init__(self, locals: dict):
+    def __init__(self, locals: typing.Dict[str, typing.Any]) -> None:
         self.__incomplete = False
 
         self.__console = code.InteractiveConsole(locals)
 
-        self.__history = list()
-        self.__history_point = None
-        self.__command_cache = (None, "") # Meaning of the tuple: (history_point where the command belongs, command)
+        self.__history: typing.List[str] = list()
+        self.__history_point: typing.Optional[int] = None
+        self.__command_cache: typing.Tuple[typing.Optional[int], str] = (None, str()) # Meaning of the tuple: (history_point where the command belongs, command)
 
     @staticmethod
-    def get_common_prefix(l):
+    def get_common_prefix(l: typing.List[str]) -> str:
         if not l:
             return str()
         s1 = min(l)  # return the first, alphabetically
@@ -47,27 +49,19 @@ class ConsoleWidgetStateController:
                 return s1[:i]
         return s1
 
-    @staticmethod
-    @contextlib.contextmanager
-    def reassign_stdout(new_stdout, new_stderr):
-        oldstdout, oldtsderr = sys.stdout, sys.stderr
-        sys.stdout, sys.stderr = new_stdout, new_stderr
-        yield
-        sys.stdout, sys.stderr = oldstdout, oldtsderr
-
     @property
-    def incomplete(self):
+    def incomplete(self) -> bool:
         return self.__incomplete
 
     # interpretCommand is called from the intrinsic widget.
-    def interpret_command(self, command: str):
+    def interpret_command(self, command: str) -> typing.Tuple[str, int]:
         if command:
             self.__history.append(command)
         self.__history_point = None
-        self.__command_cache = (None, "")
+        self.__command_cache = (None, str())
         output = io.StringIO()
         error = io.StringIO()
-        with ConsoleWidgetStateController.reassign_stdout(output, error):
+        with contextlib.redirect_stdout(output), contextlib.redirect_stderr(error):
             self.__incomplete = self.__console.push(command)
         if error.getvalue():
             result =  error.getvalue()
@@ -80,7 +74,7 @@ class ConsoleWidgetStateController:
     def complete_command(self, command: str) -> typing.Tuple[str, typing.List[str]]:
         terms = list()
         completed_command = command
-        completer = rlcompleter.Completer(namespace=self.__console.locals)
+        completer = rlcompleter.Completer(namespace=getattr(self.__console, "locals"))  # TODO: why isn't locals defined?
         index = 0
         rx = "([" + re.escape(ConsoleWidgetStateController.delims) + "])"
         # the parenthesis around rx make it a group. This will cause split to keep the characters in rx in the
@@ -101,12 +95,12 @@ class ConsoleWidgetStateController:
                 terms = list()
             elif len(terms) > 1:
                 common_prefix = ConsoleWidgetStateController.get_common_prefix(terms)
-                completed_command = "".join(split_commands[:-1]) + common_prefix
+                completed_command = str().join(split_commands[:-1]) + common_prefix
 
         return completed_command, terms
 
     def move_back_in_history(self, current_line: str) -> str:
-        line = ""
+        line = str()
         if self.__history_point is None:
             self.__history_point = len(self.__history)
             # do not update command_cache if the user didn't type anything
@@ -119,11 +113,10 @@ class ConsoleWidgetStateController:
         self.__history_point = max(0, self.__history_point - 1)
         if self.__history_point < len(self.__history):
             line = self.__command_cache[1] if self.__command_cache[0] == self.__history_point else self.__history[self.__history_point]
-
         return line
 
     def move_forward_in_history(self, current_line: str) -> str:
-        line = ""
+        line = str()
         if self.__history_point is not None:
             if self.__history_point < len(self.__history):
                 # This means the user changed something at the current point in history.
@@ -135,23 +128,22 @@ class ConsoleWidgetStateController:
                 line = self.__command_cache[1] if self.__command_cache[0] == self.__history_point else self.__history[self.__history_point]
             else:
                 self.__history_point = None
-
         # Do not use 'else' here because history_point might have been set to 'None' in the first 'if' statement
         if self.__history_point is None:
-            line = self.__command_cache[1] if self.__command_cache[0] is None else ""
-
+            line = self.__command_cache[1] if self.__command_cache[0] is None else str()
         return line
 
 
 class ConsoleWidget(Widgets.CompositeWidgetBase):
 
-    def __init__(self, ui: UserInterface.UserInterface, locals=None, properties=None):
-        super().__init__(ui.create_column_widget())
+    def __init__(self, ui: UserInterface.UserInterface, locals: typing.Optional[typing.Dict[str, typing.Any]] = None, properties: typing.Optional[Persistence.PersistentDictType] = None) -> None:
+        content_widget = ui.create_column_widget()
+        super().__init__(content_widget)
 
         self.prompt = ">>> "
         self.continuation_prompt = "... "
 
-        self.__cursor_position = None
+        self.__cursor_position: typing.Optional[UserInterface.CursorPosition] = None
 
         self.__text_edit_widget = ui.create_text_edit_widget(properties)
         self.__text_edit_widget.set_text_color("white")
@@ -160,19 +152,24 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
         self.__text_edit_widget.set_line_height_proportional(Panel.Panel.get_monospace_proportional_line_height())
         self.__text_edit_widget.word_wrap_mode = "anywhere"
         self.__text_edit_widget.on_cursor_position_changed = self.__cursor_position_changed
-        self.__text_edit_widget.on_selection_changed = self.__selection_changed
         self.__text_edit_widget.on_return_pressed = self.__return_pressed
         self.__text_edit_widget.on_key_pressed = self.__key_pressed
         self.__text_edit_widget.on_insert_mime_data = self.__insert_mime_data
 
         class StdoutCatcher:
-            def __init__(self, text_edit_widget):
+            def __init__(self, text_edit_widget: UserInterface.TextEditWidget) -> None:
                 self.__text_edit_widget = text_edit_widget
-            def write(self, stuff):
+
+            def write(self, stuff: str) -> int:
                 if self.__text_edit_widget:
-                    self.__text_edit_widget.append_text(str(stuff).rstrip())
-            def flush(self):
+                    stripped_stuff = str(stuff).rstrip()
+                    self.__text_edit_widget.append_text(stripped_stuff)
+                    return len(stripped_stuff)
+                return 0
+
+            def flush(self) -> None:
                 pass
+
         stdout = StdoutCatcher(self.__text_edit_widget)
 
         locals = locals if locals is not None else dict()
@@ -182,22 +179,22 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
 
         self.__text_edit_widget.append_text(self.prompt)
         self.__text_edit_widget.move_cursor_position("end")
-        self.__last_position = copy.deepcopy(self.__cursor_position)
+        self.__last_cursor_position: typing.Optional[UserInterface.CursorPosition] = copy.deepcopy(self.__cursor_position)
 
-        self.content_widget.add(self.__text_edit_widget)
+        content_widget.add(self.__text_edit_widget)
 
     def close(self) -> None:
         super().close()
-        self.__text_edit_widget = None
+        self.__text_edit_widget = typing.cast(typing.Any, None)
 
     def activate(self) -> None:
         self.__text_edit_widget.focused = True
 
     @property
-    def current_prompt(self):
+    def current_prompt(self) -> str:
         return self.continuation_prompt if self.__state_controller.incomplete else self.prompt
 
-    def insert_lines(self, lines):
+    def insert_lines(self, lines: typing.Sequence[str]) -> None:
         for l in lines:
             self.__text_edit_widget.move_cursor_position("end")
             self.__text_edit_widget.insert_text(l)
@@ -208,13 +205,13 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
                 self.__text_edit_widget.set_text_color("white")
             self.__text_edit_widget.append_text(self.current_prompt)
             self.__text_edit_widget.move_cursor_position("end")
-            self.__last_position = copy.deepcopy(self.__cursor_position)
+            self.__last_cursor_position = copy.deepcopy(self.__cursor_position)
 
-    def interpret_lines(self, lines):
+    def interpret_lines(self, lines: typing.Sequence[str]) -> None:
         for l in lines:
             self.__state_controller.interpret_command(l)
 
-    def __return_pressed(self):
+    def __return_pressed(self) -> bool:
         command = self.__get_partial_command()
         result, error_code = self.__state_controller.interpret_command(command)
         if len(result) > 0:
@@ -223,22 +220,25 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
         self.__text_edit_widget.set_text_color("white")
         self.__text_edit_widget.append_text(self.current_prompt)
         self.__text_edit_widget.move_cursor_position("end")
-        self.__last_position = copy.deepcopy(self.__cursor_position)
+        self.__last_cursor_position = copy.deepcopy(self.__cursor_position)
         return True
 
-    def __get_partial_command(self):
-        command = self.__text_edit_widget.text.split('\n')[-1]
+    def __get_partial_command(self) -> str:
+        text = self.__text_edit_widget.text
+        command = text.split('\n')[-1] if text else str()
         if command.startswith(self.prompt):
             command = command[len(self.prompt):]
         elif command.startswith(self.continuation_prompt):
             command = command[len(self.continuation_prompt):]
         return command
 
-    def __key_pressed(self, key):
-        is_cursor_on_last_line = self.__cursor_position.block_number == self.__last_position.block_number
+    def __key_pressed(self, key: UserInterface.Key) -> bool:
+        block_number = self.__cursor_position.block_number if self.__cursor_position else None
+        last_block_number = self.__last_cursor_position.block_number if self.__last_cursor_position else None
+        is_cursor_on_last_line = block_number == last_block_number
         partial_command = self.__get_partial_command()
-        is_cursor_on_last_column = (partial_command.strip() and
-                                    self.__cursor_position.column_number == len(self.current_prompt + partial_command))
+        column_number = self.__cursor_position.column_number if self.__cursor_position else 0
+        is_cursor_on_last_column = (partial_command.strip() and column_number == len(self.current_prompt + partial_command))
 
         if is_cursor_on_last_line and key.is_up_arrow:
             line = self.__state_controller.move_back_in_history(partial_command)
@@ -246,7 +246,7 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
             self.__text_edit_widget.move_cursor_position("end_para", "keep")
             self.__text_edit_widget.insert_text("{}{}".format(self.current_prompt, line))
             self.__text_edit_widget.move_cursor_position("end")
-            self.__last_position = copy.deepcopy(self.__cursor_position)
+            self.__last_cursor_position = copy.deepcopy(self.__cursor_position)
             return True
 
         if is_cursor_on_last_line and key.is_down_arrow:
@@ -255,7 +255,7 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
             self.__text_edit_widget.move_cursor_position("end_para", "keep")
             self.__text_edit_widget.insert_text("{}{}".format(self.current_prompt, line))
             self.__text_edit_widget.move_cursor_position("end")
-            self.__last_position = copy.deepcopy(self.__cursor_position)
+            self.__last_cursor_position = copy.deepcopy(self.__cursor_position)
             return True
 
         if is_cursor_on_last_line and key.is_delete:
@@ -278,7 +278,7 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
             self.__text_edit_widget.insert_text("\n")
             self.__text_edit_widget.insert_text(self.current_prompt)
             self.__text_edit_widget.move_cursor_position("end")
-            self.__last_position = copy.deepcopy(self.__cursor_position)
+            self.__last_cursor_position = copy.deepcopy(self.__cursor_position)
             return True
 
         if is_cursor_on_last_line and is_cursor_on_last_column and key.is_tab:
@@ -288,7 +288,7 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
                 self.__text_edit_widget.move_cursor_position("end_para", "keep")
                 self.__text_edit_widget.insert_text("{}{}".format(self.current_prompt, completed_command))
                 self.__text_edit_widget.move_cursor_position("end")
-                self.__last_position = copy.deepcopy(self.__cursor_position)
+                self.__last_cursor_position = copy.deepcopy(self.__cursor_position)
             elif len(terms) > 1:
                 self.__text_edit_widget.move_cursor_position("end")
                 self.__text_edit_widget.set_text_color("brown")
@@ -297,20 +297,17 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
                 self.__text_edit_widget.set_text_color("white")
                 self.__text_edit_widget.insert_text("{}{}".format(self.current_prompt, completed_command))
                 self.__text_edit_widget.move_cursor_position("end")
-                self.__last_position = copy.deepcopy(self.__cursor_position)
+                self.__last_cursor_position = copy.deepcopy(self.__cursor_position)
             return True
         return False
 
-    def __cursor_position_changed(self, cursor_position):
+    def __cursor_position_changed(self, cursor_position: UserInterface.CursorPosition) -> None:
         self.__cursor_position = copy.deepcopy(cursor_position)
 
-    def __selection_changed(self, selection):
-        pass
-
-    def __insert_mime_data(self, mime_data):
+    def __insert_mime_data(self, mime_data: UserInterface.MimeData) -> None:
         text = mime_data.data_as_string("text/plain")
         text_lines = re.split("[" + re.escape("\n") + re.escape("\r") + "]", text)
-        if text_lines[-1] == "":
+        if not text_lines[-1]:
             text_lines = text_lines[:-1]
         if len(text_lines) == 1 and text_lines[0] == text.rstrip():
             # special case where text has no line terminator
@@ -322,7 +319,7 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
 
 class ConsoleDialog(Dialog.ActionDialog):
 
-    def __init__(self, document_controller: "DocumentController.DocumentController"):
+    def __init__(self, document_controller: DocumentController.DocumentController) -> None:
         super().__init__(document_controller.ui, _("Python Console"), parent_window=document_controller, persistent_id="ConsoleDialog")
 
         self.__document_controller = document_controller
@@ -365,7 +362,7 @@ class ConsoleDialog(Dialog.ActionDialog):
 
     def about_to_show(self) -> None:
         super().about_to_show()
-        def request_focus():
+        def request_focus() -> None:
             self.activate()
             self.__console_widget.activate()
         self.queue_task(request_focus)

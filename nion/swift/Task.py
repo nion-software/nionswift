@@ -6,6 +6,7 @@ import gettext
 import logging
 import threading
 import time
+import types
 import typing
 
 # third party libraries
@@ -14,11 +15,13 @@ import typing
 # local libraries
 from nion.swift import Panel
 from nion.swift.model import Utility
+from nion.ui import UserInterface
 from nion.utils import Event
 from nion.utils import Observable
 
 if typing.TYPE_CHECKING:
     from nion.swift import DocumentController
+    from nion.swift.model import Persistence
 
 _ = gettext.gettext
 
@@ -46,11 +49,14 @@ _ = gettext.gettext
 
 class TaskPanel(Panel.Panel):
 
-    def __init__(self, document_controller, panel_id, properties):
+    def __init__(self, document_controller: DocumentController.DocumentController, panel_id: str, properties: Persistence.PersistentDictType) -> None:
         super().__init__(document_controller, panel_id, _("Tasks"))
 
+        self.__pending_tasks: typing.List[Task] = list()
+        self.__pending_tasks_mutex = threading.RLock()
+
         # thread safe
-        def task_created(task):
+        def task_created(task: Task) -> None:
             with self.__pending_tasks_mutex:
                 self.__pending_tasks.append(task)
                 self.document_controller.add_task(str(id(self)), self.__perform_tasks)
@@ -71,27 +77,25 @@ class TaskPanel(Panel.Panel):
         self.widget = self.column
 
         # map task to widgets
-        self.__pending_tasks = list()
-        self.__pending_tasks_mutex = threading.RLock()
-        self.__task_needs_update = set()
+        self.__task_needs_update: typing.Set[Task] = set()
         self.__task_needs_update_mutex = threading.RLock()
-        self.__task_section_controller_list = list()
+        self.__task_section_controller_list: typing.List[TaskSectionController] = list()
         self.__task_changed_event_listeners: typing.List[Event.EventListener] = list()
 
     def close(self) -> None:
         self.document_controller.clear_task(str(id(self)))
         # disconnect to the document controller
         self.__task_created_event_listener.close()
-        self.__task_created_event_listener = None
+        self.__task_created_event_listener = typing.cast(typing.Any, None)
         # disconnect from tasks
         for task_changed_event_listener in self.__task_changed_event_listeners:
             task_changed_event_listener.close()
-        self.__task_changed_event_listeners = None
+        self.__task_changed_event_listeners = typing.cast(typing.Any, None)
         # finish closing
         super().close()
 
     # not thread safe
-    def __perform_tasks(self):
+    def __perform_tasks(self) -> None:
         # for all pending tasks, make a task section controller, then add the task
         # to the needs update list.
         with self.__pending_tasks_mutex:
@@ -106,7 +110,7 @@ class TaskPanel(Panel.Panel):
                 self.__task_needs_update.add(task)
 
             # thread safe
-            def task_changed():
+            def task_changed() -> None:
                 with self.__task_needs_update_mutex:
                     self.__task_needs_update.add(task)
                     self.document_controller.add_task(str(id(self)), self.__perform_tasks)
@@ -131,9 +135,9 @@ class TaskPanel(Panel.Panel):
 
 
 # this is UI object, and not a thread safe
-class TaskSectionController(object):
+class TaskSectionController:
 
-    def __init__(self, ui, task):
+    def __init__(self, ui: UserInterface.UserInterface, task: Task) -> None:
         self.ui = ui
         self.task = task
 
@@ -164,10 +168,11 @@ class TaskSectionController(object):
         widget.add(task_header)
         widget.add(task_spacer_row)
 
-        self.__title_text = None
+        self.__title_text: typing.Optional[str] = None
+
         copy_button = self.ui.create_push_button_widget(_("Copy to Clipboard"))
-        def copy_to_clipboard():
-            clipboard_text = self.task_ui_controller.clipboard_text
+        def copy_to_clipboard() -> None:
+            clipboard_text = self.task_ui_controller.clipboard_text if self.task_ui_controller else None
             if clipboard_text:
                 if self.__title_text:
                     clipboard_text = self.__title_text + "\n" + clipboard_text
@@ -183,11 +188,11 @@ class TaskSectionController(object):
         self.update()
 
     # only called on UI thread
-    def update(self):
+    def update(self) -> None:
 
         # update the title
-        self.__title_text = str(self.task.title).upper()
-        self.title_widget.text = str(self.task.title)
+        self.__title_text = self.task.title.upper()
+        self.title_widget.text = self.task.title
 
         # update the progress label
         in_progress = self.task.in_progress
@@ -217,70 +222,70 @@ class Task(Observable.Observable):
     def __init__(self, title: str, task_type: str) -> None:
         super().__init__()
         self.__title = title
-        self.__start_time = None
-        self.__finish_time = None
+        self.__start_time: typing.Optional[float] = None
+        self.__finish_time: typing.Optional[float] = None
         self.__task_type = task_type
-        self.__task_data = None
+        self.__task_data: typing.Any = None
         self.__task_data_mutex = threading.RLock()
-        self.__progress = None
+        self.__progress: typing.Optional[typing.Tuple[int, int]] = None
         self.__progress_text = str()
         self.task_changed_event = Event.Event()
 
     # title
     @property
-    def title(self):
+    def title(self) -> str:
         return self.__title
 
     @title.setter
-    def title(self, value):
+    def title(self, value: str) -> None:
         self.__title = value
         self.notify_property_changed("title")
         self.task_changed_event.fire()
 
     # start time
     @property
-    def start_time(self):
+    def start_time(self) -> typing.Optional[float]:
         return self.__start_time
 
     @start_time.setter
-    def start_time(self, value):
+    def start_time(self, value: typing.Optional[float]) -> None:
         self.__start_time = value
         self.notify_property_changed("start_time")
         self.task_changed_event.fire()
 
     # finish time
     @property
-    def finish_time(self):
+    def finish_time(self) -> typing.Optional[float]:
         return self.__finish_time
 
     @finish_time.setter
-    def finish_time(self, value):
+    def finish_time(self, value: typing.Optional[float]) -> None:
         self.__finish_time = value
         self.notify_property_changed("finish_time")
         self.task_changed_event.fire()
 
     # in progress
     @property
-    def in_progress(self):
+    def in_progress(self) -> bool:
         return self.finish_time is None
 
     # progress
     @property
-    def progress(self):
+    def progress(self) -> typing.Optional[typing.Tuple[int, int]]:
         return self.__progress
 
     @progress.setter
-    def progress(self, value):
+    def progress(self, value: typing.Optional[typing.Tuple[int, int]]) -> None:
         self.__progress = value
         self.task_changed_event.fire()
 
     # progress_text
     @property
-    def progress_text(self):
+    def progress_text(self) -> str:
         return self.__progress_text
 
     @progress_text.setter
-    def progress_text(self, value):
+    def progress_text(self, value: str) -> None:
         self.__progress_text = value
         self.task_changed_event.fire()
 
@@ -291,12 +296,12 @@ class Task(Observable.Observable):
 
     # task data
     @property
-    def task_data(self):
+    def task_data(self) -> typing.Any:
         with self.__task_data_mutex:
             return copy.copy(self.__task_data)
 
     @task_data.setter
-    def task_data(self, task_data):
+    def task_data(self, task_data: typing.Any) -> None:
         with self.__task_data_mutex:
             self.__task_data = copy.copy(task_data)
         self.notify_property_changed("task_data")
@@ -304,25 +309,26 @@ class Task(Observable.Observable):
 
 
 # all public methods are thread safe
-class TaskContextManager(object):
+class TaskContextManager:
 
     def __init__(self, container: DocumentController.DocumentController, task: Task, logging: bool) -> None:
         self.__container = container
         self.__task = task
         self.__logging = logging
 
-    def __enter__(self):
+    def __enter__(self) -> TaskContextManager:
         if self.__logging:
             logging.debug("%s: started", self.__task.title)
         self.__task.start_time = time.time()
         return self
 
-    def __exit__(self, type, value, traceback):
+    def __exit__(self, exception_type: typing.Optional[typing.Type[BaseException]], value: typing.Optional[BaseException], traceback: typing.Optional[types.TracebackType]) -> typing.Optional[bool]:
         self.__task.finish_time = time.time()
         if self.__logging:
             logging.debug("%s: finished", self.__task.title)
+        return None
 
-    def update_progress(self, progress_text, progress=None, task_data=None):
+    def update_progress(self, progress_text: str, progress: typing.Optional[typing.Tuple[int, int]] = None, task_data: typing.Any = None) -> None:
         self.__task.progress_text = progress_text
         self.__task.progress = progress
         if task_data:
@@ -331,33 +337,47 @@ class TaskContextManager(object):
             logging.debug("%s: %s %s", self.__task.title, progress_text, progress if progress else "")
 
 
+class TaskController(typing.Protocol):
+    widget: UserInterface.Widget
+
+    @property
+    def clipboard_text(self) -> str: raise NotImplementedError()
+
+    def update_task(self, task: Task) -> None: ...
+
+
 class TaskManager(metaclass=Utility.Singleton):
 
     def __init__(self) -> None:
-        self.__task_ui_builder_map = dict()
+        self.__task_ui_builder_map: typing.Dict[str, typing.Callable[[UserInterface.UserInterface], TaskController]] = dict()
 
-    def register_task_type_builder(self, task_type, fn):
+    def register_task_type_builder(self, task_type: str, fn: typing.Callable[[UserInterface.UserInterface], TaskController]) -> None:
         self.__task_ui_builder_map[task_type] = fn
 
-    def unregister_task_type_builder(self, task_type):
+    def unregister_task_type_builder(self, task_type: str) -> None:
         del self.__task_ui_builder_map[task_type]
 
-    def build_task_ui(self, ui, task):
+    def build_task_ui(self, ui: UserInterface.UserInterface, task: Task) -> typing.Optional[TaskController]:
         if task.task_type in self.__task_ui_builder_map:
             return self.__task_ui_builder_map[task.task_type](ui)
         return None
 
 
-class TableController(object):
+class TableController(TaskController):
 
-    def __init__(self, ui):
+    def __init__(self, ui: UserInterface.UserInterface) -> None:
         self.ui = ui
-        self.clipboard_text = None
-        self.widget = self.ui.create_column_widget()
+        self.__clipboard_text = str()
+        self.__column_widget = self.ui.create_column_widget()
         self.column_widgets = self.ui.create_row_widget()
-        self.widget.add(self.column_widgets)
+        self.__column_widget.add(self.column_widgets)
+        self.widget = self.__column_widget
 
-    def update_task(self, task):
+    @property
+    def clipboard_text(self) -> str:
+        return self.__clipboard_text
+
+    def update_task(self, task: Task) -> None:
         if task.task_data:
             column_count = len(task.task_data["headers"])
             while self.column_widgets.child_count > column_count:
@@ -365,8 +385,9 @@ class TableController(object):
             while self.column_widgets.child_count < column_count:
                 self.column_widgets.add(self.ui.create_column_widget())
             row_count = len(task.task_data["data"]) if "data" in task.task_data else 0
-            text_lines = [list() for _ in range(row_count + 1)]
-            for column_index, column_widget in enumerate(self.column_widgets.children):
+            text_lines: typing.List[typing.List[str]] = [list() for _ in range(row_count + 1)]
+            for column_index, column_widget_ in enumerate(self.column_widgets.children):
+                column_widget = typing.cast(UserInterface.BoxWidget, column_widget_)
                 while column_widget.child_count > row_count + 1:
                     column_widget.remove(column_widget.child_count - 1)
                 while column_widget.child_count < row_count + 1:
@@ -375,28 +396,33 @@ class TableController(object):
                         label_widget.text_font = "bold"
                     column_widget.add(label_widget)
                 header_text = task.task_data["headers"][column_index]
-                column_widget.children[0].text = header_text
+                typing.cast(UserInterface.LabelWidget, column_widget.children[0]).text = header_text
                 text_lines[0].append(header_text)
                 for row_index in range(row_count):
                     data_text = str(task.task_data["data"][row_index][column_index])
-                    column_widget.children[row_index + 1].text = data_text
+                    typing.cast(UserInterface.LabelWidget, column_widget.children[row_index + 1]).text = data_text
                     text_lines[row_index + 1].append(data_text)
-            self.clipboard_text = "\n".join(["  ".join(text_line) for text_line in text_lines])
+            self.__clipboard_text = "\n".join(["  ".join(text_line) for text_line in text_lines])
         else:
             self.column_widgets.remove_all()
 
 
-class StringListController(object):
+class StringListController(TaskController):
 
-    def __init__(self, ui):
+    def __init__(self, ui: UserInterface.UserInterface) -> None:
         self.ui = ui
+        self.__clipboard_text = str()
         self.widget = self.ui.create_label_widget("[]")
-        self.clipboard_text = None
 
-    def update_task(self, task):
+    @property
+    def clipboard_text(self) -> str:
+        return self.__clipboard_text
+
+    def update_task(self, task: Task) -> None:
         strings = task.task_data["strings"] if task.task_data else list()
-        self.clipboard_text = "[" + ":".join(strings) + "]"
+        self.__clipboard_text = "[" + ":".join(strings) + "]"
         self.widget.text = self.clipboard_text
+
 
 TaskManager().register_task_type_builder("string_list", lambda ui: StringListController(ui))
 TaskManager().register_task_type_builder("table", lambda ui: TableController(ui))

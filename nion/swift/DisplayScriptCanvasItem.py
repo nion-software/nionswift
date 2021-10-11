@@ -16,8 +16,12 @@ from nion.ui import DrawingContext
 from nion.utils import Geometry
 
 if typing.TYPE_CHECKING:
+    from nion.data import DataAndMetadata
     from nion.swift.model import DisplayItem
+    from nion.swift.model import Graphics
     from nion.swift.model import Persistence
+    from nion.swift import Undo
+    from nion.ui import UserInterface
 
 
 class DisplayScriptCanvasItemDelegate:
@@ -33,7 +37,7 @@ class DisplayScriptCanvasItemDelegate:
 
     def cursor_changed(self, pos: typing.Optional[typing.Tuple[int, ...]]) -> None: ...
 
-    def show_display_context_menu(self, gx, gy) -> bool: ...
+    def show_display_context_menu(self, gx: int, gy: int) -> bool: ...
 
     @property
     def tool_mode(self) -> str: return str()
@@ -45,7 +49,7 @@ class DisplayScriptCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
     Callers are expected to pass in a font metrics function and a delegate.
     """
 
-    def __init__(self, ui_settings: UISettings.UISettings, delegate, event_loop, draw_background: bool=True):
+    def __init__(self, ui_settings: UISettings.UISettings, delegate: typing.Optional[DisplayCanvasItem.DisplayCanvasItemDelegate]) -> None:
         super().__init__()
 
         self.__ui_settings = ui_settings
@@ -54,14 +58,11 @@ class DisplayScriptCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.__drawing_context_lock = threading.RLock()
         self.__drawing_context = DrawingContext.DrawingContext()
 
-        self.__display_data = None
-        self.__display_script = None
+        self.__display_xdata: typing.Optional[DataAndMetadata.DataAndMetadata] = None
+        self.__display_script: typing.Optional[str] = None
 
         self.__closing_lock = threading.RLock()
         self.__closed = False
-
-        self.__data = None
-        self.__last_data = None
 
         # canvas items get added back to front
         # create the child canvas items
@@ -69,7 +70,7 @@ class DisplayScriptCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.add_canvas_item(CanvasItem.BackgroundCanvasItem())
 
         # frame rate
-        self.__display_frame_rate_id = None
+        self.__display_frame_rate_id: typing.Optional[str] = None
         self.__display_frame_rate_last_index = 0
 
     def close(self) -> None:
@@ -79,14 +80,19 @@ class DisplayScriptCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         super().close()
 
     @property
-    def default_aspect_ratio(self):
+    def default_aspect_ratio(self) -> float:
         return 1.0
 
     def add_display_control(self, display_control_canvas_item: CanvasItem.AbstractCanvasItem, role: typing.Optional[str] = None) -> None:
         display_control_canvas_item.close()
 
     def update_display_values(self, display_values_list: typing.Sequence[typing.Optional[DisplayItem.DisplayValues]]) -> None:
-        self.__display_data = display_values_list[0].data_and_metadata if display_values_list else None
+        display_xdata: typing.Optional[DataAndMetadata.DataAndMetadata] = None
+        if display_values_list:
+            display_values = display_values_list[0]
+            if display_values:
+                display_xdata = display_values.data_and_metadata
+        self.__display_xdata = display_xdata
 
     def update_display_properties_and_layers(self, display_calibration_info: DisplayItem.DisplayCalibrationInfo, display_properties: Persistence.PersistentDictType, display_layers: typing.Sequence[Persistence.PersistentDictType]) -> None:
         self.__display_script = display_properties.get("display_script")
@@ -99,10 +105,10 @@ class DisplayScriptCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         # enter key has been pressed
         return False
 
-    def _prepare_render(self):
-        data_and_metadata = self.__display_data
+    def _prepare_render(self) -> None:
+        data_and_metadata = self.__display_xdata
         display_script = self.__display_script
-        if data_and_metadata:
+        if data_and_metadata and display_script:
             # this method may trigger a layout of its parent scroll area. however, the parent scroll
             # area may already be closed. this is a stop-gap guess at a solution - the basic idea being
             # that this object is not closeable while this method is running; and this method should not
@@ -114,13 +120,13 @@ class DisplayScriptCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                 # Update the display state.
                 rect = self.canvas_bounds
                 if rect is not None:
-                    g = dict()
+                    g: typing.Dict[str, typing.Any] = dict()
                     drawing_context = DrawingContext.DrawingContext()
                     g["drawing_context"] = drawing_context
                     g["display_data_and_metadata"] = data_and_metadata
                     g["bounds"] = rect
                     g["get_font_metrics_fn"] = self.__ui_settings.get_font_metrics
-                    l = dict()
+                    l: typing.Dict[str, typing.Any] = dict()
                     try:
                         # print(code)
                         compiled = compile(display_script, "expr", "exec")
@@ -148,28 +154,28 @@ class DisplayScriptCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             fps2 = Utility.fps_get("frame_"+self.__display_frame_rate_id)
             fps3 = Utility.fps_get("update_"+self.__display_frame_rate_id)
 
-            rect = self.canvas_bounds
+            canvas_bounds = self.canvas_bounds
+            if canvas_bounds:
+                with drawing_context.saver():
+                    font = "normal 11px serif"
+                    text_pos = canvas_bounds.top_right + Geometry.IntPoint(y=0, x=-100)
+                    drawing_context.begin_path()
+                    drawing_context.move_to(text_pos.x, text_pos.y)
+                    drawing_context.line_to(text_pos.x + 120, text_pos.y)
+                    drawing_context.line_to(text_pos.x + 120, text_pos.y + 60)
+                    drawing_context.line_to(text_pos.x, text_pos.y + 60)
+                    drawing_context.close_path()
+                    drawing_context.fill_style = "rgba(255, 255, 255, 0.6)"
+                    drawing_context.fill()
+                    drawing_context.font = font
+                    drawing_context.text_baseline = "middle"
+                    drawing_context.text_align = "left"
+                    drawing_context.fill_style = "#000"
+                    drawing_context.fill_text("display:" + fps, text_pos.x + 8, text_pos.y + 10)
+                    drawing_context.fill_text("frame:" + fps2, text_pos.x + 8, text_pos.y + 30)
+                    drawing_context.fill_text("update:" + fps3, text_pos.x + 8, text_pos.y + 50)
 
-            with drawing_context.saver():
-                font = "normal 11px serif"
-                text_pos = Geometry.IntPoint(y=rect[0][0], x=rect[0][1] + rect[1][1] - 100)
-                drawing_context.begin_path()
-                drawing_context.move_to(text_pos.x, text_pos.y)
-                drawing_context.line_to(text_pos.x + 120, text_pos.y)
-                drawing_context.line_to(text_pos.x + 120, text_pos.y + 60)
-                drawing_context.line_to(text_pos.x, text_pos.y + 60)
-                drawing_context.close_path()
-                drawing_context.fill_style = "rgba(255, 255, 255, 0.6)"
-                drawing_context.fill()
-                drawing_context.font = font
-                drawing_context.text_baseline = "middle"
-                drawing_context.text_align = "left"
-                drawing_context.fill_style = "#000"
-                drawing_context.fill_text("display:" + fps, text_pos.x + 8, text_pos.y + 10)
-                drawing_context.fill_text("frame:" + fps2, text_pos.x + 8, text_pos.y + 30)
-                drawing_context.fill_text("update:" + fps3, text_pos.x + 8, text_pos.y + 50)
-
-    def mouse_entered(self):
+    def mouse_entered(self) -> bool:
         if super().mouse_entered():
             return True
         self.__mouse_in = True
@@ -188,14 +194,16 @@ class DisplayScriptCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
     def mouse_double_clicked(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         if super().mouse_clicked(x, y, modifiers):
             return True
-        if self.delegate.tool_mode == "pointer":
+        delegate = self.delegate
+        if delegate and delegate.tool_mode == "pointer":
             pass  # pos = Geometry.IntPoint(x=x, y=y)
         return False
 
     def mouse_position_changed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         if super().mouse_position_changed(x, y, modifiers):
             return True
-        if self.delegate.tool_mode == "pointer":
+        delegate = self.delegate
+        if delegate and delegate.tool_mode == "pointer":
             self.cursor_shape = "arrow"
         self.__last_mouse = Geometry.IntPoint(x=x, y=y)
         self.__update_cursor_info()
@@ -204,9 +212,11 @@ class DisplayScriptCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
     def mouse_pressed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         if super().mouse_pressed(x, y, modifiers):
             return True
-        self.delegate.begin_mouse_tracking()
-        if self.delegate.tool_mode == "pointer":
-            pass
+        delegate = self.delegate
+        if delegate:
+            delegate.begin_mouse_tracking()
+            if delegate.tool_mode == "pointer":
+                pass
         return False
 
     def mouse_released(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
@@ -215,14 +225,16 @@ class DisplayScriptCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         return False
 
     def context_menu_event(self, x: int, y: int, gx: int, gy: int) -> bool:
-        return self.delegate.show_display_context_menu(gx, gy)
+        delegate = self.delegate
+        if delegate:
+            return delegate.show_display_context_menu(gx, gy)
+        return False
 
     @property
     def key_contexts(self) -> typing.Sequence[str]:
         return ["display_panel"]
 
-    def __update_cursor_info(self):
-        if not self.delegate:  # allow display to work without delegate
-            return
-        if self.__mouse_in and self.__last_mouse:
+    def __update_cursor_info(self) -> None:
+        delegate = self.delegate
+        if delegate and self.__mouse_in and self.__last_mouse:
             pass  # self.delegate.cursor_changed(pos_1d)
