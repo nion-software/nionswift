@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # standard libraries
 import functools
 import gettext
@@ -7,6 +9,7 @@ import os
 import pathlib
 import re
 import traceback
+import typing
 import unicodedata
 
 # third party libraries
@@ -17,6 +20,9 @@ from nion.swift.model import ImportExportManager
 from nion.ui import Dialog
 from nion.ui import UserInterface
 from nion.ui import Window
+
+if typing.TYPE_CHECKING:
+    from nion.swift.model import DisplayItem
 
 _ = gettext.gettext
 
@@ -77,11 +83,11 @@ class ExportDialog(Dialog.OkCancelDialog):
         file_types_column.add(file_types_row)
 
         option_descriptions = [
-            [_("Include Title"), "title", True],
-            [_("Include Date"), "date", True],
-            [_("Include Dimensions"), "dimensions", True],
-            [_("Include Sequence Number"), "sequence", True],
-            [_("Include Prefix:"), "prefix", False]
+            (_("Include Title"), "title", True),
+            (_("Include Date"), "date", True),
+            (_("Include Dimensions"), "dimensions", True),
+            (_("Include Sequence Number"), "sequence", True),
+            (_("Include Prefix:"), "prefix", False)
         ]
 
         self.options = dict()
@@ -102,7 +108,7 @@ class ExportDialog(Dialog.OkCancelDialog):
             check_box_widget = self.ui.create_check_box_widget(label)
             check_box_widget.checked = self.options[option_id]
 
-            def checked_changed(option_id_, checked):
+            def checked_changed(option_id_: str, checked: bool) -> None:
                 self.options[option_id_] = checked
                 self.ui.set_persistent_string("export_option_" + option_id_, str(checked))
 
@@ -142,7 +148,7 @@ class ExportDialog(Dialog.OkCancelDialog):
 
         choose_directory_button.on_clicked = choose
 
-        def writer_changed(writer) -> None:
+        def writer_changed(writer: ImportExportManager.ImportExportHandler) -> None:
             self.ui.set_persistent_string("export_io_handler_id", writer.io_handler_id)
             self.writer = writer
 
@@ -150,33 +156,34 @@ class ExportDialog(Dialog.OkCancelDialog):
 
         self.content.add(column)
 
-    def do_export(self, display_items):
+    def do_export(self, display_items: typing.Sequence[DisplayItem.DisplayItem]) -> None:
         directory = self.directory
         writer = self.writer
-        if directory:
+        if directory and writer:
             for index, display_item in enumerate(display_items):
                 data_item = display_item.data_item
-                try:
-                    components = list()
-                    if self.options.get("prefix", False):
-                        components.append(str(self.prefix_edit_widget.text))
-                    if self.options.get("title", False):
-                        title = unicodedata.normalize('NFKC', data_item.title)
-                        title = re.sub('[^\w\s-]', '', title, flags=re.U).strip()
-                        title = re.sub('[-\s]+', '-', title, flags=re.U)
-                        components.append(title)
-                    if self.options.get("date", False):
-                        components.append(data_item.created_local.isoformat().replace(':', ''))
-                    if self.options.get("dimensions", False):
-                        components.append(
-                            "x".join([str(shape_n) for shape_n in data_item.dimensional_shape]))
-                    if self.options.get("sequence", False):
-                        components.append(str(index))
-                    filename = "_".join(components)
-                    extension = writer.extensions[0]
-                    path = os.path.join(directory, "{0}.{1}".format(filename, extension))
-                    ImportExportManager.ImportExportManager().write_display_item_with_writer(writer, display_item, pathlib.Path(path))
-                except Exception as e:
-                    logging.debug("Could not export image %s / %s", str(data_item), str(e))
-                    traceback.print_exc()
-                    traceback.print_stack()
+                if data_item:
+                    try:
+                        components = list()
+                        if self.options.get("prefix", False):
+                            components.append(str(self.prefix_edit_widget.text))
+                        if self.options.get("title", False):
+                            title = unicodedata.normalize('NFKC', data_item.title)
+                            title = re.sub('[^\w\s-]', '', title, flags=re.U).strip()
+                            title = re.sub('[-\s]+', '-', title, flags=re.U)
+                            components.append(title)
+                        if self.options.get("date", False):
+                            components.append(data_item.created_local.isoformat().replace(':', ''))
+                        if self.options.get("dimensions", False):
+                            components.append(
+                                "x".join([str(shape_n) for shape_n in data_item.dimensional_shape]))
+                        if self.options.get("sequence", False):
+                            components.append(str(index))
+                        filename = "_".join(components)
+                        extension = writer.extensions[0]
+                        path = os.path.join(directory, "{0}.{1}".format(filename, extension))
+                        ImportExportManager.ImportExportManager().write_display_item_with_writer(writer, display_item, pathlib.Path(path))
+                    except Exception as e:
+                        logging.debug("Could not export image %s / %s", str(data_item), str(e))
+                        traceback.print_exc()
+                        traceback.print_stack()

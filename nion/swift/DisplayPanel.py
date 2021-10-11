@@ -407,7 +407,7 @@ def create_display_canvas_item(display_item: DisplayItem.DisplayItem, ui_setting
     elif display_type == "image":
         return ImageCanvasItem.ImageCanvasItem(ui_settings, delegate, event_loop, draw_background)
     elif display_type == "display_script":
-        return DisplayScriptCanvasItem.DisplayScriptCanvasItem(ui_settings, delegate, event_loop, draw_background)
+        return DisplayScriptCanvasItem.DisplayScriptCanvasItem(ui_settings, delegate)
     else:
         return MissingDataCanvasItem(delegate)
 

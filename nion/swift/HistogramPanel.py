@@ -660,7 +660,7 @@ class TargetDisplayItemStream(Stream.AbstractStream[DisplayItem.DisplayItem]):
         # outgoing messages
         self.value_stream = Event.Event()
         # cached values
-        self.__value = None
+        self.__value: typing.Optional[DisplayItem.DisplayItem] = None
         # listen for selected data item changes
         self.__focused_display_item_changed_event_listener = document_controller.focused_display_item_changed_event.listen(self.__focused_display_item_changed)
         # manually send the first data item changed message to set things up.
