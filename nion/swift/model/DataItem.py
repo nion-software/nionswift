@@ -220,7 +220,7 @@ class DataItem(Persistence.PersistentObject):
         self.__data_and_metadata_lock = threading.RLock()
         self.__intensity_calibration: typing.Optional[Calibration.Calibration] = None
         self.__dimensional_calibrations: typing.List[Calibration.Calibration] = list()
-        self.__metadata: typing.Optional[DataAndMetadata.MetadataType] = dict()
+        self.__metadata: DataAndMetadata.MetadataType = dict()
         self.__data_ref_count = 0
         self.__data_ref_count_mutex = threading.RLock()
         self.__pending_write = True
@@ -522,7 +522,7 @@ class DataItem(Persistence.PersistentObject):
                 self.__data_and_metadata.unloadable = self.persistent_object_context is not None
             else:
                 metadata = self._get_persistent_property_value("metadata")
-                self.__metadata = copy.deepcopy(metadata)
+                self.__metadata = copy.deepcopy(metadata) if metadata else dict()
             self.__pending_write = False
             if self.created is None:  # invalid timestamp -- set property to now but don't trigger change
                 self._get_persistent_property("created").value = datetime.datetime.now()
@@ -985,7 +985,7 @@ class DataItem(Persistence.PersistentObject):
             self.__timezone_property_changed("timezone_offset", value)
 
     @property
-    def metadata(self) -> typing.Optional[DataAndMetadata.MetadataType]:
+    def metadata(self) -> DataAndMetadata.MetadataType:
         data_and_metadata = self.__data_and_metadata
         return copy.deepcopy(dict(data_and_metadata.metadata)) if data_and_metadata else self.__metadata
 
@@ -995,7 +995,7 @@ class DataItem(Persistence.PersistentObject):
             assert isinstance(metadata, dict)
             if self.__data_and_metadata:
                 self.__data_and_metadata._set_metadata(metadata)
-            self.__metadata = copy.deepcopy(metadata)
+            self.__metadata = copy.deepcopy(metadata) if metadata else dict()
             self._set_persistent_property_value("metadata", self.__metadata)
 
     @property

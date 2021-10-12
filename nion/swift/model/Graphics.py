@@ -1227,7 +1227,7 @@ class LineTypeGraphic(Graphic):
         return (Geometry.FloatPoint.make(t[0]), Geometry.FloatPoint.make(t[1]))
 
     @vector.setter
-    def vector(self, value: typing.Tuple[Geometry.FloatPoint, Geometry.FloatPoint]) -> None:
+    def vector(self, value: typing.Tuple[Geometry.FloatPointTuple, Geometry.FloatPointTuple]) -> None:
         self._set_persistent_property_value("vector", (tuple(value[0]), tuple(value[1])))
 
     @property
