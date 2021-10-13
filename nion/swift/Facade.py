@@ -1750,7 +1750,7 @@ class RecordTask:
             for channel_index, channel_enabled in enumerate(channels_enabled):
                 self.__hardware_source.set_channel_enabled(channel_index, channel_enabled)
 
-        self.__data_and_metadata_list: typing.Optional[typing.List[DataAndMetadata.DataAndMetadata]] = None
+        self.__data_and_metadata_list: typing.Optional[typing.List[typing.Optional[typing.Optional[DataAndMetadata.DataAndMetadata]]]] = None
 
         # synchronize start of thread; if this sync doesn't occur, the task can be closed before the acquisition
         # is started. in that case a deadlock occurs because the abort doesn't apply and the thread is waiting
@@ -1788,7 +1788,7 @@ class RecordTask:
         """
         return not self.__thread.is_alive()
 
-    def grab(self) -> typing.Sequence[DataAndMetadata.DataAndMetadata]:
+    def grab(self) -> typing.Sequence[typing.Optional[DataAndMetadata.DataAndMetadata]]:
         """Grab list of data/metadata from the task.
 
         .. versionadded:: 1.0
@@ -1959,7 +1959,7 @@ class HardwareSource(metaclass=SharedInstance):
     def is_recording(self) -> bool:
         return self.__hardware_source.is_recording
 
-    def record(self, frame_parameters: typing.Optional[HardwareSourceModule.FrameParametersDictType] = None, channels_enabled: typing.Optional[typing.Sequence[bool]] = None, timeout: typing.Optional[float] = None) -> typing.Sequence[DataAndMetadata.DataAndMetadata]:
+    def record(self, frame_parameters: typing.Optional[HardwareSourceModule.FrameParametersDictType] = None, channels_enabled: typing.Optional[typing.Sequence[bool]] = None, timeout: typing.Optional[float] = None) -> typing.Sequence[typing.Optional[DataAndMetadata.DataAndMetadata]]:
         """Record data and return a list of data_and_metadata objects.
 
         .. versionadded:: 1.0
@@ -2019,7 +2019,7 @@ class HardwareSource(metaclass=SharedInstance):
         frame_parameters_ = self.__hardware_source.get_frame_parameters_from_dict(frame_parameters or dict())
         return ViewTask(self.__hardware_source.create_view_task(frame_parameters_, channels_enabled, buffer_size))
 
-    def grab_next_to_finish(self, timeout: typing.Optional[float] = None) -> typing.Sequence[DataAndMetadata.DataAndMetadata]:
+    def grab_next_to_finish(self, timeout: typing.Optional[float] = None) -> typing.Sequence[typing.Optional[DataAndMetadata.DataAndMetadata]]:
         """Grabs the next frame to finish and returns it as data and metadata.
 
         .. versionadded:: 1.0
@@ -2035,7 +2035,7 @@ class HardwareSource(metaclass=SharedInstance):
         self.start_playing()
         return self.__hardware_source.get_next_xdatas_to_finish(timeout)
 
-    def grab_next_to_start(self, frame_parameters: typing.Optional[HardwareSourceModule.FrameParametersDictType] = None, channels_enabled: typing.Optional[typing.Sequence[bool]] = None, timeout: typing.Optional[float] = None) -> typing.Sequence[DataAndMetadata.DataAndMetadata]:
+    def grab_next_to_start(self, frame_parameters: typing.Optional[HardwareSourceModule.FrameParametersDictType] = None, channels_enabled: typing.Optional[typing.Sequence[bool]] = None, timeout: typing.Optional[float] = None) -> typing.Sequence[typing.Optional[DataAndMetadata.DataAndMetadata]]:
         self.start_playing(frame_parameters, channels_enabled)
         return self.__hardware_source.get_next_xdatas_to_start(timeout)
 
