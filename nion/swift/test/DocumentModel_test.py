@@ -13,6 +13,7 @@ import weakref
 import numpy
 
 # local libraries
+from nion.data import DataAndMetadata
 from nion.swift import Application
 from nion.swift import Facade
 from nion.swift.model import Connection
@@ -2365,6 +2366,21 @@ class TestDocumentModelClass(unittest.TestCase):
                 line_profile_display_item1.remove_display_data_channel(line_profile_display_item1.display_data_channels[1]).close()
                 self.assertEqual([display_item1], document_model.get_source_display_items(line_profile_display_item1))
                 self.assertTrue(related_items_did_change)
+
+    def test_pending_data_item_updates_get_removed_when_data_item_removed(self):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            data_item = DataItem.DataItem(numpy.zeros((2, 2)))
+            document_model.append_data_item(data_item)
+            self.assertEqual(document_model._get_pending_data_item_updates_count(), 0)
+            document_model._queue_data_item_update(data_item, DataAndMetadata.new_data_and_metadata(numpy.zeros((3,3))))
+            self.assertEqual(document_model._get_pending_data_item_updates_count(), 1)
+            document_model.perform_data_item_updates()
+            self.assertEqual(document_model._get_pending_data_item_updates_count(), 0)
+            document_model._queue_data_item_update(data_item, DataAndMetadata.new_data_and_metadata(numpy.zeros((4,4))))
+            document_model.remove_data_item(data_item)
+            self.assertEqual(document_model._get_pending_data_item_updates_count(), 0)
+            document_model.perform_data_item_updates()
 
     # solve problem of where to create new elements (same library), generally shouldn't create data items for now?
     # way to configure display for new data items?

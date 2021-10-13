@@ -1005,6 +1005,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                     self.__computation_pending_queue.append(computation_queue_item)
             if self.__computation_active_item and library_computation is self.__computation_active_item.computation:
                 self.__computation_active_item.valid = False
+        with self.__pending_data_item_updates_lock:
+            if data_item in self.__pending_data_item_updates:
+                self.__pending_data_item_updates.remove(data_item)
         # remove data item from any selections
         self.data_item_will_be_removed_event.fire(data_item)
         # remove it from the persistent_storage
