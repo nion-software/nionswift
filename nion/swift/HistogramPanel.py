@@ -35,9 +35,9 @@ if typing.TYPE_CHECKING:
     from nion.swift.model import Persistence
     from nion.ui import UserInterface
 
-_RGBA8ImageDataType = typing.Any  # numpy.typing.NDArray[typing.Any]
+_RGBA8ImageDataType = Image._RGBA8ImageDataType
 
-_NDArray = typing.Any  # numpy 1.21
+_NDArray = numpy.typing.NDArray[typing.Any]
 
 _ = gettext.gettext
 
@@ -176,15 +176,15 @@ class ColorMapCanvasItem(CanvasItem.AbstractCanvasItem):
     def __init__(self) -> None:
         super().__init__()
         self.update_sizing(self.sizing.with_fixed_height(4))
-        self.__color_map_data = None
+        self.__color_map_data: typing.Optional[_RGBA8ImageDataType] = None
 
     @property
-    def color_map_data(self) -> _RGBA8ImageDataType:
+    def color_map_data(self) -> typing.Optional[_RGBA8ImageDataType]:
         """Return the data."""
         return self.__color_map_data
 
     @color_map_data.setter
-    def color_map_data(self, data: _RGBA8ImageDataType) -> None:
+    def color_map_data(self, data: typing.Optional[_RGBA8ImageDataType]) -> None:
         """Set the data and mark the canvas item for updating.
 
         Data should be an ndarray of shape (256, 3) with type uint8
@@ -273,11 +273,11 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
         self.__simple_line_graph_canvas_item.data = histogram_data
 
     @property
-    def color_map_data(self) -> _RGBA8ImageDataType:
+    def color_map_data(self) -> typing.Optional[_RGBA8ImageDataType]:
         return self.__histogram_color_map_canvas_item.color_map_data
 
     @color_map_data.setter
-    def color_map_data(self, color_map_data: _RGBA8ImageDataType) -> None:
+    def color_map_data(self, color_map_data: typing.Optional[_RGBA8ImageDataType]) -> None:
         self.__histogram_color_map_canvas_item.color_map_data = color_map_data
 
     def __set_display_limits(self, display_limits: typing.Tuple[float, float]) -> None:
@@ -607,8 +607,8 @@ class HistogramPanel(Panel.Panel):
                     data_min, data_max = numpy.amin(data), numpy.amax(data)
                 mean_str = displayed_intensity_calibration.convert_to_calibrated_value_str(mean)
                 std_str = displayed_intensity_calibration.convert_to_calibrated_value_str(std)
-                data_min_str = displayed_intensity_calibration.convert_to_calibrated_value_str(data_min)
-                data_max_str = displayed_intensity_calibration.convert_to_calibrated_value_str(data_max)
+                data_min_str = displayed_intensity_calibration.convert_to_calibrated_value_str(data_min) if data_min is not None else str()
+                data_max_str = displayed_intensity_calibration.convert_to_calibrated_value_str(data_max) if data_max is not None else str()
                 rms_str = displayed_intensity_calibration.convert_to_calibrated_value_str(rms)
                 sum_data_str = displayed_intensity_calibration.convert_to_calibrated_value_str(sum_data)
 

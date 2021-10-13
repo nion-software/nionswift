@@ -105,6 +105,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
                 self.assertAlmostEqual(axes.uncalibrated_data_min, data_out[0], places=1)
                 self.assertAlmostEqual(axes.uncalibrated_data_max, data_out[1], places=1)
                 calibrated_data = axes.calculate_calibrated_xdata(DataAndMetadata.new_data_and_metadata(data)).data
+                assert calibrated_data is not None
                 data[data <= 0] = numpy.nan
                 self.assertAlmostEqual(numpy.nanmin(calibrated_data), math.log10(numpy.nanmin(data)))
                 self.assertAlmostEqual(numpy.nanmax(calibrated_data), math.log10(numpy.nanmax(data)))
@@ -130,6 +131,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
                 self.assertAlmostEqual(axes.uncalibrated_data_min, data_out[0], places=1)
                 self.assertAlmostEqual(axes.uncalibrated_data_max, data_out[1], places=1)
                 calibrated_data = axes.calculate_calibrated_xdata(DataAndMetadata.new_data_and_metadata(data)).data
+                assert calibrated_data is not None
                 data[data <= 0] = numpy.nan
                 self.assertAlmostEqual(numpy.nanmin(calibrated_data), math.log10(numpy.nanmin(data)))
                 self.assertAlmostEqual(numpy.nanmax(calibrated_data), math.log10(numpy.nanmax(data)))

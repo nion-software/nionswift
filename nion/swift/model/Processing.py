@@ -120,7 +120,8 @@ class ProcessingFFT(ProcessingBase):
         self.is_mappable = True
 
     def process(self, *, src: DataItem.DataSource, **kwargs: typing.Any) -> _ProcessingResult:
-        return xd.fft(src.cropped_display_xdata)
+        cropped_display_xdata = src.cropped_display_xdata
+        return xd.fft(cropped_display_xdata) if cropped_display_xdata else None
 
 
 class ProcessingIFFT(ProcessingBase):
@@ -134,7 +135,8 @@ class ProcessingIFFT(ProcessingBase):
         ]
 
     def process(self, *, src: DataItem.DataSource, **kwargs: typing.Any) -> _ProcessingResult:
-        return xd.ifft(src.xdata)
+        src_xdata = src.xdata
+        return xd.ifft(src_xdata) if src_xdata else None
 
 
 class ProcessingGaussianWindow(ProcessingBase):

@@ -24,7 +24,7 @@ if typing.TYPE_CHECKING:
 
 
 PersistentDictType = typing.Dict[str, typing.Any]
-_ImageDataType = typing.Any  # TODO: numpy 1.21+
+_NDArray = numpy.typing.NDArray[typing.Any]
 
 
 def make_directory_if_needed(directory_path: str) -> None:
@@ -158,7 +158,7 @@ class HDF5Handler(StorageHandler.StorageHandler):
                 else:
                     self.__dataset = self.__fp.create_dataset("data", data=numpy.empty((0,)))
 
-    def write_data(self, data: _ImageDataType, file_datetime: datetime.datetime) -> None:
+    def write_data(self, data: _NDArray, file_datetime: datetime.datetime) -> None:
         with self.__lock:
             assert data is not None
             self.__ensure_open()
@@ -212,7 +212,7 @@ class HDF5Handler(StorageHandler.StorageHandler):
                 self.__dataset.attrs["properties"] = json_properties
             self.__fp.flush()
 
-    def __copy_data(self, data: _ImageDataType) -> None:
+    def __copy_data(self, data: _NDArray) -> None:
         if id(data) != id(self.__dataset):
             self.__dataset[:] = data
             self._write_count += 1
@@ -231,13 +231,13 @@ class HDF5Handler(StorageHandler.StorageHandler):
             json_properties = self.__dataset.attrs.get("properties", "")
             return typing.cast(PersistentDictType, json.loads(json_properties))
 
-    def read_data(self) -> typing.Optional[_ImageDataType]:
+    def read_data(self) -> typing.Optional[_NDArray]:
         with self.__lock:
             self.__ensure_open()
             self.__ensure_dataset()
             if self.__dataset.shape == (0, ):
                 return None
-            return self.__dataset
+            return typing.cast(typing.Optional[_NDArray], self.__dataset)
 
     def remove(self) -> None:
         if self.__fp:

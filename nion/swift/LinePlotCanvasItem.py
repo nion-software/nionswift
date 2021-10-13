@@ -8,6 +8,7 @@ import typing
 
 # third party libraries
 import numpy
+import numpy.typing
 
 # local libraries
 from nion.data import Calibration
@@ -29,6 +30,8 @@ if typing.TYPE_CHECKING:
     from nion.swift import Undo
     from nion.ui import DrawingContext
     from nion.ui import UserInterface
+
+_NDArray = numpy.typing.NDArray[typing.Any]
 
 
 class LinePlotCanvasItemMapping(Graphics.CoordinateMappingLike):
@@ -478,7 +481,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                         # the data needs to have an intensity scale matching intensity_calibration. convert the data to use the common scale.
                         scale = scalar_intensity_calibration.scale / intensity_calibration.scale
                         offset = (scalar_intensity_calibration.offset - intensity_calibration.offset) / intensity_calibration.scale
-                        scalar_data = scalar_data * scale + offset
+                        scalar_data = scalar_data * scale + offset  # type: ignore
                         scalar_xdata_list.append(DataAndMetadata.new_data_and_metadata(scalar_data, scalar_intensity_calibration, scalar_dimensional_calibrations))
                 else:
                     scalar_xdata_list.append(None)
@@ -494,7 +497,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             left_channel = typing.cast(int, min(left_channel, right_channel))
             right_channel = typing.cast(int, max(left_channel, right_channel))
 
-            scalar_data_list = None
+            scalar_data_list: typing.List[typing.Optional[_NDArray]] = list()
             if y_min is None or y_max is None and len(xdata_list) > 0:
                 scalar_xdata_list = calculate_scalar_xdata(xdata_list)
                 scalar_data_list = [xdata.data if xdata else None for xdata in scalar_xdata_list]

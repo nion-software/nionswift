@@ -28,7 +28,7 @@ from nion.swift.model import Utility
 
 PersistentDictType = typing.Dict[str, typing.Any]
 
-_ImageDataType = typing.Any  # numpy.typing.NDArray[typing.Any]
+_NDArray = numpy.typing.NDArray[typing.Any]
 
 
 class PersistentContainerType(typing.Protocol):
@@ -227,7 +227,7 @@ class PersistentStorageInterface(abc.ABC):
     def read_external_data(self, item: PersistentObject, name: str) -> typing.Any: ...
 
     @abc.abstractmethod
-    def write_external_data(self, item: PersistentObject, name: str, value: _ImageDataType) -> None: ...
+    def write_external_data(self, item: PersistentObject, name: str, value: _NDArray) -> None: ...
 
     @abc.abstractmethod
     def reserve_external_data(self, item: PersistentObject, name: str, data_shape: typing.Tuple[int, ...], data_dtype: numpy.typing.DTypeLike) -> None: ...

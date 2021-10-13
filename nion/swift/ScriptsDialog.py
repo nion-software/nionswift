@@ -19,7 +19,7 @@ import typing
 import sys
 
 # third part imports
-# None
+import numpy.typing
 
 # local libraries
 from nion.swift.model import PlugInManager
@@ -39,7 +39,7 @@ if typing.TYPE_CHECKING:
     from nion.ui import DrawingContext
     from nion.ui import UserInterface
 
-_NDArray = typing.Any  # numpy 1.21
+_NDArray = numpy.typing.NDArray[typing.Any]
 
 _ = gettext.gettext
 

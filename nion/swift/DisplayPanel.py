@@ -15,6 +15,8 @@ import typing
 import uuid
 import weakref
 
+import numpy.typing
+
 from nion.data import Image
 from nion.swift import DataItemThumbnailWidget
 from nion.swift import DataPanel
@@ -51,7 +53,7 @@ if typing.TYPE_CHECKING:
 _DropRegionType = typing.Tuple[Geometry.IntRect, Geometry.IntRect]
 _DropRegionsMapType = typing.Mapping[str, typing.Tuple[Geometry.IntRect, Geometry.IntRect]]
 _DropRegionsDictType = typing.Dict[str, typing.Tuple[Geometry.IntRect, Geometry.IntRect]]
-_NDArray = typing.Any  # numpy 1.21
+_NDArray = numpy.typing.NDArray[typing.Any]
 _DocumentControllerWeakRefType = typing.Callable[[], "DocumentController.DocumentController"]
 
 _ = gettext.gettext
@@ -662,7 +664,7 @@ class RelatedItemsValueStream(Stream.ValueStream[_RelatedItemsTuple]):
 class RelatedIconsCanvasItem(CanvasItem.CanvasItemComposition):
     def __init__(self, ui: UserInterface.UserInterface, document_model: DocumentModel.DocumentModel,
                  display_item_value_stream: Stream.ValueStream[DisplayItem.DisplayItem],
-                 drag_fn: typing.Callable[[UserInterface.MimeData, _NDArray, int, int], None]) -> None:
+                 drag_fn: typing.Callable[[UserInterface.MimeData, typing.Optional[_NDArray], int, int], None]) -> None:
         super().__init__()
         self.layout = CanvasItem.CanvasItemRowLayout()
         self.update_sizing(self.sizing.with_preferred_height(0))

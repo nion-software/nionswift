@@ -3352,7 +3352,7 @@ def make_image_chooser(document_controller: DocumentController.DocumentControlle
     data_item_thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(ui, display_item=display_item)
     data_item_chooser_widget = DataItemThumbnailWidget.ThumbnailWidget(ui, data_item_thumbnail_source, Geometry.IntSize(80, 80))
 
-    def thumbnail_widget_drag(mime_data: UserInterface.MimeData, thumbnail: _ImageDataType, hot_spot_x: int, hot_spot_y: int) -> None:
+    def thumbnail_widget_drag(mime_data: UserInterface.MimeData, thumbnail: typing.Optional[_ImageDataType], hot_spot_x: int, hot_spot_y: int) -> None:
         # use this convoluted base object for drag so that it doesn't disappear after the drag.
         column.drag(mime_data, thumbnail, hot_spot_x, hot_spot_y)
 

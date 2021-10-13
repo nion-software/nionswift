@@ -6,10 +6,12 @@ the new API available in nionswift-instrumentation-kit.
 import contextlib
 import typing
 
+import numpy.typing
+
 from nion.data import DataAndMetadata
 from nion.utils import Registry
 
-_ImageDataType = typing.Any  # TODO: numpy 1.21
+_NDArray = numpy.typing.NDArray[typing.Any]
 FrameParametersDictType = typing.Dict[str, typing.Any]
 
 
@@ -98,11 +100,11 @@ def get_data_generator_by_id(hardware_source_id: str, sync: bool = True) -> typi
     hardware_source = HardwareSourceManager().get_hardware_source_for_hardware_source_id(hardware_source_id)
     assert hardware_source
 
-    def get_last_data() -> _ImageDataType:
+    def get_last_data() -> _NDArray:
         assert hardware_source
         xdata0 = hardware_source.get_next_xdatas_to_finish()[0]
         data = xdata0.data if xdata0 else None
         assert data is not None
-        return typing.cast(_ImageDataType, data.copy())
+        return data.copy()
 
     yield get_last_data

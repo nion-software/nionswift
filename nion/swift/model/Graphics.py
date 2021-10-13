@@ -1962,7 +1962,7 @@ class SpotGraphic(Graphic):
         mask2_data = mask2.data
         assert mask1_data is not None
         assert mask2_data is not None
-        return numpy.logical_or(mask1_data, mask2_data)
+        return numpy.logical_or(mask1_data, mask2_data)  # type: ignore
 
     # test point hit
     def test(self, mapping: CoordinateMappingLike, ui_settings: UISettings.UISettings, p: Geometry.FloatPoint, move_only: bool) -> typing.Tuple[typing.Optional[str], bool]:
@@ -2245,7 +2245,7 @@ class WedgeGraphic(Graphic):
         # 4) the negative half-plane rotated by the end angle + pi
         # 3+4) give the wedge between the start and end angle in the negative direction.
 
-        return (numpy.where(y * s_sign <= numpy.tan(-s) * x * s_sign, 1, 0) &
+        return (numpy.where(y * s_sign <= numpy.tan(-s) * x * s_sign, 1, 0) &  # type: ignore
                 numpy.where(y * e_sign <= numpy.tan(-e) * x * e_sign, 0, 1)) | (
                     numpy.where(-y * s_sign <= numpy.tan(-s) * -x * s_sign, 1, 0) &
                     numpy.where(-y * e_sign <= numpy.tan(-e) * -x * e_sign, 0, 1))

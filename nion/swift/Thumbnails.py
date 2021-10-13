@@ -24,8 +24,8 @@ from nion.utils import Event
 from nion.utils import ReferenceCounting
 from nion.utils import ThreadPool
 
-_NDArray = typing.Any  # numpy 1.21+
-_ThumbnailSourceWeakRef = typing.Any  # Python 3.9+
+_NDArray = numpy.typing.NDArray[typing.Any]
+_ThumbnailSourceWeakRef = typing.Callable[[], typing.Optional["ThumbnailSource"]]  # Python 3.9+
 
 
 class ThumbnailProcessor:
@@ -64,7 +64,7 @@ class ThumbnailProcessor:
         self.__cache.set_cached_value_dirty(self.__display_item, self.__cache_property_name)
 
     def __get_cached_value(self) -> typing.Optional[_NDArray]:
-        return self.__cache.get_cached_value(self.__display_item, self.__cache_property_name)
+        return typing.cast(typing.Optional[_NDArray], self.__cache.get_cached_value(self.__display_item, self.__cache_property_name))
 
     def get_cached_data(self) -> typing.Optional[_NDArray]:
         """Return the cached data for this processor.
@@ -189,7 +189,7 @@ class ThumbnailManager(metaclass=Utility.Singleton):
                 weakref.finalize(thumbnail_source, self.__thumbnail_sources.pop, display_item.uuid)
             else:
                 assert thumbnail_source._ui == ui
-            return typing.cast(ThumbnailSource, thumbnail_source)
+            return thumbnail_source
 
     def thumbnail_data_for_display_item(self, display_item: typing.Optional[DisplayItem.DisplayItem]) -> typing.Optional[_NDArray]:
         with self.__lock:

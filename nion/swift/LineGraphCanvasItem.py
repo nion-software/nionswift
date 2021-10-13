@@ -9,7 +9,6 @@
 from __future__ import annotations
 
 # standard libraries
-import collections
 import dataclasses
 import gettext
 import math
@@ -33,7 +32,7 @@ from nion.ui import DrawingContext
 from nion.ui import UserInterface
 from nion.utils import Geometry
 
-_NDArray = typing.Any  # numpy 1.21
+_NDArray = numpy.typing.NDArray[typing.Any]
 
 @dataclasses.dataclass
 class RegionInfo:
@@ -57,7 +56,7 @@ def nice_label(value: float, precision: int) -> str:
         return (u"{0:0." + u"{0:d}".format(precision) + "f}").format(value)
 
 
-def calculate_y_axis(uncalibrated_data_list: typing.Sequence[_NDArray], data_min: typing.Optional[float], data_max: typing.Optional[float], y_calibration: typing.Optional[Calibration.Calibration], data_style: typing.Optional[str]) -> typing.Tuple[float, float, Geometry.Ticker]:
+def calculate_y_axis(uncalibrated_data_list: typing.Sequence[typing.Optional[_NDArray]], data_min: typing.Optional[float], data_max: typing.Optional[float], y_calibration: typing.Optional[Calibration.Calibration], data_style: typing.Optional[str]) -> typing.Tuple[float, float, Geometry.Ticker]:
     y_calibration = y_calibration if y_calibration else Calibration.Calibration()
 
     min_specified = data_min is not None
@@ -280,24 +279,23 @@ class LineGraphAxes:
 
         return x_ticks
 
-    def calculate_calibrated_xdata(self, uncalibrated_xdata: DataAndMetadata.DataAndMetadata) -> DataAndMetadata.DataAndMetadata:
-        calibrated_data = None
-        if uncalibrated_xdata is not None:
-            y_calibration = self.y_calibration
-            if y_calibration:
-                if self.data_style == "log":
-                    calibrated_data = y_calibration.offset + y_calibration.scale * uncalibrated_xdata.data  # type: ignore
-                    calibrated_data[calibrated_data <= 0] = numpy.nan  # type: ignore
-                    numpy.log10(calibrated_data, out=calibrated_data)  # type: ignore
-                else:
-                    calibrated_data = y_calibration.offset + y_calibration.scale * uncalibrated_xdata.data  # type: ignore
+    def calculate_calibrated_xdata(self, uncalibrated_xdata: DataAndMetadata.DataAndMetadata) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+        calibrated_data: typing.Optional[_NDArray]
+        y_calibration = self.y_calibration
+        if y_calibration:
+            if self.data_style == "log":
+                calibrated_data = y_calibration.offset + y_calibration.scale * uncalibrated_xdata.data  # type: ignore
+                calibrated_data[calibrated_data <= 0] = numpy.nan  # type: ignore
+                numpy.log10(calibrated_data, out=calibrated_data)  # type: ignore
             else:
-                if self.data_style == "log":
-                    calibrated_data = uncalibrated_xdata.data.copy()  # type: ignore
-                    calibrated_data[calibrated_data <= 0] = numpy.nan  # type: ignore
-                    numpy.log10(calibrated_data, out=calibrated_data)  # type: ignore
-                else:
-                    calibrated_data = uncalibrated_xdata.data
+                calibrated_data = y_calibration.offset + y_calibration.scale * uncalibrated_xdata.data  # type: ignore
+        else:
+            if self.data_style == "log":
+                calibrated_data = uncalibrated_xdata.data.copy()  # type: ignore
+                calibrated_data[calibrated_data <= 0] = numpy.nan  # type: ignore
+                numpy.log10(calibrated_data, out=calibrated_data)  # type: ignore
+            else:
+                calibrated_data = uncalibrated_xdata.data
         return DataAndMetadata.new_data_and_metadata(calibrated_data, dimensional_calibrations=uncalibrated_xdata.dimensional_calibrations)
 
 

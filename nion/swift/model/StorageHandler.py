@@ -3,15 +3,16 @@ from __future__ import annotations
 import abc
 import typing
 
+import numpy
+import numpy.typing
+
 if typing.TYPE_CHECKING:
     import datetime
     import pathlib
-    import numpy
-    import numpy.typing
 
 
 PersistentDictType = typing.Dict[str, typing.Any]
-_ImageDataType = typing.Any  # TODO: numpy 1.21+
+_NDArray = numpy.typing.NDArray[typing.Any]
 
 
 class StorageHandler(abc.ABC):
@@ -43,13 +44,13 @@ class StorageHandler(abc.ABC):
     def read_properties(self) -> PersistentDictType: ...
 
     @abc.abstractmethod
-    def read_data(self) -> typing.Optional[_ImageDataType]: ...
+    def read_data(self) -> typing.Optional[_NDArray]: ...
 
     @abc.abstractmethod
     def write_properties(self, properties: PersistentDictType, file_datetime: datetime.datetime) -> None: ...
 
     @abc.abstractmethod
-    def write_data(self, data: _ImageDataType, file_datetime: datetime.datetime) -> None: ...
+    def write_data(self, data: _NDArray, file_datetime: datetime.datetime) -> None: ...
 
     @abc.abstractmethod
     def reserve_data(self, data_shape: typing.Tuple[int, ...], data_dtype: numpy.typing.DTypeLike, file_datetime: datetime.datetime) -> None: ...

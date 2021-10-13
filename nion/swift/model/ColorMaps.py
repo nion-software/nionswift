@@ -5,7 +5,6 @@ See color maps:
     https://datascience.lanl.gov/colormaps.html
 """
 
-import collections
 import colorsys
 import dataclasses
 import gettext
@@ -23,8 +22,8 @@ import xml.etree.ElementTree as ET
 
 _ = gettext.gettext
 
-_LookupDataArray = typing.Any  # numpy.typing.NDArray[typing.Any]
-_RGBA8ImageDataType = typing.Any  # numpy.typing.NDArray[typing.Any]
+_LookupDataArray = numpy.typing.NDArray[typing.Any]
+_RGBA8ImageDataType = numpy.typing.NDArray[typing.Any]
 _PointsType = typing.List[typing.Dict[str, typing.Union[float, typing.Tuple[int, int, int]]]]
 
 

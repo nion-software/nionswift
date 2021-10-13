@@ -33,7 +33,7 @@ PROJECT_VERSION_0_14 = 2
 
 
 PersistentDictType = typing.Dict[str, typing.Any]
-_ImageDataType = typing.Any  # numpy.typing.NDArray[typing.Any]
+_NDArray = numpy.typing.NDArray[typing.Any]
 _CreateStorageHandlerFn = typing.Type[StorageHandler.StorageHandler]
 
 
@@ -71,7 +71,7 @@ class DataItemStorageAdapter:
         file_datetime = item.created_local
         self.__storage_handler.write_properties(Migration.transform_from_latest(copy.deepcopy(self.__properties)), file_datetime)
 
-    def update_data(self, item: Persistence.PersistentObject, data: typing.Optional[_ImageDataType]) -> None:
+    def update_data(self, item: Persistence.PersistentObject, data: typing.Optional[_NDArray]) -> None:
         file_datetime = item.created_local
         if data is not None:
             self.__storage_handler.write_data(data, file_datetime)
@@ -80,7 +80,7 @@ class DataItemStorageAdapter:
         file_datetime = item.created_local
         self.__storage_handler.reserve_data(data_shape, data_dtype, file_datetime)
 
-    def load_data(self, item: Persistence.PersistentObject) -> typing.Optional[_ImageDataType]:
+    def load_data(self, item: Persistence.PersistentObject) -> typing.Optional[_NDArray]:
         return self.__storage_handler.read_data()
 
 
@@ -342,7 +342,7 @@ class PersistentStorageSystem(Persistence.PersistentStorageInterface):
     def read_external_data(self, item: Persistence.PersistentObject, name: str) -> typing.Any:
         return None
 
-    def write_external_data(self, item: Persistence.PersistentObject, name: str, value: _ImageDataType) -> None:
+    def write_external_data(self, item: Persistence.PersistentObject, name: str, value: _NDArray) -> None:
         pass
 
     def reserve_external_data(self, item: Persistence.PersistentObject, name: str, data_shape: typing.Tuple[int, ...],
@@ -598,13 +598,13 @@ class ProjectStorageSystem(PersistentStorageSystem):
         return super().get_storage_property(item, name)
 
     # override
-    def read_external_data(self, item: Persistence.PersistentObject, name: str) -> _ImageDataType:
+    def read_external_data(self, item: Persistence.PersistentObject, name: str) -> typing.Any:
         if isinstance(item, DataItem.DataItem) and name == "data":
             return self.__read_data_item_data(item)
         return super().read_external_data(item, name)
 
     # override
-    def write_external_data(self, item: Persistence.PersistentObject, name: str, value: _ImageDataType) -> None:
+    def write_external_data(self, item: Persistence.PersistentObject, name: str, value: _NDArray) -> None:
         if isinstance(item, DataItem.DataItem) and name == "data":
             self.__write_data_item_data(item, value)
         else:
@@ -648,12 +648,12 @@ class ProjectStorageSystem(PersistentStorageSystem):
             return storage.storage_handler.reference if storage else None
         return None
 
-    def __read_data_item_data(self, data_item: DataItem.DataItem) -> _ImageDataType:
+    def __read_data_item_data(self, data_item: DataItem.DataItem) -> typing.Optional[_NDArray]:
         storage_adapter = self.__storage_adapter_map.get(data_item.uuid)
         assert storage_adapter
         return storage_adapter.load_data(data_item)
 
-    def __write_data_item_data(self, data_item: DataItem.DataItem, data: typing.Optional[_ImageDataType]) -> None:
+    def __write_data_item_data(self, data_item: DataItem.DataItem, data: typing.Optional[_NDArray]) -> None:
         if not self.is_write_delayed(data_item):
             storage_adapter = self.__storage_adapter_map.get(data_item.uuid)
             assert storage_adapter
@@ -914,7 +914,7 @@ class FileProjectStorageSystem(ProjectStorageSystem):
 class MemoryStorageHandler(StorageHandler.StorageHandler):
 
     def __init__(self, uuid_: str, data_properties_map: typing.Dict[str, PersistentDictType],
-                 data_map: typing.Dict[str, _ImageDataType], data_read_event: Event.Event) -> None:
+                 data_map: typing.Dict[str, _NDArray], data_read_event: Event.Event) -> None:
         self.__uuid = uuid_
         self.__data_properties_map = data_properties_map
         self.__data_map = data_map
@@ -923,7 +923,7 @@ class MemoryStorageHandler(StorageHandler.StorageHandler):
     def close(self) -> None:
         self.__uuid = typing.cast(str, None)
         self.__data_properties_map = typing.cast(typing.Dict[str, PersistentDictType], None)
-        self.__data_map = typing.cast(typing.Dict[str, _ImageDataType], None)
+        self.__data_map = typing.cast(typing.Dict[str, _NDArray], None)
 
     @classmethod
     def is_matching(cls, file_path: str) -> bool:
@@ -948,14 +948,14 @@ class MemoryStorageHandler(StorageHandler.StorageHandler):
     def read_properties(self) -> PersistentDictType:
         return copy.deepcopy(self.__data_properties_map.get(self.__uuid, dict()))
 
-    def read_data(self) -> typing.Optional[_ImageDataType]:
+    def read_data(self) -> typing.Optional[_NDArray]:
         self.__data_read_event.fire(self.__uuid)
         return self.__data_map.get(self.__uuid)
 
     def write_properties(self, properties: PersistentDictType, file_datetime: datetime.datetime) -> None:
         self.__data_properties_map[self.__uuid] = Utility.clean_dict(properties)
 
-    def write_data(self, data: _ImageDataType, file_datetime: datetime.datetime) -> None:
+    def write_data(self, data: _NDArray, file_datetime: datetime.datetime) -> None:
         self.__data_map[self.__uuid] = data.copy()
 
     def reserve_data(self, data_shape: typing.Tuple[int, ...], data_dtype: numpy.typing.DTypeLike, file_datetime: datetime.datetime) -> None:
@@ -972,7 +972,7 @@ class MemoryProjectStorageSystem(ProjectStorageSystem):
 
     def __init__(self, *, library_properties: typing.Optional[PersistentDictType] = None,
                  data_properties_map: typing.Optional[typing.Dict[str, PersistentDictType]] = None,
-                 data_map: typing.Optional[typing.Dict[str, _ImageDataType]] = None,
+                 data_map: typing.Optional[typing.Dict[str, _NDArray]] = None,
                  trash_map: typing.Optional[typing.Dict[str, PersistentDictType]] = None,
                  data_read_event: typing.Optional[Event.Event] = None) -> None:
         super().__init__()

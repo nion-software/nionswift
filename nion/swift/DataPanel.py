@@ -9,7 +9,7 @@ import threading
 import typing
 
 # third party libraries
-# None
+import numpy.typing
 
 # local libraries
 from nion.data import Image
@@ -33,7 +33,7 @@ if typing.TYPE_CHECKING:
     from nion.ui import UserInterface
     from nion.utils import Selection
 
-_NDArray = typing.Any  # numpy 1.21
+_NDArray = numpy.typing.NDArray[typing.Any]
 
 _ = gettext.gettext
 

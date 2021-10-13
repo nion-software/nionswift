@@ -5,7 +5,7 @@ import asyncio
 import typing
 
 # third party libraries
-# None
+import numpy.typing
 
 # local libraries
 from nion.data import Image
@@ -26,7 +26,7 @@ if typing.TYPE_CHECKING:
     from nion.utils import Event
 
 _ImageDataType = Image._ImageDataType
-_NDArray = typing.Any  # numpy 1.21+
+_NDArray = numpy.typing.NDArray[typing.Any]
 
 
 class AbstractThumbnailSource:
@@ -162,7 +162,7 @@ class ThumbnailCanvasItem(CanvasItem.CanvasItemComposition):
             thumbnail_source.overlay_canvas_item.update_sizing(thumbnail_source.overlay_canvas_item.sizing.with_fixed_size(size))
         bitmap_overlay_canvas_item.add_canvas_item(thumbnail_source.overlay_canvas_item)
         self.__thumbnail_source = thumbnail_source
-        self.on_drag: typing.Optional[typing.Callable[[UserInterface.MimeData, _ImageDataType, int, int], None]] = None
+        self.on_drag: typing.Optional[typing.Callable[[UserInterface.MimeData, typing.Optional[_ImageDataType], int, int], None]] = None
         self.on_drop_mime_data: typing.Optional[typing.Callable[[UserInterface.MimeData, int, int], str]] = None
         self.on_delete: typing.Optional[typing.Callable[[], None]] = None
 
@@ -245,7 +245,7 @@ class ThumbnailWidget(Widgets.CompositeWidgetBase):
         bitmap_canvas_widget.canvas_item.add_canvas_item(thumbnail_square)
         content_widget.add(bitmap_canvas_widget)
         self.on_drop_mime_data: typing.Optional[typing.Callable[[UserInterface.MimeData, int, int], str]] = None
-        self.on_drag: typing.Optional[typing.Callable[[UserInterface.MimeData, _ImageDataType, int, int], None]] = None
+        self.on_drag: typing.Optional[typing.Callable[[UserInterface.MimeData, typing.Optional[_ImageDataType], int, int], None]] = None
         self.on_delete: typing.Optional[typing.Callable[[], None]] = None
 
         def drop_mime_data(mime_data: UserInterface.MimeData, x: int, y: int) -> str:

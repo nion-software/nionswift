@@ -1028,7 +1028,7 @@ class BoundCroppedDisplayData(BoundDisplayDataChannelBase):
         display_values = self._display_data_channel.get_calculated_display_values() if self._display_data_channel else None
         xdata = display_values.display_data_and_metadata if display_values else None
         graphic = self._graphic
-        if graphic:
+        if xdata and graphic:
             if hasattr(graphic, "bounds"):
                 return Core.function_crop(xdata, graphic.bounds)
             if hasattr(graphic, "interval"):

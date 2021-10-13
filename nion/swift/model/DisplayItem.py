@@ -36,8 +36,8 @@ from nion.utils import Registry
 if typing.TYPE_CHECKING:
     from nion.swift.model import Project
 
-_ImageDataType = typing.Any  # numpy.typing.NDArray[typing.Any]
-_RGBA32Type = typing.Any
+_ImageDataType = Image._ImageDataType
+_RGBA32Type = Image._RGBAImageDataType
 
 
 _ = gettext.gettext
@@ -169,7 +169,7 @@ class GraphicSelection:
 
 def calculate_display_range(display_limits: typing.Optional[typing.Tuple[float, float]],
                             data_range: typing.Optional[typing.Tuple[float, float]],
-                            data_sample: typing.Optional[_ImageDataType], xdata: typing.Optional[_ImageDataType],
+                            data_sample: typing.Optional[_ImageDataType], xdata: typing.Optional[DataAndMetadata.DataAndMetadata],
                             complex_display_type: typing.Optional[str]) -> typing.Optional[typing.Tuple[float, float]]:
     if display_limits is not None:
         assert data_range is not None
@@ -250,7 +250,7 @@ def adjustment_factory(adjustment_d: Persistence.PersistentDictType) -> typing.O
                 self.__gamma = gamma
 
             def transform(self, data: _ImageDataType, display_limits: typing.Tuple[float, float]) -> _ImageDataType:
-                return numpy.power(numpy.clip(data, 0.0, 1.0), self.__gamma, dtype=numpy.float32)
+                return numpy.power(numpy.clip(data, 0.0, 1.0), self.__gamma, dtype=numpy.float32)  # type: ignore
 
         return AdjustGamma(adjustment_d.get("gamma", 1.0))
     elif adjustment_d.get("type", None) == "log":
@@ -258,7 +258,7 @@ def adjustment_factory(adjustment_d: Persistence.PersistentDictType) -> typing.O
             def transform(self, data: _ImageDataType, display_limits: typing.Tuple[float, float]) -> _ImageDataType:
                 range = display_limits[1] - display_limits[0]
                 c = 1.0 / (numpy.log2(1 + range))
-                return c * numpy.log2(1 + range * numpy.clip(data, 0.0, 1.0), dtype=numpy.float32)
+                return c * numpy.log2(1 + range * numpy.clip(data, 0.0, 1.0), dtype=numpy.float32)  # type: ignore
 
         return AdjustLog()
     elif adjustment_d.get("type", None) == "equalized":
@@ -269,7 +269,7 @@ def adjustment_factory(adjustment_d: Persistence.PersistentDictType) -> typing.O
                 histogram_cdf = histogram.cumsum()
                 histogram_cdf = histogram_cdf / histogram_cdf[-1]
                 equalized = numpy.interp(data.flatten(), bins[:-1], histogram_cdf)  # type: ignore
-                return equalized.reshape(data.shape)
+                return equalized.reshape(data.shape)  # type: ignore
 
         return AdjustEqualized()
     else:
@@ -473,14 +473,16 @@ class DisplayValues:
             if self.__adjusted_data_and_metadata_dirty:
                 self.__adjusted_data_and_metadata_dirty = False
                 if self.__adjustments:
-                    display_data = self.normalized_data_and_metadata
+                    display_xdata = self.normalized_data_and_metadata
                     for adjustment_d in self.__adjustments:
                         adjustment = adjustment_factory(adjustment_d)
                         if adjustment:
                             display_range = self.display_range
-                            if display_data and display_range is not None:
-                                display_data = DataAndMetadata.new_data_and_metadata(adjustment.transform(display_data.data, display_range))
-                    self.__adjusted_data_and_metadata = display_data
+                            if display_xdata and display_range is not None:
+                                display_data = display_xdata.data
+                                if display_data is not None:
+                                    display_xdata = DataAndMetadata.new_data_and_metadata(adjustment.transform(display_data, display_range))
+                    self.__adjusted_data_and_metadata = display_xdata
                 else:
                     self.__adjusted_data_and_metadata = self.display_data_and_metadata
             return self.__adjusted_data_and_metadata
@@ -499,7 +501,11 @@ class DisplayValues:
         with self.__lock:
             if self.__transformed_data_and_metadata_dirty:
                 self.__transformed_data_and_metadata_dirty = False
-                self.__transformed_data_and_metadata = Core.function_rescale(self.adjusted_data_and_metadata, data_range=(0.0, 1.0), in_range=self.transformed_display_range)
+                adjusted_xdata = self.adjusted_data_and_metadata
+                if adjusted_xdata:
+                    self.__transformed_data_and_metadata = Core.function_rescale(adjusted_xdata, data_range=(0.0, 1.0), in_range=self.transformed_display_range)
+                else:
+                    self.__transformed_data_and_metadata = None
             return self.__transformed_data_and_metadata
 
     @property

@@ -515,8 +515,13 @@ class DataItem(Persistence.PersistentObject):
                     # doesn't trigger a write to disk or a change modification.
                     self._get_persistent_property("datum_dimension_count").set_value(datum_dimension_count)
                 data_descriptor = DataAndMetadata.DataDescriptor(is_sequence, collection_dimension_count, datum_dimension_count)
-                self.__data_and_metadata = DataAndMetadata.DataAndMetadata(self.__load_data, data_shape_and_dtype, intensity_calibration, dimensional_calibrations, metadata, timestamp,
-                                                                           data_descriptor=data_descriptor, timezone=self.timezone, timezone_offset=self.timezone_offset)
+                self.__data_and_metadata = DataAndMetadata.DataAndMetadata(self.__load_data, data_shape_and_dtype,
+                                                                           intensity_calibration,
+                                                                           dimensional_calibrations, metadata,
+                                                                           timestamp,
+                                                                           data_descriptor=data_descriptor,
+                                                                           timezone=self.timezone,
+                                                                           timezone_offset=self.timezone_offset)
                 with self.__data_ref_count_mutex:
                     self.__data_and_metadata._add_data_ref_count(self.__data_ref_count)
                 self.__data_and_metadata.unloadable = self.persistent_object_context is not None
@@ -831,7 +836,7 @@ class DataItem(Persistence.PersistentObject):
         pass
 
     @property
-    def data(self) -> _ImageDataType:
+    def data(self) -> typing.Optional[_ImageDataType]:
         return self.__get_data()
 
     def set_data(self, data: _ImageDataType, data_modified: typing.Optional[datetime.datetime] = None) -> None:
@@ -845,7 +850,7 @@ class DataItem(Persistence.PersistentObject):
             self.set_data_and_metadata(xdata, data_modified)
 
     class DataAccessor:
-        def __init__(self, data_item: DataItem, get_data: typing.Callable[[], typing.Optional[_ImageDataType]], set_data: typing.Callable[[_ImageDataType], None]) -> None:
+        def __init__(self, data_item: DataItem, get_data: typing.Callable[[], typing.Optional[_ImageDataType]], set_data: typing.Callable[[typing.Optional[_ImageDataType]], None]) -> None:
             self.__data_item = data_item
             self.__get_data = get_data
             self.__set_data = set_data
@@ -890,25 +895,28 @@ class DataItem(Persistence.PersistentObject):
     def __get_data(self) -> typing.Optional[_ImageDataType]:
         return self.__data_and_metadata.data if self.__data_and_metadata else None
 
-    def __set_data(self, data: _ImageDataType, data_modified: typing.Optional[datetime.datetime] = None) -> None:
+    def __set_data(self, data: typing.Optional[_ImageDataType], data_modified: typing.Optional[datetime.datetime] = None) -> None:
         with self.data_source_changes():
-            dimensional_shape = Image.dimensional_shape_from_data(data)
-            data_and_metadata = self.data_and_metadata
-            intensity_calibration = data_and_metadata.intensity_calibration if data_and_metadata else None
-            dimensional_calibrations: typing.Optional[typing.List[Calibration.Calibration]] = None
-            metadata: typing.Optional[DataAndMetadata.MetadataType] = None
-            timestamp: typing.Optional[datetime.datetime] = None  # always update when the data is modified
-            data_descriptor: typing.Optional[DataAndMetadata.DataDescriptor] = None
-            if data_and_metadata:
-                assert dimensional_shape is not None
-                dimensional_calibrations = list(data_and_metadata.dimensional_calibrations)
-                while len(dimensional_calibrations) < len(dimensional_shape):
-                    dimensional_calibrations.append(Calibration.Calibration())
-                while len(dimensional_calibrations) > len(dimensional_shape):
-                    dimensional_calibrations.pop(-1)
-                metadata = data_and_metadata.metadata
-                data_descriptor = data_and_metadata.data_descriptor
-            self.set_data_and_metadata(DataAndMetadata.DataAndMetadata.from_data(data, intensity_calibration, dimensional_calibrations, metadata, timestamp, data_descriptor), data_modified)
+            if data is not None:
+                dimensional_shape = Image.dimensional_shape_from_data(data)
+                data_and_metadata = self.data_and_metadata
+                intensity_calibration = data_and_metadata.intensity_calibration if data_and_metadata else None
+                dimensional_calibrations: typing.Optional[typing.List[Calibration.Calibration]] = None
+                metadata: typing.Optional[DataAndMetadata.MetadataType] = None
+                timestamp: typing.Optional[datetime.datetime] = None  # always update when the data is modified
+                data_descriptor: typing.Optional[DataAndMetadata.DataDescriptor] = None
+                if data_and_metadata:
+                    assert dimensional_shape is not None
+                    dimensional_calibrations = list(data_and_metadata.dimensional_calibrations)
+                    while len(dimensional_calibrations) < len(dimensional_shape):
+                        dimensional_calibrations.append(Calibration.Calibration())
+                    while len(dimensional_calibrations) > len(dimensional_shape):
+                        dimensional_calibrations.pop(-1)
+                    metadata = data_and_metadata.metadata
+                    data_descriptor = data_and_metadata.data_descriptor
+                self.set_data_and_metadata(DataAndMetadata.DataAndMetadata.from_data(data, intensity_calibration, dimensional_calibrations, metadata, timestamp, data_descriptor), data_modified)
+            else:
+                self.set_data_and_metadata(None)
 
     @property
     def intensity_calibration(self) -> typing.Optional[Calibration.Calibration]:
@@ -1018,7 +1026,7 @@ class DataItem(Persistence.PersistentObject):
 
     def __load_data(self) -> typing.Optional[_ImageDataType]:
         if self.persistent_object_context:
-            return self.read_external_data("data")
+            return typing.cast(typing.Optional[_ImageDataType], self.read_external_data("data"))
         return None
 
     def __set_data_metadata_direct(self, data_metadata: DataAndMetadata.DataMetadata,
@@ -1370,7 +1378,11 @@ class DataSource:
         display_data_channel = self.__display_data_channel
         if display_data_channel:
             if self.__xdata is not None:
-                return Core.function_rescale(self.display_xdata, (0, 1))
+                display_xdata = self.display_xdata
+                if display_xdata:
+                    return Core.function_rescale(display_xdata, (0, 1))
+                else:
+                    return None
             else:
                 display_values = display_data_channel.get_calculated_display_values()
                 if display_values:
@@ -1440,7 +1452,7 @@ class DataSource:
         if data_item:
             xdata = self.xdata
             graphic = self.__graphic
-            if graphic:
+            if xdata and graphic:
                 if hasattr(graphic, "bounds"):
                     if graphic.rotation:
                         return Core.function_crop_rotated(xdata, graphic.bounds, graphic.rotation)

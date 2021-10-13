@@ -24,7 +24,7 @@ from nion.swift.model import Utility
 from nion.utils import Geometry
 
 PersistentDictType = typing.Dict[str, typing.Any]
-_ImageDataType = typing.Any  # numpy.typing.NDArray[typing.Any]
+_NDArray = numpy.typing.NDArray[typing.Any]
 
 
 # http://en.wikipedia.org/wiki/Zip_(file_format)
@@ -136,7 +136,7 @@ def write_end_of_directory(fp: typing.BinaryIO, dir_size: int, dir_offset: int, 
     fp.write(struct.pack('H', 0))           # comment len
 
 
-def write_zip_fp(fp: typing.BinaryIO, data: _ImageDataType, properties: PersistentDictType,
+def write_zip_fp(fp: typing.BinaryIO, data: typing.Optional[_NDArray], properties: PersistentDictType,
                  dir_data_list: typing.Optional[typing.List[typing.Tuple[int, bytes, int, int]]] = None) -> None:
     """
         Write custom zip file of data and properties to fp
@@ -167,6 +167,7 @@ def write_zip_fp(fp: typing.BinaryIO, data: _ImageDataType, properties: Persiste
             numpy.save(fp, data)  # type: ignore
             numpy_end_pos = fp.tell()
             fp.seek(numpy_start_pos)
+            assert data is not None
             data_c = numpy.require(data, dtype=data.dtype, requirements=["C_CONTIGUOUS"])
             header_data = fp.read((numpy_end_pos - numpy_start_pos) - data_c.nbytes)  # read the header
             data_crc32 = binascii.crc32(data_c.data, binascii.crc32(header_data)) & 0xFFFFFFFF
@@ -207,7 +208,7 @@ def write_zip_fp(fp: typing.BinaryIO, data: _ImageDataType, properties: Persiste
     fp.truncate()
 
 
-def write_zip(file_path: str, data: _ImageDataType, properties: PersistentDictType) -> None:
+def write_zip(file_path: str, data: typing.Optional[_NDArray], properties: PersistentDictType) -> None:
     """
         Write custom zip file to the file path
 
@@ -283,7 +284,7 @@ def parse_zip(fp: typing.BinaryIO) -> typing.Tuple[typing.Dict[int, typing.Tuple
     return local_files, dir_files, eocd
 
 
-def read_data(fp: typing.BinaryIO, local_files: typing.Dict[int, typing.Tuple[bytes, int, int, int]], dir_files: typing.Dict[bytes, typing.Tuple[int, int]], name_bytes: bytes) -> typing.Optional[_ImageDataType]:
+def read_data(fp: typing.BinaryIO, local_files: typing.Dict[int, typing.Tuple[bytes, int, int, int]], dir_files: typing.Dict[bytes, typing.Tuple[int, int]], name_bytes: bytes) -> typing.Optional[_NDArray]:
     """
         Read a numpy data array from the zip file
 
@@ -436,7 +437,7 @@ class NDataHandler(StorageHandler.StorageHandler):
     def get_extension(self) -> str:
         return ".ndata"
 
-    def write_data(self, data: _ImageDataType, file_datetime: datetime.datetime) -> None:
+    def write_data(self, data: _NDArray, file_datetime: datetime.datetime) -> None:
         """
             Write data to the ndata file specified by reference.
 
@@ -498,7 +499,7 @@ class NDataHandler(StorageHandler.StorageHandler):
                 properties = read_json(fp, local_files, dir_files, b"metadata.json")
             return properties
 
-    def read_data(self) -> typing.Optional[_ImageDataType]:
+    def read_data(self) -> typing.Optional[_NDArray]:
         """
             Read data from the ndata file reference
 
