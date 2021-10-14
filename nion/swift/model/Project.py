@@ -117,7 +117,7 @@ class Project(Persistence.PersistentObject):
     def open(self) -> None:
         self.__storage_system.reset()  # this makes storage reusable during tests
 
-    def create_proxy(self) -> Persistence.PersistentObjectProxy:
+    def create_proxy(self) -> Persistence.PersistentObjectProxy[Project]:
         container = self.container
         assert container
         return container.create_item_proxy(item=self)

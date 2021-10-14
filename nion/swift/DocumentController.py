@@ -947,7 +947,8 @@ class DocumentController(Window.Window):
             assert data_group
             display_items = [display_item_proxy.item for display_item_proxy in self.__display_item_proxies]
             for index, display_item in enumerate(display_items):
-                data_group.insert_display_item(self.__before_index + index, display_item)
+                if display_item:
+                    data_group.insert_display_item(self.__before_index + index, display_item)
 
         def _undo(self) -> None:
             data_group = self.__data_group_proxy.item
@@ -968,7 +969,7 @@ class DocumentController(Window.Window):
             self.__document_controller = document_controller
             self.__data_group_proxy = data_group.create_proxy()
             self.__data_group_indexes: typing.List[int] = list()
-            self.__data_group_display_item_proxies: typing.List[Persistence.PersistentObjectProxy] = list()
+            self.__data_group_display_item_proxies: typing.List[Persistence.PersistentObjectProxy[DisplayItem.DisplayItem]] = list()
             self.__data_items = data_items  # only in perform
             self.__display_item_index = index
             self.__display_item_indexes: typing.List[int] = list()
@@ -1041,7 +1042,7 @@ class DocumentController(Window.Window):
             index = self.__display_item_index
             display_items = [display_item_proxy.item for display_item_proxy in reversed(self.__data_group_display_item_proxies)]
             for display_item in display_items:
-                if not display_item in data_group.display_items:
+                if display_item and not display_item in data_group.display_items:
                     data_group.insert_display_item(index, display_item)
 
     class RemoveDataGroupDisplayItemsCommand(Undo.UndoableCommand):
@@ -1090,7 +1091,8 @@ class DocumentController(Window.Window):
             assert data_group
             display_items = [display_item_proxy.item for display_item_proxy in self.__display_item_proxies]
             for index, display_item in zip(self.__display_item_indexes, display_items):
-                data_group.insert_display_item(index, display_item)
+                if display_item:
+                    data_group.insert_display_item(index, display_item)
 
         def _redo(self) -> None:
             self.perform()
@@ -1101,7 +1103,7 @@ class DocumentController(Window.Window):
             self.__document_model = document_model
             self.__data_group_proxy = data_group.create_proxy()
             self.__title = title
-            self.__new_title = None
+            self.__new_title = str()
             self.initialize()
 
         def close(self) -> None:
@@ -1147,7 +1149,7 @@ class DocumentController(Window.Window):
             self.__container_proxy = container.create_proxy()
             self.__before_index = before_index
             self.__data_group_properties = data_group.write_to_dict()
-            self.__data_group_proxy: typing.Optional[Persistence.PersistentObjectProxy] = None
+            self.__data_group_proxy: typing.Optional[Persistence.PersistentObjectProxy[DataGroup.DataGroup]] = None
             self.initialize()
             data_group.close()  # clean up
 
@@ -1202,7 +1204,7 @@ class DocumentController(Window.Window):
             self.__container_proxy = container.create_proxy()
             self.__data_group_proxy = data_group.create_proxy()
             self.__data_group_properties: typing.Optional[Persistence.PersistentDictType] = None
-            self.__data_group_index = None
+            self.__data_group_index: typing.Optional[int] = None
             self.initialize()
 
         def close(self) -> None:
@@ -1470,19 +1472,19 @@ class DocumentController(Window.Window):
             super().close()
 
         def perform(self) -> None:
-            display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+            display_item = self.__display_item_proxy.item
             if display_item:
                 graphics = [display_item.graphics[index] for index in self.__graphic_indexes]
                 for graphic in graphics:
                     self.__undelete_logs.append(display_item.remove_graphic(graphic, safe=True))
 
         def _get_modified_state(self) -> typing.Any:
-            display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+            display_item = self.__display_item_proxy.item
             assert display_item
             return display_item.modified_state, self.__document_controller.document_model.modified_state
 
         def _set_modified_state(self, modified_state: typing.Any) -> None:
-            display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+            display_item = self.__display_item_proxy.item
             assert display_item
             display_item.modified_state, self.__document_controller.document_model.modified_state = modified_state
 
@@ -1847,7 +1849,7 @@ class DocumentController(Window.Window):
             workspace_controller = self.__document_controller.workspace_controller
             self.__old_workspace_layout: typing.Optional[Persistence.PersistentDictType] = workspace_controller.deconstruct() if workspace_controller else None
             self.__new_workspace_layout: typing.Optional[Persistence.PersistentDictType] = None
-            self.__data_item_proxy: typing.Optional[Persistence.PersistentObjectProxy] = None
+            self.__data_item_proxy: typing.Optional[Persistence.PersistentObjectProxy[DataItem.DataItem]] = None
             self.__data_item_fn = data_item_fn
             self.__undelete_log: typing.Optional[Changes.UndeleteLog] = None
             self.initialize()
@@ -1871,7 +1873,7 @@ class DocumentController(Window.Window):
 
         @property
         def data_item(self) -> typing.Optional[DataItem.DataItem]:
-            return typing.cast(typing.Optional[DataItem.DataItem], self.__data_item_proxy.item) if self.__data_item_proxy else None
+            return self.__data_item_proxy.item if self.__data_item_proxy else None
 
         def _get_modified_state(self) -> typing.Any:
             return self.__document_controller.document_model.modified_state
@@ -1933,7 +1935,7 @@ class DocumentController(Window.Window):
             workspace_controller = self.__document_controller.workspace_controller
             self.__old_workspace_layout: typing.Optional[Persistence.PersistentDictType] = workspace_controller.deconstruct() if workspace_controller else None
             self.__new_workspace_layout: typing.Optional[Persistence.PersistentDictType] = None
-            self.__display_item_proxy: typing.Optional[Persistence.PersistentObjectProxy] = None
+            self.__display_item_proxy: typing.Optional[Persistence.PersistentObjectProxy[DisplayItem.DisplayItem]] = None
             self.__display_item = display_item
             self.__display_item_fn = display_item_fn
             self.__display_item_index = 0
@@ -1978,7 +1980,7 @@ class DocumentController(Window.Window):
             workspace_controller.reconstruct(self.__new_workspace_layout)
 
         def _undo(self) -> None:
-            display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item) if self.__display_item_proxy else None
+            display_item = self.__display_item_proxy.item if self.__display_item_proxy else None
             assert display_item
             workspace_controller = self.__document_controller.workspace_controller
             assert workspace_controller

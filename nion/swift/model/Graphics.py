@@ -703,7 +703,7 @@ class Graphic(Persistence.PersistentObject):
     def display_item(self) -> DisplayItem.DisplayItem:
         return typing.cast("DisplayItem.DisplayItem", self.container)
 
-    def create_proxy(self) -> Persistence.PersistentObjectProxy:
+    def create_proxy(self) -> Persistence.PersistentObjectProxy[Graphic]:
         project = self.project
         assert project
         return project.create_item_proxy(item=self)

@@ -115,7 +115,7 @@ class Recorder:
             workspace_controller = self.__document_controller.workspace_controller
             self.__old_workspace_layout: typing.Optional[Persistence.PersistentDictType] = workspace_controller.deconstruct() if workspace_controller else None
             self.__new_workspace_layout: typing.Optional[Persistence.PersistentDictType] = None
-            self.__data_item_proxy: typing.Optional[Persistence.PersistentObjectProxy] = None
+            self.__data_item_proxy: typing.Optional[Persistence.PersistentObjectProxy[DataItem.DataItem]] = None
             self.__data_item_fn = data_item_fn
             self.__undelete_log: typing.Optional[Changes.UndeleteLog] = None
             self.initialize()
@@ -139,7 +139,7 @@ class Recorder:
 
         @property
         def data_item(self) -> typing.Optional[DataItem.DataItem]:
-            return typing.cast(typing.Optional[DataItem.DataItem], self.__data_item_proxy.item) if self.__data_item_proxy else None
+            return self.__data_item_proxy.item if self.__data_item_proxy else None
 
         def _get_modified_state(self) -> typing.Any:
             return self.__document_controller.document_model.modified_state

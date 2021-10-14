@@ -90,18 +90,18 @@ class AddVariableCommand(Undo.UndoableCommand):
         super().close()
 
     def perform(self) -> None:
-        computation = typing.cast(typing.Optional[Symbolic.Computation], self.__computation_proxy.item)
+        computation = self.__computation_proxy.item
         if computation:
             variable = computation.create_variable(self.__name, self.__value_type, self.__value, self.__value_default, self.__value_min, self.__value_max, self.__control_type, self.__specified_item, self.__label)
             self.__variable_index = computation.variables.index(variable)
 
     def _get_modified_state(self) -> typing.Any:
-        computation = typing.cast(typing.Optional[Symbolic.Computation], self.__computation_proxy.item)
+        computation = self.__computation_proxy.item
         computation_modified_state = computation.modified_state if computation else None
         return computation_modified_state, self.__document_model.modified_state
 
     def _set_modified_state(self, modified_state: typing.Any) -> None:
-        computation = typing.cast(typing.Optional[Symbolic.Computation], self.__computation_proxy.item)
+        computation = self.__computation_proxy.item
         if computation:
             computation.modified_state = modified_state[0]
         self.__document_model.modified_state = modified_state[1]
@@ -111,7 +111,7 @@ class AddVariableCommand(Undo.UndoableCommand):
         return bool(state1[0] == state2[0])
 
     def _undo(self) -> None:
-        computation = typing.cast(typing.Optional[Symbolic.Computation], self.__computation_proxy.item)
+        computation = self.__computation_proxy.item
         if computation:
             variable = computation.variables[self.__variable_index]
             computation.remove_variable(variable)
@@ -137,18 +137,18 @@ class RemoveVariableCommand(Undo.UndoableCommand):
         super().close()
 
     def perform(self) -> None:
-        computation = typing.cast(typing.Optional[Symbolic.Computation], self.__computation_proxy.item)
+        computation = self.__computation_proxy.item
         if computation:
             variable = computation.variables[self.__variable_index]
             computation.remove_variable(variable)
 
     def _get_modified_state(self) -> typing.Any:
-        computation = typing.cast(typing.Optional[Symbolic.Computation], self.__computation_proxy.item)
+        computation = self.__computation_proxy.item
         computation_modified_state = computation.modified_state if computation else None
         return computation_modified_state, self.__document_model.modified_state
 
     def _set_modified_state(self, modified_state: typing.Any) -> None:
-        computation = typing.cast(typing.Optional[Symbolic.Computation], self.__computation_proxy.item)
+        computation = self.__computation_proxy.item
         if computation:
             computation.modified_state = modified_state[0]
         self.__document_model.modified_state = modified_state[1]
@@ -158,7 +158,7 @@ class RemoveVariableCommand(Undo.UndoableCommand):
         return bool(state1[0] == state2[0])
 
     def _undo(self) -> None:
-        computation = typing.cast(typing.Optional[Symbolic.Computation], self.__computation_proxy.item)
+        computation = self.__computation_proxy.item
         if computation:
             variable = Symbolic.ComputationVariable()
             variable.begin_reading()
@@ -167,7 +167,7 @@ class RemoveVariableCommand(Undo.UndoableCommand):
             computation.insert_variable(self.__variable_index, variable)
 
     def _redo(self) -> None:
-        computation = typing.cast(typing.Optional[Symbolic.Computation], self.__computation_proxy.item)
+        computation = self.__computation_proxy.item
         if computation:
             computation.remove_variable(computation.variables[self.__variable_index])
 
@@ -190,7 +190,7 @@ class CreateComputationCommand(Undo.UndoableCommand):
         return self.__document_model.create_computation()
 
     def perform(self) -> None:
-        data_item = typing.cast(typing.Optional[DataItem.DataItem], self.__data_item_proxy.item)
+        data_item = self.__data_item_proxy.item
         if data_item:
             computation = self.__document_model.create_computation()
             self.__document_model.set_data_item_computation(data_item, computation)
@@ -202,7 +202,7 @@ class CreateComputationCommand(Undo.UndoableCommand):
         self.__document_model.modified_state = modified_state
 
     def _undo(self) -> None:
-        data_item = typing.cast(typing.Optional[DataItem.DataItem], self.__data_item_proxy.item)
+        data_item = self.__data_item_proxy.item
         if data_item:
             self.__document_model.set_data_item_computation(data_item, None)
 
@@ -227,18 +227,18 @@ class ChangeComputationCommand(Undo.UndoableCommand):
         super().close()
 
     def perform(self) -> None:
-        computation = typing.cast(typing.Optional[Symbolic.Computation], self.__computation_proxy.item)
+        computation = self.__computation_proxy.item
         if computation:
             for key, value in self.__value_dict.items():
                 setattr(computation, key, value)
 
     def _get_modified_state(self) -> typing.Any:
-        computation = typing.cast(typing.Optional[Symbolic.Computation], self.__computation_proxy.item)
+        computation = self.__computation_proxy.item
         computation_modified_state = computation.modified_state if computation else None
         return computation_modified_state, self.__document_model.modified_state
 
     def _set_modified_state(self, modified_state: typing.Any) -> None:
-        computation = typing.cast(typing.Optional[Symbolic.Computation], self.__computation_proxy.item)
+        computation = self.__computation_proxy.item
         if computation:
             computation.modified_state = modified_state[0]
         self.__document_model.modified_state = modified_state[1]
@@ -248,7 +248,7 @@ class ChangeComputationCommand(Undo.UndoableCommand):
         return bool(state1[0] == state2[0])
 
     def _undo(self) -> None:
-        computation = typing.cast(typing.Optional[Symbolic.Computation], self.__computation_proxy.item)
+        computation = self.__computation_proxy.item
         if computation:
             properties = self.__properties
             self.__properties = computation.write_to_dict()

@@ -745,7 +745,7 @@ class DisplayDataChannel(Persistence.PersistentObject):
     def project(self) -> typing.Optional[Project.Project]:
         return typing.cast("Project.Project", self.container.container) if self.container else None
 
-    def create_proxy(self) -> Persistence.PersistentObjectProxy:
+    def create_proxy(self) -> Persistence.PersistentObjectProxy[DisplayDataChannel]:
         project = self.project
         assert project
         return project.create_item_proxy(item=self)
@@ -1442,7 +1442,7 @@ class DisplayItem(Persistence.PersistentObject):
     def display_data_channels(self) -> typing.Sequence[DisplayDataChannel]:
         return typing.cast(typing.Sequence[DisplayDataChannel], self._get_relationship_values("display_data_channels"))
 
-    def create_proxy(self) -> Persistence.PersistentObjectProxy:
+    def create_proxy(self) -> Persistence.PersistentObjectProxy[DisplayItem]:
         return self.project.create_item_proxy(item=self)
 
     @property

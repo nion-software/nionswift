@@ -27,7 +27,7 @@ class DataStructure(Persistence.PersistentObject):
     def __init__(self, *, structure_type: typing.Optional[str] = None, source: typing.Optional[Persistence.PersistentObject] = None) -> None:
         super().__init__()
         self.__properties: typing.Dict[str, typing.Any] = dict()
-        self.__referenced_object_proxies: typing.Dict[str, Persistence.PersistentObjectProxy] = dict()
+        self.__referenced_object_proxies: typing.Dict[str, Persistence.PersistentObjectProxy[Persistence.PersistentObject]] = dict()
         self.define_type("data_structure")
         self.define_property("structure_type", structure_type, changed=self.__structure_type_changed)
         self.define_property("source_specifier", changed=self.__source_specifier_changed, key="source_uuid")
@@ -86,7 +86,7 @@ class DataStructure(Persistence.PersistentObject):
     def project(self) -> Project.Project:
         return typing.cast("Project.Project", self.container)
 
-    def create_proxy(self) -> Persistence.PersistentObjectProxy:
+    def create_proxy(self) -> Persistence.PersistentObjectProxy[DataStructure]:
         return self.project.create_item_proxy(item=self)
 
     @property

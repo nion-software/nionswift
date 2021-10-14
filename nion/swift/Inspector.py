@@ -289,15 +289,15 @@ class ChangeDisplayItemPropertyCommand(Undo.UndoableCommand):
         super().close()
 
     def perform(self) -> None:
-        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+        display_item = self.__display_item_proxy.item
         setattr(display_item, self.__property_name, self.__new_display_layers)
 
     def _get_modified_state(self) -> typing.Any:
-        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+        display_item = self.__display_item_proxy.item
         return display_item.modified_state if display_item else None, self.__document_model.modified_state
 
     def _set_modified_state(self, modified_state: typing.Any) -> None:
-        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+        display_item = self.__display_item_proxy.item
         if display_item:
             display_item.modified_state = modified_state[0]
         self.__document_model.modified_state = modified_state[1]
@@ -307,7 +307,7 @@ class ChangeDisplayItemPropertyCommand(Undo.UndoableCommand):
         return bool(state1[0] == state2[0])
 
     def _undo(self) -> None:
-        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+        display_item = self.__display_item_proxy.item
         self.__new_display_layers = getattr(display_item, self.__property_name)
         setattr(display_item, self.__property_name, self.__old_display_layers)
 
@@ -316,7 +316,7 @@ class ChangeDisplayItemPropertyCommand(Undo.UndoableCommand):
 
     @property
     def __display_item_uuid(self) -> typing.Optional[uuid.UUID]:
-        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+        display_item = self.__display_item_proxy.item
         return display_item.uuid if display_item else None
 
     def can_merge(self, command: Undo.UndoableCommand) -> bool:
@@ -342,15 +342,15 @@ class ChangePropertyCommand(Undo.UndoableCommand):
         super().close()
 
     def perform(self) -> None:
-        data_item = typing.cast(typing.Optional[DataItem.DataItem], self.__data_item_proxy.item)
+        data_item = self.__data_item_proxy.item
         setattr(data_item, self.__property_name, self.__new_value)
 
     def _get_modified_state(self) -> typing.Any:
-        data_item = typing.cast(typing.Optional[DataItem.DataItem], self.__data_item_proxy.item)
+        data_item = self.__data_item_proxy.item
         return data_item.modified_state if data_item else None, self.__document_model.modified_state
 
     def _set_modified_state(self, modified_state: typing.Any) -> None:
-        data_item = typing.cast(typing.Optional[DataItem.DataItem], self.__data_item_proxy.item)
+        data_item = self.__data_item_proxy.item
         if data_item:
             data_item.modified_state = modified_state[0]
         self.__document_model.modified_state = modified_state[1]
@@ -360,7 +360,7 @@ class ChangePropertyCommand(Undo.UndoableCommand):
         return bool(state1[0] == state2[0])
 
     def _undo(self) -> None:
-        data_item = typing.cast(typing.Optional[DataItem.DataItem], self.__data_item_proxy.item)
+        data_item = self.__data_item_proxy.item
         self.__new_value = getattr(data_item, self.__property_name)
         setattr(data_item, self.__property_name, self.__old_value)
 
@@ -369,7 +369,7 @@ class ChangePropertyCommand(Undo.UndoableCommand):
 
     @property
     def __data_item_uuid(self) -> typing.Optional[uuid.UUID]:
-        data_item = typing.cast(typing.Optional[DataItem.DataItem], self.__data_item_proxy.item) if self.__data_item_proxy else None
+        data_item = self.__data_item_proxy.item if self.__data_item_proxy else None
         return data_item.uuid if data_item else None
 
     def can_merge(self, command: Undo.UndoableCommand) -> bool:
@@ -469,15 +469,15 @@ class ChangeGraphicPropertyBinding(Binding.PropertyBinding):
         super().close()
 
     def __get_value(self) -> typing.Any:
-        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
-        graphic = typing.cast(typing.Optional[Graphics.Graphic], self.__graphic_proxy.item)
+        display_item = self.__display_item_proxy.item
+        graphic = self.__graphic_proxy.item
         if display_item and graphic:
             return getattr(graphic, self.__property_name)
         return None
 
     def __set_value(self, value: typing.Any) -> None:
-        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
-        graphic = typing.cast(typing.Optional[Graphics.Graphic], self.__graphic_proxy.item)
+        display_item = self.__display_item_proxy.item
+        graphic = self.__graphic_proxy.item
         if display_item and graphic:
             if value != getattr(graphic, self.__property_name):
                 command = DisplayPanel.ChangeGraphicsCommand(self.__document_controller.document_model, display_item, [graphic], title=_("Change Display Type"), command_id="change_display_" + self.__property_name, is_mergeable=True, **{self.__property_name: value})
@@ -682,16 +682,16 @@ class ChangeDisplayLayerPropertyCommand(Undo.UndoableCommand):
         super().close()
 
     def perform(self) -> None:
-        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+        display_item = self.__display_item_proxy.item
         if display_item:
             display_item._set_display_layer_property(self.__display_layer_index, self.__property_name, self.__value)
 
     def _get_modified_state(self) -> typing.Any:
-        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+        display_item = self.__display_item_proxy.item
         return display_item.modified_state if display_item else None, self.__document_model.modified_state
 
     def _set_modified_state(self, modified_state: typing.Any) -> None:
-        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+        display_item = self.__display_item_proxy.item
         if display_item:
             display_item.modified_state = modified_state[0]
         self.__document_model.modified_state = modified_state[1]
@@ -701,7 +701,7 @@ class ChangeDisplayLayerPropertyCommand(Undo.UndoableCommand):
         return bool(state1[0] == state2[0])
 
     def _undo(self) -> None:
-        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+        display_item = self.__display_item_proxy.item
         if display_item:
             display_item.restore_properties(self.__old_properties)
 
@@ -710,7 +710,7 @@ class ChangeDisplayLayerPropertyCommand(Undo.UndoableCommand):
 
     @property
     def __display_item_uuid(self) -> typing.Optional[uuid.UUID]:
-        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+        display_item = self.__display_item_proxy.item
         return display_item.uuid if display_item else None
 
     def can_merge(self, command: Undo.UndoableCommand) -> bool:
@@ -736,8 +736,8 @@ class ChangeDisplayLayerDisplayDataChannelCommand(Undo.UndoableCommand):
         super().close()
 
     def perform(self) -> None:
-        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
-        display_data_channel = typing.cast(typing.Optional[DisplayItem.DisplayDataChannel], self.__display_data_channel_proxy.item if self.__display_data_channel_proxy else None)
+        display_item = self.__display_item_proxy.item
+        display_data_channel = self.__display_data_channel_proxy.item if self.__display_data_channel_proxy else None
         if display_item:
             old_display_data_channel = display_item.get_display_layer_display_data_channel(self.__display_layer_index)
             display_item.set_display_layer_display_data_channel(self.__display_layer_index, display_data_channel)
@@ -751,11 +751,11 @@ class ChangeDisplayLayerDisplayDataChannelCommand(Undo.UndoableCommand):
                 self.__display_data_channel_proxy = None
 
     def _get_modified_state(self) -> typing.Any:
-        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+        display_item = self.__display_item_proxy.item
         return display_item.modified_state if display_item else None, self.__document_model.modified_state
 
     def _set_modified_state(self, modified_state: typing.Any) -> None:
-        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+        display_item = self.__display_item_proxy.item
         if display_item:
             display_item.modified_state = modified_state[0]
         self.__document_model.modified_state = modified_state[1]
@@ -769,7 +769,7 @@ class ChangeDisplayLayerDisplayDataChannelCommand(Undo.UndoableCommand):
 
     @property
     def __display_item_uuid(self) -> typing.Optional[uuid.UUID]:
-        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+        display_item = self.__display_item_proxy.item
         return display_item.uuid if display_item else None
 
     def can_merge(self, command: Undo.UndoableCommand) -> bool:
@@ -1233,16 +1233,16 @@ class ChangeIntensityCalibrationCommand(Undo.UndoableCommand):
         super().close()
 
     def perform(self) -> None:
-        data_item = typing.cast(typing.Optional[DataItem.DataItem], self.__data_item_proxy.item)
+        data_item = self.__data_item_proxy.item
         if data_item and self.__new_intensity_calibration is not None:
             data_item.set_intensity_calibration(self.__new_intensity_calibration)
 
     def _get_modified_state(self) -> typing.Any:
-        data_item = typing.cast(typing.Optional[DataItem.DataItem], self.__data_item_proxy.item)
+        data_item = self.__data_item_proxy.item
         return data_item.modified_state if data_item else None, self.__document_model.modified_state
 
     def _set_modified_state(self, modified_state: typing.Any) -> None:
-        data_item = typing.cast(typing.Optional[DataItem.DataItem], self.__data_item_proxy.item)
+        data_item = self.__data_item_proxy.item
         if data_item:
             data_item.modified_state = modified_state[0]
         self.__document_model.modified_state = modified_state[1]
@@ -1252,7 +1252,7 @@ class ChangeIntensityCalibrationCommand(Undo.UndoableCommand):
         return bool(state1[0] == state2[0])
 
     def _undo(self) -> None:
-        data_item = typing.cast(typing.Optional[DataItem.DataItem], self.__data_item_proxy.item)
+        data_item = self.__data_item_proxy.item
         assert data_item
         self.__new_intensity_calibration = data_item.intensity_calibration
         if self.__old_intensity_calibration is not None:
@@ -1263,7 +1263,7 @@ class ChangeIntensityCalibrationCommand(Undo.UndoableCommand):
 
     @property
     def __data_item_uuid(self) -> typing.Optional[uuid.UUID]:
-        data_item = typing.cast(typing.Optional[DataItem.DataItem], self.__data_item_proxy.item) if self.__data_item_proxy else None
+        data_item = self.__data_item_proxy.item if self.__data_item_proxy else None
         return data_item.uuid if data_item else None
 
     def can_merge(self, command: Undo.UndoableCommand) -> bool:
@@ -1286,16 +1286,16 @@ class ChangeDimensionalCalibrationsCommand(Undo.UndoableCommand):
         super().close()
 
     def perform(self) -> None:
-        data_item = typing.cast(typing.Optional[DataItem.DataItem], self.__data_item_proxy.item)
+        data_item = self.__data_item_proxy.item
         if data_item:
             data_item.set_dimensional_calibrations(self.__new_dimensional_calibrations)
 
     def _get_modified_state(self) -> typing.Any:
-        data_item = typing.cast(typing.Optional[DataItem.DataItem], self.__data_item_proxy.item)
+        data_item = self.__data_item_proxy.item
         return data_item.modified_state if data_item else None, self.__document_model.modified_state
 
     def _set_modified_state(self, modified_state: typing.Any) -> None:
-        data_item = typing.cast(typing.Optional[DataItem.DataItem], self.__data_item_proxy.item)
+        data_item = self.__data_item_proxy.item
         if data_item:
             data_item.modified_state = modified_state[0]
         self.__document_model.modified_state = modified_state[1]
@@ -1305,7 +1305,7 @@ class ChangeDimensionalCalibrationsCommand(Undo.UndoableCommand):
         return bool(state1[0] == state2[0])
 
     def _undo(self) -> None:
-        data_item = typing.cast(typing.Optional[DataItem.DataItem], self.__data_item_proxy.item)
+        data_item = self.__data_item_proxy.item
         assert data_item
         self.__new_dimensional_calibrations = list(data_item.dimensional_calibrations)
         data_item.set_dimensional_calibrations(self.__old_dimensional_calibrations)
@@ -1315,7 +1315,7 @@ class ChangeDimensionalCalibrationsCommand(Undo.UndoableCommand):
 
     @property
     def __data_item_uuid(self) -> typing.Optional[uuid.UUID]:
-        data_item = typing.cast(typing.Optional[DataItem.DataItem], self.__data_item_proxy.item) if self.__data_item_proxy else None
+        data_item = self.__data_item_proxy.item if self.__data_item_proxy else None
         return data_item.uuid if data_item else None
 
     def can_merge(self, command: Undo.UndoableCommand) -> bool:
@@ -1642,16 +1642,16 @@ class ChangeDisplayTypeCommand(Undo.UndoableCommand):
         super().close()
 
     def perform(self) -> None:
-        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+        display_item = self.__display_item_proxy.item
         if display_item:
             display_item.display_type = self.__display_type
 
     def _get_modified_state(self) -> typing.Any:
-        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+        display_item = self.__display_item_proxy.item
         return display_item.modified_state if display_item else None, self.__document_model.modified_state
 
     def _set_modified_state(self, modified_state: typing.Any) -> None:
-        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+        display_item = self.__display_item_proxy.item
         if display_item:
             display_item.modified_state = modified_state[0]
         self.__document_model.modified_state = modified_state[1]
@@ -1661,7 +1661,7 @@ class ChangeDisplayTypeCommand(Undo.UndoableCommand):
         return bool(state1[0] == state2[0])
 
     def _undo(self) -> None:
-        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+        display_item = self.__display_item_proxy.item
         if display_item:
             old_display_type = self.__old_display_type
             self.__old_display_type = display_item.display_type
@@ -1669,7 +1669,7 @@ class ChangeDisplayTypeCommand(Undo.UndoableCommand):
 
     @property
     def __display_item_uuid(self) -> typing.Optional[uuid.UUID]:
-        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+        display_item = self.__display_item_proxy.item
         return display_item.uuid if display_item else None
 
     def can_merge(self, command: Undo.UndoableCommand) -> bool:
@@ -3140,19 +3140,19 @@ class ChangeComputationVariableCommand(Undo.UndoableCommand):
         super().close()
 
     def perform(self) -> None:
-        computation = typing.cast(typing.Optional[Symbolic.Computation], self.__computation_proxy.item)
+        computation = self.__computation_proxy.item
         if computation:
             variable = computation.variables[self.__variable_index]
             for key, value in self.__value_dict.items():
                 setattr(variable, key, value)
 
     def _get_modified_state(self) -> typing.Any:
-        computation = typing.cast(typing.Optional[Symbolic.Computation], self.__computation_proxy.item)
+        computation = self.__computation_proxy.item
         variable = computation.variables[self.__variable_index] if computation else None
         return variable.modified_state if variable else None, self.__document_model.modified_state
 
     def _set_modified_state(self, modified_state: typing.Any) -> None:
-        computation = typing.cast(typing.Optional[Symbolic.Computation], self.__computation_proxy.item)
+        computation = self.__computation_proxy.item
         variable = computation.variables[self.__variable_index] if computation else None
         if variable:
             variable.modified_state = modified_state[0]
@@ -3163,7 +3163,7 @@ class ChangeComputationVariableCommand(Undo.UndoableCommand):
         return bool(state1[0] == state2[0])
 
     def _undo(self) -> None:
-        computation = typing.cast(typing.Optional[Symbolic.Computation], self.__computation_proxy.item)
+        computation = self.__computation_proxy.item
         if computation:
             variable = computation.variables[self.__variable_index]
             properties = self.__properties
@@ -3172,7 +3172,7 @@ class ChangeComputationVariableCommand(Undo.UndoableCommand):
 
     @property
     def __computation_uuid(self) -> typing.Optional[uuid.UUID]:
-        computation = typing.cast(typing.Optional[Symbolic.Computation], self.__computation_proxy.item) if self.__computation_proxy else None
+        computation = self.__computation_proxy.item if self.__computation_proxy else None
         return computation.uuid if computation else None
 
     def can_merge(self, command: Undo.UndoableCommand) -> bool:
@@ -3635,17 +3635,17 @@ class RemoveDisplayDataChannelCommand(Undo.UndoableCommand):
         super().close()
 
     def perform(self) -> None:
-        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+        display_item = self.__display_item_proxy.item
         if display_item:
             display_data_channel = display_item.display_data_channels[self.__display_data_channel_index]
             self.__undelete_logs.append(display_item.remove_display_data_channel(display_data_channel, safe=True))
 
     def _get_modified_state(self) -> typing.Any:
-        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+        display_item = self.__display_item_proxy.item
         return display_item.modified_state if display_item else None, self.__document_controller.document_model.modified_state
 
     def _set_modified_state(self, modified_state: typing.Any) -> None:
-        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+        display_item = self.__display_item_proxy.item
         if display_item:
             display_item.modified_state = modified_state[0]
         self.__document_controller.document_model.modified_state = modified_state[1]
@@ -3660,7 +3660,7 @@ class RemoveDisplayDataChannelCommand(Undo.UndoableCommand):
         self.__undelete_logs.clear()
         if self.__old_workspace_layout is not None:
             workspace_controller.reconstruct(self.__old_workspace_layout)
-        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.__display_item_proxy.item)
+        display_item = self.__display_item_proxy.item
         if display_item:
             display_item.restore_properties(self.__old_display_properties)
 

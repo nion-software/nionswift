@@ -310,7 +310,7 @@ class UndeleteObjectSpecifier(Changes.UndeleteBase):
         self.computation_proxy = typing.cast(typing.Any, None)
 
     def undelete(self, document_model: DocumentModel) -> None:
-        computation = typing.cast(typing.Optional[Symbolic.Computation], self.computation_proxy.item)
+        computation = self.computation_proxy.item
         if computation:
             variable = computation.variables[self.variable_index]
             computation.undelete_variable_item(variable.name, self.index, self.specifier)
@@ -347,8 +347,8 @@ class UndeleteDisplayItemInDataGroup(Changes.UndeleteBase):
         self.data_group_proxy = typing.cast(typing.Any, None)
 
     def undelete(self, document_model: DocumentModel) -> None:
-        display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.display_item_proxy.item)
-        data_group = typing.cast(typing.Optional[DataGroup.DataGroup], self.data_group_proxy.item)
+        display_item = self.display_item_proxy.item
+        data_group = self.data_group_proxy.item
         if display_item and data_group:
             data_group.insert_display_item(self.index, display_item)
 
@@ -914,7 +914,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         if name == "mapped_items":
             self.__resolve_mapped_items()
 
-    def create_item_proxy(self, *, item_uuid: typing.Optional[uuid.UUID] = None, item_specifier: typing.Optional[Persistence.PersistentObjectSpecifier] = None, item: typing.Optional[Persistence.PersistentObject] = None) -> Persistence.PersistentObjectProxy:
+    def create_item_proxy(self, *, item_uuid: typing.Optional[uuid.UUID] = None, item_specifier: typing.Optional[Persistence.PersistentObjectSpecifier] = None, item: typing.Optional[Persistence.PersistentObject] = None) -> Persistence.PersistentObjectProxy[typing.Any]:
         # returns item proxy in projects. used in data group hierarchy.
         return self._project.create_item_proxy(item_uuid=item_uuid, item_specifier=item_specifier, item=item)
 
@@ -1806,7 +1806,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
         @property
         def __data_item(self) -> typing.Optional[DataItem.DataItem]:
-            return typing.cast(typing.Optional[DataItem.DataItem], self.__data_item_proxy.item)
+            return self.__data_item_proxy.item
 
         def start(self) -> None:
             """Start using the data item reference. Must call stop a matching number of times.

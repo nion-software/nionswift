@@ -342,7 +342,9 @@ class PersistentObjectSpecifier:
         return None
 
 
-class PersistentObjectProxy:
+PO = typing.TypeVar('PO')
+
+class PersistentObjectProxy(typing.Generic[PO]):
     count = 0  # useful for detecting leaks in tests
 
     def __init__(self, persistent_object: PersistentObject, item_specifier: typing.Optional[PersistentObjectSpecifier], item: typing.Optional[PersistentObject]) -> None:
@@ -352,8 +354,8 @@ class PersistentObjectProxy:
         self.__item = item
         self.__persistent_object_context: typing.Optional[PersistentObjectContext] = None
         self.__registered_change_uuid: typing.Optional[uuid.UUID] = None
-        self.on_item_registered: typing.Optional[typing.Callable[[PersistentObject], None]] = None
-        self.on_item_unregistered: typing.Optional[typing.Callable[[PersistentObject], None]] = None
+        self.on_item_registered: typing.Optional[typing.Callable[[PO], None]] = None
+        self.on_item_unregistered: typing.Optional[typing.Callable[[PO], None]] = None
         self.__persistent_object_context_changed_listener = persistent_object.persistent_object_context_changed_event.listen(self.__persistent_object_context_changed)
         self.__persistent_object_context_changed()
 
@@ -370,13 +372,14 @@ class PersistentObjectProxy:
         PersistentObjectProxy.count -= 1
 
     @property
-    def item(self) -> typing.Optional[PersistentObject]:
-        return self.__item
+    def item(self) -> typing.Optional[PO]:
+        return typing.cast(typing.Optional[PO], self.__item)
 
     @item.setter
-    def item(self, item: typing.Optional[PersistentObject]) -> None:
-        self.__item = item
-        self.__item_specifier = PersistentObjectSpecifier(item=item) if item else None
+    def item(self, item: typing.Optional[PO]) -> None:
+        po_item = typing.cast(PersistentObject, item)
+        self.__item = po_item
+        self.__item_specifier = PersistentObjectSpecifier(item=po_item) if item else None
         self.__persistent_object_context_changed()
 
     @property
@@ -408,11 +411,11 @@ class PersistentObjectProxy:
                 if item:
                     self.__item = item
                     if callable(self.on_item_registered):
-                        self.on_item_registered(registered_object)
+                        self.on_item_registered(typing.cast(PO, registered_object))
         if unregistered_object and unregistered_object == self.__item:
             self.__item = None
             if callable(self.on_item_unregistered):
-                self.on_item_unregistered(unregistered_object)
+                self.on_item_unregistered(typing.cast(PO, unregistered_object))
 
     def __persistent_object_context_changed(self) -> None:
         if self.__persistent_object.persistent_object_context:
@@ -1213,7 +1216,7 @@ class PersistentObject(Observable.Observable):
         assert self.persistent_storage
         self.persistent_storage.rewrite_item(self)
 
-    def create_item_proxy(self, *, item_uuid: typing.Optional[uuid.UUID] = None, item_specifier: typing.Optional[PersistentObjectSpecifier] = None, item: typing.Optional[PersistentObject] = None) -> PersistentObjectProxy:
+    def create_item_proxy(self, *, item_uuid: typing.Optional[uuid.UUID] = None, item_specifier: typing.Optional[PersistentObjectSpecifier] = None, item: typing.Optional[PersistentObject] = None) -> PersistentObjectProxy[typing.Any]:
         """Create an item proxy by uuid or directly using the item."""
         item_specifier = item_specifier or (PersistentObjectSpecifier(item_uuid=item_uuid) if item_uuid else None)
         return PersistentObjectProxy(self, item_specifier, item)

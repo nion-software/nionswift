@@ -330,7 +330,7 @@ class DataItem(Persistence.PersistentObject):
     def project(self) -> Project.Project:
         return typing.cast("Project.Project", self.container)
 
-    def create_proxy(self) -> Persistence.PersistentObjectProxy:
+    def create_proxy(self) -> Persistence.PersistentObjectProxy[DataItem]:
         return self.project.create_item_proxy(item=self)
 
     @property

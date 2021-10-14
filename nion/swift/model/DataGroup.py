@@ -130,7 +130,7 @@ class DataGroup(Persistence.PersistentObject):
             return self.container.project
         return typing.cast("Project.Project", self.container)
 
-    def create_proxy(self) -> Persistence.PersistentObjectProxy:
+    def create_proxy(self) -> Persistence.PersistentObjectProxy[DataGroup]:
         return self.project.create_item_proxy(item=self)
 
     @property
