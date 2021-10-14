@@ -575,7 +575,7 @@ class UndeleteItem(Changes.UndeleteBase):
 class AbstractImplicitDependency(abc.ABC):
 
     @abc.abstractmethod
-    def get_dependents(self, item: Persistence.PersistentObject) -> typing.Sequence[Persistence.PersistentObject]: ...
+    def get_dependents(self, item: typing.Any) -> typing.Sequence[typing.Any]: ...
 
 
 class ImplicitDependency(AbstractImplicitDependency):
