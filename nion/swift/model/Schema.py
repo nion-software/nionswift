@@ -7,6 +7,8 @@ import datetime
 import json
 import os
 import pathlib
+import sys
+import time
 import typing
 import uuid
 import weakref
@@ -35,6 +37,22 @@ OPTIONAL = True
 REQUIRED = False
 
 entity_types: typing.Dict[str, EntityType] = dict()
+
+
+def utcnow() -> datetime.datetime:
+    # windows utcnow has a resolution of 1ms, this sleep can guarantee unique times for all created times during a particular test.
+    if sys.platform == "win32":
+        # see https://www.python.org/dev/peps/pep-0564/#annex-clocks-resolution-in-python
+        if sys.version_info.major == 3 and sys.version_info.minor >= 7:
+            utcnow = datetime.datetime.utcfromtimestamp(time.time_ns() / 1E9)
+            time.sleep(0.0004)
+        else:
+            utcnow = datetime.datetime.utcfromtimestamp(time.time())
+            print(utcnow, datetime.datetime.utcnow())
+            time.sleep(0.0009)
+    else:
+        utcnow = datetime.datetime.utcnow()
+    return utcnow
 
 
 def register_entity_type(entity_id: str, entity: EntityType) -> None:
@@ -755,7 +773,7 @@ class Entity(Observable.Observable):
         for field_name, field_type in self.__field_type_map.items():
             self.__field_dict[field_name] = field_type.create(self.__context)
         self._set_field_value("uuid", uuid.uuid4())
-        self._set_field_value("modified", datetime.datetime.utcnow())
+        self._set_field_value("modified", utcnow())
         if context:
             self._set_entity_context(context)
 
@@ -862,7 +880,7 @@ class Entity(Observable.Observable):
         if field:
             field.set_field_value(self, value)
             self._field_value_changed(name, field.write())
-            self._set_modified(datetime.datetime.utcnow())
+            self._set_modified(utcnow())
             self.property_changed_event.fire(name)
         else:
             raise AttributeError()
