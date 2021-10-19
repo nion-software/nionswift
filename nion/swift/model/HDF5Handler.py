@@ -9,6 +9,7 @@ import json
 import os
 import pathlib
 import threading
+import time
 import typing
 
 import h5py
@@ -75,9 +76,9 @@ def get_write_chunk_shape_for_data(data_shape: DataAndMetadata.ShapeType, data_d
     return tuple(chunk_shape)
 
 
-
 class HDF5Handler(StorageHandler.StorageHandler):
     count = 0  # useful for detecting leaks in tests
+    open = 0  # useful for detecting unclosed files
 
     def __init__(self, file_path: typing.Union[str, pathlib.Path]) -> None:
         self.__file_path = str(file_path)
@@ -92,14 +93,17 @@ class HDF5Handler(StorageHandler.StorageHandler):
         if self.__fp:
             self.__dataset = None
             self.__fp.close()
+            HDF5Handler.open -= 1
             self.__fp = None
 
     # called before the file is moved; close but don't count.
     def prepare_move(self) -> None:
-        if self.__fp:
-            self.__dataset = None
-            self.__fp.close()
-            self.__fp = None
+        with self.__lock:
+            if self.__fp:
+                self.__dataset = None
+                self.__fp.close()
+                HDF5Handler.open -= 1
+                self.__fp = None
 
     @property
     def reference(self) -> str:
@@ -131,6 +135,7 @@ class HDF5Handler(StorageHandler.StorageHandler):
         if not self.__fp:
             make_directory_if_needed(os.path.dirname(self.__file_path))
             self.__fp = h5py.File(self.__file_path, "a")
+            HDF5Handler.open += 1
 
     def __write_properties_to_dataset(self, properties: PersistentDictType) -> None:
         with self.__lock:
@@ -180,6 +185,7 @@ class HDF5Handler(StorageHandler.StorageHandler):
                     json_properties = self.__dataset.attrs.get("properties", "")
                     self.__dataset = None
                     self.__fp.close()
+                    HDF5Handler.open -= 1
                     self.__fp = None
                     os.remove(self.__file_path)
                     self.__ensure_open()
@@ -202,6 +208,7 @@ class HDF5Handler(StorageHandler.StorageHandler):
                 json_properties = self.__dataset.attrs.get("properties", "")
                 self.__dataset = None
                 self.__fp.close()
+                HDF5Handler.open -= 1
                 self.__fp = None
                 os.remove(self.__file_path)
                 self.__ensure_open()
@@ -243,6 +250,7 @@ class HDF5Handler(StorageHandler.StorageHandler):
         if self.__fp:
             self.__dataset = None
             self.__fp.close()
+            HDF5Handler.open -= 1
             self.__fp = None
         if os.path.isfile(self.__file_path):
             os.remove(self.__file_path)
