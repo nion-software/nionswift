@@ -2069,7 +2069,7 @@ class DocumentController(Window.Window):
             new_map: typing.Dict[str, Symbolic.ComputationItem] = dict()
             for variable_name, display_item in DocumentModel.MappedItemManager().item_map.items():
                 # add r_vars that can be evaluated to data_item, for backward compatibility
-                if display_item.data_item:
+                if isinstance(display_item, DisplayItem.DisplayItem) and display_item.data_item:
                     new_map[variable_name] = Symbolic.make_item(display_item.data_item)
             map = new_map
         data_item = DataItem.DataItem()

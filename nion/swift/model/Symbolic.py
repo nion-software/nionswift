@@ -815,11 +815,11 @@ class BoundData(BoundItemBase):
         return self._item.xdata if self._item else None
 
     @property
-    def _item(self) -> typing.Optional[Persistence.PersistentObject]:
+    def _item(self) -> typing.Optional[DataItem.DataItem]:
         item = self.__item_reference.item
         if isinstance(item, DisplayItem.DisplayDataChannel):
             item = item.data_item
-        return item
+        return typing.cast(typing.Optional[DataItem.DataItem], item)
 
 
 class BoundDisplayDataChannelBase(BoundItemBase):
@@ -960,6 +960,7 @@ class BoundDataItem(BoundItemBase):
         self.__data_item_changed_event_listener: typing.Optional[Event.EventListener] = None
 
         def item_registered(item: Persistence.PersistentObject) -> None:
+            assert isinstance(item, DataItem.DataItem)
             self.__data_item_changed_event_listener = item.data_item_changed_event.listen(self.changed_event.fire)
             self._update_base_items(self._get_base_items())
 
@@ -1014,9 +1015,9 @@ class BoundCroppedData(BoundDisplayDataChannelBase):
         xdata = data_item.xdata if data_item else None
         graphic = self._graphic
         if graphic and xdata:
-            if hasattr(graphic, "bounds"):
-                return Core.function_crop(xdata, graphic.bounds)
-            if hasattr(graphic, "interval"):
+            if isinstance(graphic, Graphics.RectangleTypeGraphic):
+                return Core.function_crop(xdata, graphic.bounds.as_tuple())
+            if isinstance(graphic, Graphics.IntervalGraphic):
                 return Core.function_crop_interval(xdata, graphic.interval)
         return xdata
 
@@ -1029,9 +1030,9 @@ class BoundCroppedDisplayData(BoundDisplayDataChannelBase):
         xdata = display_values.display_data_and_metadata if display_values else None
         graphic = self._graphic
         if xdata and graphic:
-            if hasattr(graphic, "bounds"):
-                return Core.function_crop(xdata, graphic.bounds)
-            if hasattr(graphic, "interval"):
+            if isinstance(graphic, Graphics.RectangleTypeGraphic):
+                return Core.function_crop(xdata, graphic.bounds.as_tuple())
+            if isinstance(graphic, Graphics.IntervalGraphic):
                 return Core.function_crop_interval(xdata, graphic.interval)
         return xdata
 
@@ -1173,6 +1174,7 @@ class BoundDataStructure(BoundItemBase):
             self.changed_event.fire()
 
         def item_registered(item: Persistence.PersistentObject) -> None:
+            assert isinstance(item, DataStructure.DataStructure)
             self.__changed_listener = item.data_structure_changed_event.listen(data_structure_changed)
             self.__property_changed_listener = item.property_changed_event.listen(data_structure_changed)
             self._update_base_items(self._get_base_items())
@@ -1398,7 +1400,7 @@ class Computation(Persistence.PersistentObject):
     def __init__(self, expression: typing.Optional[str] = None) -> None:
         super().__init__()
         self.define_type("computation")
-        self.define_property("source_specifier", changed=self.__source_specifier_changed, key="source_uuid")
+        self.define_property("source_specifier", changed=self.__source_specifier_changed, key="source_uuid", hidden=True)
         self.define_property("original_expression", expression, hidden=True)
         self.define_property("error_text", changed=self.__error_changed, hidden=True)
         self.define_property("label", changed=self.__label_changed, hidden=True)
@@ -1458,7 +1460,7 @@ class Computation(Persistence.PersistentObject):
     @source.setter
     def source(self, source: typing.Optional[Persistence.PersistentObject]) -> None:
         self.__source_reference.item = source
-        self.source_specifier = source.project.create_specifier(source).write() if source else None
+        self.source_specifier = getattr(source, "project").create_specifier(source).write() if source else None
 
     def is_valid_with_removals(self, items: typing.Set[Persistence.PersistentObject]) -> bool:
         for variable in self.variables:
@@ -1503,6 +1505,14 @@ class Computation(Persistence.PersistentObject):
         if compute_class:
             return getattr(compute_class, "attributes", dict()).get(attribute, default)
         return default
+
+    @property
+    def source_specifier(self) -> typing.Optional[Persistence._SpecifierType]:
+        return typing.cast(typing.Optional[Persistence._SpecifierType], self._get_persistent_property_value("source_specifier"))
+
+    @source_specifier.setter
+    def source_specifier(self, value: typing.Optional[Persistence._SpecifierType]) -> None:
+        self._set_persistent_property_value("source_specifier", value)
 
     @property
     def original_expression(self) -> typing.Optional[str]:

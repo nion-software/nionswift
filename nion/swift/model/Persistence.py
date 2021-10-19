@@ -772,6 +772,9 @@ class PersistentObject(Observable.Observable):
                         reader: typing.Optional[_PropertyReadFn] = None,
                         writer: typing.Optional[_PropertyWriterFn] = None) -> None:
         """ key is what is stored on disk; name is what is used when accessing the property from code. """
+        assert hidden
+        if read_only:
+            print(f"READ ONLY {name}")
         if copy_on_read:
             self.__properties[name] = PersistentPropertySpecial(name, value, make, read_only, hidden, recordable, validate, converter, changed, key, reader, writer)
         else:
@@ -780,6 +783,7 @@ class PersistentObject(Observable.Observable):
     def define_item(self, name: str, factory: _PersistentObjectFactoryFn,
                     item_changed: typing.Optional[typing.Callable[[str, typing.Any, typing.Any], None]] = None,
                     hidden: bool = False) -> None:
+        assert hidden
         self.__items[name] = PersistentItem(name, factory, item_changed, hidden)
 
     def define_relationship(self, name: str,
@@ -787,6 +791,7 @@ class PersistentObject(Observable.Observable):
                             insert: typing.Optional[typing.Callable[[str, int, typing.Any], None]] = None,
                             remove: typing.Optional[typing.Callable[[str, int, typing.Any], None]] = None,
                             key: typing.Optional[str] = None, hidden: bool = False) -> None:
+        assert hidden
         self.__relationships[name] = PersistentRelationship(name, factory, insert, remove, key, hidden)
 
     def close_items(self) -> None:
@@ -992,47 +997,6 @@ class PersistentObject(Observable.Observable):
     def _is_persistent_property_recordable(self, name: str) -> bool:
         property = self.__properties.get(name)
         return (property.recordable and not property.read_only) if (property is not None) else False
-
-    def __getattr__(self, name: str) -> typing.Any:
-        # Handle property objects that are not hidden.
-        property = self.__properties.get(name)
-        if property and not property.hidden:
-            return self._get_persistent_property_value(name)
-        if name in self.__items and not self.__items[name].hidden:
-            return self.__items[name].value
-        if name in self.__relationships and not self.__relationships[name].hidden:
-            return self._get_relationship_values(name)
-        raise AttributeError("%r object has no attribute %r" % (self.__class__, name))
-
-    OBSERVABLE_FIELDS = (
-        "property_changed_event",
-        "item_set_event",
-        "item_cleared_event",
-        "item_inserted_event",
-        "item_removed_event",
-        "item_added_event",
-        "item_discarded_event",
-        "item_content_changed_event",
-        )
-
-    def __setattr__(self, name: str, value: typing.Any) -> None:
-        # Check for private properties of this class
-        if name.startswith("_PersistentObject__") or name in PersistentObject.OBSERVABLE_FIELDS:
-            super().__setattr__(name, value)
-        # Otherwise check for defined properties.
-        else:
-            property = self.__properties.get(name)
-            # if the property is hidden, fall through and give regular style property a chance to handle it
-            if property and not property.hidden:
-                # if the property is not hidden and it is read only, throw an exception
-                if not property.read_only:
-                    property.set_value(value)
-                    self.__update_modified(datetime.datetime.utcnow())
-                    self._update_persistent_object_context_property(name)
-                else:
-                    raise AttributeError()
-            else:
-                super().__setattr__(name, value)
 
     def __set_item(self, name: str, value: typing.Any) -> None:
         """ Set item into item storage and notify. Does not set into persistent storage or update modified. Item can be None. """

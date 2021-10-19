@@ -68,16 +68,16 @@ class DataItemStorageAdapter:
         return self.__storage_handler
 
     def rewrite_item(self, item: Persistence.PersistentObject) -> None:
-        file_datetime = item.created_local
+        file_datetime = getattr(item, "created_local")
         self.__storage_handler.write_properties(Migration.transform_from_latest(copy.deepcopy(self.__properties)), file_datetime)
 
     def update_data(self, item: Persistence.PersistentObject, data: typing.Optional[_NDArray]) -> None:
-        file_datetime = item.created_local
+        file_datetime = getattr(item, "created_local")
         if data is not None:
             self.__storage_handler.write_data(data, file_datetime)
 
     def reserve_data(self, item: Persistence.PersistentObject, data_shape: typing.Tuple[int, ...], data_dtype: numpy.typing.DTypeLike) -> None:
-        file_datetime = item.created_local
+        file_datetime = getattr(item, "created_local")
         self.__storage_handler.reserve_data(data_shape, data_dtype, file_datetime)
 
     def load_data(self, item: Persistence.PersistentObject) -> typing.Optional[_NDArray]:
@@ -547,7 +547,7 @@ class ProjectStorageSystem(PersistentStorageSystem):
         assert len(computations_list) == len({computation.get("uuid") for computation in computations_list})
 
         for reader_info in reader_info_list:
-            data_item_properties = Utility.clean_dict(reader_info.properties if reader_info.properties else dict())
+            data_item_properties = reader_info.properties if reader_info.properties else dict()
             if data_item_properties.get("version", 0) == DataItem.DataItem.writer_version:
                 data_item_properties["__large_format"] = reader_info.large_format
                 properties_copy.setdefault("data_items", list()).append(data_item_properties)

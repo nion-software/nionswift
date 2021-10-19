@@ -574,7 +574,7 @@ class Workspace:
         self.document_controller.project.workspace_uuid = workspace_layout.uuid
         self.document_controller._workspace_changed(workspace_layout)
 
-    def restore(self, workspace_uuid: uuid.UUID) -> None:
+    def restore(self, workspace_uuid: typing.Optional[uuid.UUID]) -> None:
         """
             Restore the workspace to the given workspace_uuid.
 
