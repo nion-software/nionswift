@@ -52,9 +52,9 @@ class Project(Persistence.PersistentObject):
         self.define_relationship("connections", Connection.connection_factory, insert=self.__connection_inserted, remove=self.__connection_removed, hidden=True)
         self.define_relationship("data_groups", DataGroup.data_group_factory, insert=self.__data_group_inserted, remove=self.__data_group_removed, hidden=True)
         self.define_relationship("workspaces", WorkspaceLayout.factory, hidden=True)
-        self.define_property("workspace_uuid", converter=Converter.UuidToStringConverter())
-        self.define_property("data_item_references", dict(), hidden=True, changed=self.__property_changed)  # map string key to data item, used for data acquisition channels
-        self.define_property("mapped_items", list(), changed=self.__property_changed)  # list of item references, used for shortcut variables in scripts
+        self.define_property("workspace_uuid", converter=Converter.UuidToStringConverter(), hidden=True)
+        self.define_property("data_item_references", dict(), changed=self.__property_changed, hidden=True)  # map string key to data item, used for data acquisition channels
+        self.define_property("mapped_items", list(), changed=self.__property_changed, hidden=True)  # list of item references, used for shortcut variables in scripts
 
         self.handle_start_read: typing.Optional[typing.Callable[[], None]] = None
         self.handle_insert_model_item: typing.Optional[typing.Callable[[Persistence.PersistentContainerType, str, int, Persistence.PersistentObject], None]] = None
@@ -85,6 +85,23 @@ class Project(Persistence.PersistentObject):
     @title.setter
     def title(self, value: str) -> None:
         self._set_persistent_property_value("title", value)
+
+    @property
+    def workspace_uuid(self) -> typing.Optional[uuid.UUID]:
+        uuid_str = typing.cast(typing.Optional[str], self._get_persistent_property_value("workspace_uuid"))
+        return uuid.UUID(uuid_str) if uuid_str else None
+
+    @workspace_uuid.setter
+    def workspace_uuid(self, value: typing.Optional[uuid.UUID]) -> None:
+        self._set_persistent_property_value("workspace_uuid", str(value) if value else None)
+
+    @property
+    def mapped_items(self) -> typing.List[Persistence._SpecifierType]:
+        return list(self._get_persistent_property_value("mapped_items"))
+
+    @mapped_items.setter
+    def mapped_items(self, value: typing.List[Persistence._SpecifierType]) -> None:
+        self._set_persistent_property_value("mapped_items", value)
 
     @property
     def data_items(self) -> typing.Sequence[DataItem.DataItem]:
@@ -313,10 +330,12 @@ class Project(Persistence.PersistentObject):
                     else:
                         workspace.close()
                 workspace_uuid_str = properties.get("workspace_uuid", None)
-                if workspace_uuid_str:
-                    self._set_persistent_property_value("workspace_uuid", uuid.UUID(workspace_uuid_str))
-                self._set_persistent_property_value("data_item_references", properties.get("data_item_references", dict()))
-                self._set_persistent_property_value("mapped_items", properties.get("mapped_items", list()))
+                workspace_uuid = uuid.UUID(workspace_uuid_str) if workspace_uuid_str else None
+                existing_workspace_uuid = self._get_persistent_property_value("workspace_uuid", None)
+                if workspace_uuid and existing_workspace_uuid != workspace_uuid:
+                    self._get_persistent_property("workspace_uuid").set_value(str(workspace_uuid))
+                self._get_persistent_property("data_item_references").set_value(properties.get("data_item_references", dict()))
+                self._get_persistent_property("mapped_items").set_value(properties.get("mapped_items", list()))
                 self.__has_been_read = True
         if callable(self.handle_finish_read):
             self.handle_finish_read()
@@ -388,14 +407,6 @@ class Project(Persistence.PersistentObject):
         data_item_references = self.data_item_references
         del data_item_references[key]
         self._set_persistent_property_value("data_item_references", {k: v for k, v in data_item_references.items()})
-
-    @property
-    def mapped_items(self) -> typing.List[Persistence._SpecifierType]:
-        return list(self._get_persistent_property_value("mapped_items"))
-
-    @mapped_items.setter
-    def mapped_items(self, value: typing.List[Persistence._SpecifierType]) -> None:
-        self._set_persistent_property_value("mapped_items", value)
 
     def prune(self) -> None:
         self.__storage_system.prune()

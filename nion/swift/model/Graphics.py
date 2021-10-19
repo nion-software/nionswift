@@ -618,7 +618,7 @@ class Graphic(Persistence.PersistentObject):
         super().__init__()
         self.define_type(type)
         self.define_property("graphic_id", None, changed=self._property_changed, validate=lambda s: str(s) if s else None, hidden=True)
-        self.define_property("source_specifier", changed=self.__source_specifier_changed, key="source_uuid")
+        self.define_property("source_specifier", changed=self.__source_specifier_changed, key="source_uuid", hidden=True)
         self.define_property("stroke_color", None, changed=self._property_changed, hidden=True)
         self.define_property("fill_color", None, changed=self._property_changed, hidden=True)
         self.define_property("label", changed=self._property_changed, validate=lambda s: str(s) if s else None, hidden=True)
@@ -630,6 +630,14 @@ class Graphic(Persistence.PersistentObject):
         self.label_font = "normal 11px serif"
         self.__source_reference = self.create_item_reference()
         self._default_stroke_color = "#F80"
+
+    @property
+    def source_specifier(self) -> typing.Optional[Persistence._SpecifierType]:
+        return typing.cast(typing.Optional[Persistence._SpecifierType], self._get_persistent_property_value("source_specifier"))
+
+    @source_specifier.setter
+    def source_specifier(self, value: typing.Optional[Persistence._SpecifierType]) -> None:
+        self._set_persistent_property_value("source_specifier", value)
 
     @property
     def graphic_id(self) -> str:
@@ -744,11 +752,11 @@ class Graphic(Persistence.PersistentObject):
         self.read_from_mime_data(d)
 
     @property
-    def source(self) -> typing.Optional[Persistence.PersistentObject]:
-        return self.__source_reference.item
+    def source(self) -> typing.Optional[DisplayItem.DisplayItem]:
+        return typing.cast(typing.Optional["DisplayItem.DisplayItem"], self.__source_reference.item)
 
     @source.setter
-    def source(self, source: typing.Optional[Persistence.PersistentObject]) -> None:
+    def source(self, source: typing.Optional[DisplayItem.DisplayItem]) -> None:
         self.__source_reference.item = source
         self.source_specifier = source.project.create_specifier(source).write() if source else None
 
@@ -1498,7 +1506,7 @@ class LineProfileGraphic(LineTypeGraphic):
     def __init__(self) -> None:
         super().__init__("line-profile-graphic", _("Line Profile"))
         self.define_property("width", 1.0, changed=self._property_changed, validate=lambda value: float(value), hidden=True)
-        self.define_property("interval_descriptors", list(), changed=self._property_changed)
+        self.define_property("interval_descriptors", list(), changed=self._property_changed, hidden=True)
         self.end_arrow_enabled = True
 
     @property
@@ -1508,6 +1516,14 @@ class LineProfileGraphic(LineTypeGraphic):
     @width.setter
     def width(self, value: float) -> None:
         self._set_persistent_property_value("width", value)
+
+    @property
+    def interval_descriptors(self) -> typing.Sequence[Persistence.PersistentDictType]:
+        return typing.cast(typing.List[Persistence.PersistentDictType], self._get_persistent_property_value("interval_descriptors"))
+
+    @interval_descriptors.setter
+    def interval_descriptors(self, value: typing.Sequence[Persistence.PersistentDictType]) -> None:
+        self._set_persistent_property_value("interval_descriptors", list(value))
 
     def mime_data_dict(self) -> Persistence.PersistentDictType:
         d = super().mime_data_dict()
@@ -2316,9 +2332,9 @@ class RingGraphic(Graphic):
         def validate_angles(value: float) -> float:
             return abs(float(value))
 
-        self.define_property("radius_1", 0.2, validate=validate_angles, changed=self._property_changed)
-        self.define_property("radius_2", 0.2, validate=validate_angles, changed=self._property_changed)
-        self.define_property("mode", "band-pass", changed=self._property_changed)
+        self.define_property("radius_1", 0.2, validate=validate_angles, changed=self._property_changed, hidden=True)
+        self.define_property("radius_2", 0.2, validate=validate_angles, changed=self._property_changed, hidden=True)
+        self.define_property("mode", "band-pass", changed=self._property_changed, hidden=True)
 
     @property
     def radius_1(self) -> float:

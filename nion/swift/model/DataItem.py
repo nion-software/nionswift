@@ -8,9 +8,7 @@ import datetime
 import functools
 import gettext
 import pathlib
-import sys
 import threading
-import time
 import types
 import typing
 import uuid
@@ -211,11 +209,11 @@ class DataItem(Persistence.PersistentObject):
         self.define_property("timezone_offset", Utility.TimezoneMinutesToStringConverter().convert(Utility.local_utcoffset_minutes()), hidden=True, changed=self.__timezone_property_changed, recordable=False)
         self.define_property("metadata", dict(), hidden=True, changed=self.__metadata_property_changed)
         self.define_property("title", UNTITLED_STR, changed=self.__property_changed, hidden=True)
-        self.define_property("caption", changed=self.__property_changed)
-        self.define_property("description", changed=self.__property_changed)
-        self.define_property("source_specifier", changed=self.__source_specifier_changed, key="source_uuid")
-        self.define_property("session_id", validate=self.__validate_session_id, changed=self.__property_changed)
-        self.define_property("session", dict(), changed=self.__property_changed)
+        self.define_property("caption", changed=self.__property_changed, hidden=True)
+        self.define_property("description", changed=self.__property_changed, hidden=True)
+        self.define_property("source_specifier", changed=self.__source_specifier_changed, key="source_uuid", hidden=True)
+        self.define_property("session_id", validate=self.__validate_session_id, changed=self.__property_changed, hidden=True)
+        self.define_property("session", dict(), changed=self.__property_changed, hidden=True)
         self.define_property("category", "persistent", changed=self.__property_changed, hidden=True)
         self.__data_and_metadata: typing.Optional[DataAndMetadata.DataAndMetadata] = None
         self.__data_and_metadata_lock = threading.RLock()
@@ -308,12 +306,53 @@ class DataItem(Persistence.PersistentObject):
         self._set_persistent_property_value("title", value)
 
     @property
+    def caption(self) -> typing.Optional[str]:
+        return typing.cast(typing.Optional[str], self._get_persistent_property_value("caption"))
+
+    @caption.setter
+    def caption(self, value: typing.Optional[str]) -> None:
+        self._set_persistent_property_value("caption", value)
+
+    @property
+    def description(self) -> typing.Optional[str]:
+        return typing.cast(typing.Optional[str], self._get_persistent_property_value("description"))
+
+    @description.setter
+    def description(self, value: typing.Optional[str]) -> None:
+        self._set_persistent_property_value("description", value)
+
+    @property
     def category(self) -> str:
         return typing.cast(str, self._get_persistent_property_value("category"))
 
     @category.setter
     def category(self, value: str) -> None:
         self._set_persistent_property_value("category", value)
+
+    @property
+    def session_id(self) -> typing.Optional[str]:
+        return typing.cast(typing.Optional[str], self._get_persistent_property_value("session_id"))
+
+    @session_id.setter
+    def session_id(self, value: typing.Optional[str]) -> None:
+        assert value is None or datetime.datetime.strptime(value, "%Y%m%d-%H%M%S")
+        self._set_persistent_property_value("session_id", value)
+
+    @property
+    def session(self) -> Persistence.PersistentDictType:
+        return typing.cast(Persistence.PersistentDictType, self._get_persistent_property_value("session"))
+
+    @session.setter
+    def session(self, value: Persistence.PersistentDictType) -> None:
+        self._set_persistent_property_value("session", value)
+
+    @property
+    def source_specifier(self) -> typing.Optional[Persistence._SpecifierType]:
+        return typing.cast(typing.Optional[Persistence._SpecifierType], self._get_persistent_property_value("source_specifier"))
+
+    @source_specifier.setter
+    def source_specifier(self, value: typing.Optional[Persistence._SpecifierType]) -> None:
+        self._set_persistent_property_value("source_specifier", value)
 
     @property
     def project(self) -> Project.Project:
@@ -442,7 +481,7 @@ class DataItem(Persistence.PersistentObject):
     @source.setter
     def source(self, source: typing.Optional[Persistence.PersistentObject]) -> None:
         self.__source_reference.item = source
-        self.source_specifier = source.project.create_specifier(source).write() if source else None
+        self.source_specifier = getattr(source, "project").create_specifier(source).write() if source else None
 
     def __source_specifier_changed(self, name: str, d: Persistence._SpecifierType) -> None:
         self.__source_reference.item_specifier = Persistence.PersistentObjectSpecifier.read(d)
@@ -546,15 +585,6 @@ class DataItem(Persistence.PersistentObject):
         # also, there are still tests which filter data items; so leave this here until those tests are updated
         # the item_changed_event facilitates data item filtering
         self.item_changed_event.fire()
-
-    @property
-    def session_id(self) -> typing.Optional[str]:
-        return typing.cast(typing.Optional[str], self._get_persistent_property_value("session_id"))
-
-    @session_id.setter
-    def session_id(self, value: typing.Optional[str]) -> None:
-        assert value is None or datetime.datetime.strptime(value, "%Y%m%d-%H%M%S")
-        self._set_persistent_property_value("session_id", value)
 
     def update_session(self, session_id: typing.Optional[str]) -> None:
         # update the session, but only if necessary (this is an optimization to prevent unnecessary display updates)
@@ -1405,13 +1435,13 @@ class DataSource:
     def __cropped_xdata(self, xdata: typing.Optional[DataAndMetadata.DataAndMetadata]) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
         data_item = self.data_item
         graphic = self.__graphic
-        if data_item and graphic:
-            if hasattr(graphic, "bounds") and xdata and xdata.is_data_2d:
+        if data_item:
+            if isinstance(graphic, Graphics.RectangleTypeGraphic) and xdata and xdata.is_data_2d:
                 if graphic.rotation:
-                    return Core.function_crop_rotated(xdata, graphic.bounds, graphic.rotation)
+                    return Core.function_crop_rotated(xdata, graphic.bounds.as_tuple(), graphic.rotation)
                 else:
-                    return Core.function_crop(xdata, graphic.bounds)
-            if hasattr(graphic, "interval") and xdata and xdata.is_data_1d:
+                    return Core.function_crop(xdata, graphic.bounds.as_tuple())
+            if isinstance(graphic, Graphics.IntervalGraphic) and xdata and xdata.is_data_1d:
                 return Core.function_crop_interval(xdata, graphic.interval)
         return xdata
 
@@ -1442,12 +1472,12 @@ class DataSource:
             xdata = self.xdata
             graphic = self.__graphic
             if xdata and graphic:
-                if hasattr(graphic, "bounds"):
+                if isinstance(graphic, Graphics.RectangleTypeGraphic):
                     if graphic.rotation:
-                        return Core.function_crop_rotated(xdata, graphic.bounds, graphic.rotation)
+                        return Core.function_crop_rotated(xdata, graphic.bounds.as_tuple(), graphic.rotation)
                     else:
-                        return Core.function_crop(xdata, graphic.bounds)
-                if hasattr(graphic, "interval"):
+                        return Core.function_crop(xdata, graphic.bounds.as_tuple())
+                if isinstance(graphic, Graphics.IntervalGraphic):
                     return Core.function_crop_interval(xdata, graphic.interval)
             return xdata
         return None

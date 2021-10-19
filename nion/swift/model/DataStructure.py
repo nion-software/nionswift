@@ -29,13 +29,13 @@ class DataStructure(Persistence.PersistentObject):
         self.__properties: typing.Dict[str, typing.Any] = dict()
         self.__referenced_object_proxies: typing.Dict[str, Persistence.PersistentObjectProxy[Persistence.PersistentObject]] = dict()
         self.define_type("data_structure")
-        self.define_property("structure_type", structure_type, changed=self.__structure_type_changed)
-        self.define_property("source_specifier", changed=self.__source_specifier_changed, key="source_uuid")
+        self.define_property("structure_type", structure_type, changed=self.__structure_type_changed, hidden=True)
+        self.define_property("source_specifier", changed=self.__source_specifier_changed, key="source_uuid", hidden=True)
         # properties is handled explicitly
         self.data_structure_changed_event = Event.Event()
         self.data_structure_objects_changed_event = Event.Event()
         self.__source_reference = self.create_item_reference(item=source)
-        self.source_specifier = source.project.create_specifier(source).write() if source else None
+        self.source_specifier = getattr(source, "project").create_specifier(source).write() if source else None
         self.__entity: typing.Optional[Schema.Entity] = None
         self.__entity_property_changed_event_listener: typing.Optional[Event.EventListener] = None
         self.__create_entity()
@@ -51,6 +51,22 @@ class DataStructure(Persistence.PersistentObject):
             referenced_proxy.close()
         self.__referenced_object_proxies.clear()
         super().close()
+
+    @property
+    def structure_type(self) -> str:
+        return typing.cast(str, self._get_persistent_property_value("structure_type"))
+
+    @structure_type.setter
+    def structure_type(self, value: str) -> None:
+        self._set_persistent_property_value("structure_type", value)
+
+    @property
+    def source_specifier(self) -> typing.Optional[Persistence._SpecifierType]:
+        return typing.cast(typing.Optional[Persistence._SpecifierType], self._get_persistent_property_value("source_specifier"))
+
+    @source_specifier.setter
+    def source_specifier(self, value: typing.Optional[Persistence._SpecifierType]) -> None:
+        self._set_persistent_property_value("source_specifier", value)
 
     @classmethod
     def register_entity(cls, entity_type: Schema.EntityType, *, entity_name: typing.Optional[str] = None, entity_package_name: typing.Optional[str] = None, **kwargs: typing.Any) -> None:
@@ -70,7 +86,7 @@ class DataStructure(Persistence.PersistentObject):
         properties = self.__dict__.get("_DataStructure__properties", dict())
         if name in properties:
             return properties[name]
-        return super().__getattr__(name)
+        raise AttributeError("%r object has no attribute %r" % (self.__class__, name))
 
     def __setattr__(self, name: str, value: typing.Any) -> None:
         properties = self.__dict__.get("_DataStructure__properties", dict())
@@ -141,7 +157,7 @@ class DataStructure(Persistence.PersistentObject):
     @source.setter
     def source(self, source: typing.Optional[Persistence.PersistentObject]) -> None:
         self.__source_reference.item = source
-        self.source_specifier = source.project.create_specifier(source).write() if source else None
+        self.source_specifier = getattr(source, "project").create_specifier(source).write() if source else None
 
     @property
     def entity(self) -> typing.Optional[Schema.Entity]:

@@ -308,7 +308,8 @@ class Application(UIApplication.BaseApplication):
 
         project_reference: typing.Optional[Profile.ProjectReference] = None
 
-        project_reference = project_reference or profile.get_project_reference(profile.last_project_reference)
+        if not project_reference:
+            project_reference = profile.get_project_reference(profile.last_project_reference) if profile.last_project_reference else None
 
         update_last_project_reference = True
 
@@ -318,7 +319,8 @@ class Application(UIApplication.BaseApplication):
             update_last_project_reference = False
 
         # for backwards compatibility for beta versions. remove after limited beta sites updated.
-        project_reference = project_reference or profile.get_project_reference(profile.work_project_reference_uuid)
+        if not project_reference:
+            project_reference = profile.get_project_reference(profile.work_project_reference_uuid) if profile.work_project_reference_uuid else None
 
         if project_reference:
             try:

@@ -1238,6 +1238,7 @@ class DataStructureHandler(Observable.Observable):
         else:
             self.__entity_choice = len(self.__entity_types) + 1
             self.property_changed_event.fire("entity_choice")
+            assert self.variable.entity_id
             self.data_structure.structure_type = self.variable.entity_id
 
 

@@ -389,16 +389,16 @@ class Profile(Persistence.PersistentObject):
 
         self.define_root_context()
         self.define_type("profile")
-        self.define_property("last_project_reference", converter=Converter.UuidToStringConverter())
-        self.define_property("work_project_reference_uuid", converter=Converter.UuidToStringConverter())
-        self.define_property("closed_items", list())
-        self.define_property("script_items_updated", False, changed=self.__property_changed)
+        self.define_property("last_project_reference", converter=Converter.UuidToStringConverter(), hidden=True)
+        self.define_property("work_project_reference_uuid", converter=Converter.UuidToStringConverter(), hidden=True)
+        self.define_property("closed_items", list(), hidden=True)
+        self.define_property("script_items_updated", False, changed=self.__property_changed, hidden=True)
         self.define_relationship("project_references", project_reference_factory,
                                  insert=self.__insert_project_reference, remove=self.__remove_project_reference,
                                  hidden=True)
         self.define_relationship("script_items", typing.cast(
             typing.Callable[[typing.Callable[[str], str]], typing.Optional[Persistence.PersistentObject]],
-            script_item_factory))
+            script_item_factory), hidden=True)
 
         self.storage_system = storage_system or FileStorageSystem.MemoryPersistentStorageSystem()
         self.storage_system.load_properties()
@@ -431,8 +431,44 @@ class Profile(Persistence.PersistentObject):
         super().close()
 
     @property
+    def last_project_reference(self) -> typing.Optional[uuid.UUID]:
+        return typing.cast(typing.Optional[uuid.UUID], self._get_persistent_property_value("last_project_reference"))
+
+    @last_project_reference.setter
+    def last_project_reference(self, value: typing.Optional[uuid.UUID]) -> None:
+        self._set_persistent_property_value("last_project_reference", value)
+
+    @property
+    def work_project_reference_uuid(self) -> typing.Optional[uuid.UUID]:
+        return typing.cast(typing.Optional[uuid.UUID], self._get_persistent_property_value("work_project_reference_uuid"))
+
+    @work_project_reference_uuid.setter
+    def work_project_reference_uuid(self, value: typing.Optional[uuid.UUID]) -> None:
+        self._set_persistent_property_value("work_project_reference_uuid", value)
+
+    @property
+    def closed_items(self) -> typing.Sequence[str]:
+        return typing.cast(typing.Sequence[str], self._get_persistent_property_value("closed_items"))
+
+    @closed_items.setter
+    def closed_items(self, value: typing.Sequence[str]) -> None:
+        self._set_persistent_property_value("closed_items", value)
+
+    @property
+    def script_items_updated(self) -> bool:
+        return typing.cast(bool, self._get_persistent_property_value("script_items_updated"))
+
+    @script_items_updated.setter
+    def script_items_updated(self, value: bool) -> None:
+        self._set_persistent_property_value("script_items_updated", value)
+
+    @property
     def project_references(self) -> typing.Sequence[ProjectReference]:
         return typing.cast(typing.Sequence[ProjectReference], self._get_relationship_values("project_references"))
+
+    @property
+    def script_items(self) -> typing.Sequence[ScriptItem]:
+        return typing.cast(typing.Sequence[ScriptItem], self._get_relationship_values("script_items"))
 
     def read_from_dict(self, properties: Persistence.PersistentDictType) -> None:
         # cleanup from beta versions

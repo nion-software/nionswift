@@ -219,8 +219,9 @@ class TransactionManager:
                 old_count = self.__transaction_counts[item]
                 self.__transaction_counts.update({item})
                 if old_count == 0:
-                    if callable(getattr(item, "_transaction_state_entered", None)):
-                        item._transaction_state_entered()
+                    _transaction_state_entered = getattr(item, "_transaction_state_entered", None)
+                    if callable(_transaction_state_entered):
+                        _transaction_state_entered()
         return items
 
     def __close_transaction_items(self, items: typing.Set[Persistence.PersistentObject]) -> None:
@@ -228,8 +229,9 @@ class TransactionManager:
             for item in items:
                 self.__transaction_counts.subtract({item})
                 if self.__transaction_counts[item] == 0:
-                    if callable(getattr(item, "_transaction_state_exited", None)):
-                        item._transaction_state_exited()
+                    _transaction_state_exited = getattr(item, "_transaction_state_exited", None)
+                    if callable(_transaction_state_exited):
+                        _transaction_state_exited()
 
     def __get_deep_transaction_item_set(self, item: Persistence.PersistentObject, items: typing.Set[Persistence.PersistentObject]) -> None:
         if item and not item in items:
@@ -259,9 +261,13 @@ class TransactionManager:
                 for referenced_object in item.referenced_objects:
                     if referenced_object:
                         self.__get_deep_transaction_item_set(referenced_object, items)
-            if isinstance(item, Connection.Connection):
-                self.__get_deep_transaction_item_set(item._source, items)
-                self.__get_deep_transaction_item_set(item._target, items)
+            if isinstance(item, Connection.PropertyConnection):
+                source = item._source
+                if source:
+                    self.__get_deep_transaction_item_set(source, items)
+                target = item._target
+                if target:
+                    self.__get_deep_transaction_item_set(target, items)
             for connection in self.__document_model.connections:
                 if isinstance(connection, Connection.PropertyConnection) and connection._source in items:
                     if connection._target:
@@ -555,7 +561,7 @@ class UndeleteItem(Changes.UndeleteBase):
         self.__items_controller = items_controller
         container = self.__items_controller.get_container(item)
         index = self.__items_controller.item_index(item)
-        self.container_item_proxy = container.create_proxy() if container else None
+        self.container_item_proxy = getattr(container, "create_proxy")() if container else None
         self.container_properties: typing.Tuple[Persistence.PersistentDictType, typing.List[Persistence.PersistentDictType], str] = getattr(container, "save_properties")() if hasattr(container, "save_properties") else dict()
         self.item_dict = self.__items_controller.write_to_dict(item)
         self.index = index
@@ -890,7 +896,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         elif name == "connections":
             self.__handle_connection_inserted(typing.cast(Connection.Connection, item))
         elif name == "data_groups":
-            self.notify_insert_item("data_groups", typing.cast(DataGroup.DataGroup, item), before_index)
+            assert isinstance(item, DataGroup.DataGroup)
+            self.notify_insert_item("data_groups", item, before_index)
             item.connect_display_items(self.__resolve_display_item_specifier)
 
     def __project_item_removed(self, name: str, item: Persistence.PersistentObject, index: int) -> None:
@@ -905,8 +912,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         elif name == "connections":
             self.__handle_connection_removed(typing.cast(Connection.Connection, item))
         elif name == "data_groups":
+            assert isinstance(item, DataGroup.DataGroup)
             item.disconnect_display_items()
-            self.notify_remove_item("data_groups", typing.cast(DataGroup.DataGroup, item), index)
+            self.notify_remove_item("data_groups", item, index)
 
     def __project_property_changed(self, name: str) -> None:
         if name == "data_item_references":
@@ -2093,7 +2101,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 self.append_computation(computation)
             elif old_computation:
                 # remove old computation without cascade (it would delete this data item itself)
-                old_computation.valid = False
                 old_computation.project.remove_computation(old_computation)
 
     def append_computation(self, computation: Symbolic.Computation) -> None:
@@ -2999,7 +3006,8 @@ class IntervalListConnector(Observer.AbstractAction):
                         for interval_graphic in interval_graphics:
                             interval_descriptor = {"interval": interval_graphic.interval, "color": "#F00"}
                             interval_descriptors.append(interval_descriptor)
-                        line_profile_graphic.interval_descriptors = interval_descriptors
+                        if interval_descriptors != line_profile_graphic.interval_descriptors:
+                            line_profile_graphic.interval_descriptors = interval_descriptors
 
                 for interval_graphic in interval_graphics:
                     self.__listeners.append(interval_graphic.property_changed_event.listen(property_changed))

@@ -25,7 +25,8 @@ class PropertyConnectorItem:
 
     def set_common_value(self, formatted_value: typing.Any) -> None:
         value = self.converter.convert_back(formatted_value) if self.converter else formatted_value
-        setattr(self.item, self.property_name, value)
+        if getattr(self.item, self.property_name) != value:
+            setattr(self.item, self.property_name, value)
 
 
 class PropertyConnector:

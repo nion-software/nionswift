@@ -1495,7 +1495,8 @@ class DisplayPanel(metaclass=SharedInstance):
         """
         display_panel = self.__display_panel
         if display_panel:
-            display_item = data_item._data_item.container.get_display_item_for_data_item(data_item._data_item) if data_item._data_item.container else None
+            document_model = data_item._data_item._document_model
+            display_item = document_model.get_display_item_for_data_item(data_item._data_item) if document_model else None
             display_panel.set_display_panel_display_item(display_item)
 
 
@@ -1723,7 +1724,8 @@ class DataGroup(metaclass=SharedInstance):
 
         Scriptable: Yes
         """
-        display_item = data_item._data_item.container.get_display_item_for_data_item(data_item._data_item) if data_item._data_item.container else None
+        document_model = data_item._data_item._document_model
+        display_item = document_model.get_display_item_for_data_item(data_item._data_item) if document_model else None
         if display_item:
             self.__data_group.append_display_item(display_item)
 
@@ -2288,19 +2290,18 @@ class Computation(metaclass=SharedInstance):
         # support lists here?
         if isinstance(value, (str, bool, numbers.Integral, numbers.Real, numbers.Complex)):
             self.__computation.set_input_value(name, value)
-        if isinstance(value, dict) and value.get("object"):
-            object = value.get("object")
+        object = value.get("object") if isinstance(value, dict) else None
+        if object:
             object_type = value.get("type")
             if object_type == "data_source":
-                project = self.__computation.project
-                profile = typing.cast(typing.Optional[Profile.Profile], project.container)
-                document_model = profile.document_model if profile else None
-                display_item = document_model.get_display_item_for_data_item(typing.cast(DataItem, object)._data_item) if document_model else None
+                data_item = typing.cast(DataItem, object)._data_item
+                document_model = data_item._document_model
+                display_item = document_model.get_display_item_for_data_item(data_item) if document_model else None
                 display_data_channel = display_item.display_data_channel if display_item else None
                 assert display_data_channel
                 input_value = Symbolic.make_item(display_data_channel)
             else:
-                input_value = Symbolic.make_item(typing.cast(Graphics.Graphic, object)._item)
+                input_value = Symbolic.make_item(typing.cast(Graphics.Graphic, object._item))
             self.__computation.set_input_item(name, input_value)
         elif hasattr(value, "_item"):
             input_value = Symbolic.make_item(value._item)
