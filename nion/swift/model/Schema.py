@@ -8,6 +8,7 @@ import json
 import os
 import pathlib
 import sys
+import threading
 import time
 import typing
 import uuid
@@ -38,18 +39,21 @@ REQUIRED = False
 
 entity_types: typing.Dict[str, EntityType] = dict()
 
+last_time: float = 0.0
+last_time_lock = threading.RLock()
+
 
 def utcnow() -> datetime.datetime:
+    global last_time
     # windows utcnow has a resolution of 1ms, this sleep can guarantee unique times for all created times during a particular test.
     if sys.platform == "win32":
         # see https://www.python.org/dev/peps/pep-0564/#annex-clocks-resolution-in-python
-        if sys.version_info.major == 3 and sys.version_info.minor >= 7:
-            utcnow = datetime.datetime.utcfromtimestamp(time.time_ns() / 1E9)
-            time.sleep(0.0004)
-        else:
-            utcnow = datetime.datetime.utcfromtimestamp(time.time())
-            print(utcnow, datetime.datetime.utcnow())
-            time.sleep(0.0009)
+        with last_time_lock:
+            current_time = int(time.time_ns() / 1E3) / 1E6  # truncate to microseconds, convert to seconds
+            while current_time <= last_time:
+                current_time += 0.000001
+            last_time = current_time
+        utcnow = datetime.datetime.utcfromtimestamp(current_time)
     else:
         utcnow = datetime.datetime.utcnow()
     return utcnow

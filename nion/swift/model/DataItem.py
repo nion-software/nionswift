@@ -31,6 +31,7 @@ from nion.swift.model import Cache
 from nion.swift.model import Graphics
 from nion.swift.model import Metadata
 from nion.swift.model import Persistence
+from nion.swift.model import Schema
 from nion.swift.model import Utility
 from nion.utils import Event
 from nion.utils import Geometry
@@ -258,19 +259,7 @@ class DataItem(Persistence.PersistentObject):
 
     @classmethod
     def utcnow(cls) -> datetime.datetime:
-        # windows utcnow has a resolution of 1ms, this sleep can guarantee unique times for all created times during a particular test.
-        if sys.platform == "win32":
-            # see https://www.python.org/dev/peps/pep-0564/#annex-clocks-resolution-in-python
-            if sys.version_info.major == 3 and sys.version_info.minor >= 7:
-                utcnow = datetime.datetime.utcfromtimestamp(time.time_ns() / 1E9)
-                time.sleep(0.0004)
-            else:
-                utcnow = datetime.datetime.utcfromtimestamp(time.time())
-                print(utcnow, datetime.datetime.utcnow())
-                time.sleep(0.0009)
-        else:
-            utcnow = datetime.datetime.utcnow()
-        return utcnow
+        return Schema.utcnow()
 
     def __str__(self) -> str:
         return "{0} {1} ({2}, {3})".format(self.__repr__(), (self.title if self.title else _("Untitled")), str(self.uuid), self.date_for_sorting_local_as_string)
