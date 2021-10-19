@@ -127,6 +127,7 @@ def migrate_to_latest(source_project_storage_system: ProjectStorageSystem,
                 import traceback
                 traceback.print_exc()
                 traceback.print_stack()
+            storage_handler.prepare_move()
 
         # now read the library properties which contains the data item deletions. data item deletions exist to
         # facilitate switching between library versions. if the user deletes an item in a newer library, that item
@@ -513,6 +514,7 @@ class ProjectStorageSystem(PersistentStorageSystem):
             try:
                 large_format = self._is_storage_handler_large_format(storage_handler)
                 storage_handler_properties = storage_handler.read_properties()
+                storage_handler.prepare_move()
                 assert storage_handler_properties is not None
                 properties = Migration.transform_to_latest(storage_handler_properties)
                 reader_info = ReaderInfo(properties, [False], large_format, storage_handler, storage_handler.reference)
@@ -815,7 +817,9 @@ class FileProjectStorageSystem(ProjectStorageSystem):
             with contextlib.closing(self._make_storage_handler(old_data_item, file_handler)) as target_storage_handler:
                 if target_storage_handler and storage_handler.reference != target_storage_handler.reference:
                     os.makedirs(os.path.dirname(target_storage_handler.reference), exist_ok=True)
+                    target_storage_handler.prepare_move()
                     shutil.copyfile(storage_handler.reference, target_storage_handler.reference)
+                    shutil.copystat(storage_handler.reference, target_storage_handler.reference)
                     target_storage_handler.write_properties(Migration.transform_from_latest(copy.deepcopy(properties)), datetime.datetime.now())
                     logging.getLogger("migration").info(f"Copying data item ({index + 1}/{count}) {data_item_uuid} to new library.")
                     return ReaderInfo(properties, [False], self._is_storage_handler_large_format(target_storage_handler),
@@ -832,7 +836,12 @@ class FileProjectStorageSystem(ProjectStorageSystem):
                 earliest_datetime = datetime.datetime.fromtimestamp(0).isoformat()
                 created = typing.cast(str, data_item_properties.get("created", earliest_datetime))
                 file_datetime = DataItem.DatetimeToStringConverter().convert_back(created) or datetime.datetime.now()
+                # storage handler has already been closed; writing properties MAY reopen it.
+                # close it by "prepare for move".
+                # this should be redesigned so that storage handler lifetime is well defined.
+                # TODO: storage handler open/close is bad design.
                 reader_info.storage_handler.write_properties(reader_info.properties, file_datetime)
+                reader_info.storage_handler.prepare_move()
 
     @staticmethod
     def _get_migration_paths(library_path: pathlib.Path) -> typing.List[typing.Tuple[pathlib.Path, pathlib.Path]]:
