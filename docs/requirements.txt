@@ -1,1 +1,6 @@
+scipy
+h5py
+pytz
+tzlocal
+pillow
 sphinx-copybutton

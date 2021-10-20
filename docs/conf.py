@@ -158,4 +158,6 @@ texinfo_documents = [
 ]
 
 
+# Options for sphinx-copybutton
 
+copybutton_prompt_text = ">>> "
