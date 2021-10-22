@@ -3,6 +3,7 @@ import contextlib
 import copy
 import math
 import unittest
+import uuid
 
 # third party libraries
 import numpy
@@ -80,6 +81,28 @@ class TestDisplayClass(unittest.TestCase):
             self.assertEqual(display_data_channel.get_calculated_display_values(True).display_range, (1.0, 3.0))
             display_data_channel.display_limits = (2.0, 3.0)
             self.assertEqual(display_data_channel.get_calculated_display_values(True).display_range, (2.0, 3.0))
+
+    def test_display_range_with_zero_display_limits_range_and_adjustment_succeeds(self):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            data_item = DataItem.DataItem(numpy.zeros((2, 2), float))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_data_channel = display_item.display_data_channels[0]
+            display_data_channel.display_limits = 0.0, 0.0
+            display_data_channel.adjustments = [{"type": "equalized", "uuid": str(uuid.uuid4())}]
+            self.assertIsNotNone(display_data_channel.get_calculated_display_values(True).adjusted_data_and_metadata)
+
+    def test_display_range_with_numpy_array_display_limits_and_adjustment_succeeds(self):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            data_item = DataItem.DataItem(numpy.zeros((2, 2), float))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_data_channel = display_item.display_data_channels[0]
+            display_data_channel.display_limits = numpy.array([0.0, 1.0])
+            display_data_channel.adjustments = [{"type": "equalized", "uuid": str(uuid.uuid4())}]
+            self.assertIsNotNone(display_data_channel.get_calculated_display_values(True).adjusted_data_and_metadata)
 
     def test_display_produces_valid_preview_when_viewing_3d_data_set(self):
         with TestContext.create_memory_context() as test_context:

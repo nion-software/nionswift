@@ -462,9 +462,9 @@ class DisplayValues:
                 if display_range is not None and display_data_and_metadata:
                     display_limit_low, display_limit_high = display_range
                     # normalize the data to [0, 1].
-                    m = 1 / (display_limit_high - display_limit_low)
+                    m = 1 / (display_limit_high - display_limit_low) if display_limit_high != display_limit_low else 0.0
                     b = -display_limit_low
-                    self.__normalized_data_and_metadata = m * (display_data_and_metadata + b)
+                    self.__normalized_data_and_metadata = float(m) * (display_data_and_metadata + float(b))
             return self.__normalized_data_and_metadata
 
     @property
