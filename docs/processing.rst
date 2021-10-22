@@ -32,6 +32,8 @@ Finally, for many operations you can select multiple crops (rectangles on images
 
 See :ref:`display-panels` for more information about keyboard focus and selecting multiple display panels.
 
+.. _Edit Computation:
+
 Edit Computation
 ----------------
 The edit computation dialog allows you to edit the inputs and parameters of a computation.

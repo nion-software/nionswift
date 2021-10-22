@@ -26,6 +26,18 @@ Browsers
 
 Images
 ------
+If the display item is displaying 2D data, it will be shown as an image.
+
+.. describe the keys and other operations
+
+.. point user to graphics
+
+.. describe controls for editing graphics, rotations, squares, size from center, etc.
+
+You can press the :kbd:`Enter` key to reset display limits.
 
 Line Plots
 ----------
+If the display item is displaying 1D data, it will be shown as an image.
+
+.. describe the keys, double clicks, and axis drags
