@@ -21,7 +21,7 @@ You can drag files directly into an empty display panel to import.
 
 You can import files using the File > Import... menu item. This will allow you to select which files to import. The files will appear in your project.
 
-You can import a folder of files using File > Import Folder... menu item. This will import all files that are importable within the folder. The files will appear in your project.
+You can import a folder of files using :menuselection:`File --> Import Folder...` menu item. This will import all files that are importable within the folder. The files will appear in your project.
 
 Exporting
 +++++++++
