@@ -1731,7 +1731,14 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
 
         self.__mapped_item_listener = DocumentModel.MappedItemManager().changed_event.listen(self.__update_title)
 
+        self.__cursor_task: typing.Optional[asyncio.Task[None]] = None
+
+
     def close(self) -> None:
+        if self.__cursor_task:
+            self.__cursor_task.cancel()
+            self.__cursor_task = None
+
         self.on_contents_changed = None
 
         self.__mapped_item_listener.close()
@@ -2486,24 +2493,48 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         return False
 
     def cursor_changed(self, pos: typing.Optional[typing.Tuple[int, ...]]) -> None:
-        position_text, value_text = str(), str()
-        try:
-            if pos is not None and self.__display_item:
-                position_text, value_text = self.__display_item.get_value_and_position_text(pos)
-        except Exception as e:
-            global _test_log_exceptions
-            if _test_log_exceptions:
-                import traceback
-                traceback.print_exc()
-        position_and_value_text = []
-        if position_text:
-            position_and_value_text.append(_("Position: ") + position_text)
-        if value_text:
-            position_and_value_text.append(_("Value: ") + value_text)
-        if len(position_text) == 0:
-            self.__document_controller.cursor_changed(None)
-        else:
-            self.__document_controller.cursor_changed(position_and_value_text)
+        # displaying the cursor position is one of a few places where the UI thread
+        # accesses the data directly. however, some data may not give access immediately.
+        # so put the update into an async method and access the data in a blocked async
+        # thread. this is a stop gap until a better data reader than hdf5 is available.
+        # to reproduce: use a larger hdf5 file (e.g. 742x512x2048), do a pick average,
+        # and drag the region. the cursor display will try to update during dragging
+        # and it will be locked out until the pick computation is complete, resulting
+        # in stuttering. this async solution avoids this specific case.
+
+        # Python 3.9+: weakref typing
+        async def update_cursor(document_controller_ref: typing.Any, display_item_ref: typing.Any) -> None:
+            position_text, value_text = str(), str()
+            display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], display_item_ref())
+            if pos is not None and display_item:
+                def get_cursor_value(display_item: DisplayItem.DisplayItem) -> typing.Tuple[str, str]:
+                    try:
+                        return display_item.get_value_and_position_text(pos)
+                    except Exception as e:
+                        global _test_log_exceptions
+                        if _test_log_exceptions:
+                            import traceback
+                            traceback.print_exc()
+                    return str(), str()
+
+                position_text, value_text = await asyncio.get_event_loop().run_in_executor(None, get_cursor_value, display_item)
+            position_and_value_text = []
+            if position_text:
+                position_and_value_text.append(_("Position: ") + position_text)
+            if value_text:
+                position_and_value_text.append(_("Value: ") + value_text)
+            document_controller = typing.cast(typing.Optional["DocumentController.DocumentController"], document_controller_ref())
+            if document_controller:
+                if len(position_text) == 0:
+                    document_controller.cursor_changed(None)
+                else:
+                    document_controller.cursor_changed(position_and_value_text)
+
+        if self.__cursor_task:
+            self.__cursor_task.cancel()
+            self.__cursor_task = None
+
+        self.__cursor_task = asyncio.get_event_loop().create_task(update_cursor(weakref.ref(self.__document_controller), weakref.ref(self.__display_item)))
 
     def drag_graphics(self, graphics: typing.Sequence[Graphics.Graphic]) -> None:
         display_item = self.display_item
