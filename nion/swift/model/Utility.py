@@ -457,3 +457,16 @@ class TestEventLoop:
     @property
     def event_loop(self) -> asyncio.AbstractEventLoop:
         return self.__event_loop
+
+
+class Timer:
+    def __init__(self, *, threshold: float = 0.0) -> None:
+        self.start_time_ns = time.perf_counter_ns()
+        self.last_time_ns = self.start_time_ns
+        self.threshold = threshold
+
+    def mark(self, title: str) -> None:
+        current_time = time.perf_counter_ns()
+        if (current_time - self.last_time_ns) // 1E9 > self.threshold:
+            print(f"{title}: {(current_time - self.start_time_ns) // 10000000}ms +{(current_time - self.last_time_ns) // 10000000}ms")
+        self.last_time_ns = current_time
