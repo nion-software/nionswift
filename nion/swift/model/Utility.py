@@ -89,9 +89,8 @@ try:
 
     def get_local_timezone() -> typing.Optional[str]:
         if local_timezone_override is None:
-            lz = tzlocal.get_localzone()
-            # key for tzlocal 3.x, zone for tzlocal 2.x
-            return typing.cast(typing.Optional[str], getattr(lz, "key", getattr(lz, "zone", None)))
+            # see note https://github.com/regebro/tzlocal/issues/117#issuecomment-939351032
+            return str(tzlocal.get_localzone())
         else:
             return local_timezone_override[0]
 except ImportError:
