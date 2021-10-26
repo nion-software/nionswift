@@ -40,6 +40,7 @@ from nion.utils import Geometry
 from nion.utils import ListModel
 from nion.utils import Model
 from nion.utils import Observable
+from nion.utils import ReferenceCounting
 from nion.utils import Validator
 
 if typing.TYPE_CHECKING:
@@ -455,16 +456,18 @@ class ChangeVariableBinding(Binding.PropertyBinding):
                  converter: typing.Optional[Converter.ConverterLike[typing.Any, typing.Any]] = None,
                  fallback: typing.Any = None) -> None:
         super().__init__(variable, property_name, converter=converter, fallback=fallback)
+        self.__document_controller = document_controller
+        self.__computation = computation
+        self.__variable = variable
         self.__property_name = property_name
         self.__old_source_setter = self.source_setter
+        self.source_setter = ReferenceCounting.weak_partial(ChangeVariableBinding.__set_value, self)
 
-        def set_value(value: typing.Any) -> None:
-            if value != getattr(variable, property_name):
-                command = Inspector.ChangeComputationVariableCommand(document_controller.document_model, computation, typing.cast(Symbolic.ComputationVariable, self.source), **{self.__property_name: value})
-                command.perform()
-                document_controller.push_undo_command(command)
-
-        self.source_setter = set_value
+    def __set_value(self, value: typing.Any) -> None:
+        if value != getattr(self.__variable, self.__property_name):
+            command = Inspector.ChangeComputationVariableCommand(self.__document_controller.document_model, self.__computation, typing.cast(Symbolic.ComputationVariable, self.source), **{self.__property_name: value})
+            command.perform()
+            self.__document_controller.push_undo_command(command)
 
 
 class ComputationPanelSection:
@@ -1025,12 +1028,11 @@ class ClosingTuplePropertyBinding(Binding.TuplePropertyBinding):
                  converter: typing.Optional[typing.Optional[Converter.ConverterLike[typing.Any, typing.Any]]] = None,
                  fallback: typing.Any = None) -> None:
         super().__init__(source, property_name, tuple_index, converter=converter, fallback=fallback)
-        self.__source = source
 
-    def close(self) -> None:
-        super().close()
-        self.__source.close()  # type: ignore  # observable closeable
-        self.__source = typing.cast(typing.Any, None)
+        def finalize(source: Observable.Observable) -> None:
+            source.close()  # type: ignore  # observable closeable
+
+        weakref.finalize(self, finalize, source)
 
 
 class ClosingPropertyBinding(Binding.PropertyBinding):
@@ -1039,12 +1041,11 @@ class ClosingPropertyBinding(Binding.PropertyBinding):
                  validator: typing.Optional[Validator.ValidatorLike[typing.Any]] = None,
                  fallback: typing.Optional[typing.Any] = None) -> None:
         super().__init__(source, property_name, converter=converter, validator=validator, fallback=fallback)
-        self.__source = source
 
-    def close(self) -> None:
-        super().close()
-        self.__source.close()  # type: ignore  # observable closeable
-        self.__source = typing.cast(typing.Any, None)
+        def finalize(source: Observable.Observable) -> None:
+            source.close()  # type: ignore  # observable closeable
+
+        weakref.finalize(self, finalize, source)
 
 
 class GraphicHandler:

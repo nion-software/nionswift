@@ -10,6 +10,7 @@ import sys
 import threading
 import typing
 import uuid
+import weakref
 
 # third party libraries
 # None
@@ -39,6 +40,7 @@ from nion.utils import Converter
 from nion.utils import Geometry
 from nion.utils import Model
 from nion.utils import Observable
+from nion.utils import ReferenceCounting
 
 if typing.TYPE_CHECKING:
     from nion.swift import Application
@@ -382,21 +384,25 @@ class ChangeDisplayItemPropertyBinding(Binding.PropertyBinding):
                  converter: typing.Optional[Converter.ConverterLike[typing.Any, typing.Any]] = None,
                  fallback: typing.Any = None) -> None:
         super().__init__(display_item, property_name, converter=converter, fallback=fallback)
+        self.__document_controller = document_controller
+        self.__display_item = display_item
         self.__property_name = property_name
         self.__old_source_setter = self.source_setter
+        self.source_setter = ReferenceCounting.weak_partial(ChangeDisplayItemPropertyBinding.__set_value, self)
 
-        def set_value(value: typing.Any) -> None:
-            if value != getattr(display_item, property_name):
-                command = ChangeDisplayItemPropertyCommand(document_controller.document_model, typing.cast(DisplayItem.DisplayItem, self.source), self.__property_name, value)
-                command.perform()
-                document_controller.push_undo_command(command)
-
-        self.source_setter = set_value
+    def __set_value(self, value: typing.Any) -> None:
+        if value != getattr(self.__display_item, self.__property_name):
+            command = ChangeDisplayItemPropertyCommand(self.__document_controller.document_model, typing.cast(DisplayItem.DisplayItem, self.source), self.__property_name, value)
+            command.perform()
+            self.__document_controller.push_undo_command(command)
 
 
 class ChangeDisplayPropertyBinding(Binding.Binding):
     def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem, property_name: str, converter: typing.Optional[Converter.ConverterLike[typing.Any, typing.Any]] = None, fallback: typing.Any = None) -> None:
         super().__init__(display_item, converter=converter, fallback=fallback)
+
+        self.__display_item = display_item
+        self.__property_name = property_name
 
         def get_value() -> typing.Any:
             return display_item.get_display_property(property_name)
@@ -410,22 +416,17 @@ class ChangeDisplayPropertyBinding(Binding.Binding):
         self.source_getter = get_value
         self.source_setter = set_value
 
-        # thread safe
-        def property_changed(property_name_: str) -> None:
-            assert not self._closed
-            if property_name_ == property_name:
-                value = display_item.get_display_property(property_name)
-                if value is not None:
-                    self.update_target(value)
-                else:
-                    self.update_target_direct(self.fallback)
+        self.__property_changed_listener = display_item.display_property_changed_event.listen(ReferenceCounting.weak_partial(ChangeDisplayPropertyBinding.__property_changed, self))
 
-        self.__property_changed_listener = display_item.display_property_changed_event.listen(property_changed)
-
-    def close(self) -> None:
-        self.__property_changed_listener.close()
-        self.__property_changed_listener = typing.cast(typing.Any, None)
-        super().close()
+    # thread safe
+    def __property_changed(self, property_name_: str) -> None:
+        assert not self._closed
+        if property_name_ == self.__property_name:
+            value = self.__display_item.get_display_property(self.__property_name)
+            if value is not None:
+                self.update_target(value)
+            else:
+                self.update_target_direct(self.fallback)
 
 
 class ChangeDisplayDataChannelPropertyBinding(Binding.PropertyBinding):
@@ -439,7 +440,7 @@ class ChangeDisplayDataChannelPropertyBinding(Binding.PropertyBinding):
 
         def set_value(value: typing.Any) -> typing.Any:
             if value != getattr(display_data_channel, property_name):
-                command = DisplayPanel.ChangeDisplayDataChannelCommand(document_controller.document_model, display_data_channel, title=_("Change Display"), command_id="change_display_" + property_name, is_mergeable=True, **{self.__property_name: value})
+                command = DisplayPanel.ChangeDisplayDataChannelCommand(document_controller.document_model, display_data_channel, title=_("Change Display"), command_id="change_display_" + property_name, is_mergeable=True, **{property_name: value})
                 command.perform()
                 document_controller.push_undo_command(command)
 
@@ -458,15 +459,14 @@ class ChangeGraphicPropertyBinding(Binding.PropertyBinding):
         self.__property_name = property_name
         self.__old_source_setter = self.source_setter
         self.__old_source_getter = self.source_getter
-        self.source_setter = self.__set_value
-        self.source_getter = self.__get_value
+        self.source_setter = ReferenceCounting.weak_partial(ChangeGraphicPropertyBinding.__set_value, self)
+        self.source_getter = ReferenceCounting.weak_partial(ChangeGraphicPropertyBinding.__get_value, self)
 
-    def close(self) -> None:
-        self.__display_item_proxy.close()
-        self.__display_item_proxy = typing.cast(typing.Any, None)
-        self.__graphic_proxy.close()
-        self.__graphic_proxy = typing.cast(typing.Any, None)
-        super().close()
+        def finalize(display_item_proxy: Persistence.PersistentObjectProxy[DisplayItem.DisplayItem], graphic_proxy: Persistence.PersistentObjectProxy[Graphics.Graphic]) -> None:
+            display_item_proxy.close()
+            graphic_proxy.close()
+
+        weakref.finalize(self, finalize, self.__display_item_proxy, self.__graphic_proxy)
 
     def __get_value(self) -> typing.Any:
         display_item = self.__display_item_proxy.item
@@ -491,6 +491,8 @@ class DisplayDataChannelPropertyCommandModel(Model.PropertyModel[typing.Any]):
                  display_data_channel: DisplayItem.DisplayDataChannel, property_name: str, title: str,
                  command_id: str) -> None:
         super().__init__(getattr(display_data_channel, property_name))
+        self.__property_name = property_name
+        self.__display_data_channel = display_data_channel
 
         def property_changed_from_user(value: typing.Any) -> None:
             if value != getattr(display_data_channel, property_name):
@@ -500,16 +502,11 @@ class DisplayDataChannelPropertyCommandModel(Model.PropertyModel[typing.Any]):
 
         self.on_value_changed = property_changed_from_user
 
-        def property_changed_from_display(name: str) -> None:
-            if name == property_name:
-                self.value = getattr(display_data_channel, property_name)
+        self.__changed_listener = display_data_channel.property_changed_event.listen(ReferenceCounting.weak_partial(DisplayDataChannelPropertyCommandModel.__property_changed_from_display, self))
 
-        self.__changed_listener = display_data_channel.property_changed_event.listen(property_changed_from_display)
-
-    def close(self) -> None:
-        self.__changed_listener.close()
-        self.__changed_listener = typing.cast(typing.Any, None)
-        super().close()
+    def __property_changed_from_display(self, name: str) -> None:
+        if name == self.__property_name:
+            self.value = getattr(self.__display_data_channel, self.__property_name)
 
 
 class GraphicPropertyCommandModel(Model.PropertyModel[typing.Any]):
@@ -518,6 +515,8 @@ class GraphicPropertyCommandModel(Model.PropertyModel[typing.Any]):
                  display_item: DisplayItem.DisplayItem, graphic: Graphics.Graphic, property_name: str, title: str,
                  command_id: str) -> None:
         super().__init__(getattr(graphic, property_name))
+        self.__property_name = property_name
+        self.__graphic = graphic
 
         def property_changed_from_user(value: typing.Any) -> None:
             if value != getattr(graphic, property_name):
@@ -527,16 +526,11 @@ class GraphicPropertyCommandModel(Model.PropertyModel[typing.Any]):
 
         self.on_value_changed = property_changed_from_user
 
-        def property_changed_from_graphic(name: str) -> None:
-            if name == property_name:
-                self.value = getattr(graphic, property_name)
+        self.__changed_listener = graphic.property_changed_event.listen(ReferenceCounting.weak_partial(GraphicPropertyCommandModel.__property_changed_from_graphic, self))
 
-        self.__changed_listener = graphic.property_changed_event.listen(property_changed_from_graphic)
-
-    def close(self) -> None:
-        self.__changed_listener.close()
-        self.__changed_listener = typing.cast(typing.Any, None)
-        super().close()
+    def __property_changed_from_graphic(self, name: str) -> None:
+        if name == self.__property_name:
+            self.value = getattr(self.__graphic, self.__property_name)
 
 
 class InfoInspectorSection(InspectorSection):
@@ -2358,26 +2352,20 @@ class CalibratedSizeFloatToStringConverter(Converter.ConverterLike[float, str]):
 class CalibratedBinding(Binding.Binding):
     def __init__(self, display_item: DisplayItem.DisplayItem, value_binding: Binding.Binding, converter: Converter.ConverterLike[float, str]) -> None:
         super().__init__(None, converter=converter)
+        self.__display_item = display_item
         self.__value_binding = value_binding
         self.__converter_x = converter  # mypy bug (it uses base self.__converter type if named the same)
 
-        def update_target(value: typing.Any) -> None:
-            self.update_target_direct(self.get_target_value())
+        self.__value_binding.target_setter = ReferenceCounting.weak_partial(CalibratedBinding.__update_target, self)
 
-        self.__value_binding.target_setter = update_target
+        self.__calibrations_changed_event_listener = display_item.display_property_changed_event.listen(ReferenceCounting.weak_partial(CalibratedBinding.__calibrations_changed, self))
 
-        def calibrations_changed(key: str) -> None:
-            if key == "displayed_dimensional_calibrations":
-                update_target(display_item.displayed_datum_calibrations)
+    def __update_target(self, value: typing.Any) -> None:
+        self.update_target_direct(self.get_target_value())
 
-        self.__calibrations_changed_event_listener = display_item.display_property_changed_event.listen(calibrations_changed)
-
-    def close(self) -> None:
-        self.__value_binding.close()
-        self.__value_binding = typing.cast(typing.Any, None)
-        self.__calibrations_changed_event_listener.close()
-        self.__calibrations_changed_event_listener = typing.cast(typing.Any, None)
-        super().close()
+    def __calibrations_changed(self, key: str) -> None:
+        if key == "displayed_dimensional_calibrations":
+            self.__update_target(self.__display_item.displayed_datum_calibrations)
 
     # set the model value from the target ui element text.
     def update_source(self, target_value: typing.Any) -> None:
@@ -2414,33 +2402,22 @@ class CalibratedWidthBinding(CalibratedBinding):
 class CalibratedLengthBinding(Binding.Binding):
     def __init__(self, display_item: DisplayItem.DisplayItem, start_binding: Binding.Binding, end_binding: Binding.Binding) -> None:
         super().__init__(None)
+        self.__display_item = display_item
         self.__x_converter = CalibratedValueFloatToStringConverter(display_item, 1)
         self.__y_converter = CalibratedValueFloatToStringConverter(display_item, 0)
         self.__size_converter = CalibratedSizeFloatToStringConverter(display_item, 0)
         self.__start_binding = start_binding
         self.__end_binding = end_binding
+        self.__start_binding.target_setter = ReferenceCounting.weak_partial(CalibratedLengthBinding.__update_target, self)
+        self.__end_binding.target_setter = ReferenceCounting.weak_partial(CalibratedLengthBinding.__update_target, self)
+        self.__calibrations_changed_event_listener = display_item.display_property_changed_event.listen(ReferenceCounting.weak_partial(CalibratedLengthBinding.__calibrations_changed, self))
 
-        def update_target(value: typing.Any) -> None:
-            self.update_target_direct(self.get_target_value())
+    def __update_target(self, value: typing.Any) -> None:
+        self.update_target_direct(self.get_target_value())
 
-        self.__start_binding.target_setter = update_target
-        self.__end_binding.target_setter = update_target
-
-        def calibrations_changed(key: str) -> None:
-            if key == "displayed_dimensional_calibrations":
-                update_target(display_item.displayed_datum_calibrations)
-
-        self.__calibrations_changed_event_listener = display_item.display_property_changed_event.listen(
-            calibrations_changed)
-
-    def close(self) -> None:
-        self.__start_binding.close()
-        self.__start_binding = typing.cast(typing.Any, None)
-        self.__end_binding.close()
-        self.__end_binding = typing.cast(typing.Any, None)
-        self.__calibrations_changed_event_listener.close()
-        self.__calibrations_changed_event_listener = typing.cast(typing.Any, None)
-        super().close()
+    def __calibrations_changed(self, key: str) -> None:
+        if key == "displayed_dimensional_calibrations":
+            self.__update_target(self.__display_item.displayed_datum_calibrations)
 
     # set the model value from the target ui element text.
     def update_source(self, target_value: typing.Any) -> None:
@@ -2468,33 +2445,22 @@ class CalibratedLengthBinding(Binding.Binding):
 class CalibratedAngleBinding(Binding.Binding):
     def __init__(self, display_item: DisplayItem.DisplayItem, start_binding: Binding.Binding, end_binding: Binding.Binding) -> None:
         super().__init__(None)
+        self.__display_item = display_item
         self.__x_converter = CalibratedValueFloatToStringConverter(display_item, 1)
         self.__y_converter = CalibratedValueFloatToStringConverter(display_item, 0)
         self.__size_converter = CalibratedSizeFloatToStringConverter(display_item, 0)
         self.__start_binding = start_binding
         self.__end_binding = end_binding
+        self.__start_binding.target_setter = ReferenceCounting.weak_partial(CalibratedAngleBinding.__update_target, self)
+        self.__end_binding.target_setter = ReferenceCounting.weak_partial(CalibratedAngleBinding.__update_target, self)
+        self.__calibrations_changed_event_listener = display_item.display_property_changed_event.listen(ReferenceCounting.weak_partial(CalibratedAngleBinding.__calibrations_changed, self))
 
-        def update_target(value: typing.Any) -> None:
-            self.update_target_direct(self.get_target_value())
+    def __update_target(self, value: typing.Any) -> None:
+        self.update_target_direct(self.get_target_value())
 
-        self.__start_binding.target_setter = update_target
-        self.__end_binding.target_setter = update_target
-
-        def calibrations_changed(key: str) -> None:
-            if key == "displayed_dimensional_calibrations":
-                update_target(display_item.displayed_datum_calibrations)
-
-        self.__calibrations_changed_event_listener = display_item.display_property_changed_event.listen(
-            calibrations_changed)
-
-    def close(self) -> None:
-        self.__start_binding.close()
-        self.__start_binding = typing.cast(typing.Any, None)
-        self.__end_binding.close()
-        self.__end_binding = typing.cast(typing.Any, None)
-        self.__calibrations_changed_event_listener.close()
-        self.__calibrations_changed_event_listener = typing.cast(typing.Any, None)
-        super().close()
+    def __calibrations_changed(self, key: str) -> None:
+        if key == "displayed_dimensional_calibrations":
+            self.__update_target(self.__display_item.displayed_datum_calibrations)
 
     # set the model value from the target ui element text.
     def update_source(self, target_value: typing.Any) -> None:
@@ -3190,7 +3156,7 @@ class ChangeComputationVariablePropertyBinding(Binding.PropertyBinding):
 
         def set_value(value: typing.Any) -> typing.Any:
             if value != getattr(variable, property_name):
-                command = ChangeComputationVariableCommand(document_controller.document_model, computation, variable, title=_("Change Computation"), command_id="change_computation_" + property_name, is_mergeable=True, **{self.__property_name: value})
+                command = ChangeComputationVariableCommand(document_controller.document_model, computation, variable, title=_("Change Computation"), command_id="change_computation_" + property_name, is_mergeable=True, **{property_name: value})
                 command.perform()
                 document_controller.push_undo_command(command)
 
