@@ -2504,6 +2504,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
 
         # Python 3.9+: weakref typing
         async def update_cursor(document_controller_ref: typing.Any, display_item_ref: typing.Any) -> None:
+            self.__cursor_task = None
             position_text, value_text = str(), str()
             display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], display_item_ref())
             if pos is not None and display_item:
@@ -2530,11 +2531,8 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
                 else:
                     document_controller.cursor_changed(position_and_value_text)
 
-        if self.__cursor_task:
-            self.__cursor_task.cancel()
-            self.__cursor_task = None
-
-        self.__cursor_task = asyncio.get_event_loop().create_task(update_cursor(weakref.ref(self.__document_controller), weakref.ref(self.__display_item)))
+        if not self.__cursor_task:
+            self.__cursor_task = asyncio.get_event_loop().create_task(update_cursor(weakref.ref(self.__document_controller), weakref.ref(self.__display_item)))
 
     def drag_graphics(self, graphics: typing.Sequence[Graphics.Graphic]) -> None:
         display_item = self.display_item
