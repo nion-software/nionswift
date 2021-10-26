@@ -1083,15 +1083,15 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
     # map from widget coordinates to image coordinates
     def map_widget_to_image(self, p: Geometry.IntPoint) -> typing.Optional[typing.Tuple[int, int]]:
-        image_size = self.__data_shape
         transformed_image_rect = self.__get_mouse_mapping().canvas_rect
-        if transformed_image_rect and image_size:
-            if transformed_image_rect[1][0] != 0.0:
-                image_y = round(image_size[0] * (p.y - transformed_image_rect.top) / transformed_image_rect.height)
+        if transformed_image_rect and self.__data_shape:
+            image_size = Geometry.IntSize.make(self.__data_shape)
+            if transformed_image_rect.height != 0.0:
+                image_y = math.floor(image_size.height * (p.y - transformed_image_rect.top) / transformed_image_rect.height)
             else:
                 image_y = 0
-            if transformed_image_rect[1][1] != 0.0:
-                image_x = round(image_size[1] * (p.x - transformed_image_rect.left) / transformed_image_rect.width)
+            if transformed_image_rect.width != 0.0:
+                image_x = math.floor(image_size.width * (p.x - transformed_image_rect.left) / transformed_image_rect.width)
             else:
                 image_x = 0
             return image_y, image_x
