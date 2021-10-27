@@ -467,6 +467,6 @@ class Timer:
 
     def mark(self, title: str) -> None:
         current_time = time.perf_counter_ns()
-        if (current_time - self.last_time_ns) // 1E9 > self.threshold:
-            print(f"{title}: {(current_time - self.start_time_ns) // 10000000}ms +{(current_time - self.last_time_ns) // 10000000}ms")
+        if self.threshold == 0.0 or (current_time - self.last_time_ns) // 1E9 > self.threshold:
+            print(f"{title}: {(current_time - self.start_time_ns) // 1E6}ms +{(current_time - self.last_time_ns) // 1E6}ms")
         self.last_time_ns = current_time
