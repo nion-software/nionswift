@@ -20,6 +20,7 @@ import uuid
 # None
 
 # local libraries
+from nion.swift import ActivityPanel
 from nion.swift import DataPanel
 from nion.swift import DocumentController
 from nion.swift import FilterPanel
@@ -133,6 +134,7 @@ class Application(UIApplication.BaseApplication):
         workspace_manager.register_panel(Panel.OutputPanel, "output-panel", _("Output"), ["bottom"], "bottom", {"min-width": 480, "min-height": 200})
         workspace_manager.register_panel(ToolbarPanel.ToolbarPanel, "toolbar-panel", _("Toolbar"), ["top"], "top", {"height": 30})
         workspace_manager.register_panel(MetadataPanel.MetadataPanel, "metadata-panel", _("Metadata"), ["left", "right"], "right", {"width": 320, "height": 8})
+        workspace_manager.register_panel(ActivityPanel.ActivityPanel, "activity-panel", _("Activity"), ["left", "right"], "right", {"min-width": 320, "height": 80})
         workspace_manager.register_filter_panel(FilterPanel.FilterPanel)
 
     def initialize(self, *, load_plug_ins: bool = True, use_root_dir: bool = True) -> None:
