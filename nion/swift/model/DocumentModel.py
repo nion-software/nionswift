@@ -18,6 +18,7 @@ import weakref
 
 # local libraries
 from nion.data import DataAndMetadata
+from nion.swift.model import Activity
 from nion.swift.model import Cache
 from nion.swift.model import Changes
 from nion.swift.model import Connection
@@ -68,24 +69,66 @@ class Closeable(typing.Protocol):
 
 
 class ComputationMerge:
-    def __init__(self, computation: Symbolic.Computation, fn: typing.Optional[typing.Callable[[], None]] = None, closeables: typing.Optional[typing.List[Closeable]] = None) -> None:
+    def __init__(self, computation: Symbolic.Computation, activity: typing.Optional[Activity.Activity], fn: typing.Optional[typing.Callable[[], None]] = None, closeables: typing.Optional[typing.List[Closeable]] = None) -> None:
         self.computation = computation
         self.fn = fn
         self.closeables = closeables or list()
+        self.activity = activity
 
     def close(self) -> None:
         for closeable in self.closeables:
             closeable.close()
+        if self.activity:
+            Activity.activity_finished(self.activity)
+            self.activity = None
 
     def exec(self) -> None:
         if callable(self.fn):
             self.fn()
 
 
+class ComputationActivity(Activity.Activity):
+    def __init__(self, computation: Symbolic.Computation) -> None:
+        super().__init__("computation", computation.label or computation.processing_id or str())
+        self.computation = computation
+        self.__state = "pending"
+
+    @property
+    def state(self) -> str:
+        return self.__state
+
+    @state.setter
+    def state(self, value: str) -> None:
+        self.__state = value
+        self.notify_property_changed("state")
+        self.notify_property_changed("displayed_title")
+
+    @property
+    def displayed_title(self) -> str:
+        return self.title + " (" + self.state + ")"
+
+
 class ComputationQueueItem:
-    def __init__(self, *, computation: typing.Optional[Symbolic.Computation] = None) -> None:
+    def __init__(self, *, computation: Symbolic.Computation) -> None:
         self.computation = computation
         self.valid = True
+        self.__activity_lock = threading.RLock()
+        self.activity: typing.Optional[ComputationActivity] = ComputationActivity(computation)
+        Activity.append_activity(self.activity)
+
+    def abort(self) -> None:
+        with self.__activity_lock:
+            if self.activity:
+                Activity.activity_finished(self.activity)
+                self.activity = None
+
+    def __release_activity(self) -> typing.Optional[Activity.Activity]:
+        with self.__activity_lock:
+            activity = self.activity
+            self.activity = None
+            if activity:
+                activity.state = "merging"
+            return activity
 
     def recompute(self) -> typing.Optional[ComputationMerge]:
         # evaluate the computation in a thread safe manner
@@ -95,6 +138,8 @@ class ComputationQueueItem:
         data_item = None
         computation = self.computation
         if computation and computation.needs_update:
+            if self.activity:
+                self.activity.state = "computing"
             if computation.expression:
                 data_item = computation.get_output("target")
             try:
@@ -107,14 +152,14 @@ class ComputationQueueItem:
                         def update_error_text(computation: Symbolic.Computation) -> None:
                             computation.error_text = error_text
 
-                        pending_data_item_merge = ComputationMerge(computation, functools.partial(update_error_text, computation))
-                        return pending_data_item_merge
-                    throttle_time = max(DocumentModel.computation_min_period - (time.perf_counter() - computation.last_evaluate_data_time), 0)
-                    time.sleep(max(throttle_time, min(eval_time * DocumentModel.computation_min_factor, 1.0)))
-                    if self.valid and compute_obj:  # TODO: race condition for 'valid'
-                        pending_data_item_merge = ComputationMerge(computation, functools.partial(compute_obj.commit))
+                        pending_data_item_merge = ComputationMerge(computation, self.__release_activity(), functools.partial(update_error_text, computation))
                     else:
-                        pending_data_item_merge = ComputationMerge(computation)
+                        throttle_time = max(DocumentModel.computation_min_period - (time.perf_counter() - computation.last_evaluate_data_time), 0)
+                        time.sleep(max(throttle_time, min(eval_time * DocumentModel.computation_min_factor, 1.0)))
+                        if self.valid and compute_obj:  # TODO: race condition for 'valid'
+                            pending_data_item_merge = ComputationMerge(computation, self.__release_activity(), functools.partial(compute_obj.commit))
+                        else:
+                            pending_data_item_merge = ComputationMerge(computation, self.__release_activity())
                 else:
                     start_time = time.perf_counter()
                     data_item_clone = data_item.clone()
@@ -137,11 +182,15 @@ class ComputationQueueItem:
                                 if computation.error_text != error_text:
                                     computation.error_text = error_text
 
-                        pending_data_item_merge = ComputationMerge(computation, functools.partial(data_item_merge, computation, data_item, data_item_clone, data_item_clone_recorder), [data_item_clone, data_item_clone_recorder])
+                        pending_data_item_merge = ComputationMerge(computation, self.__release_activity(), functools.partial(data_item_merge, computation, data_item, data_item_clone, data_item_clone_recorder), [data_item_clone, data_item_clone_recorder])
             except Exception as e:
                 import traceback
                 traceback.print_exc()
                 # computation.error_text = _("Unable to compute data")
+        with self.__activity_lock:
+            if self.activity:
+                Activity.activity_finished(self.activity)
+                self.activity = None
         return pending_data_item_merge
 
 
@@ -1011,6 +1060,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             for computation_queue_item in computation_pending_queue:
                 if not computation_queue_item.computation is library_computation:
                     self.__computation_pending_queue.append(computation_queue_item)
+                else:
+                    computation_queue_item.abort()
             if self.__computation_active_item and library_computation is self.__computation_active_item.computation:
                 self.__computation_active_item.valid = False
         with self.__pending_data_item_updates_lock:
@@ -2155,6 +2206,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             for computation_queue_item in computation_pending_queue:
                 if not computation_queue_item.computation is computation:
                     self.__computation_pending_queue.append(computation_queue_item)
+                else:
+                    computation_queue_item.abort()
             if self.__computation_active_item and computation is self.__computation_active_item.computation:
                 self.__computation_active_item.valid = False
         computation_changed_listener = self.__computation_changed_listeners.pop(computation, None)
