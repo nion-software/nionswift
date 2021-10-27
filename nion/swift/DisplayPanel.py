@@ -1940,9 +1940,19 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         if action == "move":
             document_controller.display_panel_finish_drag(self)
 
+    def display_clicked(self, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        if self._is_selected() and not (modifiers.shift or modifiers.control):
+            self.document_controller.clear_secondary_display_panels()
+            return True
+        return False
+
     def image_clicked(self, image_position: Geometry.FloatPoint, modifiers: UserInterface.KeyboardModifiers) -> bool:
         if self.__display_item:
-            return DisplayPanelManager().image_display_clicked(self, self.__display_item, image_position, modifiers)
+            if DisplayPanelManager().image_display_clicked(self, self.__display_item, image_position, modifiers):
+                return True
+        if self._is_selected() and not (modifiers.shift or modifiers.control):
+            self.document_controller.clear_secondary_display_panels()
+            return True
         return False
 
     def image_mouse_pressed(self, image_position: Geometry.FloatPoint, modifiers: UserInterface.KeyboardModifiers) -> bool:

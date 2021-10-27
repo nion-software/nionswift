@@ -640,6 +640,10 @@ class DocumentController(Window.Window):
         else:
             self.__selection_changed_listener = self.selection.changed_event.listen(self.__update_selected_display_items)
 
+    @property
+    def secondary_display_panels(self) -> typing.Sequence[DisplayPanel.DisplayPanel]:
+        return self.__secondary_display_panels
+
     def add_secondary_display_panel(self, display_panel: DisplayPanel.DisplayPanel) -> None:
         if display_panel not in self.__secondary_display_panels:
             self.__secondary_display_panels.append(display_panel)
@@ -657,6 +661,12 @@ class DocumentController(Window.Window):
             self.__secondary_display_panels.remove(display_panel)
         else:
             self.__secondary_display_panels.append(display_panel)
+        self.__update_display_panels()
+        self.__update_selected_display_items()
+
+    def clear_secondary_display_panels(self) -> None:
+        for display_panel in list(self.__secondary_display_panels):
+            self.__secondary_display_panels.remove(display_panel)
         self.__update_display_panels()
         self.__update_selected_display_items()
 

@@ -226,6 +226,57 @@ class TestWorkspaceClass(unittest.TestCase):
             self.assertTrue(document_controller.workspace_controller.display_panels[1]._is_focused())
             self.assertTrue(document_controller.workspace_controller.display_panels[1]._is_selected())
 
+    def test_image_panel_allows_secondary_selections(self):
+        # setup
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            workspace_3x1 = document_controller.workspace_controller.new_workspace(*get_layout("3x1"))
+            data_item1 = DataItem.DataItem(numpy.zeros((8, 8)))
+            data_item2 = DataItem.DataItem(numpy.zeros((8, 8)))
+            data_item3 = DataItem.DataItem(numpy.zeros((8,)))
+            document_model.append_data_item(data_item1)
+            document_model.append_data_item(data_item2)
+            document_model.append_data_item(data_item3)
+            document_controller.workspace_controller.change_workspace(workspace_3x1)
+            document_controller.workspace_controller.display_panels[0].set_display_item(document_model.get_display_item_for_data_item(data_item1))
+            document_controller.workspace_controller.display_panels[1].set_display_item(document_model.get_display_item_for_data_item(data_item2))
+            document_controller.workspace_controller.display_panels[2].set_display_item(document_model.get_display_item_for_data_item(data_item3))
+            root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+            # click in first panel
+            root_canvas_item.canvas_widget.simulate_mouse_click(110, 240, CanvasItem.KeyboardModifiers())
+            self.assertTrue(document_controller.selected_display_panel, document_controller.workspace_controller.display_panels[0])
+            self.assertEqual(0, len(document_controller.secondary_display_panels))
+            # now click the second panel with control
+            root_canvas_item.canvas_widget.simulate_mouse_click(330, 240, CanvasItem.KeyboardModifiers(control=True))
+            self.assertTrue(document_controller.selected_display_panel, document_controller.workspace_controller.display_panels[0])
+            self.assertEqual(document_controller.workspace_controller.display_panels[1:2], list(document_controller.secondary_display_panels))
+            # now click the third panel with control
+            root_canvas_item.canvas_widget.simulate_mouse_click(550, 240, CanvasItem.KeyboardModifiers(control=True))
+            self.assertTrue(document_controller.selected_display_panel, document_controller.workspace_controller.display_panels[0])
+            self.assertEqual(document_controller.workspace_controller.display_panels[1:3], list(document_controller.secondary_display_panels))
+            # now click the second panel (image) then add other panels and click primary and ensure only it is selected
+            root_canvas_item.canvas_widget.simulate_mouse_click(330, 240, CanvasItem.KeyboardModifiers())
+            self.assertTrue(document_controller.selected_display_panel, document_controller.workspace_controller.display_panels[1])
+            self.assertEqual(0, len(document_controller.secondary_display_panels))
+            root_canvas_item.canvas_widget.simulate_mouse_click(110, 240, CanvasItem.KeyboardModifiers(control=True))
+            root_canvas_item.canvas_widget.simulate_mouse_click(550, 240, CanvasItem.KeyboardModifiers(control=True))
+            self.assertEqual(2, len(document_controller.secondary_display_panels))
+            root_canvas_item.canvas_widget.simulate_mouse_click(330, 240, CanvasItem.KeyboardModifiers())
+            self.assertTrue(document_controller.selected_display_panel, document_controller.workspace_controller.display_panels[1])
+            self.assertEqual(0, len(document_controller.secondary_display_panels))
+            # now click the third panel (line plot) then add other panels and click primary and ensure only it is selected
+            root_canvas_item.canvas_widget.simulate_mouse_click(550, 240, CanvasItem.KeyboardModifiers())
+            self.assertTrue(document_controller.selected_display_panel, document_controller.workspace_controller.display_panels[2])
+            self.assertEqual(0, len(document_controller.secondary_display_panels))
+            root_canvas_item.canvas_widget.simulate_mouse_click(110, 240, CanvasItem.KeyboardModifiers(control=True))
+            root_canvas_item.canvas_widget.simulate_mouse_click(330, 240, CanvasItem.KeyboardModifiers(control=True))
+            self.assertEqual(2, len(document_controller.secondary_display_panels))
+            root_canvas_item.canvas_widget.simulate_mouse_click(550, 240, CanvasItem.KeyboardModifiers())
+            self.assertTrue(document_controller.selected_display_panel, document_controller.workspace_controller.display_panels[2])
+            self.assertEqual(0, len(document_controller.secondary_display_panels))
+
     def test_workspace_construct_and_deconstruct_result_in_matching_descriptions(self):
         # setup
         with TestContext.create_memory_context() as test_context:

@@ -728,6 +728,14 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             self.begin_tracking_vertical(Geometry.IntPoint(x=x, y=y), rescale=new_rescale)
         return self.continue_tracking(Geometry.IntPoint(x=x, y=y), modifiers)
 
+    def mouse_clicked(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        if super().mouse_clicked(x, y, modifiers):
+            return True
+        delegate = self.delegate
+        if delegate:
+            return delegate.display_clicked(modifiers)
+        return False
+
     def mouse_pressed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         if super().mouse_pressed(x, y, modifiers):
             return True
