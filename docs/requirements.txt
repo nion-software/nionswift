@@ -4,3 +4,4 @@ pytz
 tzlocal
 pillow
 sphinx-copybutton
+docutils<0.18  # see https://github.com/readthedocs/readthedocs.org/issues/8616
