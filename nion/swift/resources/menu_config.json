@@ -64,6 +64,13 @@
             },
             {
                 "type": "item",
+                "action_id": "window.open_notifications"
+            },
+            {
+                "type": "separator"
+            },
+            {
+                "type": "item",
                 "action_id": "window.toggle_filter"
             },
             {

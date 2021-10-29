@@ -28,6 +28,7 @@ from nion.swift import HistogramPanel
 from nion.swift import InfoPanel
 from nion.swift import Inspector
 from nion.swift import MetadataPanel
+from nion.swift import NotificationDialog
 from nion.swift import Panel
 from nion.swift import ProjectPanel
 from nion.swift import SessionPanel
@@ -139,6 +140,7 @@ class Application(UIApplication.BaseApplication):
 
     def initialize(self, *, load_plug_ins: bool = True, use_root_dir: bool = True) -> None:
         super().initialize()
+        NotificationDialog._app = self
         # configure app data
         if load_plug_ins:
             logging.info("Launch time " + str(datetime.datetime.now()))
@@ -159,6 +161,7 @@ class Application(UIApplication.BaseApplication):
 
     def deinitialize(self) -> None:
         # shut down hardware source manager, unload plug-ins, and really exit ui
+        NotificationDialog.close_notification_dialog()
         Registry.unregister_component(self, {"application"})
         if self.__profile:
             self.__profile.close()

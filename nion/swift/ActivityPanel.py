@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 # standard libraries
-import asyncio
 import gettext
 import typing
 

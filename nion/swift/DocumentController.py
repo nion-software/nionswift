@@ -29,6 +29,7 @@ from nion.swift import FilterPanel
 from nion.swift import GeneratorDialog
 from nion.swift import ImageCanvasItem
 from nion.swift import MimeTypes
+from nion.swift import NotificationDialog
 from nion.swift import Panel
 from nion.swift import RecorderPanel
 from nion.swift import ScriptsDialog
@@ -2730,6 +2731,15 @@ class OpenConsoleAction(Window.Action):
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
+class OpenNotificationsAction(Window.Action):
+    action_id = "window.open_notifications"
+    action_name = _("Notifications...")
+
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        NotificationDialog.open_notification_dialog()
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
+
+
 class OpenProjectDialogAction(Window.Action):
     action_id = "window.open_project_dialog"
     action_name = _("Project Manager")
@@ -2773,6 +2783,7 @@ Window.register_action(EditDataItemScriptAction())
 Window.register_action(EditDisplayScriptAction())
 Window.register_action(GenerateDataAction())
 Window.register_action(OpenConsoleAction())
+Window.register_action(OpenNotificationsAction())
 Window.register_action(OpenProjectDialogAction())
 Window.register_action(OpenRunScriptsAction())
 Window.register_action(ToggleFilterAction())
