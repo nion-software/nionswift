@@ -652,7 +652,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         if super().mouse_clicked(x, y, modifiers):
             return True
         delegate = self.delegate
-        widget_mapping = ImageCanvasItemMapping.make(self.__data_shape, self.__composite_canvas_item.canvas_rect, list())
+        widget_mapping = self.mouse_mapping
         if delegate and widget_mapping:
             # now let the image panel handle mouse clicking if desired
             image_position = widget_mapping.map_point_widget_to_image(Geometry.FloatPoint(y, x))
@@ -663,7 +663,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         if super().mouse_pressed(x, y, modifiers):
             return True
         delegate = self.delegate
-        widget_mapping = ImageCanvasItemMapping.make(self.__data_shape, self.__composite_canvas_item.canvas_rect, list())
+        widget_mapping = self.mouse_mapping
         if not delegate or not widget_mapping:
             return False
         mouse_pos = Geometry.FloatPoint(y, x)
@@ -920,7 +920,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         if super().mouse_released(x, y, modifiers):
             return True
         delegate = self.delegate
-        widget_mapping = ImageCanvasItemMapping.make(self.__data_shape, self.__composite_canvas_item.canvas_rect, list())
+        widget_mapping = self.mouse_mapping
         if not delegate or not widget_mapping:
             return False
         mouse_pos = Geometry.FloatPoint(y, x)
@@ -975,7 +975,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         if super().mouse_position_changed(x, y, modifiers):
             return True
         delegate = self.delegate
-        widget_mapping = ImageCanvasItemMapping.make(self.__data_shape, self.__composite_canvas_item.canvas_rect, list())
+        widget_mapping = self.mouse_mapping
         if not delegate or not widget_mapping:
             return False
         mouse_pos = Geometry.FloatPoint(y, x)

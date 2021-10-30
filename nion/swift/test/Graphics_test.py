@@ -135,6 +135,146 @@ class TestGraphicsClass(unittest.TestCase):
                 self.assertIsInstance(graphic, graphic_type)
                 display_item.remove_graphic(graphic).close()
 
+    def test_drag_spot_mask(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller_with_application()
+            document_model = document_controller.document_model
+            display_panel = document_controller.selected_display_panel
+            # create data item with origin at center
+            data_item = DataItem.DataItem(numpy.zeros((10, 10)))
+            data_item.set_dimensional_calibration(0, Calibration.Calibration(-5, 0))
+            data_item.set_dimensional_calibration(1, Calibration.Calibration(-5, 0))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            # set up display to be 1000x1000
+            display_panel.set_display_panel_display_item(display_item)
+            header_height = display_panel.header_canvas_item.header_height
+            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
+            # set up mask graphic
+            spot_graphic = Graphics.SpotGraphic()
+            display_item.add_graphic(spot_graphic)
+            initial_bounds = Geometry.FloatRect.from_center_and_size((0.10, 0.25), (0.1, 0.1))
+            spot_graphic.bounds = initial_bounds
+            origin = Geometry.FloatPoint(500, 500)
+            # activate display panel
+            display_panel.display_canvas_item.simulate_click(origin)
+            # move primary spot
+            display_panel.display_canvas_item.simulate_drag(origin + Geometry.FloatPoint(100, 250), origin + Geometry.FloatPoint(50, 200))
+            self.assertAlmostEqualRect(Geometry.FloatRect.from_center_and_size((0.05, 0.20), (0.1, 0.1)), spot_graphic.bounds)
+            # move secondary spot
+            display_panel.display_canvas_item.simulate_drag(origin - Geometry.FloatPoint(50, 200), origin - Geometry.FloatPoint(100, 250))
+            self.assertAlmostEqualRect(Geometry.FloatRect.from_center_and_size((0.10, 0.25), (0.1, 0.1)), spot_graphic.bounds)
+            # move top-right
+            display_panel.display_canvas_item.simulate_drag(origin + Geometry.FloatPoint(50, 300), origin + Geometry.FloatPoint(60, 310))
+            self.assertAlmostEqualRect(Geometry.FloatRect.from_center_and_size((0.10, 0.25), (0.08, 0.12)), spot_graphic.bounds)
+
+    def test_drag_wedge_mask(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller_with_application()
+            document_model = document_controller.document_model
+            display_panel = document_controller.selected_display_panel
+            # create data item with origin at center
+            data_item = DataItem.DataItem(numpy.zeros((10, 10)))
+            data_item.set_dimensional_calibration(0, Calibration.Calibration(-5, 0))
+            data_item.set_dimensional_calibration(1, Calibration.Calibration(-5, 0))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            # set up display to be 1000x1000
+            display_panel.set_display_panel_display_item(display_item)
+            header_height = display_panel.header_canvas_item.header_height
+            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
+            # set up mask graphic
+            wedge_graphic = Graphics.WedgeGraphic()
+            display_item.add_graphic(wedge_graphic)
+            wedge_graphic.start_angle = math.radians(30)
+            wedge_graphic.end_angle = math.radians(60)
+            origin = Geometry.FloatPoint(500, 500)
+            # activate display panel
+            display_panel.display_canvas_item.simulate_click(origin)
+            # drag start angle
+            display_panel.display_canvas_item.simulate_drag(origin + Geometry.FloatPoint(250 * -math.sin(math.radians(30)), 250 * math.cos(math.radians(30))),
+                                                            origin + Geometry.FloatPoint(250 * -math.sin(math.radians(20)), 250 * math.cos(math.radians(20))))
+            self.assertAlmostEqual(20, math.degrees(wedge_graphic.start_angle))
+            self.assertAlmostEqual(60, math.degrees(wedge_graphic.end_angle))
+            display_panel.display_canvas_item.simulate_drag(origin + Geometry.FloatPoint(250 * -math.sin(math.radians(60)), 250 * math.cos(math.radians(60))),
+                                                            origin + Geometry.FloatPoint(250 * -math.sin(math.radians(50)), 250 * math.cos(math.radians(50))))
+            self.assertAlmostEqual(20, math.degrees(wedge_graphic.start_angle))
+            self.assertAlmostEqual(50, math.degrees(wedge_graphic.end_angle))
+            display_panel.display_canvas_item.simulate_drag(origin + Geometry.FloatPoint(250 * -math.sin(math.radians(35)), 250 * math.cos(math.radians(35))),
+                                                            origin + Geometry.FloatPoint(250 * -math.sin(math.radians(45)), 250 * math.cos(math.radians(45))))
+            self.assertAlmostEqual(30, math.degrees(wedge_graphic.start_angle))
+            self.assertAlmostEqual(60, math.degrees(wedge_graphic.end_angle))
+
+    def test_drag_ring_mask(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller_with_application()
+            document_model = document_controller.document_model
+            display_panel = document_controller.selected_display_panel
+            # create data item with origin at center
+            data_item = DataItem.DataItem(numpy.zeros((10, 10)))
+            data_item.set_dimensional_calibration(0, Calibration.Calibration(-5, 0))
+            data_item.set_dimensional_calibration(1, Calibration.Calibration(-5, 0))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            # set up display to be 1000x1000
+            display_panel.set_display_panel_display_item(display_item)
+            header_height = display_panel.header_canvas_item.header_height
+            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
+            # set up mask graphic
+            ring_graphic = Graphics.RingGraphic()
+            display_item.add_graphic(ring_graphic)
+            ring_graphic.radius_1 = 0.2
+            ring_graphic.radius_2 = 0.3
+            origin = Geometry.FloatPoint(500, 500)
+            # activate display panel
+            display_panel.display_canvas_item.simulate_click(origin)
+            display_panel.display_canvas_item.simulate_click(origin + Geometry.FloatPoint(250, 0))
+            # move rings
+            display_panel.display_canvas_item.simulate_drag(origin + Geometry.FloatPoint(200, 0), origin + Geometry.FloatPoint(100, 0))
+            self.assertAlmostEqual(0.1, ring_graphic.radius_1)
+            self.assertAlmostEqual(0.3, ring_graphic.radius_2)
+            display_panel.display_canvas_item.simulate_drag(origin + Geometry.FloatPoint(300, 0), origin + Geometry.FloatPoint(350, 0))
+            self.assertAlmostEqual(0.1, ring_graphic.radius_1)
+            self.assertAlmostEqual(0.35, ring_graphic.radius_2)
+
+    def test_drag_ring_lattice(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller_with_application()
+            document_model = document_controller.document_model
+            display_panel = document_controller.selected_display_panel
+            # create data item with origin at center
+            data_item = DataItem.DataItem(numpy.zeros((10, 10)))
+            data_item.set_dimensional_calibration(0, Calibration.Calibration(-5, 0))
+            data_item.set_dimensional_calibration(1, Calibration.Calibration(-5, 0))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            # set up display to be 1000x1000
+            display_panel.set_display_panel_display_item(display_item)
+            header_height = display_panel.header_canvas_item.header_height
+            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
+            # set up mask graphic
+            lattice_graphic = Graphics.LatticeGraphic()
+            display_item.add_graphic(lattice_graphic)
+            lattice_graphic.u_pos = Geometry.FloatPoint(0.1, 0.3)
+            lattice_graphic.v_pos = Geometry.FloatPoint(-0.2, -0.2)
+            lattice_graphic.radius = 0.05
+            origin = Geometry.FloatPoint(500, 500)
+            # activate display panel
+            display_panel.display_canvas_item.simulate_click(origin)
+            # move vectors
+            display_panel.display_canvas_item.simulate_drag(origin + Geometry.FloatPoint(100, 300), origin + Geometry.FloatPoint(150, 250))
+            self.assertAlmostEqualPoint(Geometry.FloatPoint(0.15, 0.25), lattice_graphic.u_pos)
+            self.assertAlmostEqualPoint(Geometry.FloatPoint(-0.20, -0.20), lattice_graphic.v_pos)
+            self.assertAlmostEqual(0.05, lattice_graphic.radius)
+            display_panel.display_canvas_item.simulate_drag(origin + Geometry.FloatPoint(-200, -200), origin + Geometry.FloatPoint(-250, -150))
+            self.assertAlmostEqualPoint(Geometry.FloatPoint(0.15, 0.25), lattice_graphic.u_pos)
+            self.assertAlmostEqualPoint(Geometry.FloatPoint(-0.25, -0.15), lattice_graphic.v_pos)
+            self.assertAlmostEqual(0.05, lattice_graphic.radius)
+            display_panel.display_canvas_item.simulate_drag(origin + Geometry.FloatPoint(-300, -100), origin + Geometry.FloatPoint(-350, -50))
+            self.assertAlmostEqualPoint(Geometry.FloatPoint(0.15, 0.25), lattice_graphic.u_pos)
+            self.assertAlmostEqualPoint(Geometry.FloatPoint(-0.25, -0.15), lattice_graphic.v_pos)
+            self.assertAlmostEqual(0.10, lattice_graphic.radius)
+
     def test_spot_mask_inverted(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller_with_application()
