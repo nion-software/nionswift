@@ -505,10 +505,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             axes = LineGraphCanvasItem.LineGraphAxes(data_scale, calibrated_data_min, calibrated_data_max, left_channel, right_channel, displayed_dimensional_calibration, intensity_calibration, y_style, y_ticker)
 
             if scalar_xdata_list is None:
-                if len(xdata_list) > 0:
-                    scalar_xdata_list = calculate_scalar_xdata(xdata_list)
-                else:
-                    scalar_xdata_list = list()
+                scalar_xdata_list = calculate_scalar_xdata(xdata_list)
 
             if self.__display_frame_rate_id:
                 Utility.fps_tick("prepare_"+self.__display_frame_rate_id)
