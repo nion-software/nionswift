@@ -16,6 +16,7 @@ from nion.swift import DisplayPanel
 from nion.swift import Facade
 from nion.swift import ImageCanvasItem
 from nion.swift import LinePlotCanvasItem
+from nion.swift import MimeTypes
 from nion.swift import Thumbnails
 from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
@@ -2474,6 +2475,26 @@ class TestDisplayPanelClass(unittest.TestCase):
                     graphic = getattr(display_panel, filter_mask_fn_name)(*filter_mask_fn_params)
                     display_item.remove_graphic(graphic).close()
                 document_model.remove_data_item(data_item)
+
+    def test_dropping_datum_1d_on_existing_line_plot_works(self):
+        with TestContext.create_memory_context() as test_context:
+            # set up the layout
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            display_panel = document_controller.workspace_controller.display_panels[0]
+            data_item = DataItem.DataItem(numpy.zeros((12,)))
+            data_item2 = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(numpy.zeros((10,10)), data_descriptor=DataAndMetadata.DataDescriptor(True, 0, 1)))
+            document_model.append_data_item(data_item)
+            document_model.append_data_item(data_item2)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item2 = document_model.get_display_item_for_data_item(data_item2)
+            display_panel.set_display_panel_display_item(display_item)
+            display_panel.display_canvas_item.layout_immediate(Geometry.IntSize(height=200, width=100))
+            mime_data = document_controller.ui.create_mime_data()
+            MimeTypes.mime_data_put_display_item(mime_data, display_item2)
+            display_panel.content_canvas_item._set_drop_region(list(display_panel.display_canvas_item.get_drop_regions_map(display_item2).keys())[0])
+            display_panel.content_canvas_item.drop(mime_data, 100, 50)
+            self.assertEqual(2, len(display_item.display_data_channels))
 
 
 if __name__ == '__main__':

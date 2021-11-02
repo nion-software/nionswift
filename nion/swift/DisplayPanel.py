@@ -252,6 +252,9 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
             self.__drop_region = drop_region
             self.update()
 
+    def _set_drop_region(self, drop_region: str) -> None:
+        self.__set_drop_region(drop_region)
+
     def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
         super()._repaint(drawing_context)
 
@@ -1929,8 +1932,8 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
     def handle_drop_display_item(self, region: str, display_item: typing.Optional[DisplayItem.DisplayItem]) -> bool:
         if region == "plus":
             data_item = display_item.data_item if display_item else None
-            if data_item and display_item:
-                command = AppendDisplayDataChannelCommand(self.__document_controller.document_model, display_item, data_item)
+            if data_item and self.display_item:
+                command = AppendDisplayDataChannelCommand(self.__document_controller.document_model, self.display_item, data_item)
                 command.perform()
                 self.__document_controller.push_undo_command(command)
                 return True
