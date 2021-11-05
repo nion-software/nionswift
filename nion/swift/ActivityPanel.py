@@ -28,7 +28,7 @@ class ActivityHandler(Declarative.HandlerLike):
         self.activity = activity
         u = Declarative.DeclarativeUI()
         self.ui_view = u.create_row(
-            u.create_label(text="@binding(activity.displayed_title)"),
+            u.create_label(text="@binding(activity.displayed_title)", word_wrap=True, width=296),
             u.create_stretch(),
             spacing=8
         )
