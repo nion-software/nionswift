@@ -12,6 +12,31 @@ in bug fix releases, we choose to include them for evaluation and feedback. If y
 or have feedback about these types of new features, please contact us or file issues at
 https://github.com/nion-software/nionswift/issues.
 
+Version 0.16.0 (UNRELEASED)
+---------------------------
+The highlights of this release are improved performance, reliability, and internal Python code maintainability.
+
+This 0.16.0 release is file compatible with the 0.15.x release and switching between the two versions is supported.
+
+Requires Python 3.8 or Python 3.9.
+
+* `#758 <https://github.com/nion-software/nionswift/issues/758>`_ Composite line plots can now display any data that can be reduced to 1D data.
+* `#753 <https://github.com/nion-software/nionswift/issues/753>`_ Improved performance of HDF5 backed files by not blocking via cursor updates.
+* `#741 <https://github.com/nion-software/nionswift/issues/741>`_ Fix issue deselecting secondary display panels when clicking on primary.
+* `#731 <https://github.com/nion-software/nionswift/issues/731>`_ Dropped support for Python 3.7.
+* `#724 <https://github.com/nion-software/nionswift/issues/724>`_ Moved hardware source into instrumentation kit.
+* `#717 <https://github.com/nion-software/nionswift/issues/717>`_ Fix issues with scale marker not updating when calibration changed.
+* `#713 <https://github.com/nion-software/nionswift/issues/713>`_ Fix issues with HDF5 backed file not displaying as line plot.
+* `#712 <https://github.com/nion-software/nionswift/issues/712>`_ Improve look and functionality of toolbar.
+* `#705 <https://github.com/nion-software/nionswift/issues/705>`_ Allow line plot stroke width to be edited in inspector.
+* `#699 <https://github.com/nion-software/nionswift/issues/699>`_ Improve reliability of data file writes.
+* `#681 <https://github.com/nion-software/nionswift/issues/681>`_ Fix line plot display jitter when dragging axes.
+* `#323 <https://github.com/nion-software/nionswift/issues/323>`_ Provide sequence and collection controls directly in display panel.
+* `#155 <https://github.com/nion-software/nionswift/issues/155>`_ Store preferences in file rather than registry. File printed at startup. Easier backup.
+* `#132 <https://github.com/nion-software/nionswift/issues/132>`_ Add activity panel (beta) and notification panel (beta, lightly used so far).
+* Speed up project loading by simplifying code and avoiding rewrites upon loading.
+* Many improvements to internal Python code (strict typing, cleanup).
+
 Version 0.15.7 (2021-05-27)
 ---------------------------
 * `#475 <https://github.com/nion-software/nionswift/issues/475>`_ Fix issue with font sizes when changing screen resolution without rebooting.
