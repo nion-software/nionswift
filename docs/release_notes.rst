@@ -12,7 +12,7 @@ in bug fix releases, we choose to include them for evaluation and feedback. If y
 or have feedback about these types of new features, please contact us or file issues at
 https://github.com/nion-software/nionswift/issues.
 
-Version 0.16.0 (UNRELEASED)
+Version 0.16.0 (2021-11-12)
 ---------------------------
 The highlights of this release are improved performance, reliability, and internal Python code maintainability.
 
