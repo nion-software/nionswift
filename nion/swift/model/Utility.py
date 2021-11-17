@@ -444,7 +444,7 @@ class TestEventLoop:
         # give cancelled tasks a chance to finish
         self.__event_loop.stop()
         self.__event_loop.run_forever()
-        self.__event_loop.run_until_complete(asyncio.gather(*asyncio.all_tasks(loop=self.__event_loop), loop=self.__event_loop))
+        self.__event_loop.run_until_complete(asyncio.gather(*asyncio.all_tasks(loop=self.__event_loop)))
         # now close
         # due to a bug in Python libraries, the default executor needs to be shutdown explicitly before the event loop
         # see http://bugs.python.org/issue28464
