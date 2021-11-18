@@ -155,6 +155,12 @@ class DocumentController(Window.Window):
         self.__display_items_model = ListModel.FilteredListModel(container=self.document_model, items_key="display_items")
         typing.cast(typing.Any, self.__display_items_model).filter_id = None  # extra tracking field. fix typing in 3.8.
         self.__filtered_display_items_model = ListModel.FilteredListModel(items_key="display_items", container=self.__display_items_model)
+
+        def filtered_display_items_item_removed(selection: Selection.IndexedSelection, key: str, value: DisplayItem.DisplayItem, index: int) -> None:
+            selection.remove_index(index)
+
+        self.__filtered_display_items_item_removed_event_listener = self.__filtered_display_items_model.item_removed_event.listen(functools.partial(filtered_display_items_item_removed, self.selection))
+
         self.__last_display_filter = ListModel.Filter(True)
         self.filter_changed_event = Event.Event()
 
@@ -228,6 +234,8 @@ class DocumentController(Window.Window):
         self.__undo_stack = typing.cast(typing.Any, None)
         self.__selection_changed_listener.close()
         self.__selection_changed_listener = typing.cast(typing.Any, None)
+        self.__filtered_display_items_item_removed_event_listener.close()
+        self.__filtered_display_items_item_removed_event_listener = typing.cast(typing.Any, None)
         self.__call_soon_event_listener.close()
         self.__call_soon_event_listener = typing.cast(typing.Any, None)
         self.__filtered_display_items_model.close()

@@ -2237,11 +2237,11 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
                 if self.__horizontal_browser_canvas_item.visible:
                     self.__switch_to_grid_browser()
                     self.__update_selection_to_display()
-                    self.__grid_data_grid_controller.icon_view_canvas_item.request_focus()
+                    self.__grid_data_grid_controller.request_focus()
                 else:
                     self.__switch_to_horizontal_browser()
                     self.__update_selection_to_display()
-                    self.__horizontal_data_grid_controller.icon_view_canvas_item.request_focus()
+                    self.__horizontal_data_grid_controller.request_focus()
             else:
                 self.__switch_to_no_browser()
                 self._select()

@@ -194,82 +194,38 @@ class DisplayItemAdapter:
         drawing_context.add(self.__create_thumbnail(rect.inset(6)))
 
 
-class DataListController:
-    """Control a list of display items in a list widget.
+class ItemExplorerCanvasItemLike(typing.Protocol):
+    def detach_delegate(self) -> None: ...
+    def make_selection_visible(self) -> None: ...
 
-    The following properties are available:
-        selected_indexes (r/o)
 
-    The following methods can be called:
-        close()
-
-    The controller provides the following callbacks:
-        on_delete_display_item_adapters(display_item_adapters)
-        on_key_pressed(key)
-        on_focus_changed(focused)
-        on_context_menu_event(display_item_adapter, x, y, gx, gy)
-
-    Display items should respond to these properties and methods and events:
-        (method) close()
-        (property, read-only) title_str
-        (property, read-only) datetime_str
-        (property, read-only) format_str
-        (property, read-only) status_str
-        (method) draw_list_item(drawing_context, draw_rect)
-        (method) drag_started(ui, x, y, modifiers), returns mime_data, thumbnail_data
-    """
-
-    def __init__(self, event_loop: asyncio.AbstractEventLoop, ui: UserInterface.UserInterface, display_item_adapters_model: ListModel.MappedListModel, selection: Selection.IndexedSelection) -> None:
-        super().__init__()
+class ItemExplorerController:
+    def __init__(self, event_loop: asyncio.AbstractEventLoop, ui: UserInterface.UserInterface,
+                 canvas_item: CanvasItem.AbstractCanvasItem,
+                 display_item_adapters_model: ListModel.MappedListModel, selection: Selection.IndexedSelection,
+                 direction: GridCanvasItem.Direction = GridCanvasItem.Direction.Row, wrap: bool = True) -> None:
         self.__event_loop = event_loop
         self.__pending_tasks: typing.List[asyncio.Task[None]] = list()
         self.ui = ui
         self.__selection = selection
-        self.on_delete_display_item_adapters: typing.Optional[typing.Callable[[typing.List[DisplayItemAdapter]], None]] = None
-        self.on_key_pressed: typing.Optional[typing.Callable[[UserInterface.Key], bool]] = None
-
         self.__display_item_adapters: typing.List[DisplayItemAdapter] = list()
         self.__display_item_adapter_needs_update_listeners: typing.List[Event.EventListener] = list()
-
         self.__display_item_adapters_model = display_item_adapters_model
         self.__display_item_adapter_inserted_event_listener = self.__display_item_adapters_model.item_inserted_event.listen(self.__display_item_adapter_inserted)
         self.__display_item_adapter_removed_event_listener = self.__display_item_adapters_model.item_removed_event.listen(self.__display_item_adapter_removed)
         self.__display_item_adapter_end_changes_event_listener = self.__display_item_adapters_model.end_changes_event.listen(self.__display_item_adapter_end_changes)
-
-        class ListCanvasItemDelegate(ListCanvasItem.ListCanvasItemDelegate):
-            def __init__(self, data_list_controller: DataListController):
-                self.__data_list_controller = data_list_controller
-                self.on_item_selected: typing.Optional[typing.Callable[[int], None]] = None
-                self.on_cancel: typing.Optional[typing.Callable[[], None]] = None
-
-            @property
-            def item_count(self) -> int:
-                return self.__data_list_controller.display_item_adapter_count
-
-            @property
-            def items(self) -> typing.Sequence[typing.Any]:
-                return self.__data_list_controller.display_item_adapters
-
-            @items.setter
-            def items(self, value: typing.Sequence[typing.Any]) -> None:
-                raise NotImplementedError()
-
-            def paint_item(self, drawing_context: DrawingContext.DrawingContext, display_item_adapter: DisplayItemAdapter, rect: Geometry.IntRect, is_selected: bool) -> None:
-                display_item_adapter.draw_list_item(drawing_context, rect)
-
-            def context_menu_event(self, index: typing.Optional[int], x: int, y: int, gx: int, gy: int) -> bool:
-                return self.__data_list_controller.context_menu_event(index, x, y, gx, gy)
-
-            def delete_pressed(self) -> None:
-                self.__data_list_controller._delete_pressed()
-
-            def key_pressed(self, key: UserInterface.Key) -> bool:
-                return self.__data_list_controller._key_pressed(key)
-
-            def drag_started(self, index: int, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> None:
-                self.__data_list_controller.drag_started(index, x, y, modifiers)
-
-        self.__list_canvas_item = ListCanvasItem.ListCanvasItem(ListCanvasItemDelegate(self), self.__selection)
+        self.on_delete_display_item_adapters: typing.Optional[typing.Callable[[typing.List[DisplayItemAdapter]], None]] = None
+        self.on_key_pressed: typing.Optional[typing.Callable[[UserInterface.Key], bool]] = None
+        self.on_display_item_adapter_double_clicked: typing.Optional[typing.Callable[[DisplayItemAdapter], bool]] = None
+        self.on_context_menu_event: typing.Optional[typing.Callable[[typing.Optional[DisplayItem.DisplayItem], typing.List[DisplayItem.DisplayItem], int, int, int, int], bool]] = None
+        self.on_focus_changed: typing.Optional[typing.Callable[[bool], None]] = None
+        self.on_drag_started: typing.Optional[typing.Callable[[UserInterface.MimeData, typing.Optional[_NDArray]], None]] = None
+        # changed display items keep track of items whose content has changed
+        # the content changed messages may come from a thread so have to be
+        # moved to the main thread via this object.
+        self.__changed_display_item_adapters = False
+        self.__changed_display_item_adapters_mutex = threading.RLock()
+        self.__list_canvas_item = canvas_item
 
         def focus_changed(focused: bool) -> None:
             self.__list_canvas_item.update()
@@ -279,36 +235,46 @@ class DataListController:
         self.__list_canvas_item.on_focus_changed = focus_changed
         self.scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(self.__list_canvas_item)
         self.scroll_area_canvas_item.auto_resize_contents = True
-        self.scroll_bar_canvas_item = CanvasItem.ScrollBarCanvasItem(self.scroll_area_canvas_item)
         self.scroll_group_canvas_item = CanvasItem.CanvasItemComposition()
-        self.scroll_group_canvas_item.layout = CanvasItem.CanvasItemRowLayout()
+        if (wrap and direction == GridCanvasItem.Direction.Row) or (not wrap and direction == GridCanvasItem.Direction.Column):
+            self.scroll_bar_canvas_item = CanvasItem.ScrollBarCanvasItem(self.scroll_area_canvas_item)
+            self.scroll_group_canvas_item.layout = CanvasItem.CanvasItemRowLayout()
+        else:
+            self.scroll_bar_canvas_item = CanvasItem.ScrollBarCanvasItem(self.scroll_area_canvas_item, CanvasItem.Orientation.Horizontal)
+            self.scroll_group_canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
         self.scroll_group_canvas_item.add_canvas_item(self.scroll_area_canvas_item)
         self.scroll_group_canvas_item.add_canvas_item(self.scroll_bar_canvas_item)
-        self.canvas_item = self.scroll_group_canvas_item
+
+        """
+        # dual scroll bars, leave here for easy testing
+        self.vertical_scroll_bar_canvas_item = CanvasItem.ScrollBarCanvasItem(self.scroll_area_canvas_item)
+        self.horizontal_scroll_bar_canvas_item = CanvasItem.ScrollBarCanvasItem(self.scroll_area_canvas_item, CanvasItem.Orientation.Horizontal)
+        self.scroll_group_canvas_item.layout = CanvasItem.CanvasItemGridLayout(Geometry.IntSize(width=2, height=2))
+        self.scroll_group_canvas_item.add_canvas_item(self.scroll_area_canvas_item, Geometry.IntPoint(x=0, y=0))
+        self.scroll_group_canvas_item.add_canvas_item(self.vertical_scroll_bar_canvas_item, Geometry.IntPoint(x=1, y=0))
+        self.scroll_group_canvas_item.add_canvas_item(self.horizontal_scroll_bar_canvas_item, Geometry.IntPoint(x=0, y=1))
+        """
+
+        self.__canvas_item = self.scroll_group_canvas_item
 
         def selection_changed() -> None:
             self.selected_indexes = list(self.__selection.indexes)
-            self.__list_canvas_item.make_selection_visible()
+            typing.cast(ItemExplorerCanvasItemLike, self.__list_canvas_item).make_selection_visible()
 
         self.__selection_changed_listener: typing.Optional[Event.EventListener] = self.__selection.changed_event.listen(selection_changed)
         self.selected_indexes = list()
-        self.on_context_menu_event : typing.Optional[typing.Callable[[typing.Optional[DisplayItem.DisplayItem], typing.List[DisplayItem.DisplayItem], int, int, int, int], bool]] = None
-        self.on_focus_changed : typing.Optional[typing.Callable[[bool], None]] = None
-        self.on_drag_started : typing.Optional[typing.Callable[[UserInterface.MimeData, typing.Optional[_NDArray]], None]] = None
-
-        # changed display items keep track of items whose content has changed
-        # the content changed messages may come from a thread so have to be
-        # moved to the main thread via this object.
-        self.__changed_display_item_adapters = False
-        self.__changed_display_item_adapters_mutex = threading.RLock()
 
         for index, display_item_adapter in enumerate(self.__display_item_adapters_model.display_item_adapters):
             self.__display_item_adapter_inserted("display_item_adapters", display_item_adapter, index)
 
+        self.__closed = False
+
     def close(self) -> None:
+        assert not self.__closed
         for pending_task in self.__pending_tasks:
             pending_task.cancel()
         self.__pending_tasks = typing.cast(typing.Any, None)
+        typing.cast(ItemExplorerCanvasItemLike, self.__list_canvas_item).detach_delegate()
         if self.__selection_changed_listener:
             self.__selection_changed_listener.close()
             self.__selection_changed_listener = None
@@ -316,31 +282,33 @@ class DataListController:
             display_item_adapter_needs_update_listener.close()
         self.__display_item_adapter_needs_update_listeners = typing.cast(typing.Any, None)
         self.__display_item_adapter_inserted_event_listener.close()
-        self.__display_item_adapter_inserted_event_listener = typing.cast(Event.EventListener, None)
+        self.__display_item_adapter_inserted_event_listener = typing.cast(typing.Any, None)
         self.__display_item_adapter_removed_event_listener.close()
-        self.__display_item_adapter_removed_event_listener = typing.cast(Event.EventListener, None)
+        self.__display_item_adapter_removed_event_listener = typing.cast(typing.Any, None)
         self.__display_item_adapter_end_changes_event_listener.close()
-        self.__display_item_adapter_end_changes_event_listener = typing.cast(Event.EventListener, None)
+        self.__display_item_adapter_end_changes_event_listener = typing.cast(typing.Any, None)
         self.__display_item_adapters = typing.cast(typing.Any, None)
-        self.__display_item_adapters_model = typing.cast(ListModel.MappedListModel, None)
+        self.__display_item_adapters_model = typing.cast(typing.Any, None)
         self.on_context_menu_event = None
         self.on_drag_started = None
         self.on_focus_changed = None
         self.on_delete_display_item_adapters = None
         self.on_key_pressed = None
+        self.on_display_item_adapter_double_clicked = None
+        self.__closed = True
 
-    async def __update_display_item_adapters(self) -> None:
-        # handle the 'changed' stuff. a call to this function is scheduled
-        # whenever __changed_display_item_adapters changes.
-        with self.__changed_display_item_adapters_mutex:
-            changed_display_item_adapters = self.__changed_display_item_adapters
-            self.__changed_display_item_adapters = False
-        if changed_display_item_adapters:
-            self.__list_canvas_item.update()
-        self.__pending_tasks.pop(0)
+    @property
+    def canvas_item(self) -> CanvasItem.AbstractCanvasItem:
+        return self.__canvas_item
+
+    def request_focus(self) -> None:
+        self.__list_canvas_item.request_focus()
+
+    def clear_selection(self) -> None:
+        self.__selection.clear()
 
     def make_selection_visible(self) -> None:
-        self.__list_canvas_item.make_selection_visible()
+        typing.cast(ItemExplorerCanvasItemLike, self.__list_canvas_item).make_selection_visible()
 
     # this message comes from the canvas item when delete key is pressed
     def _delete_pressed(self) -> None:
@@ -364,9 +332,6 @@ class DataListController:
     @property
     def display_item_adapters(self) -> typing.List[DisplayItemAdapter]:
         return copy.copy(self.__display_item_adapters)
-
-    def _test_get_display_item_adapter(self, index: int) -> DisplayItemAdapter:
-        return self.__display_item_adapters[index]
 
     def context_menu_event(self, index: typing.Optional[int], x: int, y: int, gx: int, gy: int) -> bool:
         if callable(self.on_context_menu_event):
@@ -389,230 +354,13 @@ class DataListController:
         elif len(display_item_adapters) > 1:
             mime_data = self.ui.create_mime_data()
             anchor_index = self.__selection.anchor_index or 0
-            MimeTypes.mime_data_put_display_items(mime_data, [display_item_adapter.display_item for display_item_adapter in display_item_adapters if display_item_adapter.display_item])
+            MimeTypes.mime_data_put_display_items(mime_data,
+                                                  [display_item_adapter.display_item for display_item_adapter in
+                                                   display_item_adapters if display_item_adapter.display_item])
             thumbnail_data = self.__display_item_adapters[anchor_index].calculate_thumbnail_data()
         if mime_data:
             if callable(self.on_drag_started):
                 self.on_drag_started(mime_data, thumbnail_data)
-
-    def __display_item_adapter_needs_update(self) -> None:
-        with self.__changed_display_item_adapters_mutex:
-            self.__changed_display_item_adapters = True
-            self.__pending_tasks.append(self.__event_loop.create_task(self.__update_display_item_adapters()))
-
-    # call this method to insert a display item
-    # not thread safe
-    def __display_item_adapter_inserted(self, key: str, display_item_adapter: DisplayItemAdapter, before_index: int) -> None:
-        if key == "display_item_adapters":
-            self.__display_item_adapters.insert(before_index, display_item_adapter)
-            self.__display_item_adapter_needs_update_listeners.insert(before_index, display_item_adapter.needs_update_event.listen(self.__display_item_adapter_needs_update))
-            self.__selection.insert_index(before_index)
-
-    # call this method to remove a display item (by index)
-    # not thread safe
-    def __display_item_adapter_removed(self, key: str, display_item_adapter: DisplayItemAdapter, index: int) -> None:
-        if key == "display_item_adapters":
-            self.__display_item_adapter_needs_update_listeners[index].close()
-            del self.__display_item_adapter_needs_update_listeners[index]
-            del self.__display_item_adapters[index]
-            self.__selection.remove_index(index)
-
-    def __display_item_adapter_end_changes(self, key: str) -> None:
-        if key == "display_item_adapters":
-            if self.canvas_item.visible:
-                self.__list_canvas_item.refresh_layout()
-                self.__list_canvas_item.update()
-
-
-class DataGridController:
-    """Control a grid of display items in a grid widget.
-
-    The following properties are available:
-        selected_indexes (r/o)
-
-    The following methods can be called:
-        close()
-
-    The controller provides the following callbacks:
-        on_delete_display_item_adapters(display_item_adapters)
-        on_key_pressed(key)
-        on_display_item_adapter_double_clicked(display_item_adapter)
-        on_focus_changed(focused)
-        on_context_menu_event(display_item_adapter, x, y, gx, gy)
-        on_drag_started(mime_data, thumbnail_data)
-
-    Display items should respond to these properties and methods and events:
-        (method) close()
-        (property, read-only) thumbnail
-        (property, read-only) title_str
-        (property, read-only) datetime_str
-        (property, read-only) format_str
-        (property, read-only) status_str
-        (method) draw_grid_item(drawing_context, draw_rect)
-        (method) drag_started(ui, x, y, modifiers), returns mime_data, thumbnail_data
-    """
-
-    def __init__(self, event_loop: asyncio.AbstractEventLoop, ui: UserInterface.UserInterface,
-                 display_item_adapters_model: ListModel.MappedListModel, selection: Selection.IndexedSelection,
-                 direction: GridCanvasItem.Direction = GridCanvasItem.Direction.Row, wrap: bool = True) -> None:
-        super().__init__()
-        self.__event_loop = event_loop
-        self.__pending_tasks: typing.List[asyncio.Task[None]] = list()
-        self.ui = ui
-        self.__selection = selection
-        self.on_delete_display_item_adapters : typing.Optional[typing.Callable[[typing.List[DisplayItemAdapter]], None]] = None
-        self.on_key_pressed : typing.Optional[typing.Callable[[UserInterface.Key], bool]] = None
-        self.on_display_item_adapter_double_clicked : typing.Optional[typing.Callable[[DisplayItemAdapter], bool]] = None
-        self.on_context_menu_event : typing.Optional[typing.Callable[[typing.Optional[DisplayItem.DisplayItem], typing.List[DisplayItem.DisplayItem], int, int, int, int], bool]] = None
-        self.on_focus_changed : typing.Optional[typing.Callable[[bool], None]] = None
-        self.on_drag_started : typing.Optional[typing.Callable[[UserInterface.MimeData, typing.Optional[_NDArray]], None]] = None
-
-        self.__display_item_adapters : typing.List[DisplayItemAdapter] = list()
-        self.__display_item_adapter_needs_update_listeners: typing.List[Event.EventListener] = list()
-
-        self.__display_item_adapters_model = display_item_adapters_model
-        self.__display_item_adapter_inserted_event_listener = self.__display_item_adapters_model.item_inserted_event.listen(self.__display_item_adapter_inserted)
-        self.__display_item_adapter_removed_event_listener = self.__display_item_adapters_model.item_removed_event.listen(self.__display_item_adapter_removed)
-        self.__display_item_adapter_end_changes_event_listener = self.__display_item_adapters_model.end_changes_event.listen(self.__display_item_adapter_end_changes)
-
-        class GridCanvasItemDelegate(GridCanvasItem.GridCanvasItemDelegate):
-            def __init__(self, data_grid_controller: DataGridController):
-                self.__data_grid_controller = data_grid_controller
-
-            @property
-            def item_count(self) -> int:
-                return self.__data_grid_controller.display_item_adapter_count
-
-            @property
-            def items(self) -> typing.List[DisplayItemAdapter]:
-                return self.__data_grid_controller.display_item_adapters
-
-            @items.setter
-            def items(self, value: typing.List[DisplayItemAdapter]) -> None:
-                raise NotImplementedError()
-
-            def paint_item(self, drawing_context: DrawingContext.DrawingContext, display_item_adapter: DisplayItemAdapter, rect: Geometry.IntRect, is_selected: bool) -> None:
-                display_item_adapter.draw_grid_item(drawing_context, rect)
-
-            def context_menu_event(self, index: typing.Optional[int], x: int, y: int, gx: int, gy: int) -> bool:
-                return self.__data_grid_controller.context_menu_event(index, x, y, gx, gy)
-
-            def delete_pressed(self) -> None:
-                self.__data_grid_controller._delete_pressed()
-
-            def key_pressed(self, key: UserInterface.Key) -> bool:
-                return self.__data_grid_controller._key_pressed(key)
-
-            def mouse_double_clicked(self, mouse_index: int, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
-                return self.__data_grid_controller._double_clicked()
-
-            def drag_started(self, index: int, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> None:
-                self.__data_grid_controller.drag_started(index, x, y, modifiers)
-
-        self.icon_view_canvas_item = GridCanvasItem.GridCanvasItem(GridCanvasItemDelegate(self), self.__selection, direction, wrap)
-
-        def icon_view_canvas_item_focus_changed(focused: bool) -> None:
-            self.icon_view_canvas_item.update()
-            if self.on_focus_changed:
-                self.on_focus_changed(focused)
-
-        self.icon_view_canvas_item.on_focus_changed = icon_view_canvas_item_focus_changed
-        self.scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(self.icon_view_canvas_item)
-        self.scroll_area_canvas_item.auto_resize_contents = True
-        self.scroll_group_canvas_item = CanvasItem.CanvasItemComposition()
-        if (wrap and direction == GridCanvasItem.Direction.Row) or (not wrap and direction == GridCanvasItem.Direction.Column):
-            self.scroll_bar_canvas_item = CanvasItem.ScrollBarCanvasItem(self.scroll_area_canvas_item)
-            self.scroll_group_canvas_item.layout = CanvasItem.CanvasItemRowLayout()
-        else:
-            self.scroll_bar_canvas_item = CanvasItem.ScrollBarCanvasItem(self.scroll_area_canvas_item, CanvasItem.Orientation.Horizontal)
-            self.scroll_group_canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
-        self.scroll_group_canvas_item.add_canvas_item(self.scroll_area_canvas_item)
-        self.scroll_group_canvas_item.add_canvas_item(self.scroll_bar_canvas_item)
-
-        """
-        # dual scroll bars, leave here for easy testing
-        self.vertical_scroll_bar_canvas_item = CanvasItem.ScrollBarCanvasItem(self.scroll_area_canvas_item)
-        self.horizontal_scroll_bar_canvas_item = CanvasItem.ScrollBarCanvasItem(self.scroll_area_canvas_item, CanvasItem.Orientation.Horizontal)
-        self.scroll_group_canvas_item.layout = CanvasItem.CanvasItemGridLayout(Geometry.IntSize(width=2, height=2))
-        self.scroll_group_canvas_item.add_canvas_item(self.scroll_area_canvas_item, Geometry.IntPoint(x=0, y=0))
-        self.scroll_group_canvas_item.add_canvas_item(self.vertical_scroll_bar_canvas_item, Geometry.IntPoint(x=1, y=0))
-        self.scroll_group_canvas_item.add_canvas_item(self.horizontal_scroll_bar_canvas_item, Geometry.IntPoint(x=0, y=1))
-        """
-
-        self.canvas_item = self.scroll_group_canvas_item
-
-        def selection_changed() -> None:
-            self.selected_indexes = list(self.__selection.indexes)
-            self.icon_view_canvas_item.make_selection_visible()
-
-        self.__selection_changed_listener = self.__selection.changed_event.listen(selection_changed)
-        self.selected_indexes = list()
-
-        # changed display items keep track of items whose content has changed
-        # the content changed messages may come from a thread so have to be
-        # moved to the main thread via this object.
-        self.__changed_display_item_adapters = False
-        self.__changed_display_item_adapters_mutex = threading.RLock()
-        self.__closed = False
-
-        for index, display_item_adapter in enumerate(self.__display_item_adapters_model.display_item_adapters):
-            self.__display_item_adapter_inserted("display_item_adapters", display_item_adapter, index)
-
-    def close(self) -> None:
-        assert not self.__closed
-        for pending_task in self.__pending_tasks:
-            pending_task.cancel()
-        self.__pending_tasks = typing.cast(typing.Any, None)
-        self.icon_view_canvas_item.detach_delegate()
-        self.__selection_changed_listener.close()
-        self.__selection_changed_listener = typing.cast(typing.Any, None)
-        self.__display_item_adapter_inserted_event_listener.close()
-        self.__display_item_adapter_inserted_event_listener = typing.cast(typing.Any, None)
-        self.__display_item_adapter_removed_event_listener.close()
-        self.__display_item_adapter_removed_event_listener = typing.cast(typing.Any, None)
-        self.__display_item_adapter_end_changes_event_listener.close()
-        self.__display_item_adapter_end_changes_event_listener = typing.cast(typing.Any, None)
-        for display_item_adapter_needs_update_listener in self.__display_item_adapter_needs_update_listeners:
-            display_item_adapter_needs_update_listener.close()
-        self.__display_item_adapter_needs_update_listeners = typing.cast(typing.Any, None)
-        self.__display_item_adapters = typing.cast(typing.Any, None)
-        self.__display_item_adapters_model = typing.cast(typing.Any, None)
-        self.on_context_menu_event = None
-        self.on_drag_started = None
-        self.on_focus_changed = None
-        self.on_delete_display_item_adapters = None
-        self.on_key_pressed = None
-        self.on_display_item_adapter_double_clicked = None
-        self.__closed = True
-
-    async def __update_display_item_adapters(self) -> None:
-        with self.__changed_display_item_adapters_mutex:
-            changed_display_item_adapters = self.__changed_display_item_adapters
-            self.__changed_display_item_adapters = False
-        if changed_display_item_adapters:
-            self.icon_view_canvas_item.update()
-        self.__pending_tasks.pop(0)
-
-    def clear_selection(self) -> None:
-        self.__selection.clear()
-
-    def make_selection_visible(self) -> None:
-        self.icon_view_canvas_item.make_selection_visible()
-
-    # this message comes from the canvas item when delete key is pressed
-    def _delete_pressed(self) -> None:
-        if callable(self.on_delete_display_item_adapters):
-            self.on_delete_display_item_adapters(self.selected_display_item_adapters)
-
-    @property
-    def selected_display_item_adapters(self) -> typing.List[DisplayItemAdapter]:
-        return [self.__display_item_adapters[index] for index in self.__selection.indexes]
-
-    # this message comes from the canvas item when a key is pressed
-    def _key_pressed(self, key: UserInterface.Key) -> bool:
-        if callable(self.on_key_pressed):
-            return self.on_key_pressed(key)
-        return False
 
     # this message comes from the canvas item when a key is pressed
     def _double_clicked(self) -> bool:
@@ -621,41 +369,23 @@ class DataGridController:
                 return self.on_display_item_adapter_double_clicked(self.__display_item_adapters[list(self.__selection.indexes)[0]])
         return False
 
-    @property
-    def display_item_adapter_count(self) -> int:
-        return len(self.__display_item_adapters)
-
-    @property
-    def display_item_adapters(self) -> typing.List[DisplayItemAdapter]:
-        return copy.copy(self.__display_item_adapters)
-
-    def context_menu_event(self, index: typing.Optional[int], x: int, y: int, gx: int, gy: int) -> bool:
-        if callable(self.on_context_menu_event):
-            display_item_adapter = self.__display_item_adapters[index] if index is not None else None
-            display_item = display_item_adapter.display_item if display_item_adapter else None
-            display_items = [display_item_adapter.display_item for display_item_adapter in self.selected_display_item_adapters]
-            return self.on_context_menu_event(display_item, display_items, x, y, gx, gy)
-        return False
-
-    def drag_started(self, index: int, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> None:
-        mime_data = None
-        thumbnail_data = None
-        display_item_adapters = self.selected_display_item_adapters
-        if len(display_item_adapters) == 1:
-            mime_data, thumbnail_data = self.__display_item_adapters[index].drag_started(self.ui, x, y, modifiers)
-        elif len(display_item_adapters) > 1:
-            mime_data = self.ui.create_mime_data()
-            anchor_index = self.__selection.anchor_index or 0
-            MimeTypes.mime_data_put_display_items(mime_data, [display_item_adapter.display_item for display_item_adapter in display_item_adapters if display_item_adapter.display_item])
-            thumbnail_data = self.__display_item_adapters[anchor_index].calculate_thumbnail_data()
-        if mime_data:
-            if self.on_drag_started:
-                self.on_drag_started(mime_data, thumbnail_data)
+    def _test_get_display_item_adapter(self, index: int) -> DisplayItemAdapter:
+        return self.__display_item_adapters[index]
 
     def __display_item_adapter_needs_update(self) -> None:
         with self.__changed_display_item_adapters_mutex:
             self.__changed_display_item_adapters = True
             self.__pending_tasks.append(self.__event_loop.create_task(self.__update_display_item_adapters()))
+
+    async def __update_display_item_adapters(self) -> None:
+        # handle the 'changed' stuff. a call to this function is scheduled
+        # whenever __changed_display_item_adapters changes.
+        with self.__changed_display_item_adapters_mutex:
+            changed_display_item_adapters = self.__changed_display_item_adapters
+            self.__changed_display_item_adapters = False
+        if changed_display_item_adapters:
+            self.__list_canvas_item.update()
+        self.__pending_tasks.pop(0)
 
     # call this method to insert a display item
     # not thread safe
@@ -675,49 +405,113 @@ class DataGridController:
     def __display_item_adapter_end_changes(self, key: str) -> None:
         if key == "display_item_adapters":
             if self.canvas_item.visible:
-                self.icon_view_canvas_item.refresh_layout()
-                self.icon_view_canvas_item.update()
+                self.__list_canvas_item.refresh_layout()
+                self.__list_canvas_item.update()
 
 
-class DataListWidget(Widgets.CompositeWidgetBase):
+class ListCanvasItemDelegate(ListCanvasItem.ListCanvasItemDelegate):
+    def __init__(self, data_list_controller: DataListController):
+        self.__data_list_controller = data_list_controller
+        self.on_item_selected: typing.Optional[typing.Callable[[int], None]] = None
+        self.on_cancel: typing.Optional[typing.Callable[[], None]] = None
 
-    def __init__(self, ui: UserInterface.UserInterface, data_list_controller: DataListController):
+    @property
+    def item_count(self) -> int:
+        return self.__data_list_controller.display_item_adapter_count
+
+    @property
+    def items(self) -> typing.Sequence[typing.Any]:
+        return self.__data_list_controller.display_item_adapters
+
+    @items.setter
+    def items(self, value: typing.Sequence[typing.Any]) -> None:
+        raise NotImplementedError()
+
+    def paint_item(self, drawing_context: DrawingContext.DrawingContext, display_item_adapter: DisplayItemAdapter, rect: Geometry.IntRect, is_selected: bool) -> None:
+        display_item_adapter.draw_list_item(drawing_context, rect)
+
+    def context_menu_event(self, index: typing.Optional[int], x: int, y: int, gx: int, gy: int) -> bool:
+        return self.__data_list_controller.context_menu_event(index, x, y, gx, gy)
+
+    def delete_pressed(self) -> None:
+        self.__data_list_controller._delete_pressed()
+
+    def key_pressed(self, key: UserInterface.Key) -> bool:
+        return self.__data_list_controller._key_pressed(key)
+
+    def drag_started(self, index: int, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> None:
+        self.__data_list_controller.drag_started(index, x, y, modifiers)
+
+
+class GridCanvasItemDelegate(GridCanvasItem.GridCanvasItemDelegate):
+    def __init__(self, data_grid_controller: DataGridController):
+        self.__data_grid_controller = data_grid_controller
+
+    @property
+    def item_count(self) -> int:
+        return self.__data_grid_controller.display_item_adapter_count
+
+    @property
+    def items(self) -> typing.List[DisplayItemAdapter]:
+        return self.__data_grid_controller.display_item_adapters
+
+    @items.setter
+    def items(self, value: typing.List[DisplayItemAdapter]) -> None:
+        raise NotImplementedError()
+
+    def paint_item(self, drawing_context: DrawingContext.DrawingContext, display_item_adapter: DisplayItemAdapter, rect: Geometry.IntRect, is_selected: bool) -> None:
+        display_item_adapter.draw_grid_item(drawing_context, rect)
+
+    def context_menu_event(self, index: typing.Optional[int], x: int, y: int, gx: int, gy: int) -> bool:
+        return self.__data_grid_controller.context_menu_event(index, x, y, gx, gy)
+
+    def delete_pressed(self) -> None:
+        self.__data_grid_controller._delete_pressed()
+
+    def key_pressed(self, key: UserInterface.Key) -> bool:
+        return self.__data_grid_controller._key_pressed(key)
+
+    def mouse_double_clicked(self, mouse_index: int, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        return self.__data_grid_controller._double_clicked()
+
+    def drag_started(self, index: int, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> None:
+        self.__data_grid_controller.drag_started(index, x, y, modifiers)
+
+
+class DataListController(ItemExplorerController):
+    def __init__(self, event_loop: asyncio.AbstractEventLoop, ui: UserInterface.UserInterface,
+                 display_item_adapters_model: ListModel.MappedListModel, selection: Selection.IndexedSelection) -> None:
+        canvas_item = ListCanvasItem.ListCanvasItem(ListCanvasItemDelegate(self), selection)
+        super().__init__(event_loop, ui, canvas_item, display_item_adapters_model, selection, GridCanvasItem.Direction.Row, True)
+
+
+class DataGridController(ItemExplorerController):
+    def __init__(self, event_loop: asyncio.AbstractEventLoop, ui: UserInterface.UserInterface,
+                 display_item_adapters_model: ListModel.MappedListModel, selection: Selection.IndexedSelection,
+                 direction: GridCanvasItem.Direction = GridCanvasItem.Direction.Row, wrap: bool = True) -> None:
+        canvas_item = GridCanvasItem.GridCanvasItem(GridCanvasItemDelegate(self), selection, direction, wrap)
+        super().__init__(event_loop, ui, canvas_item, display_item_adapters_model, selection, direction, wrap)
+
+
+class ItemExplorerWidget(Widgets.CompositeWidgetBase):
+    """Provide a widget wrapper for an item explorer controller."""
+
+    def __init__(self, ui: UserInterface.UserInterface, item_explorer_controller: ItemExplorerController):
         content_widget = ui.create_column_widget()
         super().__init__(content_widget)
-        self.data_list_controller = data_list_controller
+        self.item_explorer_controller = item_explorer_controller
         data_list_widget = ui.create_canvas_widget()
-        data_list_widget.canvas_item.add_canvas_item(data_list_controller.canvas_item)
+        data_list_widget.canvas_item.add_canvas_item(item_explorer_controller.canvas_item)
         content_widget.add(data_list_widget)
 
         def data_list_drag_started(mime_data: UserInterface.MimeData, thumbnail_data: typing.Optional[_NDArray]) -> None:
             self.drag(mime_data, thumbnail_data)
 
-        data_list_controller.on_drag_started = data_list_drag_started
+        item_explorer_controller.on_drag_started = data_list_drag_started
 
     def close(self) -> None:
-        self.data_list_controller.on_drag_started = None
-        self.data_list_controller = typing.cast(DataListController, None)
-        super().close()
-
-
-class DataGridWidget(Widgets.CompositeWidgetBase):
-
-    def __init__(self, ui: UserInterface.UserInterface, data_grid_controller: DataGridController):
-        content_widget = ui.create_column_widget()
-        super().__init__(content_widget)
-        self.data_grid_controller = data_grid_controller
-        data_grid_widget = ui.create_canvas_widget()
-        data_grid_widget.canvas_item.add_canvas_item(data_grid_controller.canvas_item)
-        content_widget.add(data_grid_widget)
-
-        def data_list_drag_started(mime_data: UserInterface.MimeData, thumbnail_data: typing.Optional[_NDArray]) -> None:
-            self.drag(mime_data, thumbnail_data)
-
-        data_grid_controller.on_drag_started = data_list_drag_started
-
-    def close(self) -> None:
-        self.data_grid_controller.on_drag_started = None
-        self.data_grid_controller = typing.cast(DataGridController, None)
+        self.item_explorer_controller.on_drag_started = None
+        self.item_explorer_controller = typing.cast(DataListController, None)
         super().close()
 
 
@@ -772,8 +566,8 @@ class DataPanel(Panel.Panel):
         self.data_grid_controller.on_focus_changed = focus_changed
         self.data_grid_controller.on_delete_display_item_adapters = delete_display_item_adapters
 
-        data_list_widget = DataListWidget(ui, self.data_list_controller)
-        data_grid_widget = DataGridWidget(ui, self.data_grid_controller)
+        data_list_widget = ItemExplorerWidget(ui, self.data_list_controller)
+        data_grid_widget = ItemExplorerWidget(ui, self.data_grid_controller)
 
         list_icon_20_bytes = pkgutil.get_data(__name__, "resources/list_icon_20.png")
         grid_icon_20_bytes = pkgutil.get_data(__name__, "resources/grid_icon_20.png")
