@@ -386,7 +386,7 @@ class DisplayValues:
                 self.__data_range_dirty = False
                 display_data_and_metadata = self.display_data_and_metadata
                 display_data = display_data_and_metadata.data if display_data_and_metadata else None
-                if display_data is not None and display_data.size and self.__data_and_metadata:
+                if display_data is not None and display_data.shape and self.__data_and_metadata:
                     data_shape = self.__data_and_metadata.data_shape
                     data_dtype = self.__data_and_metadata.data_dtype
                     if Image.is_shape_and_dtype_rgb_type(data_shape, data_dtype):
@@ -421,7 +421,7 @@ class DisplayValues:
                 self.__data_sample_dirty = False
                 display_data_and_metadata = self.display_data_and_metadata
                 display_data = display_data_and_metadata.data if display_data_and_metadata else None
-                if display_data is not None and display_data.size and self.__data_and_metadata:
+                if display_data is not None and display_data.shape and self.__data_and_metadata:
                     data_shape = self.__data_and_metadata.data_shape
                     data_dtype = self.__data_and_metadata.data_dtype
                     if Image.is_shape_and_dtype_rgb_type(data_shape, data_dtype):
