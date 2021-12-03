@@ -164,6 +164,7 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
         self.on_drop: typing.Optional[typing.Callable[[UserInterface.MimeData, str, int, int], str]] = None
         self.on_key_pressed: typing.Optional[typing.Callable[[UserInterface.Key], bool]] = None
         self.on_key_released: typing.Optional[typing.Callable[[UserInterface.Key], bool]] = None
+        self.on_mouse_clicked_event: typing.Optional[typing.Callable[[int, int, UserInterface.KeyboardModifiers], bool]] = None
         self.on_adjust_secondary_focus: typing.Optional[typing.Callable[[UserInterface.KeyboardModifiers], None]] = None
         self.on_select_all: typing.Optional[typing.Callable[[], bool]] = None
 
@@ -175,6 +176,7 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
         self.on_drop = None
         self.on_key_pressed = None
         self.on_key_released = None
+        self.on_mouse_clicked_event = None
         self.on_adjust_secondary_focus = None
         self.on_select_all = None
         super().close()
@@ -319,6 +321,13 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
                             drawing_context.font = font
                             drawing_context.fill_style = stroke_style
                             drawing_context.fill_text(selection_number_text, 6, 4 + font_metrics.height)
+
+    def mouse_clicked(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        if super().mouse_clicked(x, y, modifiers):
+            return True
+        if self.on_mouse_clicked_event:
+            return self.on_mouse_clicked_event(x, y, modifiers)
+        return False
 
     def context_menu_event(self, x: int, y: int, gx: int, gy: int) -> bool:
         if super().context_menu_event(x, y, gx, gy):
@@ -1609,6 +1618,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         self.__content_canvas_item.on_drop = drop
         self.__content_canvas_item.on_key_pressed = self._handle_key_pressed
         self.__content_canvas_item.on_key_released = self._handle_key_released
+        self.__content_canvas_item.on_mouse_clicked_event = self.__handle_mouse_clicked
         self.__content_canvas_item.on_select_all = self.select_all
         self.__content_canvas_item.on_adjust_secondary_focus = adjust_secondary_focus
 
@@ -2141,12 +2151,6 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
 
         self.__update_title()
 
-        # update want mouse and selected status.
-        if self.__display_composition_canvas_item:  # may be closed
-            self.__display_composition_canvas_item.wants_mouse_events = self.display_canvas_item is None
-            # TODO: this doesn't appear to do anything
-            # self.__display_composition_canvas_item.selected = display_item and self._is_selected()
-
     def _select(self) -> None:
         self.content_canvas_item.request_focus()
 
@@ -2313,6 +2317,9 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         if self.__display_panel_controller and self.__display_panel_controller.key_released(key):
             return True
         return DisplayPanelManager().key_released(self, key)
+
+    def __handle_mouse_clicked(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        return self.display_clicked(modifiers)
 
     def __show_context_menu(self, display_items: typing.Sequence[DisplayItem.DisplayItem], gx: int, gy: int) -> bool:
         action_context = self.document_controller._get_action_context_for_display_items(display_items, self)

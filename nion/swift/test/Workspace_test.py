@@ -277,11 +277,40 @@ class TestWorkspaceClass(unittest.TestCase):
             self.assertTrue(document_controller.selected_display_panel, document_controller.workspace_controller.display_panels[2])
             self.assertEqual(0, len(document_controller.secondary_display_panels))
 
+    def test_image_panel_deselects_multiple_empty_panels(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            workspace_3x1 = document_controller.workspace_controller.new_workspace(*get_layout("3x1"))
+            document_controller.workspace_controller.change_workspace(workspace_3x1)
+            document_controller.workspace_controller.display_panels[0].set_display_item(None)
+            document_controller.workspace_controller.display_panels[1].set_display_item(None)
+            document_controller.workspace_controller.display_panels[2].set_display_item(None)
+            root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+            # click in first panel
+            root_canvas_item.canvas_widget.simulate_mouse_click(110, 240, CanvasItem.KeyboardModifiers())
+            self.assertTrue(document_controller.selected_display_panel, document_controller.workspace_controller.display_panels[0])
+            self.assertEqual(0, len(document_controller.secondary_display_panels))
+            # now click the second panel with control
+            root_canvas_item.canvas_widget.simulate_mouse_click(330, 240, CanvasItem.KeyboardModifiers(control=True))
+            self.assertTrue(document_controller.selected_display_panel, document_controller.workspace_controller.display_panels[0])
+            self.assertEqual(document_controller.workspace_controller.display_panels[1:2], list(document_controller.secondary_display_panels))
+            # now click the second panel and make sure other panel gets deselected
+            root_canvas_item.canvas_widget.simulate_mouse_click(330, 240, CanvasItem.KeyboardModifiers())
+            self.assertTrue(document_controller.selected_display_panel, document_controller.workspace_controller.display_panels[1])
+            self.assertEqual(0, len(document_controller.secondary_display_panels))
+            # reselect first and second panels
+            # now click in the first panel and make sure other panel gets deselected
+            root_canvas_item.canvas_widget.simulate_mouse_click(110, 240, CanvasItem.KeyboardModifiers())
+            root_canvas_item.canvas_widget.simulate_mouse_click(330, 240, CanvasItem.KeyboardModifiers(control=True))
+            root_canvas_item.canvas_widget.simulate_mouse_click(110, 240, CanvasItem.KeyboardModifiers())
+            self.assertTrue(document_controller.selected_display_panel, document_controller.workspace_controller.display_panels[0])
+            self.assertEqual(0, len(document_controller.secondary_display_panels))
+
     def test_workspace_construct_and_deconstruct_result_in_matching_descriptions(self):
         # setup
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
-            document_model = document_controller.document_model
             workspace_2x1 = document_controller.workspace_controller.new_workspace(*get_layout("2x1"))
             document_controller.workspace_controller.change_workspace(workspace_2x1)
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
