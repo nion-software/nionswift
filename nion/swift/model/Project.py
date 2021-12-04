@@ -143,7 +143,7 @@ class Project(Persistence.PersistentObject):
     def item_specifier(self) -> Persistence.PersistentObjectSpecifier:
         return Persistence.PersistentObjectSpecifier(item_uuid=self.uuid)
 
-    def create_specifier(self, item: Persistence.PersistentObject) -> Persistence.PersistentObjectSpecifier:
+    def create_specifier(self, item: Persistence.PersistentObjectSpecifiable) -> Persistence.PersistentObjectSpecifier:
         return Persistence.PersistentObjectSpecifier(item=item)
 
     def insert_model_item(self, container: Persistence.PersistentContainerType, name: str, before_index: int, item: Persistence.PersistentObject) -> None:

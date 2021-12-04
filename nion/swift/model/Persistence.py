@@ -306,9 +306,14 @@ _SpecifierType = typing.Union[typing.Mapping[str, typing.Any], str, uuid.UUID]
 _SpecifierDictType = typing.Union[PersistentDictType, str, uuid.UUID]
 
 
+class PersistentObjectSpecifiable(typing.Protocol):
+    @property
+    def uuid(self) -> uuid.UUID: raise NotImplementedError()
+
+
 class PersistentObjectSpecifier:
 
-    def __init__(self, *, item: typing.Optional[PersistentObject] = None, item_uuid: typing.Optional[uuid.UUID] = None) -> None:
+    def __init__(self, *, item: typing.Optional[PersistentObjectSpecifiable] = None, item_uuid: typing.Optional[uuid.UUID] = None) -> None:
         self.__item_uuid = item.uuid if item else item_uuid
         assert (self.__item_uuid is None) or isinstance(self.__item_uuid, uuid.UUID)
 
