@@ -216,17 +216,22 @@ class InspectorPanel(Panel.Panel):
         self.document_controller.add_task("update_display" + str(id(self)), update_display)
 
 
+class Unbindable(typing.Protocol):
+    @property
+    def about_to_be_removed_event(self) -> Event.Event: raise NotImplementedError()
+
+
 class Unbinder:
     def __init__(self) -> None:
         self.__unbinders: typing.List[typing.Callable[[], None]] = list()
-        self.__listener_map: typing.Dict[Persistence.PersistentObject, Event.EventListener] = dict()
+        self.__listener_map: typing.Dict[Unbindable, Event.EventListener] = dict()
 
     def close(self) -> None:
         for listener in self.__listener_map.values():
             listener.close()
         self.__listener_map = typing.cast(typing.Any, None)
 
-    def add(self, items: typing.Sequence[Persistence.PersistentObject], unbinders: typing.Sequence[typing.Callable[[], None]]) -> None:
+    def add(self, items: typing.Sequence[Unbindable], unbinders: typing.Sequence[typing.Callable[[], None]]) -> None:
         for item in items:
             if item and item not in self.__listener_map:
                 self.__listener_map[item] = item.about_to_be_removed_event.listen(self.__unbind)
@@ -1408,7 +1413,7 @@ class InspectorSectionWidget(Widgets.CompositeWidgetBase):
         for closeable in closeables:
             self.add_closeable(closeable)
 
-    def add_unbinder(self, items: typing.Sequence[Persistence.PersistentObject], unbinders: typing.Sequence[typing.Callable[[], None]]) -> None:
+    def add_unbinder(self, items: typing.Sequence[Unbindable], unbinders: typing.Sequence[typing.Callable[[], None]]) -> None:
         self.__unbinder.add(items, unbinders)
 
     def add(self, widget: UserInterface.Widget) -> None:
