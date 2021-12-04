@@ -135,7 +135,7 @@ class DataGroup(Persistence.PersistentObject):
 
     @property
     def item_specifier(self) -> Persistence.PersistentObjectSpecifier:
-        return Persistence.PersistentObjectSpecifier(item_uuid=self.uuid)
+        return Persistence.PersistentObjectSpecifier(self.uuid)
 
     def __validate_title(self, value: typing.Any) -> str:
         return str(value) if value is not None else str()
@@ -176,7 +176,7 @@ class DataGroup(Persistence.PersistentObject):
         self.notify_insert_item("display_items", display_item, before_index)
         self.update_counted_display_items(collections.Counter([display_item]))
         display_item_specifiers = self.display_item_specifiers
-        display_item_specifier = display_item.project.create_specifier(display_item).write()
+        display_item_specifier = Persistence.write_persistent_specifier(display_item.uuid)
         assert display_item_specifier is not None
         display_item_specifiers.insert(before_index, display_item_specifier)
         self.display_item_specifiers = display_item_specifiers

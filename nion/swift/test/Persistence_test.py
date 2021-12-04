@@ -73,7 +73,7 @@ class TestPersistentObjectContextClass(unittest.TestCase):
         persistent_object_context = Persistence.PersistentObjectContext()
         object0 = Persistence.PersistentObject()
         object1 = Persistence.PersistentObject()
-        object1_proxy = object0.create_item_proxy(item_specifier=Persistence.PersistentObjectSpecifier.read(object1.uuid))
+        object1_proxy = object0.create_item_proxy(item_specifier=Persistence.read_persistent_specifier(object1.uuid))
         with contextlib.closing(object0), contextlib.closing(object1), contextlib.closing(object1_proxy):
             object0.persistent_object_context = persistent_object_context
             self.assertIsNone(object1_proxy.item)
@@ -84,7 +84,7 @@ class TestPersistentObjectContextClass(unittest.TestCase):
         persistent_object_context = Persistence.PersistentObjectContext()
         object0 = Persistence.PersistentObject()
         object1 = Persistence.PersistentObject()
-        object1_proxy = object0.create_item_proxy(item_specifier=Persistence.PersistentObjectSpecifier.read(object1.uuid))
+        object1_proxy = object0.create_item_proxy(item_specifier=Persistence.read_persistent_specifier(object1.uuid))
         with contextlib.closing(object0), contextlib.closing(object1), contextlib.closing(object1_proxy):
             object0.persistent_object_context = persistent_object_context
             object1.persistent_object_context = persistent_object_context
@@ -132,7 +132,7 @@ class TestPersistentObjectContextClass(unittest.TestCase):
         persistent_object_context = Persistence.PersistentObjectContext()
         object0 = Persistence.PersistentObject()
         object1 = Persistence.PersistentObject()
-        object1_proxy = object0.create_item_proxy(item_specifier=Persistence.PersistentObjectSpecifier.read(object1.uuid))
+        object1_proxy = object0.create_item_proxy(item_specifier=Persistence.read_persistent_specifier(object1.uuid))
         with contextlib.closing(object0), contextlib.closing(object1), contextlib.closing(object1_proxy):
             object1_proxy.on_item_registered = r
             object1_proxy.on_item_unregistered = u
@@ -164,7 +164,7 @@ class TestPersistentObjectContextClass(unittest.TestCase):
         object0.persistent_object_context = persistent_object_context
         object1.persistent_object_context = persistent_object_context
         # both objects are already registered
-        object1_proxy = object0.create_item_proxy(item_specifier=Persistence.PersistentObjectSpecifier.read(object1.uuid))
+        object1_proxy = object0.create_item_proxy(item_specifier=Persistence.read_persistent_specifier(object1.uuid))
         with contextlib.closing(object0), contextlib.closing(object1), contextlib.closing(object1_proxy):
             object1_proxy.on_item_registered = r
             object1_proxy.on_item_unregistered = u
@@ -188,7 +188,7 @@ class TestPersistentObjectContextClass(unittest.TestCase):
         persistent_object_context = Persistence.PersistentObjectContext()
         object0 = Persistence.PersistentObject()
         object1 = Persistence.PersistentObject()
-        object1_proxy = object0.create_item_proxy(item_specifier=Persistence.PersistentObjectSpecifier.read(object1.uuid))
+        object1_proxy = object0.create_item_proxy(item_specifier=Persistence.read_persistent_specifier(object1.uuid))
         with contextlib.closing(object0), contextlib.closing(object1), contextlib.closing(object1_proxy):
             object1_proxy.on_item_registered = r
             object1_proxy.on_item_unregistered = u

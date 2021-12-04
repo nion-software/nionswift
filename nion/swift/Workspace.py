@@ -511,7 +511,7 @@ class Workspace:
     def switch_to_display_content(self, display_panel: DisplayPanel.DisplayPanel, display_panel_type: str, display_item: typing.Optional[DisplayItem.DisplayItem] = None) -> None:
         d: Persistence.PersistentDictType = {"type": "image", "display-panel-type": display_panel_type}
         if display_item and display_panel_type != "empty-display-panel":
-            d["display_item_specifier"] = display_item.project.create_specifier(display_item).write()
+            d["display_item_specifier"] = Persistence.write_persistent_specifier(display_item.uuid)
         command = ChangeWorkspaceContentsCommand(self, _("Replace Display Panel"))
         display_panel.change_display_panel_content(d)
         self.document_controller.push_undo_command(command)

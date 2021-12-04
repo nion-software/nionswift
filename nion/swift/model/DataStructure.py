@@ -35,7 +35,7 @@ class DataStructure(Persistence.PersistentObject):
         self.data_structure_changed_event = Event.Event()
         self.data_structure_objects_changed_event = Event.Event()
         self.__source_reference = self.create_item_reference(item=source)
-        self.source_specifier = getattr(source, "project").create_specifier(source).write() if source else None
+        self.source_specifier = Persistence.write_persistent_specifier(source.uuid) if source else None
         self.__entity: typing.Optional[Schema.Entity] = None
         self.__entity_property_changed_event_listener: typing.Optional[Event.EventListener] = None
         self.__create_entity()
@@ -107,7 +107,7 @@ class DataStructure(Persistence.PersistentObject):
 
     @property
     def item_specifier(self) -> Persistence.PersistentObjectSpecifier:
-        return Persistence.PersistentObjectSpecifier(item_uuid=self.uuid)
+        return Persistence.PersistentObjectSpecifier(self.uuid)
 
     def read_from_dict(self, properties: Persistence.PersistentDictType) -> None:
         super().read_from_dict(properties)
@@ -143,7 +143,7 @@ class DataStructure(Persistence.PersistentObject):
 
     def __configure_reference_proxy(self, property_name: str, value: typing.Any, item: typing.Optional[Persistence.PersistentObject]) -> None:
         if isinstance(value, dict) and value.get("type") in {"data_item", "display_item", "data_source", "graphic", "structure"} and "uuid" in value:
-            self.__referenced_object_proxies[property_name] = self.create_item_proxy(item_specifier=Persistence.PersistentObjectSpecifier.read(value["uuid"]), item=item)
+            self.__referenced_object_proxies[property_name] = self.create_item_proxy(item_specifier=Persistence.read_persistent_specifier(value["uuid"]), item=item)
 
     def write_to_dict(self) -> Persistence.PersistentDictType:
         properties = super().write_to_dict()
@@ -157,7 +157,7 @@ class DataStructure(Persistence.PersistentObject):
     @source.setter
     def source(self, source: typing.Optional[Persistence.PersistentObject]) -> None:
         self.__source_reference.item = source
-        self.source_specifier = getattr(source, "project").create_specifier(source).write() if source else None
+        self.source_specifier = Persistence.write_persistent_specifier(source.uuid) if source else None
 
     @property
     def entity(self) -> typing.Optional[Schema.Entity]:
@@ -168,7 +168,7 @@ class DataStructure(Persistence.PersistentObject):
         self.property_changed_event.fire("structure_type")
 
     def __source_specifier_changed(self, name: str, d: Persistence._SpecifierType) -> None:
-        self.__source_reference.item_specifier = Persistence.PersistentObjectSpecifier.read(d)
+        self.__source_reference.item_specifier = Persistence.read_persistent_specifier(d)
 
     def set_property_value(self, property: str, value: typing.Any) -> None:
         self.__properties[property] = value
@@ -222,40 +222,34 @@ def get_object_specifier(object: typing.Optional[Persistence.PersistentObject], 
                          project: typing.Optional[Project.Project] = None) -> typing.Optional[Persistence.PersistentDictType]:
     # project is passed for testing only
     if isinstance(object, DataItem.DataItem):
-        project = project or object.project
-        specifier = project.create_specifier(object) if project else None
+        specifier = Persistence.PersistentObjectSpecifier(object.uuid)
         specifier_uuid = specifier.item_uuid if specifier else object.uuid
         d = {"version": 1, "type": object_type or "data_item", "uuid": str(specifier_uuid)}
         return d
     if object and object_type in ("xdata", "display_xdata", "cropped_xdata", "cropped_display_xdata", "filter_xdata", "filtered_xdata"):
         assert isinstance(object, DisplayItem.DisplayDataChannel)
-        project = project or object.project
-        specifier = project.create_specifier(object) if project else None
+        specifier = Persistence.PersistentObjectSpecifier(object.uuid)
         specifier_uuid = specifier.item_uuid if specifier else object.uuid
         d = {"version": 1, "type": object_type, "uuid": str(specifier_uuid)}
         return d
     if isinstance(object, DisplayItem.DisplayDataChannel):
         # should be "data_source" but requires file format change
-        project = project or object.project
-        specifier = project.create_specifier(object) if project else None
+        specifier = Persistence.PersistentObjectSpecifier(object.uuid)
         specifier_uuid = specifier.item_uuid if specifier else object.uuid
         d = {"version": 1, "type": "data_source", "uuid": str(specifier_uuid)}
         return d
     elif isinstance(object, Graphics.Graphic):
-        project = project or object.project
-        specifier = project.create_specifier(object) if project else None
+        specifier = Persistence.PersistentObjectSpecifier(object.uuid)
         specifier_uuid = specifier.item_uuid if specifier else object.uuid
         d = {"version": 1, "type": "graphic", "uuid": str(specifier_uuid)}
         return d
     elif isinstance(object, DataStructure):
-        project = project or object.project
-        specifier = project.create_specifier(object) if project else None
+        specifier = Persistence.PersistentObjectSpecifier(object.uuid)
         specifier_uuid = specifier.item_uuid if specifier else object.uuid
         d = {"version": 1, "type": "structure", "uuid": str(specifier_uuid)}
         return d
     elif isinstance(object, DisplayItem.DisplayItem):
-        project = project or object.project
-        specifier = project.create_specifier(object) if project else None
+        specifier = Persistence.PersistentObjectSpecifier(object.uuid)
         specifier_uuid = specifier.item_uuid if specifier else object.uuid
         d = {"version": 1, "type": "display_item", "uuid": str(specifier_uuid)}
         return d

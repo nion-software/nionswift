@@ -801,7 +801,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         Registry.register_component(self, {"document_model"})
 
     def __resolve_display_item_specifier(self, display_item_specifier_d: Persistence._SpecifierType) -> typing.Optional[DisplayItem.DisplayItem]:
-        display_item_specifier = Persistence.PersistentObjectSpecifier.read(display_item_specifier_d)
+        display_item_specifier = Persistence.read_persistent_specifier(display_item_specifier_d)
         if display_item_specifier:
             return typing.cast(typing.Optional[DisplayItem.DisplayItem], self.resolve_item_specifier(display_item_specifier))
         return None
@@ -810,7 +810,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         # handle the reference variable assignments
         for mapped_item in self._project.mapped_items:
             item_proxy = self._project.create_item_proxy(
-                item_specifier=Persistence.PersistentObjectSpecifier.read(mapped_item))
+                item_specifier=Persistence.read_persistent_specifier(mapped_item))
             with contextlib.closing(item_proxy):
                 if isinstance(item_proxy.item, DisplayItem.DisplayItem):
                     display_item = typing.cast(Persistence.PersistentObject, item_proxy.item)
@@ -821,7 +821,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         # update the data item references
         data_item_references = self._project.data_item_references
         for key, data_item_specifier in data_item_references.items():
-            persistent_object_specifier = Persistence.PersistentObjectSpecifier.read(data_item_specifier)
+            persistent_object_specifier = Persistence.read_persistent_specifier(data_item_specifier)
             if persistent_object_specifier:
                 if key in self.__data_item_references:
                     self.__data_item_references[key].set_data_item_specifier(self._project, persistent_object_specifier)
@@ -1207,7 +1207,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         if not r_var:
             r_var = MappedItemManager().register(self, display_item)
             mapped_items = self._project.mapped_items
-            specifier = display_item.project.create_specifier(display_item).write()
+            specifier = Persistence.write_persistent_specifier(display_item.uuid)
             if specifier:
                 mapped_items.append(specifier)
                 self._project.mapped_items = mapped_items

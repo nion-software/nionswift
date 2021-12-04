@@ -775,7 +775,7 @@ class BoundData(BoundItemBase):
     def __init__(self, container: Persistence.PersistentObject, specifier: Persistence.PersistentDictType) -> None:
         super().__init__(specifier)
 
-        self.__item_reference = container.create_item_reference(item_specifier=Persistence.PersistentObjectSpecifier.read(specifier))
+        self.__item_reference = container.create_item_reference(item_specifier=Persistence.read_persistent_specifier(specifier))
         self.__data_changed_event_listener: typing.Optional[Event.EventListener] = None
 
         def maintain_data_source() -> None:
@@ -827,8 +827,8 @@ class BoundDisplayDataChannelBase(BoundItemBase):
     def __init__(self, container: Persistence.PersistentObject, specifier: Persistence.PersistentDictType, secondary_specifier: typing.Optional[Persistence.PersistentDictType]) -> None:
         super().__init__(specifier)
 
-        self.__item_reference = container.create_item_reference(item_specifier=Persistence.PersistentObjectSpecifier.read(specifier))
-        self.__graphic_reference = container.create_item_reference(item_specifier=Persistence.PersistentObjectSpecifier.read(secondary_specifier))
+        self.__item_reference = container.create_item_reference(item_specifier=Persistence.read_persistent_specifier(specifier))
+        self.__graphic_reference = container.create_item_reference(item_specifier=Persistence.read_persistent_specifier(secondary_specifier))
         self.__display_values_changed_event_listener = None
 
         def maintain_data_source() -> None:
@@ -890,8 +890,8 @@ class BoundDataSource(BoundItemBase):
     def __init__(self, container: Persistence.PersistentObject, specifier: Persistence.PersistentDictType, secondary_specifier: typing.Optional[Persistence.PersistentDictType]) -> None:
         super().__init__(specifier)
 
-        self.__item_reference = container.create_item_reference(item_specifier=Persistence.PersistentObjectSpecifier.read(specifier))
-        self.__graphic_reference = container.create_item_reference(item_specifier=Persistence.PersistentObjectSpecifier.read(secondary_specifier))
+        self.__item_reference = container.create_item_reference(item_specifier=Persistence.read_persistent_specifier(specifier))
+        self.__graphic_reference = container.create_item_reference(item_specifier=Persistence.read_persistent_specifier(secondary_specifier))
         self.__data_source: typing.Optional[DataItem.DataSource] = None
 
         def maintain_data_source() -> None:
@@ -956,7 +956,7 @@ class BoundDataItem(BoundItemBase):
     def __init__(self, container: Persistence.PersistentObject, specifier: Persistence.PersistentDictType) -> None:
         super().__init__(specifier)
 
-        self.__item_reference = container.create_item_reference(item_specifier=Persistence.PersistentObjectSpecifier.read(specifier))
+        self.__item_reference = container.create_item_reference(item_specifier=Persistence.read_persistent_specifier(specifier))
         self.__data_item_changed_event_listener: typing.Optional[Event.EventListener] = None
 
         def item_registered(item: Persistence.PersistentObject) -> None:
@@ -1042,7 +1042,7 @@ class BoundFilterLikeData(BoundItemBase):
     def __init__(self, container: Persistence.PersistentObject, specifier: Persistence.PersistentDictType, secondary_specifier: typing.Optional[Persistence.PersistentDictType]) -> None:
         super().__init__(specifier)
 
-        self.__item_reference = container.create_item_reference(item_specifier=Persistence.PersistentObjectSpecifier.read(specifier))
+        self.__item_reference = container.create_item_reference(item_specifier=Persistence.read_persistent_specifier(specifier))
         self.__display_values_changed_event_listener: typing.Optional[Event.EventListener] = None
         self.__display_item_item_inserted_event_listener: typing.Optional[Event.EventListener] = None
         self.__display_item_item_removed_event_listener: typing.Optional[Event.EventListener] = None
@@ -1166,7 +1166,7 @@ class BoundDataStructure(BoundItemBase):
 
         self.__property_name = property_name
 
-        self.__item_reference = container.create_item_reference(item_specifier=Persistence.PersistentObjectSpecifier.read(specifier))
+        self.__item_reference = container.create_item_reference(item_specifier=Persistence.read_persistent_specifier(specifier))
         self.__changed_listener: typing.Optional[Event.EventListener] = None
         self.__property_changed_listener: typing.Optional[Event.EventListener] = None
 
@@ -1226,7 +1226,7 @@ class BoundGraphic(BoundItemBase):
 
         self.__property_name = property_name
 
-        self.__item_reference = container.create_item_reference(item_specifier=Persistence.PersistentObjectSpecifier.read(specifier))
+        self.__item_reference = container.create_item_reference(item_specifier=Persistence.read_persistent_specifier(specifier))
         self.__changed_listener: typing.Optional[Event.EventListener] = None
 
         def property_changed(property_name: str) -> None:
@@ -1444,10 +1444,10 @@ class Computation(Persistence.PersistentObject):
 
     @property
     def item_specifier(self) -> Persistence.PersistentObjectSpecifier:
-        return Persistence.PersistentObjectSpecifier(item_uuid=self.uuid)
+        return Persistence.PersistentObjectSpecifier(self.uuid)
 
     def read_properties_from_dict(self, d: Persistence.PersistentDictType) -> None:
-        self.__source_reference.item_specifier = Persistence.PersistentObjectSpecifier.read(d.get("source_uuid", None))
+        self.__source_reference.item_specifier = Persistence.read_persistent_specifier(d.get("source_uuid", None))
         self.original_expression = d.get("original_expression", self.original_expression)
         self.error_text = d.get("error_text", self.error_text)
         self.label = d.get("label", self.label)
@@ -1460,7 +1460,7 @@ class Computation(Persistence.PersistentObject):
     @source.setter
     def source(self, source: typing.Optional[Persistence.PersistentObject]) -> None:
         self.__source_reference.item = source
-        self.source_specifier = getattr(source, "project").create_specifier(source).write() if source else None
+        self.source_specifier = Persistence.write_persistent_specifier(source.uuid) if source else None
 
     def is_valid_with_removals(self, items: typing.Set[Persistence.PersistentObject]) -> bool:
         for variable in self.variables:
@@ -1474,7 +1474,7 @@ class Computation(Persistence.PersistentObject):
         return True
 
     def __source_specifier_changed(self, name: str, d: Persistence.PersistentDictType) -> None:
-        self.__source_reference.item_specifier = Persistence.PersistentObjectSpecifier.read(d)
+        self.__source_reference.item_specifier = Persistence.read_persistent_specifier(d)
 
     @property
     def processing_id(self) -> typing.Optional[str]:
