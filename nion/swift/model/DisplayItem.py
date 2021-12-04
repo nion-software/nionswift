@@ -553,7 +553,7 @@ class DisplayDataChannel(Persistence.PersistentObject):
 
         self.__slice_interval: typing.Optional[typing.Tuple[float, float]] = None
 
-        data_item_specifier = Persistence.PersistentObjectSpecifier.read(self.data_item_reference) if self.data_item_reference else None
+        data_item_specifier = Persistence.read_persistent_specifier(self.data_item_reference) if self.data_item_reference else None
         self.__data_item_reference = self.create_item_reference(item_specifier=data_item_specifier, item=data_item)
 
         self.__old_data_shape: typing.Optional[DataAndMetadata.ShapeType] = None
@@ -752,7 +752,7 @@ class DisplayDataChannel(Persistence.PersistentObject):
 
     @property
     def item_specifier(self) -> Persistence.PersistentObjectSpecifier:
-        return Persistence.PersistentObjectSpecifier(item_uuid=self.uuid)
+        return Persistence.PersistentObjectSpecifier(self.uuid)
 
     def clone(self) -> DisplayDataChannel:
         display_data_channel = DisplayDataChannel()
@@ -778,7 +778,7 @@ class DisplayDataChannel(Persistence.PersistentObject):
     def __data_item_reference_changed(self, name: str, data_item_reference: str) -> None:
         if data_item_reference:
             item_uuid = uuid.UUID(data_item_reference)
-            self.__data_item_reference.item_specifier = Persistence.PersistentObjectSpecifier.read(item_uuid)
+            self.__data_item_reference.item_specifier = Persistence.read_persistent_specifier(item_uuid)
         self.__current_display_values = None
 
     def __connect_data_item_events(self) -> None:
@@ -1447,7 +1447,7 @@ class DisplayItem(Persistence.PersistentObject):
 
     @property
     def item_specifier(self) -> Persistence.PersistentObjectSpecifier:
-        return Persistence.PersistentObjectSpecifier(item_uuid=self.uuid)
+        return Persistence.PersistentObjectSpecifier(self.uuid)
 
     # call this when the listeners need to be updated (via data_item_content_changed).
     # Calling this method will send the data_item_content_changed method to each listener by using the method

@@ -298,7 +298,7 @@ class PersistentObjectContext:
         return object_weakref() if object_weakref else None
 
     def create_item_reference(self, item_uuid: typing.Optional[uuid.UUID] = None, item: typing.Optional[PersistentObject] = None) -> PersistentObjectReference:
-        item_specifier = PersistentObjectSpecifier(item_uuid=item_uuid) if item_uuid else None
+        item_specifier = PersistentObjectSpecifier(item_uuid) if item_uuid else None
         return PersistentObjectReference(self, item_specifier, item)
 
 
@@ -313,9 +313,8 @@ class PersistentObjectSpecifiable(typing.Protocol):
 
 class PersistentObjectSpecifier:
 
-    def __init__(self, *, item: typing.Optional[PersistentObjectSpecifiable] = None, item_uuid: typing.Optional[uuid.UUID] = None) -> None:
-        self.__item_uuid = item.uuid if item else item_uuid
-        assert (self.__item_uuid is None) or isinstance(self.__item_uuid, uuid.UUID)
+    def __init__(self, item_uuid_x: typing.Optional[uuid.UUID]) -> None:
+        self.__item_uuid = item_uuid_x
 
     def __hash__(self) -> typing.Any:
         return hash(self.__item_uuid)
@@ -329,22 +328,24 @@ class PersistentObjectSpecifier:
     def item_uuid(self) -> typing.Optional[uuid.UUID]:
         return self.__item_uuid
 
-    def write(self) -> typing.Optional[_SpecifierType]:
-        if self.__item_uuid:
-            return str(self.__item_uuid)
-        return None
+    def write(self) -> _SpecifierDictType:
+        return str(self.item_uuid)
 
-    @staticmethod
-    def read(d: typing.Optional[_SpecifierType]) -> typing.Optional[PersistentObjectSpecifier]:
-        if isinstance(d, str):
-            return PersistentObjectSpecifier(item_uuid=uuid.UUID(d))
-        elif isinstance(d, uuid.UUID):
-            return PersistentObjectSpecifier(item_uuid=d)
-        elif isinstance(d, dict) and "item_uuid" in d:
-            return PersistentObjectSpecifier(item_uuid=uuid.UUID(d["item_uuid"]))
-        elif isinstance(d, dict) and "uuid" in d:
-            return PersistentObjectSpecifier(item_uuid=uuid.UUID(d["uuid"]))
-        return None
+
+def read_persistent_specifier(d: typing.Optional[_SpecifierType]) -> typing.Optional[PersistentObjectSpecifier]:
+    if isinstance(d, str):
+        return PersistentObjectSpecifier(uuid.UUID(d))
+    elif isinstance(d, uuid.UUID):
+        return PersistentObjectSpecifier(d)
+    elif isinstance(d, dict) and "item_uuid" in d:
+        return PersistentObjectSpecifier(uuid.UUID(d["item_uuid"]))
+    elif isinstance(d, dict) and "uuid" in d:
+        return PersistentObjectSpecifier(uuid.UUID(d["uuid"]))
+    return None
+
+
+def write_persistent_specifier(item_uuid: uuid.UUID) -> _SpecifierDictType:
+    return str(item_uuid)
 
 
 PO = typing.TypeVar('PO')
@@ -355,7 +356,7 @@ class PersistentObjectProxy(typing.Generic[PO]):
     def __init__(self, persistent_object: PersistentObject, item_specifier: typing.Optional[PersistentObjectSpecifier], item: typing.Optional[PersistentObject]) -> None:
         PersistentObjectProxy.count += 1
         self.__persistent_object = persistent_object
-        self.__item_specifier = item_specifier if item_specifier else PersistentObjectSpecifier(item=item) if item else None
+        self.__item_specifier = item_specifier if item_specifier else PersistentObjectSpecifier(item.uuid) if item else None
         self.__item = item
         self.__persistent_object_context: typing.Optional[PersistentObjectContext] = None
         self.__registered_change_uuid: typing.Optional[uuid.UUID] = None
@@ -384,7 +385,7 @@ class PersistentObjectProxy(typing.Generic[PO]):
     def item(self, item: typing.Optional[PO]) -> None:
         po_item = typing.cast(PersistentObject, item)
         self.__item = po_item
-        self.__item_specifier = PersistentObjectSpecifier(item=po_item) if item else None
+        self.__item_specifier = PersistentObjectSpecifier(po_item.uuid) if item else None
         self.__persistent_object_context_changed()
 
     @property
@@ -437,7 +438,7 @@ class PersistentObjectReference:
     def __init__(self, persistent_object_context: typing.Optional[PersistentObjectContext], item_specifier: typing.Optional[PersistentObjectSpecifier], item: typing.Optional[PersistentObject]) -> None:
         PersistentObjectReference.count += 1
         self.__persistent_object_context: typing.Optional[PersistentObjectContext] = None
-        self.__item_specifier = item_specifier if item_specifier else PersistentObjectSpecifier(item=item) if item else None
+        self.__item_specifier = item_specifier if item_specifier else PersistentObjectSpecifier(item.uuid) if item else None
         self.__item = item
         self.__registered_change_uuid: typing.Optional[uuid.UUID] = None
         self.on_item_registered: typing.Optional[typing.Callable[[PersistentObject], None]] = None
@@ -460,7 +461,7 @@ class PersistentObjectReference:
     @item.setter
     def item(self, item: typing.Optional[PersistentObject]) -> None:
         self.__item = item
-        self.__item_specifier = PersistentObjectSpecifier(item=item) if item else None
+        self.__item_specifier = PersistentObjectSpecifier(item.uuid) if item else None
         self.__persistent_object_context_changed()
 
     @property
@@ -663,7 +664,7 @@ class PersistentObject(Observable.Observable):
 
     @property
     def item_specifier(self) -> PersistentObjectSpecifier:
-        return PersistentObjectSpecifier(item_uuid=self.uuid)
+        return PersistentObjectSpecifier(self.uuid)
 
     def define_root_context(self) -> None:
         """Define this item to be the root context."""
@@ -1187,12 +1188,12 @@ class PersistentObject(Observable.Observable):
 
     def create_item_proxy(self, *, item_uuid: typing.Optional[uuid.UUID] = None, item_specifier: typing.Optional[PersistentObjectSpecifier] = None, item: typing.Optional[PersistentObject] = None) -> PersistentObjectProxy[typing.Any]:
         """Create an item proxy by uuid or directly using the item."""
-        item_specifier = item_specifier or (PersistentObjectSpecifier(item_uuid=item_uuid) if item_uuid else None)
+        item_specifier = item_specifier or (PersistentObjectSpecifier(item_uuid) if item_uuid else None)
         return PersistentObjectProxy(self, item_specifier, item)
 
     def create_item_reference(self, *, item_uuid: typing.Optional[uuid.UUID] = None, item_specifier: typing.Optional[PersistentObjectSpecifier] = None, item: typing.Optional[PersistentObject] = None) -> PersistentObjectReference:
         """Create an item proxy by uuid or directly using the item."""
-        item_specifier = item_specifier or (PersistentObjectSpecifier(item_uuid=item_uuid) if item_uuid else None)
+        item_specifier = item_specifier or (PersistentObjectSpecifier(item_uuid) if item_uuid else None)
         item_reference = PersistentObjectReference(self.persistent_object_context, item_specifier, item)
         self.__item_references.append(item_reference)
         return item_reference

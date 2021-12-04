@@ -51,7 +51,7 @@ class TestDataGroupClass(unittest.TestCase):
             data_group.append_display_item(display_item)
             data_group_copy = copy.deepcopy(data_group)
             document_model.append_data_group(data_group_copy)
-            display_item_specifier = Persistence.PersistentObjectSpecifier.read(data_group_copy.display_item_specifiers[0])
+            display_item_specifier = Persistence.read_persistent_specifier(data_group_copy.display_item_specifiers[0])
             self.assertEqual(display_item, document_model.resolve_item_specifier(display_item_specifier))
 
     def test_counted_display_items(self):

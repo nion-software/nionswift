@@ -1888,7 +1888,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
             d["controller_type"] = self.__display_panel_controller.type
             self.__display_panel_controller.save(d)
         if self.__display_item:
-            d["display_item_specifier"] = self.__display_item.project.create_specifier(self.__display_item).write()
+            d["display_item_specifier"] = Persistence.write_persistent_specifier(self.__display_item.uuid)
         if self.__display_panel_controller is None and self.__horizontal_browser_canvas_item.visible:
             d["browser_type"] = "horizontal"
         if self.__display_panel_controller is None and self.__grid_browser_canvas_item.visible:
@@ -1908,7 +1908,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
             if not self.__display_panel_controller:
                 display_item: typing.Optional[DisplayItem.DisplayItem] = None
                 if "display_item_specifier" in d:
-                    display_item_specifier = Persistence.PersistentObjectSpecifier.read(d["display_item_specifier"])
+                    display_item_specifier = Persistence.read_persistent_specifier(d["display_item_specifier"])
                     display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], self.document_controller.document_model.resolve_item_specifier(display_item_specifier)) if display_item_specifier else None
                 self.set_display_item(display_item)
                 if d.get("browser_type") == "horizontal":
@@ -2028,7 +2028,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
 
     def set_display_panel_display_item(self, display_item: typing.Optional[DisplayItem.DisplayItem], detect_controller: bool=False) -> None:
         if display_item:
-            d = {"type": "image", "display_item_specifier": display_item.project.create_specifier(display_item).write()}
+            d = {"type": "image", "display_item_specifier": Persistence.write_persistent_specifier(display_item.uuid)}
             if detect_controller:
                 data_item = display_item.data_item
                 if display_item == self.document_controller.document_model.get_any_display_item_for_data_item(data_item) and data_item:

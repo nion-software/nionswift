@@ -193,7 +193,7 @@ class ObjectSpecifier:
                         return DisplayPanel(display_panel)
         elif object_type == "data_item":
             data_item_uuid = uuid_module.UUID(object_uuid_str)
-            data_item_specifier = Persistence.PersistentObjectSpecifier(item_uuid=data_item_uuid)
+            data_item_specifier = Persistence.PersistentObjectSpecifier(data_item_uuid)
             data_item = document_model.resolve_item_specifier(data_item_specifier)
             return DataItem(typing.cast(DataItemModule.DataItem, data_item)) if data_item else None
         elif object_type == "data_group":
@@ -3363,7 +3363,7 @@ class API_1:
 
         Scriptable: No
         """
-        return Persistence.PersistentObjectSpecifier(item_uuid=item_uuid)
+        return Persistence.PersistentObjectSpecifier(item_uuid)
 
     def create_unary_operation(self, unary_operation_delegate: typing.Any) -> typing.Any:
         raise NotImplementedError()

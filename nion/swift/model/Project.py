@@ -141,10 +141,7 @@ class Project(Persistence.PersistentObject):
 
     @property
     def item_specifier(self) -> Persistence.PersistentObjectSpecifier:
-        return Persistence.PersistentObjectSpecifier(item_uuid=self.uuid)
-
-    def create_specifier(self, item: Persistence.PersistentObjectSpecifiable) -> Persistence.PersistentObjectSpecifier:
-        return Persistence.PersistentObjectSpecifier(item=item)
+        return Persistence.PersistentObjectSpecifier(self.uuid)
 
     def insert_model_item(self, container: Persistence.PersistentContainerType, name: str, before_index: int, item: Persistence.PersistentObject) -> None:
         # special handling to pass on to the document model

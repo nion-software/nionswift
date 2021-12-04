@@ -363,7 +363,7 @@ class DataItem(Persistence.PersistentObject):
 
     @property
     def item_specifier(self) -> Persistence.PersistentObjectSpecifier:
-        return Persistence.PersistentObjectSpecifier(item_uuid=self.uuid)
+        return Persistence.PersistentObjectSpecifier(self.uuid)
 
     def clone(self) -> DataItem:
         data_item = self.__class__()
@@ -481,10 +481,10 @@ class DataItem(Persistence.PersistentObject):
     @source.setter
     def source(self, source: typing.Optional[Persistence.PersistentObject]) -> None:
         self.__source_reference.item = source
-        self.source_specifier = getattr(source, "project").create_specifier(source).write() if source else None
+        self.source_specifier = Persistence.write_persistent_specifier(source.uuid) if source else None
 
     def __source_specifier_changed(self, name: str, d: Persistence._SpecifierType) -> None:
-        self.__source_reference.item_specifier = Persistence.PersistentObjectSpecifier.read(d)
+        self.__source_reference.item_specifier = Persistence.read_persistent_specifier(d)
 
     def persistent_object_context_changed(self) -> None:
         # handle case where persistent object context is set on an item that is already under transaction.
