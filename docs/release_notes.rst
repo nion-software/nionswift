@@ -12,6 +12,12 @@ in bug fix releases, we choose to include them for evaluation and feedback. If y
 or have feedback about these types of new features, please contact us or file issues at
 https://github.com/nion-software/nionswift/issues.
 
+Version 0.16.1 (2021-12-13)
+---------------------------
+* `#772 <https://github.com/nion-software/nionswift/issues/772>`_ Fix issue deselecting empty display panels.
+* `#770 <https://github.com/nion-software/nionswift/issues/770>`_ Fix issue where some HDF5 files may not load properly.
+* `#765 <https://github.com/nion-software/nionswift/issues/765>`_ Add support for Python 3.10.
+
 Version 0.16.0 (2021-11-12)
 ---------------------------
 The highlights of this release are improved performance, reliability, and internal Python code maintainability.
