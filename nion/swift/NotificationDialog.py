@@ -268,7 +268,8 @@ def append_notification(notification: Notification.Notification) -> None:
         if notifications:
             notifications.append_item(notification)
 
-    _app.event_loop.create_task(append_notification_async(notification))
+    if _app:
+        _app.event_loop.create_task(append_notification_async(notification))
 
 
 def component_registered(component: Registry._ComponentType, component_types: typing.Set[str]) -> None:
