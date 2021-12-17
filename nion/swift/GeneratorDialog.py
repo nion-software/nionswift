@@ -155,32 +155,41 @@ class GenerateDataDialog(Declarative.WindowHandler):
 
         if self.is_sequence_model.value == 1:
             is_sequence = True
-            data_shape = data_shape + (self.sequence_size_model.value,)
+            sequence_size = self.sequence_size_model.value or 1
+            data_shape = data_shape + (sequence_size,)
             calibrations.append(Calibration.Calibration(units="s"))
 
         if self.collection_rank_model.value == 1:
             collection_rank = 1
-            data_shape = data_shape + (self.line_size_model.value,)
+            line_size = self.line_size_model.value or 1
+            data_shape = data_shape + (line_size,)
             calibrations.append(Calibration.Calibration(units="nm"))
         elif self.collection_rank_model.value == 2:
             collection_rank = 2
-            data_shape = data_shape + (self.scan_height_model.value, self.scan_width_model.value)
+            scan_height = self.scan_height_model.value or 1
+            scan_width = self.scan_width_model.value or 1
+            data_shape = data_shape + (scan_height, scan_width)
             calibrations.append(Calibration.Calibration(units="nm"))
             calibrations.append(Calibration.Calibration(units="nm"))
 
         if self.datum_rank_model.value == 0:
             datum_rank = 1
-            data_shape = data_shape + (self.spectrum_size_model.value,)
+            spectrum_size = self.spectrum_size_model.value or 1
+            data_shape = data_shape + (spectrum_size,)
             calibrations.append(Calibration.Calibration(units="eV"))
         elif self.datum_rank_model.value == 1:
             datum_rank = 2
-            data_shape = data_shape + (self.image_height_model.value, self.image_width_model.value)
+            image_height = self.image_height_model.value or 1
+            image_width = self.image_width_model.value or 1
+            data_shape = data_shape + (image_height, image_width)
             calibrations.append(Calibration.Calibration(units="nm"))
             calibrations.append(Calibration.Calibration(units="nm"))
         elif self.datum_rank_model.value == 2:
             collection_rank += 1
             datum_rank = 1
-            data_shape = data_shape + (self.array_height_model.value, self.array_width_model.value)
+            array_height = self.array_height_model.value or 1
+            array_width = self.array_width_model.value or 1
+            data_shape = data_shape + (array_height, array_width)
             calibrations.append(Calibration.Calibration(units="nm"))
             calibrations.append(Calibration.Calibration(units="eV"))
 

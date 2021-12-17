@@ -3256,14 +3256,17 @@ class API_1:
             # the build_menus function will be called whenever a new document window is created.
             # it will be passed the document_controller.
             def build_menus(document_controller: DocumentController.DocumentController) -> None:
+                menu_name: typing.Optional[str]
+                menu_before_id: typing.Optional[str]
                 menu_id = getattr(menu_item_handler, "menu_id", None)
                 if menu_id is None:
                     menu_id = "script_menu"
                     menu_name = _("Scripts")
                     menu_before_id = "window_menu"
                 else:
-                    menu_name = getattr(menu_item_handler, "menu_name", None)
-                    menu_before_id = getattr(menu_item_handler, "menu_before_id", None)
+                    menu_name = typing.cast(typing.Optional[str], getattr(menu_item_handler, "menu_name", None))
+                    menu_before_id = typing.cast(typing.Optional[str], getattr(menu_item_handler, "menu_before_id", None))
+                menu: typing.Optional[UserInterfaceModule.Menu]
                 if menu_name is not None and menu_before_id is not None:
                     menu = document_controller.get_or_create_menu(menu_id, menu_name, menu_before_id)
                 else:
