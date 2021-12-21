@@ -1382,10 +1382,9 @@ class DataSource(metaclass=SharedInstance):
         return DataItem(data_item)
 
     @property
-    def graphic(self) -> Graphic:
+    def graphic(self) -> typing.Optional[Graphic]:
         graphic = self.__data_source.graphic
-        assert graphic
-        return Graphic(graphic)
+        return Graphic(graphic) if graphic else None
 
     @property
     def cropped_element_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
