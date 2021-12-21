@@ -22,11 +22,9 @@ from nion.swift import MimeTypes
 from nion.swift import Undo
 from nion.swift.model import Changes
 from nion.swift.model import DataItem
-from nion.swift.model import DataStructure
 from nion.swift.model import DisplayItem
 from nion.swift.model import Graphics
 from nion.swift.model import Persistence
-from nion.swift.model import Schema
 from nion.swift.model import Symbolic
 from nion.ui import CanvasItem
 from nion.ui import Declarative
@@ -39,9 +37,7 @@ from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import ListModel
 from nion.utils import Model
-from nion.utils import Observable
 from nion.utils import ReferenceCounting
-from nion.utils import Validator
 
 if typing.TYPE_CHECKING:
     from nion.swift import DocumentController
@@ -1023,382 +1019,34 @@ class EditComputationDialog(Dialog.ActionDialog):
         return self.__computation_model
 
 
-class ClosingTuplePropertyBinding(Binding.TuplePropertyBinding):
-    def __init__(self, source: Observable.Observable, property_name: str, tuple_index: int,
-                 converter: typing.Optional[typing.Optional[Converter.ConverterLike[typing.Any, typing.Any]]] = None,
-                 fallback: typing.Any = None) -> None:
-        super().__init__(source, property_name, tuple_index, converter=converter, fallback=fallback)
-
-        def finalize(source: Observable.Observable) -> None:
-            source.close()  # type: ignore  # observable closeable
-
-        weakref.finalize(self, finalize, source)
-
-
-class ClosingPropertyBinding(Binding.PropertyBinding):
-    def __init__(self, source: Observable.Observable, property_name: str, *,
-                 converter: typing.Optional[Converter.ConverterLike[typing.Any, typing.Any]] = None,
-                 validator: typing.Optional[Validator.ValidatorLike[typing.Any]] = None,
-                 fallback: typing.Optional[typing.Any] = None) -> None:
-        super().__init__(source, property_name, converter=converter, validator=validator, fallback=fallback)
-
-        def finalize(source: Observable.Observable) -> None:
-            source.close()  # type: ignore  # observable closeable
-
-        weakref.finalize(self, finalize, source)
-
-
-class GraphicHandler:
-    def __init__(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable, graphic: Graphics.Graphic):
-        self.document_controller = document_controller
-        self.computation = computation
-        self.variable = variable
-        self.graphic = graphic
-
-    def close(self) -> None:
-        pass
-
-    def get_binding(self, source: Persistence.PersistentObject, property: str, converter: typing.Optional[Converter.ConverterLike[typing.Any, typing.Any]]) -> typing.Optional[Binding.Binding]:
-        # override the regular property binding and converter to handle displayed coordinates and undo commands.
-        graphic: Graphics.Graphic
-        if isinstance(source, Graphics.IntervalGraphic):
-            if property in ("start", "end"):
-                graphic = source
-                display_item = graphic.display_item
-                return Inspector.CalibratedValueBinding(-1, display_item, Inspector.ChangeGraphicPropertyBinding(self.document_controller, display_item, graphic, property))
-        if isinstance(source, Graphics.RectangleGraphic):
-            if property in ("center_x", "center_y"):
-                graphic = source
-                display_item = graphic.display_item
-                index = 1 if property == "center_x" else 0
-                graphic_name = "rectangle"
-                property_model = Inspector.GraphicPropertyCommandModel(self.document_controller, display_item, graphic, "center", title=_("Change {} Center").format(graphic_name), command_id="change_" + graphic_name + "_center")
-                return Inspector.CalibratedValueBinding(index, display_item, ClosingTuplePropertyBinding(property_model, "value", index))
-            elif property in ("width", "height"):
-                graphic = source
-                display_item = graphic.display_item
-                index = 1 if property == "width" else 0
-                graphic_name = "rectangle"
-                size_model = Inspector.GraphicPropertyCommandModel(self.document_controller, display_item, graphic, "size", title=_("Change {} Size").format(graphic_name), command_id="change_" + graphic_name + "_size")
-                return Inspector.CalibratedSizeBinding(index, display_item, ClosingTuplePropertyBinding(size_model, "value", index))
-            elif property in ("rotation_deg", ):
-                graphic = source
-                display_item = graphic.display_item
-                graphic_name = "rectangle"
-                rotation_model = Inspector.GraphicPropertyCommandModel(self.document_controller, display_item, graphic, "rotation", title=_("Change {} Rotation").format(graphic_name), command_id="change_" + graphic_name + "_size")
-                return ClosingPropertyBinding(rotation_model, "value", converter=Inspector.RadianToDegreeStringConverter())
-        if isinstance(source, Graphics.LineTypeGraphic):
-            if property in ("start_x", "start_y"):
-                graphic = source
-                display_item = graphic.display_item
-                index = 1 if property == "start_x" else 0
-                graphic_name = "line_profile"
-                property_model = Inspector.GraphicPropertyCommandModel(self.document_controller, display_item, graphic, "start", title=_("Change {} Start").format(graphic_name), command_id="change_" + graphic_name + "_start")
-                return Inspector.CalibratedValueBinding(index, display_item, ClosingTuplePropertyBinding(property_model, "value", index))
-            if property in ("end_x", "end_y"):
-                graphic = source
-                display_item = graphic.display_item
-                index = 1 if property == "end_x" else 0
-                graphic_name = "line_profile"
-                property_model = Inspector.GraphicPropertyCommandModel(self.document_controller, display_item, graphic, "end", title=_("Change {} End").format(graphic_name), command_id="change_" + graphic_name + "_end")
-                return Inspector.CalibratedValueBinding(index, display_item, ClosingTuplePropertyBinding(property_model, "value", index))
-            if property == "length":
-                graphic = source
-                display_item = graphic.display_item
-                graphic_name = "line_profile"
-                property_model1 = Inspector.GraphicPropertyCommandModel(self.document_controller, display_item, graphic, "start", title=_("Change {} Length").format(graphic_name), command_id="change_" + graphic_name + "_length_start")
-                property_model2 = Inspector.GraphicPropertyCommandModel(self.document_controller, display_item, graphic, "end", title=_("Change {} Length").format(graphic_name), command_id="change_" + graphic_name + "_length_end")
-                return Inspector.CalibratedLengthBinding(display_item, ClosingPropertyBinding(property_model1, "value"), ClosingPropertyBinding(property_model2, "value"))
-            if property == "angle":
-                graphic = source
-                display_item = graphic.display_item
-                graphic_name = "line_profile"
-                property_model = Inspector.GraphicPropertyCommandModel(self.document_controller, display_item, graphic, "angle", title=_("Change {} Angle").format(graphic_name), command_id="change_" + graphic_name + "_angle")
-                return Inspector.CalibratedBinding(display_item, ClosingPropertyBinding(property_model, "value"), Inspector.RadianToDegreeStringConverter())
-        if isinstance(source, Graphics.LineProfileGraphic):
-            if property == "width":
-                graphic = source
-                display_item = graphic.display_item
-                graphic_name = "line_profile"
-                property_model = Inspector.GraphicPropertyCommandModel(self.document_controller, display_item, graphic, "width", title=_("Change {} Line Width").format(graphic_name), command_id="change_" + graphic_name + "_line_width")
-                return Inspector.CalibratedWidthBinding(display_item, ClosingPropertyBinding(property_model, "value"))
-        return None
-
-    @classmethod
-    def make_component_content(cls, graphic: Graphics.Graphic) -> Declarative.UIDescription:
-        u = Declarative.DeclarativeUI()
-        if isinstance(graphic, Graphics.IntervalGraphic):
-            graphic_row = u.create_row(
-                u.create_label(text=_("Start")),
-                u.create_line_edit(text="@binding(graphic.start)", width=90),
-                u.create_label(text=_("End")),
-                u.create_line_edit(text="@binding(graphic.end)", width=90),
-                u.create_stretch(), spacing=12)
-            return graphic_row
-        if isinstance(graphic, Graphics.RectangleGraphic):
-            position_row = u.create_row(
-                u.create_label(text=_("X"), width=24),
-                u.create_line_edit(text="@binding(graphic.center_x)", width=90),
-                u.create_label(text=_("Y"), width=24),
-                u.create_line_edit(text="@binding(graphic.center_y)", width=90),
-                u.create_stretch(), spacing=12)
-            size_row = u.create_row(
-                u.create_label(text=_("W"), width=24),
-                u.create_line_edit(text="@binding(graphic.width)", width=90),
-                u.create_label(text=_("H"), width=24),
-                u.create_line_edit(text="@binding(graphic.height)", width=90),
-                u.create_stretch(), spacing=12)
-            rotation_row = u.create_row(
-                u.create_label(text=_("Rotation (deg)")),
-                u.create_line_edit(text="@binding(graphic.rotation_deg)", width=90),
-                u.create_stretch(), spacing=12)
-            return u.create_column(position_row, size_row, rotation_row, spacing=8)
-        if isinstance(graphic, Graphics.LineProfileGraphic):
-            start_row = u.create_row(
-                u.create_label(text=_("X0"), width=24),
-                u.create_line_edit(text="@binding(graphic.start_x)", width=90),
-                u.create_label(text=_("Y0"), width=24),
-                u.create_line_edit(text="@binding(graphic.start_y)", width=90),
-                u.create_stretch(), spacing=12)
-            end_row = u.create_row(
-                u.create_label(text=_("X1"), width=24),
-                u.create_line_edit(text="@binding(graphic.end_x)", width=90),
-                u.create_label(text=_("Y1"), width=24),
-                u.create_line_edit(text="@binding(graphic.end_y)", width=90),
-                u.create_stretch(), spacing=12)
-            length_row = u.create_row(
-                u.create_label(text=_("Length"), width=24),
-                u.create_line_edit(text="@binding(graphic.length)", width=90),
-                u.create_label(text=_("Angle"), width=24),
-                u.create_line_edit(text="@binding(graphic.angle)", width=90),
-                u.create_stretch(), spacing=12)
-            line_width_row = u.create_row(
-                u.create_label(text=_("Width"), width=24),
-                u.create_line_edit(text="@binding(graphic.width)", width=90),
-                u.create_stretch(), spacing=12)
-            return u.create_column(start_row, end_row, length_row, line_width_row, spacing=8)
-        return u.create_label(text=_("Unsupported Graphic") + f" {graphic.type}")
-
-
-class DataStructureHandler(Observable.Observable):
-    def __init__(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable, data_structure: DataStructure.DataStructure):
-        super().__init__()
-        self.document_controller = document_controller
-        self.computation = computation
-        self.variable = variable
-        self.data_structure = data_structure
-        self.__entity_choice = None
-        self.__entity_types = list()
-        self.__entity_choices = list()
-        variable_entity_id = self.variable.entity_id or str()
-        base_entity_type = Schema.get_entity_type(variable_entity_id)
-        if base_entity_type:
-            self.__entity_types = base_entity_type.subclasses
-
-            entity_info_list = [(DataStructure.DataStructure.entity_names[entity_type.entity_id],
-                                 DataStructure.DataStructure.entity_package_names[entity_type.entity_id])
-                                 for entity_type in self.__entity_types]
-
-            counts = collections.Counter([entity_info[0] for entity_info in entity_info_list])
-
-            def name(entity_id: str) -> str:
-                entity_name = DataStructure.DataStructure.entity_names[entity_id]
-                entity_package_name = DataStructure.DataStructure.entity_package_names[entity_id]
-                return f"{entity_name} ({entity_package_name})" if counts[entity_name] > 1 else entity_name
-
-            self.__entity_choices = [name(entity_type.entity_id) for entity_type in self.__entity_types] + ["-", _("None")]
-            # configure the initial value
-            entity = self.data_structure.entity
-            if entity:
-                entity_id = entity.entity_type.entity_id
-                for index, entity_type in enumerate(self.__entity_types):
-                    if entity_id == entity_type.entity_id:
-                        self.__entity_choice = index
-                        break
-            # set initial value to None if nothing else is selected
-            if self.__entity_choice is None:
-                self.__entity_choice = len(self.__entity_types) + 1
-
-    def close(self) -> None:
-        pass
-
-    @property
-    def entity_choices(self) -> typing.List[str]:
-        return self.__entity_choices
-
-    @property
-    def entity_choice(self) -> int:
-        return self.__entity_choice or 0
-
-    @entity_choice.setter
-    def entity_choice(self, value: int) -> None:
-        if 0 <= value < len(self.__entity_types):
-            self.__entity_choice = value
-            self.property_changed_event.fire("entity_choice")
-            self.data_structure.structure_type = self.__entity_types[value].entity_id
-        else:
-            self.__entity_choice = len(self.__entity_types) + 1
-            self.property_changed_event.fire("entity_choice")
-            assert self.variable.entity_id
-            self.data_structure.structure_type = self.variable.entity_id
-
-
 class VariableHandler:
     def __init__(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable):
         self.document_controller = document_controller
         self.computation = computation
         self.variable = variable
+        variable_model = Inspector.VariableValueModel(document_controller, computation, variable)
         # use 2000 below to avoid a match slider, which gives rise to a bizarre slider bug https://bugreports.qt.io/browse/QTBUG-77368
         # also must be a multiple of inspector slider to avoid
         self.slider_converter = Converter.FloatToScaledIntegerConverter(2000, 0, 100)
         self.float_str_converter = Converter.FloatToStringConverter()
         self.int_str_converter = Converter.IntegerToStringConverter()
         self.property_changed_event = Event.Event()
-        self.__variable_property_changed_listener = variable.property_changed_event.listen(self.__variable_property_changed)
+        self.__variable_component: typing.Optional[Declarative.HandlerLike] = Inspector.make_computation_variable_component(document_controller, computation, variable, variable_model)
+        u = Declarative.DeclarativeUI()
+        if self.__variable_component:
+            self.ui_view = u.create_column(u.create_component_instance("component"), spacing=8)
+        else:
+            label = u.create_label(text="@binding(variable.display_label)")
+            self.ui_view = u.create_column(label, u.create_label(text=_("Missing") + " " + f"[{variable.variable_type}]"), spacing=8)
 
     def close(self) -> None:
-        self.__variable_property_changed_listener.close()
-        self.__variable_property_changed_listener = typing.cast(typing.Any, None)
-
-    def __variable_property_changed(self, property_name: str) -> None:
-        if property_name in ("specified_object", "secondary_specified_object"):
-            self.property_changed_event.fire("display_item")
-        elif property_name == "value":
-            self.property_changed_event.fire("variable_value")
-            self.property_changed_event.fire("combo_box_index")
-
-    @property
-    def variable_value(self) -> typing.Any:
-        return self.variable.value
-
-    @variable_value.setter
-    def variable_value(self, value: typing.Any) -> None:
-        document_controller = self.document_controller
-        computation = self.computation
-        variable = self.variable
-        if value != variable.value:
-            command = Inspector.ChangeComputationVariableCommand(document_controller.document_model, computation, variable, value=value)
-            command.perform()
-            document_controller.push_undo_command(command)
-
-    @property
-    def combo_box_index(self) -> int:
-        if self.variable.value == "mapped":
-            return 1
-        return 0
-
-    @combo_box_index.setter
-    def combo_box_index(self, value: int) -> None:
-        if value == 1:
-            self.variable.value = "mapped"
-        else:
-            self.variable.value = "none"
-
-    @property
-    def display_item(self) -> typing.Optional[DisplayItem.DisplayItem]:
-        document_model = self.document_controller.document_model
-        computation = self.computation
-        variable = self.variable
-        base_items = computation.get_variable_input_items(variable.name)
-        display_item = None
-        for base_item in base_items:
-            if isinstance(base_item, DataItem.DataItem):
-                if display_item:  # check if there are more than one
-                    return None
-                display_item = document_model.get_display_item_for_data_item(base_item)
-        return display_item
-
-    @display_item.setter
-    def display_item(self, value: DisplayItem.DisplayItem) -> None:
-        pass  # handled separately
-
-    def drop_mime_data(self, mime_data: UserInterface.MimeData, x: int, y: int) -> typing.Optional[str]:
-        return drop_mime_data(self.document_controller, self.computation, self.variable, mime_data, x, y)
-
-    def data_item_delete(self) -> None:
-        data_item_delete(self.document_controller, self.computation, self.variable)
+        pass
 
     def create_handler(self, component_id: str, container: typing.Optional[Symbolic.ComputationVariable] = None, item: typing.Any = None, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
-        if component_id == "graphic":
-            graphic = self.variable.bound_item.value if self.variable.bound_item else None
-            return GraphicHandler(self.document_controller, self.computation, self.variable, graphic)
-        if component_id == "graphic_item":
-            graphic = typing.cast(Graphics.Graphic, item.value) if item and item.value else None
-            return GraphicHandler(self.document_controller, self.computation, self.variable, graphic)
-        if component_id == "structure":
-            data_structure = self.variable.bound_item.value if self.variable.bound_item else None
-            return DataStructureHandler(self.document_controller, self.computation, self.variable, data_structure)
+        if component_id == "component":
+            assert self.__variable_component
+            return self.__variable_component
         return None
-
-    def get_resource(self, resource_id: str, container: typing.Optional[Symbolic.ComputationVariable] = None, item: typing.Any = None) -> typing.Optional[Declarative.UIDescription]:
-        u = Declarative.DeclarativeUI()
-        if resource_id == "graphic":
-            graphic = self.variable.bound_item.value if self.variable.bound_item else None
-            return u.define_component(GraphicHandler.make_component_content(graphic))
-        if resource_id == "graphic_item":
-            assert container
-            graphic = typing.cast(Graphics.Graphic, item.value) if item and item.value else None
-            graphic_content = GraphicHandler.make_component_content(graphic)
-            label_row = u.create_row(
-                u.create_label(text="@binding(variable.display_label)"),
-                u.create_label(text=f"#{container._bound_items.index(item)}"),
-                u.create_stretch(), spacing=8)
-            return u.define_component(u.create_column(label_row, graphic_content, spacing=8))
-        if resource_id == "structure":
-            entity_id = self.variable.entity_id
-            if entity_id:
-                return u.define_component(u.create_row(
-                    u.create_label(text="@binding(variable.display_label)"),
-                    u.create_combo_box(items_ref="entity_choices", current_index="@binding(entity_choice)"),
-                    u.create_stretch(), spacing=8))
-            return u.define_component(u.create_column())
-        return None
-
-    @classmethod
-    def make_component_content(cls, variable: Symbolic.ComputationVariable) -> Declarative.UIDescription:
-        u = Declarative.DeclarativeUI()
-        label = u.create_label(text="@binding(variable.display_label)")
-        if variable.variable_type == "boolean":
-            checkbox = u.create_check_box(text="@binding(variable.display_label)", checked="@binding(variable_value)")
-            return u.create_column(checkbox)
-        elif variable.variable_type == "integral" and (True or variable.control_type == "slider") and variable.has_range:
-            slider = u.create_slider(value="@binding(variable_value)", minimum=variable.value_min, maximum=variable.value_max)
-            line_edit = u.create_line_edit(text="@binding(variable_value, converter=int_str_converter)", width=60)
-            return u.create_column(label, slider, line_edit, spacing=8)
-        elif variable.variable_type == "integral":
-            line_edit = u.create_line_edit(text="@binding(variable_value, converter=int_str_converter)", width=60)
-            return u.create_column(label, line_edit, spacing=8)
-        elif variable.variable_type == "real" and (True or variable.control_type == "slider") and variable.has_range:
-            slider = u.create_slider(value="@binding(variable_value, converter=slider_converter)", minimum=0, maximum=2000)
-            line_edit = u.create_line_edit(text="@binding(variable_value, converter=float_str_converter)", width=60)
-            return u.create_column(label, slider, line_edit, spacing=8)
-        elif variable.variable_type == "real":
-            line_edit = u.create_line_edit(text="@binding(variable_value, converter=float_str_converter)", width=60)
-            return u.create_column(label, line_edit, spacing=8)
-        elif variable.variable_type == "string" and variable.control_type == "choice":
-            combo_box = u.create_combo_box(items=["None", "Mapped"], current_index="@binding(combo_box_index)")
-            return u.create_column(label, combo_box, spacing=8)
-        elif variable.variable_type == "string":
-            line_edit = u.create_line_edit(text="@binding(variable_value)", width=60)
-            return u.create_column(label, line_edit, spacing=8)
-        elif variable.variable_type in Symbolic.Computation.data_source_types:
-            data_source_chooser = {
-                "type": "data_source_chooser",
-                "display_item": "@binding(display_item)",
-                "on_drop_mime_data": "drop_mime_data",
-                "on_delete": "data_item_delete",
-                "min_width": 80,
-                "min_height": 80,
-            }
-            return u.create_column(label, data_source_chooser, spacing=8)
-        elif variable.variable_type == "graphic":
-            return u.create_column(label, u.create_component_instance("graphic"), spacing=8)
-        elif variable.variable_type == "structure":
-            return u.create_column(u.create_component_instance("structure"), spacing=8)
-        elif variable.is_list:
-            return u.create_column(u.create_column(items="variable._bound_items", item_component_id="graphic_item", spacing=8), spacing=8)
-        else:
-            return u.create_column(label, u.create_label(text=_("Missing") + " " + f"[{variable.variable_type}]"), spacing=8)
 
 
 class ResultHandler:
@@ -1406,6 +1054,7 @@ class ResultHandler:
         self.document_controller = document_controller
         self.computation = computation
         self.result = result
+        self.ui_view = self.__make_component_content(result)
 
     def close(self) -> None:
         pass
@@ -1418,8 +1067,7 @@ class ResultHandler:
             return document_model.get_best_display_item_for_data_item(result_items[0])
         return None
 
-    @classmethod
-    def make_component_content(cls, result: Symbolic.ComputationOutput) -> Declarative.UIDescription:
+    def __make_component_content(self, result: Symbolic.ComputationOutput) -> Declarative.UIDescription:
         u = Declarative.DeclarativeUI()
         label = u.create_label(text="@binding(result.label)")
         result_items = result.output_items
@@ -1519,14 +1167,6 @@ class ComputationHandler:
             return VariableHandler(self.document_controller, self.computation, typing.cast(Symbolic.ComputationVariable, item))
         elif component_id == "result":
             return ResultHandler(self.document_controller, self.computation, typing.cast(Symbolic.ComputationOutput, item))
-        return None
-
-    def get_resource(self, resource_id: str, container: typing.Optional[typing.Any] = None, item: typing.Any = None) -> typing.Optional[Declarative.UIDescription]:
-        u = Declarative.DeclarativeUI()
-        if resource_id == "variable":
-            return u.define_component(VariableHandler.make_component_content(typing.cast(Symbolic.ComputationVariable, item)))
-        if resource_id == "result":
-            return u.define_component(ResultHandler.make_component_content(typing.cast(Symbolic.ComputationOutput, item)))
         return None
 
 

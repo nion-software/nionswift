@@ -1177,7 +1177,7 @@ class TestInspectorClass(unittest.TestCase):
             computation = document_model.get_data_item_computation(new_data_item)
             old_sigma = computation.get_input_value("sigma")
             inspector_section = next(x for x in inspector_panel._get_inspector_sections() if isinstance(x, Inspector.ComputationInspectorSection))
-            slider_widget = inspector_section.find_widget_by_id("value")
+            slider_widget = inspector_section.find_widget_by_id("slider_value")
             slider_widget.on_value_changed(0)
             self.assertEqual(0, computation.get_input_value("sigma"))
             document_controller.handle_undo()

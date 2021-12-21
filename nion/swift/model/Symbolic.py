@@ -251,6 +251,9 @@ class ComputationVariable(Persistence.PersistentObject):
                  items: typing.Optional[typing.List[ComputationItem]] = None) -> None:  # defaults are None for factory
         super().__init__()
         self.define_type("variable")
+        # contemplating changes here? remember that this is mainly a place to store a value and track changes
+        # to the value. this is not a place to specify how the value is presented, even though there are some
+        # existing fields (control_type) to do that that are leftovers from the original implementation.
         self.define_property("name", name, changed=self.__property_changed, hidden=True)
         self.define_property("label", label if label else name, changed=self.__property_changed, hidden=True)
         self.define_property("value_type", value_type, changed=self.__property_changed, hidden=True)
