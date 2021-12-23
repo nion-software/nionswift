@@ -3687,8 +3687,8 @@ class GraphicListVariableHandler:
         pass
 
     def create_handler(self, component_id: str, container: typing.Optional[Symbolic.ComputationVariable] = None, item: typing.Any = None, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
-        if component_id == "graphic_item":
-            graphic = typing.cast(Graphics.Graphic, item.value) if item and item.value else None
+        if component_id == "graphic_item" and item and item.value:
+            graphic = typing.cast(Graphics.Graphic, item.value)
             return GraphicHandler(self.document_controller, self.computation, self.variable, graphic)
         return None
 
