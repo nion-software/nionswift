@@ -496,6 +496,7 @@ def read_image_from_file(filename: pathlib.Path) -> _DataArrayType:
     if image is not None:
         image_u8 = imageio.core.image_as_uint(image)
         if len(image_u8.shape) == 3:
+            rgba_image: numpy.typing.NDArray[numpy.uint8]
             if image_u8.shape[-1] == 3:
                 rgba_image = numpy.empty(image_u8.shape[:-1] + (4,), numpy.uint8)
                 rgba_image[..., 0] = image_u8[..., 2]

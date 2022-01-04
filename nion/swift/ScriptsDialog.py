@@ -574,7 +574,7 @@ class RunScriptDialog(Dialog.ActionDialog):
         for module in current_modules:
             for path in self.__new_path_entries:
                 try:
-                    do_reload = os.path.abspath(module.__file__)[:len(path)] == path
+                    do_reload = os.path.abspath(module.__file__ or str())[:len(path)] == path
                 except (AttributeError, ValueError, TypeError):
                     pass
                 else:
