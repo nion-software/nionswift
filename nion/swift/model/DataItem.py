@@ -1147,7 +1147,7 @@ class DataItem(Persistence.PersistentObject):
             self.increment_data_ref_count()
             try:
                 if not self.__data_and_metadata:
-                    data = numpy.zeros(data_metadata.data_shape, data_metadata.data_dtype)
+                    data: numpy.typing.NDArray[typing.Any] = numpy.zeros(data_metadata.data_shape, data_metadata.data_dtype)
                     data_shape_and_dtype = data_metadata.data_shape_and_dtype
                     intensity_calibration = data_metadata.intensity_calibration
                     dimensional_calibrations = data_metadata.dimensional_calibrations

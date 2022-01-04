@@ -52,7 +52,7 @@ def interpolate_colors(array: _LookupDataArray, x: int) -> _RGBA8ImageDataType:
 def generate_lookup_array_from_points(points: _PointsType, n: int) -> _RGBA8ImageDataType:
     assert points[0]["x"] == 0.0
     assert points[-1]["x"] == 1.0
-    out_array = []
+    out_array: typing.List[numpy.typing.NDArray[typing.Any]] = []
     last_ix = None
     last_rgb = None
     for point in points:
@@ -67,7 +67,7 @@ def generate_lookup_array_from_points(points: _PointsType, n: int) -> _RGBA8Imag
         assert 0 <= g <= 255
         assert 0 <= b <= 255
         assert 0 <= x <= 1
-        rgb = numpy.array([b, g, r])
+        rgb: numpy.typing.NDArray[typing.Any] = numpy.array([b, g, r])
         ix = int(math.floor(x * (n - 1)))
         if last_ix is None:
             out_array.append(numpy.copy(rgb))  # type: ignore
