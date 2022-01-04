@@ -23,6 +23,15 @@ To select multiple primary items, you need to use the data panel or a browser pa
 
 Browsers
 --------
+Display panels can also show a browser, either as a thumbnail strip at the bottom of the display panel (thumbnail browser) or as a grid of display items (grid browser).
+
+You can change the browser in a display panel by using the menu items :menuselection:`Display --> Thumbnail Browser` and :menuselection:`Display --> Grid Browser`. You can change to the single display item view by choosing the menu item :menuselection:`Display --> Display Item`.
+
+You can also cycle between the display item, thumbnail, and grid browser by clicking on the display panel and pressing the :kbd:`v` key.
+
+Finally, you can change to a single display item by double clicking on it in either the thumbnail or grid browser.
+
+Note: If the display panel has an associated control bar, which is often present for live acquisition data, the :kbd:`v` key will not work.
 
 Images
 ------
