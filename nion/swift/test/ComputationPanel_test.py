@@ -251,6 +251,22 @@ class TestComputationPanelClass(unittest.TestCase):
             self.assertEqual(data_item2, computation.get_input("a"))
             self.assertIsNone(computation.error_text)
 
+    def test_computation_inspector_panel_handles_computation_being_removed(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((4, 4)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            document_model.get_gaussian_blur_new(display_item, data_item, None)
+            computation = document_model.computations[0]
+            with contextlib.closing(ComputationPanel.InspectComputationDialog(document_controller, computation)) as dialog:
+                document_controller.periodic()
+                dialog.window.periodic()
+                document_model.remove_computation(computation)
+                document_controller.periodic()
+                dialog.window.periodic()
+
     def test_computation_inspector_panel_handles_computation_being_removed_implicitly(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
