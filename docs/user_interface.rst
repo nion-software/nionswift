@@ -101,7 +101,7 @@ Line Plot Display
 
 The :guilabel:`Line Plot Display` inspector subsection allows you to force the display to either a line plot or an image instead of the default, which is an image for 2d data and a line plot for 1d data.
 
-It also allows you to specify an intensity range to be displays vertically on the line plot and a channel range to be display horizontally on the line plot. You can remove values from low/high intensity and/or left/right channels by deleting the text and pressing enter. This will trigger that particular value to be auto calculated.
+It also allows you to specify an intensity range to be displayed vertically on the line plot and a channel range to be displayed horizontally on the line plot. You can remove values from low/high intensity and/or left/right channels by deleting the text and pressing enter. This will trigger that particular value to be auto calculated.
 
 This inspector subsection also allows you to indicate whether to display the vertical intensity axis of the line plot on a log scale. You can change the setting by checking/unchecking the :guilabel:`Log Scale (Y)` checkbox.
 
