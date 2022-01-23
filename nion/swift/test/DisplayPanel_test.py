@@ -2496,6 +2496,21 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_panel.content_canvas_item.drop(mime_data, 100, 50)
             self.assertEqual(2, len(display_item.display_data_channels))
 
+    def test_cursor_task_is_closed_when_display_panel_is_emptied(self):
+        with TestContext.create_memory_context() as test_context:
+            # set up the layout
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            display_panel = document_controller.workspace_controller.display_panels[0]
+            data_item = DataItem.DataItem(numpy.zeros((12,12)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel.set_display_panel_display_item(display_item)
+            display_panel.display_canvas_item.layout_immediate(Geometry.IntSize(height=200, width=200))
+            display_panel.cursor_changed((100, 100))
+            document_model.remove_data_item(data_item)
+            document_controller.periodic()
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

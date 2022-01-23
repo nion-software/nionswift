@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 # standard libraries
+import asyncio
 import contextlib
 import copy
 import datetime
@@ -1330,6 +1331,11 @@ class DisplayItem(Persistence.PersistentObject):
         self.__in_transaction_state = False
         self.__write_delay_modified_count = 0
 
+        # some async methods (cursor info) may run in a thread. these two variables allow the display item to
+        # prevent closing until any outstanding threads that access this object are finished.
+        self.__outstanding_condition = threading.Condition()
+        self.__outstanding_thread_count = 0
+
         # the most recent data to be displayed. should have immediate data available.
         self.__is_composite_data = False
         self.__dimensional_calibrations: typing.Optional[DataAndMetadata.CalibrationListType] = None
@@ -1358,6 +1364,10 @@ class DisplayItem(Persistence.PersistentObject):
             self.append_display_data_channel_for_data_item(data_item)
 
     def close(self) -> None:
+        # wait for outstanding threads to finish
+        with self.__outstanding_condition:
+            while self.__outstanding_thread_count:
+                self.__outstanding_condition.wait()
         self.__graphic_selection_changed_event_listener.close()
         self.__graphic_selection_changed_event_listener = typing.cast(typing.Any, None)
         for display_data_channel in copy.copy(self.display_data_channels):
@@ -2314,6 +2324,30 @@ class DisplayItem(Persistence.PersistentObject):
                 full_pos[-1] = pos[0]
                 value_text = self.__get_calibrated_value_text(display_data_channel.get_data_value(tuple(full_pos)), intensity_calibration)
         return position_text, value_text
+
+    async def get_value_and_position_text_async(self, pos: typing.Optional[typing.Tuple[int, ...]]) -> typing.Tuple[str, str]:
+        def get_cursor_value(display_item: DisplayItem) -> typing.Tuple[str, str]:
+            try:
+                return display_item.get_value_and_position_text(pos)
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                return str(), str()
+            finally:
+                # decrement the outstanding thread count and notify listeners (the close method) that it has changed
+                with display_item.__outstanding_condition:
+                    display_item.__outstanding_thread_count -= 1
+                    display_item.__outstanding_condition.notifyAll()
+
+        # avoid race condition around close by checking if already closed. this method and close must always be
+        # called on the same thread for this to be effective.
+        if not self._closed:
+            # assume close cannot be happening at the same time; so if not closed, increment the outstanding
+            # thread count to prevent close until the executor finishes the get cursor value call.
+            with self.__outstanding_condition:
+                self.__outstanding_thread_count += 1
+            return await asyncio.get_event_loop().run_in_executor(None, get_cursor_value, self)
+        return str(), str()
 
 
 class DisplayCalibrationInfo:

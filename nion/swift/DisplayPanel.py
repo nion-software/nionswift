@@ -2528,17 +2528,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
             position_text, value_text = str(), str()
             display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], display_item_ref())
             if pos is not None and display_item:
-                def get_cursor_value(display_item: DisplayItem.DisplayItem) -> typing.Tuple[str, str]:
-                    try:
-                        return display_item.get_value_and_position_text(pos)
-                    except Exception as e:
-                        global _test_log_exceptions
-                        if _test_log_exceptions:
-                            import traceback
-                            traceback.print_exc()
-                    return str(), str()
-
-                position_text, value_text = await asyncio.get_event_loop().run_in_executor(None, get_cursor_value, display_item)
+                position_text, value_text = await display_item.get_value_and_position_text_async(pos)
             position_and_value_text = []
             if position_text:
                 position_and_value_text.append(_("Position: ") + position_text)
