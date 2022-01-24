@@ -23,6 +23,8 @@ if typing.TYPE_CHECKING:
 
 DragPartData = typing.Tuple[typing.Any, ...]
 DragPartDataPlus = typing.Tuple[typing.Any, ...]
+NormPointType = typing.Tuple[float, float]
+NormSizeType = typing.Tuple[float, float]
 
 _ = gettext.gettext
 
@@ -519,6 +521,24 @@ def draw_ellipse_graphic(ctx: DrawingContextLike, center: Geometry.FloatPoint, s
             ctx.stroke_style = stroke_style
             ctx.stroke()
             draw_circular_marker(ctx, rotation_point)
+
+
+def make_rectangle_mask(data_shape: DataAndMetadata.ShapeType, center: NormPointType, size: NormSizeType, rotation: float) -> DataAndMetadata._ImageDataType:
+    mask = numpy.zeros(data_shape)
+    y = center.y - size.height/2
+    x = center.x - size.width/2
+    bounds_int = ((int(data_shape[0] * y), int(data_shape[1] * x)),
+                 (int(data_shape[0] * size.height), int(data_shape[1] * size.width)))
+    a, b = bounds_int[0][0] + bounds_int[1][0]*0.5, bounds_int[0][1] + bounds_int[1][1]*0.5
+    y, x = numpy.ogrid[-a:data_shape[0] - a, -b:data_shape[1] - b]  # type: ignore
+    if rotation == 0.0:
+        mask_eq = (numpy.fabs(x) / (bounds_int[1][1] / 2) <= 1) & (numpy.fabs(y) / (bounds_int[1][0] / 2) <= 1)  # type: ignore
+    else:
+        angle_sin = math.sin(rotation)
+        angle_cos = math.cos(rotation)
+        mask_eq = (numpy.fabs(x*angle_cos - y*angle_sin) / (bounds_int[1][1] / 2) <= 1) & (numpy.fabs(y*angle_cos + x*angle_sin) / (bounds_int[1][0] / 2) <= 1)  # type: ignore
+    mask[mask_eq] = 1
+    return mask
 
 
 # closest point on line
@@ -1019,19 +1039,9 @@ class RectangleTypeGraphic(Graphic):
         return rotate(self._bounds.bottom_left, self._bounds.center, self.rotation)
 
     def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: typing.Optional[Geometry.FloatPoint] = None) -> DataAndMetadata._ImageDataType:
-        mask = numpy.zeros(data_shape)
-        bounds_int = ((int(data_shape[0] * self.bounds[0][0]), int(data_shape[1] * self.bounds[0][1])),
-                      (int(data_shape[0] * self.bounds[1][0]), int(data_shape[1] * self.bounds[1][1])))
-        if self.rotation:
-            a, b = bounds_int[0][0] + bounds_int[1][0] * 0.5, bounds_int[0][1] + bounds_int[1][1] * 0.5
-            y, x = numpy.ogrid[-a:data_shape[0] - a, -b:data_shape[1] - b]  # type: ignore
-            angle_sin = math.sin(self.rotation)
-            angle_cos = math.cos(self.rotation)
-            mask_eq = (numpy.fabs(x * angle_cos - y * angle_sin) / (bounds_int[1][1] / 2) <= 1) & (numpy.fabs(y * angle_cos + x * angle_sin) / (bounds_int[1][0] / 2) <= 1)  # type: ignore
-            mask[mask_eq] = 1
-        else:
-            mask[bounds_int[0][0]:bounds_int[0][0] + bounds_int[1][0] + 1,
-                 bounds_int[0][1]:bounds_int[0][1] + bounds_int[1][1] + 1] = 1
+        bounds = Geometry.FloatRect.make(self.bounds)
+        mask = make_rectangle_mask(data_shape=data_shape, center=bounds.center, size=bounds.size, rotation=self.rotation)
+        assert mask is not None
         return mask
 
     # test point hit
