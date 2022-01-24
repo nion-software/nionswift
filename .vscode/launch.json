@@ -1,0 +1,22 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Launch (tool, no debug)",
+            "module": "nionswift",
+            "args": ["--ui", "tool", "--no-fallback"],
+            "request": "launch",
+            "type": "python"
+        },
+        {
+            "name": "Launch (qt, debug)",
+            "module": "nionswift",
+            "args": ["--ui", "qt", "--no-fallback"],
+            "request": "launch",
+            "type": "python"
+        }
+    ]
+}
