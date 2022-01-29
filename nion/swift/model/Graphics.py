@@ -4,9 +4,7 @@ from __future__ import annotations
 import contextlib
 import copy
 import gettext
-from logging import exception
 import math
-from signal import valid_signals
 
 # third party libraries
 import numpy  # for arange
