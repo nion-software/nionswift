@@ -4,7 +4,9 @@ from __future__ import annotations
 import contextlib
 import copy
 import gettext
+from logging import exception
 import math
+from signal import valid_signals
 
 # third party libraries
 import numpy  # for arange
@@ -1501,6 +1503,49 @@ class LineGraphic(LineTypeGraphic):
         p2 = mapping.map_point_image_norm_to_widget(self.end)
         return Geometry.FloatPoint(y=(p1.y + p2.y) * 0.5, x=(p1.x + p2.x) * 0.5)
 
+    @property
+    def used_role(self) -> typing.Optional[str]:
+        return "fourier_mask"
+    
+    def draw_line(self, r0: int, c0: int, r1: int, c1: int) -> tuple(numpy.array, numpy.array, numpy.array):
+        # This solution is inspired by https://stackoverflow.com/a/47381058
+        # The algorithm below works fine if c1 >= c0 and c1-c0 >= abs(r1-r0).
+        # If either of these cases are violated, we will do some switches.
+        if abs(c1-c0) < abs(r1-r0):
+            # Switch x and y, and switch again when returning.
+            xx, yy, val = self.draw_line(c0, r0, c1, r1)
+            return (yy, xx, val)
+        # At this point we know that the distance in columns (x) is greater
+        # than that in rows (y). Possibly one more switch if c0 > c1.
+        if c0 > c1:
+            return self.draw_line(r1, c1, r0, c0)
+        # We write y as a function of x, because the slope is always <= 1
+        # (in absolute value)
+        x = numpy.arange(c0, c1+1, dtype=float)
+        y = x * (r1-r0) / (c1-c0) + (c1*r0-c0*r1) / (c1-c0)
+        valbot = numpy.floor(y)-y+1
+        valtop = y-numpy.floor(y)
+        rows = numpy.concatenate((numpy.floor(y), numpy.floor(y)+1)).astype(int) 
+        cols = numpy.concatenate((x,x)).astype(int) 
+        values = numpy.concatenate((valbot, valtop))
+
+        return (rows, cols, values)
+
+    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: typing.Optional[Geometry.FloatPoint] = None) -> DataAndMetadata._ImageDataType:
+        mask = numpy.zeros(data_shape)
+        # First we will take the pixel coordinates from the staring and ending line positions
+        r0, c0 = self.start
+        r0 = int(r0*data_shape[0])
+        c0 = int(c0*data_shape[1])
+        r1, c1 = self.end
+        r1 = int(r1*data_shape[0])
+        c1 = int(c1*data_shape[1])
+        # Then we will get the indices of rows and columns and their corresponsing values
+        rows, cols, values = self.draw_line(r0, c0, r1, c1)       
+        # Finally we will substitute the values to their corresponding positions in the mask
+        mask[rows, cols] =  numpy.expand_dims(values, 1)
+        
+        return mask
 
 class LineProfileGraphic(LineTypeGraphic):
     def __init__(self) -> None:
@@ -1706,7 +1751,16 @@ class PointGraphic(PointTypeGraphic):
     def label_position(self, mapping: CoordinateMappingLike, font_metrics: UISettings.FontMetrics, padding: float) -> typing.Optional[Geometry.FloatPoint]:
         p = Geometry.FloatPoint.make(mapping.map_point_image_norm_to_widget(self.position))
         return p + Geometry.FloatPoint(-self.cross_hair_size - font_metrics.height * 0.5 - padding * 2, 0.0)
+    
+    @property
+    def used_role(self) -> typing.Optional[str]:
+        return "fourier_mask"
 
+    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: typing.Optional[Geometry.FloatPoint] = None) -> DataAndMetadata._ImageDataType:
+        mask = numpy.zeros(data_shape)
+        x, y = self.position
+        mask[int(x*data_shape[0]), int(y*data_shape[1])] = 1
+        return mask
 
 class IntervalGraphic(Graphic):
     def __init__(self) -> None:
