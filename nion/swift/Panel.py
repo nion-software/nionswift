@@ -179,7 +179,7 @@ class OutputPanel(Panel):
         def queue_message(message: str) -> None:
             with self.__lock:
                 self.__q.append(message.strip())
-            if threading.current_thread().getName() == "MainThread":
+            if threading.current_thread().name == "MainThread":
                 safe_emit()
             else:
                 self.document_controller.queue_task(safe_emit)
