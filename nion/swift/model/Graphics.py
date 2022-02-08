@@ -23,7 +23,6 @@ if typing.TYPE_CHECKING:
 
 DragPartData = typing.Tuple[typing.Any, ...]
 DragPartDataPlus = typing.Tuple[typing.Any, ...]
-_ImageDataType = numpy.typing.NDArray[typing.Any]
 _ = gettext.gettext
 
 
@@ -1516,46 +1515,6 @@ class LineGraphic(LineTypeGraphic):
         p2 = mapping.map_point_image_norm_to_widget(self.end)
         return Geometry.FloatPoint(y=(p1.y + p2.y) * 0.5, x=(p1.x + p2.x) * 0.5)
 
-    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: typing.Optional[Geometry.FloatPoint] = None) -> DataAndMetadata._ImageDataType:
-        mask = numpy.zeros(data_shape)
-        # Taking the starting and ending points of line while tackling the boundry conditions
-        start = Geometry.FloatPoint(min(max(self.start.y, 0.0), 1.0), min(max(self.start.x, 0.0), 1.0))
-        end = Geometry.FloatPoint(min(max(self.end.y, 0.0), 1.0), min(max(self.end.x, 0.0), 1.0))
-        
-        # taking pixel positions
-        startPoint_x, startPoint_y = start
-        startPixel_x, startPixel_y = int(startPoint_x*(data_shape[0]-1)), int(startPoint_y*(data_shape[1]-1))
-        endPoint_x, endPoint_y = end
-        endPixel_x, endPixel_y = int(endPoint_x*(data_shape[0]-1)), int(endPoint_y*(data_shape[1]-1))
-        # getting the indices of rows and columns and their corresponsing values
-        stacked_rows_cols_values = make_line_mask(Geometry.IntPoint(startPixel_x, startPixel_y), Geometry.IntPoint(endPixel_x, endPixel_y))
-        rows, cols, values = stacked_rows_cols_values[0].astype(int), stacked_rows_cols_values[1].astype(int), stacked_rows_cols_values[2]
-        # Finally we will substitute the values to their corresponding positions in the mask
-        mask[cols, rows] =  numpy.expand_dims(values, 1)
-        return mask
-
-def make_line_mask(start: Geometry.IntPoint, end: Geometry.IntPoint) -> _ImageDataType:
-    # This solution is inspired by https://stackoverflow.com/a/47381058
-    # The algorithm below works fine if end.y >= start.y and end.x-start.x >= abs(end.y-start.y).
-    # If either of these cases are violated, we will do some switches.
-    if abs(end.y-start.y) < abs(end.x-start.x):
-        stacked_xx_yy_val = make_line_mask(Geometry.IntPoint(start.x, start.y), Geometry.IntPoint(end.x, end.y))
-        xx, yy, val = stacked_xx_yy_val[0], stacked_xx_yy_val[1], stacked_xx_yy_val[2]
-        return numpy.stack((yy, xx, val)) 
-    if start.y > end.y:
-        return make_line_mask(Geometry.IntPoint(end.y, end.x), Geometry.IntPoint(start.y, start.x)) #r1, c1, r0, c0)
-    
-    # We write vertical as a function of horizontal, because the slope is always <= 1
-    # (in absolute value)
-    horizontal = numpy.arange(start.y, end.y+1, dtype=float)
-    vertical = horizontal * (end.x-start.x) / (end.y-start.y) + (end.y*start.x-start.y*end.x) / (end.y-start.y)
-    valbot = numpy.floor(vertical)-vertical+1
-    valtop = vertical-numpy.floor(vertical)
-    rows: numpy.typing.NDArray[numpy.int_] = numpy.concatenate((numpy.floor(vertical), numpy.floor(vertical)+1)).astype(int) 
-    cols: numpy.typing.NDArray[numpy.int_] = numpy.concatenate((horizontal, horizontal)).astype(int) 
-    values: numpy.typing.NDArray[numpy.float_] = numpy.concatenate((valbot, valtop))
-    return numpy.stack((rows, cols, values))
-
 class LineProfileGraphic(LineTypeGraphic):
     def __init__(self) -> None:
         super().__init__("line-profile-graphic", _("Line Profile"))
@@ -1760,13 +1719,6 @@ class PointGraphic(PointTypeGraphic):
     def label_position(self, mapping: CoordinateMappingLike, font_metrics: UISettings.FontMetrics, padding: float) -> typing.Optional[Geometry.FloatPoint]:
         p = Geometry.FloatPoint.make(mapping.map_point_image_norm_to_widget(self.position))
         return p + Geometry.FloatPoint(-self.cross_hair_size - font_metrics.height * 0.5 - padding * 2, 0.0)
-
-    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: typing.Optional[Geometry.FloatPoint] = None) -> DataAndMetadata._ImageDataType:
-        mask = numpy.zeros(data_shape)
-        x, y = self.position
-        if 0<=x and x<=1 and 0<=y and y<=1: # Only draw the point mask if point is inside bounds
-            mask[int(x*data_shape[0]), int(y*data_shape[1])] = 1
-        return mask
 
 class IntervalGraphic(Graphic):
     def __init__(self) -> None:
