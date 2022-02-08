@@ -23,6 +23,9 @@ if typing.TYPE_CHECKING:
 
 DragPartData = typing.Tuple[typing.Any, ...]
 DragPartDataPlus = typing.Tuple[typing.Any, ...]
+NormPointType = typing.Tuple[float, float]
+NormSizeType = typing.Tuple[float, float]
+
 _ = gettext.gettext
 
 
@@ -1018,32 +1021,26 @@ class RectangleTypeGraphic(Graphic):
         return rotate(self._bounds.bottom_left, self._bounds.center, self.rotation)
 
     def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: typing.Optional[Geometry.FloatPoint] = None) -> DataAndMetadata._ImageDataType:
-        mask = numpy.zeros(data_shape)
-        
-        width_to_cut = 0
-        height_to_cut = 0
-        
-        if self.bounds[0][0]<0: #change the width of the mask
-            width_to_cut = min(abs(self.bounds[0][0]), 1)
-        elif self.bounds[0][0]+self.bounds[1][1]>1:
-            width_to_cut = min(self.bounds[0][0]+self.bounds[1][1]-1, 1)
-        if self.bounds[0][1]<0: #change the height of the mask
-            height_to_cut = min(abs(self.bounds[0][1]), 1)
-        elif self.bounds[0][1]+self.bounds[1][0]>1:
-            height_to_cut = min(self.bounds[0][1]+self.bounds[1][0]-1, 1)
-                
         if self.rotation:
-            bounds_int = ((int(data_shape[0] * self.bounds[0][0]), int(data_shape[1] * self.bounds[0][1])),
-                        (int(data_shape[0] * self.bounds[1][0]), int(data_shape[1] * self.bounds[1][1])))
-            a, b = bounds_int[0][0] + bounds_int[1][0] * 0.5, bounds_int[0][1] + bounds_int[1][1] * 0.5
-            y, x = numpy.ogrid[-a:data_shape[0] - a, -b:data_shape[1] - b]  # type: ignore
-            angle_sin = math.sin(self.rotation)
-            angle_cos = math.cos(self.rotation)
-            mask_eq = (numpy.fabs(x * angle_cos - y * angle_sin) / (bounds_int[1][1] / 2) <= 1) & (numpy.fabs(y * angle_cos + x * angle_sin) / (bounds_int[1][0] / 2) <= 1)  # type: ignore
-            mask[mask_eq] = 1
+            bounds = Geometry.FloatRect.make(self.bounds)
+            mask = make_rectangle_mask(data_shape=data_shape, center=bounds.center, size=bounds.size, rotation=self.rotation)
         else:
-            bounds_int = ((int((data_shape[0]-1) * min(max(self.bounds[0][0], 0.0), 1.0)), int((data_shape[1]-1) * min(max(self.bounds[0][1], 0.0), 1.0))),
-                        (int((data_shape[0]-1) * max((self.bounds[1][0]-width_to_cut),0)), int((data_shape[1]-1) * max((self.bounds[1][1]-height_to_cut), 0))))
+            mask = numpy.zeros(data_shape)
+            width_to_cut = 0
+            height_to_cut = 0
+
+            if self.bounds[0][1] < 0: # change the width of the mask
+                width_to_cut = min(abs(self.bounds[0][1]), 1)
+            elif self.bounds[0][1] + self.bounds[1][1] > 1:
+                width_to_cut = min(self.bounds[0][1] + self.bounds[1][1] - 1, 1)
+
+            if self.bounds[0][0] < 0: # change the height of the mask
+                height_to_cut = min(abs(self.bounds[0][0]), 1)
+            elif self.bounds[0][0] + self.bounds[1][0] > 1:
+                height_to_cut = min(self.bounds[0][0] + self.bounds[1][0] - 1, 1)
+
+            bounds_int = ((int(data_shape[0] * min(max(self.bounds[0][0], 0.0), 1.0)), int(data_shape[1] * min(max(self.bounds[0][1], 0.0), 1.0))),
+                        (int(data_shape[0] * max((self.bounds[1][0] - height_to_cut), 0)), int(data_shape[1] * max((self.bounds[1][1] - width_to_cut), 0))))
             mask[bounds_int[0][0]:bounds_int[0][0] + bounds_int[1][0],
                  bounds_int[0][1]:bounds_int[0][1] + bounds_int[1][1]] = 1
         return mask
@@ -1088,6 +1085,19 @@ class RectangleTypeGraphic(Graphic):
     def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool = False) -> None:
         raise NotImplementedError()
 
+def make_rectangle_mask(data_shape: DataAndMetadata.ShapeType, center: NormPointType, size: NormSizeType, rotation: float) -> DataAndMetadata._ImageDataType:
+    mask = numpy.zeros(data_shape)
+    y = center.y - size.height/2
+    x = center.x - size.width/2
+    bounds_int = ((int(data_shape[0] * y), int(data_shape[1] * x)),
+                (int(data_shape[0] * size.height), int(data_shape[1] * size.width)))
+    a, b = bounds_int[0][0] + bounds_int[1][0]*0.5, bounds_int[0][1] + bounds_int[1][1]*0.5
+    y, x = numpy.ogrid[-a:data_shape[0] - a, -b:data_shape[1] - b]  # type: ignore
+    angle_sin = math.sin(rotation)
+    angle_cos = math.cos(rotation)
+    mask_eq = (numpy.fabs(x*angle_cos - y*angle_sin) / (bounds_int[1][1] / 2) <= 1) & (numpy.fabs(y*angle_cos + x*angle_sin) / (bounds_int[1][0] / 2) <= 1)  # type: ignore
+    mask[mask_eq] = 1
+    return mask
 
 class RectangleGraphic(RectangleTypeGraphic):
     def __init__(self) -> None:
