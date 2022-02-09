@@ -41,7 +41,7 @@ jobs:
     - name: Type Checking
       run: |
         python -m pip install types-pytz types-tzlocal
-        mypy --install-types --non-interactive --namespace-packages --ignore-missing-imports --follow-imports=silent --strict --no-warn-unused-ignores --exclude '/test' nion/swift
+        mypy --install-types --non-interactive --namespace-packages --ignore-missing-imports --follow-imports=silent --strict --no-warn-unused-ignores --exclude '/test' -p nion.swift
     - name: Test
       run: |
         python -m unittest discover -p '*_test.py'
