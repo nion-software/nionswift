@@ -33,7 +33,6 @@ from nion.swift import Panel
 from nion.swift import ProjectPanel
 from nion.swift import SessionPanel
 from nion.swift import Task
-from nion.swift import Test
 from nion.swift import ToolbarPanel
 from nion.swift import Workspace
 from nion.swift.model import ApplicationData
@@ -698,9 +697,6 @@ class Application(UIApplication.BaseApplication):
 
         about_dialog = AboutDialog(self.ui, parent_window, self.version_str)
         about_dialog.show()
-
-    def run_all_tests(self) -> None:
-        Test.run_all_tests()
 
 
 def get_root_dir() -> str:
