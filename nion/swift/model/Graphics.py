@@ -524,19 +524,20 @@ def draw_ellipse_graphic(ctx: DrawingContextLike, center: Geometry.FloatPoint, s
 
 
 def make_rectangle_mask(data_shape: DataAndMetadata.ShapeType, center: NormPointType, size: NormSizeType, rotation: float) -> DataAndMetadata._ImageDataType:
+    data_size = Geometry.IntSize.make(typing.cast(Geometry.SizeIntTuple, data_shape))
+    data_rect = Geometry.FloatRect(origin=Geometry.FloatPoint(), size=Geometry.FloatSize.make(typing.cast(Geometry.SizeFloatTuple, data_size)))
+    center_point = Geometry.map_point(Geometry.FloatPoint.make(center), Geometry.FloatRect.unit_rect(), data_rect)
+    size_size = Geometry.map_size(Geometry.FloatSize.make(size), Geometry.FloatRect.unit_rect(), data_rect)
     mask = numpy.zeros(data_shape)
-    y = center.y - size.height/2
-    x = center.x - size.width/2
-    bounds_int = ((int(data_shape[0] * y), int(data_shape[1] * x)),
-                 (int(data_shape[0] * size.height), int(data_shape[1] * size.width)))
-    a, b = bounds_int[0][0] + bounds_int[1][0]*0.5, bounds_int[0][1] + bounds_int[1][1]*0.5
+    bounds = Geometry.FloatRect.from_center_and_size(center_point, size_size)
+    a, b = bounds.top + bounds.height * 0.5, bounds.left + bounds.width * 0.5
     y, x = numpy.ogrid[-a:data_shape[0] - a, -b:data_shape[1] - b]  # type: ignore
     if rotation == 0.0:
-        mask_eq = (numpy.fabs(x) / (bounds_int[1][1] / 2) <= 1) & (numpy.fabs(y) / (bounds_int[1][0] / 2) <= 1)  # type: ignore
+        mask_eq = (numpy.fabs(x) / (bounds.width / 2) <= 1) & (numpy.fabs(y) / (bounds.height / 2) <= 1)  # type: ignore
     else:
         angle_sin = math.sin(rotation)
         angle_cos = math.cos(rotation)
-        mask_eq = (numpy.fabs(x*angle_cos - y*angle_sin) / (bounds_int[1][1] / 2) <= 1) & (numpy.fabs(y*angle_cos + x*angle_sin) / (bounds_int[1][0] / 2) <= 1)  # type: ignore
+        mask_eq = (numpy.fabs(x*angle_cos - y*angle_sin) / (bounds.width / 2) <= 1) & (numpy.fabs(y*angle_cos + x*angle_sin) / (bounds.height / 2) <= 1)  # type: ignore
     mask[mask_eq] = 1
     return mask
 
@@ -1040,7 +1041,7 @@ class RectangleTypeGraphic(Graphic):
 
     def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: typing.Optional[Geometry.FloatPoint] = None) -> DataAndMetadata._ImageDataType:
         bounds = Geometry.FloatRect.make(self.bounds)
-        mask = make_rectangle_mask(data_shape=data_shape, center=bounds.center, size=bounds.size, rotation=self.rotation)
+        mask = make_rectangle_mask(data_shape, bounds.center.as_tuple(), bounds.size.as_tuple(), self.rotation)
         assert mask is not None
         return mask
 
