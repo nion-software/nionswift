@@ -523,13 +523,9 @@ def draw_ellipse_graphic(ctx: DrawingContextLike, center: Geometry.FloatPoint, s
             draw_circular_marker(ctx, rotation_point)
 
 
-def make_rectangle_mask(data_shape: DataAndMetadata.ShapeType, center: NormPointType, size: NormSizeType, rotation: float) -> DataAndMetadata._ImageDataType:
-    data_size = Geometry.IntSize.make(typing.cast(Geometry.SizeIntTuple, data_shape))
-    data_rect = Geometry.FloatRect(origin=Geometry.FloatPoint(), size=Geometry.FloatSize.make(typing.cast(Geometry.SizeFloatTuple, data_size)))
-    center_point = Geometry.map_point(Geometry.FloatPoint.make(center), Geometry.FloatRect.unit_rect(), data_rect)
-    size_size = Geometry.map_size(Geometry.FloatSize.make(size), Geometry.FloatRect.unit_rect(), data_rect)
+def make_rectangle_mask(data_shape: DataAndMetadata.ShapeType, center: Geometry.FloatPoint, size: Geometry.FloatSize, rotation: float) -> DataAndMetadata._ImageDataType:
     mask = numpy.zeros(data_shape)
-    bounds = Geometry.FloatRect.from_center_and_size(center_point, size_size)
+    bounds = Geometry.FloatRect.from_center_and_size(center, size)
     a, b = bounds.top + bounds.height * 0.5, bounds.left + bounds.width * 0.5
     y, x = numpy.ogrid[-a:data_shape[0] - a, -b:data_shape[1] - b]  # type: ignore
     if rotation == 0.0:
@@ -1040,8 +1036,11 @@ class RectangleTypeGraphic(Graphic):
         return rotate(self._bounds.bottom_left, self._bounds.center, self.rotation)
 
     def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: typing.Optional[Geometry.FloatPoint] = None) -> DataAndMetadata._ImageDataType:
-        bounds = Geometry.FloatRect.make(self.bounds)
-        mask = make_rectangle_mask(data_shape, bounds.center.as_tuple(), bounds.size.as_tuple(), self.rotation)
+        bounds = self.bounds
+        data_rect = Geometry.FloatRect(origin=Geometry.FloatPoint(), size=Geometry.FloatSize.make(typing.cast(Geometry.SizeFloatTuple, data_shape)))
+        center = Geometry.map_point(bounds.center, Geometry.FloatRect.unit_rect(), data_rect)
+        size = Geometry.map_size(bounds.size, Geometry.FloatRect.unit_rect(), data_rect)
+        mask = make_rectangle_mask(data_shape, center, size, self.rotation)
         assert mask is not None
         return mask
 
@@ -1375,6 +1374,19 @@ class LineTypeGraphic(Graphic):
         self.notify_property_changed("length")
         self.notify_property_changed("angle")
 
+    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: typing.Optional[Geometry.FloatPoint] = None) -> DataAndMetadata._ImageDataType:
+        data_rect = Geometry.FloatRect(origin=Geometry.FloatPoint(), size=Geometry.FloatSize.make(typing.cast(Geometry.SizeFloatTuple, data_shape)))
+        start = Geometry.map_point(self.start, Geometry.FloatRect.unit_rect(), data_rect)
+        end = Geometry.map_point(self.end, Geometry.FloatRect.unit_rect(), data_rect)
+        bounds = Geometry.FloatRect.from_center_and_size(
+            Geometry.FloatPoint((start.y + end.y) * 0.5, (start.x + end.x) * 0.5),
+            Geometry.FloatSize(1.0, Geometry.distance(start, end)))
+        delta = Geometry.FloatPoint.make(end) - Geometry.FloatPoint.make(start)
+        angle = -math.atan2(delta.y, delta.x)
+        mask = make_rectangle_mask(data_shape, bounds.center, bounds.size, angle)
+        assert mask is not None
+        return mask
+
     # test is required for Graphic interface
     def test(self, mapping: CoordinateMappingLike, ui_settings: UISettings.UISettings, p: Geometry.FloatPoint, move_only: bool) -> typing.Tuple[typing.Optional[str], bool]:
         # first convert to widget coordinates since test distances
@@ -1626,6 +1638,13 @@ class PointTypeGraphic(Graphic):
     def read_from_mime_data(self, graphic_dict: Persistence.PersistentDictType) -> None:
         super().read_from_mime_data(graphic_dict)
         self.position = graphic_dict.get("position", self.position)
+
+    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: typing.Optional[Geometry.FloatPoint] = None) -> DataAndMetadata._ImageDataType:
+        size = Geometry.FloatSize(1.5 / data_shape[0], 1.5 / data_shape[1])
+        mask_xdata = Core.function_make_elliptical_mask(tuple(data_shape), self.position.as_tuple(), size.as_tuple(), 0.0)
+        mask_data = mask_xdata.data
+        assert mask_data is not None
+        return mask_data
 
     # test is required for Graphic interface
     def test(self, mapping: CoordinateMappingLike, ui_settings: UISettings.UISettings, p: Geometry.FloatPoint, move_only: bool) -> typing.Tuple[typing.Optional[str], bool]:
