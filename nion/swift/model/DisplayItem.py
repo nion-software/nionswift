@@ -2337,7 +2337,7 @@ class DisplayItem(Persistence.PersistentObject):
                 # decrement the outstanding thread count and notify listeners (the close method) that it has changed
                 with display_item.__outstanding_condition:
                     display_item.__outstanding_thread_count -= 1
-                    display_item.__outstanding_condition.notifyAll()
+                    display_item.__outstanding_condition.notify_all()
 
         # avoid race condition around close by checking if already closed. this method and close must always be
         # called on the same thread for this to be effective.
