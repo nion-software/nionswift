@@ -554,7 +554,7 @@ class StandardImportExportHandler(ImportExportHandler):
         assert display_values
         data = display_values.display_rgba  # export the display rather than the data for these types
         assert data is not None
-        imageio.imwrite(path, data, extension)
+        imageio.imwrite(path, Image.get_rgb_view(data), extension)
 
 
 class CSVImportExportHandler(ImportExportHandler):
