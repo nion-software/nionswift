@@ -1215,7 +1215,7 @@ class DisplayDataChannel(Persistence.PersistentObject):
             # is a small percentage of the overall data and was falling outside
             # the included range. This is the new simplified algorithm. Future
             # feature may allow user to select more complex algorithms.
-            mn, mx = numpy.nanmin(data), numpy.nanmax(data)  # type: ignore
+            mn, mx = numpy.array(numpy.nanmin(data)).item(), numpy.array(numpy.nanmax(data)).item()  # type: ignore
             self.display_limits = mn, mx
 
 
