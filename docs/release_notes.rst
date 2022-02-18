@@ -12,6 +12,16 @@ in bug fix releases, we choose to include them for evaluation and feedback. If y
 or have feedback about these types of new features, please contact us or file issues at
 https://github.com/nion-software/nionswift/issues.
 
+Version 0.16.2 (2022-02-18)
+---------------------------
+* `#796 <https://github.com/nion-software/nionswift/issues/796>`_ Using auto display limits on RGB image no longer corrupts data item.
+* `#795 <https://github.com/nion-software/nionswift/issues/795>`_ Exporting to JPEG works again.
+* `#792 <https://github.com/nion-software/nionswift/issues/792>`_ Rectangle mask now draws properly even when out of bounds.
+* `#623 <https://github.com/nion-software/nionswift/issues/623>`_ Line and point graphics now generate masks when included.
+* `#789 <https://github.com/nion-software/nionswift/issues/789>`_ Handle cursor properly when deleting display item under cursor.
+* `#779 <https://github.com/nion-software/nionswift/issues/779>`_ Mappable processing operations now complete when mapped and no graphic.
+* Improved (slightly) documentation.
+
 Version 0.16.1 (2021-12-13)
 ---------------------------
 * `#772 <https://github.com/nion-software/nionswift/issues/772>`_ Fix issue deselecting empty display panels.
