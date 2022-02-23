@@ -669,7 +669,7 @@ class Application(UIApplication.BaseApplication):
 
                 column.add_spacing(26)
                 column.add(make_label_row(f"Nion Swift {version_str}"))
-                column.add(make_label_row("Copyright 2012-2021 Nion Company. All Rights Reserved."))
+                column.add(make_label_row("Copyright 2012-2022 Nion Company. All Rights Reserved."))
                 column.add_spacing(13)
                 column.add(make_label_row(f"Python {sys.version}"))
                 if sys.base_prefix:
