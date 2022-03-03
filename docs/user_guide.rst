@@ -2,16 +2,16 @@
 
 .. _user-guide:
 
+##########
 User Guide
-==========
+##########
 
 .. toctree::
     introduction
-    user_interface
     display_panels
+    user_interface
     data
-    data_management
     graphics
     processing
+    data_management
     :maxdepth: 2
-    :caption: User Guide:
