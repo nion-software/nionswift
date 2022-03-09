@@ -7,7 +7,7 @@ Utility Panels
 **************
 
 .. _Workspaces:
-
+.. This section will be covered by the overview section so this will remain here temporarily until that section is finished.
 Workspaces
 ==========
 The workspace is the area where you can view your data.
@@ -23,6 +23,29 @@ You can select one or more display panels for processing by clicking to select o
 If you do processing or acquisition which produces new data, its associated display item will be displayed in an empty display panel if available.
 
 See :ref:`display-panels`.
+
+Utility Panels
+==============
+
+Utility panels are individual windows within the software that serve different functions. While the display panels display data items and allow for customization, the utility panels are where the customization actually happens. For example, a display panel can display image data in different colors, but in order to choose which color to display, the option must be selected in the Inspector utility panel. Each utility panel serves to change or edit a given parameter about the selected data.
+
+Having individual utility panels for similar parameters means that the workspace can be fully customized for the user's purpose. There are several ways to customize the utility panel layout:
+
+* Choose to show or hide any utility panel by using the [Window] menu.
+
+* Quickly close a utility panel by clicking the x button in the corner of its title bar.
+
+* Click and drag a utility panel by its title bar to rearrange the layout of the shown panels.
+
+* Layer utility panels by dropping one utility panel onto another. If two or more panels are layered, selection buttons will appear at the bottom of the panel to switch between them.
+
+* Pop utility panels out into a separate window by dragging the panel away from the main window by the title bar.
+
+* Resize a utility panel by clicking and dragging from its edges.
+
+IMAGE: CUSTOMIZING UTILITY PANELS 
+
+The utility panels are organized alphabetically in the [Window] menu, and their functions are as follows:
 
 .. _Activity Panel:
 
