@@ -299,6 +299,16 @@ Each graphic will have some or all of the following variables:
 
 * Start/End - The end points of a graphic on a line plot in nanometers (nm), pixels, or a decimal fraction depending on the coordinate system selected.
 
+* Radius 1 - The outer radius of a ring mask in nanometers (nm), pixels, or a decimal fraction depending on the coordinate system selected.
+
+* Radius 2 The inner radius of a ring mask in nanometers (nm), pixels, or a decimal fraction depending on the coordinate system selected.
+
+* Mode - The type of ring mask. See :ref:`graphics` for more information on ring masks.
+
+* Start Angle - The top left inside angle of a wedge mask in degrees.
+
+* End Angle - The inside opposite angle of a wedge mask in degrees.
+
 * Display - The type of coordinate system used to label the coordinates on the image or line plot. See :ref:`data-items` for information on different types of coordinate systems.
 
 .. _Metadata Panel:
