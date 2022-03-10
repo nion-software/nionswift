@@ -145,10 +145,11 @@ class CharButtonConstructor:
 Registry.register_component(CharButtonConstructor(), {"declarative_constructor"})
 
 
-class NotificationHandler(Declarative.HandlerLike):
+class NotificationHandler(Declarative.Handler):
     """Declarative component handler for a section in a multiple acquire method component."""
 
     def __init__(self, notification: Notification.Notification) -> None:
+        super().__init__()
         self.notification = notification
         u = Declarative.DeclarativeUI()
         self.ui_view = u.create_row(
@@ -173,9 +174,6 @@ class NotificationHandler(Declarative.HandlerLike):
                 spacing=4,
             ),
         )
-
-    def close(self) -> None:
-        pass
 
     def handle_dismiss(self, widget: Declarative.UIWidget) -> None:
         self.notification.dismiss()

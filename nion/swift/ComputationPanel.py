@@ -1019,8 +1019,9 @@ class EditComputationDialog(Dialog.ActionDialog):
         return self.__computation_model
 
 
-class VariableHandler:
+class VariableHandler(Declarative.Handler):
     def __init__(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable):
+        super().__init__()
         self.document_controller = document_controller
         self.computation = computation
         self.variable = variable
@@ -1039,9 +1040,6 @@ class VariableHandler:
             label = u.create_label(text="@binding(variable.display_label)")
             self.ui_view = u.create_column(label, u.create_label(text=_("Missing") + " " + f"[{variable.variable_type}]"), spacing=8)
 
-    def close(self) -> None:
-        pass
-
     def create_handler(self, component_id: str, container: typing.Optional[Symbolic.ComputationVariable] = None, item: typing.Any = None, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
         if component_id == "component":
             assert self.__variable_component
@@ -1049,15 +1047,13 @@ class VariableHandler:
         return None
 
 
-class ResultHandler:
+class ResultHandler(Declarative.Handler):
     def __init__(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, result: Symbolic.ComputationOutput):
+        super().__init__()
         self.document_controller = document_controller
         self.computation = computation
         self.result = result
         self.ui_view = self.__make_component_content(result)
-
-    def close(self) -> None:
-        pass
 
     @property
     def display_item(self) -> typing.Optional[DisplayItem.DisplayItem]:
@@ -1133,8 +1129,9 @@ class RemoveComputationCommand(Undo.UndoableCommand):
             workspace_controller.reconstruct(self.__new_workspace_layout)
 
 
-class ComputationHandler:
+class ComputationHandler(Declarative.Handler):
     def __init__(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation):
+        super().__init__()
         self.document_controller = document_controller
         self.computation = computation
         self.computation_inputs_model = ListModel.FilteredListModel(container=computation, master_items_key="variables")
@@ -1149,6 +1146,7 @@ class ComputationHandler:
         self.computation_inputs_model = typing.cast(typing.Any, None)
         self.computation_parameters_model.close()
         self.computation_parameters_model = typing.cast(typing.Any, None)
+        super().close()
 
     def handle_delete(self, widget: Declarative.UIWidget) -> None:
         self.delete_state_model.value = 1
@@ -1264,9 +1262,7 @@ class InspectComputationDialog(Declarative.WindowHandler):
 
     def create_handler(self, component_id: str, container: typing.Optional[Symbolic.ComputationVariable] = None, item: typing.Any = None, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
         if component_id == "empty":
-            class Handler:
-                def close(self) -> None: pass
-            return Handler()
+            return Declarative.Handler()
         if component_id == "single":
             computation = self.computation_model.value
             assert computation

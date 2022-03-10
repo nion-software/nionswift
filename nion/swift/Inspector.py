@@ -3185,16 +3185,14 @@ class VariableValueModel(Observable.Observable):
             document_controller.push_undo_command(command)
 
 
-class BooleanVariableHandler:
+class BooleanVariableHandler(Declarative.Handler):
     def __init__(self, computation_variable: Symbolic.ComputationVariable, variable_model: VariableValueModel) -> None:
+        super().__init__()
         self.variable = computation_variable
         self.variable_model = variable_model
         u = Declarative.DeclarativeUI()
         checkbox = u.create_check_box(text="@binding(variable.display_label)", checked="@binding(variable_model.value)", widget_id="value")
         self.ui_view = checkbox
-
-    def close(self) -> None:
-        pass
 
 
 class BooleanVariableHandlerFactory(VariableHandlerComponentFactory):
@@ -3204,8 +3202,9 @@ class BooleanVariableHandlerFactory(VariableHandlerComponentFactory):
         return None
 
 
-class IntegerSliderVariableHandler:
+class IntegerSliderVariableHandler(Declarative.Handler):
     def __init__(self, variable: Symbolic.ComputationVariable, variable_model: VariableValueModel) -> None:
+        super().__init__()
         self.variable = variable
         self.variable_model = variable_model
         self.int_str_converter = Converter.IntegerToStringConverter()
@@ -3215,12 +3214,10 @@ class IntegerSliderVariableHandler:
         line_edit = u.create_line_edit(text="@binding(variable_model.value, converter=int_str_converter)", width=60, widget_id="value")
         self.ui_view = u.create_column(label, slider, line_edit, spacing=8)
 
-    def close(self) -> None:
-        pass
 
-
-class IntegerVariableHandler:
+class IntegerVariableHandler(Declarative.Handler):
     def __init__(self, variable: Symbolic.ComputationVariable, variable_model: VariableValueModel) -> None:
+        super().__init__()
         self.variable = variable
         self.variable_model = variable_model
         self.int_str_converter = Converter.IntegerToStringConverter()
@@ -3228,9 +3225,6 @@ class IntegerVariableHandler:
         label = u.create_label(text="@binding(variable.display_label)")
         line_edit = u.create_line_edit(text="@binding(variable_model.value, converter=int_str_converter)", width=60, widget_id="value")
         self.ui_view = u.create_column(label, line_edit, spacing=8)
-
-    def close(self) -> None:
-        pass
 
 
 class IntegerVariableHandlerFactory(VariableHandlerComponentFactory):
@@ -3242,8 +3236,9 @@ class IntegerVariableHandlerFactory(VariableHandlerComponentFactory):
         return None
 
 
-class RealSliderVariableHandler:
+class RealSliderVariableHandler(Declarative.Handler):
     def __init__(self, variable: Symbolic.ComputationVariable, variable_model: VariableValueModel) -> None:
+        super().__init__()
         self.variable = variable
         self.variable_model = variable_model
         self.slider_converter = Converter.FloatToScaledIntegerConverter(2000, 0, 100)
@@ -3254,12 +3249,10 @@ class RealSliderVariableHandler:
         line_edit = u.create_line_edit(text="@binding(variable_model.value, converter=float_str_converter)", width=60, widget_id="value")
         self.ui_view = u.create_column(label, slider, line_edit, spacing=8)
 
-    def close(self) -> None:
-        pass
 
-
-class RealVariableHandler:
+class RealVariableHandler(Declarative.Handler):
     def __init__(self, variable: Symbolic.ComputationVariable, variable_model: VariableValueModel) -> None:
+        super().__init__()
         self.variable = variable
         self.variable_model = variable_model
         self.float_str_converter = Converter.FloatToStringConverter()
@@ -3267,9 +3260,6 @@ class RealVariableHandler:
         label = u.create_label(text="@binding(variable.display_label)")
         line_edit = u.create_line_edit(text="@binding(variable_model.value, converter=float_str_converter)", width=60, widget_id="value")
         self.ui_view = u.create_column(label, line_edit, spacing=8)
-
-    def close(self) -> None:
-        pass
 
 
 class RealVariableHandlerFactory(VariableHandlerComponentFactory):
@@ -3281,7 +3271,7 @@ class RealVariableHandlerFactory(VariableHandlerComponentFactory):
         return None
 
 
-class ChoiceVariableHandler(Observable.Observable):
+class ChoiceVariableHandler(Declarative.Handler):
     def __init__(self, variable: Symbolic.ComputationVariable, variable_model: VariableValueModel) -> None:
         super().__init__()
         self.variable = variable
@@ -3295,6 +3285,7 @@ class ChoiceVariableHandler(Observable.Observable):
 
     def close(self) -> None:
         self.__variable_listener = typing.cast(typing.Any, None)
+        super().close()
 
     def __property_changed(self, key: str) -> None:
         self.notify_property_changed("combo_box_index")
@@ -3313,17 +3304,15 @@ class ChoiceVariableHandler(Observable.Observable):
             self.variable_model.value = "none"
 
 
-class StringVariableHandler:
+class StringVariableHandler(Declarative.Handler):
     def __init__(self, variable: Symbolic.ComputationVariable, variable_model: VariableValueModel) -> None:
+        super().__init__()
         self.variable = variable
         self.variable_model = variable_model
         u = Declarative.DeclarativeUI()
         label = u.create_label(text="@binding(variable.display_label)")
         line_edit = u.create_line_edit(text="@binding(variable_model.value)", width=60, widget_id="value")
         self.ui_view = u.create_column(label, line_edit, spacing=8)
-
-    def close(self) -> None:
-        pass
 
 
 class StringVariableHandlerFactory(VariableHandlerComponentFactory):
@@ -3335,7 +3324,7 @@ class StringVariableHandlerFactory(VariableHandlerComponentFactory):
         return None
 
 
-class DataSourceVariableHandler(Observable.Observable):
+class DataSourceVariableHandler(Declarative.Handler):
     def __init__(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable, variable_model: VariableValueModel) -> None:
         super().__init__()
         self.document_controller = document_controller
@@ -3357,6 +3346,7 @@ class DataSourceVariableHandler(Observable.Observable):
 
     def close(self) -> None:
         self.__property_changed_listener = typing.cast(typing.Any, None)
+        super().close()
 
     def __property_changed(self, property_name: str) -> None:
         if property_name in ("specified_object", "secondary_specified_object"):
@@ -3451,8 +3441,9 @@ class ClosingPropertyBinding(Binding.PropertyBinding):
         weakref.finalize(self, finalize, source)
 
 
-class GraphicHandler:
+class GraphicHandler(Declarative.Handler):
     def __init__(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable, graphic: Graphics.Graphic):
+        super().__init__()
         self.document_controller = document_controller
         self.computation = computation
         self.variable = variable
@@ -3464,9 +3455,6 @@ class GraphicHandler:
             # u.create_label(text=f"#{variable._bound_items.index(item)}"),
             u.create_stretch(), spacing=8)
         self.ui_view = u.create_column(label_row, graphic_content, spacing=8)
-
-    def close(self) -> None:
-        pass
 
     def get_binding(self, source: Persistence.PersistentObject, property: str, converter: typing.Optional[Converter.ConverterLike[typing.Any, typing.Any]]) -> typing.Optional[Binding.Binding]:
         # override the regular property binding and converter to handle displayed coordinates and undo commands.
@@ -3597,7 +3585,7 @@ class GraphicVariableHandlerFactory(VariableHandlerComponentFactory):
         return None
 
 
-class DataStructureHandler(Observable.Observable):
+class DataStructureHandler(Declarative.Handler):
     def __init__(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable, data_structure: DataStructure.DataStructure):
         super().__init__()
         self.document_controller = document_controller
@@ -3643,9 +3631,6 @@ class DataStructureHandler(Observable.Observable):
         else:
             self.ui_view = u.create_column()
 
-    def close(self) -> None:
-        pass
-
     @property
     def entity_choices(self) -> typing.List[str]:
         return self.__entity_choices
@@ -3675,16 +3660,14 @@ class DataStructureVariableHandlerFactory(VariableHandlerComponentFactory):
         return None
 
 
-class GraphicListVariableHandler:
+class GraphicListVariableHandler(Declarative.Handler):
     def __init__(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable, variable_model: VariableValueModel) -> None:
+        super().__init__()
         self.document_controller = document_controller
         self.computation = computation
         self.variable = variable
         u = Declarative.DeclarativeUI()
         self.ui_view = u.create_column(items="variable._bound_items", item_component_id="graphic_item", spacing=8)
-
-    def close(self) -> None:
-        pass
 
     def create_handler(self, component_id: str, container: typing.Optional[Symbolic.ComputationVariable] = None, item: typing.Any = None, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
         if component_id == "graphic_item" and item and item.value:
@@ -3745,7 +3728,6 @@ class VariableWidget(Widgets.CompositeWidgetBase):
     def __init__(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable) -> None:
         self.__content_widget = document_controller.ui.create_column_widget()
         super().__init__(self.__content_widget)
-        self.closeables: typing.List[DocumentModel.Closeable] = list()
         self.__unbinder = Unbinder()
         self.__make_widget_from_variable(document_controller, computation, variable)
 
@@ -3756,8 +3738,6 @@ class VariableWidget(Widgets.CompositeWidgetBase):
         self.__variable_needs_rebuild_event_listener = variable.needs_rebuild_event.listen(rebuild_variable)
 
     def close(self) -> None:
-        for closeable in self.closeables:
-            closeable.close()
         self.__variable_needs_rebuild_event_listener.close()
         self.__variable_needs_rebuild_event_listener = typing.cast(typing.Any, None)
         self.__unbinder.close()
@@ -3768,9 +3748,8 @@ class VariableWidget(Widgets.CompositeWidgetBase):
         variable_value_model = VariableValueModel(document_controller, computation, variable)
         handler = make_computation_variable_component(document_controller, computation, variable, variable_value_model)
         if handler:
-            widget, closeables = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop, handler), [handler]
+            widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop, handler)
             self.__content_widget.add(widget)
-            self.closeables.extend(closeables)
 
 
 class ComputationInspectorSection(InspectorSection):

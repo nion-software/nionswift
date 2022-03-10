@@ -370,11 +370,6 @@ class Application(UIApplication.BaseApplication):
 
         project_reference.last_used = datetime.datetime.now()
 
-        def window_closed() -> None:
-            pass # print(f"CLOSED {document_controller.title}")
-
-        document_controller.on_close = window_closed
-
         return document_controller
 
     def show_open_project_dialog(self) -> None:

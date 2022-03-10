@@ -21,10 +21,11 @@ if typing.TYPE_CHECKING:
 _ = gettext.gettext
 
 
-class ActivityHandler(Declarative.HandlerLike):
+class ActivityHandler(Declarative.Handler):
     """Declarative component handler for a section in a multiple acquire method component."""
 
     def __init__(self, activity: Activity.Activity) -> None:
+        super().__init__()
         self.activity = activity
         u = Declarative.DeclarativeUI()
         self.ui_view = u.create_row(
@@ -33,16 +34,14 @@ class ActivityHandler(Declarative.HandlerLike):
             spacing=8
         )
 
-    def close(self) -> None:
-        pass
-
 
 class ActivityComponentFactory(typing.Protocol):
     def make_activity_component(self, activity: Activity.Activity) -> typing.Optional[Declarative.HandlerLike]: ...
 
 
-class ActivityController(Declarative.HandlerLike):
+class ActivityController(Declarative.Handler):
     def __init__(self, document_controller: DocumentController.DocumentController) -> None:
+        super().__init__()
         self.document_controller = document_controller
 
         activities = ListModel.ListModel[Activity.Activity]()
@@ -105,9 +104,6 @@ class ActivityController(Declarative.HandlerLike):
             return ActivityHandler(activity)
         return None
 
-    def close(self) -> None:
-        pass
-
 
 class ActivityPanel(Panel.Panel):
     def __init__(self, document_controller: DocumentController.DocumentController, panel_id: str, properties: typing.Mapping[str, typing.Any]) -> None:
@@ -140,10 +136,11 @@ class XActivity(Activity.Activity):
         super().__init__("x-activity", title)
 
 
-class XActivityHandler(Declarative.HandlerLike):
+class XActivityHandler(Declarative.Handler):
     # Declarative component handler for a section in a multiple acquire method component.
 
     def __init__(self, activity: Activity.Activity) -> None:
+        super().__init__()
         assert isinstance(activity, XActivity)
         self.activity = activity
         u = Declarative.DeclarativeUI()

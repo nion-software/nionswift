@@ -27,11 +27,13 @@ if typing.TYPE_CHECKING:
 _ = gettext.gettext
 
 
-class ToolModeToolbarWidget:
+class ToolModeToolbarWidget(Declarative.Handler):
     toolbar_widget_id = "nion.swift.toolbar-widget.tool-mode"
     toolbar_widget_title = _("Tools")
 
     def __init__(self, *, document_controller: DocumentController.DocumentController, **kwargs: typing.Any) -> None:
+        super().__init__()
+
         self.radio_button_value: Model.PropertyModel[int] = Model.PropertyModel(0)
 
         u = Declarative.DeclarativeUI()
@@ -93,11 +95,13 @@ class ToolModeToolbarWidget:
         self.__tool_mode_changed_event_listener = typing.cast(Event.EventListener, None)
         self.__radio_button_value_listener.close()
         self.__radio_button_value_listener = typing.cast(Event.EventListener, None)
+        super().close()
 
 
-class ActionTableToolbarWidget:
+class ActionTableToolbarWidget(Declarative.Handler):
 
     def __init__(self, actions: typing.Sequence[Window.Action], document_controller: DocumentController.DocumentController, **kwargs: typing.Any) -> None:
+        super().__init__()
         self.__document_controller = document_controller
         u = Declarative.DeclarativeUI()
         top_row = [self.__create_action_button(actions[i]) for i in range(0, len(actions), 2)]
@@ -196,7 +200,7 @@ class ToolbarPanel(Panel.Panel):
         self.widget.add(toolbar_row_widget)
 
         # make a map from widget_id to widget factory.
-        widget_factories = dict()
+        widget_factories: typing.Dict[str, typing.Callable[..., Declarative.HandlerLike]] = dict()
         for component in Registry.get_components_by_type("toolbar-widget"):
             widget_factories[component.toolbar_widget_id] = component
 

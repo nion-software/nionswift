@@ -21,9 +21,10 @@ _ = gettext.gettext
 
 def pose_title_edit_popup(document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem, position: Geometry.IntPoint, size: Geometry.IntSize) -> None:
 
-    class Handler:
+    class Handler(Declarative.Handler):
 
         def __init__(self) -> None:
+            super().__init__()
             self.property_changed_event = Event.Event()
             self.title_edit: typing.Optional[UserInterface.LineEditWidget] = None
             self.caption_edit: typing.Optional[UserInterface.TextEditWidget] = None
@@ -93,6 +94,7 @@ def pose_title_edit_popup(document_controller: DocumentController.DocumentContro
                     command = Inspector.ChangeDisplayItemPropertyCommand(document_controller.document_model, display_item, "caption", caption)
                     command.perform()
                     document_controller.push_undo_command(command)
+            super().close()
 
     ui_handler = Handler()
 
