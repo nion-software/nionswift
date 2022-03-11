@@ -1,73 +1,57 @@
 .. include:: defs.rst
 .. _introduction:
 
+********
 Overview
-========
-|AppName| is open source scientific image processing software integrating hardware control, data acquisition, visualization, processing, and analysis using Python. |AppName| is easily extended using Python. It runs on Windows, Linux, and macOS.
+********
+Nion Swift is an image processing software for controlling instruments, and managing the acquisition, organization, visualization, and analysis of data. The software was designed to be used in conjunction with Nion's electron microscopes, but the functionality and the ability to extend its capabilities using Python mean that Nion Swift is useful for any number of data visualization projects. Whether you already have your data, or you want to see the data as it is acquired, Nion Swift helps you visualize your data in exactly the way you want.
 
-|AppName| is intended to provide an extensible platform to acquire scientific data from a variety of microscopes and other instruments, be intuitive and easy to use, and allow sophisticated data visualization, processing, and analysis.
+Click to download Nion Swift or for :ref:`installation` instructions.
 
-Key Features
+Click here to get started fast with our :ref:`basic-use`.
 
-- Data handling of 1D plots, 2D images, 1D and 2D collections of plots and images, and sequences.
-- Live computations that can be chained during acquisition or live parameter adjustment.
-- Open source, cross platform (macOS, Windows, Linux), and Python based scientific data processing.
-- Low latency, high throughput data acquisition platform.
+User Interface
+==============
+The user interface is split up into a central section of the window called the workspace and the surrounding area for utility panels. 
 
-Data Items and Display Items
-----------------------------
-|AppName| operates on data arrays, which include 2D images and 1D spectra, which are generally called *Data Items*.
+The central workspace is for display panels which can either display a single piece of data (also called a data item) or can display multiple pieces of data side by side in one of the browser formats. For more information, see :ref:`display-panels`.
 
-Data items represent data arrays with anywhere from one to five dimensions. The data array associated with a data item can be 1D or 2D data and then organized into 1D or 2D collections or 1D sequences.
+The utility panels surrounding the central workspace allow you to make adjustments to a selected data item in a display panel. For more information on their specific functions, see :ref:`user-interface`.
 
-A spectrum image would be a 2D collection of 1D data. This would be typical data acquired from a STEM microscope spectrum imaging acquisition.
+Data and Display
+================
+A piece of data stored in the program is called a data item. Data items can be dragged into display panels to be displayed. Once displayed, they become display items. Display items can be modified and viewed to see various aspects or values of the original data item. Read more in :ref:`data-items`.
 
-Data Items are displayed using one or more *Display Items*.
+If a data item includes complex components, it will need to be reduced into a scalar image or line plot in order to be displayed. For more info, see :ref:`data-items`.
 
-See :ref:`data-items`.
+Sometimes, data items can be part of a larger 'stack' of data which will require higher level organization that the data panel can provide. See :ref:`data-items` for more info.
 
-Projects
---------
-Data items are organized into projects. Projects are stored on disk and take the form of an index file and an associated data directory.
+The INFO PANEL shows you the location and value of the data in a display panel under your cursor. You can choose how you would like the :ref:`data-items` (coordinate system) to be defined in the inspector panel.
 
-You can have any number of projects, but only a single one can be open at once. When you open a project, it is associated with a main document window.
+Click on any data item, display panel, or graphic to select it. You can select more than one item of the same kind using [ctrl + click] on Windows or [cmd + click] on macOS. 
 
-See :ref:`data-management`.
+Selecting more than one display panel will display with a solid blue rectangle around the primary selection and with dashed lines around the secondary selections. If a computation or function can only use one input, the primary selection will be used. For computations using multiple inputs, secondary selections may be used as well.
 
-Workspaces
-----------
-The main window is organized around a main area called a workspace. A workspace has a layout which includes one or more display panels in which display items can be visualized.
+Selecting multiple data items will allow you to move them at the same time. However, multiple data items cannot be dragged into the same display panel.
 
-You can create additional workspace for different uses and easily switch between them.
+Selecting multiple graphics in the same display panel will allow you to move them at the same time. The inspector panel will display options for all of the selected graphics.
 
-In addition, the main window has a variety of utility panels attached or associated with the main window. Some examples of utility panels are the data browser panel, the inspector panel, and the info and histogram panels.
+Graphics and Masks
+==================
+Nion Swift provides plenty of useful graphics to narrow down your view of the data. Use graphics to highlight portions of the data, select areas for processing, or to focus on specific sections of data.
 
-See :ref:`user-interface`.
+Masking allows you to block out the rest of an image and see only what you want. Choose from a variety of mask shapes to precisely define your area of interest.
 
-Display Panels
---------------
-Workspaces are split into one or more display panels. Each display panel can show one display item.
+See :ref:`graphics` for more information.
 
-A typical display item would show a single data item, but you can create multiple display items for each data item to visualize the data differently at the same time.
+Processing and Analysis
+=======================
+Processing and analysis greatly expand the functionality of Nion Swift. The software provides many options for filtering, transforming, and more. Computations allow for specific and customizable processes, and there is even support for python scripting to add your own computations.
 
-In addition, some display items may display multiple data items at once: a line plot may have multiple layers, each displaying a different data item or even different reductions of the same data item.
+See :ref:`processing` for more information.
 
-See :ref:`display-panels`.
+File Management
+===============
+Make use of Nion Swift without live acquisition by importing your own data files into the program, take your files with you by exporting your data, save your project files and use them on any other installation of Nion Swift, make copies of your data to create a backup, and contact us about recovery options.
 
-Computations
-------------
-Computations are processing algorithms that take input data items and other parameters to produce output data items. The algorithm watches for changes to the input data items and automatically runs the processing when it sees a change.
-
-In this way, it is easy to create new data items that update in real time during acquisition or when the parameters change.
-
-See :ref:`processing`.
-
-Graphics
---------
-Graphics are annotations or other graphical items that can be attached to display items.
-
-Examples of graphics would be a point, line, or rectangle on a 2D image or a interval or channel on a 1D plot.
-
-Additionally, Fourier mask filter graphics, such as band pass filters or lattice filters, can be attached to data in the Fourier domain.
-
-See :ref:`graphics`.
+See :ref:`data-management` for more information.
