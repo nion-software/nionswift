@@ -3,9 +3,12 @@ from __future__ import annotations
 import abc
 import contextlib
 import copy
+import dataclasses
 import datetime
 import json
 import logging
+import traceback
+
 import numpy
 import numpy.typing
 import os.path
@@ -38,13 +41,24 @@ _CreateStorageHandlerFn = typing.Type[StorageHandler.StorageHandler]
 
 
 class ReaderInfo:
-    def __init__(self, properties: PersistentDictType, changed_ref: typing.List[bool], large_format: bool,
-                 storage_handler: StorageHandler.StorageHandler, identifier: str) -> None:
+    def __init__(self,
+                 properties: PersistentDictType,
+                 changed_ref: typing.List[bool],
+                 large_format: bool,
+                 storage_handler: StorageHandler.StorageHandler,
+                 identifier: str) -> None:
         self.properties = properties
         self.changed_ref = changed_ref
         self.large_format = large_format
         self.storage_handler = storage_handler
         self.identifier = identifier
+
+
+@dataclasses.dataclass
+class ReaderError:
+    identifier: str
+    exception: Exception
+    tb: traceback.StackSummary
 
 
 class DataItemStorageAdapter:
@@ -502,7 +516,7 @@ class ProjectStorageSystem(PersistentStorageSystem):
                 return typing.cast(PersistentDictType, item_d)
         assert False
 
-    def read_project_properties(self) -> PersistentDictType:
+    def read_project_properties(self) -> typing.Tuple[PersistentDictType, typing.Sequence[ReaderError]]:
         """Read data items from the data reference handler and return as a dict.
 
         The dict may contain keys for data_items, display_items, data_structures, connections, and computations.
@@ -510,6 +524,7 @@ class ProjectStorageSystem(PersistentStorageSystem):
         storage_handlers = self._find_storage_handlers()
 
         reader_info_list = list()
+        reader_error_list = list()
         for storage_handler in storage_handlers:
             try:
                 large_format = self._is_storage_handler_large_format(storage_handler)
@@ -519,11 +534,8 @@ class ProjectStorageSystem(PersistentStorageSystem):
                 properties = Migration.transform_to_latest(storage_handler_properties)
                 reader_info = ReaderInfo(properties, [False], large_format, storage_handler, storage_handler.reference)
                 reader_info_list.append(reader_info)
-            except Exception:
-                logging.debug("Error reading %s", storage_handler.reference)
-                import traceback
-                traceback.print_exc()
-                traceback.print_stack()
+            except Exception as e:
+                reader_error_list.append(ReaderError(storage_handler.reference, e, traceback.extract_stack()))
 
         # to allow later writing back to storage, associate the data items with their storage adapters
         for reader_info in reader_info_list:
@@ -561,7 +573,7 @@ class ProjectStorageSystem(PersistentStorageSystem):
         if len(data_items_copy) > 0:
             properties_copy["data_items"] = data_items_copy
 
-        return Model.transform_forward(properties_copy)
+        return Model.transform_forward(properties_copy), reader_error_list
 
     # override
     def _write_item_properties(self, item: typing.Optional[Persistence.PersistentObject]) -> None:
