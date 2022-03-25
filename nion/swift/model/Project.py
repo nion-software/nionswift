@@ -63,7 +63,8 @@ class Project(Persistence.PersistentObject):
 
         self.__has_been_read = False
 
-        self._raw_properties: typing.Optional[PersistentDictType] = None  # debugging
+        self._raw_properties: typing.Optional[PersistentDictType] = None
+        self.__reader_errors: typing.Sequence[FileStorageSystem.ReaderError] = list()
 
         self.__storage_system = storage_system
 
@@ -248,8 +249,18 @@ class Project(Persistence.PersistentObject):
 
     def prepare_read_project(self) -> None:
         logging.getLogger("loader").info(f"Loading project {self.__storage_system.get_identifier()}")
-        self._raw_properties = self.__storage_system.read_project_properties()  # combines library and data item properties
+        self._raw_properties, self.__reader_errors = self.__storage_system.read_project_properties()  # combines library and data item properties
         self.uuid = uuid.UUID(self._raw_properties.get("uuid", str(uuid.uuid4())))
+
+        for reader_error in self.__reader_errors:
+            logging.getLogger("loader").error(f"Error reading {reader_error.identifier} ({reader_error.exception})")
+            if False and reader_error.tb is not None:
+                import sys
+                import traceback
+                print(f"Event Listener Traceback (most recent call last)", file=sys.stderr)
+                frame_summaries = typing.cast(typing.List[typing.Any], reader_error.tb)
+                for line in traceback.StackSummary.from_list(frame_summaries).format():
+                    print(line, file=sys.stderr, end="")
 
     def read_project(self) -> None:
         if callable(self.handle_start_read):
