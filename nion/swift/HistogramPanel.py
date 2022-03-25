@@ -856,7 +856,7 @@ class DisplayDataChannelTransientsStream(Stream.AbstractStream[T], typing.Generi
         self.__value: typing.Optional[T] = None
         self.__display_values_changed_listener: typing.Optional[Event.EventListener] = None
         self.__next_calculated_display_values_listener: typing.Optional[Event.EventListener] = None
-        self.__cmp = cmp if cmp else operator.eq
+        self.__cmp: typing.Callable[[typing.Optional[T], typing.Optional[T]], bool] = cmp if cmp else typing.cast(typing.Callable[[typing.Optional[T], typing.Optional[T]], bool], operator.eq)
         # listen for display changes
         self.__display_data_channel_stream = display_data_channel_stream.add_ref()
         self.__display_data_channel_stream_listener = display_data_channel_stream.value_stream.listen(self.__display_data_channel_changed)
