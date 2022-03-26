@@ -43,7 +43,10 @@ Having individual utility panels for similar parameters means that the workspace
 
 * Resize a utility panel by clicking and dragging from its edges.
 
-IMAGE: CUSTOMIZING UTILITY PANELS 
+.. image:: graphics/customize_utility_panels.png
+    :width: 396
+    :alt: Customizing Utility Panels
+    :align: center
 
 The utility panels are organized alphabetically in the [Window] menu, and their functions are as follows:
 
@@ -51,7 +54,10 @@ The utility panels are organized alphabetically in the [Window] menu, and their 
 
 Activity
 ========
-IMAGE: ACTIVITY PANEL 
+.. image:: graphics/activity_panel.png
+    :width: 321
+    :alt: Activity Panel
+    :align: center
 
 The Activity panel shows activity that is running in the background of the application. Changes to computations updated during live data acquisition or editing will be displayed in this panel.
 Observe background activity.
@@ -60,7 +66,10 @@ Observe background activity.
 
 Collections
 ===========
-IMAGE: COLLECTIONS PANEL 
+.. image:: graphics/collections_panel.png
+    :width: 333
+    :alt: Collections Panel
+    :align: center
 
 The Collections panel sorts the data items in a project into folders. Data items are automatically sorted into four categories:
 
@@ -80,7 +89,10 @@ The Collections panel also provides a “My Data” collection which is curated 
 
 Data Panel
 ==========
-IMAGE: DATA PANEL 
+.. image:: graphics/data_panel.png
+    :width: 333
+    :alt: Data Panel
+    :align: center
 
 The Data panel provides a list of all the data items in a given collection. By default, the Data panel is set to show all data items in a project. The data items that are shown can be changed by choosing a different collection in the Collections panel.
 
@@ -96,7 +108,10 @@ Any data item in the display panel can be displayed in a display panel. To displ
 
 Histogram
 =========
-IMAGE: HISTOGRAM 
+.. image:: graphics/histogram_panel.png
+    :width: 321
+    :alt: Histogram Panel
+    :align: center
 
 The Histogram shows the range of data in the selected data item. The bar directly under the histogram displays the color range of the data and will change color to match the color map of the selected display. General values about the data (maximum value, mean, minimum value, etc.) are displayed under the histogram. If no display panel or data item is selected, the histogram panel will not display anything.
 
@@ -108,7 +123,10 @@ If a graphic is selected, the histogram will show data within that graphic. Clic
 
 Info
 ====
-IMAGE: INFO PANEL
+.. image:: graphics/info_panel.png
+    :width: 321
+    :alt: Info Panel
+    :align: center
 
 The Info panel shows the position of the cursor over a displayed data item and gives the corresponding value for the data at that position. When hovering the cursor over the histogram, the info panel will show the intensity for a given position along the histogram.
 
@@ -116,19 +134,29 @@ The Info panel shows the position of the cursor over a displayed data item and g
 
 Inspector
 =========
-The Inspector Panel shows information and settings for the selected item. The Inspector is split into subsections to help you find the specific types of information you are looking for. When different kinds of items are selected (display item, graphic, etc.) the Inspector’s subsections will change to display settings relevant to that type of item.
-
+The Inspector Panel shows information and settings for the selected item. The Inspector is split into subsections to help you find the specific types of information you are looking for.
 Clicking the triangle next to the title of a given subsection will expand or hide the subsection.
 
-IMAGE: IMAGE INSPECTOR 
+.. image:: graphics/inspector_image.png
+    :width: 321
+    :alt: Inspector Panel with Image Selected
+    :align: center
 
-IMAGE: LINE PLOT INSPECTOR 
+When different kinds of items are selected (display item, graphic, etc.) the Inspector's subsections will change to display settings relevant to that type of item. If an image or line plot is selected in a display panel, the inspector will provide all subsections relevant to the selected item. In the image above, an image is selected; and in the image below, a line plot is selected.
+
+.. image:: graphics/inspector_line_plot.png
+    :width: 321
+    :alt: Inspector Panel with Line Plot Selected
+    :align: center
 
 .. _Info Inspector Section:
 
 Info
 ----
-IMAGE: INFO SECTION 
+.. image:: graphics/inspector_info_subsection.png
+    :width: 321
+    :alt: Inspector Info Subsection
+    :align: center
 
 The Info subsection of the inspector allows you to edit the title and description of the selected item. The Info subsection will only be visible if a single item is selected. 
 
@@ -138,7 +166,10 @@ If the item selected contains multiple data items, like a layered line plot for 
 
 Image Display
 -------------
-IMAGE: IMAGE DISPLAY SECTION 
+.. image:: graphics/inspector_image_display_subsection.png
+    :width: 321
+    :alt: Inspector Image Display Subsection
+    :align: center
 
 Image Display allows you to force an image to be displayed as a line plot or as script instead of the default.
 
@@ -146,7 +177,10 @@ Image Display allows you to force an image to be displayed as a line plot or as 
 
 Image Data
 ----------
-IMAGE: IMAGE DATA SECTION 
+.. image:: graphics/inspector_image_data_subsection.png
+    :width: 321
+    :alt: Inspector Image Data Subsection
+    :align: center
 
 Image Data presents several figures and settings for a selected image:
 
@@ -170,7 +204,10 @@ Image Data presents several figures and settings for a selected image:
 
 Line Plot Display
 -----------------
-IMAGE: LINE PLOT DISPLAY SECTION 
+.. image:: graphics/inspector_line_plot_display_subsection.png
+    :width: 321
+    :alt: Inspector Line Plot Display Subsection
+    :align: center
 
 Line Plot Display presents several figures and settings for a selected line plot:
 
@@ -188,7 +225,10 @@ Line Plot Display presents several figures and settings for a selected line plot
 
 Data Info
 ---------
-IMAGE: DATA INFO SECTION 
+.. image:: graphics/inspector_data_info_subsection.png
+    :width: 321
+    :alt: Inspector Data Info Subsection
+    :align: center
 
 Data Info displays the date and time a selected line plot was created. It will also display the dimensions of the line plot and the bit count. For line plots with multiple layers, each data item in the stack will have its own Data Info section.
 
@@ -200,7 +240,10 @@ Calibrations allow you to make specific changes to the scale and position of a s
 
 Image Calibrations
 ++++++++++++++++++
-IMAGE: IMAGE CALIBRATIONS 
+.. image:: graphics/inspector_calibrations_subsection_image.png
+    :width: 321
+    :alt: Inspector Calibrations Subsection with Image Selected
+    :align: center
 
 When an image is selected, use the calibrations subsection to
 
@@ -212,7 +255,10 @@ When an image is selected, use the calibrations subsection to
 
 Line Plot Calibrations
 ++++++++++++++++++++++
-IMAGE: LINE PLOT CALIBRATIONS 
+.. image:: graphics/inspector_calibrations_subsection_line_plot.png
+    :width: 321
+    :alt: Inspector Calibrations Subsection with Line Plot Selected
+    :align: center
 
 When a line plot is selected, use the calibrations subsection to
 
@@ -224,7 +270,10 @@ When a line plot is selected, use the calibrations subsection to
 
 Session
 -------
-IMAGE: SESSION SECTION 
+.. image:: graphics/inspector_session_subsection.png
+    :width: 321
+    :alt: Inspector Session Subsection
+    :align: center
 
 The Session subsection of the inspector allows you to change the session info for the selected item. Editing session info in the inspector will not change global session info. To change global session info, use the Session utility panel.
 
@@ -232,7 +281,10 @@ The Session subsection of the inspector allows you to change the session info fo
 
 Computation
 -----------
-IMAGE: COMPUTATION SECTION 
+.. image:: graphics/inspector_computation_subsection.png
+    :width: 321
+    :alt: Inspector Computation Subsection
+    :align: center
 
 With the Computation subsection of the inspector, you can quickly adjust several variables for a computation associated with the selected item. If the selected item has no associated computations, the Computation subsection will say “None.” 
 
@@ -240,13 +292,19 @@ The variables in this subsection will change based on what kind of computation i
 
 The Computation subsection can also be accessed in a separate pop-up window by hitting [ctrl + E] (or [cmd + E] on macOS). 
 
-IMAGE: COMPUTATION POP UP 
+.. image:: graphics/computation_window.png
+    :width: 321
+    :alt: Computation Editor Window
+    :align: center
 
 .. _Layers Inspector Section:
 
 Line Plot Display Layers
 ------------------------
-IMAGE: LINE PLOT DISPLAY LAYERS SECTION 
+.. image:: graphics/inspector_line_plot_display_layers_subsection.png
+    :width: 321
+    :alt: Inspector Line Plot Display Layers Subsection
+    :align: center
 
 With this subsection, you can manage all aspects of the layers in a layered line plot. With the layered line plot selected, you can
 
@@ -275,7 +333,10 @@ With this subsection, you can manage all aspects of the layers in a layered line
 
 Graphics
 --------
-IMAGE: GRAPHICS SECTION 
+.. image:: graphics/inspector_graphics_subsection.png
+    :width: 321
+    :alt: Inspector Graphics Subsection
+    :align: center
 
 The Graphics subsection shows options for selected graphics, or for graphics associated with the selected data item. If multiple graphics are selected, the inspector will not list options for graphics that are not selected.
 
@@ -325,9 +386,12 @@ The Output panel displays output text at the bottom of the window while running 
 
 .. _Sessions Panel:
 
-Sessions
-========
-IMAGE: SESSIONS PANEL 
+Session
+=======
+.. image:: graphics/session_panel.png
+    :width: 321
+    :alt: Session Panel
+    :align: center
 
 The Session panel allows you to edit the session info for the whole project rather than for a single data item. The session info will be added as metadata to any live data acquired during a given session. A new session starts and global session info resets every time the Nion Swift is closed.
 
@@ -342,7 +406,11 @@ The Task panel allows you to see the output from tasks such as microscope tuning
 Toolbar
 =======
 The Toolbar provides quick access to several options for the workspace. You can select items, move images, add graphics, create masks, choose image scale options, and edit the layout and content of display panels.
- IMAGE: TOOLBAR 
+
+.. image:: graphics/toolbar_infographic.png
+    :width: 310
+    :alt: Toolbar Button Functions
+    :align: center
 
 .. _Recorder Dialog:
 
