@@ -107,7 +107,7 @@ Aside from the default masks, you can choose to make a regular image graphic par
 
 Below are the preset types of masks. For more information about adjusting the parameters of masks, see the GRAPHICS subsection of the Inspector Panel.
 
-.. _Lattice Graphic:
+.. _Lattice Mask:
 
 Lattice Mask
 ------------
@@ -125,7 +125,7 @@ The lattice mask creates a grid of circles that tile the image. This can be used
 
 There are two circles that can be moved to establish the pattern of the grid. These circles will be highlighted with green anchor points. One of the moveable circles will be inside the image and the other will be outside, so you may need to move or zoom out of the image using the [ - ] key in order to see it.
 
-.. _Ring Graphic:
+.. _Ring Mask:
 
 Ring Mask
 ---------
@@ -148,7 +148,7 @@ In the Inspector Panel, you can adjust both radiuses and the type of ring. Radiu
     :alt: Ring Mask Low Pass
     :align: center
 
-.. _Spot Graphic:
+.. _Spot Mask:
 
 Spot Mask
 ---------
@@ -166,7 +166,7 @@ The spot mask creates two ellipses that are symmetrical and equidistant from the
 
 In the Inspector Panel, you can adjust the (x,y) coordinates of the centerpoint of the ellipse inside the image, and set the rotation of the ellipse inside the image.
 
-.. _Wedge Graphic:
+.. _Wedge Mask:
 
 Wedge Mask
 ----------
