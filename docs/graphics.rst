@@ -4,61 +4,29 @@
 
 Graphics
 ========
-Both image displays and line plot displays can be annotated with graphic items. The graphics serve as functional elements when they designate a region such as a crop or they can serve as annotation elements where they annotate the data.
-
-Graphics can be named and the label will appear next to the graphic.
-
-Graphics can be edited in uncalibrated or calibrated coordinates.
-
-Most graphics can be added using either the menus or the tool panel.  See :ref:`Tool Panel`.
-
-You can select graphics by clicking on them.
-
-You can deselect all graphics by clicking somewhere outside any graphic.
-
-You can select or deselect multiple graphics by :kbd:`Control` key (Windows) clicking or :kbd:`Command` key (macOS) clicking on additional graphics.
-
-You can delete graphics by selecting the graphics to delete and pressing the :kbd:`Delete` key or choosing :menuselection:`Edit --> Delete`.
-
-You can cut, copy, and paste graphics.
-
-If you have trouble selecting a graphic that is behind another graphic, try clicking on the control points of the graphic. The control points take priority over the middle of graphics further forward.
+Graphics are used to highlight certain sections of a display item. Similarly, masks are used to mark off certain sections of a display item to focus on. Certain graphics can only be used on images and others can only be used on line plots. Masks can only be used on images. Selecting one or multiple graphics on the same display item will allow you to edit the parameters of the graphics in the :ref:`graphics inspector section` subsection of the Inspector Panel. Selecting a display panel with graphics on it will show parameters for editing all of the applied graphics in the Inspector Panel. You can copy, cut, and paste graphics by selecting them with [ctrl + click] (or [cmd + click] on macOS) or by using shortcuts like [ctrl + c] and [ctrl + v] (or [cmd + c] and [cmd + v] for macOS) To delete a graphic or graphics, select them and press the delete key or use the menu item [Edit > Delete].
 
 .. _Image Graphics:
 
 Image Graphics
 --------------
-Several graphics are specific to image displays.
+Image graphics are exclusive to data items displayed as images. They can only be placed on 2D images. Add an image graphic by using the various graphic buttons in the toolbar or by using the [Graphics] menu item. 
 
 .. _Point Graphic:
 
 Point
 +++++
-The point graphic can be placed on an image display.
+The point graphic highlights the point at the center of four anchor points. The anchor points show the boundary of the graphic but cannot be moved in relation to the center of the graphic or to each other. To move the point graphic, click and drag from anywhere within the four anchor points.
 
-You can add a point graphic using the :guilabel:`Point` tool in the tool panel.
-
-You can add a point by using the menu item :menuselection:`Graphics --> Add Point Graphic`.
-
-You can edit the position of the point in the :guilabel:`Inspector` panel.
-
-You can edit the position of the point by dragging.
+In the Inspector Panel, you can adjust the (x,y) coordinate of the center point.
 
 .. _Line Graphic:
 
 Line
 ++++
-The line graphic can be placed on an image display.
+The line graphic creates a line between two anchor points. To move the line, click and drag from any point along the line excluding the two anchor points. You can adjust the line by manipulating the two anchor points. Holding shift while moving an anchor point will snap the line to a multiple of a 45˚ angle.
 
-You can add a line graphic using the :guilabel:`Line` tool in the tool panel.
-
-You can add a line by using the menu item :menuselection:`Graphics --> Add Line Graphic`.
-
-You can edit the start, end, length, and angle of the line in the :guilabel:`Inspector` panel.
-
-You can edit the end points of the line by dragging each end point. Holding the :kbd:`Shift` key while dragging will limit the line to be horizontal, vertical, or at a 45° angle.
-
-You can change the position of the line by dragging in the middle along the line.
+In the Inspector Panel, you can adjust the length of the line, angle of the line, and (x,y) coordinates of both anchor points.
 
 .. _Line Profile Graphic:
 
@@ -80,87 +48,49 @@ You can change the position of the line by dragging in the middle along the line
 
 Rectangle
 +++++++++
-The rectangle graphic can be placed on an image display.
+The rectangle graphic creates a rectangle with four anchor points at the vertices. Holding shift while manipulating one of the anchor points will make the rectangle a perfect square. To adjust the rotation of the rectangle, drag the fifth, exterior anchor point around its center point. Holding shift while rotating the graphic will snap it to intervals of 45˚. To move the whole graphic, click and drag from anywhere within the outer line of the rectangle.
 
-You can add a rectangle graphic using the :guilabel:`Rectangle` tool in the tool panel.
-
-You can add a rectangle by using the menu item :menuselection:`Graphics --> Add Rectangle Graphic`.
-
-You can edit the center position, size, and rotation of the rectangle in the :guilabel:`Inspector` panel.
-
-You can edit the corners of the rectangle by dragging the corners.
-
-You can change the position of the rectangle by dragging in the middle of the rectangle.
-
-You can rotate the rectangle by selecting it and dragging the rotation control at the top of the rectangle.
+In the Inspector Panel, you can adjust the (x,y) coordinate of the center point, the height and width of the rectangle, and the rotation of the graphic.
 
 .. _Ellipse Graphic:
 
 Ellipse
 +++++++
-The ellipse graphic can be placed on an image display.
+The ellipse graphic creates an ellipse between four anchor points. Holding shift while manipulating one of the anchor points will make the ellipse a perfect circle. To adjust the rotation of the ellipse, drag the fifth, exterior anchor point around its center point. Holding shift while rotating the graphic will snap it to intervals of 45˚. To move the whole graphic, click and drag from anywhere within the outer line of the ellipse.
 
-You can add an ellipse graphic using the :guilabel:`Ellipse` tool in the tool panel.
-
-You can add an ellipse by using the menu item :menuselection:`Graphics --> Add Ellipse Graphic`.
-
-You can edit the center position, size, and rotation of the ellipse in the :guilabel:`Inspector` panel.
-
-You can edit the corners of the ellipse by dragging the corners.
-
-You can change the position of the ellipse by dragging in the middle of the ellipse.
-
-You can rotate the ellipse by selecting it and dragging the rotation control at the top of the ellipse.
+In the Inspector Panel, you can adjust the (x,y) coordinate of the center point, the height and width of the ellipse, and the rotation of the graphic.
 
 .. _Line Plot Graphics:
 
 Line Plot Graphics
 ------------------
-Several graphics are specific to line plot displays.
+Line plot graphics are exclusive to data items displayed as line plots. They can only be placed on 1D line plots. Add a line plot graphic by using the various graphic buttons in the toolbar or by using the [Graphics] menu item.
 
 .. _Interval Graphic:
 
 Interval
 ++++++++
-The interval graphic can be placed on a line plot display.
+The interval graphic highlights a section between two boundaries. To adjust the boundaries of the interval, click and drag left or right from either of the boundaries. To move the entire interval, click and drag the center anchor point between the two boundaries.
 
-You can add an interval graphic by dragging over the line plot with the :guilabel:`Pointer` tool.
+In the Inspector Panel, you can adjust the x values of each boundary.
 
-If there are other intervals which prevent dragging, you can select the :guilabel:`Interval` tool and force an interval to be created.
-
-You can add an interval graphic by using the menu item :menuselection:`Graphics --> Add Interval Graphic`.
-
-You can edit the left and right channels of the interval by positioning the mouse over the left/right channel and dragging. The cursor will change to indicate you are adjusting an edge. It may be helpful to zoom into the line plot area where the interval is located for more precise positioning.
-
-You can edit the position of the interval by dragging within the middle of the interval. The cursor will change to indicate you are dragging rather than editing an edge.
-
-You can hold down the :kbd:`Control` key (Windows) or :kbd:`Command` key (macOS) to force dragging of the interval instead of editing the left/right channel.
-
-When the interval is selected, it displays the left and right channel values and the interval width.
-
-You can edit the left and right channel of the interval graphic in the :guilabel:`Inspector` panel.
+If another interval graphic is blocking the creation of a new one, you can use the Interval Graphic button in the toolbar to force a new graphic.
 
 .. _Channel Graphic:
 
 Channel
 +++++++
-The channel graphic can be placed on a line plot display.
-
-You can add a channel graphic by using the menu item :menuselection:`Graphics --> Add Channel Graphic`.
-
-You can drag the channel graphic using the mouse.
-
-You can edit the position of the channel graphic in the :guilabel:`Inspector` panel.
+The channel marks a value along the x axis with an orange marker. To move the graphic, click and drag the orange marker along the x axis.
 
 .. _Masking:
 
 Masking
 -------
-Rectangle and ellipse graphics can be used to construct masks. Masks are used in conjunction with some processing operations such as :menuselection:`Processing --> Arithmetic --> Mask` and  :menuselection:`Processing --> Arithmetic --> Masked`.
+Masks are used to isolate sections of an image to gather information from just the specified area rather than the whole image. Preset masks are added to images just like graphics either by using the mask buttons in the toolbar or by using the [Graphics] menu item. 
 
-To create a mask, add one or more rectangle or ellipse graphics. Select the desired masks and use the menu item :menuselection:`Graphics --> Add to Mask`.
+Aside from the default masks, you can choose to make a regular image graphic part of a mask. To add a graphic to the mask, select the graphic and use the menu item [Graphics > Add to Mask]. Similarly, remove a graphic from the mask by selecting it and using the menu item [Graphics > Remove from Mask]. A graphic will turn blue when it is part of the mask on an image.
 
-You can remove a graphic from a mask by selecting the graphic and choosing :menuselection:`Graphics -> Remove from Mask` or by just deleting the graphic.
+Below are the preset types of masks. For more information about adjusting the parameters of masks, see the GRAPHICS subsection of the Inspector Panel.
 
 .. _Fourier Filtering:
 
@@ -180,38 +110,30 @@ Four types of graphics are available for Fourier filter.
 
 Spot
 ++++
-The spot graphic is a rotatable ellipse, symmetric around the origin. It can be used to filter a specific frequency at a specific angle.
+The spot mask creates two ellipses that are symmetrical and equidistant from the top left corner. This can be used to filter a specific frequency at a specific angle. One of the ellipses might be outside of the image so you may need to move or zoom out of the image by using the [ - ] key in order to see it. The ellipses will always be identical, so manipulating one will change the other. The ellipses can be manipulated just like the ELLIPSE GRAPHIC. Moving one ellipse will also move the other ellipse to be exactly opposite the other one around the top left corner.
 
-You can drag either spot to adjust its position, shape, and rotation.
-
-You can edit the position, size, and rotation in the :guilabel:`Inspector` panel.
+In the Inspector Panel, you can adjust the (x,y) coordinates of the centerpoint of the ellipse inside the image, and set the rotation of the ellipse inside the image.
 
 .. _Wedge Graphic:
 
 Wedge
 +++++
-The wedge graphic is a pair of lines intersecting at the origin. It can be used to perform filtering along a specific angle and a range of frequencies.
+The wedge mask creates slices through an image from the top left corner. This can be used to filter a range of frequencies at a specific angle. Move the slice by clicking and dragging from within the pink highlighted section. To adjust the angle of the wedge, click and drag one of the boundaries of the wedge.
 
-You can drag either line to adjust its angle.
-
-You can edit both angles in the :guilabel:`Inspector` panel.
+In the Inspector Panel, you can adjust the starting and ending angles of the wedge.
 
 .. _Ring Graphic:
 
 Ring
 ++++
-The wedge graphic is a pair of circles centered at the origin. It can be used to perform low pass, high pass, and band pass filters.
+The ring mask creates a ring centered around the top left corner of the image. The ring mask can either include the circle around the top left corner, exclude the circle around the top left corner, or be a band with width surrounding the top left corner. Adjust the radius(es) of the circle(s) by dragging the anchor points along the edges of the image.
 
-You can drag the radius of either circle to adjust its filter frequency.
-
-You can change whether it is a low pass, high pass, or band pass filter in the :guilabel:`Inspector` panel.
+In the Inspector Panel, you can adjust both radiuses and the type of ring. Radius 1 is the outermost radius and is the radius used for the low and high ring masks. The low pass ring mask excludes a ring around the top left corner of the image. The high pass ring mask includes only a ring around the top left corner of the image. The band pass ring mask makes a ring around the top left corner with an inner and outer radius.
 
 .. _Lattice Graphic:
 
 Lattice
 +++++++
-The lattice graphic is a repeating filter centered at the origin. It can be used to filter related frequencies occurring at regular spacing.
+The lattice mask creates a grid of circles that tile the image. This can be used to filter related frequencies with regular spacing. 
 
-The lattice graphic consists of two vectors and rotatable ellipses at the end of each vector. The vectors are then repeated across the entire image.
-
-You can edit the position of each vector by dragging the ellipse. You can edit the shape and rotation of the ellipse.
+There are two circles that can be moved to establish the pattern of the grid. These circles will be highlighted with green anchor points. One of the moveable circles will be inside the image and the other will be outside, so you may need to move or zoom out of the image using the [ - ] key in order to see it.
