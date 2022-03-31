@@ -1036,14 +1036,14 @@ class DataItem(metaclass=SharedInstance):
         return self.__data_item.xdata
 
     @xdata.setter
-    def xdata(self, data_and_metadata: DataAndMetadata.DataAndMetadata) -> None:
+    def xdata(self, data_and_metadata: DataAndMetadata._DataAndMetadataLike) -> None:
         """Set the extended data of this data item.
 
         .. versionadded:: 1.0
 
         Scriptable: Yes
         """
-        self.__data_item.set_xdata(data_and_metadata)
+        self.__data_item.set_xdata(DataAndMetadata.promote_ndarray(data_and_metadata))
 
     @property
     def display_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:

@@ -133,6 +133,19 @@ class TestFacadeClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(data_item_ref.data, data2))
             self.assertTrue(numpy.array_equal(data_item_ref.data_and_metadata.data, data2))
 
+    def test_set_xdata_accepts_numpy_array(self):
+        with create_memory_profile_context() as profile_context:
+            document_controller = profile_context.create_document_controller_with_application()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((4, 4)))
+            document_model.append_data_item(data_item)
+            api = Facade.get_api("~1.0", "~1.0")
+            data_item_s = api.library.data_items[0]
+            data_item_s.xdata = numpy.zeros((3, 3))
+            self.assertEqual((3, 3), data_item_s.xdata.data_shape)
+            data_item_s.xdata = DataAndMetadata.new_data_and_metadata(numpy.zeros((5, 5)))
+            self.assertEqual((5, 5), data_item_s.xdata.data_shape)
+
     def test_data_item_metadata_methods(self):
         with create_memory_profile_context() as profile_context:
             document_controller = profile_context.create_document_controller_with_application()
