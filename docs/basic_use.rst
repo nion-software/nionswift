@@ -157,7 +157,7 @@ First, we will learn how to apply processing to data. For the tutorial, we will 
     :alt: Gaussian Blur Menu
     :align: center
 
-You can change parameters for processing in the Computation panel and see the changes updated in real time. For example, the gaussian width can be changed and the data will update live. To do this, open the Computation panel either by using the menu item [Window > Computation] or by using the shortcut [Ctrl + E] (or [Cmd + E] on macOS).
+You can change parameters for processing in the Computation panel and see the changes updated in real time. For example, the gaussian width can be changed and the data will update live. To do this, open the Computation panel either by using the menu item [Processing > Edit Computation] or by using the shortcut [Ctrl + E] (or [Cmd + E] on macOS).
 
 .. image:: graphics/quickstart_computation_window.png
     :width: 240
