@@ -3,29 +3,25 @@
 
 Data and Displays
 =================
-|AppName| operates on data arrays, which include 2D images and 1D spectra, which are generally called *Data Items*.
+Data items are a piece of data that contains all values and numerical information for a certain file or instance of live data. They are comparable to files that you would have on your computer. Data items store data.
 
-Data items represent data arrays with anywhere from one to five dimensions. The data array associated with a data item can be 1D or 2D data and then organized into 1D or 2D collections or 1D sequences. A data item can store scalar, complex, or RGB data. The scalar data can be integer or real.
-
-A data item also stores both formal and informal metadata about the data. The formal metadata includes a title and description; the grouping of dimensions into data, collections, and sequences; dimensional and intensity calibrations; and creation and modification timestamps including time zone information. The informal metadata includes a freeform Python dict that is JSON compatible.
-
-A data item is displayed in one or more *Display Items*.
+All data items in a project can be found in the data panel given that the “All” collection is selected in the COLLECTIONS PANEL. The “All” collection is selected by default.
 
 Display Items
 -------------
-Display items represent a view on one or more data items. A display item tracks things like how to translate the data in a 2D image data item to an image in the user interface. It also tracks how to reduce more complex data structures to either a 2D or 1D representation.
+Display items are created when a data item is dragged into an empty display panel. Display items are somewhat separate from data items but still use them as a base. A display item shows the values of the data item as an image or line plot, but then allows for the addition of graphics, changing of colors, and other modifications.
 
-Display items are distinct from data items so that you can have multiple views on a particular data item and also so that you can display multiple data items in the same display.
-
-Display items include their own title and description. If these are empty, the title and description of the first data item is used instead.
-
-Display panels show individual display items and also allow you to browse available display items. The data panel shows the list of display items available in the project. See :ref:`display-panels` and :ref:`user-interface` for more information.
+Display items will change the look of the associated data item but not the actual values of the data. It is possible to have the same data item displayed in multiple display panels. Doing this will not allow for different modifications on the same data item, it will only display the same modifications in all of the associated display panels.
 
 Reducing Data for Display
 -------------------------
-A data item can possibly represent more data than it can display at once. In addition, there may be multiple ways of viewing the data. The process of data reduction reduces all data items to either a 2D image or a 1D plot suitable for display.
+It is possible for a data item in the application to be complex (have more than one value at a given coordinate). In order to display a data item like this, the complex values must be reduced to scalar values. There are two ways to do this:
 
-For example, a 2D spatial collection of 1D energy spectra (2D x 1D) cannot be displayed without reducing it. There are two obvious ways to reduce the data: either reduce to 1D by choosing a particular x, y coordinate from the collection dimensions; or reduce to 2D by choosing a particular energy at each x, y coordinate.
+* Display the data item as a 1D line plot by choosing one x,y coordinate and reading the values at that point.
+
+* Display the data item as a 2D image by choosing one intensity value at each coordinate.
+
+To decide which method for data reduction to use, make sure that the data item in question is selected. Then, using the IMAGE DISPLAY or LINE PLOT subsection in the Inspector Panel, choose the desired display method from the Display Type drop-down.
 
 Calibrations
 ------------
@@ -47,13 +43,7 @@ The freeform metadata can be viewed in the Metadata Panel or accessed from scrip
 
 Coordinate Systems
 ------------------
-To be consistent with scripting and Python NumPy coordinates, all coordinate systems increase towards the right and down and indices are ordered such that the slowest changing index in memory is first.
-
-The pixel coordinate system displays pixels and can be displayed with the origin at the top-left or the origin at the center.
-
-The relative coordinate system displays fractional coordinates and can be displayed with the origin at the top-left and a range of 0.0 to 1.0 or with the origin at the center a range of -1.0 to 1.0.
-
-The calibrated coordinate system displays calibrated coordinates. The origin is determined by the calibration offset.
+Coordinate systems are how the points on an image or a line plot are named. Each point will be given a coordinate of its x (horizontal) value, and its y (vertical) value. They are displayed in the (x,y) format. The various coordinate systems determine where the origin (0,0) is and how the data is split up.
 
 Collections
 -----------
