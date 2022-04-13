@@ -278,11 +278,11 @@ class TestDataItemClass(unittest.TestCase):
             with document_model.item_transaction(data_item):
                 document_model.append_data_item(data_item)
                 # under transaction, data should not be unloadable
-                self.assertFalse(data_item.data_and_metadata.unloadable)
-                self.assertTrue(data_item.data_and_metadata.is_data_valid)
+                self.assertFalse(data_item.is_unloadable)
+                self.assertTrue(data_item.is_data_loaded)
             # no longer under transaction, data should not be unloadable
-            self.assertTrue(data_item.data_and_metadata.unloadable)
-            self.assertFalse(data_item.data_and_metadata.is_data_valid)
+            self.assertTrue(data_item.is_unloadable)
+            self.assertFalse(data_item.is_data_loaded)
 
     def test_clear_thumbnail_when_data_item_changed(self):
         with TestContext.create_memory_context() as test_context:
@@ -1441,11 +1441,11 @@ class TestDataItemClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((16, 16)))
             document_model.append_data_item(data_item)
             data_item_xdata = data_item.xdata
-            self.assertEqual(0, data_item_xdata._data_ref_count)
+            self.assertEqual(0, data_item._data_ref_count)
             with document_model.item_transaction(data_item):
-                self.assertEqual(1, data_item_xdata._data_ref_count)
+                self.assertEqual(1, data_item._data_ref_count)
                 data_item.set_data(numpy.zeros((16, 16)))
-            self.assertEqual(0, data_item_xdata._data_ref_count)
+            self.assertEqual(0, data_item._data_ref_count)
 
     def test_filter_xdata_returns_ones_when_no_graphics(self):
         with TestContext.create_memory_context() as test_context:

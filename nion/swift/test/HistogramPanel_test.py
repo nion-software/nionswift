@@ -127,7 +127,7 @@ class TestHistogramPanelClass(unittest.TestCase):
                 self.assertEqual(count0, count)
 
     def test_cursor_histogram_of_empty_data_displays_without_exception(self):
-        self.data_item.set_xdata(DataAndMetadata.DataAndMetadata(lambda: None, ((0, 0), float)))
+        self.data_item._force_unload()
         self.histogram_canvas_item.mouse_position_changed(80, 58, 0)
 
     def test_histogram_statistics_with_zero_array(self):
