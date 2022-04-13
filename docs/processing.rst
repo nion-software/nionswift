@@ -9,7 +9,14 @@ Processing and analysis comes in the form of computations. Computations can be a
 
 Computations
 ============
-To apply processing to an item, select the item by clicking on it, then use the [Processing] menu to select the desired computation. If a computation requires multiple inputs, you can select multiple items before applying processing. See :ref:`data-items` (Selections) for more information. You could also apply a process to only one item and add more inputs using the Computation editor dialogue. Open the editor by hitting [ctrl + E] (or [cmd + E] on macOS). To add or change inputs in the Computation editor dialogue, drag data items, display items, or graphics into the input slot(s). 
+To apply processing to an item, select the item by clicking on it, then use the [Processing] menu to select the desired computation. If a computation requires multiple inputs, you can select multiple items before applying processing. See :ref:`data-items` (Selections) for more information. You could also apply a process to only one item and add more inputs using the Computation editor dialogue. Open the editor by hitting [ctrl + E] (or [cmd + E] on macOS). 
+
+.. image:: graphics/computation_window.png
+    :width: 320
+    :alt: Computation Editor Dialogue Window
+    :align: center
+
+To add or change inputs in the Computation editor dialogue, drag data items, display items, or graphics into the input slot(s). 
 
 Computational Graphics 
 ======================
@@ -18,6 +25,11 @@ The line profile and Fourier filter have a computational aspect to them that use
 Line Profile
 ------------
 A line profile creates a line plot of the data under the line in an image. Add a line profile to an image with the line profile tool in the toolbar or by hitting the lowercase “L” key. Creating a line profile will generate a new data item in the form of a line plot that will display the values of the data under the line.
+
+.. image:: graphics/line_profile.png
+    :width: 398
+    :alt: Line Profile
+    :align: center
 
 Fourier Filtering
 -----------------
