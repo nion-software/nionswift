@@ -250,12 +250,15 @@ class DataItem(Persistence.PersistentObject):
         self.__pending_xdata: typing.Optional[DataAndMetadata.DataAndMetadata] = None
         self.__pending_queue: typing.List[typing.Tuple[DataAndMetadata.DataAndMetadata, typing.Sequence[slice], typing.Sequence[slice], DataAndMetadata.DataMetadata]] = list()
         self.__content_changed = False
-        self.__suspendable_storage_cache: typing.Optional[Cache.CacheLike] = None
         # Python 3.9+: parameterized set, weakref
         self.__display_data_channel_refs = set()  # type: ignore  # display data channels referencing this data item
         if data is not None:
             data_and_metadata = DataAndMetadata.DataAndMetadata.from_data(data, timezone=self.timezone, timezone_offset=self.timezone_offset)
             self.__set_data_and_metadata_direct(data_and_metadata)
+
+    def close(self) -> None:
+        self.__data_and_metadata = None
+        super().close()
 
     @classmethod
     def utcnow(cls) -> datetime.datetime:
@@ -265,7 +268,7 @@ class DataItem(Persistence.PersistentObject):
         return "{0} {1} ({2}, {3})".format(self.__repr__(), (self.title if self.title else _("Untitled")), str(self.uuid), self.date_for_sorting_local_as_string)
 
     def __copy__(self) -> DataItem:
-        assert False
+        return copy.deepcopy(self)
 
     def __deepcopy__(self, memo: typing.Dict[typing.Any, typing.Any]) -> DataItem:
         data_item_copy = self.__class__()
@@ -287,9 +290,16 @@ class DataItem(Persistence.PersistentObject):
         memo[id(self)] = data_item_copy
         return data_item_copy
 
-    def close(self) -> None:
-        self.__data_and_metadata = None
-        super().close()
+    def snapshot(self) -> DataItem:
+        """Return a new library item which is a copy of this one with any dynamic behavior made static."""
+        data_item_snapshot = copy.deepcopy(self)
+        data_item_snapshot.category = "persistent"
+        return data_item_snapshot
+
+    def clone(self) -> DataItem:
+        data_item = self.__class__()
+        data_item.uuid = self.uuid
+        return data_item
 
     @property
     def created(self) -> datetime.datetime:
@@ -367,36 +377,6 @@ class DataItem(Persistence.PersistentObject):
     def item_specifier(self) -> Persistence.PersistentObjectSpecifier:
         return Persistence.PersistentObjectSpecifier(self.uuid)
 
-    def clone(self) -> DataItem:
-        data_item = self.__class__()
-        data_item.uuid = self.uuid
-        return data_item
-
-    def snapshot(self) -> DataItem:
-        """Return a new library item which is a copy of this one with any dynamic behavior made static."""
-        data_item = self.__class__()
-        # data format (temporary until moved to buffered data source)
-        data_item.large_format = self.large_format
-        data_item.set_data_and_metadata(copy.deepcopy(self.data_and_metadata), self.data_modified)
-        # metadata
-        data_item.created = self.created
-        data_item.timezone = self.timezone
-        data_item.timezone_offset = self.timezone_offset
-        data_item.metadata = self.metadata
-        data_item.title = self.title
-        data_item.caption = self.caption
-        data_item.description = self.description
-        data_item.session_id = self.session_id
-        data_item.session_data = copy.deepcopy(self.session_data)
-        return data_item
-
-    def set_storage_cache(self, storage_cache: Cache.CacheLike) -> None:
-        self.__suspendable_storage_cache = Cache.SuspendableCache(storage_cache)
-
-    @property
-    def _suspendable_storage_cache(self) -> typing.Optional[Cache.CacheLike]:
-        return self.__suspendable_storage_cache
-
     def add_display_data_channel(self, display_data_channel: DisplayItem.DisplayDataChannel) -> None:
         """Add a display data channel referencing this data item."""
         self.__display_data_channel_refs.add(weakref.ref(display_data_channel))
@@ -458,18 +438,11 @@ class DataItem(Persistence.PersistentObject):
         self.__in_transaction_state = True
         # first enter the write delay state.
         self.__enter_write_delay_state()
-        # suspend disk caching
-        if self.__suspendable_storage_cache:
-            self.__suspendable_storage_cache.suspend_cache()
         # load data to prevent paging in and out.
         self.increment_data_ref_count()
 
     def _transaction_state_exited(self) -> None:
         self.__in_transaction_state = False
-        # being in the transaction state has the side effect of delaying the cache too.
-        # spill whatever was into the local cache into the persistent cache.
-        if self.__suspendable_storage_cache:
-            self.__suspendable_storage_cache.spill_cache()
         # exit the write delay state.
         self.__exit_write_delay_state()
         # unload data.

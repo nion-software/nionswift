@@ -1040,9 +1040,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
     def __handle_data_item_inserted(self, data_item: DataItem.DataItem) -> None:
         assert data_item is not None
         assert data_item not in self.data_items
-        # data item bookkeeping
-        if self.storage_cache:
-            data_item.set_storage_cache(self.storage_cache)
         # insert in internal list
         before_index = len(self.__data_items)
         self.__data_items.append(data_item)

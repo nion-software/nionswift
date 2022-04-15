@@ -512,11 +512,12 @@ class TestDataItemClass(unittest.TestCase):
             self.assertIsNotNone(document_model.get_data_item_computation(data_item_copy))
             self.assertIsNone(document_model.get_data_item_computation(data_item_snap))
 
-    def test_copy_data_item_should_raise_exception(self):
+    def test_copy_data_item_should_succeed(self):
         data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         with contextlib.closing(data_item):
-            with self.assertRaises(AssertionError):
-                copy.copy(data_item)
+            copy.copy(data_item).close()
+            copy.deepcopy(data_item).close()
+            data_item.snapshot().close()
 
     def test_appending_data_item_should_trigger_recompute(self):
         with TestContext.create_memory_context() as test_context:
