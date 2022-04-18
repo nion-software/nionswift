@@ -8,6 +8,7 @@ Utility Panels
 
 .. _Workspaces:
 .. This section will be covered by the overview section so this will remain here temporarily until that section is finished.
+
 Workspaces
 ==========
 The workspace is the area where you can view your data.
@@ -46,7 +47,6 @@ Having individual utility panels for similar parameters means that the workspace
 .. image:: graphics/customize_utility_panels.png
     :width: 396
     :alt: Customizing Utility Panels
-    :align: center
 
 The utility panels are organized alphabetically in the [Window] menu, and their functions are as follows:
 
@@ -57,7 +57,6 @@ Activity
 .. image:: graphics/activity_panel.png
     :width: 321
     :alt: Activity Panel
-    :align: center
 
 The Activity panel shows activity that is running in the background of the application. Changes to computations updated during live data acquisition or editing will be displayed in this panel.
 Observe background activity.
@@ -69,21 +68,20 @@ Collections
 .. image:: graphics/collections_panel.png
     :width: 333
     :alt: Collections Panel
-    :align: center
 
 The Collections panel sorts the data items in a project into folders. Data items are automatically sorted into four categories:
 
-* All - All data items in the current project
+* :guilabel:`All` - All data items in the current project
 
-* Persistent - Data items that are not actively gathering data
+* :guilabel:`Persistent` - Data items that are not actively gathering data
 
-* Live - Data items that are actively gathering data
+* :guilabel:`Live` - Data items that are actively gathering data
 
-* Latest Session - Data items used in the most recent session (since the most recent time the project was opened)
+* :guilabel:`Latest Session` - Data items used in the most recent session (since the most recent time the project was opened)
 
 To view a collection, click on the title of the desired collection in the Collections panel. All data items in the collection will be listed in the Data panel. By default, the Data panel is set to show the “All” collection.
 
-The Collections panel also provides a “My Data” collection which is curated by the user. “My Data” can be used to group any data items together. To add a data item to the “My Data” collection, drag the data item from the data panel into the “My Data” collection in the Collections panel.
+The Collections panel also provides a collection called :guilabel:`My Data` which is curated by the user. “My Data” can be used to group any data items together. To add a data item to the “My Data” collection, drag the data item from the data panel into the “My Data” collection in the Collections panel.
 
 .. _Data Panel:
 
@@ -92,7 +90,6 @@ Data Panel
 .. image:: graphics/data_panel.png
     :width: 333
     :alt: Data Panel
-    :align: center
 
 The Data panel provides a list of all the data items in a given collection. By default, the Data panel is set to show all data items in a project. The data items that are shown can be changed by choosing a different collection in the Collections panel.
 
@@ -111,7 +108,6 @@ Histogram
 .. image:: graphics/histogram_panel.png
     :width: 321
     :alt: Histogram Panel
-    :align: center
 
 The Histogram shows the range of data in the selected data item. The bar directly under the histogram displays the color range of the data and will change color to match the color map of the selected display. General values about the data (maximum value, mean, minimum value, etc.) are displayed under the histogram. If no display panel or data item is selected, the histogram panel will not display anything.
 
@@ -126,7 +122,6 @@ Info
 .. image:: graphics/info_panel.png
     :width: 321
     :alt: Info Panel
-    :align: center
 
 The Info panel shows the position of the cursor over a displayed data item and gives the corresponding value for the data at that position. When hovering the cursor over the histogram, the info panel will show the intensity for a given position along the histogram.
 
@@ -140,14 +135,12 @@ Clicking the triangle next to the title of a given subsection will expand or hid
 .. image:: graphics/inspector_image.png
     :width: 321
     :alt: Inspector Panel with Image Selected
-    :align: center
 
 When different kinds of items are selected (display item, graphic, etc.) the Inspector's subsections will change to display settings relevant to that type of item. If an image or line plot is selected in a display panel, the inspector will provide all subsections relevant to the selected item. In the image above, an image is selected; and in the image below, a line plot is selected.
 
 .. image:: graphics/inspector_line_plot.png
     :width: 321
     :alt: Inspector Panel with Line Plot Selected
-    :align: center
 
 .. _Info Inspector Section:
 
@@ -156,7 +149,6 @@ Info
 .. image:: graphics/inspector_info_subsection.png
     :width: 321
     :alt: Inspector Info Subsection
-    :align: center
 
 The Info subsection of the inspector allows you to edit the title and description of the selected item. The Info subsection will only be visible if a single item is selected. 
 
@@ -169,7 +161,6 @@ Image Display
 .. image:: graphics/inspector_image_display_subsection.png
     :width: 321
     :alt: Inspector Image Display Subsection
-    :align: center
 
 Image Display allows you to force an image to be displayed as a line plot or as script instead of the default.
 
@@ -180,25 +171,24 @@ Image Data
 .. image:: graphics/inspector_image_data_subsection.png
     :width: 321
     :alt: Inspector Image Data Subsection
-    :align: center
 
 Image Data presents several figures and settings for a selected image:
 
-* Date - Displays the date and time a selected image was created.
+* :guilabel:`Date` - Displays the date and time a selected image was created.
   
-* Data - Displays the dimensions of the image and the bit count.
+* :guilabel:`Data` - Displays the dimensions of the image and the bit count.
 
-* Data Range - Displays the minimum and maximum values of the selected data.
+* :guilabel:`Data Range` - Displays the minimum and maximum values of the selected data.
   
-* Display Limits - Change the minimum and maximum values currently shown in the selected data. Editing these is the same as zooming in or out on an interval on the Histogram.
+* :guilabel:`Display Limits` - Change the minimum and maximum values currently shown in the selected data. Editing these is the same as zooming in or out on an interval on the Histogram.
   
-* Color Map - Change the color of the data. The data range is mapped to a range of colors. Choose from a list of preset color profiles. Grayscale is the default.
+* :guilabel:`Color Map` - Change the color of the data. The data range is mapped to a range of colors. Choose from a list of preset color profiles. Grayscale is the default.
   
-* Brightness - Change the brightness of the color values on the color map. Moving the slider to the right will increase the brightness and moving the slider to the left will decrease the brightness.
+* :guilabel:`Brightness` - Change the brightness of the color values on the color map. Moving the slider to the right will increase the brightness and moving the slider to the left will decrease the brightness.
   
-* Contrast - Change the range of color values on the color map. Moving the slider to the right will increase the contrast and moving the slider to the left will decrease the contrast.
+* :guilabel:`Contrast` - Change the range of color values on the color map. Moving the slider to the right will increase the contrast and moving the slider to the left will decrease the contrast.
   
-* Adjustment - Change the equalization of the selected data. Choose between Equalized, Gamma, Log, or no adjustment.
+* :guilabel:`Adjustment` - Change the equalization of the selected data. Choose between Equalized, Gamma, Log, or no adjustment.
 
 .. _Line Plot Inspector Section:
 
@@ -207,19 +197,18 @@ Line Plot Display
 .. image:: graphics/inspector_line_plot_display_subsection.png
     :width: 321
     :alt: Inspector Line Plot Display Subsection
-    :align: center
 
 Line Plot Display presents several figures and settings for a selected line plot:
 
-* Display Type - Force the selected line plot to display as an image or script.
+* :guilabel:`Display Type` - Force the selected line plot to display as an image or script.
 
-* Display - Change the range of y values shown on the line plot. These values are set to automatically calculate by default, but changing them allows you to zoom into a specific section on the line plot.
+* :guilabel:`Display` - Change the range of y values shown on the line plot. These values are set to automatically calculate by default, but changing them allows you to zoom into a specific section on the line plot.
 
-* Channels - Change the range of x values shown on the line plot. These values are set to automatically calculate by default, but changing them allows you to zoom into a specific section on the line plot. Changing the channel values is similar to zooming into an interval on the line plot with an interval graphic.
+* :guilabel:`Channels` - Change the range of x values shown on the line plot. These values are set to automatically calculate by default, but changing them allows you to zoom into a specific section on the line plot. Changing the channel values is similar to zooming into an interval on the line plot with an interval graphic.
 
-* Log Scale Y - Set the y axis to scale logarithmically.
+* :guilabel:`Log Scale Y` - Set the y axis to scale logarithmically.
 
-* Legend Position - Choose the position of the legend for a layered line plot. Line plots with no layers will not show a legend. 
+* :guilabel:`Legend Position` - Choose the position of the legend for a layered line plot. Line plots with no layers will not show a legend. 
 
 .. _Data Info Inspector Section:
 
@@ -228,7 +217,6 @@ Data Info
 .. image:: graphics/inspector_data_info_subsection.png
     :width: 321
     :alt: Inspector Data Info Subsection
-    :align: center
 
 Data Info displays the date and time a selected line plot was created. It will also display the dimensions of the line plot and the bit count. For line plots with multiple layers, each data item in the stack will have its own Data Info section.
 
@@ -243,7 +231,6 @@ Image Calibrations
 .. image:: graphics/inspector_calibrations_subsection_image.png
     :width: 321
     :alt: Inspector Calibrations Subsection with Image Selected
-    :align: center
 
 When an image is selected, use the calibrations subsection to
 
@@ -258,7 +245,6 @@ Line Plot Calibrations
 .. image:: graphics/inspector_calibrations_subsection_line_plot.png
     :width: 321
     :alt: Inspector Calibrations Subsection with Line Plot Selected
-    :align: center
 
 When a line plot is selected, use the calibrations subsection to
 
@@ -273,7 +259,6 @@ Session
 .. image:: graphics/inspector_session_subsection.png
     :width: 321
     :alt: Inspector Session Subsection
-    :align: center
 
 The Session subsection of the inspector allows you to change the session info for the selected item. Editing session info in the inspector will not change global session info. To change global session info, use the Session utility panel.
 
@@ -284,7 +269,6 @@ Computation
 .. image:: graphics/inspector_computation_subsection.png
     :width: 321
     :alt: Inspector Computation Subsection
-    :align: center
 
 With the Computation subsection of the inspector, you can quickly adjust several variables for a computation associated with the selected item. If the selected item has no associated computations, the Computation subsection will say “None.” 
 
@@ -295,7 +279,6 @@ The Computation subsection can also be accessed in a separate pop-up window by h
 .. image:: graphics/computation_window.png
     :width: 321
     :alt: Computation Editor Window
-    :align: center
 
 .. _Layers Inspector Section:
 
@@ -304,14 +287,14 @@ Line Plot Display Layers
 .. image:: graphics/inspector_line_plot_display_layers_subsection.png
     :width: 321
     :alt: Inspector Line Plot Display Layers Subsection
-    :align: center
 
 With this subsection, you can manage all aspects of the layers in a layered line plot. With the layered line plot selected, you can
 
 * Change the order of layers using the up and down arrow buttons under the layer number.
 
 * Add or remove layers with the plus and minus buttons to the right of the arrow buttons.
-* Associate layers with data items in the stack using the text box labeled “Data Index.” Type the number of the data item as it appears in the stack. The first data item will be called “Data #0,” the second will be called “Data #1,” and so on. Type 0 or 1 into the text box to associate the layer with Data #0 or Data #1 respectively.
+  
+* Associate layers with data items in the stack using the text box labeled :guilabel:`Data Index`. Type the number of the data item as it appears in the stack. The first data item will be called “Data #0,” the second will be called “Data #1,” and so on. Type 0 or 1 into the text box to associate the layer with Data #0 or Data #1 respectively.
 
 * Choose which row of a data item to show. If a data item has multiple rows, use the “Row” text box to choose which one is shown. Like data items, the row numbering will start at 0 and count up.
 
@@ -336,7 +319,6 @@ Graphics
 .. image:: graphics/inspector_graphics_subsection.png
     :width: 321
     :alt: Inspector Graphics Subsection
-    :align: center
 
 The Graphics subsection shows options for selected graphics, or for graphics associated with the selected data item. If multiple graphics are selected, the inspector will not list options for graphics that are not selected.
 
@@ -344,33 +326,33 @@ Each graphic will have different variables that can be changed in this subsectio
 
 Each graphic will have some or all of the following variables:
 
-* Name - The name of the selected graphic. To show no name on a graphic, remove all text from the name text box. The box will show a gray “None.”
+* :guilabel:`Name` - The name of the selected graphic. To show no name on a graphic, remove all text from the name text box. The box will show a gray “None.”
 
-* X, Y - The center coordinate of a graphic in nanometers (nm), pixels, or a decimal fraction depending on the coordinate system selected.
+* :guilabel:`X`, :guilabel:`Y` - The center coordinate of a graphic in nanometers (nm), pixels, or a decimal fraction depending on the coordinate system selected.
 
-* X0, Y0 and/or X1, Y1 - The coordinates of anchor points or vertices of a graphic in nanometers (nm), pixels, or a decimal fraction depending on the coordinate system selected.
+* :guilabel:`X0`, :guilabel:`Y0`, and/or :guilabel:`X1`, :guilabel:`Y1` - The coordinates of anchor points or vertices of a graphic in nanometers (nm), pixels, or a decimal fraction depending on the coordinate system selected.
 
-* W, H - The width and height of a graphic in nanometers (nm), pixels, or a decimal fraction depending on the coordinate system selected.
+* :guilabel:`W`, :guilabel:`H` - The width and height of a graphic in nanometers (nm), pixels, or a decimal fraction depending on the coordinate system selected.
 
-* L - The length of a graphic in nanometers (nm), pixels, or a decimal fraction depending on the coordinate system selected.
+* :guilabel:`L` - The length of a graphic in nanometers (nm), pixels, or a decimal fraction depending on the coordinate system selected.
 
-* A - The angle of a graphic in degrees. Angle inputs over 180 degrees will be automatically reformatted into the equivalent negative angle. For example, an input of 225 degrees in the text box will be reformatted as -135 degrees.
+* :guilabel:`A` - The angle of a graphic in degrees. Angle inputs over 180 degrees will be automatically reformatted into the equivalent negative angle. For example, an input of 225 degrees in the text box will be reformatted as -135 degrees.
 
-* Rotation - The rotation of a graphic in degrees around its center point.
+* :guilabel:`Rotation` - The rotation of a graphic in degrees around its center point.
 
-* Start/End - The end points of a graphic on a line plot in nanometers (nm), pixels, or a decimal fraction depending on the coordinate system selected.
+* :guilabel:`Start/End` - The end points of a graphic on a line plot in nanometers (nm), pixels, or a decimal fraction depending on the coordinate system selected.
 
-* Radius 1 - The outer radius of a ring mask in nanometers (nm), pixels, or a decimal fraction depending on the coordinate system selected.
+* :guilabel:`Radius 1` - The outer radius of a ring mask in nanometers (nm), pixels, or a decimal fraction depending on the coordinate system selected.
 
-* Radius 2 The inner radius of a ring mask in nanometers (nm), pixels, or a decimal fraction depending on the coordinate system selected.
+* :guilabel:`Rdius 2` The inner radius of a ring mask in nanometers (nm), pixels, or a decimal fraction depending on the coordinate system selected.
 
-* Mode - The type of ring mask. See :ref:`graphics` for more information on ring masks.
+* :guilabel:`Mode` - The type of ring mask. See :ref:`graphics` for more information on ring masks.
 
-* Start Angle - The top left inside angle of a wedge mask in degrees.
+* :guilabel:`Start Angle` - The top left inside angle of a wedge mask in degrees.
 
-* End Angle - The inside opposite angle of a wedge mask in degrees.
+* :guilabel:`End Angle` - The inside opposite angle of a wedge mask in degrees.
 
-* Display - The type of coordinate system used to label the coordinates on the image or line plot. See :ref:`data-items` for information on different types of coordinate systems.
+* :guilabel:`Display` - The type of coordinate system used to label the coordinates on the image or line plot. See :ref:`data-items` for information on different types of coordinate systems.
 
 .. _Metadata Panel:
 
@@ -391,7 +373,6 @@ Session
 .. image:: graphics/session_panel.png
     :width: 321
     :alt: Session Panel
-    :align: center
 
 The Session panel allows you to edit the session info for the whole project rather than for a single data item. The session info will be added as metadata to any live data acquired during a given session. A new session starts and global session info resets every time the Nion Swift is closed.
 
@@ -410,7 +391,6 @@ The Toolbar provides quick access to several options for the workspace. You can 
 .. image:: graphics/toolbar_infographic.png
     :width: 310
     :alt: Toolbar Button Functions
-    :align: center
 
 .. _Recorder Dialog:
 
