@@ -256,16 +256,16 @@ class TestDataItemClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             with document_model.item_transaction(data_item):
                 with data_item.data_ref() as data_ref:
-                    data_ref.master_data = numpy.ones((4, 4), numpy.uint32)
+                    data_ref.data = numpy.ones((4, 4), numpy.uint32)
                     data_item_copy = copy.deepcopy(data_item)
             with contextlib.closing(data_item_copy):
                 display_item2 = document_model.get_display_item_for_data_item(data_item_copy)
                 with data_item.data_ref() as data_ref:
                     with data_item_copy.data_ref() as data_copy_accessor:
-                        self.assertEqual(data_copy_accessor.master_data.shape, (4, 4))
-                        self.assertTrue(numpy.array_equal(data_ref.master_data, data_copy_accessor.master_data))
-                        data_ref.master_data = numpy.ones((4, 4), numpy.uint32) + 1
-                        self.assertFalse(numpy.array_equal(data_ref.master_data, data_copy_accessor.master_data))
+                        self.assertEqual(data_copy_accessor.data.shape, (4, 4))
+                        self.assertTrue(numpy.array_equal(data_ref.data, data_copy_accessor.data))
+                        data_ref.data = numpy.ones((4, 4), numpy.uint32) + 1
+                        self.assertFalse(numpy.array_equal(data_ref.data, data_copy_accessor.data))
 
     def test_data_item_in_transaction_is_not_unloadable(self):
         with create_memory_profile_context() as profile_context:
@@ -293,7 +293,7 @@ class TestDataItemClass(unittest.TestCase):
                 self.assertIsNotNone(thumbnail_source.thumbnail_data)
                 self.assertFalse(display_item._display_cache.is_cached_value_dirty(display_item, "thumbnail_data"))
                 with display_item.data_item.data_ref() as data_ref:
-                    data_ref.master_data = numpy.zeros((8, 8), numpy.uint32)
+                    data_ref.data = numpy.zeros((8, 8), numpy.uint32)
                 self.assertTrue(display_item._display_cache.is_cached_value_dirty(display_item, "thumbnail_data"))
 
     def test_thumbnail_2d_handles_small_dimension_without_producing_invalid_thumbnail(self):
@@ -389,7 +389,7 @@ class TestDataItemClass(unittest.TestCase):
                 # now the source data changes and the inverted data needs computing.
                 # the thumbnail should also be dirty.
                 with data_item.data_ref() as data_ref:
-                    data_ref.master_data = data_ref.master_data + 1.0
+                    data_ref.data = data_ref.data + 1.0
                 document_model.recompute_all()
                 self.assertTrue(inverted_display_item._display_cache.is_cached_value_dirty(inverted_display_item, "thumbnail_data"))
 
@@ -535,13 +535,13 @@ class TestDataItemClass(unittest.TestCase):
             # test scalar
             xx, yy = numpy.meshgrid(numpy.linspace(0,1,256), numpy.linspace(0,1,256))
             with display_item.data_item.data_ref() as data_ref:
-                data_ref.master_data = 50 * (xx + yy) + 25
+                data_ref.data = 50 * (xx + yy) + 25
                 data_range = display_item.display_data_channels[0].get_calculated_display_values(True).data_range
                 self.assertEqual(data_range, (25, 125))
                 # now test complex
-                data_ref.master_data = numpy.zeros((8, 8), numpy.complex64)
+                data_ref.data = numpy.zeros((8, 8), numpy.complex64)
                 xx, yy = numpy.meshgrid(numpy.linspace(0,1,256), numpy.linspace(0,1,256))
-                data_ref.master_data = (2 + xx * 10) + 1j * (3 + yy * 10)
+                data_ref.data = (2 + xx * 10) + 1j * (3 + yy * 10)
             data_range = display_item.display_data_channels[0].get_calculated_display_values(True).data_range
             data_min = math.log(math.sqrt(2*2 + 3*3))
             data_max = math.log(math.sqrt(12*12 + 13*13))
@@ -1085,7 +1085,7 @@ class TestDataItemClass(unittest.TestCase):
             self.assertAlmostEqual(inverted_display_item.data_item.data[0, 0], -1.0)
             # now the source data changes and the inverted data needs computing.
             with display_item.data_item.data_ref() as data_ref:
-                data_ref.master_data = data_ref.master_data + 2.0
+                data_ref.data = data_ref.data + 2.0
             self.assertTrue(document_model.get_data_item_computation(inverted_display_item.data_item).needs_update)
             # data is now unloaded and stale.
             self.assertFalse(inverted_display_item.data_item.is_data_loaded)
@@ -1106,7 +1106,7 @@ class TestDataItemClass(unittest.TestCase):
             self.assertAlmostEqual(inverted_display_item.data_item.data[0, 0], -1.0)
             # now the source data changes and the inverted data needs computing.
             with display_item.data_item.data_ref() as data_ref:
-                data_ref.master_data = data_ref.master_data + 2.0
+                data_ref.data = data_ref.data + 2.0
             document_model.recompute_all()
             self.assertAlmostEqual(inverted_display_item.data_item.data[0, 0], -3.0)
 
@@ -1124,7 +1124,7 @@ class TestDataItemClass(unittest.TestCase):
             self.assertAlmostEqual(inverted_display_item.data_item.data[0, 0], -1.0)
             # now the source data changes and the inverted data needs computing.
             with display_item.data_item.data_ref() as data_ref:
-                data_ref.master_data = data_ref.master_data + 2.0
+                data_ref.data = data_ref.data + 2.0
             # verify the actual data values are still stale
             self.assertAlmostEqual(inverted_display_item.data_item.data[0, 0], -1.0)
             # recompute and verify the data values are valid

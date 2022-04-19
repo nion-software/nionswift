@@ -478,8 +478,8 @@ class TestProcessingClass(unittest.TestCase):
             document_model.append_data_item(rgba_data_item)
             rgba_display_item = document_model.get_display_item_for_data_item(rgba_data_item)
             with rgba_display_item.data_item.data_ref() as data_ref:
-                data_ref.master_data[:] = (20,40,60,100)
-                data_ref.master_data_updated()
+                data_ref.data[:] = (20,40,60,100)
+                data_ref.data_updated()
             rgba2_data_item = document_model.get_invert_new(rgba_display_item, rgba_display_item.data_item)
             rgba2_display_item = document_model.get_display_item_for_data_item(rgba2_data_item)
             document_model.recompute_all()

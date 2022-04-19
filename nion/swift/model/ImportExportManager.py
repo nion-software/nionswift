@@ -235,20 +235,20 @@ def update_data_item_from_data_element_1(data_item: DataItem.DataItem, data_elem
         assert data_shape_data_dtype is not None
         is_same_shape = data_item.data_shape == data_shape_data_dtype[0] and data_item.data_dtype == data_shape_data_dtype[1] and data_item.is_sequence == is_sequence and data_item.collection_dimension_count == collection_dimension_count and data_item.datum_dimension_count == datum_dimension_count
         if is_same_shape:
-            data = data_and_metadata.data
-            assert data is not None
+            data_element_data = data_and_metadata.data
+            assert data_element_data is not None
             with data_item.data_ref() as data_ref:
                 sub_area = data_element.get("sub_area")
-                master_data = data_ref.master_data
-                if master_data is not None:
+                data = data_ref.data
+                if data is not None:
                     if sub_area is not None:
                         top = sub_area[0][0]
                         bottom = sub_area[0][0] + sub_area[1][0]
                         left = sub_area[0][1]
                         right = sub_area[0][1] + sub_area[1][1]
-                        master_data[top:bottom, left:right] = data[top:bottom, left:right]
+                        data[top:bottom, left:right] = data_element_data[top:bottom, left:right]
                     else:
-                        master_data[:] = data[:]
+                        data[:] = data_element_data[:]
                 data_ref.data_updated()  # trigger change notifications
             if dimensional_calibrations is not None:
                 for dimension, dimensional_calibration in enumerate(dimensional_calibrations):

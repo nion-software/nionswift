@@ -870,17 +870,6 @@ class DataItem(Persistence.PersistentObject):
         def data_updated(self) -> None:
             self.__set_data(self.__get_data())
 
-        @property
-        def master_data(self) -> typing.Optional[_ImageDataType]:
-            return self.__get_data()
-
-        @master_data.setter
-        def master_data(self, value: _ImageDataType) -> None:
-            self.__set_data(value)
-
-        def master_data_updated(self) -> None:
-            self.__set_data(self.__get_data())
-
     # grab a data reference as a context manager. the object
     # returned defines data and data properties. reading data
     # should use the data property. writing data (if allowed) should

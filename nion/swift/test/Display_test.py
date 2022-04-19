@@ -531,7 +531,7 @@ class TestDisplayClass(unittest.TestCase):
             display_data_channel = display_item.display_data_channels[0]
             self.assertEqual(display_data_channel.get_calculated_display_values(True).display_range, (1, 1))
             with data_item.data_ref() as dr:
-                dr.master_data[0,0] = 16
+                dr.data[0,0] = 16
                 dr.data_updated()
             self.assertEqual(display_data_channel.get_calculated_display_values(True).display_range, (1, 16))
 
