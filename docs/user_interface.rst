@@ -54,22 +54,25 @@ The utility panels are organized alphabetically in the [Window] menu, and their 
 
 Activity
 ========
+The Activity panel shows the activity of computations running in the background.
+
 .. image:: graphics/activity_panel.png
     :width: 321
     :alt: Activity Panel
 
-The Activity panel shows activity that is running in the background of the application. Changes to computations updated during live data acquisition or editing will be displayed in this panel.
-Observe background activity.
+Changes to computations updated during live data acquisition or editing will be displayed in this panel. Activity will only be displayed if a computation is actively running. Otherwise, the panel will not show anything.
 
 .. _Collections Panel:
 
 Collections
 ===========
+The Collections panel sorts the data items in a project into folders. Data can also be sorted manually into a fifth folder.
+
 .. image:: graphics/collections_panel.png
     :width: 333
     :alt: Collections Panel
 
-The Collections panel sorts the data items in a project into folders. Data items are automatically sorted into four categories:
+Data items are automatically sorted into four categories:
 
 * :guilabel:`All` - All data items in the current project
 
@@ -87,11 +90,13 @@ The Collections panel also provides a collection called :guilabel:`My Data` whic
 
 Data Panel
 ==========
+The Data panel provides a list of all the data items in a given collection. 
+
 .. image:: graphics/data_panel.png
     :width: 333
     :alt: Data Panel
 
-The Data panel provides a list of all the data items in a given collection. By default, the Data panel is set to show all data items in a project. The data items that are shown can be changed by choosing a different collection in the Collections panel.
+By default, the Data panel is set to show all data items in a project. The data items that are shown can be changed by choosing a different collection in the Collections panel.
 
 Newly created data items will appear in the data panel. Make sure the collection is set to “All.” A new data item may not be applicable to the currently selected collection.
 
@@ -105,11 +110,13 @@ Any data item in the display panel can be displayed in a display panel. To displ
 
 Histogram
 =========
+The Histogram shows the range of data in the selected data item.
+
 .. image:: graphics/histogram_panel.png
     :width: 321
     :alt: Histogram Panel
 
-The Histogram shows the range of data in the selected data item. The bar directly under the histogram displays the color range of the data and will change color to match the color map of the selected display. General values about the data (maximum value, mean, minimum value, etc.) are displayed under the histogram. If no display panel or data item is selected, the histogram panel will not display anything.
+The bar directly under the histogram displays the color range of the data and will change color to match the color map of the selected display. General values about the data (maximum value, mean, minimum value, etc.) are displayed under the histogram. If no display panel or data item is selected, the histogram panel will not display anything.
 
 To select a certain range of data, click and drag on the histogram. Doing this will zoom into the histogram on the selected range and the associated display panel will only display data values within that range. To reset the histogram range, double click on the histogram.
 
@@ -119,11 +126,13 @@ If a graphic is selected, the histogram will show data within that graphic. Clic
 
 Info
 ====
+The Info panel shows the position of the cursor over a displayed data item and gives the corresponding value for the data at that position. 
+
 .. image:: graphics/info_panel.png
     :width: 321
     :alt: Info Panel
 
-The Info panel shows the position of the cursor over a displayed data item and gives the corresponding value for the data at that position. When hovering the cursor over the histogram, the info panel will show the intensity for a given position along the histogram.
+When hovering the cursor over the histogram, the info panel will show the intensity for a given position along the histogram.
 
 .. _Inspector Panel:
 
@@ -146,11 +155,13 @@ When different kinds of items are selected (display item, graphic, etc.) the Ins
 
 Info
 ----
+The Info subsection of the inspector allows you to edit the title and description of the selected item. 
+
 .. image:: graphics/inspector_info_subsection.png
     :width: 321
     :alt: Inspector Info Subsection
 
-The Info subsection of the inspector allows you to edit the title and description of the selected item. The Info subsection will only be visible if a single item is selected. 
+The Info subsection will only be visible if a single item is selected. 
 
 If the item selected contains multiple data items, like a layered line plot for example, changing the title and description of the item will not affect the names and descriptions of each data item; it will change the title and description for the combined display item.
 
@@ -158,21 +169,23 @@ If the item selected contains multiple data items, like a layered line plot for 
 
 Image Display
 -------------
+Image Display allows you to force an image to be displayed as a line plot or as script instead of the default.
+
 .. image:: graphics/inspector_image_display_subsection.png
     :width: 321
     :alt: Inspector Image Display Subsection
 
-Image Display allows you to force an image to be displayed as a line plot or as script instead of the default.
+A converted image can be reverted back to an image by choosing Image or Default.
 
 .. _Image Data Inspector Section:
 
 Image Data
 ----------
+Image Data presents several figures and settings for a selected image:
+
 .. image:: graphics/inspector_image_data_subsection.png
     :width: 321
     :alt: Inspector Image Data Subsection
-
-Image Data presents several figures and settings for a selected image:
 
 * :guilabel:`Date` - Displays the date and time a selected image was created.
   
@@ -194,11 +207,11 @@ Image Data presents several figures and settings for a selected image:
 
 Line Plot Display
 -----------------
+Line Plot Display presents several figures and settings for a selected line plot:
+
 .. image:: graphics/inspector_line_plot_display_subsection.png
     :width: 321
     :alt: Inspector Line Plot Display Subsection
-
-Line Plot Display presents several figures and settings for a selected line plot:
 
 * :guilabel:`Display Type` - Force the selected line plot to display as an image or script.
 
@@ -214,11 +227,13 @@ Line Plot Display presents several figures and settings for a selected line plot
 
 Data Info
 ---------
+Data Info displays the date and time a selected line plot was created. It will also display the dimensions of the line plot and the bit count. 
+
 .. image:: graphics/inspector_data_info_subsection.png
     :width: 321
     :alt: Inspector Data Info Subsection
 
-Data Info displays the date and time a selected line plot was created. It will also display the dimensions of the line plot and the bit count. For line plots with multiple layers, each data item in the stack will have its own Data Info section.
+For line plots with multiple layers, each data item in the stack will have its own Data Info section. For more information, see :ref:`layers inspector section`.
 
 .. _Calibrations Inspector Section:
 
@@ -228,11 +243,13 @@ Calibrations allow you to make specific changes to the scale and position of a s
 
 Image Calibrations
 ++++++++++++++++++
+When an image is selected, the calibrations subsection of the inspector panel will show variables specific to an image.
+
 .. image:: graphics/inspector_calibrations_subsection_image.png
     :width: 321
     :alt: Inspector Calibrations Subsection with Image Selected
 
-When an image is selected, use the calibrations subsection to
+With an image selected, use the calibrations subsection to
 
 * Change the offset, scale, and units on the y and x axes. The default units for images is nanometers (nm).
 
@@ -242,11 +259,13 @@ When an image is selected, use the calibrations subsection to
 
 Line Plot Calibrations
 ++++++++++++++++++++++
+When a line plot is selected, the calibrations subsection of the inspector panel will show variables specific to a line plot.
+
 .. image:: graphics/inspector_calibrations_subsection_line_plot.png
     :width: 321
     :alt: Inspector Calibrations Subsection with Line Plot Selected
 
-When a line plot is selected, use the calibrations subsection to
+With a line plot selected, use the calibrations subsection to
 
 * Change the offset, scale, and units of the x axis (Channel).
 
@@ -256,23 +275,25 @@ When a line plot is selected, use the calibrations subsection to
 
 Session
 -------
+The Session subsection of the inspector allows you to change the session info for the selected item. 
+
 .. image:: graphics/inspector_session_subsection.png
     :width: 321
     :alt: Inspector Session Subsection
 
-The Session subsection of the inspector allows you to change the session info for the selected item. Editing session info in the inspector will not change global session info. To change global session info, use the Session utility panel.
+Editing session info in the inspector will not change global session info. To change global session info, use the Session utility panel.
 
 .. _Computation Inspector Section:
 
 Computation
 -----------
+With the Computation subsection of the inspector, you can quickly adjust several variables for a computation associated with the selected item.
+
 .. image:: graphics/inspector_computation_subsection.png
     :width: 321
-    :alt: Inspector Computation Subsection
+    :alt: Inspector Computation Subsection  
 
-With the Computation subsection of the inspector, you can quickly adjust several variables for a computation associated with the selected item. If the selected item has no associated computations, the Computation subsection will say “None.” 
-
-The variables in this subsection will change based on what kind of computation is selected. For example, a line profile will have adjustments for the coordinates of each end of the line, the angle of the line, and the length and width of the line; whereas a processing filter like a gaussian blur may only have a single slider to adjust the sigma (or blur) value.
+The variables in this subsection will change based on what kind of computation is selected. For example, a line profile will have adjustments for the coordinates of each end of the line, the angle of the line, and the length and width of the line; whereas a processing filter like a gaussian blur may only have a single slider to adjust the sigma (or blur) value. If the selected item has no associated computations, the Computation subsection will say “None.”
 
 The Computation subsection can also be accessed in a separate pop-up window by hitting [ctrl + E] (or [cmd + E] on macOS). 
 
@@ -284,11 +305,13 @@ The Computation subsection can also be accessed in a separate pop-up window by h
 
 Line Plot Display Layers
 ------------------------
+With this subsection, you can manage all aspects of the layers in a layered line plot. 
+
 .. image:: graphics/inspector_line_plot_display_layers_subsection.png
     :width: 321
     :alt: Inspector Line Plot Display Layers Subsection
 
-With this subsection, you can manage all aspects of the layers in a layered line plot. With the layered line plot selected, you can
+With the layered line plot selected, you can
 
 * Change the order of layers using the up and down arrow buttons under the layer number.
 
@@ -316,13 +339,13 @@ With this subsection, you can manage all aspects of the layers in a layered line
 
 Graphics
 --------
+The Graphics subsection shows options for selected graphics, or for graphics associated with the selected data item. If multiple graphics are selected, the inspector will only list options for graphics that are selected.
+
 .. image:: graphics/inspector_graphics_subsection.png
     :width: 321
     :alt: Inspector Graphics Subsection
 
-The Graphics subsection shows options for selected graphics, or for graphics associated with the selected data item. If multiple graphics are selected, the inspector will not list options for graphics that are not selected.
-
-Each graphic will have different variables that can be changed in this subsection. Most of the variables can either be manipulated by text in the inspector panel or by moving points around in the display panel. The inputs and outputs for the variables will be based off of the coordinate system selected in the calibration drop-down. See :ref:`data-items` for information on different types of coordinate systems. 
+Each graphic will have different variables that can be changed in this subsection. Most of the variables can either be manipulated by text in the inspector panel or by moving points around in the display panel. The inputs and outputs for the variables will be based off of the coordinate system selected in the calibration drop-down. See :ref:`data-items` (Calibrations) for information on different types of coordinate systems. 
 
 Each graphic will have some or all of the following variables:
 
@@ -370,11 +393,13 @@ The Output panel displays output text at the bottom of the window while running 
 
 Session
 =======
+The Session panel allows you to edit the session info for the whole project rather than for a single data item. 
+
 .. image:: graphics/session_panel.png
     :width: 321
     :alt: Session Panel
 
-The Session panel allows you to edit the session info for the whole project rather than for a single data item. The session info will be added as metadata to any live data acquired during a given session. A new session starts and global session info resets every time the Nion Swift is closed.
+The session info will be added as metadata to any live data acquired during a given session. A new session starts and global session info resets every time the Nion Swift is closed.
 
 .. _Task Panel:
 
