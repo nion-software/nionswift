@@ -175,7 +175,6 @@ class Recorder:
                 # first create an empty data item to hold the recorded data if it doesn't already exist
                 if not self.__recording_data_item:
                     data_item = DataItem.DataItem(large_format=True)
-                    data_item.ensure_data_source()
                     data_item.title = _("Recording of ") + self.__data_item.title
 
                     def process() -> DataItem.DataItem:

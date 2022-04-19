@@ -520,7 +520,6 @@ class TestProcessingClass(unittest.TestCase):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
             data_item = DataItem.DataItem()
-            data_item.ensure_data_source()
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             self.assertIsNone(display_item.data_item.data)

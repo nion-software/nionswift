@@ -741,14 +741,11 @@ class DataItem(Persistence.PersistentObject):
                 self.data_changed_event.fire()
             if not self._is_reading:
                 if data_changed:
-                     self._handle_write_delay_data_changed()
+                    self.__write_delay_data_changed = True
                 if data_changed or changed:
                     self._notify_data_item_content_changed()
                     self.data_item_changed_event.fire()
         self.did_change_event.fire()
-
-    def _handle_write_delay_data_changed(self) -> None:
-        self.__write_delay_data_changed = True
 
     def increment_data_ref_count(self) -> int:
         with self.__data_ref_count_mutex:
@@ -846,7 +843,6 @@ class DataItem(Persistence.PersistentObject):
 
     def set_xdata(self, xdata: typing.Optional[DataAndMetadata.DataAndMetadata], data_modified: typing.Optional[datetime.datetime] = None) -> None:
         with self.data_source_changes():
-            self.ensure_data_source()
             self.set_data_and_metadata(xdata, data_modified)
 
     class DataAccessor:
@@ -1317,7 +1313,6 @@ def sort_by_date_key(data_item: DataItem) -> typing.Tuple[typing.Optional[str], 
 
 def new_data_item(data_and_metadata: typing.Optional[DataAndMetadata.DataAndMetadata] = None) -> DataItem:
     data_item = DataItem(large_format=len(data_and_metadata.dimensional_shape) > 2 if data_and_metadata else False)
-    data_item.ensure_data_source()
     data_item.set_xdata(data_and_metadata)
     return data_item
 

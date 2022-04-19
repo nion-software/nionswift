@@ -137,7 +137,6 @@ class TestDataItemClass(unittest.TestCase):
             # setup by adding data item and a dependent data item
             data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             data_item2a = DataItem.DataItem()
-            data_item2a.ensure_data_source()
             document_model.append_data_item(data_item2)  # add this first
             document_model.append_data_item(data_item2a)  # add this second
             computation = document_model.create_computation("target.xdata = resample_image(src.xdata, shape(12, 12)")
@@ -152,7 +151,6 @@ class TestDataItemClass(unittest.TestCase):
             # setup by adding data item and a dependent data item
             data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             data_item2a = DataItem.DataItem()
-            data_item2a.ensure_data_source()
             document_model.append_data_item(data_item2)  # add this first
             document_model.append_data_item(data_item2a)  # add this second
             computation = document_model.create_computation("target.xdata = resample_image(src.xdata, shape(12, 12)")
@@ -172,7 +170,6 @@ class TestDataItemClass(unittest.TestCase):
             # setup by adding data item and a dependent data item
             data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             data_item2a = DataItem.DataItem()
-            data_item2a.ensure_data_source()
             document_model.append_data_item(data_item2)  # add this first
             document_model.append_data_item(data_item2a)  # add this second
             computation = document_model.create_computation("target.xdata = resample_image(src.xdata, shape(12, 12)")
@@ -211,7 +208,6 @@ class TestDataItemClass(unittest.TestCase):
             # setup by adding data item and a dependent data item
             data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             data_item2a = DataItem.DataItem()
-            data_item2a.ensure_data_source()
             document_model.append_data_item(data_item2)  # add this first
             document_model.append_data_item(data_item2a)  # add this second
             computation = document_model.create_computation("target.xdata = resample_image(src.xdata, shape(12, 12)")

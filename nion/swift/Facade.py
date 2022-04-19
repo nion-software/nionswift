@@ -2453,7 +2453,6 @@ class Library(metaclass=SharedInstance):
         Scriptable: Yes
         """
         data_item = DataItemModule.DataItem()
-        data_item.ensure_data_source()
         if title is not None:
             data_item.title = title
         self.__document_model.append_data_item(data_item)
@@ -2609,7 +2608,6 @@ class Library(metaclass=SharedInstance):
         data_item = data_item_reference.data_item
         if data_item is None and create_if_needed:
             data_item = DataItemModule.DataItem(large_format=large_format)
-            data_item.ensure_data_source()
             document_model.append_data_item(data_item)
             document_model.setup_channel(data_item_reference_key, data_item)
             data_item.session_id = document_model.session_id

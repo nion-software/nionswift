@@ -915,7 +915,6 @@ class TestInspectorClass(unittest.TestCase):
             data_item = DataItem.DataItem()
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            data_item.ensure_data_source()
             display_item.add_graphic(Graphics.IntervalGraphic())
             display_item.display_type = "line_plot"
             display_panel = document_controller.selected_display_panel
@@ -962,7 +961,6 @@ class TestInspectorClass(unittest.TestCase):
             data_item = DataItem.DataItem()
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            data_item.ensure_data_source()
             display_item.display_type = "line_plot"
             display_panel.set_display_panel_display_item(display_item)
             inspector_panel = document_controller.find_dock_panel("inspector-panel")

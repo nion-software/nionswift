@@ -210,7 +210,6 @@ def create_data_item_from_data_element(data_element: DataElementType,
 # the existing data item may have a new size and dtype after returning.
 def update_data_item_from_data_element(data_item: DataItem.DataItem, data_element: DataElementType,
                                        data_file_path: typing.Optional[pathlib.Path] = None) -> None:
-    data_item.ensure_data_source()
     version = data_element["version"] if "version" in data_element else 1
     if version == 1:
         update_data_item_from_data_element_1(data_item, data_element, data_file_path)

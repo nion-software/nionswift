@@ -200,9 +200,7 @@ class TestStorageClass(unittest.TestCase):
         document_controller.document_model.append_data_item(data_item3)
         data_group.append_display_item(document_controller.document_model.get_display_item_for_data_item(data_item3))
         data_item2a = DataItem.DataItem()
-        data_item2a.ensure_data_source()
         data_item2b = DataItem.DataItem()
-        data_item2b.ensure_data_source()
         document_controller.document_model.append_data_item(data_item2a)
         document_controller.document_model.append_data_item(data_item2b)
         data_group.append_display_item(document_controller.document_model.get_display_item_for_data_item(data_item2a))
@@ -692,7 +690,6 @@ class TestStorageClass(unittest.TestCase):
                 data_group = DataGroup.DataGroup()
                 document_model.append_data_group(data_group)
                 data_item = DataItem.DataItem()
-                data_item.ensure_data_source()
                 data_item.title = 'title'
                 with document_model.item_transaction(data_item):
                     data_item.set_data(numpy.zeros((16, 16), numpy.uint32))
@@ -721,7 +718,6 @@ class TestStorageClass(unittest.TestCase):
             document_model = profile_context.create_document_model(auto_close=False)
             with document_model.ref():
                 data_item = DataItem.DataItem()
-                data_item.ensure_data_source()
                 document_model.append_data_item(data_item)
                 data_item._set_modified(modified)
             # make sure it reloads
@@ -735,7 +731,6 @@ class TestStorageClass(unittest.TestCase):
             document_model = profile_context.create_document_model(auto_close=False)
             with document_model.ref():
                 data_item = DataItem.DataItem()
-                data_item.ensure_data_source()
                 document_model.append_data_item(data_item)
                 with document_model.item_transaction(data_item):
                     data_item.created = created
@@ -750,7 +745,6 @@ class TestStorageClass(unittest.TestCase):
             document_model = profile_context.create_document_model(auto_close=False)
             with document_model.ref():
                 data_item = DataItem.DataItem()
-                data_item.ensure_data_source()
                 data_item.created = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
                 data_item.set_data(data)
                 document_model.append_data_item(data_item)
@@ -960,7 +954,6 @@ class TestStorageClass(unittest.TestCase):
             document_model = profile_context.create_document_model(auto_close=False)
             with document_model.ref():
                 data_item = DataItem.DataItem()
-                data_item.ensure_data_source()
                 document_model.append_data_item(data_item)
                 display_item = document_model.get_display_item_for_data_item(data_item)
                 reference = data_item._test_get_file_path()
@@ -988,7 +981,6 @@ class TestStorageClass(unittest.TestCase):
             document_model = profile_context.create_document_model(auto_close=False)
             with document_model.ref():
                 data_item = DataItem.DataItem()
-                data_item.ensure_data_source()
                 document_model.append_data_item(data_item)
                 display_item = document_model.get_display_item_for_data_item(data_item)
                 # write data with transaction
@@ -1092,7 +1084,6 @@ class TestStorageClass(unittest.TestCase):
             document_model = profile_context.create_document_model(auto_close=False)
             with document_model.ref():
                 data_item = DataItem.DataItem()
-                data_item.ensure_data_source()
                 data_item.created = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
                 data_item.set_data(numpy.zeros((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
@@ -1136,7 +1127,6 @@ class TestStorageClass(unittest.TestCase):
             with contextlib.closing(document_controller):
                 # create empty data item
                 data_item = DataItem.DataItem()
-                data_item.ensure_data_source()
                 document_model.append_data_item(data_item)
                 display_item = document_model.get_display_item_for_data_item(data_item)
                 with document_model.item_transaction(data_item):
@@ -1288,7 +1278,6 @@ class TestStorageClass(unittest.TestCase):
             document_model = profile_context.create_document_model(auto_close=False)
             with document_model.ref():
                 data_item = DataItem.DataItem()
-                data_item.ensure_data_source()
                 display_item = document_model.get_display_item_for_data_item(data_item)
                 data_item.set_data(numpy.zeros((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)

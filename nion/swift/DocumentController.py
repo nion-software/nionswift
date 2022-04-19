@@ -2092,7 +2092,6 @@ class DocumentController(Window.Window):
                     new_map[variable_name] = Symbolic.make_item(display_item.data_item)
             map = new_map
         data_item = DataItem.DataItem()
-        data_item.ensure_data_source()
         data_item.title = _("Computation on ") + data_item.title
         computation = self.document_model.create_computation(expression)
         names = Symbolic.Computation.parse_names(expression)
