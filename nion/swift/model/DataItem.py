@@ -254,7 +254,11 @@ class DataItem(Persistence.PersistentObject):
         self.__display_data_channel_refs = set()  # type: ignore  # display data channels referencing this data item
         if data is not None:
             data_and_metadata = DataAndMetadata.DataAndMetadata.from_data(data, timezone=self.timezone, timezone_offset=self.timezone_offset)
-            self.__set_data_and_metadata_direct(data_and_metadata)
+            self.increment_data_ref_count()
+            try:
+                self.__set_data_and_metadata_direct(data_and_metadata)
+            finally:
+                self.decrement_data_ref_count()
 
     def close(self) -> None:
         self.__data_and_metadata = None
@@ -751,7 +755,7 @@ class DataItem(Persistence.PersistentObject):
         with self.__data_ref_count_mutex:
             initial_count = self.__data_ref_count
             self.__data_ref_count += 1
-            if not initial_count:
+            if not initial_count or not self.__data_and_metadata:
                 self.__load_data()
         return initial_count + 1
 
@@ -1055,6 +1059,13 @@ class DataItem(Persistence.PersistentObject):
 
     def __set_data_metadata_direct(self, data_metadata: DataAndMetadata.DataMetadata,
                                    data_modified: typing.Optional[datetime.datetime] = None) -> None:
+        assert self.__data_ref_count > 0
+        # set the data modified directly
+        data_modified = data_modified if data_modified else datetime.datetime.utcnow()
+        data_metadata.timestamp = data_modified
+        # save the data_metadata. this must go before setting the persistent properties below because
+        # of how the recorder works (grabs the attribute from data item).
+        self.__data_metadata = copy.deepcopy(data_metadata)
         # set the persistent values for the data_metadata
         self._set_persistent_property_value("data_shape", data_metadata.data_shape)
         self._set_persistent_property_value("data_dtype", DtypeToStringConverter().convert(data_metadata.data_dtype))
@@ -1073,18 +1084,13 @@ class DataItem(Persistence.PersistentObject):
         # explicitly set metadata into persistent storage to prevent notifications.
         self.__metadata = data_metadata.metadata
         self._set_persistent_property_value("metadata", self.__metadata)
-        # set the data modified directly
-        data_modified = data_modified if data_modified else datetime.datetime.utcnow()
-        data_metadata.timestamp = data_modified
         self._set_persistent_property_value("data_modified", data_modified)
-        self.__data_metadata = data_metadata
 
     def __set_data_and_metadata_direct(self, data_and_metadata: typing.Optional[DataAndMetadata.DataAndMetadata],
                                        data_modified: typing.Optional[datetime.datetime] = None) -> None:
-        with self.__data_ref_count_mutex:
-            self.__data_and_metadata = data_and_metadata
+        assert self.__data_ref_count > 0
+        self.__data_and_metadata = data_and_metadata
         if self.__data_and_metadata:
-            self.__data_metadata = copy.deepcopy(self.__data_and_metadata.data_metadata)
             self.__set_data_metadata_direct(self.__data_and_metadata.data_metadata, data_modified)
             self.__update_data_metadata()
         self.__change_changed = True
@@ -1129,14 +1135,12 @@ class DataItem(Persistence.PersistentObject):
         try:
             if self.persistent_object_context:
                 self.reserve_external_data("data", data_shape, data_dtype)
-                data = self.data
-                if data is None:
-                    data = numpy.zeros(data_shape, data_dtype)
                 data_shape_and_dtype = data_shape, data_dtype
                 timezone = Utility.get_local_timezone()
                 timezone_offset = Utility.TimezoneMinutesToStringConverter().convert(Utility.local_utcoffset_minutes())
-                new_data_and_metadata = DataAndMetadata.DataAndMetadata(data, data_shape_and_dtype, None, None, None, None, data_descriptor, timezone, timezone_offset)
-                self.__set_data_and_metadata_direct(new_data_and_metadata, data_modified)
+                data_metadata = DataAndMetadata.DataMetadata(data_shape_and_dtype=data_shape_and_dtype, data_descriptor=data_descriptor, timezone=timezone, timezone_offset=timezone_offset)
+                self.__set_data_metadata_direct(data_metadata, data_modified)
+                self.__load_data()
                 self.__data_and_metadata_unloadable = True
         finally:
             self.decrement_data_ref_count()
