@@ -14,8 +14,7 @@ User Interface
 ==============
 .. image:: graphics/workspace.png
   :width: 320
-  :alt: Example of the Swift workspace
-  :align: center
+  :alt: Example of the Swift Workspace
 
 The user interface is comprised of a central section called the workspace and the surrounding area for utility panels. 
 
