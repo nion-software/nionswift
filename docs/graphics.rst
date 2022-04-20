@@ -20,7 +20,6 @@ Line Graphic
 .. image:: graphics/line_graphic.png
     :width: 397
     :alt: Line Graphic
-    :align: center
 
 The line graphic creates a line between two anchor points. To move the line, click and drag from any point along the line excluding the two anchor points. You can adjust the line by manipulating the two anchor points. Holding shift while moving an anchor point will snap the line to a multiple of a 45˚ angle.
 
@@ -33,7 +32,6 @@ Ellipse Graphic
 .. image:: graphics/ellipse_graphic.png
     :width: 397
     :alt: Ellipse Graphic
-    :align: center
 
 The ellipse graphic creates an ellipse between four anchor points. Holding shift while manipulating one of the anchor points will make the ellipse a perfect circle. To adjust the rotation of the ellipse, drag the fifth, exterior anchor point around its center point. Holding shift while rotating the graphic will snap it to intervals of 45˚. To move the whole graphic, click and drag from anywhere within the outer line of the ellipse.
 
@@ -46,7 +44,6 @@ Rectangle Graphic
 .. image:: graphics/rectangle_graphic.png
     :width: 397
     :alt: Rectangle Graphic
-    :align: center
 
 The rectangle graphic creates a rectangle with four anchor points at the vertices. Holding shift while manipulating one of the anchor points will make the rectangle a perfect square. To adjust the rotation of the rectangle, drag the fifth, exterior anchor point around its center point. Holding shift while rotating the graphic will snap it to intervals of 45˚. To move the whole graphic, click and drag from anywhere within the outer line of the rectangle.
 
@@ -59,7 +56,6 @@ Point Graphic
 .. image:: graphics/point_graphic.png
     :width: 397
     :alt: Point Graphic
-    :align: center
 
 The point graphic highlights the point at the center of four anchor points. The anchor points show the boundary of the graphic but cannot be moved in relation to the center of the graphic or to each other. To move the point graphic, click and drag from anywhere within the four anchor points.
 
@@ -78,7 +74,6 @@ Interval Graphic
 .. image:: graphics/interval_graphic.png
     :width: 397
     :alt: Interval Graphic
-    :align: center
 
 The interval graphic highlights a section between two boundaries. To adjust the boundaries of the interval, click and drag left or right from either of the boundaries. To move the entire interval, click and drag the center anchor point between the two boundaries.
 
@@ -93,7 +88,6 @@ Channel Graphic
 .. image:: graphics/channel_graphic.png
     :width: 397
     :alt: Channel Graphic
-    :align: center
 
 The channel marks a value along the x axis with an orange marker. To move the graphic, click and drag the orange marker along the x axis.
 
@@ -114,14 +108,12 @@ Lattice Mask
 .. image:: graphics/lattice_mask.png
     :width: 397
     :alt: Lattice Mask
-    :align: center
 
 The lattice mask creates a grid of circles that tile the image. This can be used to filter related frequencies with regular spacing. 
 
 .. image:: graphics/lattice_mask_handles.png
     :width: 397
     :alt: Lattice Mask Handles
-    :align: center
 
 There are two circles that can be moved to establish the pattern of the grid. These circles will be highlighted with green anchor points. One of the moveable circles will be inside the image and the other will be outside, so you may need to move or zoom out of the image using the [ - ] key in order to see it.
 
@@ -132,21 +124,18 @@ Ring Mask
 .. image:: graphics/ring_mask_band.png
     :width: 397
     :alt: Ring Mask Band
-    :align: center
 
 The ring mask creates a ring centered around the top left corner of the image. The ring mask can either include the circle around the top left corner, exclude the circle around the top left corner, or be a band with width surrounding the top left corner. Adjust the radius(es) of the circle(s) by dragging the anchor points along the edges of the image.
 
 .. image:: graphics/ring_mask_high.png
     :width: 397
     :alt: Ring Mask High Pass
-    :align: center
 
 In the Inspector Panel, you can adjust both radiuses and the type of ring. Radius 1 is the outermost radius and is the radius used for the low and high ring masks. The low pass ring mask excludes a ring around the top left corner of the image. The high pass ring mask includes only a ring around the top left corner of the image. The band pass ring mask makes a ring around the top left corner with an inner and outer radius.
 
 .. image:: graphics/ring_mask_low.png
     :width: 397
     :alt: Ring Mask Low Pass
-    :align: center
 
 .. _Spot Mask:
 
@@ -155,14 +144,12 @@ Spot Mask
 .. image:: graphics/spot_mask.png
     :width: 397
     :alt: Spot Mask
-    :align: center
 
 The spot mask creates two ellipses that are symmetrical and equidistant from the top left corner. This can be used to filter a specific frequency at a specific angle. One of the ellipses might be outside of the image so you may need to move or zoom out of the image by using the [ - ] key in order to see it. The ellipses will always be identical, so manipulating one will change the other. The ellipses can be manipulated just like the ELLIPSE GRAPHIC. Moving one ellipse will also move the other ellipse to be exactly opposite the other one around the top left corner.
 
 .. image:: graphics/spot_mask_handles.png
     :width: 397
     :alt: Spot Mask Handles
-    :align: center
 
 In the Inspector Panel, you can adjust the (x,y) coordinates of the centerpoint of the ellipse inside the image, and set the rotation of the ellipse inside the image.
 
@@ -173,14 +160,12 @@ Wedge Mask
 .. image:: graphics/wedge_mask_half.png
     :width: 397
     :alt: Wedge Mask Half
-    :align: center
 
 The wedge mask creates slices through an image from the top left corner. This can be used to filter a range of frequencies at a specific angle. Move the slice by clicking and dragging from within the pink highlighted section. To adjust the angle of the wedge, click and drag one of the boundaries of the wedge.
 
 .. image:: graphics/wedge_mask_split.png
     :width: 397
     :alt: Wedge Mask Split
-    :align: center
 
 In the Inspector Panel, you can adjust the starting and ending angles of the wedge.
 
