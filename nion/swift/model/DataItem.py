@@ -25,7 +25,6 @@ from nion.data import Core
 from nion.data import DataAndMetadata
 from nion.data import Image
 from nion.swift.model import ApplicationData
-from nion.swift.model import Cache
 from nion.swift.model import Graphics
 from nion.swift.model import Metadata
 from nion.swift.model import Persistence
@@ -215,7 +214,7 @@ class DataItem(Persistence.PersistentObject):
         self.define_property("session_id", validate=self.__validate_session_id, changed=self.__property_changed, hidden=True)
         self.define_property("session", dict(), changed=self.__property_changed, hidden=True)
         self.define_property("category", "persistent", changed=self.__property_changed, hidden=True)
-        self.__data_and_metadata: typing.Optional[DataAndMetadata.DataAndMetadata] = None
+        self.__data: typing.Optional[_ImageDataType] = None
         self.__data_metadata: typing.Optional[DataAndMetadata.DataMetadata] = None
         self.__data_and_metadata_unloadable = False
         self.__data_and_metadata_lock = threading.RLock()
@@ -261,7 +260,7 @@ class DataItem(Persistence.PersistentObject):
                 self.decrement_data_ref_count()
 
     def close(self) -> None:
-        self.__data_and_metadata = None
+        self.__data = None
         super().close()
 
     @classmethod
@@ -426,8 +425,8 @@ class DataItem(Persistence.PersistentObject):
             self.__pending_write = False
 
     def __write_data(self) -> None:
-        if self.__data_and_metadata:
-            self.write_external_data("data", self.__data_and_metadata.data)
+        if self.__data is not None:
+            self.write_external_data("data", self.__data)
 
     def _finish_pending_write(self) -> None:
         if self.__pending_write:
@@ -640,7 +639,6 @@ class DataItem(Persistence.PersistentObject):
         if self.__data_metadata and timezone is not None:
             self.__data_metadata.timezone = timezone
             self.__data_metadata.timezone_offset = self.timezone_offset or str()
-            self.__update_data_metadata()
         self.notify_property_changed(name)
 
     # call this when the listeners need to be updated (via data_item_content_changed).
@@ -755,7 +753,7 @@ class DataItem(Persistence.PersistentObject):
         with self.__data_ref_count_mutex:
             initial_count = self.__data_ref_count
             self.__data_ref_count += 1
-            if not initial_count or not self.__data_and_metadata:
+            if not initial_count or self.__data is None:
                 self.__load_data()
         return initial_count + 1
 
@@ -801,7 +799,19 @@ class DataItem(Persistence.PersistentObject):
     def xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
         self.increment_data_ref_count()
         try:
-            return self.__data_and_metadata
+            if self.__data_metadata and self.__data is not None:
+                return DataAndMetadata.DataAndMetadata(
+                    self.__data,
+                    self.__data_metadata.data_shape_and_dtype,
+                    self.__data_metadata.intensity_calibration,
+                    self.__data_metadata.dimensional_calibrations,
+                    self.__data_metadata.metadata,
+                    self.__data_metadata.timestamp,
+                    self.__data_metadata.data_descriptor,
+                    self.__data_metadata.timezone,
+                    self.__data_metadata.timezone_offset
+                )
+            return None
         finally:
             self.decrement_data_ref_count()
 
@@ -917,7 +927,6 @@ class DataItem(Persistence.PersistentObject):
         with self.data_source_changes():
             if self.__data_metadata:  # handle case of missing data and metadata but doing recording
                 self.__data_metadata._set_intensity_calibration(intensity_calibration)
-                self.__update_data_metadata()
             self.__intensity_calibration = copy.deepcopy(intensity_calibration)  # backup in case of no data and metadata
             self._set_persistent_property_value("intensity_calibration", intensity_calibration)
 
@@ -934,7 +943,6 @@ class DataItem(Persistence.PersistentObject):
         with self.data_source_changes():
             if self.__data_metadata:  # handle case of missing data and metadata but doing recording
                 self.__data_metadata._set_dimensional_calibrations(dimensional_calibrations)
-                self.__update_data_metadata()
             self.__dimensional_calibrations = copy.deepcopy(list(dimensional_calibrations))  # backup in case of no data and metadata
             self._set_persistent_property_value("dimensional_calibrations", CalibrationList(dimensional_calibrations))
 
@@ -956,7 +964,6 @@ class DataItem(Persistence.PersistentObject):
     def data_modified(self, value: datetime.datetime) -> None:
         if self.__data_metadata:
             self.__data_metadata.timestamp = value
-            self.__update_data_metadata()
             self._set_persistent_property_value("data_modified", value)
             self.__metadata_property_changed("data_modified", value)
 
@@ -969,7 +976,6 @@ class DataItem(Persistence.PersistentObject):
     def timezone(self, value: str) -> None:
         if self.__data_metadata:
             self.__data_metadata.timezone = value
-            self.__update_data_metadata()
             self._set_persistent_property_value("timezone", value)
             self.__timezone_property_changed("timezone", value)
 
@@ -982,7 +988,6 @@ class DataItem(Persistence.PersistentObject):
     def timezone_offset(self, value: str) -> None:
         if self.__data_metadata:
             self.__data_metadata.timezone_offset = value
-            self.__update_data_metadata()
             self._set_persistent_property_value("timezone_offset", value)
             self.__timezone_property_changed("timezone_offset", value)
 
@@ -997,7 +1002,6 @@ class DataItem(Persistence.PersistentObject):
             assert isinstance(metadata, dict)
             if self.__data_metadata:
                 self.__data_metadata._set_metadata(metadata)
-                self.__update_data_metadata()
             self.__metadata = copy.deepcopy(metadata) if metadata else dict()
             self._set_persistent_property_value("metadata", self.__metadata)
 
@@ -1008,7 +1012,7 @@ class DataItem(Persistence.PersistentObject):
     # used for testing
     @property
     def is_data_loaded(self) -> bool:
-        return self.__data_and_metadata is not None
+        return self.__data is not None
 
     @property
     def data_metadata(self) -> typing.Optional[DataAndMetadata.DataMetadata]:
@@ -1019,43 +1023,19 @@ class DataItem(Persistence.PersistentObject):
         return self.xdata
 
     def __load_data(self) -> None:
-        if self.persistent_object_context and not self.__data_and_metadata and self.__data_metadata:
-            data = typing.cast(typing.Optional[_ImageDataType], self.read_external_data("data"))
-            if data is not None:
-                self.__data_and_metadata = DataAndMetadata.new_data_and_metadata(
-                    data,
-                    self.__data_metadata.intensity_calibration,
-                    self.__data_metadata.dimensional_calibrations,
-                    self.__data_metadata.metadata,
-                    self.__data_metadata.timestamp,
-                    self.__data_metadata.data_descriptor,
-                    self.__data_metadata.timezone,
-                    self.__data_metadata.timezone_offset
-                )
+        if self.persistent_object_context and self.__data is None and self.__data_metadata:
+            self.__data = typing.cast(typing.Optional[_ImageDataType], self.read_external_data("data"))
 
     def __unload_data(self) -> None:
         if self.__data_and_metadata_unloadable:
-            self.__data_and_metadata = None
-
-    def __update_data_metadata(self) -> None:
-        if self.__data_and_metadata and self.__data_metadata:
-            self.__data_and_metadata = DataAndMetadata.new_data_and_metadata(
-                self.__data_and_metadata.data,
-                self.__data_metadata.intensity_calibration,
-                self.__data_metadata.dimensional_calibrations,
-                self.__data_metadata.metadata,
-                self.__data_metadata.timestamp,
-                self.__data_metadata.data_descriptor,
-                self.__data_metadata.timezone,
-                self.__data_metadata.timezone_offset
-            )
+            self.__data = None
 
     @property
     def is_unloadable(self) -> bool:
         return self.__data_and_metadata_unloadable
 
     def _force_unload(self) -> None:
-        self.__data_and_metadata = None
+        self.__data = None
 
     def __set_data_metadata_direct(self, data_metadata: DataAndMetadata.DataMetadata,
                                    data_modified: typing.Optional[datetime.datetime] = None) -> None:
@@ -1089,10 +1069,9 @@ class DataItem(Persistence.PersistentObject):
     def __set_data_and_metadata_direct(self, data_and_metadata: typing.Optional[DataAndMetadata.DataAndMetadata],
                                        data_modified: typing.Optional[datetime.datetime] = None) -> None:
         assert self.__data_ref_count > 0
-        self.__data_and_metadata = data_and_metadata
-        if self.__data_and_metadata:
-            self.__set_data_metadata_direct(self.__data_and_metadata.data_metadata, data_modified)
-            self.__update_data_metadata()
+        self.__data = data_and_metadata.data if data_and_metadata else None
+        if data_and_metadata:
+            self.__set_data_metadata_direct(data_and_metadata.data_metadata, data_modified)
         self.__change_changed = True
         self.__change_data_changed = True
         if self._session_manager:
@@ -1121,9 +1100,9 @@ class DataItem(Persistence.PersistentObject):
             else:
                 new_data_and_metadata = None
             self.__set_data_and_metadata_direct(new_data_and_metadata, data_modified)
-            if self.__data_and_metadata is not None:
+            if self.__data is not None:
                 if self.persistent_object_context and not self.is_write_delayed:
-                    self.write_external_data("data", self.__data_and_metadata.data)
+                    self.write_external_data("data", self.__data)
                     self.__data_and_metadata_unloadable = True
         finally:
             self.decrement_data_ref_count()
@@ -1153,7 +1132,7 @@ class DataItem(Persistence.PersistentObject):
         with self.data_source_changes():
             self.increment_data_ref_count()
             try:
-                if not self.__data_and_metadata:
+                if self.__data is None:
                     data: numpy.typing.NDArray[typing.Any] = numpy.zeros(data_metadata.data_shape, data_metadata.data_dtype)
                     data_shape_and_dtype = data_metadata.data_shape_and_dtype
                     intensity_calibration = data_metadata.intensity_calibration
@@ -1170,20 +1149,13 @@ class DataItem(Persistence.PersistentObject):
                                                                             timestamp, data_descriptor, timezone,
                                                                             timezone_offset)
                     self.__set_data_and_metadata_direct(new_data_and_metadata, data_modified)
-                if self.__data_and_metadata is not None:
+                if self.__data is not None:
                     if update_metadata:
-                        self.__data_and_metadata._set_data_descriptor(data_metadata.data_descriptor)
-                        self.__data_and_metadata._set_intensity_calibration(data_metadata.intensity_calibration)
-                        self.__data_and_metadata._set_dimensional_calibrations(data_metadata.dimensional_calibrations)
-                        self.__data_and_metadata._set_metadata(data_metadata.metadata)
-                        self.__data_and_metadata._set_timestamp(data_metadata.timestamp)
-                        self.__data_and_metadata.timezone = data_metadata.timezone
-                        self.__data_and_metadata.timezone_offset = data_metadata.timezone_offset
                         self.__set_data_metadata_direct(data_metadata)
-                    assert self.__data_and_metadata.data_shape == data_metadata.data_shape
-                    assert self.__data_and_metadata.data_dtype == data_metadata.data_dtype
-                    assert self.__data_and_metadata.data_dtype == data_and_metadata.data_dtype
-                    self.__data_and_metadata._data_ex[tuple(dst)] = data_and_metadata._data_ex[tuple(src)]
+                    assert self.data_shape == data_metadata.data_shape
+                    assert self.data_dtype == data_metadata.data_dtype
+                    assert self.data_dtype == data_and_metadata.data_dtype
+                    self.__data[tuple(dst)] = data_and_metadata._data_ex[tuple(src)]
                     # mark changes and update session
                     self.__change_changed = True
                     self.__change_data_changed = True
@@ -1191,9 +1163,9 @@ class DataItem(Persistence.PersistentObject):
                         session_id = self._session_manager.current_session_id
                         self.session_id = session_id
                     # set data_shape as a way to update 'modified' property
-                    self._set_persistent_property_value("data_shape", self.__data_and_metadata.data_shape)
+                    self._set_persistent_property_value("data_shape", self.data_shape)
                     if self.persistent_object_context and not self.is_write_delayed:
-                        self.write_external_data("data", self.__data_and_metadata.data)
+                        self.write_external_data("data", self.__data)
                         self.__data_and_metadata_unloadable = True
             finally:
                 self.decrement_data_ref_count()
