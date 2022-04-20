@@ -14,7 +14,6 @@ To apply processing to an item, select the item by clicking on it, then use the 
 .. image:: graphics/computation_window.png
     :width: 320
     :alt: Computation Editor Dialogue Window
-    :align: center
 
 To add or change inputs in the Computation editor dialogue, drag data items, display items, or graphics into the input slot(s). 
 
@@ -29,7 +28,6 @@ A line profile creates a line plot of the data under the line in an image. Add a
 .. image:: graphics/line_profile.png
     :width: 398
     :alt: Line Profile
-    :align: center
 
 Fourier Filtering
 -----------------
