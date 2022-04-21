@@ -795,12 +795,14 @@ class DataItem(Persistence.PersistentObject):
                 for partial_xdata, partial_src_slice, partial_dst_slice, partial_metadata in pending_queue:
                     self.set_data_and_metadata_partial(partial_metadata, partial_xdata, partial_src_slice, partial_dst_slice, update_metadata=True)
 
+    _data_count = 0
+
     @property
     def xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
         self.increment_data_ref_count()
         try:
             if self.__data_metadata and self.__data is not None:
-                return DataAndMetadata.DataAndMetadata(
+                data_and_metadata = DataAndMetadata.DataAndMetadata(
                     self.__data,
                     self.__data_metadata.data_shape_and_dtype,
                     self.__data_metadata.intensity_calibration,
@@ -811,6 +813,16 @@ class DataItem(Persistence.PersistentObject):
                     self.__data_metadata.timezone,
                     self.__data_metadata.timezone_offset
                 )
+
+                DataItem._data_count += 1
+
+                def finalize() -> None:
+                    DataItem._data_count -= 1
+
+                weakref.finalize(data_and_metadata, finalize)
+
+                return data_and_metadata
+
             return None
         finally:
             self.decrement_data_ref_count()

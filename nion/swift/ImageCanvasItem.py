@@ -448,6 +448,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                     update_layout_handle.cancel()
                     self.__update_layout_handle = None
             self.__closed = True
+        self.__display_values = None
         super().close()
 
     @property

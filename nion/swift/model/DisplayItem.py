@@ -9,6 +9,8 @@ import functools
 import gettext
 import math
 import numbers
+import weakref
+
 import numpy
 import operator
 import threading
@@ -32,6 +34,7 @@ from nion.swift.model import Schema
 from nion.swift.model import Utility
 from nion.utils import Event
 from nion.utils import Geometry
+from nion.utils import ReferenceCounting
 from nion.utils import Registry
 
 if typing.TYPE_CHECKING:
@@ -292,6 +295,7 @@ class DisplayValues:
 
     Display renderers may request data at any stage of this pipeline.
     """
+    _count = 0
 
     def __init__(self, data_and_metadata: typing.Optional[DataAndMetadata.DataAndMetadata], sequence_index: int,
                  collection_index: typing.Optional[DataAndMetadata.PositionType], slice_center: int, slice_width: int,
@@ -299,6 +303,7 @@ class DisplayValues:
                  complex_display_type: typing.Optional[str],
                  color_map_data: typing.Optional[_RGBA32Type], brightness: float, contrast: float,
                  adjustments: typing.Sequence[Persistence.PersistentDictType]) -> None:
+        DisplayValues._count += 1
         self.__lock = threading.RLock()
         self.__data_and_metadata = data_and_metadata
         self.__sequence_index = sequence_index
@@ -332,6 +337,11 @@ class DisplayValues:
         self.__display_rgba_timestamp: typing.Optional[datetime.datetime] = data_and_metadata.timestamp if data_and_metadata else None
         self.__finalized = False
         self.on_finalize: typing.Optional[typing.Callable[[DisplayValues], None]] = None
+
+        def finalize() -> None:
+            DisplayValues._count -= 1
+
+        weakref.finalize(self, finalize)
 
     def finalize(self) -> None:
         with self.__lock:
@@ -613,6 +623,9 @@ class DisplayDataChannel(Persistence.PersistentObject):
 
     def close(self) -> None:
         self.__disconnect_data_item_events()
+        self.__current_display_values = None
+        self.__last_display_values = None
+        self.__current_data_item = None
         super().close()
 
     def about_to_be_inserted(self, container: Persistence.PersistentObject) -> None:
@@ -1168,14 +1181,13 @@ class DisplayDataChannel(Persistence.PersistentObject):
                 self.__current_data_item = self.__data_item
                 self.__current_data_item_modified_count = self.__data_item.modified_count if self.__data_item else 0
                 self.__current_display_values = DisplayValues(self.__data_item.xdata, self.sequence_index, self.collection_index, self.slice_center, self.slice_width, self.display_limits, self.complex_display_type, self.__color_map_data, self.brightness, self.contrast, self.adjustments)
-
-                def finalize(display_values: DisplayValues) -> None:
-                    self.__last_display_values = display_values
-                    self.display_values_changed_event.fire()
-
-                self.__current_display_values.on_finalize = finalize
+                self.__current_display_values.on_finalize = ReferenceCounting.weak_partial(DisplayDataChannel.__finalize, self)
             return self.__current_display_values
         return self.__last_display_values
+
+    def __finalize(self, display_values: DisplayValues) -> None:
+        self.__last_display_values = display_values
+        self.display_values_changed_event.fire()
 
     def increment_display_ref_count(self, amount: int = 1) -> None:
         """Increment display reference count to indicate this library item is currently displayed."""

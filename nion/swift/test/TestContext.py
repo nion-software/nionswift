@@ -7,6 +7,8 @@ import uuid
 from nion.swift import Application
 from nion.swift import DocumentController
 from nion.swift.model import Cache
+from nion.swift.model import DataItem
+from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import FileStorageSystem
 from nion.swift.model import HDF5Handler
@@ -27,6 +29,7 @@ def begin_leaks() -> None:
     Persistence.PersistentObjectReference.count = 0
     Persistence.PersistentObject.count = 0
     ReferenceCounting.ReferenceCounted.count = 0
+    DataItem.DataItem._data_count = 0
 
 
 def end_leaks(test_case: unittest.TestCase) -> None:
@@ -39,6 +42,8 @@ def end_leaks(test_case: unittest.TestCase) -> None:
     test_case.assertEqual(0, Persistence.PersistentObjectReference.count)
     test_case.assertEqual(0, Persistence.PersistentObject.count)
     test_case.assertEqual(0, ReferenceCounting.ReferenceCounted.count)
+    test_case.assertEqual(0, DisplayItem.DisplayValues._count)
+    test_case.assertEqual(0, DataItem.DataItem._data_count)
 
 
 class MemoryProfileContext:

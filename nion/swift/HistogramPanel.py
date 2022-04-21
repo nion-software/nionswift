@@ -6,6 +6,7 @@ import functools
 import gettext
 import operator
 import typing
+import weakref
 
 # third party libraries
 import numpy
@@ -424,6 +425,8 @@ class HistogramWidget(Widgets.CompositeWidgetBase):
         self.__histogram_canvas_item = typing.cast(typing.Any, None)
         self.__histogram_data_property_changed_event_listener.close()
         self.__histogram_data_property_changed_event_listener = typing.cast(typing.Any, None)
+        self.__histogram_data_model = typing.cast(typing.Any, None)
+        self.__color_map_data_model = typing.cast(typing.Any, None)
         super().close()
 
     def _recompute(self) -> None:
@@ -490,6 +493,7 @@ class StatisticsWidget(Widgets.CompositeWidgetBase):
     def close(self) -> None:
         self.__statistics_property_changed_event_listener.close()
         self.__statistics_property_changed_event_listener = typing.cast(typing.Any, None)
+        self.__statistics_model = typing.cast(typing.Any, None)
         super().close()
 
     @property
@@ -510,8 +514,11 @@ class HistogramPanel(Panel.Panel):
                  properties: Persistence.PersistentDictType, debounce: bool = True, sample: bool = True) -> None:
         super().__init__(document_controller, panel_id, _("Histogram"))
 
-        def calculate_region_data(display_data_and_metadata: typing.Optional[DataAndMetadata.DataAndMetadata], region: Graphics.Graphic) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
-            if region is not None and display_data_and_metadata is not None:
+        # Python 3.9+: weakref typing
+        def calculate_region_data(display_data_and_metadata_ref: typing.Any, region_ref: typing.Any) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+            display_data_and_metadata = typing.cast(typing.Optional[DataAndMetadata.DataAndMetadata], display_data_and_metadata_ref() if display_data_and_metadata_ref else None)
+            region = typing.cast(typing.Optional[Graphics.Graphic], region_ref() if region_ref else None)
+            if region and display_data_and_metadata:
                 if display_data_and_metadata.is_data_1d and isinstance(region, Graphics.IntervalGraphic):
                     interval = region.interval
                     if 0 <= interval[0] < 1 and 0 < interval[1] <= 1:
@@ -527,7 +534,8 @@ class HistogramPanel(Panel.Panel):
             return display_data_and_metadata
 
         def calculate_region_data_func(display_data_and_metadata: typing.Optional[DataAndMetadata.DataAndMetadata], region: Graphics.Graphic) -> typing.Callable[[], typing.Optional[DataAndMetadata.DataAndMetadata]]:
-            return functools.partial(calculate_region_data, display_data_and_metadata, region)
+            # use weak-refs below to avoid holding references in a partial function call.
+            return functools.partial(calculate_region_data, weakref.ref(display_data_and_metadata) if display_data_and_metadata else None, weakref.ref(region) if region else None)
 
         def calculate_histogram_widget_data(display_data_and_metadata_func: typing.Callable[[], typing.Optional[DataAndMetadata.DataAndMetadata]], display_range: typing.Optional[typing.Tuple[float, float]]) -> HistogramWidgetData:
             bins = 320
@@ -536,6 +544,7 @@ class HistogramPanel(Panel.Panel):
             subsample_min = 1024  # minimum subsample size
             display_data_and_metadata = display_data_and_metadata_func()
             display_data = display_data_and_metadata.data if display_data_and_metadata else None
+            display_data_and_metadata = None  # release ref for gc. needed for tests, because this may occur on a thread.
             if display_data is not None:
                 total_pixels = numpy.product(display_data.shape, dtype=numpy.uint64)  # type: ignore
                 if not subsample and subsample_fraction:
@@ -650,6 +659,8 @@ class HistogramPanel(Panel.Panel):
         self.__statistics_model.close()
         self.__statistics_model = typing.cast(typing.Any, None)
         self._statistics_widget = typing.cast(typing.Any, None)
+        self.__histogram_widget_data_model = typing.cast(typing.Any, None)
+        self.__color_map_data_model = typing.cast(typing.Any, None)
         super().close()
 
 
@@ -859,7 +870,7 @@ class DisplayDataChannelTransientsStream(Stream.AbstractStream[T], typing.Generi
         self.__cmp: typing.Callable[[typing.Optional[T], typing.Optional[T]], bool] = cmp if cmp else typing.cast(typing.Callable[[typing.Optional[T], typing.Optional[T]], bool], operator.eq)
         # listen for display changes
         self.__display_data_channel_stream = display_data_channel_stream.add_ref()
-        self.__display_data_channel_stream_listener = display_data_channel_stream.value_stream.listen(self.__display_data_channel_changed)
+        self.__display_data_channel_stream_listener = display_data_channel_stream.value_stream.listen(weak_partial(DisplayDataChannelTransientsStream.__display_data_channel_changed, self))
         self.__display_data_channel_changed(display_data_channel_stream.value)
 
     def about_to_delete(self) -> None:
@@ -880,13 +891,14 @@ class DisplayDataChannelTransientsStream(Stream.AbstractStream[T], typing.Generi
     def value(self) -> typing.Optional[T]:
         return self.__value
 
+    def __display_values_changed(self, display_data_channel: DisplayItem.DisplayDataChannel) -> None:
+        display_values = display_data_channel.get_calculated_display_values(True)
+        new_value = getattr(display_values, self.__property_name) if display_values else None
+        if not self.__cmp(new_value, self.__value):
+            self.__value = new_value
+            self.value_stream.fire(self.__value)
+
     def __display_data_channel_changed(self, display_data_channel: typing.Optional[DisplayItem.DisplayDataChannel]) -> None:
-        def display_values_changed(display_data_channel: DisplayItem.DisplayDataChannel) -> None:
-            display_values = display_data_channel.get_calculated_display_values(True)
-            new_value = getattr(display_values, self.__property_name) if display_values else None
-            if not self.__cmp(new_value, self.__value):
-                self.__value = new_value
-                self.value_stream.fire(self.__value)
         if self.__next_calculated_display_values_listener:
             self.__next_calculated_display_values_listener.close()
             self.__next_calculated_display_values_listener = None
@@ -897,9 +909,9 @@ class DisplayDataChannelTransientsStream(Stream.AbstractStream[T], typing.Generi
             # there are two listeners - the first when new display properties have triggered new display values.
             # the second whenever actual new display values arrive. this ensures the display gets updated after
             # the user changes it. could use some rethinking.
-            self.__next_calculated_display_values_listener = display_data_channel.add_calculated_display_values_listener(functools.partial(display_values_changed, display_data_channel))
-            self.__display_values_changed_listener = display_data_channel.display_values_changed_event.listen(functools.partial(display_values_changed, display_data_channel))
-            display_values_changed(display_data_channel)
+            self.__next_calculated_display_values_listener = display_data_channel.add_calculated_display_values_listener(weak_partial(DisplayDataChannelTransientsStream.__display_values_changed, self, display_data_channel))
+            self.__display_values_changed_listener = display_data_channel.display_values_changed_event.listen(weak_partial(DisplayDataChannelTransientsStream.__display_values_changed, self, display_data_channel))
+            self.__display_values_changed(display_data_channel)
         else:
             self.__value = None
             self.value_stream.fire(None)

@@ -221,6 +221,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             self.__undo_command = None
         with self.__closing_lock:
             self.__closed = True
+        self.__display_values_list = typing.cast(typing.Any, None)
         super().close()
 
     @property
