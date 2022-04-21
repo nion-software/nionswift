@@ -603,6 +603,7 @@ class HistogramPanel(Panel.Panel):
         def calculate_statistics(display_data_and_metadata_func: typing.Callable[[], typing.Optional[DataAndMetadata.DataAndMetadata]], display_data_range: typing.Optional[typing.Tuple[float, float]], region: typing.Optional[Graphics.Graphic], displayed_intensity_calibration: typing.Optional[Calibration.Calibration]) -> typing.Dict[str, str]:
             display_data_and_metadata = display_data_and_metadata_func()
             data = display_data_and_metadata.data if display_data_and_metadata else None
+            display_data_and_metadata = None  # release ref for gc. needed for tests, because this may occur on a thread.
             data_range = display_data_range
             if data is not None and data.size > 0 and displayed_intensity_calibration:
                 mean = numpy.mean(data)
