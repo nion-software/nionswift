@@ -296,7 +296,9 @@ class LineGraphAxes:
                 numpy.log10(calibrated_data, out=calibrated_data)  # type: ignore
             else:
                 calibrated_data = uncalibrated_xdata.data
-        return DataAndMetadata.new_data_and_metadata(calibrated_data, dimensional_calibrations=uncalibrated_xdata.dimensional_calibrations)
+        if calibrated_data is not None:
+            return DataAndMetadata.new_data_and_metadata(calibrated_data, dimensional_calibrations=uncalibrated_xdata.dimensional_calibrations)
+        return None
 
 
 def are_axes_equal(axes1: typing.Optional[LineGraphAxes], axes2: typing.Optional[LineGraphAxes]) -> bool:
