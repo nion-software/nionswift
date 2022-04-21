@@ -12,11 +12,11 @@ Click here to get started fast with our :ref:`basic-use`.
 
 User Interface
 ==============
+The user interface is comprised of a central section called the workspace and the surrounding area for utility panels.
+
 .. image:: graphics/workspace.png
   :width: 320
-  :alt: Example of the Swift Workspace
-
-The user interface is comprised of a central section called the workspace and the surrounding area for utility panels. 
+  :alt: Example of the Swift Workspace 
 
 The central workspace is for display panels which can either display a data item or can display thumbnail images of multiple data items side by side in one of the browser formats. For more information, see :ref:`display-panels`.
 
