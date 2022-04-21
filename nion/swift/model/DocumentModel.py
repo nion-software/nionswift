@@ -37,7 +37,6 @@ from nion.swift.model import Symbolic
 from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import Observable
-from nion.utils import Recorder
 from nion.utils import ReferenceCounting
 from nion.utils import Registry
 from nion.utils import ThreadPool
@@ -162,27 +161,47 @@ class ComputationQueueItem:
                             pending_data_item_merge = ComputationMerge(computation, self.__release_activity())
                 else:
                     start_time = time.perf_counter()
-                    data_item_clone = data_item.clone()
+
+                    class DataItemTarget:
+                        def __init__(self) -> None:
+                            self.__xdata: typing.Optional[DataAndMetadata._DataAndMetadataLike] = None
+                            self.data_modified = datetime.datetime.min
+
+                        @property
+                        def xdata(self) -> typing.Optional[DataAndMetadata._DataAndMetadataLike]:
+                            return self.__xdata
+
+                        @xdata.setter
+                        def xdata(self, value: typing.Optional[DataAndMetadata._DataAndMetadataLike]) -> None:
+                            self.__xdata = value
+                            self.data_modified = datetime.datetime.utcnow()
+
+                        @property
+                        def data(self) -> DataAndMetadata._ImageDataType:
+                            return typing.cast(DataAndMetadata._ImageDataType, None)
+
+                        @data.setter
+                        def data(self, value: DataAndMetadata._ImageDataType) -> None:
+                            self.xdata = DataAndMetadata.new_data_and_metadata(value)
+
+                    data_item_target = DataItemTarget()
                     data_item_data_modified = data_item.data_modified or datetime.datetime.min
-                    data_item_clone_recorder = Recorder.Recorder(data_item_clone)
-                    api_data_item = api._new_api_object(data_item_clone)
-                    error_text = computation.evaluate_with_target(api, api_data_item)
+                    error_text = computation.evaluate_with_target(api, data_item_target)
                     eval_time = time.perf_counter() - start_time
                     throttle_time = max(DocumentModel.computation_min_period - (time.perf_counter() - computation.last_evaluate_data_time), 0)
                     time.sleep(max(throttle_time, min(eval_time * DocumentModel.computation_min_factor, 1.0)))
                     if self.valid:  # TODO: race condition for 'valid'
-                        def data_item_merge(computation: Symbolic.Computation, data_item: DataItem.DataItem, data_item_clone: DataItem.DataItem, data_item_clone_recorder: Recorder.Recorder) -> None:
+                        def data_item_merge(computation: Symbolic.Computation, data_item: DataItem.DataItem, data_item_clone: DataItem.DataItem) -> None:
                             # merge the result item clones back into the document. this method is guaranteed to run at
-                            # periodic and shouldn't do anything too time consuming.
+                            # periodic and shouldn't do anything too time-consuming.
                             data_item_data_clone_modified = data_item_clone.data_modified or datetime.datetime.min
                             with data_item.data_item_changes(), data_item.data_source_changes():
                                 if data_item_data_clone_modified > data_item_data_modified:
-                                    data_item.set_xdata(api_data_item.data_and_metadata)
-                                data_item_clone_recorder.apply(data_item)
+                                    data_item.set_xdata(data_item_clone.xdata)
                                 if computation.error_text != error_text:
                                     computation.error_text = error_text
 
-                        pending_data_item_merge = ComputationMerge(computation, self.__release_activity(), functools.partial(data_item_merge, computation, data_item, data_item_clone, data_item_clone_recorder), [data_item_clone, data_item_clone_recorder])
+                        pending_data_item_merge = ComputationMerge(computation, self.__release_activity(), functools.partial(data_item_merge, computation, data_item, data_item_target), [])
             except Exception as e:
                 import traceback
                 traceback.print_exc()
