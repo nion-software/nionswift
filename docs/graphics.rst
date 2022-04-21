@@ -17,11 +17,13 @@ Image graphics are exclusive to data items displayed as images. They can only be
 
 Line Graphic
 ------------
+The line graphic creates a line between two anchor points. 
+
 .. image:: graphics/line_graphic.png
     :width: 397
     :alt: Line Graphic
 
-The line graphic creates a line between two anchor points. To move the line, click and drag from any point along the line excluding the two anchor points. You can adjust the line by manipulating the two anchor points. Holding shift while moving an anchor point will snap the line to a multiple of a 45˚ angle.
+To move the line, click and drag from any point along the line excluding the two anchor points. You can adjust the line by manipulating the two anchor points. Holding shift while moving an anchor point will snap the line to a multiple of a 45˚ angle.
 
 In the Inspector Panel, you can adjust the length of the line, angle of the line, and (x,y) coordinates of both anchor points.
 
@@ -29,11 +31,13 @@ In the Inspector Panel, you can adjust the length of the line, angle of the line
 
 Ellipse Graphic
 ---------------
+The ellipse graphic creates an ellipse between four anchor points. 
+
 .. image:: graphics/ellipse_graphic.png
     :width: 397
     :alt: Ellipse Graphic
 
-The ellipse graphic creates an ellipse between four anchor points. Holding shift while manipulating one of the anchor points will make the ellipse a perfect circle. To adjust the rotation of the ellipse, drag the fifth, exterior anchor point around its center point. Holding shift while rotating the graphic will snap it to intervals of 45˚. To move the whole graphic, click and drag from anywhere within the outer line of the ellipse.
+Holding shift while manipulating one of the anchor points will make the ellipse a perfect circle. To adjust the rotation of the ellipse, drag the fifth, exterior anchor point around its center point. Holding shift while rotating the graphic will snap it to intervals of 45˚. To move the whole graphic, click and drag from anywhere within the outer line of the ellipse.
 
 In the Inspector Panel, you can adjust the (x,y) coordinate of the center point, the height and width of the ellipse, and the rotation of the graphic.
 
@@ -41,11 +45,13 @@ In the Inspector Panel, you can adjust the (x,y) coordinate of the center point,
 
 Rectangle Graphic
 -----------------
+The rectangle graphic creates a rectangle with four anchor points at the vertices. 
+
 .. image:: graphics/rectangle_graphic.png
     :width: 397
     :alt: Rectangle Graphic
 
-The rectangle graphic creates a rectangle with four anchor points at the vertices. Holding shift while manipulating one of the anchor points will make the rectangle a perfect square. To adjust the rotation of the rectangle, drag the fifth, exterior anchor point around its center point. Holding shift while rotating the graphic will snap it to intervals of 45˚. To move the whole graphic, click and drag from anywhere within the outer line of the rectangle.
+Holding shift while manipulating one of the anchor points will make the rectangle a perfect square. To adjust the rotation of the rectangle, drag the fifth, exterior anchor point around its center point. Holding shift while rotating the graphic will snap it to intervals of 45˚. To move the whole graphic, click and drag from anywhere within the outer line of the rectangle.
 
 In the Inspector Panel, you can adjust the (x,y) coordinate of the center point, the height and width of the rectangle, and the rotation of the graphic.
 
@@ -53,11 +59,13 @@ In the Inspector Panel, you can adjust the (x,y) coordinate of the center point,
 
 Point Graphic
 -------------
+The point graphic highlights the point at the center of four anchor points. 
+
 .. image:: graphics/point_graphic.png
     :width: 397
     :alt: Point Graphic
 
-The point graphic highlights the point at the center of four anchor points. The anchor points show the boundary of the graphic but cannot be moved in relation to the center of the graphic or to each other. To move the point graphic, click and drag from anywhere within the four anchor points.
+The anchor points show the boundary of the graphic but cannot be moved in relation to the center of the graphic or to each other. To move the point graphic, click and drag from anywhere within the four anchor points.
 
 In the Inspector Panel, you can adjust the (x,y) coordinate of the center point.
 
@@ -71,11 +79,13 @@ Line plot graphics are exclusive to data items displayed as line plots. They can
 
 Interval Graphic
 ----------------
+The interval graphic highlights a section between two boundaries. 
+
 .. image:: graphics/interval_graphic.png
     :width: 397
     :alt: Interval Graphic
 
-The interval graphic highlights a section between two boundaries. To adjust the boundaries of the interval, click and drag left or right from either of the boundaries. To move the entire interval, click and drag the center anchor point between the two boundaries.
+To adjust the boundaries of the interval, click and drag left or right from either of the boundaries. To move the entire interval, click and drag the center anchor point between the two boundaries.
 
 In the Inspector Panel, you can adjust the x values of each boundary.
 
@@ -85,11 +95,13 @@ If another interval graphic is blocking the creation of a new one, you can use t
 
 Channel Graphic
 ---------------
+The channel marks a value along the x axis with an orange marker. 
+
 .. image:: graphics/channel_graphic.png
     :width: 397
     :alt: Channel Graphic
 
-The channel marks a value along the x axis with an orange marker. To move the graphic, click and drag the orange marker along the x axis.
+To move the graphic, click and drag the orange marker along the x axis.
 
 .. _Masking:
 
@@ -105,11 +117,13 @@ Below are the preset types of masks. For more information about adjusting the pa
 
 Lattice Mask
 ------------
+The lattice mask creates a grid of circles that tile the image. 
+
 .. image:: graphics/lattice_mask.png
     :width: 397
     :alt: Lattice Mask
 
-The lattice mask creates a grid of circles that tile the image. This can be used to filter related frequencies with regular spacing. 
+This can be used to filter related frequencies with regular spacing. 
 
 .. image:: graphics/lattice_mask_handles.png
     :width: 397
@@ -121,11 +135,13 @@ There are two circles that can be moved to establish the pattern of the grid. Th
 
 Ring Mask
 ---------
+The ring mask creates a ring centered around the top left corner of the image.
+
 .. image:: graphics/ring_mask_band.png
     :width: 397
     :alt: Ring Mask Band
 
-The ring mask creates a ring centered around the top left corner of the image. The ring mask can either include the circle around the top left corner, exclude the circle around the top left corner, or be a band with width surrounding the top left corner. Adjust the radius(es) of the circle(s) by dragging the anchor points along the edges of the image.
+The ring mask can either include the circle around the top left corner, exclude the circle around the top left corner, or be a band with width surrounding the top left corner. Adjust the radius(es) of the circle(s) by dragging the anchor points along the edges of the image.
 
 .. image:: graphics/ring_mask_high.png
     :width: 397
@@ -141,11 +157,13 @@ In the Inspector Panel, you can adjust both radiuses and the type of ring. Radiu
 
 Spot Mask
 ---------
+The spot mask creates two ellipses that are symmetrical and equidistant from the top left corner. This can be used to filter a specific frequency at a specific angle. 
+
 .. image:: graphics/spot_mask.png
     :width: 397
     :alt: Spot Mask
 
-The spot mask creates two ellipses that are symmetrical and equidistant from the top left corner. This can be used to filter a specific frequency at a specific angle. One of the ellipses might be outside of the image so you may need to move or zoom out of the image by using the [ - ] key in order to see it. The ellipses will always be identical, so manipulating one will change the other. The ellipses can be manipulated just like the ELLIPSE GRAPHIC. Moving one ellipse will also move the other ellipse to be exactly opposite the other one around the top left corner.
+One of the ellipses might be outside of the image so you may need to move or zoom out of the image by using the [ - ] key in order to see it. The ellipses will always be identical, so manipulating one will change the other. The ellipses can be manipulated just like the ELLIPSE GRAPHIC. Moving one ellipse will also move the other ellipse to be exactly opposite the other one around the top left corner.
 
 .. image:: graphics/spot_mask_handles.png
     :width: 397
@@ -157,11 +175,13 @@ In the Inspector Panel, you can adjust the (x,y) coordinates of the centerpoint 
 
 Wedge Mask
 ----------
+The wedge mask creates slices through an image from the top left corner. 
+
 .. image:: graphics/wedge_mask_half.png
     :width: 397
     :alt: Wedge Mask Half
 
-The wedge mask creates slices through an image from the top left corner. This can be used to filter a range of frequencies at a specific angle. Move the slice by clicking and dragging from within the pink highlighted section. To adjust the angle of the wedge, click and drag one of the boundaries of the wedge.
+This can be used to filter a range of frequencies at a specific angle. Move the slice by clicking and dragging from within the pink highlighted section. To adjust the angle of the wedge, click and drag one of the boundaries of the wedge.
 
 .. image:: graphics/wedge_mask_split.png
     :width: 397
