@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 # standard libraries
+import asyncio
 import dataclasses
 import functools
 import gettext
 import operator
+import threading
+import time
 import typing
 import weakref
 
@@ -40,10 +43,13 @@ _RGBA8ImageDataType = Image._RGBA8ImageDataType
 
 _NDArray = numpy.typing.NDArray[typing.Any]
 
+_StatisticsTable = typing.Dict[str, str]
+
 _ = gettext.gettext
 
 T = typing.TypeVar('T')
 IT = typing.TypeVar('IT')
+OT = typing.TypeVar('OT')
 
 
 class AdornmentsCanvasItem(CanvasItem.AbstractCanvasItem):
@@ -429,9 +435,6 @@ class HistogramWidget(Widgets.CompositeWidgetBase):
         self.__color_map_data_model = typing.cast(typing.Any, None)
         super().close()
 
-    def _recompute(self) -> None:
-        pass
-
     @property
     def _histogram_canvas_item(self) -> HistogramCanvasItem:
         return self.__histogram_canvas_item
@@ -496,16 +499,263 @@ class StatisticsWidget(Widgets.CompositeWidgetBase):
         self.__statistics_model = typing.cast(typing.Any, None)
         super().close()
 
+
+# Python 3.9+: weakref typing
+def calculate_region_data(display_data_and_metadata_ref: typing.Any, region_ref: typing.Any) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+    display_data_and_metadata = typing.cast(typing.Optional[DataAndMetadata.DataAndMetadata], display_data_and_metadata_ref() if display_data_and_metadata_ref else None)
+    region = typing.cast(typing.Optional[Graphics.Graphic], region_ref() if region_ref else None)
+    if region and display_data_and_metadata:
+        if display_data_and_metadata.is_data_1d and isinstance(region, Graphics.IntervalGraphic):
+            interval = region.interval
+            if 0 <= interval[0] < 1 and 0 < interval[1] <= 1:
+                start, end = int(interval[0] * display_data_and_metadata.data_shape[0]), int(interval[1] * display_data_and_metadata.data_shape[0])
+                if end - start >= 1:
+                    cropped_data_and_metadata = Core.function_crop_interval(display_data_and_metadata, interval)
+                    if cropped_data_and_metadata:
+                        return cropped_data_and_metadata
+        elif display_data_and_metadata.is_data_2d and isinstance(region, Graphics.RectangleTypeGraphic):
+            cropped_data_and_metadata = Core.function_crop(display_data_and_metadata, region.bounds.as_tuple())
+            if cropped_data_and_metadata:
+                return cropped_data_and_metadata
+    return display_data_and_metadata
+
+
+def calculate_histogram_widget_data(display_data_and_metadata: typing.Optional[DataAndMetadata.DataAndMetadata], display_range: typing.Optional[typing.Tuple[float, float]]) -> HistogramWidgetData:
+    bins = 320
+    subsample = 0  # hard coded subsample size
+    subsample_fraction = None  # fraction of total pixels
+    subsample_min = 1024  # minimum subsample size
+    display_data = display_data_and_metadata.data if display_data_and_metadata else None
+    display_data_and_metadata = None  # release ref for gc. needed for tests, because this may occur on a thread.
+    if display_data is not None:
+        total_pixels = numpy.product(display_data.shape, dtype=numpy.uint64)  # type: ignore
+        if not subsample and subsample_fraction:
+            subsample = min(max(total_pixels * subsample_fraction, subsample_min), total_pixels)
+        if subsample:
+            factor = total_pixels / subsample
+            data_sample = numpy.random.choice(display_data.reshape(numpy.product(display_data.shape, dtype=numpy.uint64)), subsample)  # type: ignore
+        else:
+            factor = 1.0
+            data_sample = numpy.copy(display_data)  # type: ignore
+        if display_range is None or data_sample is None:
+            return HistogramWidgetData()
+        histogram_data = factor * numpy.histogram(data_sample, range=display_range, bins=bins)[0]  # type: ignore
+        histogram_max = numpy.max(histogram_data)  # type: ignore  # assumes that histogram_data is int
+        if histogram_max > 0:
+            histogram_data = histogram_data / float(histogram_max)
+        return HistogramWidgetData(histogram_data, display_range)
+    return HistogramWidgetData()
+
+
+def calculate_statistics(display_data_and_metadata: typing.Optional[DataAndMetadata.DataAndMetadata], display_data_range: typing.Optional[typing.Tuple[float, float]], region: typing.Optional[Graphics.Graphic], displayed_intensity_calibration: typing.Optional[Calibration.Calibration]) -> _StatisticsTable:
+    data = display_data_and_metadata.data if display_data_and_metadata else None
+    display_data_and_metadata = None  # release ref for gc. needed for tests, because this may occur on a thread.
+    data_range = display_data_range
+    if data is not None and data.size > 0 and displayed_intensity_calibration:
+        mean = numpy.mean(data)
+        std = numpy.std(data)
+        rms = numpy.sqrt(numpy.mean(numpy.square(numpy.absolute(data))))
+        dimensional_shape = Image.dimensional_shape_from_shape_and_dtype(data.shape, data.dtype) or (1, 1)
+        sum_data = mean * functools.reduce(operator.mul, dimensional_shape)
+        if region is None:
+            data_min, data_max = data_range if data_range is not None else (None, None)
+        else:
+            data_min, data_max = numpy.amin(data), numpy.amax(data)
+        mean_str = displayed_intensity_calibration.convert_to_calibrated_value_str(mean)
+        std_str = displayed_intensity_calibration.convert_to_calibrated_value_str(std)
+        data_min_str = displayed_intensity_calibration.convert_to_calibrated_value_str(data_min) if data_min is not None else str()
+        data_max_str = displayed_intensity_calibration.convert_to_calibrated_value_str(data_max) if data_max is not None else str()
+        rms_str = displayed_intensity_calibration.convert_to_calibrated_value_str(rms)
+        sum_data_str = displayed_intensity_calibration.convert_to_calibrated_value_str(sum_data)
+
+        return { "mean": mean_str, "std": std_str, "min": data_min_str, "max": data_max_str, "rms": rms_str, "sum": sum_data_str }
+    return dict()
+
+
+class PropertySetter(typing.Generic[T]):
+    def __init__(self, stream: Stream.AbstractStream[T], target: typing.Any, property: str) -> None:
+        self.__stream = stream
+
+        # define a stub and use weak_partial to avoid holding references to self.
+        def value_changed(value: typing.Optional[T]) -> None:
+            setattr(target, property, value)
+
+        self.__stream_listener = self.__stream.value_stream.listen(value_changed)
+
+
+class HistogramProcessor(Observable.Observable):
+    """Computes a histogram and statistics."""
+
+    def __init__(self, event_loop: typing.Optional[asyncio.AbstractEventLoop] = None) -> None:
+        super().__init__()
+        event_loop = event_loop or asyncio.get_running_loop()
+        assert event_loop
+        self.__lock = threading.RLock()
+        self.__event = asyncio.Event()
+        # these fields are used for inputs.
+        self.__display_data_and_metadata: typing.Optional[DataAndMetadata.DataAndMetadata] = None
+        self.__region: typing.Optional[Graphics.Graphic] = None
+        self.__display_range: typing.Optional[typing.Tuple[float, float]] = None
+        self.__display_data_range: typing.Optional[typing.Tuple[float, float]] = None
+        self.__displayed_intensity_calibration: typing.Optional[Calibration.Calibration] = None
+        # these fields are used for computation.
+        self.__histogram_widget_data_dirty = False
+        self.__statistics_dirty = False
+        self.__region_data_and_metadata: typing.Optional[DataAndMetadata.DataAndMetadata] = None
+        # these fields are used for outputs.
+        self.__histogram_widget_data = HistogramWidgetData()
+        self.__statistics: _StatisticsTable = dict()
+
+        # Python 3.9: use ReferenceType[FuncStreamValueModel] for model_ref
+        async def loop(processor_ref: typing.Any, event: asyncio.Event) -> None:
+            assert event_loop
+            while True:
+                await event.wait()
+                event.clear()
+
+                await asyncio.sleep(0.25)  # gather changes for 250ms
+
+                processor = processor_ref()
+                if processor:
+                    old_histogram_widget_data = processor.__histogram_widget_data
+                    old_statistics = processor.__statistics
+
+                    await event_loop.run_in_executor(None, processor.__evaluate)
+
+                    if old_histogram_widget_data != processor.__histogram_widget_data:
+                        processor.notify_property_changed("histogram_widget_data")
+                    if old_statistics != processor.__statistics:
+                        processor.notify_property_changed("statistics")
+                    processor = None  # don't keep this reference while in the next iteration of the loop
+
+        self.__task = event_loop.create_task(loop(weakref.ref(self), self.__event))
+
+        def finalize(task: asyncio.Task[None]) -> None:
+            task.cancel()
+
+        weakref.finalize(self, finalize, self.__task)
+
+    # inputs
+
     @property
-    def _statistics_func_value_model(self) -> Model.PropertyModel[typing.Dict[str, str]]:
-        # for testing
-        return self.__statistics_model
+    def display_data_and_metadata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+        return self.__display_data_and_metadata
 
-    def _recompute(self) -> None:
-        pass
+    @display_data_and_metadata.setter
+    def display_data_and_metadata(self, value: typing.Optional[DataAndMetadata.DataAndMetadata]) -> None:
+        with self.__lock:
+            self.__display_data_and_metadata = value
+            self.__region_data_and_metadata = None
+            self.__histogram_widget_data_dirty = True
+            self.__statistics_dirty = True
+        self.__event.set()
 
+    @property
+    def region(self) -> typing.Optional[Graphics.Graphic]:
+        return self.__region
 
-# import asyncio
+    @region.setter
+    def region(self, value: typing.Optional[Graphics.Graphic]) -> None:
+        with self.__lock:
+            self.__region = value
+            self.__region_data_and_metadata = None
+            self.__histogram_widget_data_dirty = True
+            self.__statistics_dirty = True
+        self.__event.set()
+
+    @property
+    def display_range(self) -> typing.Optional[typing.Tuple[float, float]]:
+        return self.__display_range
+
+    @display_range.setter
+    def display_range(self, value: typing.Optional[typing.Tuple[float, float]]) -> None:
+        with self.__lock:
+            self.__display_range = value
+            self.__histogram_widget_data_dirty = True
+        self.__event.set()
+
+    @property
+    def display_data_range(self) -> typing.Optional[typing.Tuple[float, float]]:
+        return self.__display_data_range
+
+    @display_data_range.setter
+    def display_data_range(self, value: typing.Optional[typing.Tuple[float, float]]) -> None:
+        with self.__lock:
+            self.__display_data_range = value
+            self.__statistics_dirty = True
+        self.__event.set()
+
+    @property
+    def displayed_intensity_calibration(self) -> typing.Optional[Calibration.Calibration]:
+        return self.__displayed_intensity_calibration
+
+    @displayed_intensity_calibration.setter
+    def displayed_intensity_calibration(self, value: typing.Optional[Calibration.Calibration]) -> None:
+        with self.__lock:
+            self.__displayed_intensity_calibration = value
+            self.__statistics_dirty = True
+        self.__event.set()
+
+    # outputs
+
+    @property
+    def histogram_widget_data(self) -> HistogramWidgetData:
+        return self.__histogram_widget_data
+
+    @histogram_widget_data.setter
+    def histogram_widget_data(self, value: HistogramWidgetData) -> None:
+        pass  # dummy implementation to be compatible with PropertyChangedPropertyModel
+
+    @property
+    def statistics(self) -> _StatisticsTable:
+        return self.__statistics
+
+    @statistics.setter
+    def statistics(self, value: _StatisticsTable) -> None:
+        pass  # dummy implementation to be compatible with PropertyChangedPropertyModel
+
+    # private methods
+
+    def __evaluate(self) -> None:
+        try:
+            with self.__lock:
+                display_data_and_metadata = self.__display_data_and_metadata
+                region = self.__region
+                display_range = self.__display_range
+                display_data_range = self.__display_data_range
+                displayed_intensity_calibration = self.__displayed_intensity_calibration
+                region_data_and_metadata = self.__region_data_and_metadata
+                histogram_widget_data_dirty = self.__histogram_widget_data_dirty
+                statistics_dirty = self.__statistics_dirty
+                histogram_widget_data = self.__histogram_widget_data
+                statistics = self.__statistics
+                self.__histogram_widget_data_dirty = False
+                self.__statistics_dirty = False
+            if not region_data_and_metadata:
+                region_data_and_metadata = calculate_region_data(
+                    weakref.ref(display_data_and_metadata) if display_data_and_metadata else None,
+                    weakref.ref(region) if region else None
+                )
+            if histogram_widget_data_dirty:
+                histogram_widget_data = calculate_histogram_widget_data(region_data_and_metadata, display_range)
+            if statistics_dirty:
+                statistics = calculate_statistics(region_data_and_metadata, display_data_range, region, displayed_intensity_calibration)
+            with self.__lock:
+                if not self.__histogram_widget_data_dirty and not self.__statistics_dirty:
+                    self.__region_data_and_metadata = region_data_and_metadata
+                self.__histogram_widget_data = histogram_widget_data
+                self.__statistics = statistics
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+
+    # test methods
+
+    def _evaluate_immediate(self) -> None:
+        self.__evaluate()
+        self.notify_property_changed("histogram_widget_data")
+        self.notify_property_changed("statistics")
+
 
 class HistogramPanel(Panel.Panel):
     """ A panel to present a histogram of the selected data item. """
@@ -514,74 +764,31 @@ class HistogramPanel(Panel.Panel):
                  properties: Persistence.PersistentDictType, debounce: bool = True, sample: bool = True) -> None:
         super().__init__(document_controller, panel_id, _("Histogram"))
 
-        # Python 3.9+: weakref typing
-        def calculate_region_data(display_data_and_metadata_ref: typing.Any, region_ref: typing.Any) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
-            display_data_and_metadata = typing.cast(typing.Optional[DataAndMetadata.DataAndMetadata], display_data_and_metadata_ref() if display_data_and_metadata_ref else None)
-            region = typing.cast(typing.Optional[Graphics.Graphic], region_ref() if region_ref else None)
-            if region and display_data_and_metadata:
-                if display_data_and_metadata.is_data_1d and isinstance(region, Graphics.IntervalGraphic):
-                    interval = region.interval
-                    if 0 <= interval[0] < 1 and 0 < interval[1] <= 1:
-                        start, end = int(interval[0] * display_data_and_metadata.data_shape[0]), int(interval[1] * display_data_and_metadata.data_shape[0])
-                        if end - start >= 1:
-                            cropped_data_and_metadata = Core.function_crop_interval(display_data_and_metadata, interval)
-                            if cropped_data_and_metadata:
-                                return cropped_data_and_metadata
-                elif display_data_and_metadata.is_data_2d and isinstance(region, Graphics.RectangleTypeGraphic):
-                    cropped_data_and_metadata = Core.function_crop(display_data_and_metadata, region.bounds.as_tuple())
-                    if cropped_data_and_metadata:
-                        return cropped_data_and_metadata
-            return display_data_and_metadata
-
-        def calculate_region_data_func(display_data_and_metadata: typing.Optional[DataAndMetadata.DataAndMetadata], region: Graphics.Graphic) -> typing.Callable[[], typing.Optional[DataAndMetadata.DataAndMetadata]]:
-            # use weak-refs below to avoid holding references in a partial function call.
-            return functools.partial(calculate_region_data, weakref.ref(display_data_and_metadata) if display_data_and_metadata else None, weakref.ref(region) if region else None)
-
-        def calculate_histogram_widget_data(display_data_and_metadata_func: typing.Callable[[], typing.Optional[DataAndMetadata.DataAndMetadata]], display_range: typing.Optional[typing.Tuple[float, float]]) -> HistogramWidgetData:
-            bins = 320
-            subsample = 0  # hard coded subsample size
-            subsample_fraction = None  # fraction of total pixels
-            subsample_min = 1024  # minimum subsample size
-            display_data_and_metadata = display_data_and_metadata_func()
-            display_data = display_data_and_metadata.data if display_data_and_metadata else None
-            display_data_and_metadata = None  # release ref for gc. needed for tests, because this may occur on a thread.
-            if display_data is not None:
-                total_pixels = numpy.product(display_data.shape, dtype=numpy.uint64)  # type: ignore
-                if not subsample and subsample_fraction:
-                    subsample = min(max(total_pixels * subsample_fraction, subsample_min), total_pixels)
-                if subsample:
-                    factor = total_pixels / subsample
-                    data_sample = numpy.random.choice(display_data.reshape(numpy.product(display_data.shape, dtype=numpy.uint64)), subsample)  # type: ignore
-                else:
-                    factor = 1.0
-                    data_sample = numpy.copy(display_data)  # type: ignore
-                if display_range is None or data_sample is None:
-                    return HistogramWidgetData()
-                histogram_data = factor * numpy.histogram(data_sample, range=display_range, bins=bins)[0]  # type: ignore
-                histogram_max = numpy.max(histogram_data)  # type: ignore  # assumes that histogram_data is int
-                if histogram_max > 0:
-                    histogram_data = histogram_data / float(histogram_max)
-                return HistogramWidgetData(histogram_data, display_range)
-            return HistogramWidgetData()
-
-        def calculate_histogram_widget_data_func(display_data_and_metadata_model_func: typing.Callable[[], typing.Optional[DataAndMetadata.DataAndMetadata]], display_range: typing.Optional[typing.Tuple[float, float]]) -> typing.Callable[[], HistogramWidgetData]:
-            return functools.partial(calculate_histogram_widget_data, display_data_and_metadata_model_func, display_range)
+        def compare_data(a: typing.Any, b: typing.Any) -> bool:
+            return numpy.array_equal(a.data if a else None, b.data if b else None)  # type: ignore
 
         display_item_stream = TargetDisplayItemStream(document_controller)
         display_data_channel_stream = StreamPropertyStream[DisplayItem.DisplayDataChannel](typing.cast(Stream.AbstractStream[Observable.Observable], display_item_stream), "display_data_channel")
-        region_stream = TargetRegionStream(display_item_stream)
-        def compare_data(a: typing.Any, b: typing.Any) -> bool:
-            return numpy.array_equal(a.data if a else None, b.data if b else None)  # type: ignore
         display_data_and_metadata_stream = DisplayDataChannelTransientsStream[DataAndMetadata.DataAndMetadata](display_data_channel_stream, "display_data_and_metadata", cmp=compare_data)
+        region_stream = TargetRegionStream(display_item_stream)
         display_range_stream = DisplayDataChannelTransientsStream[typing.Tuple[float, float]](display_data_channel_stream, "display_range")
-        region_data_and_metadata_func_stream = Stream.CombineLatestStream[typing.Any, typing.Callable[[], typing.Optional[DataAndMetadata.DataAndMetadata]]]((display_data_and_metadata_stream, region_stream), calculate_region_data_func)
-        histogram_widget_data_func_stream: Stream.AbstractStream[typing.Callable[[], HistogramWidgetData]]
-        histogram_widget_data_func_stream = Stream.CombineLatestStream[typing.Any, typing.Callable[[], HistogramWidgetData]]((region_data_and_metadata_func_stream, display_range_stream), calculate_histogram_widget_data_func)
+        display_data_range_stream = DisplayDataChannelTransientsStream[typing.Tuple[float, float]](display_data_channel_stream, "data_range")
+        displayed_intensity_calibration_stream = StreamPropertyStream[Calibration.Calibration](typing.cast(Stream.AbstractStream[Observable.Observable], display_item_stream), "displayed_intensity_calibration")
+
+        self._histogram_processor = HistogramProcessor(document_controller.event_loop)
+
+        self.__setters = [
+            PropertySetter(display_data_and_metadata_stream, self._histogram_processor, "display_data_and_metadata"),
+            PropertySetter(region_stream, self._histogram_processor, "region"),
+            PropertySetter(display_range_stream, self._histogram_processor, "display_range"),
+            PropertySetter(display_data_range_stream, self._histogram_processor, "display_data_range"),
+            PropertySetter(displayed_intensity_calibration_stream, self._histogram_processor, "displayed_intensity_calibration"),
+        ]
+
+        self.__histogram_widget_data_model = Model.PropertyChangedPropertyModel[HistogramWidgetData](self._histogram_processor, "histogram_widget_data")
+        self.__statistics_model = Model.PropertyChangedPropertyModel[_StatisticsTable](self._histogram_processor, "statistics")
+
         color_map_data_stream = StreamPropertyStream[_RGBA8ImageDataType](typing.cast(Stream.AbstractStream[Observable.Observable], display_data_channel_stream), "color_map_data", cmp=typing.cast(typing.Callable[[typing.Optional[T], typing.Optional[T]], bool], numpy.array_equal))
-        if debounce:
-            histogram_widget_data_func_stream = Stream.DebounceStream[typing.Callable[[], HistogramWidgetData]](histogram_widget_data_func_stream, 0.05, document_controller.event_loop)
-        if sample:
-            histogram_widget_data_func_stream = Stream.SampleStream[typing.Callable[[], HistogramWidgetData]](histogram_widget_data_func_stream, 0.5, document_controller.event_loop)
 
         def cursor_changed_fn(canvas_x: typing.Optional[float], display_range: typing.Optional[typing.Tuple[float, float]]) -> None:
             if not canvas_x:
@@ -595,50 +802,9 @@ class HistogramPanel(Panel.Panel):
                 else:
                     document_controller.cursor_changed(None)
 
-        self.__histogram_widget_data_model = Model.FuncStreamValueModel(histogram_widget_data_func_stream, document_controller.event_loop, value=HistogramWidgetData())
         self.__color_map_data_model: Model.PropertyModel[_RGBA8ImageDataType] = Model.StreamValueModel(color_map_data_stream, cmp=numpy.array_equal)
 
         self._histogram_widget = HistogramWidget(document_controller, display_item_stream, self.__histogram_widget_data_model, self.__color_map_data_model, cursor_changed_fn)
-
-        def calculate_statistics(display_data_and_metadata_func: typing.Callable[[], typing.Optional[DataAndMetadata.DataAndMetadata]], display_data_range: typing.Optional[typing.Tuple[float, float]], region: typing.Optional[Graphics.Graphic], displayed_intensity_calibration: typing.Optional[Calibration.Calibration]) -> typing.Dict[str, str]:
-            display_data_and_metadata = display_data_and_metadata_func()
-            data = display_data_and_metadata.data if display_data_and_metadata else None
-            display_data_and_metadata = None  # release ref for gc. needed for tests, because this may occur on a thread.
-            data_range = display_data_range
-            if data is not None and data.size > 0 and displayed_intensity_calibration:
-                mean = numpy.mean(data)
-                std = numpy.std(data)
-                rms = numpy.sqrt(numpy.mean(numpy.square(numpy.absolute(data))))
-                dimensional_shape = Image.dimensional_shape_from_shape_and_dtype(data.shape, data.dtype) or (1, 1)
-                sum_data = mean * functools.reduce(operator.mul, dimensional_shape)
-                if region is None:
-                    data_min, data_max = data_range if data_range is not None else (None, None)
-                else:
-                    data_min, data_max = numpy.amin(data), numpy.amax(data)
-                mean_str = displayed_intensity_calibration.convert_to_calibrated_value_str(mean)
-                std_str = displayed_intensity_calibration.convert_to_calibrated_value_str(std)
-                data_min_str = displayed_intensity_calibration.convert_to_calibrated_value_str(data_min) if data_min is not None else str()
-                data_max_str = displayed_intensity_calibration.convert_to_calibrated_value_str(data_max) if data_max is not None else str()
-                rms_str = displayed_intensity_calibration.convert_to_calibrated_value_str(rms)
-                sum_data_str = displayed_intensity_calibration.convert_to_calibrated_value_str(sum_data)
-
-                return { "mean": mean_str, "std": std_str, "min": data_min_str, "max": data_max_str, "rms": rms_str, "sum": sum_data_str }
-            return dict()
-
-        def calculate_statistics_func(display_data_and_metadata_model_func: typing.Callable[[], typing.Optional[DataAndMetadata.DataAndMetadata]], display_data_range: typing.Optional[typing.Tuple[float, float]], region: typing.Optional[Graphics.Graphic], displayed_intensity_calibration: typing.Optional[Calibration.Calibration]) -> typing.Callable[[], typing.Dict[str, str]]:
-            return functools.partial(calculate_statistics, display_data_and_metadata_model_func, display_data_range, region, displayed_intensity_calibration)
-
-        display_data_range_stream = DisplayDataChannelTransientsStream[typing.Tuple[float, float]](display_data_channel_stream, "data_range")
-        displayed_intensity_calibration_stream = StreamPropertyStream[Calibration.Calibration](typing.cast(Stream.AbstractStream[Observable.Observable], display_item_stream), "displayed_intensity_calibration")
-        statistics_func_stream: Stream.AbstractStream[typing.Callable[[], typing.Dict[str, str]]]
-        statistics_func_stream = Stream.CombineLatestStream[typing.Any, typing.Callable[[], typing.Dict[str, str]]]((region_data_and_metadata_func_stream, display_data_range_stream, region_stream, displayed_intensity_calibration_stream), calculate_statistics_func)
-        if debounce:
-            statistics_func_stream = Stream.DebounceStream(statistics_func_stream, 0.05, document_controller.event_loop)
-        if sample:
-            statistics_func_stream = Stream.SampleStream(statistics_func_stream, 0.5, document_controller.event_loop)
-
-        self.__statistics_model = Model.FuncStreamValueModel(statistics_func_stream, document_controller.event_loop, value=typing.cast(typing.Dict[str, str], dict()))
-
         self._statistics_widget = StatisticsWidget(self.ui, self.__statistics_model)
 
         # create the main column with the histogram and the statistics section
@@ -662,6 +828,8 @@ class HistogramPanel(Panel.Panel):
         self._statistics_widget = typing.cast(typing.Any, None)
         self.__histogram_widget_data_model = typing.cast(typing.Any, None)
         self.__color_map_data_model = typing.cast(typing.Any, None)
+        self._histogram_processor = typing.cast(typing.Any, None)
+        self.__setters = typing.cast(typing.Any, None)
         super().close()
 
 
@@ -916,3 +1084,51 @@ class DisplayDataChannelTransientsStream(Stream.AbstractStream[T], typing.Generi
         else:
             self.__value = None
             self.value_stream.fire(None)
+
+
+class StreamValueFuncModel(Model.PropertyModel[OT], typing.Generic[T, OT]):
+    """Converts a stream to a property model."""
+
+    def __init__(self, value_stream: Stream.AbstractStream[typing.Any], event_loop: asyncio.AbstractEventLoop, fn: typing.Callable[[T], OT], value: typing.Optional[OT] = None, cmp: typing.Optional[Model.EqualityOperator] = None) -> None:
+        super().__init__(value=value, cmp=cmp)
+        self.__value_stream = value_stream
+        self.__event_loop = event_loop
+        self.__pending_task = Stream.StreamTask(None, event_loop)
+        self.__event = asyncio.Event()
+        self.__evaluating = [False]
+        self.__value: T = typing.cast(typing.Any, None)
+
+        # Python 3.9: use ReferenceType[FuncStreamValueModel] for model_ref
+        async def update_value(event: asyncio.Event, evaluating: typing.List[bool], model_ref: typing.Any) -> None:
+            while True:
+                await event.wait()
+                evaluating[0] = True
+                event.clear()
+                value = None
+
+                def eval() -> None:
+                    nonlocal value
+                    try:
+                        value = fn(self.__value)
+                    except Exception as e:
+                        pass
+
+                await event_loop.run_in_executor(None, eval)
+                model = model_ref()
+                if model:
+                    model.value = value
+                    model = None  # immediately release value for gc
+                evaluating[0] = event.is_set()
+
+        self.__pending_task.create_task(update_value(self.__event, self.__evaluating, weakref.ref(self)))
+        self.__stream_listener = value_stream.value_stream.listen(weak_partial(StreamValueFuncModel.__handle_value, self))
+        self.__handle_value(value_stream.value)
+
+        def finalize(pending_task: Stream.StreamTask) -> None:
+            pending_task.clear()
+
+        weakref.finalize(self, finalize, self.__pending_task)
+
+    def __handle_value(self, value: typing.Any) -> None:
+        self.__value = value
+        self.__event.set()

@@ -173,7 +173,7 @@ class ComputationQueueItem:
 
                         @xdata.setter
                         def xdata(self, value: typing.Optional[DataAndMetadata._DataAndMetadataLike]) -> None:
-                            self.__xdata = value
+                            self.__xdata = DataAndMetadata.promote_ndarray(value) if value is not None else None
                             self.data_modified = datetime.datetime.utcnow()
 
                         @property
