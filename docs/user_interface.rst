@@ -38,9 +38,9 @@ Having individual utility panels for similar parameters means that the workspace
 
 * Click and drag a utility panel by its title bar to rearrange the layout of the shown panels.
 
-* Layer utility panels by dropping one utility panel onto another. If two or more panels are layered, selection buttons will appear at the bottom of the panel to switch between them.
+* Stack utility panels by dropping one utility panel onto another. If two or more panels are in a stack, selection buttons will appear at the bottom of the panel to switch between them.
 
-* Pop utility panels out into a separate window by dragging the panel away from the main window by the title bar.
+* Expand utility panels into a separate window by dragging the panel away from the main window by the title bar.
 
 * Resize a utility panel by clicking and dragging from its edges.
 
@@ -60,13 +60,15 @@ The Activity panel shows the activity of computations running in the background.
     :width: 321
     :alt: Activity Panel
 
-Changes to computations updated during live data acquisition or editing will be displayed in this panel. Activity will only be displayed if a computation is actively running. Otherwise, the panel will not show anything.
+The activity panel displays changes to computations and updates during live data acquisition or editing. Activity will only be displayed if a computation is actively running. Otherwise, the panel will not show anything. 
+
+Some computations are connected to a graphic. In this case, the activity panel will only display activity info while the graphic is being moved or manipulated. A computation like this is not always active.
 
 .. _Collections Panel:
 
 Collections
 ===========
-The Collections panel sorts the data items in a project into folders. Data can also be sorted manually into a fifth folder.
+The Collections panel sorts the data items in a project into folders. Data can also be sorted manually into a custom folder.
 
 .. image:: graphics/collections_panel.png
     :width: 333
@@ -76,15 +78,17 @@ Data items are automatically sorted into four categories:
 
 * :guilabel:`All` - All data items in the current project
 
-* :guilabel:`Persistent` - Data items that are not actively gathering data
+* :guilabel:`Persistent` - Data items that are permenantly saved. These data items will not be overwritten by acquisition or recomputation without the action by the user.
 
-* :guilabel:`Live` - Data items that are actively gathering data
+* :guilabel:`Live` - Data items that can be used for live acquisition and/or recomputation.
 
 * :guilabel:`Latest Session` - Data items used in the most recent session (since the most recent time the project was opened)
 
 To view a collection, click on the title of the desired collection in the Collections panel. All data items in the collection will be listed in the Data panel. By default, the Data panel is set to show the “All” collection.
 
 The Collections panel also provides a collection called :guilabel:`My Data` which is curated by the user. “My Data” can be used to group any data items together. To add a data item to the “My Data” collection, drag the data item from the data panel into the “My Data” collection in the Collections panel.
+
+To add a new collection to the panel, use the menu item [File > Add Group]. Use this new folder just as the :guilabel:`My Data` folder above.
 
 .. _Data Panel:
 
@@ -96,21 +100,21 @@ The Data panel provides a list of all the data items in a given collection.
     :width: 333
     :alt: Data Panel
 
+Any data item in the data panel can be displayed in a display panel. To display a data item, drag the data item from the data panel into an empty display panel.
+
 By default, the Data panel is set to show all data items in a project. The data items that are shown can be changed by choosing a different collection in the Collections panel.
+
+You can also search for data items in the selected collection by using the filter text box at the bottom of the Data panel. If a data item is not in the selected collection, it will not appear in the filtered results. The filter search bar looks for keywords in the titles and captions of data items.
 
 Newly created data items will appear in the data panel. Make sure the collection is set to “All.” A new data item may not be applicable to the currently selected collection.
 
-To delete a data item, select it and press the delete key.
-
-You can also search for data items in the selected collection by using the filter text box at the bottom of the Data panel. If a data item is not in the selected collection, it will not appear in the filtered results. The filter search bar looks for keywords in the titles and captions of data items. 
-
-Any data item in the display panel can be displayed in a display panel. To display a data item, drag the data item from the data panel into an empty display panel.
+To delete a data item, select it in the data panel and press the delete key. To select multiple data items, hold down the control key (command key for macOS) and select all the data items you want to delete in the data panel.
 
 .. _Histogram Panel:
 
 Histogram
 =========
-The Histogram shows the range of data in the selected data item.
+The Histogram shows the frequency of different intensities in the selected data item.
 
 .. image:: graphics/histogram_panel.png
     :width: 321
@@ -139,6 +143,7 @@ When hovering the cursor over the histogram, the info panel will show the intens
 Inspector
 =========
 The Inspector Panel shows information and settings for the selected item. The Inspector is split into subsections to help you find the specific types of information you are looking for.
+
 Clicking the triangle next to the title of a given subsection will expand or hide the subsection.
 
 .. image:: graphics/inspector_image.png
@@ -169,19 +174,19 @@ If the item selected contains multiple data items, like a layered line plot for 
 
 Image Display
 -------------
-Image Display allows you to force an image to be displayed as a line plot or as script instead of the default.
+Image Display allows you to force an image to be displayed as a line plot instead of the default.
 
 .. image:: graphics/inspector_image_display_subsection.png
     :width: 321
     :alt: Inspector Image Display Subsection
 
-A converted image can be reverted back to an image by choosing Image or Default.
+You can revert to the default display for an image by choosing :guilabel:`Default`.
 
 .. _Image Data Inspector Section:
 
 Image Data
 ----------
-Image Data presents several figures and settings for a selected image:
+Image Data presents several controls and settings for a selected image:
 
 .. image:: graphics/inspector_image_data_subsection.png
     :width: 321
@@ -197,23 +202,25 @@ Image Data presents several figures and settings for a selected image:
   
 * :guilabel:`Color Map` - Change the color of the data. The data range is mapped to a range of colors. Choose from a list of preset color profiles. Grayscale is the default.
   
-* :guilabel:`Brightness` - Change the brightness of the color values on the color map. Moving the slider to the right will increase the brightness and moving the slider to the left will decrease the brightness.
+* :guilabel:`Brightness` - Change the brightness of the color values on the color map. Moving the slider to the right will increase the brightness and moving the slider to the left will decrease the brightness. 0.0 is the default brightness setting. The slider ranges from -1.0 to 1.0.
   
-* :guilabel:`Contrast` - Change the range of color values on the color map. Moving the slider to the right will increase the contrast and moving the slider to the left will decrease the contrast.
+* :guilabel:`Contrast` - Change the range of color values on the color map. Moving the slider to the right will increase the contrast and moving the slider to the left will decrease the contrast. 1.0 is the default contrast setting. The slider ranges from 1/10 to 10.
   
 * :guilabel:`Adjustment` - Change the equalization of the selected data. Choose between Equalized, Gamma, Log, or no adjustment.
+
+* :guilabel:`Gamma` - If :guilabel:`Gamma` is selected for the adjustment, a new slider will appear to adjust gamma values. Moving the slider to the right will decrease the gamma and moving the slider to the left will increase the gamma. 1.0 is the default contrast setting. The slider ranges from 10 to 1/10.
 
 .. _Line Plot Inspector Section:
 
 Line Plot Display
 -----------------
-Line Plot Display presents several figures and settings for a selected line plot:
+Line Plot Display presents several controls and settings for a selected line plot:
 
 .. image:: graphics/inspector_line_plot_display_subsection.png
     :width: 321
     :alt: Inspector Line Plot Display Subsection
 
-* :guilabel:`Display Type` - Force the selected line plot to display as an image or script.
+* :guilabel:`Display Type` - Force the selected line plot to display as an image.
 
 * :guilabel:`Display` - Change the range of y values shown on the line plot. These values are set to automatically calculate by default, but changing them allows you to zoom into a specific section on the line plot.
 
@@ -251,7 +258,7 @@ When an image is selected, the calibrations subsection of the inspector panel wi
 
 With an image selected, use the calibrations subsection to
 
-* Change the offset, scale, and units on the y and x axes. The default units for images is nanometers (nm).
+* Change the offset, scale, and units on the y and x axes. The default units for images is nanometers (nm). The formula for the offset is x' = x * scale + offset.
 
 * Change the intensity and scale of the selected image.
 
@@ -281,7 +288,7 @@ The Session subsection of the inspector allows you to change the session info fo
     :width: 321
     :alt: Inspector Session Subsection
 
-Editing session info in the inspector will not change global session info. To change global session info, use the Session utility panel.
+Editing session info in the inspector will not change global session info. Global session info is added to a data item when it is acquired or imported.
 
 .. _Computation Inspector Section:
 
@@ -323,7 +330,7 @@ With the layered line plot selected, you can
 
 * Change the fill color and stroke color using the color or text boxes under each layer's section.
 
- * Input colors with text like rgb(100, 50, 200), #55AAFF, or a web-defined color like “Blue”
+ * Change colors with text like rgb(100, 50, 200), #55AAFF, or a web-defined color like “Blue”
   
  * Choose colors with the color selection panel by clicking on the color box next to “Fill Color” or “Stroke Color.”
 
@@ -416,6 +423,8 @@ The Toolbar provides quick access to several options for the workspace. You can 
 .. image:: graphics/toolbar_infographic.png
     :width: 310
     :alt: Toolbar Button Functions
+
+Some tools on the toolbar have key shortcuts. For example, hitting the lowercase E key will select the pointer tool. You can see the shortcuts for the various tools by hovering the cursor over the button for a tool.
 
 .. _Recorder Dialog:
 
