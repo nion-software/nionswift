@@ -28,19 +28,19 @@ See :ref:`display-panels`.
 Utility Panels
 ==============
 
-Utility panels are individual windows within the software that serve different functions. While the display panels display data items and allow for customization, the utility panels are where the customization actually happens. For example, a display panel can display image data in different colors, but in order to choose which color to display, the option must be selected in the Inspector utility panel. Each utility panel serves to change or edit a given parameter about the selected data.
+Utility panels provide options for the selected item or items. There are various utility panels for editing different aspects of data.
 
-Having individual utility panels for similar parameters means that the workspace can be fully customized for the user's purpose. There are several ways to customize the utility panel layout:
+The layout of the utility panels can also be moved around and adjusted. There are several ways to customize the utility panel layout:
 
-* Choose to show or hide any utility panel by using the [Window] menu.
+* Show or hide any utility panel by using the [Window] menu.
 
-* Quickly close a utility panel by clicking the x button in the corner of its title bar.
+* Close a utility panel by clicking the x button in the corner of its title bar.
 
-* Click and drag a utility panel by its title bar to rearrange the layout of the shown panels.
+* Rearrange the layout of the shown panels by clicking and dragging a utility panel by its title bar.
 
 * Stack utility panels by dropping one utility panel onto another. If two or more panels are in a stack, selection buttons will appear at the bottom of the panel to switch between them.
 
-* Expand utility panels into a separate window by dragging the panel away from the main window by the title bar.
+* Expand utility panels into a separate window by dragging the panel by the title bar away from the main window.
 
 * Resize a utility panel by clicking and dragging from its edges.
 
@@ -48,7 +48,7 @@ Having individual utility panels for similar parameters means that the workspace
     :width: 396
     :alt: Customizing Utility Panels
 
-The utility panels are organized alphabetically in the [Window] menu, and their functions are as follows:
+The utility panels are organized alphabetically in the [Window] menu and their functions are as follows:
 
 .. _Activity Panel:
 
@@ -78,9 +78,9 @@ Data items are automatically sorted into four categories:
 
 * :guilabel:`All` - All data items in the current project
 
-* :guilabel:`Persistent` - Data items that are permenantly saved. These data items will not be overwritten by acquisition or recomputation without the action by the user.
+* :guilabel:`Persistent` - Data items that are permenantly saved; these data items will not be overwritten by acquisition or recomputation without action by the user.
 
-* :guilabel:`Live` - Data items that can be used for live acquisition and/or recomputation.
+* :guilabel:`Live` - Data items that can be used for live acquisition and/or recomputation
 
 * :guilabel:`Latest Session` - Data items used in the most recent session (since the most recent time the project was opened)
 
@@ -94,7 +94,7 @@ To add a new collection to the panel, use the menu item [File > Add Group]. Use 
 
 Data Panel
 ==========
-The Data panel provides a list of all the data items in a given collection. 
+The Data panel provides a list of the data items in a given collection. 
 
 .. image:: graphics/data_panel.png
     :width: 333
@@ -102,7 +102,7 @@ The Data panel provides a list of all the data items in a given collection.
 
 Any data item in the data panel can be displayed in a display panel. To display a data item, drag the data item from the data panel into an empty display panel.
 
-By default, the Data panel is set to show all data items in a project. The data items that are shown can be changed by choosing a different collection in the Collections panel.
+By default, the Data panel is set to show all data items in a project, but the data panel can show any other collection by choosing a different collection in the Collections panel.
 
 You can also search for data items in the selected collection by using the filter text box at the bottom of the Data panel. If a data item is not in the selected collection, it will not appear in the filtered results. The filter search bar looks for keywords in the titles and captions of data items.
 
@@ -122,15 +122,15 @@ The Histogram shows the frequency of different intensities in the selected data 
 
 The bar directly under the histogram displays the color range of the data and will change color to match the color map of the selected display. General values about the data (maximum value, mean, minimum value, etc.) are displayed under the histogram. If no display panel or data item is selected, the histogram panel will not display anything.
 
-To select a certain range of data, click and drag on the histogram. Doing this will zoom into the histogram on the selected range and the associated display panel will only display data values within that range. To reset the histogram range, double click on the histogram.
+To select a range of data, click and drag between two points on the histogram. Doing this will zoom into the histogram on the selected range and the associated display panel will only display data values within that range. To reset the range, double click on the histogram.
 
-If a graphic is selected, the histogram will show data within that graphic. Click outside of the graphic on a display panel to show the histogram for the whole data item.
+If a graphic is selected, the histogram will show data within that graphic. Click on a display panel outside the graphic to show the histogram for the full range of the data item.
 
 .. _Info Panel:
 
 Info
 ====
-The Info panel shows the position of the cursor over a displayed data item and gives the corresponding value for the data at that position. 
+The Info panel shows the value of the data at the cursor's position. 
 
 .. image:: graphics/info_panel.png
     :width: 321
@@ -142,15 +142,13 @@ When hovering the cursor over the histogram, the info panel will show the intens
 
 Inspector
 =========
-The Inspector Panel shows information and settings for the selected item. The Inspector is split into subsections to help you find the specific types of information you are looking for.
-
-Clicking the triangle next to the title of a given subsection will expand or hide the subsection.
+The Inspector Panel shows information and settings for the selected item. The Inspector is split into subsections for specific functions. Clicking the triangle next to the title of a given subsection will expand or hide the subsection.
 
 .. image:: graphics/inspector_image.png
     :width: 321
     :alt: Inspector Panel with Image Selected
 
-When different kinds of items are selected (display item, graphic, etc.) the Inspector's subsections will change to display settings relevant to that type of item. If an image or line plot is selected in a display panel, the inspector will provide all subsections relevant to the selected item. In the image above, an image is selected; and in the image below, a line plot is selected.
+When different kinds of items are selected (display item, graphic, etc.) the Inspector's subsections will change to display settings relevant to the selected type of item. In the image above, an image is selected; and in the image below, a line plot is selected.
 
 .. image:: graphics/inspector_line_plot.png
     :width: 321
@@ -166,9 +164,7 @@ The Info subsection of the inspector allows you to edit the title and descriptio
     :width: 321
     :alt: Inspector Info Subsection
 
-The Info subsection will only be visible if a single item is selected. 
-
-If the item selected contains multiple data items, like a layered line plot for example, changing the title and description of the item will not affect the names and descriptions of each data item; it will change the title and description for the combined display item.
+The Info subsection will only be visible if a single item is selected. If the item selected contains multiple data items, like a layered line plot for example, changing the title and description of the item will not affect the names and descriptions of each data item; it will change the title and description for the combined display item.
 
 .. _Image Display Inspector Section:
 
@@ -192,7 +188,7 @@ Image Data presents several controls and settings for a selected image:
     :width: 321
     :alt: Inspector Image Data Subsection
 
-* :guilabel:`Date` - Displays the date and time a selected image was created.
+* :guilabel:`Date` - Displays the date and time the image was created.
   
 * :guilabel:`Data` - Displays the dimensions of the image and the bit count.
 
@@ -294,13 +290,13 @@ Editing session info in the inspector will not change global session info. Globa
 
 Computation
 -----------
-With the Computation subsection of the inspector, you can quickly adjust several variables for a computation associated with the selected item.
+With the Computation subsection of the inspector, you can adjust several variables for a computation associated with the selected item.
 
 .. image:: graphics/inspector_computation_subsection.png
     :width: 321
     :alt: Inspector Computation Subsection  
 
-The variables in this subsection will change based on what kind of computation is selected. For example, a line profile will have adjustments for the coordinates of each end of the line, the angle of the line, and the length and width of the line; whereas a processing filter like a gaussian blur may only have a single slider to adjust the sigma (or blur) value. If the selected item has no associated computations, the Computation subsection will say “None.”
+The variables in this subsection will change based on what kind of item is selected. For example, a line profile will have adjustments for the coordinates of each end of the line, the angle of the line, and the length and width of the line; whereas a processing filter like a gaussian blur may only have a single slider to adjust the sigma (or blur) value. If the selected item has no associated computations, the Computation subsection will say “None.”
 
 The Computation subsection can also be accessed in a separate pop-up window by hitting [ctrl + E] (or [cmd + E] on macOS). 
 
@@ -346,7 +342,7 @@ With the layered line plot selected, you can
 
 Graphics
 --------
-The Graphics subsection shows options for selected graphics, or for graphics associated with the selected data item. If multiple graphics are selected, the inspector will only list options for graphics that are selected.
+The Graphics subsection shows options for selected graphics, or for graphics associated with the selected data item. If multiple graphics are selected, the inspector will list options for all selected graphics.
 
 .. image:: graphics/inspector_graphics_subsection.png
     :width: 321
@@ -406,7 +402,7 @@ The Session panel allows you to edit the session info for the whole project rath
     :width: 321
     :alt: Session Panel
 
-The session info will be added as metadata to any live data acquired during a given session. A new session starts and global session info resets every time the Nion Swift is closed.
+The session info will be added as metadata to any live data acquired during a given session. Every time Nion Swift is closed and reopened, a new session starts and global session info resets.
 
 .. _Task Panel:
 
