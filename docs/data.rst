@@ -4,23 +4,21 @@
 ****************
 Data and Display
 ****************
-Data items are a piece of data that contains all values and numerical information for a certain file or instance of live data. They are comparable to files that you would have on your computer. Data items store data.
-
-All data items in a project can be found in the data panel given that the “All” collection is selected in the :ref:`collections panel` Panel. The “All” collection is selected by default.
+When using data in Nion Swift, there is an important distinction between the different types of items: data items, and display items.
 
 .. _data-items:
 
 Data Items
 ==========
-Data items are a piece of data that contains all values and numerical information for a certain file or instance of live data. They are comparable to files that you would have on your computer. Data items store data.
+Data items are pieces of data that contain all values and numerical information for a certain file or instance of live data. Data items store data similar to the way files that you would have on your computer store information.
 
-All data items in a project can be found in the data panel given that the “All” collection is selected in the :ref:`collections panel` Panel. The “All” collection is selected by default.
+All data items in a project can be found in the data panel. Use the :ref:`collections panel` Panel to ensure that the default "All" collection is selected. Check the filter search bar in the Data Panel to make sure no filters are applied.
 
 .. _display-items:
 
 Display Items
 =============
-Display items are created when a data item is dragged into an empty display panel. Display items are somewhat separate from data items but still use them as a base. A display item shows the values of the data item as an image or line plot, but then allows for the addition of graphics, changing of colors, and other modifications.
+Display items are created when a data item is dragged into an empty display panel. Display items are somewhat separate from data items but still use them as a base. A display item shows the values of the data item as an image or line plot, but then allows you to add graphics, change colors, and more.
 
 Display items will change the look of the associated data item but not the actual values of the data. It is possible to have the same data item displayed in multiple display panels. Doing this will not allow for different modifications on the same data item, it will only display the same modifications in all of the associated display panels.
 
@@ -58,7 +56,7 @@ Each data item stores a dimensional calibration for each dimension it contains. 
 
 Metadata
 ========
-Data items store metadata for various markers and identifiers. For example, metadata about when a data item was created will be stored. Keywords in metadata can be used to search for data items in the data panel search bar. Metadata can also be used as a variable in Python scripts. To view metadata, you can use the :ref:`metadata panel` panel.
+Data items store metadata for various markers and identifiers (when a data item was created, session info, etc.) Keywords in metadata can be used to search for data items in the data panel search bar. Metadata can also be used as a variable in Python scripts. Use the :ref:`metadata panel` panel to view metadata.
 
 .. _coordinate-systems:
 
@@ -106,5 +104,9 @@ Changing the coordinate system for a line plot will only change the values on th
 
 Sequencing
 ==========
-Sometimes a data item can have multiple 'instances' of data in sequence. For example, data gathered from a microscope over time might contain multiple images. Usually, we think of many images in sequence as a movie. Nion Swift can work with differently-dimensional data. Multi-dimensional data items are referred to as “collections” if they contain 1 or 2 dimensions and as “sequences” if they are higher-dimensional. This is not to be confused with the :ref:`collections panel` Panel which serves the function of organizing data items into separate folders. The terms "collection" and "sequence" are not typical in reference to this. More common terms are "navigation" and "signal."
+Sometimes a data item can have multiple 'instances' of data in sequence. For example, data gathered from a microscope over time might contain multiple images. This is similar to how a movie is just a series of images in sequence. 
+
+Nion Swift can work with differently-dimensional data. Multi-dimensional data items are referred to as “collections” if they contain 1 or 2 dimensions and as “sequences” if they contain 3 or more dimensions. 
+
+The term "Collection" here is not to be confused with the :ref:`collections panel` Panel which serves the function of organizing data items into separate folders. The terms "collection" and "sequence" are not typical in reference to this. More common terms are "navigation" and "signal."
 
