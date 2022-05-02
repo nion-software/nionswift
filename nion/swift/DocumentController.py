@@ -2019,12 +2019,15 @@ class DocumentController(Window.Window):
         if display_item:
             self._perform_display_item_snapshot(display_item)
 
-    def processing_display_copy(self) -> None:
-        display_item = self.selected_display_item
-        if display_item:
-            command = DocumentController.InsertDisplayItemCommand(self, display_item, self.document_model.get_display_item_copy_new)
-            command.perform()
-            self.push_undo_command(command)
+    def processing_display_copy(self, display_item: DisplayItem.DisplayItem) -> None:
+        command = DocumentController.InsertDisplayItemCommand(self, display_item, self.document_model.get_display_item_copy_new)
+        command.perform()
+        self.push_undo_command(command)
+
+    def processing_display_snapshot(self, display_item: DisplayItem.DisplayItem) -> None:
+        command = DocumentController.InsertDisplayItemCommand(self, display_item, self.document_model.get_display_snapshot_new)
+        command.perform()
+        self.push_undo_command(command)
 
     class RemoveDisplayItemCommand(Undo.UndoableCommand):
 
@@ -3223,8 +3226,13 @@ class DisplayCopyAction(Window.Action):
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
         window = typing.cast(DocumentController, context.window)
-        window.processing_display_copy()
+        display_item = typing.cast(DisplayItem.DisplayItem, context.display_item)
+        window.processing_display_copy(display_item)
         return Window.ActionResult(Window.ActionStatus.FINISHED)
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return context.display_item is not None
 
 
 class DisplayPanelClearAction(Window.Action):
@@ -3439,6 +3447,22 @@ class DisplayRevealAction(Window.Action):
         return context.display_item is not None
 
 
+class DisplaySnapshotAction(Window.Action):
+    action_id = "display.snapshot_display"
+    action_name = _("Snapshot Display Item")
+
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        display_item = typing.cast(DisplayItem.DisplayItem, context.display_item)
+        window.processing_display_snapshot(display_item)
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return context.display_item is not None
+
+
 class DisplayToggleFrameRateAction(Window.Action):
     action_id = "display_panel.toggle_frame_rate"
     action_name = _("Toggle Frame Rate Overlay")
@@ -3480,6 +3504,7 @@ Window.register_action(DisplayPanelShowGridBrowserAction())
 Window.register_action(DisplayPanelShowThumbnailBrowserAction())
 Window.register_action(DisplayRemoveAction())
 Window.register_action(DisplayRevealAction())
+Window.register_action(DisplaySnapshotAction())
 Window.register_action(DisplayToggleFrameRateAction())
 Window.register_action(DisplayToggleLatencyAction())
 

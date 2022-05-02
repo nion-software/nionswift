@@ -222,6 +222,10 @@
                 "action_id": "display.copy_display"
             },
             {
+                "type": "item",
+                "action_id": "display.snapshot_display"
+            },
+            {
                 "type": "separator"
             },
             {

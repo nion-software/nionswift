@@ -1139,7 +1139,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 data_item_copies.append(data_item_copy)
             else:
                 data_item_copies.append(None)
-        for display_data_channel in copy.copy(display_item_copy.display_data_channels):
+        for display_data_channel in display_item_copy.display_data_channels:
             display_item_copy.remove_display_data_channel(display_data_channel).close()
         for data_item_copy, display_data_channel in zip(data_item_copies, display_item.display_data_channels):
             display_data_channel_copy = DisplayItem.DisplayDataChannel(data_item=data_item_copy)
@@ -2051,8 +2051,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 data_item_copies.append(data_item_copy)
             else:
                 data_item_copies.append(None)
-        for display_data_channel in copy.copy(display_item_copy.display_data_channels):
-            display_item_copy.remove_display_data_channel(display_data_channel)
+        for display_data_channel in display_item_copy.display_data_channels:
+            display_item_copy.remove_display_data_channel(display_data_channel).close()
         for data_item_copy, display_data_channel in zip(data_item_copies, display_item.display_data_channels):
             display_data_channel_copy = DisplayItem.DisplayDataChannel(data_item=data_item_copy)
             display_data_channel_copy.copy_display_data_properties_from(display_data_channel)
@@ -2070,6 +2070,37 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
     def get_display_item_copy_new(self, display_item: DisplayItem.DisplayItem) -> DisplayItem.DisplayItem:
         display_item_copy = display_item.snapshot()
+        self.append_display_item(display_item_copy)
+        return display_item_copy
+
+    def get_display_snapshot_new(self, display_item: DisplayItem.DisplayItem) -> DisplayItem.DisplayItem:
+        display_item_copy = display_item.snapshot()
+        display_data_channels: typing.List[DisplayItem.DisplayDataChannel] = list()
+        for display_data_channel in display_item_copy.display_data_channels:
+            display_item_copy.remove_display_data_channel(display_data_channel).close()
+        for display_data_channel in display_item.display_data_channels:
+            display_values = display_data_channel.get_calculated_display_values(True)
+            assert display_values
+            data_item_copy = DataItem.new_data_item(display_values.element_data_and_metadata)
+            display_data_channel_copy = DisplayItem.DisplayDataChannel(data_item=data_item_copy)
+            display_data_channel_copy.complex_display_type = display_data_channel.complex_display_type
+            display_data_channel_copy.display_limits = display_data_channel.display_limits
+            display_data_channel_copy.color_map_id = display_data_channel.color_map_id
+            display_data_channel_copy.brightness = display_data_channel.brightness
+            display_data_channel_copy.contrast = display_data_channel.contrast
+            display_data_channel_copy.adjustments = copy.deepcopy(display_data_channel.adjustments)
+            display_data_channels.append(display_data_channel_copy)
+            self.append_data_item(data_item_copy)
+        for display_data_channel in display_data_channels:
+            display_item_copy.append_display_data_channel(display_data_channel, display_layer=DisplayItem.DisplayLayer())
+        # the display layers will be disrupted by appending data channels; so just recopy them here
+        # this code can be simplified once display layers are objects
+        while len(display_item_copy.display_layers):
+            display_item_copy.remove_display_layer(0).close()
+        for i in range(len(display_item.display_layers)):
+            data_index = display_item.display_data_channels.index(display_item.get_display_layer_display_data_channel(i))
+            display_item_copy.add_display_layer_for_display_data_channel(display_item_copy.display_data_channels[data_index], **display_item.get_display_layer_properties(i))
+        display_item_copy.title = _("Display Snapshot of ") + display_item.title
         self.append_display_item(display_item_copy)
         return display_item_copy
 

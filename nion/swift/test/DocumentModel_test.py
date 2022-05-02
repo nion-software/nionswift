@@ -2169,6 +2169,35 @@ class TestDocumentModelClass(unittest.TestCase):
             snapshot_display_item = document_model.get_display_item_snapshot_new(display_item)
             self.assertEqual(1, len(snapshot_display_item.graphics))
 
+    def test_snapshot_display_produces_simplified_data(self):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            # test sequence-of-image case
+            xdata = DataAndMetadata.new_data_and_metadata(numpy.random.randn(3, 2, 2), data_descriptor=DataAndMetadata.DataDescriptor(True, 0, 2))
+            data_item = DataItem.new_data_item(xdata)
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item.display_data_channel.sequence_index = 1
+            display_item.add_graphic(Graphics.PointGraphic())
+            snapshot_display_item = document_model.get_display_snapshot_new(display_item)
+            self.assertEqual(1, len(snapshot_display_item.graphics))
+            self.assertTrue(numpy.array_equal(xdata[1], snapshot_display_item.display_data_channel.data_item.xdata))
+            # test multi-line-plot case
+            xdata1 = DataAndMetadata.new_data_and_metadata(numpy.random.randn(3, 8), data_descriptor=DataAndMetadata.DataDescriptor(True, 0, 1))
+            xdata2 = DataAndMetadata.new_data_and_metadata(numpy.random.randn(5, 8), data_descriptor=DataAndMetadata.DataDescriptor(True, 0, 1))
+            data_item1 = DataItem.new_data_item(xdata1)
+            data_item2 = DataItem.new_data_item(xdata2)
+            document_model.append_data_item(data_item1)
+            document_model.append_data_item(data_item2)
+            display_item1 = document_model.get_display_item_for_data_item(data_item1)
+            display_item1.append_display_data_channel_for_data_item(data_item2)
+            display_item1.display_data_channels[0].sequence_index = 1
+            display_item1.display_data_channels[1].sequence_index = 3
+            snapshot_display_item = document_model.get_display_snapshot_new(display_item1)
+            self.assertTrue(numpy.array_equal(xdata1[1], snapshot_display_item.display_data_channels[0].data_item.xdata))
+            self.assertTrue(numpy.array_equal(xdata2[3], snapshot_display_item.display_data_channels[1].data_item.xdata))
+
+
     def test_new_display_makes_another_display_item(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
