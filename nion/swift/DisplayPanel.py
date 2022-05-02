@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 # standard libraries
-import abc
 import asyncio
 import contextlib
 import copy
@@ -25,6 +24,7 @@ from nion.swift import DisplayScriptCanvasItem
 from nion.swift import ImageCanvasItem
 from nion.swift import LinePlotCanvasItem
 from nion.swift import MimeTypes
+from nion.swift import NotificationDialog
 from nion.swift import Panel
 from nion.swift import Thumbnails
 from nion.swift import Undo
@@ -44,6 +44,7 @@ from nion.ui import Window
 from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import ListModel
+from nion.utils import Model
 from nion.utils import Selection
 from nion.utils import Stream
 
@@ -534,7 +535,7 @@ class CollectionIndexAdapter(IndexValueAdapter):
         index = self.__collection_index + (1 if display_data_channel.is_sequence else 0)
         dim_length = display_data_channel.dimensional_shape[index] if display_data_channel.dimensional_shape is not None else 0
         collection_index = list(display_data_channel.collection_index)
-        collection_index[self.__collection_index] = int(value * (dim_length - 1))
+        collection_index[self.__collection_index] = round(value * (dim_length - 1))
         # display_data_channel.collection_index = collection_index
         document_model = self.__document_controller.document_model
         command = ChangeDisplayDataChannelCommand(document_model, display_data_channel, title=_("Change Display"),
@@ -563,7 +564,10 @@ class SequenceIndexAdapter(IndexValueAdapter):
 
     def set_index_value(self, display_data_channel: DisplayItem.DisplayDataChannel, value: float) -> None:
         sequence_length = display_data_channel.dimensional_shape[0] if display_data_channel.dimensional_shape is not None else 0
-        sequence_index = int(value * (sequence_length - 1))
+        sequence_index = round(value * (sequence_length - 1))
+        self.set_index_int_value(display_data_channel, sequence_index)
+
+    def set_index_int_value(self, display_data_channel: DisplayItem.DisplayDataChannel, sequence_index: int) -> None:
         # display_data_channel.sequence_index = sequence_index
         document_model = self.__document_controller.document_model
         command = ChangeDisplayDataChannelCommand(document_model, display_data_channel, title=_("Change Display"),
@@ -574,12 +578,18 @@ class SequenceIndexAdapter(IndexValueAdapter):
 
 
 class IndexValueSliderCanvasItem(CanvasItem.CanvasItemComposition):
-    def __init__(self, title: str, display_item_value_stream: Stream.ValueStream[DisplayItem.DisplayItem], index_value_adapter: IndexValueAdapter, get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> None:
+    def __init__(self, title: str, display_item_value_stream: Stream.ValueStream[DisplayItem.DisplayItem],
+                 index_value_adapter: IndexValueAdapter,
+                 get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics],
+                 play_button_handler: typing.Optional[typing.Callable[[], None]] = None,
+                 play_button_model: typing.Optional[Model.PropertyModel[bool]] = None) -> None:
         super().__init__()
         self.layout = CanvasItem.CanvasItemRowLayout()
         self.update_sizing(self.sizing.with_preferred_height(0))
         self.__slider_row = CanvasItem.CanvasItemComposition()
         self.__slider_row.layout = CanvasItem.CanvasItemRowLayout(spacing=8)
+        self.__slider_canvas_item = CanvasItem.SliderCanvasItem()
+        self.__slider_text = CanvasItem.StaticTextCanvasItem("9999")
         self.add_spacing(12)
         self.add_canvas_item(self.__slider_row)
         self.add_stretch()
@@ -593,6 +603,8 @@ class IndexValueSliderCanvasItem(CanvasItem.CanvasItemComposition):
         index_value_stream = self.__index_value_adapter.get_index_value_stream(display_data_channel_value_stream)
         combined_stream = Stream.CombineLatestStream[typing.Any, typing.Any]([self.__display_item_value_stream, display_data_channel_value_stream, index_value_stream])
         self.__stream_action = Stream.ValueStreamAction[typing.Tuple[DisplayItem.DisplayItem, DisplayItem.DisplayDataChannel, int]](combined_stream, self.__index_changed)
+        self.__play_button_handler = play_button_handler
+        self.__play_button_model = play_button_model
 
     def close(self) -> None:
         self.__stream_action.close()
@@ -605,34 +617,47 @@ class IndexValueSliderCanvasItem(CanvasItem.CanvasItemComposition):
         super().close()
 
     def __index_changed(self, args: typing.Optional[typing.Tuple[DisplayItem.DisplayItem, DisplayItem.DisplayDataChannel, int]]) -> None:
-        assert args is not None
-        display_item, display_data_channel, index_value = args
+        display_item, display_data_channel, index_value = args if args else (None, None, 0)
         if display_data_channel and index_value is not None:
-            slider_canvas_item: CanvasItem.SliderCanvasItem
-            slider_text: CanvasItem.StaticTextCanvasItem
             if not self.__slider_row.canvas_items:
-                slider_text = CanvasItem.StaticTextCanvasItem("9999")
-                slider_text.size_to_content(self.__get_font_metrics_fn)
-                slider_canvas_item = CanvasItem.SliderCanvasItem()
                 label = CanvasItem.StaticTextCanvasItem("WWW")
                 label.size_to_content(self.__get_font_metrics_fn)
                 label.text = self.__title
-                slider_canvas_item.update_sizing(slider_canvas_item.sizing.with_preferred_width(360))
                 self.__slider_row.add_canvas_item(label)
-                self.__slider_row.add_canvas_item(slider_canvas_item)
-                self.__slider_row.add_canvas_item(slider_text)
-                slider_value_stream = Stream.PropertyChangedEventStream[float](slider_canvas_item, "value")
+                if self.__play_button_model and callable(self.__play_button_handler):
+                    def play_button_model_changed(value: typing.Optional[bool]) -> None:
+                        value = value or False
+                        play_pause_button.char = "\N{BLACK SQUARE}" if value else "\N{BLACK RIGHT-POINTING TRIANGLE}"
+                        play_pause_button.size_to_content(self.__get_font_metrics_fn)
+
+                    # play_pause_button = NotificationDialog.CharButtonCanvasItem("\N{BLACK RIGHT-POINTING TRIANGLE}")
+                    play_pause_button = NotificationDialog.CharButtonCanvasItem("\N{BLACK RIGHT-POINTING TRIANGLE}")
+                    play_pause_button.font = "12px"
+                    play_pause_button.fill_style_pressed = "rgba(192, 192, 192, 0.10)"
+                    play_pause_button.border_style_pressed = "rgba(192, 192, 192, 0.10)"
+                    play_pause_button.fill_style_hover = "rgba(224, 224, 224, 0.10)"
+                    play_pause_button.border_style_hover = "rgba(224, 224, 224, 0.10)"
+                    play_pause_button.stroke_style = "black"
+                    play_pause_button.on_clicked = self.__play_button_handler
+                    play_button_model_changed(self.__play_button_model.value or False)
+                    self.__play_button_model.on_value_changed = play_button_model_changed
+                    self.__slider_row.add_canvas_item(play_pause_button)
+                    self.__slider_row.add_spacing(0)
+                self.__slider_row.add_canvas_item(self.__slider_canvas_item)
+                self.__slider_row.add_canvas_item(self.__slider_text)
+                slider_value_stream = Stream.PropertyChangedEventStream[float](self.__slider_canvas_item, "value")
                 self.__slider_value_action = Stream.ValueStreamAction(slider_value_stream, functools.partial(self.__index_value_adapter.set_index_value, display_data_channel))
-            else:
-                slider_canvas_item = typing.cast(CanvasItem.SliderCanvasItem, self.__slider_row.canvas_items[1])
-                slider_text = typing.cast(CanvasItem.StaticTextCanvasItem, self.__slider_row.canvas_items[2])
-            slider_text.text = self.__index_value_adapter.get_index_str(display_data_channel)
-            slider_canvas_item.value = self.__index_value_adapter.get_index_value(display_data_channel)
+            self.__slider_text.text = self.__index_value_adapter.get_index_str(display_data_channel)
+            self.__slider_text.size_to_content(self.__get_font_metrics_fn)
+            self.__slider_canvas_item.value = self.__index_value_adapter.get_index_value(display_data_channel)
+            self.__slider_canvas_item.update_sizing(self.__slider_canvas_item.sizing.with_preferred_width(360))
         else:
             if self.__slider_value_action:
                 self.__slider_value_action.close()
                 self.__slider_value_action = None
             self.__slider_row.remove_all_canvas_items()
+            self.__slider_canvas_item = CanvasItem.SliderCanvasItem()
+            self.__slider_text = CanvasItem.StaticTextCanvasItem("9999")
 
 
 _RelatedItemsTuple = typing.Tuple[typing.List[DisplayItem.DisplayItem], typing.List[DisplayItem.DisplayItem]]
@@ -1515,6 +1540,52 @@ class FixedUISettings(UISettings.UISettings):
         return 5
 
 
+class PlaybackController:
+    def __init__(self, event_loop: asyncio.AbstractEventLoop) -> None:
+        self.__event_loop = event_loop
+        self.__display_data_channel: typing.Optional[DisplayItem.DisplayDataChannel] = None
+        self.__task: typing.Optional[asyncio.Task[None]] = None
+        self.is_movie_playing = Model.PropertyModel(False)
+        self.index_adapter: typing.Optional[SequenceIndexAdapter] = None
+
+    def handle_play_button(self) -> None:
+        self.is_movie_playing.value = not self.is_movie_playing.value
+        if self.is_movie_playing.value and self.__display_data_channel:
+            assert not self.__task
+            self.__task = self.__event_loop.create_task(self.__start_playing())
+        else:
+            self.__stop_playing()
+
+    async def __start_playing(self) -> None:
+        display_data_channel = self.__display_data_channel
+        assert display_data_channel
+        data_metadata = display_data_channel._get_data_metadata()
+        if data_metadata and data_metadata.dimensional_shape is not None:
+            assert self.index_adapter
+            max_index = data_metadata.max_sequence_index
+            if display_data_channel.sequence_index + 1 >= max_index:
+                self.index_adapter.set_index_int_value(display_data_channel, 0)
+            while display_data_channel.sequence_index + 1 < max_index:
+                await asyncio.sleep(0.05)
+                self.index_adapter.set_index_int_value(display_data_channel, display_data_channel.sequence_index + 1)
+        self.__stop_playing()
+
+    def __stop_playing(self) -> None:
+        if self.__task:
+            self.__task.cancel()
+            self.__task = None
+        self.is_movie_playing.value = False
+
+    @property
+    def display_data_channel(self) -> typing.Optional[DisplayItem.DisplayDataChannel]:
+        return self.__display_data_channel
+
+    @display_data_channel.setter
+    def display_data_channel(self, value: typing.Optional[DisplayItem.DisplayDataChannel]) -> None:
+        self.__stop_playing()
+        self.__display_data_channel = value
+
+
 class DisplayPanel(CanvasItem.LayerCanvasItem):
     """A canvas item to display a library item. Allows library item to be changed."""
 
@@ -1530,6 +1601,8 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         self.ui = document_controller.ui
 
         self.on_contents_changed = None  # useful for writing changes to disk quickly
+
+        self.__playback_controller = PlaybackController(document_controller.event_loop)
 
         self.__content_canvas_item = DisplayPanelOverlayCanvasItem(typing.cast(typing.Callable[[str, str], UISettings.FontMetrics], self.ui.get_font_metrics))
         self.__content_canvas_item.wants_mouse_events = True  # only when display_canvas_item is None
@@ -2099,7 +2172,9 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
                     sequence_slider_row = IndexValueSliderCanvasItem(_("S"),
                                                                      self.__display_item_value_stream,
                                                                      SequenceIndexAdapter(self.document_controller),
-                                                                     self.ui.get_font_metrics)
+                                                                     self.ui.get_font_metrics,
+                                                                     self.__playback_controller.handle_play_button,
+                                                                     self.__playback_controller.is_movie_playing)
                     c0_slider_row = IndexValueSliderCanvasItem(_("C0"),
                                                                self.__display_item_value_stream,
                                                                CollectionIndexAdapter(self.document_controller, 0),
@@ -2131,6 +2206,9 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
                 old_display_tracker.close()
 
             self.__display_item = display_item
+
+            self.__playback_controller.display_data_channel = self.display_item.display_data_channel if self.display_item else None
+            self.__playback_controller.index_adapter = SequenceIndexAdapter(self.document_controller)
 
             if update_selection:
                 self.__update_selection_to_display()

@@ -52,6 +52,7 @@ class CharButtonCanvasItem(CanvasItem.TextButtonCanvasItem):
         self.wants_mouse_events = True
         self.__mouse_inside = False
         self.__mouse_pressed = False
+        self.font = "normal 13px serif"
         self.fill_style_pressed = "rgb(192, 192, 192)"
         self.border_style_pressed = "rgb(192, 192, 192)"
         self.fill_style_hover = "rgb(224, 224, 224)"
@@ -62,6 +63,15 @@ class CharButtonCanvasItem(CanvasItem.TextButtonCanvasItem):
     def close(self) -> None:
         self.on_clicked = None
         super().close()
+
+    @property
+    def char(self) -> str:
+        return self.__char
+
+    @char.setter
+    def char(self, value: str) -> None:
+        self.__char = value
+        self.update()
 
     def mouse_entered(self) -> bool:
         self.__mouse_inside = True
@@ -97,7 +107,6 @@ class CharButtonCanvasItem(CanvasItem.TextButtonCanvasItem):
             center_x = int(canvas_size.width * 0.5)
             center_y = int(canvas_size.height * 0.5)
             drawing_context.begin_path()
-            text_base = 4 if sys.platform == "win32" else 6
             drawing_context.begin_path()
             drawing_context.rect(0, 0, canvas_size.width, canvas_size.height)
             if self.enabled:
@@ -118,9 +127,10 @@ class CharButtonCanvasItem(CanvasItem.TextButtonCanvasItem):
                             drawing_context.stroke()
             drawing_context.begin_path()
             drawing_context.text_align = "center"
-            drawing_context.text_baseline = "bottom"
+            drawing_context.text_baseline = "middle"
             drawing_context.fill_style = self.stroke_style
-            drawing_context.fill_text(self.__char, center_x, center_y + text_base)
+            drawing_context.font = self.font
+            drawing_context.fill_text(self.__char, center_x, center_y + 1)
 
 
 class CharButtonConstructor:
