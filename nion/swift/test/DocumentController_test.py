@@ -1161,6 +1161,22 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertEqual(2, len(display_item1.data_items))
             self.assertEqual(2, len(display_item1.display_layers))
 
+    def test_get_3_data_sources_with_two_selected_in_data_panel(self):
+        # test that getting 3 sources works when only two are selected
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item1 = DataItem.DataItem(numpy.zeros((2, 2)))
+            data_item2 = DataItem.DataItem(numpy.zeros((2, 2)))
+            document_model.append_data_item(data_item1)
+            document_model.append_data_item(data_item2)
+            display_item1 = document_model.get_display_item_for_data_item(data_item1)
+            display_item2 = document_model.get_display_item_for_data_item(data_item2)
+            document_controller.select_display_items_in_data_panel([display_item1, display_item2])
+            document_controller.data_panel_focused()
+            self.assertEqual(2, len(document_controller._get_n_data_sources(2)))
+            self.assertEqual(3, len(document_controller._get_n_data_sources(3)))
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

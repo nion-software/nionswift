@@ -2109,7 +2109,17 @@ class DocumentController(Window.Window):
         return data_item
 
     def _get_n_data_sources(self, n: int) -> typing.Tuple[_DataSourceTupleType, ...]:
-        """Get n sensible data sources, which may be the same."""
+        """Get n sensible data sources, which may be the same.
+
+        If one display item is selected and the number of crops equals n, return a data
+        source for each display item, crop region combo (data source).
+
+        If one display item is selected and the number of crops is not equal to n, return
+        a data source, optionally with any single crop region.
+
+         If more than one display item is selected, return up to n or the selected ones if
+         with the first one padded out to n if less than n.
+        """
         selected_display_items = self.selected_display_items
         if len(selected_display_items) == 1:
             display_item = selected_display_items[0]
@@ -2123,7 +2133,8 @@ class DocumentController(Window.Window):
             else:
                 crop_graphics = [self._get_crop_graphic(display_item) for _ in range(n)]
             return tuple(zip((display_item, ) * n, crop_graphics))
-        if len(selected_display_items) == n:
+        if 1 <= len(selected_display_items) <= n:
+            selected_display_items = ([selected_display_items[0]] * (n - len(selected_display_items) + 1)) + list(selected_display_items)[1:]
             return tuple(zip(selected_display_items, (self._get_crop_graphic(display_item) for display_item in selected_display_items)))
         return tuple()
 
