@@ -44,7 +44,7 @@ jobs:
         mypy --install-types --non-interactive --namespace-packages --ignore-missing-imports --follow-imports=silent --strict --no-warn-unused-ignores --exclude '/test' -p nion.swift
     - name: Test
       run: |
-        python -m unittest discover -p '*_test.py'
+        python -m unittest discover -s nion/swift -p '*_test.py'
     - name: Upload Artifacts
       uses: actions/upload-artifact@v2
       if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.8'
