@@ -3,13 +3,13 @@
 """
 from __future__ import annotations
 
+import dataclasses
 import datetime
 import io
 import json
 import os
 import pathlib
 import threading
-import time
 import typing
 
 import h5py
@@ -76,6 +76,71 @@ def get_write_chunk_shape_for_data(data_shape: DataAndMetadata.ShapeType, data_d
     return tuple(chunk_shape)
 
 
+_HDF5FilePointer = typing.Any
+
+
+class HDF5FileEntry:
+    def __init__(self, path: pathlib.Path) -> None:
+        self.__lock = threading.RLock()
+        self.__path = path
+        self.__fp: typing.Optional[_HDF5FilePointer] = None
+        self._count = 0
+
+    @property
+    def fp(self) -> _HDF5FilePointer:
+        with self.__lock:
+            self.open()
+            assert self.__fp
+            return self.__fp
+
+    def open(self) -> None:
+        with self.__lock:
+            if not self.__fp:
+                self.__path.parent.mkdir(parents=True, exist_ok=True)
+                self.__fp = h5py.File(self.__path, "a")
+
+    def close(self) -> None:
+        with self.__lock:
+            if self.__fp:
+                self.__fp.close()
+            self.__fp = None
+
+
+class HDF5FileManager:
+    def __init__(self) -> None:
+        self.__file_entries: typing.Dict[pathlib.Path, HDF5FileEntry] = dict()
+        self.__lock = threading.RLock()
+
+    def _clear(self) -> None:
+        # for tests only
+        self.__file_entries.clear()
+
+    @property
+    def _open_count(self) -> int:
+        return len(self.__file_entries.items())
+
+    def open(self, path: pathlib.Path) -> HDF5FileEntry:
+        with self.__lock:
+            if not path in self.__file_entries:
+                self.__file_entries[path] = HDF5FileEntry(path)
+            self.__file_entries[path]._count += 1
+            return self.__file_entries[path]
+
+    def close(self, path: pathlib.Path) -> None:
+        with self.__lock:
+            self.__file_entries[path]._count -= 1
+            if self.__file_entries[path]._count == 0:
+                self.__file_entries.pop(path).close()
+
+    def force_close(self, path: pathlib.Path) -> None:
+        with self.__lock:
+            if path in self.__file_entries:
+                self.__file_entries[path].close()
+
+
+_file_manager = HDF5FileManager()
+
+
 class HDF5Handler(StorageHandler.StorageHandler):
     count = 0  # useful for detecting leaks in tests
     open = 0  # useful for detecting unclosed files
@@ -83,27 +148,21 @@ class HDF5Handler(StorageHandler.StorageHandler):
     def __init__(self, file_path: typing.Union[str, pathlib.Path]) -> None:
         self.__file_path = str(file_path)
         self.__lock = threading.RLock()
-        self.__fp: typing.Any = None
+        self.__file = _file_manager.open(pathlib.Path(self.__file_path))
         self.__dataset: typing.Any = None
         self._write_count = 0
         HDF5Handler.count += 1
 
     def close(self) -> None:
         HDF5Handler.count -= 1
-        if self.__fp:
-            self.__dataset = None
-            self.__fp.close()
-            HDF5Handler.open -= 1
-            self.__fp = None
+        self.__close_fp()
+        _file_manager.close(pathlib.Path(self.__file_path))
 
     # called before the file is moved; close but don't count.
     def prepare_move(self) -> None:
         with self.__lock:
-            if self.__fp:
-                self.__dataset = None
-                self.__fp.close()
-                HDF5Handler.open -= 1
-                self.__fp = None
+            self.__close_fp()
+            _file_manager.force_close(pathlib.Path(self.__file_path))
 
     @property
     def reference(self) -> str:
@@ -131,12 +190,6 @@ class HDF5Handler(StorageHandler.StorageHandler):
     def get_extension(self) -> str:
         return ".h5"
 
-    def __ensure_open(self) -> None:
-        if not self.__fp:
-            make_directory_if_needed(os.path.dirname(self.__file_path))
-            self.__fp = h5py.File(self.__file_path, "a")
-            HDF5Handler.open += 1
-
     def __write_properties_to_dataset(self, properties: PersistentDictType) -> None:
         with self.__lock:
             assert self.__dataset is not None
@@ -156,68 +209,57 @@ class HDF5Handler(StorageHandler.StorageHandler):
 
     def __ensure_dataset(self) -> None:
         with self.__lock:
-            self.__ensure_open()
             if self.__dataset is None:
-                if "data" in self.__fp:
-                    self.__dataset = self.__fp["data"]
+                if "data" in self.__file.fp:
+                    self.__dataset = self.__file.fp["data"]
                 else:
-                    self.__dataset = self.__fp.create_dataset("data", data=numpy.empty((0,)))
+                    self.__dataset = self.__file.fp.create_dataset("data", data=numpy.empty((0,)))
 
     def write_data(self, data: _NDArray, file_datetime: datetime.datetime) -> None:
         with self.__lock:
             assert data is not None
-            self.__ensure_open()
-            assert self.__fp is not None
             json_properties = None
             # handle three cases:
             #   1 - 'data' doesn't yet exist (require_dataset)
             #   2 - 'data' exists but is a different size (delete, then require_dataset)
             #   3 - 'data' exists and is the same size (overwrite)
-            if not "data" in self.__fp:
+            if not "data" in self.__file.fp:
                 # case 1
                 chunks = get_write_chunk_shape_for_data(data.shape, data.dtype)
-                self.__dataset = self.__fp.require_dataset("data", shape=data.shape, dtype=data.dtype, chunks=chunks)
+                self.__dataset = self.__file.fp.require_dataset("data", shape=data.shape, dtype=data.dtype, chunks=chunks)
             else:
                 if self.__dataset is None:
-                    self.__dataset = self.__fp["data"]
+                    self.__dataset = self.__file.fp["data"]
                 if self.__dataset.shape != data.shape or self.__dataset.dtype != data.dtype:
                     # case 2
                     json_properties = self.__dataset.attrs.get("properties", "")
-                    self.__dataset = None
-                    self.__fp.close()
-                    HDF5Handler.open -= 1
-                    self.__fp = None
+                    self.__close_fp()
                     os.remove(self.__file_path)
-                    self.__ensure_open()
                     chunks = get_write_chunk_shape_for_data(data.shape, data.dtype)
-                    self.__dataset = self.__fp.require_dataset("data", shape=data.shape, dtype=data.dtype, chunks=chunks)
+                    self.__dataset = self.__file.fp.require_dataset("data", shape=data.shape, dtype=data.dtype, chunks=chunks)
             self.__copy_data(data)
             if json_properties is not None:
                 self.__dataset.attrs["properties"] = json_properties
-            self.__fp.flush()
+            self.__file.fp.flush()
 
     def reserve_data(self, data_shape: DataAndMetadata.ShapeType, data_dtype: numpy.typing.DTypeLike, file_datetime: datetime.datetime) -> None:
         # reserve data of the given shape and dtype, filled with zeros
         with self.__lock:
-            self.__ensure_open()
             json_properties = None
             # first read existing properties and then close existing data set and file.
-            if "data" in self.__fp:
+            if "data" in self.__file.fp:
                 if self.__dataset is None:
-                    self.__dataset = self.__fp["data"]
+                    self.__dataset = self.__file.fp["data"]
                 json_properties = self.__dataset.attrs.get("properties", "")
-                self.__dataset = None
-                self.__fp.close()
-                HDF5Handler.open -= 1
-                self.__fp = None
+                self.__close_fp()
                 os.remove(self.__file_path)
-                self.__ensure_open()
+                self.__file.open()
             # reserve the data
             chunks = get_write_chunk_shape_for_data(data_shape, data_dtype)
-            self.__dataset = self.__fp.require_dataset("data", shape=data_shape, dtype=data_dtype, fillvalue=0, chunks=chunks)
+            self.__dataset = self.__file.fp.require_dataset("data", shape=data_shape, dtype=data_dtype, fillvalue=0, chunks=chunks)
             if json_properties is not None:
                 self.__dataset.attrs["properties"] = json_properties
-            self.__fp.flush()
+            self.__file.fp.flush()
 
     def __copy_data(self, data: _NDArray) -> None:
         if id(data) != id(self.__dataset):
@@ -226,31 +268,28 @@ class HDF5Handler(StorageHandler.StorageHandler):
 
     def write_properties(self, properties: PersistentDictType, file_datetime: datetime.datetime) -> None:
         with self.__lock:
-            self.__ensure_open()
             self.__ensure_dataset()
             self.__write_properties_to_dataset(properties)
-            self.__fp.flush()
+            self.__file.fp.flush()
 
     def read_properties(self) -> PersistentDictType:
         with self.__lock:
-            self.__ensure_open()
             self.__ensure_dataset()
             json_properties = self.__dataset.attrs.get("properties", "")
             return typing.cast(PersistentDictType, json.loads(json_properties))
 
     def read_data(self) -> typing.Optional[_NDArray]:
         with self.__lock:
-            self.__ensure_open()
             self.__ensure_dataset()
             if self.__dataset.shape == (0, ):
                 return None
             return typing.cast(typing.Optional[_NDArray], self.__dataset)
 
     def remove(self) -> None:
-        if self.__fp:
-            self.__dataset = None
-            self.__fp.close()
-            HDF5Handler.open -= 1
-            self.__fp = None
+        self.__close_fp()
         if os.path.isfile(self.__file_path):
             os.remove(self.__file_path)
+
+    def __close_fp(self) -> None:
+        self.__dataset = None
+        self.__file.close()
