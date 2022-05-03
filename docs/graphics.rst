@@ -5,13 +5,13 @@
 ******************
 Graphics and Masks
 ******************
-Graphics are used to highlight certain sections of a display item. Similarly, masks are used to mark off certain sections of a display item to focus on. Certain graphics can only be used on images and others can only be used on line plots. Masks can only be used on images. Selecting one or multiple graphics on the same display item will allow you to edit the parameters of the graphics in the :ref:`graphics inspector section` subsection of the Inspector Panel. Selecting a display panel with graphics on it will show parameters for editing all of the applied graphics in the Inspector Panel. You can copy, cut, and paste graphics by selecting them with [ctrl + click] (or [cmd + click] on macOS) or by using shortcuts like [ctrl + c] and [ctrl + v] (or [cmd + c] and [cmd + v] for macOS) To delete a graphic or graphics, select them and press the delete key or use the menu item [Edit > Delete].
+Graphics are used to highlight certain sections of a display item. Similarly, masks are used to mark off certain sections of a display item to focus on. Certain graphics can only be used on images and others can only be used on line plots. Masks can only be used on images. Selecting one or more graphics on the same display item will allow you to edit the parameters of the graphics in the :ref:`graphics inspector section` subsection of the Inspector Panel. Selecting a display panel with graphics on it will show parameters for editing all of the applied graphics in the Inspector Panel. You can copy, cut, and paste graphics by selecting them with [ctrl + click] (or [cmd + click] on macOS) or by using shortcuts like [ctrl + c] and [ctrl + v] (or [cmd + c] and [cmd + v] for macOS) To delete a graphic or graphics, select them and press the delete key or use the menu item [Edit > Delete].
 
 .. _Image Graphics:
 
 Image Graphics
 ==============
-Image graphics are exclusive to data items displayed as images. They can only be placed on 2D images. Add an image graphic by using the various graphic buttons in the toolbar or by using the [Graphics] menu item. 
+Image graphics are exclusive to data items displayed as images. They can only be placed on 2D images. You can add an image graphic by using the various graphic buttons in the toolbar or by using the [Graphics] menu item. 
 
 .. _Line Graphic:
 
@@ -37,7 +37,7 @@ The ellipse graphic creates an ellipse between four anchor points.
     :width: 397
     :alt: Ellipse Graphic
 
-Holding shift while manipulating one of the anchor points will make the ellipse a perfect circle. To adjust the rotation of the ellipse, drag the fifth, exterior anchor point around its center point. Holding shift while rotating the graphic will snap it to intervals of 45˚. To move the whole graphic, click and drag from anywhere within the outer line of the ellipse.
+Holding shift while manipulating one of the anchor points will make the ellipse a perfect circle. To adjust the rotation of the ellipse, drag the fifth, exterior anchor point around the center point of the ellipse. Holding shift while rotating the graphic will snap it to intervals of 45˚. To move the whole graphic, click and drag from anywhere within the ellipse.
 
 In the Inspector Panel, you can adjust the (x,y) coordinate of the center point, the height and width of the ellipse, and the rotation of the graphic.
 
@@ -51,7 +51,7 @@ The rectangle graphic creates a rectangle with four anchor points at the vertice
     :width: 397
     :alt: Rectangle Graphic
 
-Holding shift while manipulating one of the anchor points will make the rectangle a perfect square. To adjust the rotation of the rectangle, drag the fifth, exterior anchor point around its center point. Holding shift while rotating the graphic will snap it to intervals of 45˚. To move the whole graphic, click and drag from anywhere within the outer line of the rectangle.
+Holding shift while manipulating one of the anchor points will make the rectangle a perfect square. To adjust the rotation of the rectangle, drag the fifth, exterior anchor point around its center point. Holding shift while rotating the graphic will snap it to intervals of 45˚. To move the whole graphic, click and drag from anywhere within the rectangle.
 
 In the Inspector Panel, you can adjust the (x,y) coordinate of the center point, the height and width of the rectangle, and the rotation of the graphic.
 
@@ -59,7 +59,7 @@ In the Inspector Panel, you can adjust the (x,y) coordinate of the center point,
 
 Point Graphic
 -------------
-The point graphic highlights the point at the center of four anchor points. 
+The point graphic highlights a point in the center of four anchor points. 
 
 .. image:: graphics/point_graphic.png
     :width: 397
@@ -85,7 +85,7 @@ The interval graphic highlights a section between two boundaries.
     :width: 397
     :alt: Interval Graphic
 
-To adjust the boundaries of the interval, click and drag left or right from either of the boundaries. To move the entire interval, click and drag the center anchor point between the two boundaries.
+To adjust the boundaries of the interval, click and drag either of the boundaries left or right. To move the entire interval, click and drag the center anchor point between the two boundaries.
 
 In the Inspector Panel, you can adjust the x values of each boundary.
 
@@ -95,7 +95,7 @@ If another interval graphic is blocking the creation of a new one, you can use t
 
 Channel Graphic
 ---------------
-The channel marks a value along the x axis with an orange marker. 
+The channel graphic marks a value along the x axis with an orange marker. 
 
 .. image:: graphics/channel_graphic.png
     :width: 397
@@ -109,9 +109,9 @@ Masks
 =====
 Masks are used to isolate sections of an image to gather information from just the specified area rather than the whole image. Preset masks are added to images just like graphics either by using the mask buttons in the toolbar or by using the [Graphics] menu item. 
 
-Aside from the default masks, you can choose to make a regular image graphic part of a mask. To add a graphic to the mask, select the graphic and use the menu item [Graphics > Add to Mask]. Similarly, remove a graphic from the mask by selecting it and using the menu item [Graphics > Remove from Mask]. A graphic will turn blue when it is part of the mask on an image.
+Aside from the default masks, you can choose to make a regular image graphic part of a mask. To add a graphic to the mask, select the graphic and use the menu item [Graphics > Add to Mask]. Similarly, you can remove a graphic from the mask by selecting it and using the menu item [Graphics > Remove from Mask]. A graphic will turn blue when it is part of the mask on an image.
 
-Below are the preset types of masks. For more information about adjusting the parameters of masks, see the GRAPHICS subsection of the Inspector Panel.
+Below are the preset types of masks. For more information about adjusting the parameters of masks, see the :ref:`graphics inspector section` subsection of the Inspector Panel.
 
 .. _Lattice Mask:
 
@@ -141,7 +141,7 @@ The ring mask creates a ring centered around the top left corner of the image.
     :width: 397
     :alt: Ring Mask Band
 
-The ring mask can either include the circle around the top left corner, exclude the circle around the top left corner, or be a band with width surrounding the top left corner. Adjust the radius(es) of the circle(s) by dragging the anchor points along the edges of the image.
+The ring mask can either include the circle around the top left corner, exclude the circle around the top left corner, or be a band of a certain width surrounding the top left corner. Adjust the radius(es) of the circle(s) by dragging the anchor points along the edges of the image.
 
 .. image:: graphics/ring_mask_high.png
     :width: 397
@@ -163,7 +163,7 @@ The spot mask creates two ellipses that are symmetrical and equidistant from the
     :width: 397
     :alt: Spot Mask
 
-One of the ellipses might be outside of the image so you may need to move or zoom out of the image by using the [ - ] key in order to see it. The ellipses will always be identical, so manipulating one will change the other. The ellipses can be manipulated just like the ELLIPSE GRAPHIC. Moving one ellipse will also move the other ellipse to be exactly opposite the other one around the top left corner.
+One of the ellipses might be outside of the image so you may need to move or zoom out of the image by using the [ - ] key in order to see it. The ellipses will always be identical, so manipulating one will change the other. The ellipses can be manipulated just like the :ref:`ellipse graphic`. Moving one ellipse will also move the other ellipse to be exactly opposite the other one around the top left corner.
 
 .. image:: graphics/spot_mask_handles.png
     :width: 397
