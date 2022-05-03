@@ -275,23 +275,27 @@ class DataItem(Persistence.PersistentObject):
 
     def __deepcopy__(self, memo: typing.Dict[typing.Any, typing.Any]) -> DataItem:
         data_item_copy = self.__class__()
-        # data format (temporary until moved to buffered data source)
-        data_item_copy.large_format = self.large_format
-        # metadata
-        data_item_copy.created = self.created
-        data_item_copy.timezone = self.timezone
-        data_item_copy.timezone_offset = self.timezone_offset
-        data_item_copy.metadata = self.metadata
-        data_item_copy.title = self.title
-        data_item_copy.caption = self.caption
-        data_item_copy.description = self.description
-        data_item_copy.session_id = self.session_id
-        data_item_copy.session_data = copy.deepcopy(self.session_data)
-        data_item_copy.category = self.category
-        # data and metadata
-        data_item_copy.set_data_and_metadata(copy.deepcopy(self.data_and_metadata), self.data_modified)
-        memo[id(self)] = data_item_copy
-        return data_item_copy
+        try:
+            # data format (temporary until moved to buffered data source)
+            data_item_copy.large_format = self.large_format
+            # metadata
+            data_item_copy.created = self.created
+            data_item_copy.timezone = self.timezone
+            data_item_copy.timezone_offset = self.timezone_offset
+            data_item_copy.metadata = self.metadata
+            data_item_copy.title = self.title
+            data_item_copy.caption = self.caption
+            data_item_copy.description = self.description
+            data_item_copy.session_id = self.session_id
+            data_item_copy.session_data = copy.deepcopy(self.session_data)
+            data_item_copy.category = self.category
+            # data and metadata
+            data_item_copy.set_data_and_metadata(copy.deepcopy(self.data_and_metadata), self.data_modified)
+            memo[id(self)] = data_item_copy
+            return data_item_copy
+        except Exception:
+            data_item_copy.close()
+            raise
 
     def snapshot(self) -> DataItem:
         """Return a new library item which is a copy of this one with any dynamic behavior made static."""

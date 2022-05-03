@@ -2043,28 +2043,32 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
     def get_display_item_snapshot_new(self, display_item: DisplayItem.DisplayItem) -> DisplayItem.DisplayItem:
         data_item_copy: typing.Optional[DataItem.DataItem]
         display_item_copy = display_item.snapshot()
-        data_item_copies: typing.List[typing.Optional[DataItem.DataItem]] = list()
-        for data_item in display_item.data_items:
-            if data_item:
-                data_item_copy = data_item.snapshot()
-                self.append_data_item(data_item_copy, False)
-                data_item_copies.append(data_item_copy)
-            else:
-                data_item_copies.append(None)
-        for display_data_channel in display_item_copy.display_data_channels:
-            display_item_copy.remove_display_data_channel(display_data_channel).close()
-        for data_item_copy, display_data_channel in zip(data_item_copies, display_item.display_data_channels):
-            display_data_channel_copy = DisplayItem.DisplayDataChannel(data_item=data_item_copy)
-            display_data_channel_copy.copy_display_data_properties_from(display_data_channel)
-            display_item_copy.append_display_data_channel(display_data_channel_copy, display_layer=DisplayItem.DisplayLayer())
-        # the display layers will be disrupted by appending data channels; so just recopy them here
-        # this code can be simplified once display layers are objects
-        while len(display_item_copy.display_layers):
-            display_item_copy.remove_display_layer(0).close()
-        for i in range(len(display_item.display_layers)):
-            data_index = display_item.display_data_channels.index(display_item.get_display_layer_display_data_channel(i))
-            display_item_copy.add_display_layer_for_display_data_channel(display_item_copy.display_data_channels[data_index], **display_item.get_display_layer_properties(i))
-        display_item_copy.title = _("Snapshot of ") + display_item.title
+        try:
+            data_item_copies: typing.List[typing.Optional[DataItem.DataItem]] = list()
+            for data_item in display_item.data_items:
+                if data_item:
+                    data_item_copy = data_item.snapshot()
+                    self.append_data_item(data_item_copy, False)
+                    data_item_copies.append(data_item_copy)
+                else:
+                    data_item_copies.append(None)
+            for display_data_channel in display_item_copy.display_data_channels:
+                display_item_copy.remove_display_data_channel(display_data_channel).close()
+            for data_item_copy, display_data_channel in zip(data_item_copies, display_item.display_data_channels):
+                display_data_channel_copy = DisplayItem.DisplayDataChannel(data_item=data_item_copy)
+                display_data_channel_copy.copy_display_data_properties_from(display_data_channel)
+                display_item_copy.append_display_data_channel(display_data_channel_copy, display_layer=DisplayItem.DisplayLayer())
+            # the display layers will be disrupted by appending data channels; so just recopy them here
+            # this code can be simplified once display layers are objects
+            while len(display_item_copy.display_layers):
+                display_item_copy.remove_display_layer(0).close()
+            for i in range(len(display_item.display_layers)):
+                data_index = display_item.display_data_channels.index(display_item.get_display_layer_display_data_channel(i))
+                display_item_copy.add_display_layer_for_display_data_channel(display_item_copy.display_data_channels[data_index], **display_item.get_display_layer_properties(i))
+            display_item_copy.title = _("Snapshot of ") + display_item.title
+        except Exception:
+            display_item_copy.close()
+            raise
         self.append_display_item(display_item_copy)
         return display_item_copy
 
