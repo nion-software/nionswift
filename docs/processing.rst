@@ -5,15 +5,15 @@
 ***********************
 Processing and Analysis
 ***********************
-Processing and analysis comes in the form of computations. Computations can be applied to data items and graphics in your project and they can gather specific metrics on your data for analysis. Computations take inputs in the form of data items, display items, or graphics; and produce outputs in the form of new data items, or graphics. If the input of a computation is modified, the outputs will update live to reflect the new calculations. This means you can use computations for processing data being acquired live. When a computation is applied to a data item or graphic, the computation will be stored in the project.
+You can process data and analyze the results using computations. Computations can be applied to data items and graphics in your project, and they can gather specific metrics on your data for analysis. Computations take inputs in the form of data items, display items, or graphics; and produce outputs in the form of new data items, or graphics. When a computation is applied to a data item or graphic, the computation will be stored in the project. If the input of a computation is modified, the outputs will update live to reflect the new calculations. This means you can use computations for processing data being acquired live.
 
 Computations
 ============
-To apply processing to an item, select the item by clicking on it, then use the [Processing] menu to select the desired computation. If a computation requires multiple inputs, you can select multiple items before applying processing. See :ref:`data-items` (Selections) for more information. You could also apply a process to only one item and add more inputs using the Computation editor dialogue. Open the editor by hitting [ctrl + E] (or [cmd + E] on macOS). 
+To apply processing to an item, select the item by clicking on it, then use the [Processing] menu to select the desired computation. If a computation requires multiple inputs, you can select multiple items before applying processing. See :ref:`data-items` (Selections) for more information. To add more inputs after processing is applied, use the Computation editor dialogue. Open the editor by hitting [ctrl + E] (or [cmd + E] on macOS). 
 
 .. image:: graphics/computation_window.png
     :width: 320
-    :alt: Computation Editor Dialogue Window
+    :alt: Computation Editor Dialogue Window 
 
 To add or change inputs in the Computation editor dialogue, drag data items, display items, or graphics into the input slot(s). 
 
@@ -35,7 +35,7 @@ Fourier filtering can be applied to one of the four :ref:`graphics` (Masks). To 
 
 Scripts and Commands
 ====================
-To extend the functionality of Swift, you can add and run your own scripts in your project. Begin by opening the script dialogue box by using the menu item [File > Scripts…]. Clicking the “Add…” or “Add Folder…” buttons will allow you to select one or multiple scripts to import into the project. Similarly, to remove a script, select it and click the “Remove” button. To quickly add other scripts contained in the same folder as a previously added script, right click on the script and choose “Open Containing Folder.” 
+To extend the functionality of Swift, you can add and run your own scripts to your project. Begin by opening the script dialogue box by using the menu item [File > Scripts…]. Clicking the “Add…” or “Add Folder…” buttons will allow you to select one or multiple scripts to import into the project. Similarly, to remove a script, select it and click the “Remove” button. To quickly add other scripts contained in the same folder as a previously added script, right click on the script and choose “Open Containing Folder.” 
 
 To run a script, select the desired script from the Scripts dialogue box and click “Run.” You can also run a script by double clicking on it. A running script will display its output in the Output Panel. A script might also ask for an input or inputs if it doesn't have the right data to run on.
 
