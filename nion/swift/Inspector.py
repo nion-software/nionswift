@@ -1759,7 +1759,7 @@ class ContrastStringConverter(Converter.ConverterLike[float, str]):
 
     def convert(self, value: typing.Optional[float]) -> typing.Optional[str]:
         if value is not None:
-            return f"{value:0.2f}" if value >= 1 else f"1 / {1 / value:0.2f}"
+            return f"{value:0.2f}" if value >= 1 else f"1 / {1 / value:0.2f}" if value > 0 else f"{0.0:0.2f}"
         return None
 
     def convert_back(self, value_str: typing.Optional[str]) -> typing.Optional[float]:
@@ -1779,7 +1779,7 @@ class ContrastIntegerConverter(Converter.ConverterLike[float, int]):
 
     def convert(self, value: typing.Optional[float]) -> typing.Optional[int]:
         if value is not None:
-            return int(math.log10(value) * self.n // 2) + (self.n // 2)
+            return int(math.log10(value) * self.n // 2) + (self.n // 2) if value > 0 else self.n
         return None
 
     def convert_back(self, value_int: typing.Optional[int]) -> typing.Optional[float]:
@@ -1811,7 +1811,7 @@ class GammaStringConverter(Converter.ConverterLike[float, str]):
 
     def convert(self, value: typing.Optional[float]) -> typing.Optional[str]:
         if value is not None:
-            return f"{value:0.2f}" if value >= 1 else f"1 / {1 / value:0.3f}"
+            return f"{value:0.2f}" if value >= 1 else f"1 / {1 / value:0.3f}" if value > 0 else f"{0.0:0.2f}"
         return None
 
     def convert_back(self, value_str: typing.Optional[str]) -> typing.Optional[float]:
@@ -1830,7 +1830,7 @@ class GammaIntegerConverter(Converter.ConverterLike[float, int]):
 
     def convert(self, value: typing.Optional[float]) -> typing.Optional[int]:
         if value is not None:
-            return 100 - int(math.log(value, 10) * 50 + 50)
+            return 100 - int(math.log(value, 10) * 50 + 50) if value > 0 else 0
         return None
 
     def convert_back(self, value_int: typing.Optional[int]) -> typing.Optional[float]:

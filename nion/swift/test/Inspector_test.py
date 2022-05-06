@@ -1460,6 +1460,36 @@ class TestInspectorClass(unittest.TestCase):
             with contextlib.closing(binding):
                 display_item.remove_graphic(interval).close()
 
+    def test_contrast_converters(self):
+        self.assertEqual("1 / 4.00", Inspector.ContrastStringConverter().convert(0.25))
+        self.assertEqual("2.50", Inspector.ContrastStringConverter().convert(2.5))
+        self.assertEqual(0.25, Inspector.ContrastStringConverter().convert_back("1 / 4.00"))
+        self.assertEqual(2.5, Inspector.ContrastStringConverter().convert_back("2.50"))
+        self.assertEqual(0, Inspector.ContrastIntegerConverter(100).convert(0.1))
+        self.assertEqual(100, Inspector.ContrastIntegerConverter(100).convert(10.0))
+        self.assertEqual(0.1, Inspector.ContrastIntegerConverter(100).convert_back(0))
+        self.assertEqual(10.0, Inspector.ContrastIntegerConverter(100).convert_back(100))
+        # test invalid value case
+        self.assertEqual("0.00", Inspector.ContrastStringConverter().convert(0.0))
+        self.assertEqual(0.0, Inspector.ContrastStringConverter().convert_back("0.00"))
+        self.assertEqual(100, Inspector.ContrastIntegerConverter(100).convert(0.0))
+        self.assertEqual(10.0, Inspector.ContrastIntegerConverter(100).convert_back(100))
+
+    def test_gamma_converters(self):
+        self.assertEqual("1 / 4.000", Inspector.GammaStringConverter().convert(0.25))
+        self.assertEqual("2.50", Inspector.GammaStringConverter().convert(2.5))
+        self.assertEqual(0.25, Inspector.GammaStringConverter().convert_back("1 / 4.00"))
+        self.assertEqual(2.5, Inspector.GammaStringConverter().convert_back("2.50"))
+        self.assertEqual(100, Inspector.GammaIntegerConverter().convert(0.1))
+        self.assertEqual(0, Inspector.GammaIntegerConverter().convert(10.0))
+        self.assertEqual(0.1, Inspector.GammaIntegerConverter().convert_back(100))
+        self.assertEqual(10.0, Inspector.GammaIntegerConverter().convert_back(0))
+        # test invalid value case
+        self.assertEqual("0.00", Inspector.GammaStringConverter().convert(0.0))
+        self.assertEqual(0.0, Inspector.GammaStringConverter().convert_back("0.00"))
+        self.assertEqual(0, Inspector.GammaIntegerConverter().convert(0.0))
+        self.assertEqual(0.1, Inspector.GammaIntegerConverter().convert_back(100))
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
