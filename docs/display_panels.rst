@@ -65,6 +65,8 @@ A line plot is the visualization of 1D data in a display panel. Changing several
   
 * Add line plot graphics to a line plot by using either the toolbar or the [Graphics] menu. The channel and interval graphics are line plot graphics. See :ref:`line plot graphics`.
   
+.. _Line Plot Layers:
+
 Line Plot Layers
 ----------------
 Line plots can be layered to show multiple data items on the same plot. To layer line plots, drag a line plot data item from the data panel onto the graph portion of a displayed line plot. Do not drop the data item onto the sides of the display panel or the data item will replace the line plot in the display panel. Line plots can only be layered if the calibrated units match those of the first data item.
