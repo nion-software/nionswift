@@ -7,13 +7,17 @@ Display Panels
 **************
 The center of the window is called the workspace and it is where data is visualized. The workspace consists of display panels which display a piece of data (also called a data item). 
 
-
+.. image:: graphics/workspace_layout.png
+    :width: 937
+    :alt: Workspace Layout
 
 In a new project, the workspace will be filled by a single display panel. Use the toolbar to split the workspace into multiple smaller display panels, zoom into images, add graphics, and move an image.
 
 To display a data item, drag it from the data panel into a display panel. You can also drag data files into a display panel directly from your desktop and from Explorer on Windows or Finder on macOS. Once the data item is in the display panel, you can use the utility panels surrounding the workspace to perform various functions, processes, manipulations, and calibrations to the selected image or line plot.
 
-
+.. image:: graphics/data_to_display.png
+    :width: 562
+    :alt: Dragging Data Items into Display Panels to Display Them
 
 Different types of data are displayed in different ways such as 2D images or 1D line plots. Higher-dimensional data can be displayed as sets or lists of 2D images or as lists of 1D spectra. You can also use a display panel as a browser to help compare or manage your data.
 
@@ -23,7 +27,9 @@ Images
 ======
 An image is the visualization of 2D data in a display panel. There are several ways to adjust the view of an image.
 
-
+.. image:: graphics/images_infographic.png
+    :width: 792
+    :alt: Adjusting Images
 
 * Move an image by selecting the move tool from the toolbar and then clicking and dragging on the image. If you are using a trackpad, you can also move the image by dragging with two fingers while the cursor is on top of the image.
   
@@ -41,7 +47,9 @@ Line Plots
 ==========
 A line plot is the visualization of 1D data in a display panel. Changing several parameters allows you to see the data exactly the way you want.
 
-
+.. image:: graphics/line_plot_infographic.png
+    :width: 792
+    :alt: Adjusting Line Plots
 
 * Move the data along an axis of a line plot by clicking and dragging on either the left or bottom axis.
   
@@ -60,6 +68,10 @@ A line plot is the visualization of 1D data in a display panel. Changing several
 Line Plot Layers
 ----------------
 Line plots can be layered to show multiple data items on the same plot. To layer line plots, drag a line plot data item from the data panel onto the graph portion of a displayed line plot. Do not drop the data item onto the sides of the display panel or the data item will replace the line plot in the display panel. Line plots can only be layered if the calibrated units match those of the first data item.
+
+.. image:: graphics/line_plot_layers_infographic.png
+    :width: 792
+    :alt: Adjust Line Plot Layers
 
 Each layer of a line plot will have a unique fill color by default. To change the fill color, stroke color, and stroke width of each layer, use the Line Plot Display Layers subsection of the Inspector panel. Clicking on the color box next to Fill Color or Stroke Color will open the color selection window. To input color at text, you can use RGB values such as rgb(100, 50, 200), hex values such as #55AAFF, or a web-defined color such as Blue. Change the transparency of a color by either inputting text with a transparency code like rgb(100, 50, 200, .5) or #55AAFF80, or by using the opacity sliders in the pop-up color selection panel.
 
@@ -81,7 +93,9 @@ Browsers
 ========
 To use a display panel as a browser, use the menu item [Display > Thumbnail Browser] or [Display > Grid Browser] or hit the lowercase “V” key while a display panel is selected to switch between the display, the thumbnail browser, and the grid browser.
 
-
+.. image:: graphics/browsers_infographic.png
+    :width: 792
+    :alt: Thumbnail and Grid Browsers
 
 A thumbnail browser shows a large image of the selected item but also shows thumbnail images of the other items. Click on a thumbnail image or use the left and right arrow keys to quickly switch between images.
 
