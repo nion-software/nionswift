@@ -18,7 +18,7 @@ The user interface is comprised of two main sections: a central section called t
   :width: 320
   :alt: Example of the Swift Workspace 
 
-The central workspace is for display panels which can either display a single data item or thumbnail images of multiple data items in one of the browser formats. For more information, see :ref:`display-panels`.
+The central workspace shows display panels which can either display a single data item or thumbnail images of multiple data items in one of the browser formats. For more information, see :ref:`display-panels`.
 
 The utility panels surrounding the central workspace allow you to make adjustments to a selected data item in a display panel. For more information on their specific functions, see :ref:`user-interface`.
 
@@ -38,13 +38,13 @@ See :ref:`graphics` for more information.
 
 Processing and Analysis
 =======================
-Processing data by adding line profiles to an image, running Python scripts, filtering data, etc. can give you deeper insight into your data. Use the :ref:`inspector panel` to adjust processing settings. Customizing processing allows for easier and more specific analysis of data.
+Yion Swift can automatically perform processing and analysis on data by running computations, running Python scripts, filtering data, and more. For example, you can do processing on part of an image by using a rectangle graphic to select a region of interest and then using the menu item [Processing > Filter > Sobel...]. Use the :ref:`inspector panel` to adjust processing settings. Customizing processing allows for easier and more specific analysis of data.
 
 See :ref:`processing` for more information.
 
 Projects and File Management
 ============================
-Imported and gathered data items are stored as a project in the form of an index file on your computer. Projects can be transferred just like any other file and can be opened in other installations of Nion Swift provided the versions are compatible.
+Nion Swift organizes data items into projects. Projects are folders/directories on your computer which contain both an index file for tracking relationships between data items and the individual files for each data item. Projects can be archived, moved to other computers, and opened in other installations of Nion Swift. While you can store several project files on your computer, only one project can be open at a time. When a project is open, it is associated with the main project window.
 
 Import data into a project by dragging a data file into the workspace or by using the menu item [File > Import Data…]. Export data by using the menu item [File > Export…].
 
