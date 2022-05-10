@@ -2,8 +2,9 @@
 
 .. _display-panels:
 
+**************
 Display Panels
-==============
+**************
 The center of the window is called the workspace and it is where data is visualized. The workspace consists of display panels which display a piece of data (also called a data item). 
 
 
@@ -16,22 +17,10 @@ To display a data item, drag it from the data panel into a display panel. You ca
 
 Different types of data are displayed in different ways such as 2D images or 1D line plots. Higher-dimensional data can be displayed as sets or lists of 2D images or as lists of 1D spectra. You can also use a display panel as a browser to help compare or manage your data.
 
-.. _Display Panel Browsers:
-
-Browsers
---------
-To use a display panel as a browser, use the menu item [Display > Thumbnail Browser] or [Display > Grid Browser] or hit the lowercase “V” key while a display panel is selected to switch between the display, the thumbnail browser, and the grid browser.
-
-
-
-A thumbnail browser shows a large image of the selected item but also shows thumbnail images of the other items. Click on a thumbnail image or use the left and right arrow keys to quickly switch between images.
-
-A grid browser shows all the data items in the project in a grid. You can use this to quickly select data items even if they are not displayed or if there are a lot of items to scroll through in the data panel. You can also use all four arrow keys to navigate the grid browser selection.
-
 .. _Image Display Panel:
 
 Images
-------
+======
 An image is the visualization of 2D data in a display panel. There are several ways to adjust the view of an image.
 
 
@@ -49,7 +38,7 @@ An image is the visualization of 2D data in a display panel. There are several w
 .. _Line Plot Display Panel:
 
 Line Plots
-----------
+==========
 A line plot is the visualization of 1D data in a display panel. Changing several parameters allows you to see the data exactly the way you want.
 
 
@@ -69,7 +58,7 @@ A line plot is the visualization of 1D data in a display panel. Changing several
 * Add line plot graphics to a line plot by using either the toolbar or the [Graphics] menu. The channel and interval graphics are line plot graphics. See :ref:`line plot graphics`.
   
 Line Plot Layers
-++++++++++++++++
+----------------
 Line plots can be layered to show multiple data items on the same plot. To layer line plots, drag a line plot data item from the data panel onto the graph portion of a displayed line plot. Do not drop the data item onto the sides of the display panel or the data item will replace the line plot in the display panel. Line plots can only be layered if the calibrated units match those of the first data item.
 
 Each layer of a line plot will have a unique fill color by default. To change the fill color, stroke color, and stroke width of each layer, use the Line Plot Display Layers subsection of the Inspector panel. Clicking on the color box next to Fill Color or Stroke Color will open the color selection window. To input color at text, you can use RGB values such as rgb(100, 50, 200), hex values such as #55AAFF, or a web-defined color such as Blue. Change the transparency of a color by either inputting text with a transparency code like rgb(100, 50, 200, .5) or #55AAFF80, or by using the opacity sliders in the pop-up color selection panel.
@@ -85,3 +74,15 @@ If a data item added to a line plot has multiple rows of data, you can choose in
 To add or remove layers to a data item that is already layered in the line plot, click the + or - buttons in the data item's subsection of the inspector panel.
 
 A legend will appear on a line plot with multiple layers. Change the position of the legend or toggle its visibility with the Legend Position drop-down in the Line Plot Display subsection of the inspector panel. You can also reorder layers directly from the legend by clicking and dragging on the layer names in the legend.
+
+.. _Display Panel Browsers:
+
+Browsers
+========
+To use a display panel as a browser, use the menu item [Display > Thumbnail Browser] or [Display > Grid Browser] or hit the lowercase “V” key while a display panel is selected to switch between the display, the thumbnail browser, and the grid browser.
+
+
+
+A thumbnail browser shows a large image of the selected item but also shows thumbnail images of the other items. Click on a thumbnail image or use the left and right arrow keys to quickly switch between images.
+
+A grid browser shows all the data items in the project in a grid. You can use this to quickly select data items even if they are not displayed or if there are a lot of items to scroll through in the data panel. You can also use all four arrow keys to navigate the grid browser selection.
