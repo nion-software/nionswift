@@ -18,8 +18,12 @@ The user interface is comprised of two main sections: a central section called t
   :width: 320
   :alt: Example of the Swift Workspace 
 
+Workspace
+---------
 The central workspace shows display panels which can either display a single data item or thumbnail images of multiple data items in one of the browser formats. For more information, see :ref:`display-panels`.
 
+Utility Panels
+--------------
 The utility panels surrounding the central workspace allow you to make adjustments to a selected data item in a display panel. For more information on their specific functions, see :ref:`user-interface`.
 
 Data and Display
