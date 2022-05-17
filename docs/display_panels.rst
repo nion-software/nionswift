@@ -13,7 +13,7 @@ The center of the window is called the workspace and it is where data is visuali
 
 In a new project, the workspace will be filled by a single display panel. Use the toolbar to split the workspace into multiple smaller display panels, zoom into images, add graphics, and move an image.
 
-To display a data item, drag it from the data panel into a display panel. You can also drag data files into a display panel directly from your desktop and from Explorer on Windows or Finder on macOS. Once the data item is in the display panel, you can use the utility panels surrounding the workspace to process, analyze, and edit the datails of the displayed data.
+To display a data item, drag it from the data panel into a display panel. You can also drag data files into a display panel directly from your desktop and from Explorer on Windows or Finder on macOS. Many utility panels operate only on the selected display panel(s). With a data item in a selected display panel, you can use the utility panels surrounding the workspace to process, analyze, and edit the datails of the displayed data.
 
 .. image:: graphics/data_to_display.png
     :width: 562
@@ -39,11 +39,11 @@ Move an image by selecting the move tool from the toolbar and then clicking and 
 
 Scale images by selecting one of the scale options from the toolbar or zoom in and out of an image by using the + and - keys. A data item will be set to fit to the enclosed space by default when it is first displayed. With the toolbar buttons, you can choose to have the image fit to the display panel, fill the display panel, scale to a 1:1 ratio of image pixels to screen pixels, or scale to a 2:1 ratio of image pixels to screen pixels. If the scale is set to fit or fill the display panel, the image will rescale with the display panel if it is resized. If the scale is set to either the 1:1 or 2:1 ratios, the image will not scale with the display panel. Scaling of a selected image can also be performed by using the Display menu and selecting Fit to View, Fill View, 1:1 View, or 1:2 View.
 
-**Changing Colors**
+**Changing Colors, Contrast, and Brightness**
 
 Change the set of colors an image uses by choosing a color map in the Image Data subsection of the Inspector panel. Here, you can also change the contrast and brightness of the image.
 
-**Adding Graphics**
+**Adding Image Graphics**
 
 Add image graphics to an image by using either the toolbar or the [Graphics] menu. The line, ellipse, rectangle, and point graphics are image graphics. See Image Graphics
 
@@ -61,11 +61,11 @@ A line plot is the visualization of 1D data in a display panel. Changing several
     :width: 792
     :alt: Adjusting Line Plots
 
-**Moving Data**
+**Adjusting Data**
 
 Move the data along an axis of a line plot by clicking and dragging on either the left or bottom axis.
 
-**Adjusting Axes**
+**Zooming on Axes**
 
 Zoom in or out on an axis by using [Ctrl + Click] (or [Cmd+Click] for macOS) and dragging along the axis. Zoom in on the left axis by dragging upward and out by dragging downward. Similarly, Zoom in on the bottom axis by dragging right and out by dragging left.
 
@@ -73,19 +73,19 @@ Zoom in or out on an axis by using [Ctrl + Click] (or [Cmd+Click] for macOS) and
 
 Reset the axes, by double clicking on each axis. By default, the axes of a line plot will scale automatically.
 
-**Using Log Scales**
+**Using a Log Scale Y Axis**
 
 Set the Y axis of a line plot to a logarithmic scale by checking the “Log Scale (Y)” checkbox in the Line Plot Display subsection of the Inspector panel.
 
-**Choosing Display Type**
+**Switching Coordinate Systems**
 
 Choose to display calibrated or uncalibrated values in the Calibrations subsection of the Inspector panel. By default, a line plot will display calibrated values. You can manually change the calibration in the Inspector panel, but if the line plot data is the result of a computation or acquisition, then the calibrations will be reset if the data is recalculated or reacquired.
 
-**Changing Colors**
+**Changing Colors, Contrast, and Brightness**
 
 Change the fill color, stroke color, and stroke weight of a line plot in the Line Plot Display Layers subsection of the Inspector panel.
 
-**Adding Graphics**
+**Adding Line Plot Graphics**
 
 Add line plot graphics to a line plot by using either the toolbar or the [Graphics] menu. The channel and interval graphics are line plot graphics. See :ref:`line plot graphics`.
   
