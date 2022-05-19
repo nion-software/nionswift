@@ -370,7 +370,7 @@ Each graphic will have some or all of the following variables:
 
 * :guilabel:`Radius 1` - The outer radius of a ring mask in nanometers (nm), pixels, or a decimal fraction depending on the coordinate system selected.
 
-* :guilabel:`Rdius 2` The inner radius of a ring mask in nanometers (nm), pixels, or a decimal fraction depending on the coordinate system selected.
+* :guilabel:`Radius 2` The inner radius of a ring mask in nanometers (nm), pixels, or a decimal fraction depending on the coordinate system selected.
 
 * :guilabel:`Mode` - The type of ring mask. See :ref:`graphics` for more information on ring masks.
 
