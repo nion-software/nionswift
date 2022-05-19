@@ -99,19 +99,25 @@ Line plots can be layered to show multiple data items on the same plot. To layer
     :width: 792
     :alt: Adjust Line Plot Layers
 
+**Changing the Color of Layers**
+
 Each layer of a line plot will have a unique fill color by default. To change the fill color, stroke color, and stroke width of each layer, use the Line Plot Display Layers subsection of the Inspector panel. Clicking on the color box next to Fill Color or Stroke Color will open the color selection window. To input color at text, you can use RGB values such as rgb(100, 50, 200), hex values such as #55AAFF, or a web-defined color such as Blue. Change the transparency of a color by either inputting text with a transparency code like rgb(100, 50, 200, .5) or #55AAFF80, or by using the opacity sliders in the pop-up color selection panel.
+
+**Ordering Layers**
 
 The same subsection will allow you to scroll through setting options for each layer. Each layer will be differentiated by the Data Index. This is a number starting with 0 used to name each layer. Adding a new data item on top of a line plot will automatically create a new associated layer.
 
 Reorder layers by clicking the up and down arrow buttons in the section of the Inspector panel associated with the layer you want to move. For example, to move layer 1 down, click the down arrow under "Data #0" in the inspector panel. 
+
+A legend will appear on a line plot with multiple layers. Change the position of the legend or toggle its visibility with the Legend Position drop-down in the Line Plot Display subsection of the inspector panel. You can also reorder layers directly from the legend by clicking and dragging on the layer names in the legend.
+
+**Adding and Removing Data or Layers**
 
 Data items can be removed from the layered line plot entirely by clicking the X in the inspector panel next to the title of the data item you want to remove. The data items will be labeled Data #0, Data #1, etc. If a data item is deleted from the layered line plot, all associated layers will also be removed.
 
 If a data item added to a line plot has multiple rows of data, you can choose in the Line Plot Display Layers subsection of the inspector which row to show. Data items that are higher dimensional, a 2D image for example, cannot be layered onto a line plot.
 
 To add or remove layers to a data item that is already layered in the line plot, click the + or - buttons in the data item's subsection of the inspector panel.
-
-A legend will appear on a line plot with multiple layers. Change the position of the legend or toggle its visibility with the Legend Position drop-down in the Line Plot Display subsection of the inspector panel. You can also reorder layers directly from the legend by clicking and dragging on the layer names in the legend.
 
 .. _Display Panel Browsers:
 
