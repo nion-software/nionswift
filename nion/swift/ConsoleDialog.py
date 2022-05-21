@@ -5,10 +5,11 @@ import code
 import contextlib
 import copy
 import gettext
+import importlib
 import io
 import re
-import rlcompleter
 import sys
+import types
 import typing
 
 # local libraries
@@ -18,6 +19,13 @@ from nion.swift.model import Persistence
 from nion.ui import Dialog
 from nion.ui import UserInterface
 from nion.ui import Widgets
+
+# hack to work with conda/python3.10 until they fix readline
+rlcompleter: typing.Optional[types.ModuleType]
+try:
+    rlcompleter = importlib.import_module("rlcompleter")
+except Exception:
+    rlcompleter = None
 
 if typing.TYPE_CHECKING:
     from nion.swift import DocumentController
@@ -74,29 +82,29 @@ class ConsoleWidgetStateController:
     def complete_command(self, command: str) -> typing.Tuple[str, typing.List[str]]:
         terms = list()
         completed_command = command
-        completer = rlcompleter.Completer(namespace=getattr(self.__console, "locals"))  # TODO: why isn't locals defined?
-        index = 0
-        rx = "([" + re.escape(ConsoleWidgetStateController.delims) + "])"
-        # the parenthesis around rx make it a group. This will cause split to keep the characters in rx in the
-        # list, so that we can reconstruct the original string later
-        split_commands = re.split(rx, command)
-        if len(split_commands) > 0:
-            completion_term = split_commands[-1]
-            while True:
-                term = completer.complete(completion_term, index)
-                if term is None:
-                    break
-                index += 1
-                # for some reason rlcomplete returns "\t" when completing "", so exclude that case here
-                if not term.startswith(completion_term + "__") and term != "\t":
-                    terms.append(term)
-            if len(terms) == 1:
-                completed_command = command[:command.rfind(completion_term)] + terms[0]
-                terms = list()
-            elif len(terms) > 1:
-                common_prefix = ConsoleWidgetStateController.get_common_prefix(terms)
-                completed_command = str().join(split_commands[:-1]) + common_prefix
-
+        if rlcompleter:
+            completer = rlcompleter.Completer(namespace=getattr(self.__console, "locals"))  # TODO: why isn't locals defined?
+            index = 0
+            rx = "([" + re.escape(ConsoleWidgetStateController.delims) + "])"
+            # the parenthesis around rx make it a group. This will cause split to keep the characters in rx in the
+            # list, so that we can reconstruct the original string later
+            split_commands = re.split(rx, command)
+            if len(split_commands) > 0:
+                completion_term = split_commands[-1]
+                while True:
+                    term = completer.complete(completion_term, index)
+                    if term is None:
+                        break
+                    index += 1
+                    # for some reason rlcomplete returns "\t" when completing "", so exclude that case here
+                    if not term.startswith(completion_term + "__") and term != "\t":
+                        terms.append(term)
+                if len(terms) == 1:
+                    completed_command = command[:command.rfind(completion_term)] + terms[0]
+                    terms = list()
+                elif len(terms) > 1:
+                    common_prefix = ConsoleWidgetStateController.get_common_prefix(terms)
+                    completed_command = str().join(split_commands[:-1]) + common_prefix
         return completed_command, terms
 
     def move_back_in_history(self, current_line: str) -> str:
