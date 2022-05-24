@@ -1,4 +1,7 @@
 {
+    "display.snapshot_display": {
+        "window": "Ctrl+S"
+    },
     "display_panel.delete_graphics": {
         "display_panel": "delete"
     },
@@ -100,9 +103,6 @@
     },
     "item.copy_uuid": {
         "window": "Ctrl+Shift+U"
-    },
-    "item.snapshot": {
-        "window": "Ctrl+S"
     },
     "item.duplicate": {
         "window": "Ctrl+D"
