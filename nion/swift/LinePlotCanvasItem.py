@@ -109,7 +109,8 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
         self.__line_graph_area_stack = CanvasItem.CanvasItemComposition()
         self.__line_graph_background_canvas_item = LineGraphCanvasItem.LineGraphBackgroundCanvasItem()
-        self.__line_graph_stack = CanvasItem.CanvasItemComposition()
+        self.__line_graph_fill_stack = CanvasItem.CanvasItemComposition()
+        self.__line_graph_stroke_stack = CanvasItem.CanvasItemComposition()
         self.__line_graph_regions_canvas_item = LineGraphCanvasItem.LineGraphRegionsCanvasItem()
         self.__line_graph_legend_row = CanvasItem.CanvasItemComposition()
         self.__line_graph_legend_row.layout = CanvasItem.CanvasItemRowLayout(margins=Geometry.Margins(4, 8, 4, 8))
@@ -123,13 +124,15 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.__line_graph_legend_column.add_stretch()
         self.__line_graph_frame_canvas_item = LineGraphCanvasItem.LineGraphFrameCanvasItem()
         self.__line_graph_area_stack.add_canvas_item(self.__line_graph_background_canvas_item)
-        self.__line_graph_area_stack.add_canvas_item(self.__line_graph_stack)
+        self.__line_graph_area_stack.add_canvas_item(self.__line_graph_fill_stack)
+        self.__line_graph_area_stack.add_canvas_item(self.__line_graph_stroke_stack)
         self.__line_graph_area_stack.add_canvas_item(self.__line_graph_regions_canvas_item)
         self.__line_graph_area_stack.add_canvas_item(self.__line_graph_legend_column)
         self.__line_graph_area_stack.add_canvas_item(self.__line_graph_frame_canvas_item)
 
         for i in range(16):
-            self.__line_graph_stack.add_canvas_item(LineGraphCanvasItem.LineGraphCanvasItem())
+            self.__line_graph_fill_stack.add_canvas_item(LineGraphCanvasItem.LineGraphCanvasItem())
+            self.__line_graph_stroke_stack.add_canvas_item(LineGraphCanvasItem.LineGraphCanvasItem())
 
         self.__line_graph_vertical_axis_label_canvas_item = LineGraphCanvasItem.LineGraphVerticalAxisLabelCanvasItem()
         self.__line_graph_vertical_axis_scale_canvas_item = LineGraphCanvasItem.LineGraphVerticalAxisScaleCanvasItem()
@@ -225,16 +228,24 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         super().close()
 
     @property
-    def line_graph_stack(self) -> CanvasItem.CanvasItemComposition:
-        return self.__line_graph_stack
+    def line_graph_fill_stack(self) -> CanvasItem.CanvasItemComposition:
+        return self.__line_graph_fill_stack
+
+    @property
+    def line_graph_stroke_stack(self) -> CanvasItem.CanvasItemComposition:
+        return self.__line_graph_stroke_stack
 
     @property
     def default_aspect_ratio(self) -> float:
         return (1 + 5 ** 0.5) / 2  # golden ratio
 
+    # Modified to tuple for #657
     @property
-    def line_graph_canvas_item(self) -> typing.Optional[LineGraphCanvasItem.LineGraphCanvasItem]:
-        return typing.cast(LineGraphCanvasItem.LineGraphCanvasItem, self.__line_graph_stack.canvas_items[0]) if self.__line_graph_stack else None
+    def line_graph_canvas_item(self) -> typing.Optional[tuple[LineGraphCanvasItem.LineGraphCanvasItem, LineGraphCanvasItem.LineGraphCanvasItem]]:
+        # assume that fill stack is always aligned with stroke stack
+        return (typing.cast(LineGraphCanvasItem.LineGraphCanvasItem, self.__line_graph_fill_stack.canvas_items[0]),
+                typing.cast(LineGraphCanvasItem.LineGraphCanvasItem, self.__line_graph_stroke_stack.canvas_items[0]))\
+                if self.__line_graph_fill_stack else None
 
     # for testing
     @property
@@ -513,7 +524,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
             colors = ('#1E90FF', "#F00", "#0F0", "#00F", "#FF0", "#0FF", "#F0F", "#888", "#800", "#080", "#008", "#CCC", "#880", "#088", "#808", "#964B00")
 
-            max_layer_count = len(self.__line_graph_stack.canvas_items)
+            max_layer_count = len(self.__line_graph_fill_stack.canvas_items)  # assume fill stack is aligned with stroke stack
 
             display_layers = list(self.__display_layers)
 
@@ -549,17 +560,30 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                         if scalar_xdata.is_data_2d:
                             scalar_data = scalar_xdata.data[data_row:data_row + 1, :].reshape((scalar_xdata.dimensional_shape[-1],))  # type: ignore
                             scalar_xdata = DataAndMetadata.new_data_and_metadata(scalar_data, intensity_calibration, [displayed_dimensional_calibration])
-                    line_graph_canvas_item = typing.cast(LineGraphCanvasItem.LineGraphCanvasItem, self.__line_graph_stack.canvas_items[display_layer_count - (index + 1)])
+
+                    line_graph_canvas_item = typing.cast(LineGraphCanvasItem.LineGraphCanvasItem, self.__line_graph_fill_stack.canvas_items[display_layer_count - (index + 1)])
                     line_graph_canvas_item.set_fill_color(fill_color)
                     line_graph_canvas_item.set_stroke_color(stroke_color)
                     line_graph_canvas_item.set_stroke_width(stroke_width)
                     line_graph_canvas_item.set_axes(axes)
                     line_graph_canvas_item.set_uncalibrated_xdata(scalar_xdata)
+
+                    line_graph_canvas_item = typing.cast(LineGraphCanvasItem.LineGraphCanvasItem, self.__line_graph_stroke_stack.canvas_items[display_layer_count - (index + 1)])
+                    line_graph_canvas_item.set_fill_color(fill_color)
+                    line_graph_canvas_item.set_stroke_color(stroke_color)
+                    line_graph_canvas_item.set_stroke_width(stroke_width)
+                    line_graph_canvas_item.set_axes(axes)
+                    line_graph_canvas_item.set_uncalibrated_xdata(scalar_xdata)
+
                     self.___has_valid_drawn_graph_data = scalar_xdata is not None
 
             # clear the remaining layers
             for index in range(len(display_layers), max_layer_count):
-                line_graph_canvas_item = typing.cast(LineGraphCanvasItem.LineGraphCanvasItem, self.__line_graph_stack.canvas_items[index])
+                line_graph_canvas_item = typing.cast(LineGraphCanvasItem.LineGraphCanvasItem, self.__line_graph_fill_stack.canvas_items[index])
+                line_graph_canvas_item.set_axes(None)
+                line_graph_canvas_item.set_uncalibrated_xdata(None)
+
+                line_graph_canvas_item = typing.cast(LineGraphCanvasItem.LineGraphCanvasItem, self.__line_graph_stroke_stack.canvas_items[index])
                 line_graph_canvas_item.set_axes(None)
                 line_graph_canvas_item.set_uncalibrated_xdata(None)
 
@@ -582,9 +606,14 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
             self.__update_canvas_items(axes, legend_entries)
         else:
-            for line_graph_canvas_item in typing.cast(typing.Sequence[LineGraphCanvasItem.LineGraphCanvasItem], self.__line_graph_stack.canvas_items):
+            for line_graph_canvas_item in typing.cast(typing.Sequence[LineGraphCanvasItem.LineGraphCanvasItem], self.__line_graph_fill_stack.canvas_items):
                 line_graph_canvas_item.set_axes(None)
                 line_graph_canvas_item.set_uncalibrated_xdata(None)
+
+            for line_graph_canvas_item in typing.cast(typing.Sequence[LineGraphCanvasItem.LineGraphCanvasItem], self.__line_graph_stroke_stack.canvas_items):
+                line_graph_canvas_item.set_axes(None)
+                line_graph_canvas_item.set_uncalibrated_xdata(None)
+
             self.__update_canvas_items(None, list())
 
     def _prepare_render(self) -> None:
