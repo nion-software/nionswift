@@ -3449,7 +3449,7 @@ class DisplayRevealAction(Window.Action):
 
 class DisplaySnapshotAction(Window.Action):
     action_id = "display.snapshot_display"
-    action_name = _("Snapshot Display Item")
+    action_name = _("Snapshot Display")
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
