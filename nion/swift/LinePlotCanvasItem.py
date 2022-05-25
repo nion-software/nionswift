@@ -563,13 +563,13 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
                     line_graph_canvas_item = typing.cast(LineGraphCanvasItem.LineGraphCanvasItem, self.__line_graph_fill_stack.canvas_items[display_layer_count - (index + 1)])
                     line_graph_canvas_item.set_fill_color(fill_color)
-                    line_graph_canvas_item.set_stroke_color(stroke_color)
+                    line_graph_canvas_item.set_stroke_color("#00FFFFFF")
                     line_graph_canvas_item.set_stroke_width(stroke_width)
                     line_graph_canvas_item.set_axes(axes)
                     line_graph_canvas_item.set_uncalibrated_xdata(scalar_xdata)
 
                     line_graph_canvas_item = typing.cast(LineGraphCanvasItem.LineGraphCanvasItem, self.__line_graph_stroke_stack.canvas_items[display_layer_count - (index + 1)])
-                    line_graph_canvas_item.set_fill_color(fill_color)
+                    line_graph_canvas_item.set_fill_color("#00FFFFFF")
                     line_graph_canvas_item.set_stroke_color(stroke_color)
                     line_graph_canvas_item.set_stroke_width(stroke_width)
                     line_graph_canvas_item.set_axes(axes)
@@ -659,7 +659,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
     def __update_canvas_items(self, axes: typing.Optional[LineGraphCanvasItem.LineGraphAxes], legend_entries: typing.Sequence[LineGraphCanvasItem.LegendEntry]) -> None:
         self.__line_graph_background_canvas_item.set_axes(axes)
         self.__line_graph_regions_canvas_item.set_axes(axes)
-        self.__line_graph_regions_canvas_item.set_calibrated_data(self.line_graph_canvas_item.calibrated_xdata.data if self.line_graph_canvas_item and self.line_graph_canvas_item.calibrated_xdata else None)
+        self.__line_graph_regions_canvas_item.set_calibrated_data(self.line_graph_canvas_item[0].calibrated_xdata.data if self.line_graph_canvas_item and self.line_graph_canvas_item[0].calibrated_xdata else None)
         self.__line_graph_frame_canvas_item.set_draw_frame(bool(axes))
         self.__line_graph_legend_canvas_item.set_legend_entries(legend_entries)
         self.__update_legend_origin()
@@ -812,7 +812,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
     def _mouse_dragged(self, start: float, end: float, modifiers: typing.Optional[UserInterface.KeyboardModifiers] = None) -> None:
         # for testing
-        line_graph_canvas_item = self.line_graph_canvas_item
+        line_graph_canvas_item = self.line_graph_canvas_item[0]
         if line_graph_canvas_item:
             canvas_rect = line_graph_canvas_item.canvas_rect
             if canvas_rect:
@@ -1097,7 +1097,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         if self.__mouse_in and self.__last_mouse:
             pos_1d = None
             axes = self.__axes
-            line_graph_canvas_item = self.line_graph_canvas_item
+            line_graph_canvas_item = self.line_graph_canvas_item[0]
             if axes and line_graph_canvas_item:
                 mouse = self.map_to_canvas_item(self.__last_mouse, line_graph_canvas_item)
                 canvas_bounds = line_graph_canvas_item.canvas_bounds
