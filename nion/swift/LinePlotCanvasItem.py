@@ -1080,12 +1080,13 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             self.delegate.cursor_changed(pos_1d)
 
     def get_drop_regions_map(self, display_item: DisplayItem.DisplayItem) -> typing.Optional[typing.Mapping[str, typing.Tuple[Geometry.IntRect, Geometry.IntRect]]]:
-        if self.__line_graph_area_stack.canvas_rect and display_item and display_item.data_item and display_item.data_item.is_datum_1d:
+        # partial logic overlap in if chain with display_item.used_display_type
+        if self.__line_graph_area_stack.canvas_rect and display_item and display_item.display_data_channel and display_item.display_data_channel.is_display_1d_preferred:
             canvas_rect = self.__line_graph_area_stack.canvas_rect
             hit_rect = Geometry.IntRect.from_center_and_size(canvas_rect.center, Geometry.IntSize(height=canvas_rect.height // 2, width=canvas_rect.width // 2))
             return {"plus": (hit_rect, self.__line_graph_area_stack.canvas_rect)}
-        else:
-            return None
+        
+        return None
 
     def wants_drag_event(self, mime_data: UserInterface.MimeData, x: int, y: int) -> bool:
         return mime_data.has_format(MimeTypes.LAYER_MIME_TYPE)
