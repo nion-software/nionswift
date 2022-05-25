@@ -563,7 +563,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
                     line_graph_canvas_item = typing.cast(LineGraphCanvasItem.LineGraphCanvasItem, self.__line_graph_fill_stack.canvas_items[display_layer_count - (index + 1)])
                     line_graph_canvas_item.set_fill_color(fill_color)
-                    line_graph_canvas_item.set_stroke_color("#00FFFFFF")
+                    line_graph_canvas_item.set_stroke_color("#00FFFFFF")  # Use transparency to enable simple overlapping draws
                     line_graph_canvas_item.set_stroke_width(stroke_width)
                     line_graph_canvas_item.set_axes(axes)
                     line_graph_canvas_item.set_uncalibrated_xdata(scalar_xdata)
@@ -812,19 +812,21 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
     def _mouse_dragged(self, start: float, end: float, modifiers: typing.Optional[UserInterface.KeyboardModifiers] = None) -> None:
         # for testing
-        line_graph_canvas_item = self.line_graph_canvas_item[0]
-        if line_graph_canvas_item:
-            canvas_rect = line_graph_canvas_item.canvas_rect
-            if canvas_rect:
-                plot_origin = line_graph_canvas_item.map_to_canvas_item(Geometry.IntPoint(), self)
-                plot_left = canvas_rect.left + plot_origin.x
-                plot_width = canvas_rect.width
-                modifiers = modifiers if modifiers else CanvasItem.KeyboardModifiers()
-                self.mouse_pressed(plot_left + round(plot_width * start), 100, modifiers)
-                self.mouse_position_changed(plot_left + round(plot_width * start), 100, modifiers)
-                self.mouse_position_changed(plot_left + round(plot_width * (start + end) / 2), 100, modifiers)
-                self.mouse_position_changed(plot_left + round(plot_width * end), 100, modifiers)
-                self.mouse_released(plot_left + round(plot_width * end), 100, modifiers)
+        if self.line_graph_canvas_item is not None:
+            line_graph_canvas_item = self.line_graph_canvas_item[0]
+            assert line_graph_canvas_item is not None
+            if line_graph_canvas_item:
+                canvas_rect = line_graph_canvas_item.canvas_rect
+                if canvas_rect:
+                    plot_origin = line_graph_canvas_item.map_to_canvas_item(Geometry.IntPoint(), self)
+                    plot_left = canvas_rect.left + plot_origin.x
+                    plot_width = canvas_rect.width
+                    modifiers = modifiers if modifiers else CanvasItem.KeyboardModifiers()
+                    self.mouse_pressed(plot_left + round(plot_width * start), 100, modifiers)
+                    self.mouse_position_changed(plot_left + round(plot_width * start), 100, modifiers)
+                    self.mouse_position_changed(plot_left + round(plot_width * (start + end) / 2), 100, modifiers)
+                    self.mouse_position_changed(plot_left + round(plot_width * end), 100, modifiers)
+                    self.mouse_released(plot_left + round(plot_width * end), 100, modifiers)
 
     def context_menu_event(self, x: int, y: int, gx: int, gy: int) -> bool:
         assert self.delegate
@@ -1097,16 +1099,18 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         if self.__mouse_in and self.__last_mouse:
             pos_1d = None
             axes = self.__axes
-            line_graph_canvas_item = self.line_graph_canvas_item[0]
-            if axes and line_graph_canvas_item:
-                mouse = self.map_to_canvas_item(self.__last_mouse, line_graph_canvas_item)
-                canvas_bounds = line_graph_canvas_item.canvas_bounds
-                if canvas_bounds and canvas_bounds.contains_point(mouse):
-                    mouse = mouse - canvas_bounds.origin
-                    x = float(mouse.x) / canvas_bounds.width
-                    px = axes.drawn_left_channel + round(x * (axes.drawn_right_channel - axes.drawn_left_channel))
-                    pos_1d = px,
-            self.delegate.cursor_changed(pos_1d)
+            if self.line_graph_canvas_item is not None:
+                line_graph_canvas_item = self.line_graph_canvas_item[0]
+                assert line_graph_canvas_item is not None
+                if axes and line_graph_canvas_item:
+                    mouse = self.map_to_canvas_item(self.__last_mouse, line_graph_canvas_item)
+                    canvas_bounds = line_graph_canvas_item.canvas_bounds
+                    if canvas_bounds and canvas_bounds.contains_point(mouse):
+                        mouse = mouse - canvas_bounds.origin
+                        x = float(mouse.x) / canvas_bounds.width
+                        px = axes.drawn_left_channel + round(x * (axes.drawn_right_channel - axes.drawn_left_channel))
+                        pos_1d = px,
+                self.delegate.cursor_changed(pos_1d)
 
     def get_drop_regions_map(self, display_item: DisplayItem.DisplayItem) -> typing.Optional[typing.Mapping[str, typing.Tuple[Geometry.IntRect, Geometry.IntRect]]]:
         if self.__line_graph_area_stack.canvas_rect and display_item and display_item.data_item and display_item.data_item.is_datum_1d:
