@@ -1997,7 +1997,7 @@ class DisplayItem(Persistence.PersistentObject):
 
     def __get_unique_display_layer_color(self) -> str:
         existing_colors = {display_layer.fill_color for display_layer in self.display_layers}
-        for color in ('#1E90FF', "#F00", "#0F0", "#00F", "#FF0", "#0FF", "#F0F", "#888", "#800", "#080", "#008", "#CCC", "#880", "#088", "#808", "#964B00"):
+        for color in ('#1E90FF', "#FF0000", "#00FF00", "#0000FF", "#FFFF00", "#00FFFF", "#FF00FF", "#888888", "#880000", "#008800", "#000088", "#CCCCCC", "#888800", "#008888", "#880088", "#964B00"):
             if not color in existing_colors:
                 return color
         return '#1E90FF'

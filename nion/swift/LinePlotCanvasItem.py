@@ -511,7 +511,8 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             if self.__display_frame_rate_id:
                 Utility.fps_tick("prepare_"+self.__display_frame_rate_id)
 
-            colors = ('#1E90FF', "#F00", "#0F0", "#00F", "#FF0", "#0FF", "#F0F", "#888", "#800", "#080", "#008", "#CCC", "#880", "#088", "#808", "#964B00")
+            # Duplicate list in DisplayItem.DisplayItem.__get_unique_display_layer_color
+            colors = ('#1E90FF', "#FF0000", "#00FF00", "#0000FF", "#FFFF00", "#00FFFF", "#FF00FF", "#888888", "#880000", "#008800", "#000088", "#CCCCCC", "#888800", "#008888", "#880088", "#964B00")
 
             max_layer_count = len(self.__line_graph_stack.canvas_items)
 
