@@ -35,13 +35,13 @@ jobs:
     - name: Install Test Dependencies
       run: |
         pip install -r test-requirements.txt
-        python -m pip install mypy==0.942
+        python -m pip install mypy==0.960
         python -m pip install flake8
         mypy --version
     - name: Type Checking
       run: |
         python -m pip install types-pytz types-tzlocal types-setuptools
-        mypy --install-types --non-interactive --namespace-packages --ignore-missing-imports --follow-imports=silent --strict --no-warn-unused-ignores --exclude '/test' -p nion.swift
+        mypy --install-types --non-interactive --namespace-packages --ignore-missing-imports --follow-imports=silent --strict --no-warn-redundant-casts --no-warn-unused-ignores --exclude '/test' -p nion.swift
     - name: Test
       run: |
         python -m unittest discover -s nion/swift -p '*_test.py'
