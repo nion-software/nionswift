@@ -12,6 +12,21 @@ in bug fix releases, we choose to include them for evaluation and feedback. If y
 or have feedback about these types of new features, please contact us or file issues at
 https://github.com/nion-software/nionswift/issues.
 
+Version 0.16.3 (2022-05-28)
+---------------------------
+* `#842 <https://github.com/nion-software/nionswift/issues/842>`_ Partial fix to allow dropping of nx1 data on a composite line plot display.
+* `#821 <https://github.com/nion-software/nionswift/issues/821>`_ Fix handling of invalid contrast/gamma edit field values.
+* `#75 <https://github.com/nion-software/nionswift/issues/75>`_ Add menu item to snapshot display rather than entire data. This is now default Ctrl+S behavior.
+* `#819 <https://github.com/nion-software/nionswift/issues/819>`_ Improve handling of multiple input selection for computations such as Make RGB.
+* `#74 <https://github.com/nion-software/nionswift/issues/74>`_ Add play/pause button to sequence slider for movie-like playback. Experimental.
+* `#813 <https://github.com/nion-software/nionswift/issues/813>`_ Assigning to xdata in API accepts anything convertible to xdata such as a numpy array.
+* Performance/reliability improvements with the live histogram updates.
+* Improve Python 3.10 compatibility on Windows.
+* Improve reporting of file loading errors in startup log.
+* Improve Quickstart guide in documentation.
+
+New contributors: gosselind1, ejensen28
+
 Version 0.16.2 (2022-02-18)
 ---------------------------
 * `#796 <https://github.com/nion-software/nionswift/issues/796>`_ Using auto display limits on RGB image no longer corrupts data item.
