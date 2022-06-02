@@ -1996,7 +1996,8 @@ class DisplayItem(Persistence.PersistentObject):
             self.__add_display_layer_auto(display_layer, display_data_channel)
 
     def __get_unique_display_layer_color(self) -> str:
-        existing_colors = {display_layer.fill_color for display_layer in self.display_layers}
+        # get a set of currently used colors w/o alpha, and then check if they're in a static color list
+        existing_colors = {display_layer.fill_color if len(display_layer.fill_color) < 9 else "#" + display_layer.fill_color[3:] for display_layer in self.display_layers}
         for color in ('#1E90FF', "#FF0000", "#00FF00", "#0000FF", "#FFFF00", "#00FFFF", "#FF00FF", "#888888", "#880000", "#008800", "#000088", "#CCCCCC", "#888800", "#008888", "#880088", "#964B00"):
             if not color in existing_colors:
                 return color
@@ -2017,6 +2018,9 @@ class DisplayItem(Persistence.PersistentObject):
             display_layer.data_row = data_row
         if not display_layer.fill_color:
             display_layer.fill_color = self.__get_unique_display_layer_color()
+            display_layer.stroke_color = display_layer.fill_color
+            if len(self.display_data_channels) > 1:  # if the layer is an additional stack
+                display_layer.fill_color = "#00" + display_layer.fill_color[1:]  # add only the outline of the original color (but preserve the color w/ maxed alpha)
         self.append_display_layer(display_layer)
         self.auto_display_legend()
 
