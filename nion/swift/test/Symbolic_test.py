@@ -10,13 +10,13 @@ import uuid
 # third party libraries
 import numpy
 import scipy
+import scipy.fft
 
 # local libraries
 from nion.data import Calibration
 from nion.data import Core
 from nion.data import Image
 from nion.swift import Application
-from nion.swift import DocumentController
 from nion.swift import Facade
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
@@ -376,7 +376,7 @@ class TestSymbolicClass(unittest.TestCase):
             computation.create_input_item("a", Symbolic.make_item(data_item))
             document_model.append_computation(computation)
             data = DocumentModel.evaluate_data(computation).data
-            assert numpy.array_equal(data, scipy.fftpack.fftshift(numpy.fft.fft2(d) * 1.0 / numpy.sqrt(d.shape[1] * d.shape[0])))
+            assert numpy.array_equal(data, scipy.fft.fftshift(scipy.fft.fft2(d) * 1.0 / numpy.sqrt(d.shape[1] * d.shape[0])))
 
     def test_gaussian_blur_handles_scalar_argument(self):
         with TestContext.create_memory_context() as test_context:
