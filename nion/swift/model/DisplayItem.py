@@ -32,6 +32,7 @@ from nion.swift.model import Model
 from nion.swift.model import Persistence
 from nion.swift.model import Schema
 from nion.swift.model import Utility
+from nion.ui import DrawingContext
 from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import ReferenceCounting
@@ -1310,6 +1311,10 @@ def display_layer_factory(lookup_id: typing.Callable[[str], str]) -> DisplayLaye
 
 
 class DisplayItem(Persistence.PersistentObject):
+    DEFAULT_COLORS = ('#1E90FF', "#FF0000", "#00FF00", "#0000FF", "#FFFF00", "#00FFFF", "#FF00FF", "#888888", "#880000",
+                      "#008800", "#000088", "#CCCCCC", "#888800", "#008888", "#880088", "#964B00")
+                      # This needs to be ordered to deterministically select colors
+
     def __init__(self, item_uuid: typing.Optional[uuid.UUID] = None, *, data_item: typing.Optional[DataItem.DataItem] = None) -> None:
         super().__init__()
         if item_uuid:
@@ -1997,11 +2002,12 @@ class DisplayItem(Persistence.PersistentObject):
 
     def __get_unique_display_layer_color(self) -> str:
         # get a set of currently used colors w/o alpha, and then check if they're in a static color list
-        existing_colors = {display_layer.fill_color if len(display_layer.fill_color) < 9 else "#" + display_layer.fill_color[3:] for display_layer in self.display_layers}
-        for color in ('#1E90FF', "#FF0000", "#00FF00", "#0000FF", "#FFFF00", "#00FFFF", "#FF00FF", "#888888", "#880000", "#008800", "#000088", "#CCCCCC", "#888800", "#008888", "#880088", "#964B00"):
-            if not color in existing_colors:
+        existing_colors = {display_layer.fill_color for display_layer in self.display_layers}
+        existing_colors = set(map(DrawingContext.color_without_alpha, existing_colors))
+        for color in self.DEFAULT_COLORS:
+            if color.lower() not in existing_colors:
                 return color
-        return '#1E90FF'
+        return self.DEFAULT_COLORS[0]
 
     def auto_display_legend(self) -> None:
         if len(self.display_layers) == 2 and self.get_display_property("legend_position") is None:
