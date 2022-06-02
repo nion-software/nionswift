@@ -114,6 +114,27 @@ class TestImportExportManagerClass(unittest.TestCase):
                 os.remove(file_path_npy)
                 os.remove(file_path_json)
 
+    def test_standard_io_write_to_then_read_from_temp_file(self):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            current_working_directory = os.getcwd()
+            extensions = ("jpeg", "png", "gif", "bmp")
+            for extension in extensions:
+                file_path = os.path.join(current_working_directory, f"__file.{extension}")
+                handler = ImportExportManager.StandardImportExportHandler(f"{extension}-io-handler", extension, [extension])
+                data_item = DataItem.DataItem(numpy.zeros((16, 16), dtype=numpy.double))
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                handler.write_display_item(display_item, pathlib.Path(file_path), extension)
+                self.assertTrue(os.path.exists(file_path))
+                try:
+                    data_items = handler.read_data_items(extension, pathlib.Path(file_path))
+                    self.assertEqual(len(data_items), 1)
+                    for data_item in data_items:
+                        data_item.close()
+                finally:
+                    os.remove(file_path)
+
     def test_get_writers_for_empty_data_item_returns_valid_list(self):
         data_item = DataItem.DataItem()
         with contextlib.closing(data_item):

@@ -11,7 +11,7 @@ import zipfile
 import itertools
 
 # third party libraries
-import imageio
+import imageio.v3 as imageio
 import numpy
 
 # local libraries
@@ -24,7 +24,7 @@ from nion.swift.model import Utility
 
 
 DataElementType = typing.Dict[str, typing.Any]
-_DataArrayType = typing.Any
+_DataArrayType = numpy.typing.NDArray[typing.Any]
 
 
 class ImportExportIncompatibleDataError(Exception):
@@ -487,13 +487,34 @@ def is_grayscale(data: _DataArrayType) -> bool:
     return True
 
 
+# based roughly on https://github.com/imageio/imageio/blob/896aa50c1797c3642149aa3110547d85190017db/imageio/core/util.py#L45
+def convert_to_uint8(d: _DataArrayType) -> numpy.typing.NDArray[numpy.uint8]:
+    if d.dtype == numpy.dtype(numpy.uint8):
+        return d
+    # check the int types first.
+    if d.dtype == numpy.dtype(numpy.uint16):
+        return typing.cast(numpy.typing.NDArray[numpy.uint8], numpy.right_shift(d, 8).astype(numpy.uint8))
+    elif d.dtype == numpy.dtype(numpy.uint32):
+        return typing.cast(numpy.typing.NDArray[numpy.uint8], numpy.right_shift(d, 24).astype(numpy.uint8))
+    elif d.dtype == numpy.dtype(numpy.uint64):
+        return typing.cast(numpy.typing.NDArray[numpy.uint8], numpy.right_shift(d, 56).astype(numpy.uint8))
+    # now check float type
+    mn, mx = numpy.nanmin(d), numpy.nanmax(d)  # type: ignore
+    if str(d.dtype).startswith("float") and mn >= 0 and mx <= 1:
+        return typing.cast(numpy.typing.NDArray[numpy.uint8], numpy.round(d.astype(numpy.float64) * 255).astype(numpy.uint8))  # type: ignore
+    elif numpy.isfinite(mn) and numpy.isfinite(mx) and mn != mx:
+        return typing.cast(numpy.typing.NDArray[numpy.uint8], numpy.round((d.astype(d.astype(numpy.float64)) - mn) / (mx - mn) * 255).astype(numpy.uint8))  # type: ignore
+    else:
+        return d.astype(numpy.uint8)
+
 # read image file. convert to dtype if it is grayscale.
 def read_image_from_file(filename: pathlib.Path) -> _DataArrayType:
     if str(filename).startswith(":"):
         return numpy.zeros((20, 20, 4), numpy.uint8)
-    image = imageio.imread(filename)
+    # TODO: fix typing when imageio gets their numpy typing correct.
+    image = imageio.imread(filename, index=0)  # type: ignore
     if image is not None:
-        image_u8 = imageio.core.image_as_uint(image)
+        image_u8 = convert_to_uint8(image)
         if len(image_u8.shape) == 3:
             rgba_image: numpy.typing.NDArray[numpy.uint8]
             if image_u8.shape[-1] == 3:
@@ -505,10 +526,10 @@ def read_image_from_file(filename: pathlib.Path) -> _DataArrayType:
             else:
                 assert image_u8.shape[-1] == 4
                 rgba_image = numpy.empty(image_u8.shape[:-1] + (4,), numpy.uint8)
-                rgba_image[..., 0] = image_u8[..., 3]
-                rgba_image[..., 1] = image_u8[..., 2]
-                rgba_image[..., 2] = image_u8[..., 1]
-                rgba_image[..., 3] = image_u8[..., 0]
+                rgba_image[..., 0] = image_u8[..., 2]
+                rgba_image[..., 1] = image_u8[..., 1]
+                rgba_image[..., 2] = image_u8[..., 0]
+                rgba_image[..., 3] = image_u8[..., 3]
             if is_grayscale(rgba_image):
                 rgba_image = Image.convert_to_grayscale(rgba_image)
         else:
@@ -553,7 +574,8 @@ class StandardImportExportHandler(ImportExportHandler):
         assert display_values
         data = display_values.display_rgba  # export the display rather than the data for these types
         assert data is not None
-        imageio.imwrite(path, Image.get_rgb_view(data), extension)
+        # TODO: fix typing when imageio gets their numpy typing correct.
+        imageio.imwrite(path, Image.get_rgb_view(data), extension="." + extension)  # type: ignore
 
 
 class CSVImportExportHandler(ImportExportHandler):
