@@ -3110,8 +3110,7 @@ class IntervalListConnector(Observer.AbstractAction):
                         for interval_graphic in interval_graphics:
                             interval_descriptor = {"interval": interval_graphic.interval, "color": "#F00"}
                             interval_descriptors.append(interval_descriptor)
-                        if interval_descriptors != line_profile_graphic.interval_descriptors:
-                            line_profile_graphic.interval_descriptors = interval_descriptors
+                        line_profile_graphic.interval_descriptors = interval_descriptors
 
                 for interval_graphic in interval_graphics:
                     self.__listeners.append(interval_graphic.property_changed_event.listen(property_changed))

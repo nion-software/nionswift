@@ -4252,6 +4252,31 @@ class TestStorageClass(unittest.TestCase):
                 self.assertIsNotNone(DocumentModel.MappedItemManager().get_item_r_var(document_model.display_items[0]))
             self.assertEqual(0, len(DocumentModel.MappedItemManager().item_map.keys()))
 
+    def test_reloading_project_does_not_write_to_document_file(self):
+        # add a line profile, it failed at one time
+        with create_memory_profile_context() as profile_context:
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            document_model = document_controller.document_model
+            with contextlib.closing(document_controller):
+                data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+                data_item.category = "temporary"
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                line_profile_data_item = document_model.get_line_profile_new(display_item, display_item.data_item)
+                line_profile_display_item = document_model.get_display_item_for_data_item(line_profile_data_item)
+                interval_graphic = Graphics.IntervalGraphic()
+                interval_graphic.interval = (0.2, 0.3)
+                line_profile_display_item.add_graphic(interval_graphic)
+                document_model.recompute_all()
+                document_controller.periodic()
+            profile_context.reload()  # reloading converts tuples to lists, like how json loads
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            document_model = document_controller.document_model
+            with contextlib.closing(document_controller):
+                document_controller.periodic()
+                project_storage_system = typing.cast(FileStorageSystem.MemoryProjectStorageSystem, document_model._project.project_storage_system)
+                self.assertEqual(0, project_storage_system._write_count)
+
     def disabled_test_document_controller_disposes_threads(self):
         thread_count = threading.activeCount()
         with TestContext.create_memory_context() as test_context:

@@ -47,6 +47,15 @@ def end_leaks(test_case: unittest.TestCase) -> None:
     # test_case.assertEqual(0, DataItem.DataItem._data_count)
 
 
+def convert_tuples_to_lists(i: typing.Any) -> typing.Any:
+    itype = type(i)
+    if itype == dict:
+        return {k: convert_tuples_to_lists(v) for k, v in i.items()}
+    elif itype == list or itype == tuple:
+        return [convert_tuples_to_lists(v) for v in i]
+    return i
+
+
 class MemoryProfileContext:
     # used for testing
 
@@ -83,6 +92,13 @@ class MemoryProfileContext:
         self.data_properties_map = None
         self.data_map = None
         self.trash_map = None
+
+    def reload(self):
+        self.profile_properties = convert_tuples_to_lists(self.profile_properties)
+        self.x_project_properties = convert_tuples_to_lists(self.x_project_properties)
+        self.x_data_properties_map = convert_tuples_to_lists(self.x_data_properties_map)
+        self.x_data_map = convert_tuples_to_lists(self.x_data_map)
+        self.x_trash_map = convert_tuples_to_lists(self.x_trash_map)
 
     def create_legacy_project(self) -> None:
         """Create a legacy project."""

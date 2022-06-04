@@ -8,6 +8,7 @@ import abc
 import copy
 import datetime
 import logging
+import json
 import numpy
 import numpy.typing
 import re
@@ -85,14 +86,25 @@ class PersistentProperty:
         self.convert_set_fn = typing.cast(typing.Any, None)
         self.changed = None
 
-    def set_value(self, value: typing.Any) -> None:
+    def set_value(self, value: typing.Any) -> bool:
+        # return whether the value changed
         if self.validate:
             value = self.validate(value)
         else:
             value = copy.deepcopy(value)
+        did_change = self.__get_comparable_string(self.value) != self.__get_comparable_string(value)
         self.value = value
+        # ideally, the changed method would not be called if the value did not change; but there are
+        # places in the code that assume that it will be called in any case where a property is set.
+        # TODO: do not call changed if value does not change
         if self.changed:
             self.changed(self.name, value)
+        return did_change
+
+    def __get_comparable_string(self, value: typing.Any) -> str:
+        d: typing.Dict[str, typing.Any] = dict()
+        self.__write_to_dict(d, value)
+        return json.dumps(Utility.clean_dict(d), sort_keys=True)
 
     @property
     def json_value(self) -> Utility.CleanValue:
@@ -116,23 +128,25 @@ class PersistentProperty:
                 else:
                     self.json_value = properties[self.key]
 
-    def write_to_dict(self, properties: PersistentDictType) -> None:
+    def __write_to_dict(self, properties: PersistentDictType, value: typing.Any) -> None:
         if self.writer:
-            self.writer(self, properties, self.value)
+            self.writer(self, properties, value)
         else:
             if self.make:
-                value = self.value
                 if value is not None:
                     value_dict = value.write_dict()
                     properties[self.key] = value_dict
                 else:
                     properties.pop(self.key, None)  # remove key
             else:
-                value = self.json_value
+                value = self.convert_get_fn(value)  # json_value
                 if value is not None:
                     properties[self.key] = value
                 else:
                     properties.pop(self.key, None)  # remove key
+
+    def write_to_dict(self, properties: PersistentDictType) -> None:
+        return self.__write_to_dict(properties, self.value)
 
 
 class PersistentPropertySpecial(PersistentProperty):
@@ -987,9 +1001,11 @@ class PersistentObject(Observable.Observable):
     def _set_persistent_property_value(self, name: str, value: typing.Any) -> None:
         """ Subclasses can call this to set a hidden property. """
         property = self.__properties[name]
-        property.set_value(value)
-        self.__update_modified(datetime.datetime.utcnow())
-        self._update_persistent_object_context_property(name)
+        if property.set_value(value):
+            self.__update_modified(datetime.datetime.utcnow())
+            self._update_persistent_object_context_property(name)
+        # else:
+        #     print(f"{name}: {property.value} -> {value}")
 
     def _update_persistent_property(self, name: str, value: typing.Any) -> None:
         """ Subclasses can call this to notify that a custom property was updated. """
