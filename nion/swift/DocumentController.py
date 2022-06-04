@@ -2,6 +2,7 @@ from __future__ import annotations
 
 # standard libraries
 import copy
+import datetime
 import functools
 import gettext
 import itertools
@@ -1739,13 +1740,20 @@ class DocumentController(Window.Window):
         for dynamic_view_action in self.__dynamic_view_actions:
             menu.remove_action(dynamic_view_action)
         self.__dynamic_view_actions = []
-        for workspace in self.project.workspaces:
+        for workspace in sorted(self.project.workspaces, key=operator.attrgetter("modified"), reverse=True):
             def switch_to_workspace(workspace: WorkspaceLayout.WorkspaceLayout) -> None:
                 workspace_controller = self.workspace_controller
                 assert workspace_controller
                 workspace_controller.change_workspace(workspace)
 
-            action = menu.add_menu_item(workspace.name, functools.partial(switch_to_workspace, workspace))
+            local_modified_datetime = workspace.modified + datetime.timedelta(minutes=Utility.local_utcoffset_minutes(workspace.modified))
+            workspace_modified_str = local_modified_datetime.strftime('%Y-%m-%d')
+            if local_modified_datetime.date() == datetime.date.today():
+                workspace_modified_str = _("Today")
+            elif local_modified_datetime.date() == datetime.date.today() - datetime.timedelta(days=1):
+                workspace_modified_str = _("Yesterday")
+
+            action = menu.add_menu_item(f"{workspace.name} ({workspace_modified_str})", functools.partial(switch_to_workspace, workspace))
             action.checked = self.project.workspace_uuid == workspace.uuid
             self.__dynamic_view_actions.append(action)
 
