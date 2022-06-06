@@ -1313,8 +1313,8 @@ def display_layer_factory(lookup_id: typing.Callable[[str], str]) -> DisplayLaye
 
 
 class DisplayItem(Persistence.PersistentObject):
-    DEFAULT_COLORS = ('#1E90FF', "#FF0000", "#00FF00", "#0000FF", "#FFFF00", "#00FFFF", "#FF00FF", "#888888", "#880000",
-                      "#008800", "#000088", "#CCCCCC", "#888800", "#008888", "#880088", "#964B00")
+    DEFAULT_COLORS = ('dodgerblue', 'red', 'lime', 'blue', 'yellow', 'cyan', 'magenta', 'grey', 'maroon', 'green',
+                      'navy', 'silver', 'olive', 'teal', 'purple', 'sienna')
                       # This needs to be ordered to deterministically select colors
 
     def __init__(self, item_uuid: typing.Optional[uuid.UUID] = None, *, data_item: typing.Optional[DataItem.DataItem] = None) -> None:
@@ -2005,9 +2005,9 @@ class DisplayItem(Persistence.PersistentObject):
     def __get_unique_display_layer_color(self) -> str:
         # get a set of currently used colors w/o alpha, and then check if they're in a static color list
         existing_colors = {display_layer.fill_color for display_layer in self.display_layers}
-        existing_colors = set(map(DrawingContext.color_without_alpha, existing_colors))
+        existing_colors = set(map(DrawingContext.to_hex_color_without_alpha, existing_colors))
         for color in self.DEFAULT_COLORS:
-            if color.lower() not in existing_colors:
+            if DrawingContext.to_hex_color_without_alpha(color) not in existing_colors:
                 return color
         return self.DEFAULT_COLORS[0]
 
@@ -2025,10 +2025,12 @@ class DisplayItem(Persistence.PersistentObject):
         if data_row is not None:
             display_layer.data_row = data_row
         if not display_layer.fill_color:
-            display_layer.fill_color = self.__get_unique_display_layer_color()
-            display_layer.stroke_color = display_layer.fill_color
+            color = self.__get_unique_display_layer_color()
+            display_layer.fill_color = color
+            display_layer.stroke_color = color
             if len(self.display_data_channels) > 1:  # if the layer is an additional stack
-                display_layer.fill_color = "#00" + display_layer.fill_color[1:]  # add only the outline of the original color (but preserve the color w/ maxed alpha)
+                color = typing.cast(str, DrawingContext.to_hex_color_without_alpha(color))
+                display_layer.fill_color = "#00" + color[1:]
         self.append_display_layer(display_layer)
         self.auto_display_legend()
 
