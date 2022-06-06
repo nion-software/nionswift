@@ -118,7 +118,7 @@ class TestImportExportManagerClass(unittest.TestCase):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
             current_working_directory = os.getcwd()
-            extensions = ("jpeg", "png", "gif", "bmp", "webp")
+            extensions = ("jpeg", "png", "gif", "bmp")
             for extension in extensions:
                 file_path = os.path.join(current_working_directory, f"__file.{extension}")
                 handler = ImportExportManager.StandardImportExportHandler(f"{extension}-io-handler", extension, [extension])
