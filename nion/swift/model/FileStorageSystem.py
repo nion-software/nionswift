@@ -1002,11 +1002,13 @@ class MemoryProjectStorageSystem(ProjectStorageSystem):
         self.__data_map = data_map if data_map is not None else dict()
         self.__trash_map = trash_map if trash_map is not None else dict()
         self._test_data_read_event = data_read_event or Event.Event()
+        self._write_count = 0
 
     def _read_properties(self) -> PersistentDictType:
         return copy.deepcopy(self.__library_properties)
 
     def _write_properties(self) -> None:
+        self._write_count += 1
         self.__library_properties.clear()
         self.__library_properties.update(Model.transform_backward(copy.deepcopy(self.get_storage_properties())))
 

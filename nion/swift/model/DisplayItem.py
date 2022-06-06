@@ -43,7 +43,7 @@ if typing.TYPE_CHECKING:
 
 _ImageDataType = Image._ImageDataType
 _RGBA32Type = Image._RGBAImageDataType
-
+DisplayLimitsType = typing.Optional[typing.Tuple[typing.Optional[typing.Union[float, int]], typing.Optional[typing.Union[float, int]]]]
 
 _ = gettext.gettext
 
@@ -172,7 +172,7 @@ class GraphicSelection:
             self.changed_event.fire()
 
 
-def calculate_display_range(display_limits: typing.Optional[typing.Tuple[float, float]],
+def calculate_display_range(display_limits: DisplayLimitsType,
                             data_range: typing.Optional[typing.Tuple[float, float]],
                             data_sample: typing.Optional[_ImageDataType], xdata: typing.Optional[DataAndMetadata.DataAndMetadata],
                             complex_display_type: typing.Optional[str]) -> typing.Optional[typing.Tuple[float, float]]:
@@ -300,7 +300,7 @@ class DisplayValues:
 
     def __init__(self, data_and_metadata: typing.Optional[DataAndMetadata.DataAndMetadata], sequence_index: int,
                  collection_index: typing.Optional[DataAndMetadata.PositionType], slice_center: int, slice_width: int,
-                 display_limits: typing.Optional[typing.Tuple[float, float]],
+                 display_limits: DisplayLimitsType,
                  complex_display_type: typing.Optional[str],
                  color_map_data: typing.Optional[_RGBA32Type], brightness: float, contrast: float,
                  adjustments: typing.Sequence[Persistence.PersistentDictType]) -> None:
@@ -649,11 +649,11 @@ class DisplayDataChannel(Persistence.PersistentObject):
         self._set_persistent_property_value("complex_display_type", value)
 
     @property
-    def display_limits(self) -> typing.Optional[typing.Tuple[float, float]]:
-        return typing.cast(typing.Tuple[float, float], self._get_persistent_property_value("display_limits"))
+    def display_limits(self) -> DisplayLimitsType:
+        return typing.cast(DisplayLimitsType, self._get_persistent_property_value("display_limits"))
 
     @display_limits.setter
-    def display_limits(self, value: typing.Tuple[float, float]) -> None:
+    def display_limits(self, value: DisplayLimitsType) -> None:
         self._set_persistent_property_value("display_limits", value)
 
     @property
@@ -975,8 +975,10 @@ class DisplayDataChannel(Persistence.PersistentObject):
     def _get_data_metadata(self) -> typing.Optional[DataAndMetadata.DataMetadata]:
         return self.__data_item.data_metadata if self.__data_item else None
 
-    def __validate_display_limits(self, value: typing.Any) -> typing.Any:
+    def __validate_display_limits(self, value: typing.Any) -> DisplayLimitsType:
         if value is not None:
+            # convert any number to its numpy equivalent using numpy.array() and then convert back to Python using item()
+            value = list(numpy.array(v).item() if v is not None else None for v in value)
             value = list(int(v) if numpy.issubdtype(type(v), numpy.bool_) else v for v in value)
             if len(value) == 0:
                 return None
