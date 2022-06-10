@@ -5,6 +5,7 @@ from __future__ import annotations
 
 # standard libraries
 import abc
+import collections
 import copy
 import datetime
 import json
@@ -247,7 +248,7 @@ class PersistentStorageInterface(abc.ABC):
     def set_item(self, parent: PersistentObject, name: str, item: PersistentObject) -> None: ...
 
     @abc.abstractmethod
-    def set_property(self, object: PersistentObject, name: str, value: typing.Any) -> None: ...
+    def set_property(self, object: PersistentObject, name: str, value: typing.Any, delayed: bool = False) -> None: ...
 
     @abc.abstractmethod
     def clear_property(self, object: PersistentObject, name: str) -> None: ...
@@ -615,6 +616,9 @@ class PersistentObject(Observable.Observable):
         self.__persistent_storage: typing.Optional[PersistentStorageInterface] = None
         self.persistent_object_context_changed_event = Event.Event()
         self.__item_references: typing.List[PersistentObjectReference] = list()
+        # ghost properties can be used to temporarily mark properties so that changes
+        # to those properties do not trigger writes to disk, usually for performance reasons.
+        self.ghost_properties = collections.Counter[str]()
 
     def close(self) -> None:
         self.about_to_close_event.fire()
@@ -1013,14 +1017,17 @@ class PersistentObject(Observable.Observable):
         property = self.__properties.get(name)
         return property.value if property else default
 
-    def _set_persistent_property_value(self, name: str, value: typing.Any) -> None:
-        """ Subclasses can call this to set a hidden property. """
+    def _set_persistent_property_value(self, name: str, value: typing.Any, force_update: bool = False) -> None:
+        """Set a persistent property directly.
+
+         Subclasses can call this to set a hidden property.
+
+         Normally the update is not written to disk unless the value changes. force_update overrides this behavior.
+         """
         property = self.__properties[name]
-        if property.set_value(value):
+        if property.set_value(value) or force_update:
             self.__update_modified(datetime.datetime.utcnow())
             self._update_persistent_object_context_property(name)
-        # else:
-        #     print(f"{name}: {property.value} -> {value}")
 
     def _update_persistent_property(self, name: str, value: typing.Any) -> None:
         """ Subclasses can call this to notify that a custom property was updated. """
@@ -1175,7 +1182,8 @@ class PersistentObject(Observable.Observable):
     def property_changed(self, name: str, value: typing.Any) -> None:
         """ Call this to notify this context that a property with name has changed to value on object. """
         assert self.persistent_storage
-        self.persistent_storage.set_property(self, name, value)
+        delayed = name in self.ghost_properties.elements()
+        self.persistent_storage.set_property(self, name, value, delayed)
 
     def clear_property(self, name: str) -> None:
         """ Call this to notify this context that a property with name has been removed on object. """

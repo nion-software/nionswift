@@ -337,12 +337,13 @@ class PersistentStorageSystem(Persistence.PersistentStorageInterface):
                 item.persistent_storage = typing.cast(Persistence.PersistentStorageInterface, None)
         self.__write_properties_if_not_delayed(parent)
 
-    def set_property(self, object: Persistence.PersistentObject, name: str, value: typing.Any) -> None:
-        # set property in internal storage
+    def set_property(self, object: Persistence.PersistentObject, name: str, value: typing.Any, delayed: bool = False) -> None:
+        # set property in internal storage. if the delayed flag is set, it will not trigger a write to disk.
         storage_dict = self.__update_modified_and_get_storage_dict(object)
         with self.__properties_lock:
             storage_dict[name] = value
-        self.__write_properties_if_not_delayed(object)
+        if not delayed:
+            self.__write_properties_if_not_delayed(object)
 
     def clear_property(self, object: Persistence.PersistentObject, name: str) -> None:
         # clear property in internal storage

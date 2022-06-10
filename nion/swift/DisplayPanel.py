@@ -509,7 +509,7 @@ class IndexValueAdapter(typing.Protocol):
     def get_index_value_stream(self, display_data_channel_value_stream: Stream.AbstractStream[DisplayItem.DisplayDataChannel]) -> Stream.AbstractStream[float]: ...
     def get_index_value(self, display_data_channel: DisplayItem.DisplayDataChannel) -> float: ...
     def get_index_str(self, display_data_channel: DisplayItem.DisplayDataChannel) -> str: ...
-    def set_index_value(self, display_data_channel: DisplayItem.DisplayDataChannel, value: float) -> None: ...
+    def apply_index_value_change(self, display_data_channel: DisplayItem.DisplayDataChannel, value_change: Stream.ValueChange[float]) -> None: ...
 
 
 class CollectionIndexAdapter(IndexValueAdapter):
@@ -531,7 +531,18 @@ class CollectionIndexAdapter(IndexValueAdapter):
     def get_index_str(self, display_data_channel: DisplayItem.DisplayDataChannel) -> str:
         return str(display_data_channel.collection_index[self.__collection_index])
 
-    def set_index_value(self, display_data_channel: DisplayItem.DisplayDataChannel, value: float) -> None:
+    def apply_index_value_change(self, display_data_channel: DisplayItem.DisplayDataChannel, value_change: Stream.ValueChange[float]) -> None:
+        # mark the index property as a ghost when beginning the value change stream and restore it
+        # when finished. this avoids writing to disk while the slider is dragging.
+        if value_change.is_begin:
+            display_data_channel.ghost_properties.update(["collection_index"])
+        elif value_change.is_end:
+            display_data_channel.ghost_properties.subtract(["collection_index"])
+            self.set_index_value(display_data_channel, value_change.value or 0.0, True)
+        else:
+            self.set_index_value(display_data_channel, value_change.value or 0.0, False)
+
+    def set_index_value(self, display_data_channel: DisplayItem.DisplayDataChannel, value: float, force_update: bool) -> None:
         index = self.__collection_index + (1 if display_data_channel.is_sequence else 0)
         dim_length = display_data_channel.dimensional_shape[index] if display_data_channel.dimensional_shape is not None else 0
         collection_index = list(display_data_channel.collection_index)
@@ -543,6 +554,10 @@ class CollectionIndexAdapter(IndexValueAdapter):
                                                   **{"collection_index": collection_index})
         command.perform()
         self.__document_controller.push_undo_command(command)
+        if force_update:
+            # this is required since the property had been a ghost property and the set property machinery
+            # will skip writing if the value doesn't change. this forces the write to properties.
+            display_data_channel._set_persistent_property_value("collection_index", collection_index, True)
 
 
 class SequenceIndexAdapter(IndexValueAdapter):
@@ -562,12 +577,23 @@ class SequenceIndexAdapter(IndexValueAdapter):
     def get_index_str(self, display_data_channel: DisplayItem.DisplayDataChannel) -> str:
         return str(display_data_channel.sequence_index)
 
-    def set_index_value(self, display_data_channel: DisplayItem.DisplayDataChannel, value: float) -> None:
+    def apply_index_value_change(self, display_data_channel: DisplayItem.DisplayDataChannel, value_change: Stream.ValueChange[float]) -> None:
+        # mark the index property as a ghost when beginning the value change stream and restore it
+        # when finished. this avoids writing to disk while the slider is dragging.
+        if value_change.is_begin:
+            display_data_channel.ghost_properties.update(["sequence_index"])
+        elif value_change.is_end:
+            display_data_channel.ghost_properties.subtract(["sequence_index"])
+            self.set_index_value(display_data_channel, value_change.value or 0.0, True)
+        else:
+            self.set_index_value(display_data_channel, value_change.value or 0.0, False)
+
+    def set_index_value(self, display_data_channel: DisplayItem.DisplayDataChannel, value: float, force_update: bool) -> None:
         sequence_length = display_data_channel.dimensional_shape[0] if display_data_channel.dimensional_shape is not None else 0
         sequence_index = round(value * (sequence_length - 1))
-        self.set_index_int_value(display_data_channel, sequence_index)
+        self.set_index_int_value(display_data_channel, sequence_index, force_update)
 
-    def set_index_int_value(self, display_data_channel: DisplayItem.DisplayDataChannel, sequence_index: int) -> None:
+    def set_index_int_value(self, display_data_channel: DisplayItem.DisplayDataChannel, sequence_index: int, force_update: bool = False) -> None:
         # display_data_channel.sequence_index = sequence_index
         document_model = self.__document_controller.document_model
         command = ChangeDisplayDataChannelCommand(document_model, display_data_channel, title=_("Change Display"),
@@ -575,6 +601,10 @@ class SequenceIndexAdapter(IndexValueAdapter):
                                                   **{"sequence_index": sequence_index})
         command.perform()
         self.__document_controller.push_undo_command(command)
+        if force_update:
+            # this is required since the property had been a ghost property and the set property machinery
+            # will skip writing if the value doesn't change. this forces the write to properties.
+            display_data_channel._set_persistent_property_value("sequence_index", sequence_index, True)
 
 
 class IndexValueSliderCanvasItem(CanvasItem.CanvasItemComposition):
@@ -596,7 +626,7 @@ class IndexValueSliderCanvasItem(CanvasItem.CanvasItemComposition):
         self.add_spacing(12)
         self.__display_item_value_stream = display_item_value_stream.add_ref()
         self.__get_font_metrics_fn = get_font_metrics_fn
-        self.__slider_value_action: typing.Optional[Stream.ValueStreamAction[float]] = None
+        self.__slider_value_action: typing.Optional[Stream.ValueStreamAction[Stream.ValueChange[float]]] = None
         self.__title = title
         self.__index_value_adapter = index_value_adapter
         display_data_channel_value_stream = DisplayDataChannelValueStream(self.__display_item_value_stream)
@@ -645,8 +675,7 @@ class IndexValueSliderCanvasItem(CanvasItem.CanvasItemComposition):
                     self.__slider_row.add_spacing(0)
                 self.__slider_row.add_canvas_item(self.__slider_canvas_item)
                 self.__slider_row.add_canvas_item(self.__slider_text)
-                slider_value_stream = Stream.PropertyChangedEventStream[float](self.__slider_canvas_item, "value")
-                self.__slider_value_action = Stream.ValueStreamAction(slider_value_stream, functools.partial(self.__index_value_adapter.set_index_value, display_data_channel))
+                self.__slider_value_action = Stream.ValueStreamAction(self.__slider_canvas_item.value_change_stream, functools.partial(self.__index_value_adapter.apply_index_value_change, display_data_channel))
             self.__slider_text.text = self.__index_value_adapter.get_index_str(display_data_channel)
             self.__slider_text.size_to_content(self.__get_font_metrics_fn)
             self.__slider_canvas_item.value = self.__index_value_adapter.get_index_value(display_data_channel)
@@ -1559,16 +1588,23 @@ class PlaybackController:
     async def __start_playing(self) -> None:
         display_data_channel = self.__display_data_channel
         assert display_data_channel
-        data_metadata = display_data_channel._get_data_metadata()
-        if data_metadata and data_metadata.dimensional_shape is not None:
-            assert self.index_adapter
-            max_index = data_metadata.max_sequence_index
-            if display_data_channel.sequence_index + 1 >= max_index:
-                self.index_adapter.set_index_int_value(display_data_channel, 0)
-            while display_data_channel.sequence_index + 1 < max_index:
-                await asyncio.sleep(0.05)
-                self.index_adapter.set_index_int_value(display_data_channel, display_data_channel.sequence_index + 1)
-        self.__stop_playing()
+        # do not write the project just for the sequence_index changing.
+        # use a ghost property for this.
+        display_data_channel.ghost_properties.update(["sequence_index"])
+        assert self.index_adapter
+        try:
+            data_metadata = display_data_channel._get_data_metadata()
+            if data_metadata and data_metadata.dimensional_shape is not None:
+                max_index = data_metadata.max_sequence_index
+                if display_data_channel.sequence_index + 1 >= max_index:
+                    self.index_adapter.set_index_int_value(display_data_channel, 0)
+                while display_data_channel.sequence_index + 1 < max_index:
+                    await asyncio.sleep(0.05)
+                    self.index_adapter.set_index_int_value(display_data_channel, display_data_channel.sequence_index + 1)
+        finally:
+            display_data_channel.ghost_properties.subtract(["sequence_index"])
+            self.__stop_playing()
+            self.index_adapter.set_index_int_value(display_data_channel, display_data_channel.sequence_index, True)
 
     def __stop_playing(self) -> None:
         if self.__task:
