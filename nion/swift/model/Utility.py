@@ -155,82 +155,72 @@ def clean_tuple(t0: typing.Tuple[DirtyValue], clean_item_fn: typing.Optional[typ
     return typing.cast(typing.Tuple[CleanValue], tuple(l))
 
 
+type_lookup: typing.Mapping[typing.Type[typing.Any], typing.Callable[[DirtyValue], CleanValue]] = {
+    dict: clean_dict,
+    list: clean_list,
+    tuple: clean_tuple,
+    numpy.float32: lambda x: float(x),
+    numpy.float64: lambda x: float(x),
+    numpy.int16: lambda x: int(x),
+    numpy.uint16: lambda x: int(x),
+    numpy.int32: lambda x: int(x),
+    numpy.uint32: lambda x: int(x),
+    numpy.int64: lambda x: int(x),
+    numpy.uint64: lambda x: int(x),
+    float: lambda x: float(x),
+    str: lambda x: str(x),
+    int: lambda x: int(x),
+    numpy.bool_: lambda x: bool(x),
+    bool: lambda x: bool(x),
+    type(None): lambda x: None
+}
+
+
+type_lookup_no_list: typing.Mapping[typing.Type[typing.Any], typing.Callable[[DirtyValue], CleanValue]] = {
+    dict: clean_dict,
+    list: clean_tuple,
+    tuple: clean_tuple,
+    numpy.float32: lambda x: float(x),
+    numpy.float64: lambda x: float(x),
+    numpy.int16: lambda x: int(x),
+    numpy.uint16: lambda x: int(x),
+    numpy.int32: lambda x: int(x),
+    numpy.uint32: lambda x: int(x),
+    numpy.int64: lambda x: int(x),
+    numpy.uint64: lambda x: int(x),
+    float: lambda x: float(x),
+    str: lambda x: str(x),
+    int: lambda x: int(x),
+    numpy.bool_: lambda x: bool(x),
+    bool: lambda x: bool(x),
+    type(None): lambda x: None
+}
+
+
 def clean_item(i: DirtyValue) -> CleanValue:
     """Return a json-clean item or None. Will log info message for failure."""
     itype = type(i)
-    if itype == dict:
-        return clean_dict(i)
-    elif itype == list:
-        return clean_list(i)
-    elif itype == tuple:
-        return clean_tuple(i)
-    elif itype == numpy.float32:
-        return float(i)
-    elif itype == numpy.float64:
-        return float(i)
-    elif itype == numpy.int16:
-        return int(i)
-    elif itype == numpy.uint16:
-        return int(i)
-    elif itype == numpy.int32:
-        return int(i)
-    elif itype == numpy.uint32:
-        return int(i)
-    elif itype == numpy.int64:
-        return int(i)
-    elif itype == numpy.uint64:
-        return int(i)
-    elif itype == float:
-        return float(i)
-    elif itype == str:
-        return str(i)
-    elif itype == int:
-        return int(i)
-    elif itype == numpy.bool_:
-        return bool(i)
-    elif itype == bool:
-        return bool(i)
-    if itype != type(None):
+    c = type_lookup.get(itype, None)
+    if c:
+        return c(i)
+    else:
         logging.info("[1] Unable to handle type %s", itype)
         import traceback
         traceback.print_stack()
-    return None
+        return None
 
 
 def clean_item_no_list(i: DirtyValue) -> CleanValue:
-    """
-        Return a json-clean item or None. Will log info message for failure.
-    """
+    """Return a json-clean item or None. Will log info message for failure."""
     itype = type(i)
-    if itype == dict:
-        return clean_dict(i, clean_item_no_list)
-    elif itype == list:
-        return clean_tuple(i, clean_item_no_list)
-    elif itype == tuple:
-        return clean_tuple(i, clean_item_no_list)
-    elif itype == numpy.float32:
-        return float(i)
-    elif itype == numpy.float64:
-        return float(i)
-    elif itype == numpy.int16:
-        return int(i)
-    elif itype == numpy.uint16:
-        return int(i)
-    elif itype == numpy.int32:
-        return int(i)
-    elif itype == numpy.uint32:
-        return int(i)
-    elif itype == float:
-        return float(i)
-    elif itype == str:
-        return str(i)
-    elif itype == int:
-        return int(i)
-    elif itype == bool:
-        return bool(i)
-    if itype != type(None):
-        logging.info("[2] Unable to handle type %s", itype)
-    return None
+    c = type_lookup_no_list.get(itype, None)
+    if c:
+        return c(i)
+    else:
+        logging.info("[1] Unable to handle type %s", itype)
+        import traceback
+        traceback.print_stack()
+        return None
 
 
 def parse_version(version: str, count: int = 3, max_count: typing.Optional[int] = None) -> typing.List[int]:

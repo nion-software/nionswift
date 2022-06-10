@@ -7,8 +7,10 @@ from __future__ import annotations
 import abc
 import copy
 import datetime
-import logging
 import json
+import logging
+import operator
+
 import numpy
 import numpy.typing
 import re
@@ -76,6 +78,23 @@ class PersistentProperty:
         self.convert_set_fn = typing.cast(typing.Callable[[Utility.CleanValue], Utility.DirtyValue], converter.convert_back if converter else lambda value: value)  # optimization
         self.changed = changed
 
+        def get_comparable_string(value: typing.Any) -> str:
+            d: typing.Dict[str, typing.Any] = dict()
+            self.__write_to_dict(d, value)
+            return json.dumps(Utility.clean_dict(d), sort_keys=True)
+
+        def is_equal(value1: typing.Any, value2: typing.Any) -> bool:
+            return get_comparable_string(value1) == get_comparable_string(value2)
+
+        is_equal_map = {
+            float: operator.eq,
+            str: operator.eq,
+            int: operator.eq,
+            bool: operator.eq,
+        }
+
+        self.is_equal = is_equal_map.get(type(value), is_equal) if value is not None else is_equal
+
     def close(self) -> None:
         self.make = None
         self.validate = None
@@ -85,6 +104,7 @@ class PersistentProperty:
         self.convert_get_fn = typing.cast(typing.Any, None)
         self.convert_set_fn = typing.cast(typing.Any, None)
         self.changed = None
+        self.is_equal = typing.cast(typing.Any, None)
 
     def set_value(self, value: typing.Any) -> bool:
         # return whether the value changed
@@ -92,7 +112,7 @@ class PersistentProperty:
             value = self.validate(value)
         else:
             value = copy.deepcopy(value)
-        did_change = self.__get_comparable_string(self.value) != self.__get_comparable_string(value)
+        did_change = not self.is_equal(self.value, value)
         self.value = value
         # ideally, the changed method would not be called if the value did not change; but there are
         # places in the code that assume that it will be called in any case where a property is set.
@@ -100,11 +120,6 @@ class PersistentProperty:
         if self.changed:
             self.changed(self.name, value)
         return did_change
-
-    def __get_comparable_string(self, value: typing.Any) -> str:
-        d: typing.Dict[str, typing.Any] = dict()
-        self.__write_to_dict(d, value)
-        return json.dumps(Utility.clean_dict(d), sort_keys=True)
 
     @property
     def json_value(self) -> Utility.CleanValue:
