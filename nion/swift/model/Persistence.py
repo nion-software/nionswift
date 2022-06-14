@@ -618,7 +618,7 @@ class PersistentObject(Observable.Observable):
         self.__item_references: typing.List[PersistentObjectReference] = list()
         # ghost properties can be used to temporarily mark properties so that changes
         # to those properties do not trigger writes to disk, usually for performance reasons.
-        self.ghost_properties = collections.Counter[str]()
+        self.ghost_properties = typing.Counter[str]()
 
     def close(self) -> None:
         self.about_to_close_event.fire()
