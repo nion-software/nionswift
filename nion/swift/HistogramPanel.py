@@ -554,7 +554,7 @@ def calculate_histogram_widget_data(display_data_and_metadata: typing.Optional[D
         # histogram_data = factor * numpy.histogram(data_sample, range=display_range, bins=bins)[0]  # type: ignore
         histogram_max = numpy.max(histogram_data)  # type: ignore  # assumes that histogram_data is int
         if histogram_max > 0:
-            histogram_data = histogram_data / float(histogram_max)
+            histogram_data = histogram_data / float(histogram_max)  # type: ignore
         return HistogramWidgetData(histogram_data, display_range)
     return HistogramWidgetData()
 
