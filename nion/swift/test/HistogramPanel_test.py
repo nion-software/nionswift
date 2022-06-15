@@ -65,7 +65,7 @@ class TestHistogramPanelClass(unittest.TestCase):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
             document_model = document_controller.document_model
-            data_item = DataItem.DataItem(self.get_data())
+            data_item = DataItem.DataItem(numpy.random.randn(10, 10))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             # set up histogram
@@ -79,7 +79,7 @@ class TestHistogramPanelClass(unittest.TestCase):
             histogram_data1 = histogram_canvas_item.histogram_data
             self.assertIsNotNone(histogram_data1)
             # now change the data and verify that histogram gets recomputed via document model
-            display_item.data_item.set_data(numpy.ones((10, 10), dtype=numpy.uint32))
+            display_item.data_item.set_data(numpy.random.randn(10, 10))
             # wait for histogram task to be complete
             histogram_panel._histogram_processor._evaluate_immediate()
             histogram_data2 = histogram_canvas_item.histogram_data

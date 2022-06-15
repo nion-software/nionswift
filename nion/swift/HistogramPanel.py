@@ -539,7 +539,19 @@ def calculate_histogram_widget_data(display_data_and_metadata: typing.Optional[D
             data_sample = numpy.copy(display_data)  # type: ignore
         if display_range is None or data_sample is None:
             return HistogramWidgetData()
-        histogram_data = factor * numpy.histogram(data_sample, range=display_range, bins=bins)[0]  # type: ignore
+        # numpy is slow because it throws out data less/greater than the min/max values
+        # the alternate algorithm here takes a different, faster approach and allows the binning
+        # to occur; but throws out the data in the first and last bin. this is not as accurate
+        # but improves the speed (compared to numpy) by a factor of 10x.
+        range_ = (display_range[1] - display_range[0])
+        if range_ > 0.0:
+            # int clipping seems faster
+            histogram_data = numpy.bincount(numpy.clip(((bins + 2) * ((data_sample.ravel() - display_range[0]) / range_)).astype(int), 0, bins + 2), minlength=bins + 2)[1:bins + 1]
+            # histogram_data = numpy.bincount(((bins + 2) * numpy.clip((data_sample - display_range[0]) / (display_range[1] - display_range[0]), 0.0, 1.0)).astype(int).ravel())[1:bins+1]
+        else:
+            histogram_data = numpy.zeros((bins,), dtype=int)
+        # why can't numpy make this optimization?
+        # histogram_data = factor * numpy.histogram(data_sample, range=display_range, bins=bins)[0]  # type: ignore
         histogram_max = numpy.max(histogram_data)  # type: ignore  # assumes that histogram_data is int
         if histogram_max > 0:
             histogram_data = histogram_data / float(histogram_max)
