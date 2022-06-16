@@ -1560,7 +1560,7 @@ class LineProfileGraphic(LineTypeGraphic):
     def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool = False) -> None:
         p1 = mapping.map_point_image_norm_to_widget(self.start)
         p2 = mapping.map_point_image_norm_to_widget(self.end)
-        w = mapping.map_size_image_to_widget(Geometry.FloatSize(self.width, 0)).width
+        w = mapping.map_size_image_to_widget(Geometry.FloatSize(width=self.width)).width
         with ctx.saver():
             ctx.begin_path()
             ctx.move_to(p1[1], p1[0])
