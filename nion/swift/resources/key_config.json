@@ -104,6 +104,12 @@
     "item.copy_uuid": {
         "window": "Ctrl+Shift+U"
     },
+    "line_profile.contract": {
+        "line_profile_graphic": "-"
+    },
+    "line_profile.expand": {
+        "line_profile_graphic": ["=", "Shift++", "+"]
+    },
     "item.duplicate": {
         "window": "Ctrl+D"
     },

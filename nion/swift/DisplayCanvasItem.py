@@ -65,6 +65,12 @@ class DisplayCanvasItem(CanvasItem.CanvasItemComposition):
 
     @property
     def key_contexts(self) -> typing.Sequence[str]:
+        """Return key contexts.
+
+        Key contexts provide an ordered list of contexts that are used to determine
+        which actions are valid at a given time. The contexts are checked in reverse
+        order (i.e. last added have highest precedence).
+        """
         return list()
 
     @property

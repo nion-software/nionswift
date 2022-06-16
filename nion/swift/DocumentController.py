@@ -2485,6 +2485,7 @@ class DocumentController(Window.Window):
                      display_item: typing.Optional[DisplayItem.DisplayItem],
                      display_items: typing.Sequence[DisplayItem.DisplayItem],
                      crop_graphic: typing.Optional[Graphics.Graphic],
+                     selected_graphics: typing.Sequence[Graphics.Graphic],
                      data_item: typing.Optional[DataItem.DataItem],
                      data_items: typing.Sequence[DataItem.DataItem]) -> None:
             super().__init__(application, window, focus_widget)
@@ -2494,6 +2495,7 @@ class DocumentController(Window.Window):
             self.display_item = display_item
             self.display_items = display_items
             self.crop_graphic = crop_graphic
+            self.selected_graphics = list(selected_graphics)
             self.data_item = data_item
             self.data_items = data_items
 
@@ -2511,9 +2513,10 @@ class DocumentController(Window.Window):
             for data_item_1 in display_item_1.data_items:
                 if not data_item_1 in data_items:
                     data_items.append(data_item_1)
+        selected_graphics = display_item.selected_graphics if display_item else list()
         return DocumentController.ActionContext(typing.cast("Application.Application", self.app), self, focus_widget,
                                                 display_panel, display_panels, model, display_item, display_items,
-                                                crop_graphic, data_item, data_items)
+                                                crop_graphic, selected_graphics, data_item, data_items)
 
     def _get_action_context_for_display_items(self, display_items: typing.Sequence[DisplayItem.DisplayItem], display_panel: typing.Optional[DisplayPanel.DisplayPanel]) -> ActionContext:
         focus_widget = self.focus_widget
@@ -2550,9 +2553,11 @@ class DocumentController(Window.Window):
             for data_item_1 in display_item_1.data_items:
                 if not data_item_1 in used_data_items:
                     used_data_items.append(data_item_1)
+        selected_graphics = used_display_item.selected_graphics if used_display_item else list()
         return DocumentController.ActionContext(typing.cast("Application.Application", self.app), self, focus_widget,
                                                 used_display_panel, used_display_panels, model, used_display_item,
-                                                used_display_items, crop_graphic, used_data_item, used_data_items)
+                                                used_display_items, crop_graphic, selected_graphics, used_data_item,
+                                                used_data_items)
 
 
 class DeleteItemAction(Window.Action):
@@ -3517,6 +3522,35 @@ Window.register_action(DisplayToggleFrameRateAction())
 Window.register_action(DisplayToggleLatencyAction())
 
 
+class LineProfileGraphicAction(Window.Action):
+    def __init__(self, action_id: str, action_name: str, delta: float) -> None:
+        super().__init__()
+        self.action_id = action_id
+        self.action_name = action_name
+        self.__delta = delta
+
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        display_panel = context.display_panel
+        display_item = context.display_item
+        if display_panel and display_item and len(context.selected_graphics) == 1:
+            graphic = context.selected_graphics[0]
+            if isinstance(graphic, Graphics.LineProfileGraphic):
+                new_width = max(graphic.width + self.__delta, 1.0)
+                command = DisplayPanel.ChangeGraphicsCommand(context.model, display_item, [graphic], title=_("Change Line Profile Width"), command_id="change_line_profile_width", is_mergeable=True, **{"width": new_width})
+                command.perform()
+                window.push_undo_command(command)
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        if not context.display_panel:
+            return False
+        graphic_type_set = {graphic.type for graphic in context.selected_graphics}
+        return len(graphic_type_set) == 1 and list(graphic_type_set)[0] == "line-profile"
+
+
 class RasterDisplayFillViewAction(Window.Action):
     action_id = "raster_display.fill_view"
     action_name = _("Fill View")
@@ -3692,6 +3726,8 @@ class RasterDisplayNudgeSliceAction(Window.Action):
         return context.display_panel is not None and context.display_panel.display_canvas_item is not None
 
 
+Window.register_action(LineProfileGraphicAction("line_profile.expand", _("Expand Line Profile Width"), 1.0))
+Window.register_action(LineProfileGraphicAction("line_profile.contract", _("Contract Line Profile Width"), -1.0))
 Window.register_action(RasterDisplayFitToViewAction())
 Window.register_action(RasterDisplayFillViewAction())
 Window.register_action(RasterDisplayOneViewAction())

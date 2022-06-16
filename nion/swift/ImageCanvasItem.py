@@ -1057,11 +1057,23 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
     @property
     def key_contexts(self) -> typing.Sequence[str]:
+        # key contexts provide an ordered list of contexts that are used to determine
+        # which actions are valid at a given time. the contexts are checked in reverse
+        # order (i.e. last added have highest precedence).
         key_contexts = ["display_panel"]
         if self.__data_shape is not None:
             key_contexts.append("raster_display")
             if self.__graphic_selection.has_selection:
                 key_contexts.append("raster_display_graphics")
+            graphic_type: typing.Optional[str] = None
+            for graphic_index in self.__graphic_selection.indexes:
+                graphic = self.__graphics[graphic_index]
+                if graphic_type and graphic.type != graphic_type:
+                    graphic_type = None
+                    break
+                graphic_type = graphic.type
+            if graphic_type:
+                key_contexts.append(graphic_type.replace("-", "_"))
         return key_contexts
 
     def toggle_frame_rate(self) -> None:
