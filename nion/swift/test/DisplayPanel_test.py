@@ -1015,6 +1015,26 @@ class TestDisplayPanelClass(unittest.TestCase):
         plot_width = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.width
         line_plot_data_item = self.document_model.data_items[1]
         line_plot_display_item = self.document_model.get_display_item_for_data_item(line_plot_data_item)
+        region = Graphics.IntervalGraphic()
+        region.start = 0.4
+        region.end = 0.6
+        self.document_model.get_display_item_for_data_item(line_plot_data_item).add_graphic(region)
+        # select, then click drag
+        modifiers = CanvasItem.KeyboardModifiers(alt=True)
+        line_plot_canvas_item.mouse_pressed(plot_left + plot_width * 0.4, 100, modifiers)
+        line_plot_canvas_item.mouse_position_changed(plot_left + plot_width * 0.3, 100, modifiers)
+        line_plot_canvas_item.mouse_released(plot_left + plot_width * 0.3, 100, modifiers)
+        # make sure results are correct
+        self.assertAlmostEqual(line_plot_display_item.graphics[0].start, 0.1, 2)  # pixel accuracy, approx. 1/500
+        self.assertAlmostEqual(line_plot_display_item.graphics[0].end, 0.9, 2)  # pixel accuracy, approx. 1/500
+
+    def test_click_drag_interval_tool_creates_selection(self):
+        line_plot_canvas_item = self.setup_line_plot()
+        plot_origin = line_plot_canvas_item.line_graph_canvas_item.map_to_canvas_item(Geometry.IntPoint(), line_plot_canvas_item)
+        plot_left = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.left + plot_origin.x
+        plot_width = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.width
+        line_plot_data_item = self.document_model.data_items[1]
+        line_plot_display_item = self.document_model.get_display_item_for_data_item(line_plot_data_item)
         self.document_controller.tool_mode = "interval"
         # make sure assumptions are correct
         self.assertEqual(len(line_plot_display_item.graphics), 0)

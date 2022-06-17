@@ -1839,7 +1839,14 @@ class IntervalGraphic(Graphic):
         o = mapping.map_point_widget_to_channel_norm(original)
         p = mapping.map_point_widget_to_channel_norm(current)
         constraints = self._constraints
-        if part[0] == "start" and not modifiers.control and "shape" not in constraints:
+        if modifiers.alt:
+            left = min(part[1], part[2]) - (p - o)
+            right = max(part[1], part[2]) + (p - o)
+            if "bounds" in constraints:
+                left = max(0, left)
+                right = min(1, right)
+            self.interval = (left, right)
+        elif part[0] == "start" and not modifiers.control and "shape" not in constraints:
             self.start = p
         elif part[0] == "end" and not modifiers.control and "shape" not in constraints:
             self.end = p
