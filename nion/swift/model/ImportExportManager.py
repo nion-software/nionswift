@@ -576,10 +576,7 @@ class StandardImportExportHandler(ImportExportHandler):
         display_values = None
         assert data is not None
         # TODO: fix typing when imageio gets their numpy typing correct.
-        print(path)
-        print(path.exists())
         imageio.imwrite(path, Image.get_rgb_view(data), extension)  # type: ignore
-        print(path.exists())
 
 
 class CSVImportExportHandler(ImportExportHandler):
