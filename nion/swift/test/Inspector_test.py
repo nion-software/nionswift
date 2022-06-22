@@ -1490,6 +1490,29 @@ class TestInspectorClass(unittest.TestCase):
         self.assertEqual(0, Inspector.GammaIntegerConverter().convert(0.0))
         self.assertEqual(0.1, Inspector.GammaIntegerConverter().convert_back(100))
 
+    def test_line_plot_inspector_handles_legend_position(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.DataItem(numpy.zeros((32,)))
+            data_item2 = DataItem.DataItem(numpy.zeros((32,)))
+            document_model.append_data_item(data_item)
+            document_model.append_data_item(data_item2, False)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item.display_type = "line_plot"
+            display_item.append_display_data_channel(DisplayItem.DisplayDataChannel(data_item=data_item2))
+            display_panel.set_display_panel_display_item(display_item)
+            inspector_panel = document_controller.find_dock_panel("inspector-panel")
+            document_controller.periodic()
+            inspector_panel.show()
+            self.assertNotEqual("outer-left", display_item.get_display_property("legend_position"))
+            display_item.set_display_property("legend_position", "outer-left")
+            self.assertEqual("outer-left", display_item.get_display_property("legend_position"))
+            display_item.set_display_property("legend_position", "outer-right")
+            self.assertEqual("outer-right", display_item.get_display_property("legend_position"))
+            display_item.set_display_property("legend_position", "outer-space")  # dummy value
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

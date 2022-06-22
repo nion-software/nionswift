@@ -121,6 +121,16 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.__line_graph_legend_column.layout = CanvasItem.CanvasItemColumnLayout()
         self.__line_graph_legend_column.add_canvas_item(self.__line_graph_legend_row)
         self.__line_graph_legend_column.add_stretch()
+        self.__line_graph_outer_left_column = CanvasItem.CanvasItemComposition()
+        self.__line_graph_outer_left_column.layout = CanvasItem.CanvasItemColumnLayout(margins=Geometry.Margins(16, 16, 0, 0))
+        self.__line_graph_outer_left_legend = LineGraphCanvasItem.LineGraphLegendCanvasItem(ui_settings, typing.cast(LineGraphCanvasItem.LineGraphLegendCanvasItemDelegate, delegate))
+        self.__line_graph_outer_left_column.add_canvas_item(self.__line_graph_outer_left_legend)
+        self.__line_graph_outer_left_column.add_stretch()
+        self.__line_graph_outer_right_column = CanvasItem.CanvasItemComposition()
+        self.__line_graph_outer_right_column.layout = CanvasItem.CanvasItemColumnLayout(margins=Geometry.Margins(16, 0, 0, 16))
+        self.__line_graph_outer_right_legend = LineGraphCanvasItem.LineGraphLegendCanvasItem(ui_settings, typing.cast(LineGraphCanvasItem.LineGraphLegendCanvasItemDelegate, delegate))
+        self.__line_graph_outer_right_column.add_canvas_item(self.__line_graph_outer_right_legend)
+        self.__line_graph_outer_right_column.add_stretch()
         self.__line_graph_frame_canvas_item = LineGraphCanvasItem.LineGraphFrameCanvasItem()
         self.__line_graph_area_stack.add_canvas_item(self.__line_graph_background_canvas_item)
         self.__line_graph_area_stack.add_canvas_item(self.__line_graph_stack)
@@ -161,12 +171,20 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.__overlap_controls.layout = CanvasItem.CanvasItemColumnLayout()
         self.__overlap_controls.add_stretch()
 
+        # create and add the outer level labels
+        legend_row = CanvasItem.CanvasItemComposition()
+        legend_row.layout = CanvasItem.CanvasItemRowLayout()
+        legend_row.add_canvas_item(self.__line_graph_outer_left_column)
+        legend_row.add_canvas_item(line_graph_group_canvas_item)
+        legend_row.add_canvas_item(self.__line_graph_outer_right_column)
+
         # draw the background
         line_graph_background_canvas_item = CanvasItem.CanvasItemComposition()
         #line_graph_background_canvas_item.update_sizing(line_graph_background_canvas_item.size.with_minimum_aspect_ratio(1.5))  # note: no maximum aspect ratio; line plot looks nice wider.
         line_graph_background_canvas_item.add_canvas_item(CanvasItem.BackgroundCanvasItem("#FFF"))
-        line_graph_background_canvas_item.add_canvas_item(line_graph_group_canvas_item)
         line_graph_background_canvas_item.add_canvas_item(self.__overlap_controls)
+
+        line_graph_background_canvas_item.add_canvas_item(legend_row)
 
         self.__display_controls = CanvasItem.CanvasItemComposition()
         self.__display_controls.layout = CanvasItem.CanvasItemColumnLayout()
@@ -247,16 +265,25 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
     def __update_legend_origin(self) -> None:
         self.__line_graph_legend_canvas_item.size_to_content()
+        self.__line_graph_outer_left_legend.size_to_content()
+        self.__line_graph_outer_right_legend.size_to_content()
+
+        self.__line_graph_legend_row.visible = False
+        self.__line_graph_legend_row.canvas_items[0].visible = False
+        self.__line_graph_legend_row.canvas_items[2].visible = False
+        self.__line_graph_outer_right_column.visible = False
+        self.__line_graph_outer_left_column.visible = False
+
         if self.__legend_position == "top-left":
-            self.__line_graph_legend_canvas_item.visible = True
-            self.__line_graph_legend_row.canvas_items[0].visible = False
+            self.__line_graph_legend_row.visible= True
             self.__line_graph_legend_row.canvas_items[2].visible = True
         elif self.__legend_position == "top-right":
-            self.__line_graph_legend_canvas_item.visible = True
+            self.__line_graph_legend_row.visible = True
             self.__line_graph_legend_row.canvas_items[0].visible = True
-            self.__line_graph_legend_row.canvas_items[2].visible = False
-        else:
-            self.__line_graph_legend_canvas_item.visible = False
+        elif self.__legend_position == "outer-left":
+            self.__line_graph_outer_left_column.visible = True
+        elif self.__legend_position == "outer-right":
+            self.__line_graph_outer_right_column.visible = True
 
     def add_display_control(self, display_control_canvas_item: CanvasItem.AbstractCanvasItem, role: typing.Optional[str] = None) -> None:
         if role == "related_icons":
@@ -633,6 +660,8 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.__line_graph_regions_canvas_item.set_calibrated_data(self.line_graph_canvas_item.calibrated_xdata.data if self.line_graph_canvas_item and self.line_graph_canvas_item.calibrated_xdata else None)
         self.__line_graph_frame_canvas_item.set_draw_frame(bool(axes))
         self.__line_graph_legend_canvas_item.set_legend_entries(legend_entries)
+        self.__line_graph_outer_left_legend.set_legend_entries(legend_entries)
+        self.__line_graph_outer_right_legend.set_legend_entries(legend_entries)
         self.__update_legend_origin()
         self.__line_graph_vertical_axis_label_canvas_item.set_axes(axes)
         self.__line_graph_vertical_axis_scale_canvas_item.set_axes(axes, self.__ui_settings)
