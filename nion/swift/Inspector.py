@@ -1981,9 +1981,10 @@ class ImageDisplayInspectorSection(InspectorSection):
 
 
 def make_legend_position(document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem) -> typing.Tuple[UserInterface.BoxWidget, Event.EventListener]:
+    # This function is currently only utilized by lineplots
     ui = document_controller.ui
     legend_position_row = ui.create_row_widget()
-    legend_position_options = [(_("None"), None), (_("Top Left"), "top-left"), (_("Top Right"), "top-right")]
+    legend_position_options = [(_("None"), None), (_("Top Left"), "top-left"), (_("Top Right"), "top-right"), (_("Outer Left"), "outer-left"), (_("Outer Right"), "outer-right")]
     legend_position_reverse_map = {p[1]: i for i, p in enumerate(legend_position_options)}
     legend_position_chooser = ui.create_combo_box_widget(items=legend_position_options, item_getter=operator.itemgetter(0))
 
