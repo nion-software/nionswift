@@ -260,16 +260,22 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.__line_graph_outer_left_legend.size_to_content()
         self.__line_graph_outer_right_legend.size_to_content()
 
+        self.__line_graph_legend_row.visible = False
+        self.__line_graph_legend_row.canvas_items[0].visible = False
+        self.__line_graph_legend_row.canvas_items[2].visible = False
+        self.__line_graph_outer_left_legend.visible = False
+        self.__line_graph_outer_right_legend.visible = False
+
         if self.__legend_position == "top-left":
-            self.__line_graph_legend_canvas_item.visible = True
-            self.__line_graph_legend_row.canvas_items[0].visible = False
+            self.__line_graph_legend_row.visible= True
             self.__line_graph_legend_row.canvas_items[2].visible = True
         elif self.__legend_position == "top-right":
-            self.__line_graph_legend_canvas_item.visible = True
+            self.__line_graph_legend_row.visible = True
             self.__line_graph_legend_row.canvas_items[0].visible = True
-            self.__line_graph_legend_row.canvas_items[2].visible = False
-        else:
-            self.__line_graph_legend_canvas_item.visible = False
+        elif self.__legend_position == "outer-left":
+            self.__line_graph_outer_left_legend.visible = True
+        elif self.__legend_position == "outer-right":
+            self.__line_graph_outer_right_legend.visible = True
 
     def add_display_control(self, display_control_canvas_item: CanvasItem.AbstractCanvasItem, role: typing.Optional[str] = None) -> None:
         if role == "related_icons":
