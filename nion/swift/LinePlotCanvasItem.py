@@ -449,8 +449,8 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             y_min = data_min * 1.2
             y_max = data_max * 1.2
         extra = (right - left) * 0.5
-        display_left_channel = int(max(0.0, left - extra) * data_and_metadata.data_shape[-1])
-        display_right_channel = int(min(1.0, right + extra) * data_and_metadata.data_shape[-1])
+        display_left_channel = int((left - extra) * data_and_metadata.data_shape[-1])
+        display_right_channel = int((right + extra) * data_and_metadata.data_shape[-1])
         # command = self.delegate.create_change_display_command()
         assert self.delegate
         self.delegate.update_display_properties({"left_channel": display_left_channel, "right_channel": display_right_channel, "y_min": y_min, "y_max": y_max})
