@@ -1170,7 +1170,7 @@ class DataItem(Persistence.PersistentObject):
                         self.__set_data_metadata_direct(data_metadata)
                     assert self.data_shape == data_metadata.data_shape
                     assert self.data_dtype == data_metadata.data_dtype
-                    assert self.data_dtype == data_and_metadata.data_dtype
+                    assert self.data_dtype == data_and_metadata.data_dtype, f"{self.data_dtype=} == {data_and_metadata.data_dtype=}"
                     self.__data[tuple(dst)] = data_and_metadata._data_ex[tuple(src)]
                     # mark changes and update session
                     self.__change_changed = True

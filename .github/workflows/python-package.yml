@@ -35,7 +35,7 @@ jobs:
     - name: Install Test Dependencies
       run: |
         pip install -r test-requirements.txt
-        python -m pip install mypy==0.961
+        python -m pip install mypy
         python -m pip install flake8
         mypy --version
     - name: Type Checking

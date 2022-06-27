@@ -532,10 +532,8 @@ def calculate_histogram_widget_data(display_data_and_metadata: typing.Optional[D
         if not subsample and subsample_fraction:
             subsample = min(max(total_pixels * subsample_fraction, subsample_min), total_pixels)
         if subsample:
-            factor = total_pixels / subsample
             data_sample = numpy.random.choice(display_data.reshape(numpy.product(display_data.shape, dtype=numpy.uint64)), subsample)  # type: ignore
         else:
-            factor = 1.0
             data_sample = numpy.copy(display_data)  # type: ignore
         if display_range is None or data_sample is None:
             return HistogramWidgetData()
@@ -564,9 +562,9 @@ def calculate_statistics(display_data_and_metadata: typing.Optional[DataAndMetad
     display_data_and_metadata = None  # release ref for gc. needed for tests, because this may occur on a thread.
     data_range = display_data_range
     if data is not None and data.size > 0 and displayed_intensity_calibration:
-        mean = numpy.mean(data)
-        std = numpy.std(data)
-        rms = numpy.sqrt(numpy.mean(numpy.square(numpy.absolute(data))))
+        mean = numpy.mean(data).item()
+        std = numpy.std(data).item()
+        rms = numpy.sqrt(numpy.mean(numpy.square(numpy.absolute(data)))).item()
         dimensional_shape = Image.dimensional_shape_from_shape_and_dtype(data.shape, data.dtype) or (1, 1)
         sum_data = mean * functools.reduce(operator.mul, dimensional_shape)
         if region is None:
