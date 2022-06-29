@@ -420,37 +420,42 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
     def __view_to_intervals(self, data_and_metadata: DataAndMetadata.DataAndMetadata, intervals: typing.List[typing.Tuple[float, float]]) -> None:
         """Change the view to encompass the channels and data represented by the given intervals."""
-        left = None
-        right = None
-        for interval in intervals:
-            if left is not None:
-                left = min(left, interval[0])
-            else:
-                left = interval[0]
-            if right is not None:
-                right = max(right, interval[1])
-            else:
-                right = interval[1]
-        left = left if left is not None else 0.0
-        right = right if right is not None else 1.0
-        left_channel = int(max(0.0, left) * data_and_metadata.data_shape[-1])
-        right_channel = int(min(1.0, right) * data_and_metadata.data_shape[-1])
-        data_in_channel = data_and_metadata.data
-        assert data_in_channel is not None
-        data_min = numpy.amin(data_in_channel[..., left_channel:right_channel])
-        data_max = numpy.amax(data_in_channel[..., left_channel:right_channel])
-        if data_min > 0 and data_max > 0:
-            y_min = 0.0
-            y_max = data_max * 1.2
-        elif data_min < 0 and data_max < 0:
-            y_min = data_min * 1.2
-            y_max = 0.0
+
+        if len(intervals) > 0:
+            left = intervals[0][0]
+            right = intervals[0][1]
+            for interval in intervals:
+                left = min(interval[0], left)
+                right = min(interval[1], right)
         else:
-            y_min = data_min * 1.2
-            y_max = data_max * 1.2
-        extra = (right - left) * 0.5
-        display_left_channel = int((left - extra) * data_and_metadata.data_shape[-1])
-        display_right_channel = int((right + extra) * data_and_metadata.data_shape[-1])
+            left = right = 0.0
+
+        data_size = int(data_and_metadata.data_shape[-1])
+        left_channel = int(numpy.floor(left * data_size))
+        right_channel = int(numpy.ceil(right * data_size))
+        if left_channel > right_channel:
+            right_channel, left_channel = left_channel, right_channel
+        if left_channel not in range(data_size):
+            left_channel = 0
+        if right_channel not in range(data_size):
+            right_channel = data_size
+
+        channel_data = data_and_metadata.data
+        assert channel_data is not None
+        if channel_data[..., left_channel:right_channel].size > 0:
+            data_min = numpy.amin(channel_data[..., left_channel:right_channel])
+            data_max = numpy.amax(channel_data[..., left_channel:right_channel])
+        else:
+            data_min = numpy.amin(channel_data[..., :])
+            data_max = numpy.amax(channel_data[..., :])
+
+        y_min = 0.0 if data_min > 0 else data_min * 1.2
+        y_max = 0.0 if data_max < 0 else data_max * 1.2
+
+        x_padding = (right - left) * 0.5
+        display_left_channel = int((left - x_padding) * data_size)
+        display_right_channel = int((right + x_padding) * data_size)
+
         # command = self.delegate.create_change_display_command()
         assert self.delegate
         self.delegate.update_display_properties({"left_channel": display_left_channel, "right_channel": display_right_channel, "y_min": y_min, "y_max": y_max})
