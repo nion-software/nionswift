@@ -601,8 +601,15 @@ class Application(UIApplication.BaseApplication):
                     if result and profile:
                         try:
                             new_project_reference = profile.upgrade(project_reference)
-                        except Exception:
+                        except FileExistsError:
+                            message = _("Upgraded project already exists.")
+                            self.show_ok_dialog(_("Error Upgrading Project"), f"{message}\n{project_reference.path}")
+                            logging.info(f"Project already exists: {project_reference.path}")
+                            new_project_reference = None
+                        except Exception as e:
                             self.show_ok_dialog(_("Error Upgrading Project"), _("Unable to upgrade project."))
+                            import traceback
+                            traceback.print_exc()
                             new_project_reference = None
                         if new_project_reference:
                             self.switch_project_reference(new_project_reference)
