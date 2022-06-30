@@ -2534,7 +2534,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
             document_model = document_controller.document_model
-            data_item = DataItem.DataItem(create_1d_data(data_min=0, data_max=1))
+            data_item = DataItem.DataItem(create_1d_data(length=1024, data_min=0, data_max=1))
             document_model.append_data_item(data_item)
             display_panel = document_controller.selected_display_panel
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -2552,8 +2552,8 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_item.graphic_selection.set(0)
             line_plot_canvas_item.handle_auto_display()
-            self.assertAlmostEqual(line_plot_canvas_item._LinePlotCanvasItem__left_channel, 0.75)
-            self.assertAlmostEqual(line_plot_canvas_item._LinePlotCanvasItem__right_channel, 1.75)
+            self.assertAlmostEqual(line_plot_canvas_item._LinePlotCanvasItem__left_channel, 0.75*1024)
+            self.assertAlmostEqual(line_plot_canvas_item._LinePlotCanvasItem__right_channel, 1.75*1024)
 
 
 if __name__ == '__main__':
