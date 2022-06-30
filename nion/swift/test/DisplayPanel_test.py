@@ -1,6 +1,7 @@
 # standard libraries
 import contextlib
 import logging
+import random
 import typing
 import unittest
 import uuid
@@ -2554,6 +2555,34 @@ class TestDisplayPanelClass(unittest.TestCase):
             line_plot_canvas_item.handle_auto_display()
             self.assertAlmostEqual(line_plot_canvas_item._LinePlotCanvasItem__left_channel, 0.75*1024)
             self.assertAlmostEqual(line_plot_canvas_item._LinePlotCanvasItem__right_channel, 1.75*1024)
+
+    def test_interval_zoom_inside(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(create_1d_data(length=1024, data_min=0, data_max=1))
+            document_model.append_data_item(data_item)
+            display_panel = document_controller.selected_display_panel
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel.set_display_panel_display_item(display_item)
+            canvas_shape = (480, 640)
+            document_controller.show_display_item(display_item)
+            display_panel.display_canvas_item.layout_immediate(canvas_shape)
+            display_panel.display_canvas_item.prepare_display()  # force layout
+            display_panel.display_canvas_item.refresh_layout_immediate()
+            line_plot_canvas_item = display_panel.display_canvas_item
+            region = Graphics.IntervalGraphic()
+            prng = random.Random()
+            region.start = prng.randrange(0, 1)
+            region.end = prng.randrange(0, 1)
+            if region.start < region.end:
+                region.start, region.end = region.end, region.start
+            document_model.get_display_item_for_data_item(data_item).add_graphic(region)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item.graphic_selection.set(0)
+            line_plot_canvas_item.handle_auto_display()
+            self.assertAlmostEqual(line_plot_canvas_item._LinePlotCanvasItem__left_channel, region.start*1024)
+            self.assertAlmostEqual(line_plot_canvas_item._LinePlotCanvasItem__right_channel, region.end*1024)
 
 
 if __name__ == '__main__':
