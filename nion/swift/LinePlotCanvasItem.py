@@ -426,7 +426,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             right = intervals[0][1]
             for interval in intervals:
                 left = min(interval[0], left)
-                right = min(interval[1], right)
+                right = max(interval[1], right)
         else:
             left = right = 0.0
 
