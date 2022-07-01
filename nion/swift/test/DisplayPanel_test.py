@@ -2531,62 +2531,38 @@ class TestDisplayPanelClass(unittest.TestCase):
             document_model.remove_data_item(data_item)
             document_controller.periodic()
 
-    def test_interval_zoom_outer_right(self):
-        with TestContext.create_memory_context() as test_context:
-            document_controller = test_context.create_document_controller()
-            document_model = document_controller.document_model
-            data_item = DataItem.DataItem(create_1d_data(length=1024, data_min=0, data_max=1))
-            document_model.append_data_item(data_item)
-            display_panel = document_controller.selected_display_panel
-            display_item = document_model.get_display_item_for_data_item(data_item)
-            display_panel.set_display_panel_display_item(display_item)
-            canvas_shape = (480, 640)
-            document_controller.show_display_item(display_item)
-            display_panel.display_canvas_item.layout_immediate(canvas_shape)
-            display_panel.display_canvas_item.prepare_display()  # force layout
-            display_panel.display_canvas_item.refresh_layout_immediate()
-            line_plot_canvas_item = typing.cast(LinePlotCanvasItem.LinePlotCanvasItem, display_panel.display_canvas_item)
-            interval_graphic = Graphics.IntervalGraphic()
-            # ensure the interval is outside the regular fractional coordinate range
-            interval_graphic.start = 2.0
-            interval_graphic.end = 2.5
-            document_model.get_display_item_for_data_item(data_item).add_graphic(interval_graphic)
-            display_item = document_model.get_display_item_for_data_item(data_item)
-            display_item.graphic_selection.set(0)
-            line_plot_canvas_item.handle_auto_display()
-            display_panel.display_canvas_item.prepare_display()  # force layout
-            axes = line_plot_canvas_item._axes
-            self.assertAlmostEqual(axes.drawn_left_channel, 1.75*1024)
-            self.assertAlmostEqual(axes.drawn_right_channel, 2.75*1024)
+    def test_interval_zoom(self):
+        intervals = [(-2.5, -1.5), (-1.5, 0.0), (-1.5, 0.5), (0.0, 1.0), (0.5, 0.5), (0.5, 1.5), (1, 2.5), (2.5, 3.5)]
+        # Fails on (1.0, 0)
 
-    def test_interval_zoom_inside(self):
-        with TestContext.create_memory_context() as test_context:
-            document_controller = test_context.create_document_controller()
-            document_model = document_controller.document_model
-            data_item = DataItem.DataItem(create_1d_data(length=1024, data_min=0, data_max=1))
-            document_model.append_data_item(data_item)
-            display_panel = document_controller.selected_display_panel
-            display_item = document_model.get_display_item_for_data_item(data_item)
-            display_panel.set_display_panel_display_item(display_item)
-            canvas_shape = (480, 640)
-            document_controller.show_display_item(display_item)
-            display_panel.display_canvas_item.layout_immediate(canvas_shape)
-            display_panel.display_canvas_item.prepare_display()  # force layout
-            display_panel.display_canvas_item.refresh_layout_immediate()
-            line_plot_canvas_item = typing.cast(LinePlotCanvasItem.LinePlotCanvasItem, display_panel.display_canvas_item)
-            interval_graphic = Graphics.IntervalGraphic()
-            # use these so that auto-display puts the boundaries at 0 and 1
-            interval_graphic.start = 0.25
-            interval_graphic.end = 0.75
-            document_model.get_display_item_for_data_item(data_item).add_graphic(interval_graphic)
-            display_item = document_model.get_display_item_for_data_item(data_item)
-            display_item.graphic_selection.set(0)
-            line_plot_canvas_item.handle_auto_display()
-            display_panel.display_canvas_item.prepare_display()  # force layout
-            axes = line_plot_canvas_item._axes
-            self.assertAlmostEqual(axes.drawn_left_channel, 0.0*1024)
-            self.assertAlmostEqual(axes.drawn_right_channel, 1.0*1024)
-
+        for interval in intervals:
+            with TestContext.create_memory_context() as test_context:
+                document_controller = test_context.create_document_controller()
+                document_model = document_controller.document_model
+                data_item = DataItem.DataItem(create_1d_data(length=1024, data_min=0, data_max=1))
+                document_model.append_data_item(data_item)
+                display_panel = document_controller.selected_display_panel
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                display_panel.set_display_panel_display_item(display_item)
+                canvas_shape = (480, 640)
+                document_controller.show_display_item(display_item)
+                display_panel.display_canvas_item.layout_immediate(canvas_shape)
+                display_panel.display_canvas_item.prepare_display()  # force layout
+                display_panel.display_canvas_item.refresh_layout_immediate()
+                line_plot_canvas_item = typing.cast(LinePlotCanvasItem.LinePlotCanvasItem, display_panel.display_canvas_item)
+                interval_graphic = Graphics.IntervalGraphic()
+                # ensure the interval is outside the regular fractional coordinate range
+                interval_graphic.start = interval[0]
+                interval_graphic.end = interval[1]
+                padding = abs(interval[1] - interval[0]) * .5
+                document_model.get_display_item_for_data_item(data_item).add_graphic(interval_graphic)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                display_item.graphic_selection.set(0)
+                line_plot_canvas_item.handle_auto_display()
+                display_panel.display_canvas_item.prepare_display()  # force layout
+                axes = line_plot_canvas_item._axes
+                self.assertAlmostEqual(axes.drawn_left_channel, (min(interval) - padding) * 1024)
+                self.assertAlmostEqual(axes.drawn_right_channel, (max(interval) + padding) * 1024)
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
