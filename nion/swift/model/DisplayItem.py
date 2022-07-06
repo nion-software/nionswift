@@ -36,6 +36,7 @@ from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import ReferenceCounting
 from nion.utils import Registry
+from nion.utils import Color
 
 if typing.TYPE_CHECKING:
     from nion.swift.model import Project
@@ -1312,6 +1313,8 @@ def display_layer_factory(lookup_id: typing.Callable[[str], str]) -> DisplayLaye
 
 
 class DisplayItem(Persistence.PersistentObject):
+    DEFAULT_COLORS = ("#1E90FF", "#FF0000", "#00FF00", "#0000FF", "#FFFF00", "#00FFFF", "#FF00FF", "#888888", "#880000", "#008800", "#000088", "#CCCCCC", "#888800", "#008888", "#880088", "#964B00")
+
     def __init__(self, item_uuid: typing.Optional[uuid.UUID] = None, *, data_item: typing.Optional[DataItem.DataItem] = None) -> None:
         super().__init__()
         if item_uuid:
@@ -1998,11 +2001,17 @@ class DisplayItem(Persistence.PersistentObject):
             self.__add_display_layer_auto(display_layer, display_data_channel)
 
     def __get_unique_display_layer_color(self) -> str:
-        existing_colors = {display_layer.fill_color for display_layer in self.display_layers}
-        for color in ('#1E90FF', "#F00", "#0F0", "#00F", "#FF0", "#0FF", "#F0F", "#888", "#800", "#080", "#008", "#CCC", "#880", "#088", "#808", "#964B00"):
-            if not color in existing_colors:
-                return color
-        return '#1E90FF'
+        existing_colors = [display_layer.fill_color for display_layer in self.display_layers]
+        choice_colors = list(copy.copy(self.DEFAULT_COLORS))
+        for color_str in existing_colors:
+            color = Color.Color(color_str)
+            index = 0
+            while index < len(choice_colors):
+                if color.matches_without_alpha(Color.Color(choice_colors[index])):
+                    del choice_colors[index]
+                else:
+                    index += 1
+        return choice_colors[0] if len(choice_colors) > 0 else self.DEFAULT_COLORS[0]
 
     def auto_display_legend(self) -> None:
         if len(self.display_layers) == 2 and self.get_display_property("legend_position") is None:
@@ -2019,6 +2028,9 @@ class DisplayItem(Persistence.PersistentObject):
             display_layer.data_row = data_row
         if not display_layer.fill_color:
             display_layer.fill_color = self.__get_unique_display_layer_color()
+            display_layer.stroke_color = display_layer.fill_color
+            if len(self.display_data_channels) > 1:  # if the layer is an additional stack
+                display_layer.fill_color = None
         self.append_display_layer(display_layer)
         self.auto_display_legend()
 
