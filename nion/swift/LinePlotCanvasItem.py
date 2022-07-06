@@ -24,6 +24,7 @@ from nion.swift.model import Utility
 from nion.ui import CanvasItem
 from nion.utils import Geometry
 from nion.utils import Registry
+from nion.utils import Color
 
 if typing.TYPE_CHECKING:
     from nion.swift.model import Persistence
@@ -511,7 +512,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             if self.__display_frame_rate_id:
                 Utility.fps_tick("prepare_"+self.__display_frame_rate_id)
 
-            colors = ('#1E90FF', "#F00", "#0F0", "#00F", "#FF0", "#0FF", "#F0F", "#888", "#800", "#080", "#008", "#CCC", "#880", "#088", "#808", "#964B00")
+            colors = Color.svg_color_map.values()
 
             max_layer_count = len(self.__line_graph_stack.canvas_items)
 
