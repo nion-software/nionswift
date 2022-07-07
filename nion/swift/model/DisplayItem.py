@@ -2000,16 +2000,16 @@ class DisplayItem(Persistence.PersistentObject):
 
     def __get_unique_display_layer_color(self) -> str:
         existing_colors = [display_layer.fill_color for display_layer in self.display_layers]
-        unused_colors = typing.cast(typing.List[str], [*{Color.svg_color_map.values()}])
+        unused_colors = list({*Color.svg_color_map.values()})
         matches = [False] * len(unused_colors)
         for color_str in existing_colors:
             source_color = Color.Color(color_str)
             for index in range(len(matches)):
                 matches[index] |= source_color.matches_without_alpha(Color.Color(unused_colors[index]))
         try:
-            return str(unused_colors[matches.index(False)])
+            return unused_colors[matches.index(False)]
         except ValueError:
-            return str(unused_colors[0])
+            return unused_colors[0]
 
     def auto_display_legend(self) -> None:
         if len(self.display_layers) == 2 and self.get_display_property("legend_position") is None:
