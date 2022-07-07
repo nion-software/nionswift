@@ -2007,9 +2007,9 @@ class DisplayItem(Persistence.PersistentObject):
             for index in range(len(matches)):
                 matches[index] |= source_color.matches_without_alpha(Color.Color(unused_colors[index]))
         try:
-            return unused_colors[matches.index(False)]
+            return str(unused_colors[matches.index(False)])
         except ValueError:
-            return unused_colors[0]
+            return str(unused_colors[0])
 
     def auto_display_legend(self) -> None:
         if len(self.display_layers) == 2 and self.get_display_property("legend_position") is None:
