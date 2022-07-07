@@ -512,7 +512,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             if self.__display_frame_rate_id:
                 Utility.fps_tick("prepare_"+self.__display_frame_rate_id)
 
-            colors = Color.svg_color_map.values()
+            colors = typing.cast(typing.List[str], [*{Color.svg_color_map.values()}])
 
             max_layer_count = len(self.__line_graph_stack.canvas_items)
 
