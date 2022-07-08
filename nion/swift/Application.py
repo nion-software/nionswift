@@ -379,8 +379,8 @@ class Application(UIApplication.BaseApplication):
             filter_str = "Projects (*.nsproj);;Legacy Libraries (*.nslib);;All Files (*.*)"
             import_dir = ui.get_persistent_string("open_directory", ui.get_document_location())
             paths, selected_filter, selected_directory = ui.get_file_paths_dialog(_("Add Existing Library"), import_dir, filter_str)
-            ui.set_persistent_string("open_directory", selected_directory)
             if len(paths) == 1:
+                ui.set_persistent_string("open_directory", selected_directory)
                 project_reference = profile.open_project(pathlib.Path(paths[0]))
                 if project_reference:
                     self.open_project_reference(project_reference)

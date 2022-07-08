@@ -403,15 +403,16 @@ class RunScriptDialog(Dialog.ActionDialog):
             assert self.__profile
             add_dir = self.ui.get_persistent_string("import_directory", "")
             file_paths, filter_str, directory = self.get_file_paths_dialog(_("Add Scripts"), add_dir, "Python Files (*.py)", "Python Files (*.py)")
-            self.ui.set_persistent_string("import_directory", directory)
-            items = list(self.scripts_list_widget.items)
-            for file_path_str in file_paths:
-                script_item = Profile.FileScriptItem(pathlib.Path(file_path_str))
-                self.__profile.append_script_item(script_item)
-                script_list_item = ScriptListItem(file_path_str)
-                script_list_item.script_item = script_item
-                items.append(script_list_item)
-            self.update_scripts_list(items)
+            if len(file_paths) > 0:
+                self.ui.set_persistent_string("import_directory", directory)
+                items = list(self.scripts_list_widget.items)
+                for file_path_str in file_paths:
+                    script_item = Profile.FileScriptItem(pathlib.Path(file_path_str))
+                    self.__profile.append_script_item(script_item)
+                    script_list_item = ScriptListItem(file_path_str)
+                    script_list_item.script_item = script_item
+                    items.append(script_list_item)
+                self.update_scripts_list(items)
 
         def add_folder_clicked() -> None:
             assert self.__profile
