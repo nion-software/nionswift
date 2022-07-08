@@ -749,8 +749,9 @@ class DocumentController(Window.Window):
         filter += ";;All Files (*.*)"
         import_dir = self.ui.get_persistent_string("import_directory", "")
         paths, selected_filter, selected_directory = self.get_file_paths_dialog(_("Import File(s)"), import_dir, filter)
-        self.ui.set_persistent_string("import_directory", selected_directory)
-        self.receive_files(paths, display_panel=self.next_result_display_panel())
+        if len(paths) > 0:
+            self.ui.set_persistent_string("import_directory", selected_directory)
+            self.receive_files(paths, display_panel=self.next_result_display_panel())
 
     def export_file(self, display_item: DisplayItem.DisplayItem) -> None:
         # present a loadfile dialog to the user
