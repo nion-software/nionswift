@@ -403,6 +403,8 @@ class RunScriptDialog(Dialog.ActionDialog):
             assert self.__profile
             add_dir = self.ui.get_persistent_string("import_directory", "")
             file_paths, filter_str, directory = self.get_file_paths_dialog(_("Add Scripts"), add_dir, "Python Files (*.py)", "Python Files (*.py)")
+            if len(file_paths) == 0:
+                directory = add_dir
             self.ui.set_persistent_string("import_directory", directory)
             items = list(self.scripts_list_widget.items)
             for file_path_str in file_paths:

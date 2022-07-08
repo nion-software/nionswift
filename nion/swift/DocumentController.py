@@ -749,6 +749,8 @@ class DocumentController(Window.Window):
         filter += ";;All Files (*.*)"
         import_dir = self.ui.get_persistent_string("import_directory", "")
         paths, selected_filter, selected_directory = self.get_file_paths_dialog(_("Import File(s)"), import_dir, filter)
+        if len(paths) == 0:
+            selected_directory = import_dir
         self.ui.set_persistent_string("import_directory", selected_directory)
         self.receive_files(paths, display_panel=self.next_result_display_panel())
 
