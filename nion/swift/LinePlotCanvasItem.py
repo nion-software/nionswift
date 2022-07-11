@@ -3,6 +3,7 @@ from __future__ import annotations
 # standard libraries
 import copy
 import math
+import operator
 import threading
 import typing
 
@@ -421,45 +422,69 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
     def __view_to_intervals(self, data_and_metadata: DataAndMetadata.DataAndMetadata, intervals: typing.List[typing.Tuple[float, float]]) -> None:
         """Change the view to encompass the channels and data represented by the given intervals."""
 
-        if len(intervals) > 0:
-            left = intervals[0][0]
-            right = intervals[0][1]
-            for interval in intervals:
-                left = min(interval[0], left)
-                right = max(interval[1], right)
-        else:
-            left = right = 0.0
+        # get the farthest left and right interval bounds to zoom into. for no intervals use the full range.
+        left = min(map(operator.itemgetter(0), intervals)) if intervals else 0.0
+        right = max(map(operator.itemgetter(1), intervals)) if intervals else 1.0
 
-        data_size = int(data_and_metadata.data_shape[-1])
-        left_channel = int(numpy.floor(left * data_size))
-        right_channel = int(numpy.ceil(right * data_size))
-        if left_channel > right_channel:
-            right_channel, left_channel = left_channel, right_channel
-        if left_channel not in range(data_size):
-            left_channel = 0
-        if right_channel not in range(data_size):
-            right_channel = data_size
+        # for intensity scaling, use the min/max intensity values within the left/right interval for each layer.
+        # to do this, first calculate the calibrated left/right values; then use those values to map back
+        # to channel numbers for each layer; then calculate calibrated min/max intensity for each layer within
+        # the interval, and finally calculate y_min/y_max by unscaling to the primary data intensity.
+        # layers where the x-units or intensity-units do not match the primary are not included in the calculation.
 
-        channel_data = data_and_metadata.data
-        assert channel_data is not None
-        if channel_data[..., left_channel:right_channel].size > 0:
-            data_min = numpy.amin(channel_data[..., left_channel:right_channel])
-            data_max = numpy.amax(channel_data[..., left_channel:right_channel])
-        else:
-            data_min = numpy.amin(channel_data[..., :])
-            data_max = numpy.amax(channel_data[..., :])
+        # get calibrated values for left, right (for the primary data)
+        data_length = data_and_metadata.data_shape[-1]
+        x_units = data_and_metadata.dimensional_calibrations[0].units
+        intensity_units = data_and_metadata.intensity_calibration.units
+        left_calibrated = data_and_metadata.dimensional_calibrations[0].convert_to_calibrated_value(left * data_length)
+        right_calibrated = data_and_metadata.dimensional_calibrations[0].convert_to_calibrated_value(right * data_length)
 
-        y_min = 0.0 if data_min > 0 else data_min * 1.2
-        y_max = 0.0 if data_max < 0 else data_max * 1.2
+        # start with infinite limits
+        intensity_calibrated_min = math.inf
+        intensity_calibrated_max = -math.inf
 
-        x_padding = (right - left) * 0.5
-        display_left_channel = int((left - x_padding) * data_size)
-        display_right_channel = int((right + x_padding) * data_size)
+        # for each layer, make sure the units match (x-axis and intensity).
+        for layer_xdata in self.__xdata_list:
+            if layer_xdata and layer_xdata.dimensional_calibrations[0].units == x_units and layer_xdata.intensity_calibration.units == intensity_units:
+                # calculate left/right for the layer by back converting calibrated left/right using the layer calibration
+                layer_left = int(math.floor(layer_xdata.dimensional_calibrations[0].convert_from_calibrated_value(left_calibrated)))
+                layer_right = int(math.ceil(layer_xdata.dimensional_calibrations[0].convert_from_calibrated_value(right_calibrated)))
+                # limit left/right to the length of the layer's data
+                layer_left = max(0, min(layer_xdata.data_shape[-1], layer_left))
+                layer_right = max(0, min(layer_xdata.data_shape[-1], layer_right))
+                if layer_left < layer_right:
+                    # if we have data, calculate the min/max and then convert those values to calibrated intensity units.
+                    layer_interval_data = layer_xdata.data[..., layer_left:layer_right]
+                    layer_interval_data_min = numpy.min(layer_interval_data)
+                    layer_interval_data_max = numpy.max(layer_interval_data)
+                    layer_interval_data_calibrated_min = layer_xdata.intensity_calibration.convert_to_calibrated_value(layer_interval_data_min)
+                    layer_interval_data_calibrated_max = layer_xdata.intensity_calibration.convert_to_calibrated_value(layer_interval_data_max)
+                    # keep track of the min/max for the overall list here.
+                    intensity_calibrated_min = min(intensity_calibrated_min, layer_interval_data_calibrated_min)
+                    intensity_calibrated_max = max(intensity_calibrated_max, layer_interval_data_calibrated_max)
 
-        # command = self.delegate.create_change_display_command()
-        assert self.delegate
-        self.delegate.update_display_properties({"left_channel": display_left_channel, "right_channel": display_right_channel, "y_min": y_min, "y_max": y_max})
-        # self.delegate.push_undo_command(command)
+        # for the case where no interval overlapped data, use the intensity min/max from the primary data.
+        if math.isinf(intensity_calibrated_min) or math.isinf(intensity_calibrated_max):
+            intensity_calibrated_min = data_and_metadata.intensity_calibration.convert_to_calibrated_value(numpy.min(data_and_metadata))
+            intensity_calibrated_max = data_and_metadata.intensity_calibration.convert_to_calibrated_value(numpy.max(data_and_metadata))
+
+        # if we're still good to go, convert the intensity min/max to min/max of uncalibrated data of the primary data.
+        # the primary data is used to fix the axes of everything - so everything ultimately gets converted to its coordinates.
+        if not math.isinf(intensity_calibrated_min) and not math.isinf(intensity_calibrated_max):
+            x_padding = (right - left) * 0.5
+            display_left_channel = numpy.ceil((left - x_padding) * data_length)
+            display_right_channel = numpy.floor((right + x_padding) * data_length)
+
+            intensity_min = data_and_metadata.intensity_calibration.convert_from_calibrated_value(intensity_calibrated_min)
+            intensity_max = data_and_metadata.intensity_calibration.convert_from_calibrated_value(intensity_calibrated_max)
+            y_min = 0.0 if intensity_min > 0.0 else intensity_min * 1.2
+            y_max = 0.0 if intensity_max < 0.0 else intensity_max * 1.2
+
+            assert self.delegate
+            self.delegate.update_display_properties({"left_channel": display_left_channel,
+                                                     "right_channel": display_right_channel,
+                                                     "y_min": y_min,
+                                                     "y_max": y_max})
 
     def __view_to_selected_graphics(self, data_and_metadata: DataAndMetadata.DataAndMetadata) -> None:
         """Change the view to encompass the selected graphic intervals."""
