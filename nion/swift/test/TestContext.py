@@ -229,7 +229,7 @@ class MemoryProjectReference(Profile.ProjectReference):
         return new_project_reference
 
 
-def create_memory_context():
+def create_memory_context() -> MemoryProfileContext:
     return MemoryProfileContext()
 
 
