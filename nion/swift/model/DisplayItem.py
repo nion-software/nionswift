@@ -1313,6 +1313,8 @@ def display_layer_factory(lookup_id: typing.Callable[[str], str]) -> DisplayLaye
 
 
 class DisplayItem(Persistence.PersistentObject):
+    DEFAULT_COLORS = ("#1E90FF", "#FF0000", "#00FF00", "#0000FF", "#FFFF00", "#00FFFF", "#FF00FF", "#888888", "#880000", "#008800", "#000088", "#CCCCCC", "#888800", "#008888", "#880088", "#964B00")
+
     def __init__(self, item_uuid: typing.Optional[uuid.UUID] = None, *, data_item: typing.Optional[DataItem.DataItem] = None) -> None:
         super().__init__()
         if item_uuid:
@@ -2000,16 +2002,16 @@ class DisplayItem(Persistence.PersistentObject):
 
     def __get_unique_display_layer_color(self) -> str:
         existing_colors = [display_layer.fill_color for display_layer in self.display_layers]
-        unused_colors = list({*Color.svg_color_map.values()})
-        matches = [False] * len(unused_colors)
+        choice_colors = list(copy.copy(self.DEFAULT_COLORS))
         for color_str in existing_colors:
-            source_color = Color.Color(color_str)
-            for index in range(len(matches)):
-                matches[index] |= source_color.matches_without_alpha(Color.Color(unused_colors[index]))
-        try:
-            return unused_colors[matches.index(False)]
-        except ValueError:
-            return unused_colors[0]
+            color = Color.Color(color_str)
+            index = 0
+            while index < len(choice_colors):
+                if color.matches_without_alpha(Color.Color(choice_colors[index])):
+                    del choice_colors[index]
+                else:
+                    index += 1
+        return choice_colors[0] if len(choice_colors) > 0 else self.DEFAULT_COLORS[0]
 
     def auto_display_legend(self) -> None:
         if len(self.display_layers) == 2 and self.get_display_property("legend_position") is None:
