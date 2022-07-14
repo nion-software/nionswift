@@ -444,14 +444,14 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             offset = adjusted_data_and_metadata.intensity_calibration.offset
             scale = adjusted_data_and_metadata.intensity_calibration.scale  # Scale *should* handle frequencies
             scaling_factor = scale / top_level_scale
-            offset_factor = int(top_level_offset - (offset * scaling_factor))
+            offset_factor = numpy.round(top_level_offset - (offset * scaling_factor))
 
-            left_channel = int(top_level_data_size * left * scaling_factor) + offset_factor
+            left_channel = numpy.floor(top_level_data_size * left * scaling_factor) + offset_factor
             if left_channel not in range(data_size):
                 left_channel = 0
-            right_channel = int(top_level_data_size * right * scaling_factor) + offset_factor
+            right_channel = numpy.ceil(top_level_data_size * right * scaling_factor) + offset_factor
             if right_channel not in range(data_size):
-                right_channel = int(top_level_data_size * scaling_factor) + offset_factor
+                right_channel = numpy.ceil(top_level_data_size * scaling_factor) + offset_factor
 
             if adjusted_data[..., left_channel:right_channel].size > 0:
                 data_min = numpy.amin(adjusted_data[..., left_channel:right_channel])
