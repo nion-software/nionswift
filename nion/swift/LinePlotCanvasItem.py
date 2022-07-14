@@ -430,31 +430,44 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         else:
             left = right = 0.0
 
-        data_size = int(data_and_metadata.data_shape[-1])
-        left_channel = int(numpy.floor(left * data_size))
-        right_channel = int(numpy.ceil(right * data_size))
-        if left_channel > right_channel:
-            right_channel, left_channel = left_channel, right_channel
-        if left_channel not in range(data_size):
-            left_channel = 0
-        if right_channel not in range(data_size):
-            right_channel = data_size
+        top_level_data_size = int(data_and_metadata.data_shape[-1])
+        top_level_offset = data_and_metadata.intensity_calibration.offset
+        top_level_scale = data_and_metadata.intensity_calibration.scale
 
-        channel_data = data_and_metadata.data
-        assert channel_data is not None
-        if channel_data[..., left_channel:right_channel].size > 0:
-            data_min = numpy.amin(channel_data[..., left_channel:right_channel])
-            data_max = numpy.amax(channel_data[..., left_channel:right_channel])
-        else:
-            data_min = numpy.amin(channel_data[..., :])
-            data_max = numpy.amax(channel_data[..., :])
+        y_minimums = []
+        y_maximums = []
 
-        y_min = 0.0 if data_min > 0 else data_min * 1.2
-        y_max = 0.0 if data_max < 0 else data_max * 1.2
+        for display_value in self.__display_values_list:
+            adjusted_data_and_metadata = display_value.adjusted_data_and_metadata
+            adjusted_data = adjusted_data_and_metadata.data
+            data_size = adjusted_data_and_metadata.data_shape[-1]
+            offset = adjusted_data_and_metadata.intensity_calibration.offset
+            scale = adjusted_data_and_metadata.intensity_calibration.scale  # Scale *should* handle frequencies
+            scaling_factor = scale / top_level_scale
+            offset_factor = int(top_level_offset - (offset * scaling_factor))
 
+            left_channel = int(top_level_data_size * left * scaling_factor) + offset_factor
+            if left_channel not in range(data_size):
+                left_channel = 0
+            right_channel = int(top_level_data_size * right * scaling_factor) + offset_factor
+            if right_channel not in range(data_size):
+                right_channel = int(top_level_data_size * scaling_factor) + offset_factor
+
+            if adjusted_data[..., left_channel:right_channel].size > 0:
+                data_min = numpy.amin(adjusted_data[..., left_channel:right_channel])
+                data_max = numpy.amax(adjusted_data[..., left_channel:right_channel])
+            else:
+                data_min = numpy.amin(adjusted_data[..., :])
+                data_max = numpy.amax(adjusted_data[..., :])
+
+            y_minimums.append(0.0 if data_min > 0 else data_min * 1.2)
+            y_maximums.append(0.0 if data_max < 0 else data_max * 1.2)
+
+        y_min = min(y_minimums)
+        y_max = max(y_maximums)
         x_padding = (right - left) * 0.5
-        display_left_channel = int((left - x_padding) * data_size)
-        display_right_channel = int((right + x_padding) * data_size)
+        display_left_channel = int((left - x_padding) * top_level_data_size)
+        display_right_channel = int((right + x_padding) * top_level_data_size)
 
         # command = self.delegate.create_change_display_command()
         assert self.delegate
