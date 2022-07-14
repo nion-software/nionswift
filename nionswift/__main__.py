@@ -6,6 +6,7 @@ import sys
 parser = argparse.ArgumentParser(
     prog="python -m nionswift", description="Launch Nion Swift using Qt or a launcher."
 )
+
 parser.add_argument(
     "--ui",
     dest="ui",
@@ -14,13 +15,21 @@ parser.add_argument(
     help="choose UI frontend",
     default="tool",
 )
-parser.add_argument(
-    "--fallback",
-    dest="fallback",
-    action=argparse.BooleanOptionalAction,
-    help="whether to fallback to other UI frontend if preferred choice is unavailable",
-    default=True,
-)
+
+# python 3.8 compatible
+parser.add_argument('--fallback', action='store_true')
+parser.add_argument('--no-fallback', dest='fallback', action='store_false')
+parser.set_defaults(fallback=True)
+
+# python 3.9+ compatible
+# parser.add_argument(
+#     "--fallback",
+#     dest="fallback",
+#     action=argparse.BooleanOptionalAction,
+#     help="whether to fallback to other UI frontend if preferred choice is unavailable",
+#     default=True,
+# )
+
 parsed_args = parser.parse_args()
 
 app = "nionui_app.nionswift"
