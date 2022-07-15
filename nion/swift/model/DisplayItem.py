@@ -2001,17 +2001,14 @@ class DisplayItem(Persistence.PersistentObject):
             self.__add_display_layer_auto(display_layer, display_data_channel)
 
     def __get_unique_display_layer_color(self) -> str:
-        existing_colors = [display_layer.fill_color for display_layer in self.display_layers]
-        choice_colors = list(copy.copy(self.DEFAULT_COLORS))
-        for color_str in existing_colors:
-            color = Color.Color(color_str)
-            index = 0
-            while index < len(choice_colors):
-                if color.matches_without_alpha(Color.Color(choice_colors[index])):
-                    del choice_colors[index]
-                else:
-                    index += 1
-        return choice_colors[0] if len(choice_colors) > 0 else self.DEFAULT_COLORS[0]
+        existing_colors: typing.List[Color.Color] = list()
+        existing_colors.extend([Color.Color(display_layer.fill_color).to_color_without_alpha() for display_layer in self.display_layers])
+        existing_colors.extend([Color.Color(display_layer.stroke_color).to_color_without_alpha() for display_layer in self.display_layers])
+        possible_colors = [Color.Color(color) for color in DisplayItem.DEFAULT_COLORS]
+        for possible_color in possible_colors:
+            if not any(map(operator.methodcaller("matches_without_alpha", possible_color), existing_colors)):
+                return possible_color.to_named_color_without_alpha().color_str or DisplayItem.DEFAULT_COLORS[0]
+        return DisplayItem.DEFAULT_COLORS[0]
 
     def auto_display_legend(self) -> None:
         if len(self.display_layers) == 2 and self.get_display_property("legend_position") is None:
