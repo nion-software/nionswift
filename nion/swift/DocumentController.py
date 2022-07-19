@@ -44,6 +44,7 @@ from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.swift.model import ImportExportManager
+from nion.swift.model import Notification
 from nion.swift.model import Persistence
 from nion.swift.model import Processing
 from nion.swift.model import Profile
@@ -864,8 +865,13 @@ class DocumentController(Window.Window):
                 Dialog.pose_select_item_pop_up(computations, handle_selection,
                                                window=self, current_item=0,
                                                item_getter=operator.attrgetter("label"))
+                return
             elif len(computations) == 1:
                 ComputationPanel.InspectComputationDialog(self, computations[0])
+                return
+        Notification.notify(Notification.Notification("nion.inspector.no-target", "\N{WARNING SIGN} Edit Computation",
+                                                      "No associated computation",
+                                                      "The selected display/data item has no associated computation"))
 
     def new_display_editor_dialog(self, display_item: typing.Optional[DisplayItem.DisplayItem] = None) -> None:
         if not display_item:
