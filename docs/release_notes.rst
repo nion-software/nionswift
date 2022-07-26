@@ -12,6 +12,23 @@ in bug fix releases, we choose to include them for evaluation and feedback. If y
 or have feedback about these types of new features, please contact us or file issues at
 https://github.com/nion-software/nionswift/issues.
 
+Version 0.16.4 (2022-07-26)
+---------------------------
+* `#640 <https://github.com/nion-software/nionswift/issues/640>`_ Improve file dialogs handling of default directory.
+* Make line plot smarter about choosing new colors.
+* `#861 <https://github.com/nion-software/nionswift/issues/861>`_ Fix view-to-intervals with intervals entirely outside data bounds.
+* `#513 <https://github.com/nion-software/nionswift/issues/513>`_ Fix view to intervals to show selected area when interval is outside of data bounds.
+* `#495 <https://github.com/nion-software/nionswift/issues/495>`_ Add option to put legend outside of line plot.
+* `#390 <https://github.com/nion-software/nionswift/issues/390>`_ Allow resizing intervals from center using option/alt key.
+* `#36 <https://github.com/nion-software/nionswift/issues/36>`_ Add +/- keyboard shortcuts for line profile width (must be selected).
+* `#855 <https://github.com/nion-software/nionswift/issues/855>`_ Fix regression where line profile with width was not drawn correction.
+* `#852 <https://github.com/nion-software/nionswift/issues/852>`_ Additional performance improvements in histogram.
+* `#831 <https://github.com/nion-software/nionswift/issues/831>`_ Performance improvements during index slider drags and movie player.
+* `#851 <https://github.com/nion-software/nionswift/issues/851>`_ Sort workspace menu by modified date and include date in menu.
+* Import/export WebP file format.
+* Performance improvements in FFT.
+* Performance improvements in startup time with large libraries.
+
 Version 0.16.3 (2022-05-28)
 ---------------------------
 * `#842 <https://github.com/nion-software/nionswift/issues/842>`_ Partial fix to allow dropping of nx1 data on a composite line plot display.
