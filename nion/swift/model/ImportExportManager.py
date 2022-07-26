@@ -11,7 +11,7 @@ import zipfile
 import itertools
 
 # third party libraries
-import imageio
+import imageio.v3 as imageio
 import numpy
 
 # local libraries
@@ -512,7 +512,7 @@ def read_image_from_file(filename: pathlib.Path) -> _DataArrayType:
     if str(filename).startswith(":"):
         return numpy.zeros((20, 20, 4), numpy.uint8)
     # TODO: fix typing when imageio gets their numpy typing correct.
-    image = imageio.imread(filename)  # type: ignore
+    image = imageio.imread(filename, index=0)  # type: ignore
     if image is not None:
         image_u8 = convert_to_uint8(image)
         if len(image_u8.shape) == 3:
@@ -573,10 +573,9 @@ class StandardImportExportHandler(ImportExportHandler):
         display_values = display_data_channel.get_calculated_display_values()
         assert display_values
         data = display_values.display_rgba  # export the display rather than the data for these types
-        display_values = None
         assert data is not None
         # TODO: fix typing when imageio gets their numpy typing correct.
-        imageio.imwrite(path, Image.get_rgb_view(data), extension)  # type: ignore
+        imageio.imwrite(path, Image.get_rgb_view(data), extension="." + extension)  # type: ignore
 
 
 class CSVImportExportHandler(ImportExportHandler):
@@ -785,5 +784,4 @@ ImportExportManager().register_io_handler(CSVImportExportHandler("csv-io-handler
 ImportExportManager().register_io_handler(CSV1ImportExportHandler("csv1-io-handler", "CSV 1D", ["csv"]))
 ImportExportManager().register_io_handler(NDataImportExportHandler("ndata1-io-handler", "NData 1", ["ndata1"]))
 ImportExportManager().register_io_handler(NumPyImportExportHandler("numpy-io-handler", "Raw NumPy", ["npy"]))
-# webp not available until we use imageio v3, which we can't until conda updates imageio to 2.10 or later
-# ImportExportManager().register_io_handler(StandardImportExportHandler("webp-io-handler", "WebP", ["webp"]))
+ImportExportManager().register_io_handler(StandardImportExportHandler("webp-io-handler", "WebP", ["webp"]))
