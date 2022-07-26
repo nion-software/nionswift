@@ -255,6 +255,7 @@ class TestHistogramPanelClass(unittest.TestCase):
             with contextlib.closing(histogram_processor.property_changed_event.listen(property_changed)):
                 while not had_histogram or not had_statistics:
                     document_controller.periodic()
+            display_values = None
 
 
 if __name__ == '__main__':

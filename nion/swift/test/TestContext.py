@@ -1,4 +1,5 @@
 # system libraries
+import gc
 import typing
 import unittest
 import uuid
@@ -33,6 +34,7 @@ def begin_leaks() -> None:
 
 
 def end_leaks(test_case: unittest.TestCase) -> None:
+    gc.collect()  # force garbage collection before checking counts
     test_case.assertEqual(0, Cache.DbStorageCache.count)
     test_case.assertEqual(0, NDataHandler.NDataHandler.count)
     test_case.assertEqual(0, HDF5Handler.HDF5Handler.count)
