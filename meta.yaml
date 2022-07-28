@@ -30,7 +30,7 @@ requirements:
     - scipy
     - numpy >=1.21,<2.0
     - h5py
-    - imageio
+    - imageio >=2.19.0
     - pytz
     - tzlocal
     - pillow
