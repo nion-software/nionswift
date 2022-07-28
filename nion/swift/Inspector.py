@@ -3632,6 +3632,25 @@ class DataStructureHandler(Declarative.Handler):
         else:
             self.ui_view = u.create_column()
 
+        def property_changed(name: str) -> None:
+            if name == "structure_type":
+                entity_id = self.data_structure.structure_type
+                for index, entity_type in enumerate(self.__entity_types):
+                    if entity_type.entity_id == entity_id:
+                        if self.__entity_choice != index:
+                            self.__entity_choice = index
+                            self.property_changed_event.fire("entity_choice")
+                        return
+                if self.__entity_choice != len(self.__entity_types) + 1:
+                    self.__entity_choice = len(self.__entity_types) + 1
+                    self.property_changed_event.fire("entity_choice")
+
+        self.__property_changed_listener = self.data_structure.property_changed_event.listen(property_changed)
+
+    def close(self) -> None:
+        self.__property_changed_listener = typing.cast(typing.Any, None)
+        super().close()
+
     @property
     def entity_choices(self) -> typing.List[str]:
         return self.__entity_choices
@@ -3643,12 +3662,8 @@ class DataStructureHandler(Declarative.Handler):
     @entity_choice.setter
     def entity_choice(self, value: int) -> None:
         if 0 <= value < len(self.__entity_types):
-            self.__entity_choice = value
-            self.property_changed_event.fire("entity_choice")
             self.data_structure.structure_type = self.__entity_types[value].entity_id
         else:
-            self.__entity_choice = len(self.__entity_types) + 1
-            self.property_changed_event.fire("entity_choice")
             assert self.variable.entity_id
             self.data_structure.structure_type = self.variable.entity_id
 
