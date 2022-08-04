@@ -753,7 +753,7 @@ class DocumentController(Window.Window):
             self.ui.set_persistent_string("import_directory", selected_directory)
             self.receive_files(paths, display_panel=self.next_result_display_panel())
 
-    def export_file(self, display_item: DisplayItem.DisplayItem) -> None:
+    def export_file(self, display_item: DisplayItem.DisplayItem, path: typing.Optional[str] = None) -> None:
         # present a loadfile dialog to the user
         writers = ImportExportManager.ImportExportManager().get_writers_for_display_item(display_item)
         name_writer_dict: typing.Dict[typing.Tuple[str, str], typing.Any] = dict()  # TODO: fix writer typing
@@ -773,7 +773,12 @@ class DocumentController(Window.Window):
         export_dir = self.ui.get_persistent_string("export_directory", self.ui.get_document_location())
         export_dir = os.path.join(export_dir, display_item.displayed_title)
         selected_filter = self.ui.get_persistent_string("export_filter")
-        path, selected_filter, selected_directory = self.get_save_file_path(_("Export File"), export_dir, filter, selected_filter)
+        if not path:
+            path, selected_filter, selected_directory = self.get_save_file_path(_("Export File"), export_dir, filter, selected_filter)
+        else:
+            selected_directory = os.sep.join(path[0:-1])
+        logging.critical(path)
+        logging.critical(selected_directory)
         selected_writer = filter_line_to_writer_map.get(selected_filter)
         if path and not os.path.splitext(path)[1]:
             if selected_writer:
@@ -791,11 +796,14 @@ class DocumentController(Window.Window):
         elif len(display_items) == 1:
             self.export_file(display_items[0])
 
-    def export_svg(self, display_item: DisplayItem.DisplayItem) -> None:
+    def export_svg(self, display_item: DisplayItem.DisplayItem, path: typing.Optional[str] = None) -> None:
         filter = "SVG File (*.svg);;All Files (*.*)"
         export_dir = self.ui.get_persistent_string("export_directory", self.ui.get_document_location())
         export_dir = os.path.join(export_dir, display_item.displayed_title)
-        path, selected_filter, selected_directory = self.get_save_file_path(_("Export File"), export_dir, filter, None)
+        if not path:
+            path, selected_filter, selected_directory = self.get_save_file_path(_("Export File"), export_dir, filter, None)
+        else:
+            selected_directory = os.sep.join(path[0:-1])
         if path and not os.path.splitext(path)[1]:
             path = path + os.path.extsep + "svg"
         if path:
