@@ -768,17 +768,19 @@ class DocumentController(Window.Window):
             filter_line = writer_name + " files (" + writer_extensions + ")"
             filter_lines.append(filter_line)
             filter_line_to_writer_map[filter_line] = writer
-        filter = ";;".join(filter_lines)
-        filter += ";;All Files (*.*)"
+        filter_str = ";;".join(filter_lines)
+        filter_str += ";;All Files (*.*)"
         export_dir = self.ui.get_persistent_string("export_directory", self.ui.get_document_location())
         export_dir = os.path.join(export_dir, display_item.displayed_title)
         selected_filter = self.ui.get_persistent_string("export_filter")
         if not path:
-            path, selected_filter, selected_directory = self.get_save_file_path(_("Export File"), export_dir, filter, selected_filter)
+            path, selected_filter, selected_directory = self.get_save_file_path(_("Export File"), export_dir, filter_str, selected_filter)
         else:
-            selected_directory = os.sep.join(path[0:-1])
-        logging.critical(path)
-        logging.critical(selected_directory)
+            extension = path.split(".")[-1]
+            filter_map = [extension in filter_line for filter_line in filter_lines]
+            if True in filter_map:
+                selected_filter = filter_lines[filter_map.index(True)]
+            selected_directory = export_dir if len(export_dir.split(os.sep)) > 1 else ".{}".format(os.sep)
         selected_writer = filter_line_to_writer_map.get(selected_filter)
         if path and not os.path.splitext(path)[1]:
             if selected_writer:
@@ -803,7 +805,7 @@ class DocumentController(Window.Window):
         if not path:
             path, selected_filter, selected_directory = self.get_save_file_path(_("Export File"), export_dir, filter, None)
         else:
-            selected_directory = os.sep.join(path[0:-1])
+            selected_directory = export_dir if len(export_dir.split(os.sep)) > 1 else ".{}".format(os.sep)
         if path and not os.path.splitext(path)[1]:
             path = path + os.path.extsep + "svg"
         if path:

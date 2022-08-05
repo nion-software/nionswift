@@ -2,6 +2,8 @@
 import contextlib
 import gc
 import logging
+import os
+import tempfile
 import unittest
 import weakref
 
@@ -1176,6 +1178,48 @@ class TestDocumentControllerClass(unittest.TestCase):
             document_controller.data_panel_focused()
             self.assertEqual(2, len(document_controller._get_n_data_sources(2)))
             self.assertEqual(3, len(document_controller._get_n_data_sources(3)))
+
+    def test_filenames_in_exports(self):
+        # The bmp writer is a dumb writer, and used to avoid complex setup code
+        FILE_NAMES = ["test.bmp", "/././////.test.bmp", "$$%/%%_test.bmp", "\\aaaaa//test.bmp"]
+
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            construct_test_document(document_controller)
+            document_controller.ui.set_persistent_string("export_directory", tempfile.gettempdir())
+            save_dir = tempfile.gettempdir()
+            display_item = document_controller.project.display_items[-1]
+
+            for file_name in FILE_NAMES:
+                file_path = save_dir + os.sep + file_name
+                for x in document_controller.project.display_items:
+                    x.title = file_name
+
+                with self.subTest(file_name=file_name+"export_file"):
+                    try:
+                        os.remove(file_path)
+                    except FileNotFoundError:
+                        pass
+                    document_controller.export_file(display_item, file_path)
+                    self.assertTrue(os.path.isfile(file_path))
+
+                # The code path for export_files ends up at a pass statement unless its given a single item
+                # display_item list. At that point it just calls export_file
+                #with self.subTest(file_name=file_name + "export_files"):
+                #    try:
+                #        os.remove(file_path)
+                #    except FileNotFoundError:
+                #        pass
+                #    document_controller.export_files(document_controller.project.display_items)
+                #    self.assertTrue(os.path.isfile(file_path))
+
+                with self.subTest(file_name=file_name + "export_svg"):
+                    try:
+                        os.remove(file_path)
+                    except FileNotFoundError:
+                        pass
+                    document_controller.export_svg(display_item, file_path)
+                    self.assertTrue(os.path.isfile(file_path))
 
 
 if __name__ == '__main__':
