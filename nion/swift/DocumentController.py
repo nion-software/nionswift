@@ -822,7 +822,9 @@ class DocumentController(Window.Window):
 
             svg = drawing_context.to_svg(shape, view_box)
 
-            with Utility.AtomicFileWriter(pathlib.Path(path)) as fp:
+            path_obj = pathlib.Path(path)
+            path_obj = path_obj.with_name(Utility.sanitize_filename(path_obj.name))
+            with Utility.AtomicFileWriter(path_obj) as fp:
                 fp.write(svg)
 
     # this method creates a task. it is thread safe.

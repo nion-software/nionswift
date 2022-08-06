@@ -173,6 +173,9 @@ class ImportExportManager(metaclass=Utility.Singleton):
             extension = extension.lower()
             data_metadata = display_item.data_items[0].data_metadata if display_item.data_items else None
             if extension in writer.extensions and data_metadata and writer.can_write(data_metadata, extension):
+                path = path.with_name(Utility.sanitize_filename(path.name))
+                if not path.parents[0].exists():
+                    path.parents[0].mkdir(parents=True, exist_ok=True)
                 writer.write_display_item(display_item, path, extension)
 
     def write_display_item(self, display_item: DisplayItem.DisplayItem, path: pathlib.Path) -> None:

@@ -463,17 +463,14 @@ class Timer:
         self.last_time_ns = current_time
 
 
-def sanitize_filename(path_as_str: str) -> typing.Tuple[str, str]:
+def sanitize_filename(path_as_str: str) -> str:
     """Splits leading directories from file name, and sanitizes file names.
     Filenames will be conformed to POSIX's portable file name character set (a-Z0-9._-), plus spaces.
-    This function assumes standard path separators.
+    This function assumes you have already isolated the filename from the path
     :param path_as_str: File name as a string
     :return: Tuple containing path parts extracted from the file name, followed by the file_name
     """
     path_as_str = path_as_str.replace("\\", "/")
-    path_as_str = path_as_str.replace("/", os.sep)
-    path_parts = path_as_str.split(os.sep)
-    path_parts[-1] = re.sub(r"[^\w\-\. ]", "", path_parts[-1])
-    path_parts = (os.sep.join(path_parts[0:-1]) + os.sep, path_parts[-1])
+    path_as_str = re.sub(r"[^\w\-\. ]", "", path_as_str)
 
-    return path_parts
+    return path_as_str

@@ -3,6 +3,7 @@ import contextlib
 import gc
 import logging
 import os
+import pathlib
 import tempfile
 import unittest
 import weakref
@@ -21,6 +22,7 @@ from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.swift.model import Symbolic
+from nion.swift.model import Utility
 from nion.swift.test import TestContext
 from nion.ui import TestUI
 from nion.utils import Geometry
@@ -1194,32 +1196,35 @@ class TestDocumentControllerClass(unittest.TestCase):
                 file_path = save_dir + os.sep + file_name
                 for x in document_controller.project.display_items:
                     x.title = file_name
+                target = file_name.replace("\\", "/").replace("/", os.sep).replace(".{}".format(os.sep), "")
+                target_name = Utility.sanitize_filename(target.split(os.sep)[-1])
+                target_path = pathlib.Path(save_dir + os.sep + os.sep.join(target.split(os.sep)[0:-1]) + os.sep + target_name)
 
                 with self.subTest(file_name=file_name+"export_file"):
                     try:
-                        os.remove(file_path)
+                        os.remove(target_path)
                     except FileNotFoundError:
                         pass
                     document_controller.export_file(display_item, file_path)
-                    self.assertTrue(os.path.isfile(file_path))
+                    self.assertTrue(target_path.is_file())
 
                 # The code path for export_files ends up at a pass statement unless its given a single item
                 # display_item list. At that point it just calls export_file
                 #with self.subTest(file_name=file_name + "export_files"):
                 #    try:
-                #        os.remove(file_path)
+                #        os.remove(target_path)
                 #    except FileNotFoundError:
                 #        pass
                 #    document_controller.export_files(document_controller.project.display_items)
-                #    self.assertTrue(os.path.isfile(file_path))
+                #    self.assertTrue(target_path.is_file())
 
                 with self.subTest(file_name=file_name + "export_svg"):
                     try:
-                        os.remove(file_path)
+                        os.remove(target_path)
                     except FileNotFoundError:
                         pass
                     document_controller.export_svg(display_item, file_path)
-                    self.assertTrue(os.path.isfile(file_path))
+                    self.assertTrue(target_path.is_file())
 
 
 if __name__ == '__main__':
