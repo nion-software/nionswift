@@ -2,9 +2,7 @@ from __future__ import annotations
 
 # standard libraries
 import copy
-import logging
 import math
-import sys
 import threading
 import typing
 
@@ -425,7 +423,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         # X dimensional factors are controlled by dimensional_calibrations
         # Y dimensional factors are controlled by intensity_calibration
 
-        if len(intervals) > 0:  # left and right bounds are determined by the top-level stacked layer
+        if len(intervals) > 0:  # left and right are absolute positions on the display
             left = intervals[0][0]
             right = intervals[0][1]
             for interval in intervals:
@@ -435,21 +433,16 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             left = right = 0.0
 
         # Isolate static properties (at draw-time) of top-level layer
-        top_layer_x_size = data_and_metadata.data_shape[-1]
+        top_layer_width = data_and_metadata.data_shape[-1]
         top_layer_x_offset = data_and_metadata.dimensional_calibrations[0].offset
         top_layer_x_scale = data_and_metadata.dimensional_calibrations[0].scale
-        top_layer_y_offset = data_and_metadata.intensity_calibration.offset
         top_layer_y_scale = data_and_metadata.intensity_calibration.scale
+        top_layer_y_offset = data_and_metadata.intensity_calibration.offset
 
         y_minimums = []
         y_maximums = []
 
-        i = 0
         for stacked_data_layer in self.__xdata_list:
-            i += 1
-            logging.critical("layer: " + str(i))
-            logging.critical(stacked_data_layer.data)
-
             layer_data_and_metadata = stacked_data_layer.data_metadata
             assert layer_data_and_metadata is not None
             layer_x_offset = layer_data_and_metadata.dimensional_calibrations[0].offset
@@ -457,41 +450,30 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             layer_y_offset = layer_data_and_metadata.intensity_calibration.offset
             layer_y_scale = layer_data_and_metadata.intensity_calibration.scale
 
-            logging.critical("x offset: " + str(layer_x_offset))
-            logging.critical("x scale: " + str(layer_x_scale))
-            logging.critical("y offset: " + str(layer_y_offset))
-            logging.critical("y scale: " + str(layer_y_scale))
-
             # Generate range indices for current layer
             x_sale_factor = top_layer_x_scale / layer_x_scale
-            layer_left = int(numpy.floor(((left + top_layer_x_offset) * x_sale_factor) - layer_x_offset))
-            layer_left = max(0, layer_left)
-            layer_right = int(numpy.floor(((right + top_layer_x_offset) * x_sale_factor) - layer_x_offset))
-            layer_right = min(layer_data_and_metadata.data_shape[-1], layer_right)
+            layer_left = int(numpy.floor((((left * top_layer_width) + top_layer_x_offset) * x_sale_factor) - layer_x_offset))
+            layer_left = max(0, min(layer_left, top_layer_width))
+            layer_right = int(numpy.floor((((right * top_layer_width) + top_layer_x_offset) * x_sale_factor) - layer_x_offset))
+            layer_right = min(top_layer_width, max(layer_right, 0))
 
             # Determine relative min/max for layer
-            layer_values = stacked_data_layer.data[layer_left:layer_right+1]
+            layer_values = stacked_data_layer.data[..., layer_left:layer_right+1]
+            y_scale_factor = layer_y_scale / top_layer_y_scale
+            y_offset_delta = layer_y_offset - top_layer_y_offset
             layer_min = numpy.min(layer_values)
+            layer_min = (layer_min * y_scale_factor) + y_offset_delta
             layer_max = numpy.max(layer_values)
-            layer_min = (layer_min * layer_y_scale) + layer_y_offset
-            layer_max = (layer_max * layer_y_scale) + layer_y_offset
+            layer_max = (layer_max * y_scale_factor) + y_offset_delta
 
-            logging.critical("y min: " + str(layer_min))
-            logging.critical("y max: " + str(layer_max))
-
-            y_minimums.append(0.0 if layer_min > 0.0 else layer_min * 2.4)
-            y_maximums.append(0.0 if layer_max < 0.0 else layer_max * 1.2)
+            y_minimums.append(0.0 if layer_min > 0.0 else layer_min)
+            y_maximums.append(0.0 if layer_max < 0.0 else layer_max)
 
         x_padding = (right - left) * 0.5
-        display_left_channel = int((left - x_padding) * top_layer_x_size)
-        display_right_channel = int((right + x_padding) * top_layer_x_size)
-        y_min = min(y_minimums)
-        y_max = max(y_maximums)
-
-        logging.critical("Y mins:")
-        logging.critical(y_minimums)
-        logging.critical("y maxs:")
-        logging.critical(y_maximums)
+        display_left_channel = int((left - x_padding) * top_layer_width)
+        display_right_channel = int((right + x_padding) * top_layer_width)
+        y_min = min(y_minimums) * 1.2
+        y_max = max(y_maximums) * 1.2
 
         # command = self.delegate.create_change_display_command()
         assert self.delegate
