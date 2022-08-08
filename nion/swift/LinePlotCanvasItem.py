@@ -459,6 +459,8 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
             # Determine relative min/max for layer
             layer_values = stacked_data_layer.data[..., layer_left:layer_right+1]
+            if layer_values.size <= 0:
+                layer_values = stacked_data_layer.data[...,]
             y_scale_factor = layer_y_scale / top_layer_y_scale
             y_offset_delta = layer_y_offset - top_layer_y_offset
             layer_min = numpy.min(layer_values)

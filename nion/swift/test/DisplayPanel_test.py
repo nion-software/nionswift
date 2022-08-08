@@ -2568,7 +2568,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
             document_model = document_controller.document_model
-            data1 = numpy.array([1 if x % 2 else -1 for x in range(16)])
+            data1 = numpy.array([1 if x % 2 else -1 for x in range(16)]) * 1
             data_item1 = DataItem.DataItem(data1)
             data_item1.set_xdata(DataAndMetadata.new_data_and_metadata(data1, Calibration.Calibration(0, 1, "z")))
             data2 = numpy.array([1 if x % 2 else -1 for x in range(16)]) * 2
