@@ -2,7 +2,9 @@ from __future__ import annotations
 
 # standard libraries
 import copy
+import logging
 import math
+import sys
 import threading
 import typing
 
@@ -420,8 +422,10 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
     def __view_to_intervals(self, data_and_metadata: DataAndMetadata.DataAndMetadata, intervals: typing.List[typing.Tuple[float, float]]) -> None:
         """Change the view to encompass the channels and data represented by the given intervals."""
+        # X dimensional factors are controlled by dimensional_calibrations
+        # Y dimensional factors are controlled by intensity_calibration
 
-        if len(intervals) > 0:
+        if len(intervals) > 0:  # left and right bounds are determined by the top-level stacked layer
             left = intervals[0][0]
             right = intervals[0][1]
             for interval in intervals:
@@ -430,50 +434,70 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         else:
             left = right = 0.0
 
-        top_level_data_size = int(data_and_metadata.data_shape[-1])
-        top_level_offset = data_and_metadata.intensity_calibration.offset
-        top_level_scale = data_and_metadata.intensity_calibration.scale
+        # Isolate static properties (at draw-time) of top-level layer
+        top_layer_x_size = data_and_metadata.data_shape[-1]
+        top_layer_x_offset = data_and_metadata.dimensional_calibrations[0].offset
+        top_layer_x_scale = data_and_metadata.dimensional_calibrations[0].scale
+        top_layer_y_offset = data_and_metadata.intensity_calibration.offset
+        top_layer_y_scale = data_and_metadata.intensity_calibration.scale
 
         y_minimums = []
         y_maximums = []
 
-        for display_value in self.__display_values_list:
-            display_value = typing.cast(DisplayItem.DisplayValues, display_value)
-            adjusted_data_and_metadata = display_value.adjusted_data_and_metadata
-            assert adjusted_data_and_metadata is not None
-            adjusted_data = adjusted_data_and_metadata.data
-            data_size = adjusted_data_and_metadata.data_shape[-1]
-            offset = adjusted_data_and_metadata.intensity_calibration.offset
-            scale = adjusted_data_and_metadata.intensity_calibration.scale  # Scale *should* handle frequencies
-            scaling_factor = scale / top_level_scale
-            offset_factor = int(numpy.round(top_level_offset - (offset * scaling_factor)))
+        i = 0
+        for stacked_data_layer in self.__xdata_list:
+            i += 1
+            logging.critical("layer: " + str(i))
+            logging.critical(stacked_data_layer.data)
 
-            left_channel = int(numpy.floor(top_level_data_size * left * scaling_factor) + offset_factor)
-            if left_channel not in range(data_size):
-                left_channel = 0
-            right_channel = int(numpy.ceil(top_level_data_size * right * scaling_factor) + offset_factor)
-            if right_channel not in range(data_size):
-                right_channel = int(numpy.ceil(top_level_data_size * scaling_factor) + offset_factor)
+            layer_data_and_metadata = stacked_data_layer.data_metadata
+            assert layer_data_and_metadata is not None
+            layer_x_offset = layer_data_and_metadata.dimensional_calibrations[0].offset
+            layer_x_scale = layer_data_and_metadata.dimensional_calibrations[0].scale
+            layer_y_offset = layer_data_and_metadata.intensity_calibration.offset
+            layer_y_scale = layer_data_and_metadata.intensity_calibration.scale
 
-            if adjusted_data[..., left_channel:right_channel].size > 0:
-                data_min = numpy.amin(adjusted_data[..., left_channel:right_channel])
-                data_max = numpy.amax(adjusted_data[..., left_channel:right_channel])
-            else:
-                data_min = numpy.amin(adjusted_data[..., :])
-                data_max = numpy.amax(adjusted_data[..., :])
+            logging.critical("x offset: " + str(layer_x_offset))
+            logging.critical("x scale: " + str(layer_x_scale))
+            logging.critical("y offset: " + str(layer_y_offset))
+            logging.critical("y scale: " + str(layer_y_scale))
 
-            y_minimums.append(0.0 if data_min > 0 else data_min * 1.2)
-            y_maximums.append(0.0 if data_max < 0 else data_max * 1.2)
+            # Generate range indices for current layer
+            x_sale_factor = top_layer_x_scale / layer_x_scale
+            layer_left = int(numpy.floor(((left + top_layer_x_offset) * x_sale_factor) - layer_x_offset))
+            layer_left = max(0, layer_left)
+            layer_right = int(numpy.floor(((right + top_layer_x_offset) * x_sale_factor) - layer_x_offset))
+            layer_right = min(layer_data_and_metadata.data_shape[-1], layer_right)
 
+            # Determine relative min/max for layer
+            layer_values = stacked_data_layer.data[layer_left:layer_right+1]
+            layer_min = numpy.min(layer_values)
+            layer_max = numpy.max(layer_values)
+            layer_min = (layer_min * layer_y_scale) + layer_y_offset
+            layer_max = (layer_max * layer_y_scale) + layer_y_offset
+
+            logging.critical("y min: " + str(layer_min))
+            logging.critical("y max: " + str(layer_max))
+
+            y_minimums.append(0.0 if layer_min > 0.0 else layer_min * 2.4)
+            y_maximums.append(0.0 if layer_max < 0.0 else layer_max * 1.2)
+
+        x_padding = (right - left) * 0.5
+        display_left_channel = int((left - x_padding) * top_layer_x_size)
+        display_right_channel = int((right + x_padding) * top_layer_x_size)
         y_min = min(y_minimums)
         y_max = max(y_maximums)
-        x_padding = (right - left) * 0.5
-        display_left_channel = int((left - x_padding) * top_level_data_size)
-        display_right_channel = int((right + x_padding) * top_level_data_size)
+
+        logging.critical("Y mins:")
+        logging.critical(y_minimums)
+        logging.critical("y maxs:")
+        logging.critical(y_maximums)
 
         # command = self.delegate.create_change_display_command()
         assert self.delegate
-        self.delegate.update_display_properties({"left_channel": display_left_channel, "right_channel": display_right_channel, "y_min": y_min, "y_max": y_max})
+        self.delegate.update_display_properties(
+            {"left_channel": display_left_channel, "right_channel": display_right_channel, "y_min": y_min,
+             "y_max": y_max})
         # self.delegate.push_undo_command(command)
 
     def __view_to_selected_graphics(self, data_and_metadata: DataAndMetadata.DataAndMetadata) -> None:
