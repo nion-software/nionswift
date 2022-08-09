@@ -2581,6 +2581,8 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item1)
             display_item.display_type = "line_plot"
             display_panel.set_display_panel_display_item(display_item)
+            display_panel.handle_drop_display_item("plus", document_model.get_display_item_for_data_item(data_item2))
+            display_panel.update()
             canvas_shape = (480, 640)
             document_controller.show_display_item(display_item)
             display_panel.display_canvas_item.layout_immediate(canvas_shape)
@@ -2588,20 +2590,20 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_panel.display_canvas_item.refresh_layout_immediate()
             line_plot_canvas_item = typing.cast(LinePlotCanvasItem.LinePlotCanvasItem,
                                                 display_panel.display_canvas_item)
+
             interval_graphic = Graphics.IntervalGraphic()
             # ensure the interval is outside the regular fractional coordinate range
             interval_graphic.start = 0.25
             interval_graphic.end = 0.75
-            document_model.get_display_item_for_data_item(data_item1).add_graphic(interval_graphic)
-            display_item = document_model.get_display_item_for_data_item(data_item1)
+            display_item.add_graphic(interval_graphic)
             display_item.graphic_selection.set(0)
             line_plot_canvas_item.handle_auto_display()
             display_panel.display_canvas_item.prepare_display()  # force layout
             axes = line_plot_canvas_item._axes
             self.assertAlmostEqual(axes.drawn_left_channel, 0)
             self.assertAlmostEqual(axes.drawn_right_channel, 16)
-            self.assertAlmostEqual(2 * 1.2, axes.uncalibrated_data_max)
-            self.assertAlmostEqual(-2 * 1.2, axes.uncalibrated_data_min)
+            self.assertAlmostEqual(8 * 2 * 1.2, axes.uncalibrated_data_max)
+            self.assertAlmostEqual(8 * -2 * 1.2, axes.uncalibrated_data_min)
 
 
 if __name__ == '__main__':
