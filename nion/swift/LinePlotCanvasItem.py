@@ -2,6 +2,7 @@ from __future__ import annotations
 
 # standard libraries
 import copy
+import logging
 import math
 import threading
 import typing
@@ -439,8 +440,10 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         top_layer_y_scale = data_and_metadata.intensity_calibration.scale
         top_layer_y_offset = data_and_metadata.intensity_calibration.offset
 
-        y_minimums = []
-        y_maximums = []
+        selected_y_minimums = []
+        selected_y_maximums = []
+        global_y_minimums = []
+        global_y_maximums = []
 
         for stacked_data_layer in self.__xdata_list:
             layer_data_and_metadata = stacked_data_layer.data_metadata
@@ -461,6 +464,11 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             layer_values = stacked_data_layer.data[..., layer_left:layer_right+1]
             if layer_values.size <= 0:
                 layer_values = stacked_data_layer.data[...,]
+                y_minimums = global_y_minimums
+                y_maximums = global_y_maximums
+            else:
+                y_minimums = selected_y_minimums
+                y_maximums = selected_y_maximums
             y_scale_factor = layer_y_scale / top_layer_y_scale
             y_offset_delta = layer_y_offset - top_layer_y_offset
             layer_min = numpy.min(layer_values)
@@ -474,6 +482,9 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         x_padding = (right - left) * 0.5
         display_left_channel = int((left - x_padding) * top_layer_width)
         display_right_channel = int((right + x_padding) * top_layer_width)
+
+        y_minimums = selected_y_minimums if len(selected_y_minimums) else global_y_minimums
+        y_maximums = selected_y_maximums if len(selected_y_maximums) else global_y_maximums
         y_min = min(y_minimums) * 1.2
         y_max = max(y_maximums) * 1.2
 
