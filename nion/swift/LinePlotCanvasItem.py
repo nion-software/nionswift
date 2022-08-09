@@ -2,7 +2,6 @@ from __future__ import annotations
 
 # standard libraries
 import copy
-import logging
 import math
 import threading
 import typing
