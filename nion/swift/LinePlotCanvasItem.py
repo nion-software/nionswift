@@ -440,14 +440,14 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         top_layer_y_scale = data_and_metadata.intensity_calibration.scale
         top_layer_y_offset = data_and_metadata.intensity_calibration.offset
 
-        selected_y_minimums = []
-        selected_y_maximums = []
-        global_y_minimums = []
-        global_y_maximums = []
+        selected_y_minimums: typing.List[float] = []
+        selected_y_maximums: typing.List[float] = []
+        global_y_minimums: typing.List[float] = []
+        global_y_maximums: typing.List[float] = []
 
         for stacked_data_layer in self.__xdata_list:
+            assert stacked_data_layer is not None
             layer_data_and_metadata = stacked_data_layer.data_metadata
-            assert layer_data_and_metadata is not None
             layer_x_offset = layer_data_and_metadata.dimensional_calibrations[0].offset
             layer_x_scale = layer_data_and_metadata.dimensional_calibrations[0].scale
             layer_y_offset = layer_data_and_metadata.intensity_calibration.offset
