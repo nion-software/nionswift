@@ -772,6 +772,7 @@ class DocumentController(Window.Window):
         filter_str += ";;All Files (*.*)"
         export_dir = self.ui.get_persistent_string("export_directory", self.ui.get_document_location())
         export_dir = os.path.join(export_dir, display_item.displayed_title)
+        export_dir = export_dir.replace("\\", "/").replace("/", os.sep)
         selected_filter = self.ui.get_persistent_string("export_filter")
         if not path:
             path, selected_filter, selected_directory = self.get_save_file_path(_("Export File"), export_dir, filter_str, selected_filter)
@@ -782,6 +783,7 @@ class DocumentController(Window.Window):
                 selected_filter = filter_lines[filter_map.index(True)]
             selected_directory = export_dir if len(export_dir.split(os.sep)) > 1 else ".{}".format(os.sep)
         selected_writer = filter_line_to_writer_map.get(selected_filter)
+        path = path.replace("\\", "/").replace("/", os.sep)
         if path and not os.path.splitext(path)[1]:
             if selected_writer:
                 path = path + os.path.extsep + selected_writer.extensions[0]
@@ -802,6 +804,7 @@ class DocumentController(Window.Window):
         filter = "SVG File (*.svg);;All Files (*.*)"
         export_dir = self.ui.get_persistent_string("export_directory", self.ui.get_document_location())
         export_dir = os.path.join(export_dir, display_item.displayed_title)
+        export_dir = export_dir.replace("\\", "/").replace("/", os.sep)
         if not path:
             path, selected_filter, selected_directory = self.get_save_file_path(_("Export File"), export_dir, filter, None)
         else:
@@ -809,6 +812,7 @@ class DocumentController(Window.Window):
         if path and not os.path.splitext(path)[1]:
             path = path + os.path.extsep + "svg"
         if path:
+            path = path.replace("\\", "/").replace("/", os.sep)
             self.ui.set_persistent_string("export_directory", selected_directory)
 
             if display_item.display_data_shape and len(display_item.display_data_shape) == 2:
