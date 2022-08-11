@@ -4279,7 +4279,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_renamed_project_index_and_data_folder_loads(self) -> None:
         # create a project, rename it, add a new project reference, reload, ensure data items loaded.
-        with create_temp_profile_context(no_remove=True) as profile_context:
+        with create_temp_profile_context() as profile_context:
             document_model = profile_context.create_document_model(project_name="P", project_data_name="P Data", auto_close=False)
             profile = typing.cast(Profile.Profile, document_model._profile_for_test)
             with document_model.ref():
