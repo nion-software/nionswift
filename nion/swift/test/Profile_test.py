@@ -571,6 +571,31 @@ class TestProfileClass(unittest.TestCase):
                         app.exit()
                         app.deinitialize()
 
+    def test_invalid_last_project_forces_choose_dialog(self) -> None:
+        with create_memory_profile_context() as profile_context:
+            # use lower level calls to create the profile and open the window via the app
+            profile = profile_context.create_profile(add_project=False)
+            profile.read_profile()
+            app = Application.Application(TestUI.UserInterface(), set_global=False)
+            app._set_profile_for_test(profile)
+            TestContext.add_project_memory(profile, load=False, valid=False)
+            app.initialize(load_plug_ins=False)
+            try:
+                profile.last_project_reference = profile.project_references[0].uuid
+                logging.getLogger("loader").setLevel = unittest.mock.Mock()  # ignore this call
+                # ensure one project reference
+                self.assertEqual(1, len(profile.project_references))
+                # set up mock calls to get through start call and check conditions
+                app.show_choose_project_dialog = unittest.mock.Mock()
+                # start the app
+                app.start(profile=profile)
+                # check the mock calls
+                app.show_choose_project_dialog.assert_called_once()
+            finally:
+                app._set_profile_for_test(None)
+                app.exit()
+                app.deinitialize()
+
     # TODO: creating new project
     # TODO: opening project from file
     # TODO: opening same project is not allowed

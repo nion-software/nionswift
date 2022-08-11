@@ -191,10 +191,15 @@ class MemoryProfileContext:
 class MemoryProjectReference(Profile.ProjectReference):
     type = "project_memory"
 
-    def __init__(self, d: typing.Dict = None, make_storage_error: bool = False):
+    def __init__(self, d: typing.Optional[typing.Dict[str, typing.Any]] = None, make_storage_error: bool = False, valid: bool = True):
         super().__init__(self.__class__.type)
         self.__d = d or dict()
         self.__make_storage_error = make_storage_error
+        self.__valid = valid
+
+    @property
+    def is_valid(self) -> bool:
+        return self.__valid
 
     @property
     def project_reference_parts(self) -> typing.Tuple[str]:
@@ -215,11 +220,11 @@ def create_memory_context():
     return MemoryProfileContext()
 
 
-def add_project_memory(profile: Profile.Profile, _uuid: uuid.UUID = None, load: bool = True, d: typing.Dict = None, make_storage_error: bool = False, make_uuid_error: bool = False) -> Profile.ProjectReference:
+def add_project_memory(profile: Profile.Profile, _uuid: uuid.UUID = None, load: bool = True, d: typing.Dict = None, make_storage_error: bool = False, make_uuid_error: bool = False, valid: bool = True) -> Profile.ProjectReference:
     if make_uuid_error:
         d = d or dict()
         d["uuid"] = 999
-    project_reference = MemoryProjectReference(d, make_storage_error)
+    project_reference = MemoryProjectReference(d, make_storage_error, valid)
     project_reference.project_uuid = _uuid or uuid.uuid4()
     return profile.add_project_reference(project_reference, load)
 

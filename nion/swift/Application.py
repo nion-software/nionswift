@@ -322,11 +322,7 @@ class Application(UIApplication.BaseApplication):
             project_reference = None
             update_last_project_reference = False
 
-        # for backwards compatibility for beta versions. remove after limited beta sites updated.
-        if not project_reference:
-            project_reference = profile.get_project_reference(profile.work_project_reference_uuid) if profile.work_project_reference_uuid else None
-
-        if project_reference:
+        if project_reference and project_reference.is_valid:
             try:
                 document_controller = self.open_project_window(project_reference, update_last_project_reference)
             except Exception:
@@ -604,7 +600,7 @@ class Application(UIApplication.BaseApplication):
                         except FileExistsError:
                             message = _("Upgraded project already exists.")
                             self.show_ok_dialog(_("Error Upgrading Project"), f"{message}\n{project_reference.path}")
-                            logging.info(f"Project already exists: {project_reference.path}")
+                            logging.getLogger("loader").info(f"Project already exists: {project_reference.path}")
                             new_project_reference = None
                         except Exception as e:
                             self.show_ok_dialog(_("Error Upgrading Project"), _("Unable to upgrade project."))

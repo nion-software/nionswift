@@ -4277,6 +4277,27 @@ class TestStorageClass(unittest.TestCase):
                 project_storage_system = typing.cast(FileStorageSystem.MemoryProjectStorageSystem, document_model._project.project_storage_system)
                 self.assertEqual(0, project_storage_system._write_count)
 
+    def test_renamed_project_index_and_data_folder_loads(self) -> None:
+        # create a project, rename it, add a new project reference, reload, ensure data items loaded.
+        with create_temp_profile_context(no_remove=True) as profile_context:
+            document_model = profile_context.create_document_model(project_name="P", project_data_name="P Data", auto_close=False)
+            profile = typing.cast(Profile.Profile, document_model._profile_for_test)
+            with document_model.ref():
+                data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+                document_model.append_data_item(data_item)
+                self.assertEqual(1, len(document_model.data_items))
+            target_project_path = profile_context.projects_dir / "P2.nsproj"
+            (profile_context.projects_dir / "P.nsproj").rename(target_project_path)
+            (profile_context.projects_dir / "P Data").rename(profile_context.projects_dir / "P2 Data")
+            project_reference = Profile.IndexProjectReference()
+            project_reference.project_path = target_project_path
+            project_reference.project_uuid = uuid.uuid4()
+            profile.add_project_reference(project_reference)
+            document_model = project_reference.document_model
+            document_model._profile_for_test = profile
+            with document_model.ref():
+                self.assertEqual(1, len(document_model.data_items))
+
     def disabled_test_document_controller_disposes_threads(self):
         thread_count = threading.activeCount()
         with TestContext.create_memory_context() as test_context:

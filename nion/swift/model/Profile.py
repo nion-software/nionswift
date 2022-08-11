@@ -51,6 +51,10 @@ class ProjectReference(Persistence.PersistentObject):
         self._set_persistent_property_value("project_uuid", value)
 
     @property
+    def is_valid(self) -> bool:
+        return False
+
+    @property
     def last_used(self) -> typing.Optional[datetime.datetime]:
         return typing.cast(typing.Optional[datetime.datetime], self._get_persistent_property_value("last_used"))
 
@@ -204,6 +208,11 @@ class IndexProjectReference(ProjectReference):
         self.define_property("project_path", converter=Converter.PathToStringConverter(), hidden=True)
 
     @property
+    def is_valid(self) -> bool:
+        project_path = self.project_path
+        return project_path is not None and project_path.exists()
+
+    @property
     def project_path(self) -> typing.Optional[pathlib.Path]:
         return typing.cast(typing.Optional[pathlib.Path], self._get_persistent_property_value("project_path"))
 
@@ -240,6 +249,15 @@ class FolderProjectReference(ProjectReference):
     def __init__(self) -> None:
         super().__init__(self.__class__.type)
         self.define_property("project_folder_path", converter=Converter.PathToStringConverter(), hidden=True)
+
+    @property
+    def is_valid(self) -> bool:
+        project_folder_path = self.project_folder_path
+        if project_folder_path:
+            for project_file, project_dir in FileStorageSystem.FileProjectStorageSystem._get_migration_paths(project_folder_path):
+                if project_file.exists():
+                    return True
+        return False
 
     @property
     def project_folder_path(self) -> typing.Optional[pathlib.Path]:
