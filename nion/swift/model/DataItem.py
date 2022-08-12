@@ -505,7 +505,7 @@ class DataItem(Persistence.PersistentObject):
                 metadata = self._get_persistent_property_value("metadata")
                 timestamp = self._get_persistent_property_value("data_modified")
                 if timestamp is None:  # invalid timestamp -- set property to now but don't trigger change
-                    timestamp = self.created or datetime.datetime.now()
+                    timestamp = self.created or self.utcnow()
                     self._get_persistent_property("data_modified").value = timestamp
                 is_sequence = self._get_persistent_property_value("is_sequence", False)
                 collection_dimension_count = self._get_persistent_property_value("collection_dimension_count")
@@ -537,7 +537,7 @@ class DataItem(Persistence.PersistentObject):
                 self.__metadata = copy.deepcopy(metadata) if metadata else dict()
             self.__pending_write = False
             if self.created is None:  # invalid timestamp -- set property to now but don't trigger change
-                self._get_persistent_property("created").value = datetime.datetime.now()
+                self._get_persistent_property("created").value = self.utcnow()
             self.__content_changed = False
         self.__pending_write = False
 
@@ -1057,7 +1057,7 @@ class DataItem(Persistence.PersistentObject):
                                    data_modified: typing.Optional[datetime.datetime] = None) -> None:
         assert self.__data_ref_count > 0
         # set the data modified directly
-        data_modified = data_modified if data_modified else datetime.datetime.utcnow()
+        data_modified = data_modified if data_modified else self.utcnow()
         data_metadata.timestamp = data_modified
         # save the data_metadata. this must go before setting the persistent properties below because
         # of how the recorder works (grabs the attribute from data item).
@@ -1094,7 +1094,8 @@ class DataItem(Persistence.PersistentObject):
             session_id = self._session_manager.current_session_id
             self.session_id = session_id
 
-    def set_data_and_metadata(self, data_and_metadata: typing.Optional[DataAndMetadata.DataAndMetadata], data_modified: typing.Optional[datetime.datetime] = None) -> None:
+    def set_data_and_metadata(self, data_and_metadata: typing.Optional[DataAndMetadata.DataAndMetadata],
+                              data_modified: typing.Optional[datetime.datetime] = None) -> None:
         """Sets the underlying data and data-metadata to the data_and_metadata.
 
         Note: this does not make a copy of the data.
@@ -1287,7 +1288,7 @@ class DataItem(Persistence.PersistentObject):
         Metadata.delete_metadata_value(self, key)
 
 
-def sort_by_date_key(data_item: DataItem) -> typing.Tuple[typing.Optional[str], datetime.datetime, str]:
+def sort_by_date_key(data_item: typing.Union[DisplayItem.DisplayItem, DataItem]) -> typing.Tuple[typing.Optional[str], datetime.datetime, str]:
     """ A sort key to for the created field of a data item. The sort by uuid makes it determinate. """
     return data_item.title + str(data_item.uuid) if data_item.is_live else str(), data_item.date_for_sorting, str(data_item.uuid)
 

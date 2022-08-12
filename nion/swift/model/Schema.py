@@ -7,14 +7,12 @@ import datetime
 import json
 import os
 import pathlib
-import sys
-import threading
-import time
 import typing
 import uuid
 import weakref
 
 from nion.utils import Converter
+from nion.utils import DateTime
 from nion.utils import Observable
 
 DictValue = typing.Union[typing.Dict[str, typing.Any], typing.List[typing.Any], typing.Tuple[typing.Any], str, float, int, bool, None]
@@ -39,24 +37,9 @@ REQUIRED = False
 
 entity_types: typing.Dict[str, EntityType] = dict()
 
-last_time: float = 0.0
-last_time_lock = threading.RLock()
-
 
 def utcnow() -> datetime.datetime:
-    global last_time
-    # windows utcnow has a resolution of 1ms, this sleep can guarantee unique times for all created times during a particular test.
-    if sys.platform == "win32":
-        # see https://www.python.org/dev/peps/pep-0564/#annex-clocks-resolution-in-python
-        with last_time_lock:
-            current_time = int(time.time_ns() / 1E3) / 1E6  # truncate to microseconds, convert to seconds
-            while current_time <= last_time:
-                current_time += 0.000001
-            last_time = current_time
-        utcnow = datetime.datetime.utcfromtimestamp(current_time)
-    else:
-        utcnow = datetime.datetime.utcnow()
-    return utcnow
+    return DateTime.utcnow()
 
 
 def register_entity_type(entity_id: str, entity: EntityType) -> None:
