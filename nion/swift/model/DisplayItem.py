@@ -1564,7 +1564,7 @@ class DisplayItem(Persistence.PersistentObject):
     def read_from_dict(self, properties: Persistence.PersistentDictType) -> None:
         super().read_from_dict(properties)
         if self.created is None:  # invalid timestamp -- set property to now but don't trigger change
-            timestamp = datetime.datetime.now()
+            timestamp = DataItem.DataItem.utcnow()
             self._get_persistent_property("created").value = timestamp
 
     @property

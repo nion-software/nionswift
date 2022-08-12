@@ -5,7 +5,6 @@ from __future__ import annotations
 
 # standard libraries
 import abc
-import collections
 import copy
 import datetime
 import json
@@ -24,6 +23,7 @@ import weakref
 
 # local libraries
 from nion.utils import Converter
+from nion.utils import DateTime
 from nion.utils import Event
 from nion.utils import Observable
 from nion.swift.model import Changes
@@ -610,7 +610,7 @@ class PersistentObject(Observable.Observable):
         self.uuid = uuid.uuid4()
         self.__modified_count = 0
         self.modified_state = 0
-        self.__modified = datetime.datetime.utcnow()
+        self.__modified = DateTime.utcnow()
         self.persistent_object_parent: typing.Optional[PersistentObjectParent] = None
         self.__persistent_dict: typing.Optional[PersistentDictType] = None
         self.__persistent_storage: typing.Optional[PersistentStorageInterface] = None
@@ -1026,12 +1026,12 @@ class PersistentObject(Observable.Observable):
          """
         property = self.__properties[name]
         if property.set_value(value) or force_update:
-            self.__update_modified(datetime.datetime.utcnow())
+            self.__update_modified(DateTime.utcnow())
             self._update_persistent_object_context_property(name)
 
     def _update_persistent_property(self, name: str, value: typing.Any) -> None:
         """ Subclasses can call this to notify that a custom property was updated. """
-        self.__update_modified(datetime.datetime.utcnow())
+        self.__update_modified(DateTime.utcnow())
         if self.persistent_object_context:
             self.property_changed(name, value)
 
@@ -1063,7 +1063,7 @@ class PersistentObject(Observable.Observable):
         item = self.__items[name]
         old_value = item.value
         item.value = value
-        self.__update_modified(datetime.datetime.utcnow())
+        self.__update_modified(DateTime.utcnow())
         if value:
             value.persistent_object_parent = PersistentObjectParent(self, item_name=name)
         # the persistent_object_parent and item need to be established before
@@ -1110,7 +1110,7 @@ class PersistentObject(Observable.Observable):
         relationship = self.__relationships[name]
         relationship.values.insert(before_index, item)
         relationship.index[item.uuid] = item
-        self.__update_modified(datetime.datetime.utcnow())
+        self.__update_modified(DateTime.utcnow())
         item.persistent_object_parent = PersistentObjectParent(self, relationship_name=name)
         # the persistent_object_parent and relationship need to be established before
         # calling item_inserted.
@@ -1132,7 +1132,7 @@ class PersistentObject(Observable.Observable):
         item_index = relationship.values.index(item)
         relationship.values.remove(item)
         relationship.index.pop(item.uuid)
-        self.__update_modified(datetime.datetime.utcnow())
+        self.__update_modified(DateTime.utcnow())
         if relationship.remove:
             relationship.remove(name, item_index, item)
         if self.persistent_object_context:  # only clear if self has a context; it won't if it is still being constructed
