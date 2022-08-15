@@ -438,12 +438,11 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         top_layer_y_scale = data_and_metadata.intensity_calibration.scale
         top_layer_y_offset = data_and_metadata.intensity_calibration.offset
 
-        # Because we don't know if an interval will contain values, we initialize two lists
-        # one for interval ranges, one for the whole stack_data_layer.
-        selected_y_minimums: typing.List[float] = []
-        selected_y_maximums: typing.List[float] = []
-        global_y_minimums: typing.List[float] = []
-        global_y_maximums: typing.List[float] = []
+        y_minimums: typing.List[float] = []
+        y_maximums: typing.List[float] = []
+        non_empty_interval = False  # assume by default that we have no values within our interval
+        # if we do find non-empty values, we clear out the lists and use only interval values
+        # otherwise we use the min/max of *all* the stacks to determine our zoom
 
         for stacked_data_layer in self.__xdata_list:
             assert stacked_data_layer is not None
@@ -454,7 +453,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             layer_y_scale = layer_data_and_metadata.intensity_calibration.scale
 
             # Generate range indices for current layer
-            # Given point x in the top layer, we get the point y from the stacked layer
+            # Given point x in the top layer, we get the corresponding point y from the stacked layer
             # This is based around the formula of: (x + offset_x) * scale_x
             #                                      -------------------------  -  offset_y = y
             #                                               scale_y
@@ -467,18 +466,19 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             # get values of interval region for this particular stacked_data_layer
             layer_values = stacked_data_layer.data[..., layer_left:layer_right+1]
             if layer_values.size <= 0:
-                # if there are no values in the selected intervals, we use the values of the entire stack_data_layer
-                # we dynamically select lists to prevent mixing of interval mins/maxes with global ones
-                layer_values = stacked_data_layer.data[...,]
-                y_minimums = global_y_minimums
-                y_maximums = global_y_maximums
-            else:
-                y_minimums = selected_y_minimums
-                y_maximums = selected_y_maximums
+                if non_empty_interval:
+                    continue
+                else:
+                    # if our interval is empty, and we have not found a non-empty interval
+                    layer_values = stacked_data_layer.data[...,]  # make our new data the whole stack or "global"
+            elif not non_empty_interval:
+                non_empty_interval = True
+                y_minimums.clear()
+                y_maximums.clear()
 
             # Scale y values to the displayed size, and extract the min & max of these values
             # These computations translate the data values into the displayed values
-            # this must be done regardless if the list is a global one or interval one
+            # this must be done regardless if the data is global or of an interval
             y_scale_factor = layer_y_scale / top_layer_y_scale
             y_offset_delta = layer_y_offset - top_layer_y_offset
             layer_min = (layer_values * y_scale_factor) + y_offset_delta
@@ -490,13 +490,10 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             y_maximums.append(0.0 if layer_max < 0.0 else layer_max)
 
         x_padding = (right - left) * 0.5
-        # top layer width is used here because all other width values have been made relative to it
+        # top layer width is used here because all other width/position values have been made relative to it
         display_left_channel = int((left - x_padding) * top_layer_width)
         display_right_channel = int((right + x_padding) * top_layer_width)
 
-        # If there is no data within our intervals, default to the min/max of all layers
-        y_minimums = selected_y_minimums if len(selected_y_minimums) else global_y_minimums
-        y_maximums = selected_y_maximums if len(selected_y_maximums) else global_y_maximums
         y_min = min(y_minimums) * 1.2
         y_max = max(y_maximums) * 1.2
 
