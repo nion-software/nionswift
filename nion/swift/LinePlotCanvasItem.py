@@ -420,25 +420,26 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
     def __view_to_intervals(self, data_and_metadata: DataAndMetadata.DataAndMetadata, intervals: typing.List[typing.Tuple[float, float]]) -> None:
         """Change the view to encompass the channels and data represented by the given intervals."""
-        # X dimensional factors are controlled by dimensional_calibrations
-        # Y dimensional factors are controlled by intensity_calibration
 
-        if len(intervals) > 0:  # left and right are absolute positions on the display
+        # get the farthest left and right interval bounds to zoom into
+        if len(intervals) > 0:
             left = intervals[0][0]
             right = intervals[0][1]
             for interval in intervals:
                 left = min(interval[0], left)
                 right = max(interval[1], right)
-        else:
-            left = right = 0.0
+        else:  # default to the whole area of the display if no intervals exist
+            left = 0.0
+            right = 1.0
 
-        # Isolate static properties (at draw-time) of top-level layer
         top_layer_width = data_and_metadata.data_shape[-1]
         top_layer_x_offset = data_and_metadata.dimensional_calibrations[0].offset
         top_layer_x_scale = data_and_metadata.dimensional_calibrations[0].scale
         top_layer_y_scale = data_and_metadata.intensity_calibration.scale
         top_layer_y_offset = data_and_metadata.intensity_calibration.offset
 
+        # Because we don't know if an interval will contain values, we initialize two lists
+        # one for interval ranges, one for the whole stack_data_layer.
         selected_y_minimums: typing.List[float] = []
         selected_y_maximums: typing.List[float] = []
         global_y_minimums: typing.List[float] = []
@@ -453,35 +454,47 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             layer_y_scale = layer_data_and_metadata.intensity_calibration.scale
 
             # Generate range indices for current layer
+            # Given point x in the top layer, we get the point y from the stacked layer
+            # This is based around the formula of: (x + offset_x) * scale_x
+            #                                      -------------------------  -  offset_y = y
+            #                                               scale_y
             x_sale_factor = top_layer_x_scale / layer_x_scale
             layer_left = int(numpy.floor((((left * top_layer_width) + top_layer_x_offset) * x_sale_factor) - layer_x_offset))
             layer_left = max(0, min(layer_left, top_layer_width))
             layer_right = int(numpy.floor((((right * top_layer_width) + top_layer_x_offset) * x_sale_factor) - layer_x_offset))
             layer_right = min(top_layer_width, max(layer_right, 0))
 
-            # Determine relative min/max for layer
+            # get values of interval region for this particular stacked_data_layer
             layer_values = stacked_data_layer.data[..., layer_left:layer_right+1]
             if layer_values.size <= 0:
+                # if there are no values in the selected intervals, we use the values of the entire stack_data_layer
+                # we dynamically select lists to prevent mixing of interval mins/maxes with global ones
                 layer_values = stacked_data_layer.data[...,]
                 y_minimums = global_y_minimums
                 y_maximums = global_y_maximums
             else:
                 y_minimums = selected_y_minimums
                 y_maximums = selected_y_maximums
+
+            # Scale y values to the displayed size, and extract the min & max of these values
+            # These computations translate the data values into the displayed values
+            # this must be done regardless if the list is a global one or interval one
             y_scale_factor = layer_y_scale / top_layer_y_scale
             y_offset_delta = layer_y_offset - top_layer_y_offset
-            layer_min = numpy.min(layer_values)
-            layer_min = (layer_min * y_scale_factor) + y_offset_delta
-            layer_max = numpy.max(layer_values)
-            layer_max = (layer_max * y_scale_factor) + y_offset_delta
+            layer_min = (layer_values * y_scale_factor) + y_offset_delta
+            layer_min = numpy.min(layer_min)
+            layer_max = (layer_values * y_scale_factor) + y_offset_delta
+            layer_max = numpy.max(layer_max)
 
             y_minimums.append(0.0 if layer_min > 0.0 else layer_min)
             y_maximums.append(0.0 if layer_max < 0.0 else layer_max)
 
         x_padding = (right - left) * 0.5
+        # top layer width is used here because all other width values have been made relative to it
         display_left_channel = int((left - x_padding) * top_layer_width)
         display_right_channel = int((right + x_padding) * top_layer_width)
 
+        # If there is no data within our intervals, default to the min/max of all layers
         y_minimums = selected_y_minimums if len(selected_y_minimums) else global_y_minimums
         y_maximums = selected_y_maximums if len(selected_y_maximums) else global_y_maximums
         y_min = min(y_minimums) * 1.2
