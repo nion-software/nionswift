@@ -2640,6 +2640,88 @@ class TestDisplayPanelClass(unittest.TestCase):
             self.assertAlmostEqual(5 * 2 * 8 * 1.2, axes.uncalibrated_data_max)
             self.assertAlmostEqual(-5 * 2 * 8 * 1.2, axes.uncalibrated_data_min)
 
+    def test_stacked_lineplot_interval_zoom_with_different_intensity_calibrations_with_different_intensity_units(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data1 = numpy.array([x for x in range(-5, 6)]) * 1
+            data_item1 = DataItem.DataItem(data1)
+            data_item1.set_xdata(DataAndMetadata.new_data_and_metadata(data1, Calibration.Calibration(0, 1, "z")))
+            data2 = numpy.array([x for x in range(-5, 6)]) * 2
+            data_item2 = DataItem.DataItem(data2)
+            data_item2.set_xdata(DataAndMetadata.new_data_and_metadata(data2, Calibration.Calibration(0, 8, "x")))
+
+            document_model.append_data_item(data_item1)
+            document_model.append_data_item(data_item2)
+            display_panel = document_controller.selected_display_panel
+            display_item = document_model.get_display_item_for_data_item(data_item1)
+            display_item.display_type = "line_plot"
+            display_panel.set_display_panel_display_item(display_item)
+            display_panel.handle_drop_display_item("plus", document_model.get_display_item_for_data_item(data_item2))
+            display_panel.update()
+            canvas_shape = (480, 640)
+            document_controller.show_display_item(display_item)
+            display_panel.display_canvas_item.layout_immediate(canvas_shape)
+            display_panel.display_canvas_item.prepare_display()  # force layout
+            display_panel.display_canvas_item.refresh_layout_immediate()
+            line_plot_canvas_item = typing.cast(LinePlotCanvasItem.LinePlotCanvasItem,
+                                                display_panel.display_canvas_item)
+
+            interval_graphic = Graphics.IntervalGraphic()
+            # ensure the interval is outside the regular fractional coordinate range
+            interval_graphic.start = 0.25
+            interval_graphic.end = 0.75
+            display_item.add_graphic(interval_graphic)
+            display_item.graphic_selection.set(0)
+            line_plot_canvas_item.handle_auto_display()
+            display_panel.display_canvas_item.prepare_display()  # force layout
+            axes = line_plot_canvas_item._axes
+            self.assertAlmostEqual(axes.drawn_left_channel, 0)
+            self.assertAlmostEqual(axes.drawn_right_channel, 11)
+            self.assertAlmostEqual(4 * 2 * 8 * 1.2, axes.uncalibrated_data_max)
+            self.assertAlmostEqual(-3 * 2 * 8 * 1.2, axes.uncalibrated_data_min)
+
+    def test_stacked_lineplot_interval_zoom_with_different_intensity_calibrations_with_intensity_offset(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data1 = numpy.array([x for x in range(-5, 6)]) * 1
+            data_item1 = DataItem.DataItem(data1)
+            data_item1.set_xdata(DataAndMetadata.new_data_and_metadata(data1, Calibration.Calibration(-5, 1, "z")))
+            data2 = numpy.array([x for x in range(-5, 6)]) * 1
+            data_item2 = DataItem.DataItem(data2)
+            data_item2.set_xdata(DataAndMetadata.new_data_and_metadata(data2, Calibration.Calibration(4, 2, "z")))
+
+            document_model.append_data_item(data_item1)
+            document_model.append_data_item(data_item2)
+            display_panel = document_controller.selected_display_panel
+            display_item = document_model.get_display_item_for_data_item(data_item1)
+            display_item.display_type = "line_plot"
+            display_panel.set_display_panel_display_item(display_item)
+            display_panel.handle_drop_display_item("plus", document_model.get_display_item_for_data_item(data_item2))
+            display_panel.update()
+            canvas_shape = (480, 640)
+            document_controller.show_display_item(display_item)
+            display_panel.display_canvas_item.layout_immediate(canvas_shape)
+            display_panel.display_canvas_item.prepare_display()  # force layout
+            display_panel.display_canvas_item.refresh_layout_immediate()
+            line_plot_canvas_item = typing.cast(LinePlotCanvasItem.LinePlotCanvasItem,
+                                                display_panel.display_canvas_item)
+
+            interval_graphic = Graphics.IntervalGraphic()
+            # ensure the interval is outside the regular fractional coordinate range
+            interval_graphic.start = 0.25
+            interval_graphic.end = 0.75
+            display_item.add_graphic(interval_graphic)
+            display_item.graphic_selection.set(0)
+            line_plot_canvas_item.handle_auto_display()
+            display_panel.display_canvas_item.prepare_display()  # force layout
+            axes = line_plot_canvas_item._axes
+            self.assertAlmostEqual(axes.drawn_left_channel, 0)
+            self.assertAlmostEqual(axes.drawn_right_channel, 11)
+            self.assertAlmostEqual(((4 * 2) + 4) * 1.2, axes.uncalibrated_data_max)
+            self.assertAlmostEqual(-3 - 5 + 1, axes.uncalibrated_data_min)
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
