@@ -2,6 +2,7 @@ from __future__ import annotations
 
 # standard libraries
 import copy
+import logging
 import math
 import threading
 import typing
@@ -460,7 +461,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             x_sale_factor = top_layer_x_scale / layer_x_scale
             layer_left = int(numpy.floor((((left * top_layer_width) + top_layer_x_offset) * x_sale_factor) - layer_x_offset))
             layer_left = max(0, min(layer_left, top_layer_width))
-            layer_right = int(numpy.floor((((right * top_layer_width) + top_layer_x_offset) * x_sale_factor) - layer_x_offset))
+            layer_right = int(numpy.ceil((((right * top_layer_width) + top_layer_x_offset) * x_sale_factor) - layer_x_offset))
             layer_right = min(top_layer_width, max(layer_right, 0))
 
             # get values of interval region for this particular stacked_data_layer
@@ -491,8 +492,8 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
         x_padding = (right - left) * 0.5
         # top layer width is used here because all other width/position values have been made relative to it
-        display_left_channel = int((left - x_padding) * top_layer_width)
-        display_right_channel = int((right + x_padding) * top_layer_width)
+        display_left_channel = numpy.ceil((left - x_padding) * top_layer_width)
+        display_right_channel = numpy.floor((right + x_padding) * top_layer_width)
 
         y_min = min(y_minimums) * 1.2
         y_max = max(y_maximums) * 1.2
