@@ -21,7 +21,7 @@ import typing
 import numpy
 
 # local libraries
-# None
+from nion.utils import DateTime
 
 
 # datetimes are _local_ datetimes and must use this specific ISO 8601 format. 2013-11-17T08:43:21.389391
@@ -36,7 +36,7 @@ def get_datetime_item_from_datetime(datetime_local: datetime.datetime, tz_minute
     datetime_item = dict()
     datetime_item["local_datetime"] = datetime_local.isoformat()
     if tz_minutes is None:
-        tz_minutes = int(round((datetime.datetime.now() - datetime.datetime.utcnow()).total_seconds())) // 60
+        tz_minutes = int(round((datetime.datetime.now() - DateTime.utcnow()).total_seconds())) // 60
     if dst_minutes is None:
         dst_minutes = 60 if time.localtime().tm_isdst else 0
     datetime_item["tz"] = '{0:+03d}{1:02d}'.format(tz_minutes // 60, tz_minutes % 60)
@@ -55,7 +55,7 @@ def get_datetime_item_from_utc_datetime(datetime_utc: datetime.datetime, tz_minu
                                         timezone: typing.Optional[str] = None) -> typing.Dict[str, typing.Any]:
     # dst is information, tz already includes dst
     if tz_minutes is None:
-        tz_minutes = int(round((datetime.datetime.now() - datetime.datetime.utcnow()).total_seconds())) // 60
+        tz_minutes = int(round((datetime.datetime.now() - DateTime.utcnow()).total_seconds())) // 60
     return get_datetime_item_from_datetime(datetime_utc + datetime.timedelta(minutes=tz_minutes), tz_minutes,
                                            dst_minutes, timezone)
 
@@ -67,12 +67,12 @@ try:
         if local_utcoffset_override is not None:
             return local_utcoffset_override[0]
         datetime_local = datetime_local if datetime_local else datetime.datetime.now()
-        return int(pytz.reference.LocalTimezone().utcoffset(datetime_local).total_seconds() // 60)
+        return int(pytz.reference.LocalTimezone().utcoffset(datetime_local).total_seconds() // 60)  # type: ignore
 except ImportError:
     def local_utcoffset_minutes(datetime_local: typing.Optional[datetime.datetime] = None) -> int:
         if local_utcoffset_override is not None:
             return local_utcoffset_override[0]
-        return int(round((datetime.datetime.now() - datetime.datetime.utcnow()).total_seconds())) // 60
+        return int(round((datetime.datetime.now() - DateTime.utcnow()).total_seconds())) // 60
 
 
 class TimezoneMinutesToStringConverter:

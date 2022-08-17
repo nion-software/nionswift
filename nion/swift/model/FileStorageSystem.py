@@ -699,14 +699,33 @@ class FileProjectStorageSystem(ProjectStorageSystem):
         self.__project_data_path = project_data_path
 
     def load_properties(self) -> None:
+        # in order to be resilient to name changes, first make a list of folders in project_data_folders which
+        # (1) can be constructed and (2) which exist. if none actually exist, see if one exists based on the
+        # root name. then, if a folder exists, use it. otherwise, use the first one that can be constructed from
+        # either the project_data_folders or the root name. this method is expected to supply a project_data_path
+        # that can be written; the case where the project is created is where the folder will not exist in the
+        # first place.
         super().load_properties()
         project_data_folder_paths = list()
+        existing_project_data_folder_paths = list()
         for project_data_folder in self.get_storage_properties().get("project_data_folders", list()):
             project_data_folder_path = pathlib.Path(project_data_folder)
             if not project_data_folder_path.is_absolute():
                 project_data_folder_path = self.__project_path.parent / project_data_folder_path
             project_data_folder_paths.append(project_data_folder_path)
-        self.__project_data_path = project_data_folder_paths[0] if len(project_data_folder_paths) > 0 else self.__project_data_path
+            if project_data_folder_path.exists():
+                existing_project_data_folder_paths.append(project_data_folder_path)
+        if not existing_project_data_folder_paths:
+            project_data_folder_path = self.__project_path.with_name(self.__project_path.stem + " Data")
+            if not project_data_folder_path.is_absolute():
+                project_data_folder_path = self.__project_path.parent / project_data_folder_path
+            project_data_folder_paths.append(project_data_folder_path)
+            if project_data_folder_path.exists():
+                existing_project_data_folder_paths.append(project_data_folder_path)
+        if existing_project_data_folder_paths:
+            self.__project_data_path = existing_project_data_folder_paths[0]
+        else:
+            self.__project_data_path = project_data_folder_paths[0] if len(project_data_folder_paths) > 0 else self.__project_data_path
 
     @property
     def project_path(self) -> pathlib.Path:

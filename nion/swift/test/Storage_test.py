@@ -37,6 +37,7 @@ from nion.swift.model import Profile
 from nion.swift.model import Symbolic
 from nion.swift.test import TestContext
 from nion.ui import TestUI
+from nion.utils import DateTime
 from nion.utils import Geometry
 
 
@@ -1092,7 +1093,7 @@ class TestStorageClass(unittest.TestCase):
                 self.assertTrue(os.path.exists(data_file_path))
                 self.assertTrue(os.path.isfile(data_file_path))
                 # change the original date
-                data_item.created = datetime.datetime.utcnow()
+                data_item.created = DateTime.utcnow()
                 data_item.session_id = "20000531-000000"
                 document_model.remove_data_item(data_item)
                 # make sure it get removed from disk
@@ -3092,8 +3093,8 @@ class TestStorageClass(unittest.TestCase):
             file_path = pathlib.Path(data_path, "File").with_suffix(file_handler.get_extension())
             handler = file_handler(file_path)
             with contextlib.closing(handler):
-                handler.write_properties(data_item_dict, datetime.datetime.utcnow())
-                handler.write_data(numpy.zeros((8,8)), datetime.datetime.utcnow())
+                handler.write_properties(data_item_dict, DateTime.utcnow())
+                handler.write_data(numpy.zeros((8,8)), DateTime.utcnow())
             # read workspace
             document_model = profile_context.create_document_model(auto_close=False)
             with document_model.ref():
@@ -3148,8 +3149,8 @@ class TestStorageClass(unittest.TestCase):
             file_path = pathlib.Path(data_path, "File").with_suffix(file_handler.get_extension())
             handler = file_handler(file_path)
             with contextlib.closing(handler):
-                handler.write_properties(data_item_dict, datetime.datetime.utcnow())
-                handler.write_data(numpy.zeros((8,8)), datetime.datetime.utcnow())
+                handler.write_properties(data_item_dict, DateTime.utcnow())
+                handler.write_data(numpy.zeros((8,8)), DateTime.utcnow())
             # read workspace
             document_model = profile_context.create_document_model(auto_close=False)
             with document_model.ref():
@@ -3185,8 +3186,8 @@ class TestStorageClass(unittest.TestCase):
             file_handler = profile_context._file_handlers[0]
             handler = file_handler(pathlib.Path(data_path, "File").with_suffix(file_handler.get_extension()))
             with contextlib.closing(handler):
-                handler.write_properties(data_item_dict, datetime.datetime.utcnow())
-                handler.write_data(numpy.zeros((8,8)), datetime.datetime.utcnow())
+                handler.write_properties(data_item_dict, DateTime.utcnow())
+                handler.write_data(numpy.zeros((8,8)), DateTime.utcnow())
             # auto migrate workspace
             document_model = profile_context.create_document_model(auto_close=False)
             with document_model.ref():
@@ -3220,8 +3221,8 @@ class TestStorageClass(unittest.TestCase):
             file_handler = profile_context._file_handlers[0]
             handler = file_handler(pathlib.Path(data_path, "File").with_suffix(file_handler.get_extension()))
             with contextlib.closing(handler):
-                handler.write_properties(data_item_dict, datetime.datetime.utcnow())
-                handler.write_data(numpy.zeros((8,8)), datetime.datetime.utcnow())
+                handler.write_properties(data_item_dict, DateTime.utcnow())
+                handler.write_data(numpy.zeros((8,8)), DateTime.utcnow())
             # auto migrate workspace
             document_model = profile_context.create_document_model(auto_close=False)
             with document_model.ref():
@@ -3253,8 +3254,8 @@ class TestStorageClass(unittest.TestCase):
             file_handler = profile_context._file_handlers[0]
             handler = file_handler(pathlib.Path(data_path, "File").with_suffix(file_handler.get_extension()))
             with contextlib.closing(handler):
-                handler.write_properties(data_item_dict, datetime.datetime.utcnow())
-                handler.write_data(numpy.zeros((8,8)), datetime.datetime.utcnow())
+                handler.write_properties(data_item_dict, DateTime.utcnow())
+                handler.write_data(numpy.zeros((8,8)), DateTime.utcnow())
             # make new library
             document_model = profile_context.create_document_model(auto_close=False)
             with document_model.ref():
@@ -3298,8 +3299,8 @@ class TestStorageClass(unittest.TestCase):
             file_handler = profile_context._file_handlers[0]
             handler = file_handler(pathlib.Path(data_path, "File").with_suffix(file_handler.get_extension()))
             with contextlib.closing(handler):
-                handler.write_properties(data_item_dict, datetime.datetime.utcnow())
-                handler.write_data(numpy.zeros((8,8)), datetime.datetime.utcnow())
+                handler.write_properties(data_item_dict, DateTime.utcnow())
+                handler.write_data(numpy.zeros((8,8)), DateTime.utcnow())
             # auto migrate workspace
             document_model = profile_context.create_document_model(auto_close=False)
             with document_model.ref():
@@ -3332,8 +3333,8 @@ class TestStorageClass(unittest.TestCase):
             file_handler = profile_context._file_handlers[0]
             handler = file_handler(pathlib.Path(data_path, "File").with_suffix(file_handler.get_extension()))
             with contextlib.closing(handler):
-                handler.write_properties(data_item_dict, datetime.datetime.utcnow())
-                handler.write_data(numpy.zeros((8,8)), datetime.datetime.utcnow())
+                handler.write_properties(data_item_dict, DateTime.utcnow())
+                handler.write_data(numpy.zeros((8,8)), DateTime.utcnow())
             # write a newer item with same uuid
             data_item = DataItem.DataItem(numpy.zeros((8,8)), item_uuid=uuid.UUID(src_uuid_str))
             with contextlib.closing(data_item):
@@ -3343,8 +3344,8 @@ class TestStorageClass(unittest.TestCase):
                 document_model = profile_context.create_document_model(auto_close=False)
                 with document_model.ref():
                     with contextlib.closing(document_model._project.project_storage_system._make_storage_handler(data_item)) as handler:
-                        handler.write_properties(data_item.write_to_dict(), datetime.datetime.utcnow())
-                        handler.write_data(numpy.zeros((8,8)), datetime.datetime.utcnow())
+                        handler.write_properties(data_item.write_to_dict(), DateTime.utcnow())
+                        handler.write_data(numpy.zeros((8,8)), DateTime.utcnow())
             # read the document and migrate
             document_model = profile_context.create_document_model(auto_close=False)
             with document_model.ref():
@@ -3382,8 +3383,8 @@ class TestStorageClass(unittest.TestCase):
             file_handler = profile_context._file_handlers[0]
             handler = file_handler(pathlib.Path(data_path, "File").with_suffix(file_handler.get_extension()))
             with contextlib.closing(handler):
-                handler.write_properties(data_item_dict, datetime.datetime.utcnow())
-                handler.write_data(numpy.zeros((8,8)), datetime.datetime.utcnow())
+                handler.write_properties(data_item_dict, DateTime.utcnow())
+                handler.write_data(numpy.zeros((8,8)), DateTime.utcnow())
             # auto migrate workspace
             document_model = profile_context.create_document_model(auto_close=False)
             with document_model.ref():
@@ -3520,8 +3521,8 @@ class TestStorageClass(unittest.TestCase):
             file_handler = profile_context._file_handlers[-1]  # HDF5
             handler = file_handler(pathlib.Path(data_path, "File").with_suffix(file_handler.get_extension()))
             with contextlib.closing(handler):
-                handler.write_properties(data_item_dict, datetime.datetime.utcnow())
-                handler.write_data(numpy.zeros((8,8)), datetime.datetime.utcnow())
+                handler.write_properties(data_item_dict, DateTime.utcnow())
+                handler.write_data(numpy.zeros((8,8)), DateTime.utcnow())
             # auto migrate workspace
             document_model = profile_context.create_document_model(auto_close=False)
             with document_model.ref():
@@ -4276,6 +4277,27 @@ class TestStorageClass(unittest.TestCase):
                 document_controller.periodic()
                 project_storage_system = typing.cast(FileStorageSystem.MemoryProjectStorageSystem, document_model._project.project_storage_system)
                 self.assertEqual(0, project_storage_system._write_count)
+
+    def test_renamed_project_index_and_data_folder_loads(self) -> None:
+        # create a project, rename it, add a new project reference, reload, ensure data items loaded.
+        with create_temp_profile_context() as profile_context:
+            document_model = profile_context.create_document_model(project_name="P", project_data_name="P Data", auto_close=False)
+            profile = typing.cast(Profile.Profile, document_model._profile_for_test)
+            with document_model.ref():
+                data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+                document_model.append_data_item(data_item)
+                self.assertEqual(1, len(document_model.data_items))
+            target_project_path = profile_context.projects_dir / "P2.nsproj"
+            (profile_context.projects_dir / "P.nsproj").rename(target_project_path)
+            (profile_context.projects_dir / "P Data").rename(profile_context.projects_dir / "P2 Data")
+            project_reference = Profile.IndexProjectReference()
+            project_reference.project_path = target_project_path
+            project_reference.project_uuid = uuid.uuid4()
+            profile.add_project_reference(project_reference)
+            document_model = project_reference.document_model
+            document_model._profile_for_test = profile
+            with document_model.ref():
+                self.assertEqual(1, len(document_model.data_items))
 
     def disabled_test_document_controller_disposes_threads(self):
         thread_count = threading.activeCount()

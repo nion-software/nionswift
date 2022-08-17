@@ -134,13 +134,13 @@ class ComputationQueueItem:
         # returns a list of functions that must be called on the main thread to finish the recompute action
         # threadsafe
         pending_data_item_merge: typing.Optional[ComputationMerge] = None
-        data_item = None
+        data_item: typing.Optional[DataItem.DataItem] = None
         computation = self.computation
         if computation and computation.needs_update:
             if self.activity:
                 self.activity.state = "computing"
             if computation.expression:
-                data_item = computation.get_output("target")
+                data_item = typing.cast(DataItem.DataItem, computation.get_output("target"))
             try:
                 api = PlugInManager.api_broker_fn("~1.0", None)
                 if not data_item:
@@ -174,7 +174,7 @@ class ComputationQueueItem:
                         @xdata.setter
                         def xdata(self, value: typing.Optional[DataAndMetadata._DataAndMetadataLike]) -> None:
                             self.__xdata = DataAndMetadata.promote_ndarray(value) if value is not None else None
-                            self.data_modified = datetime.datetime.utcnow()
+                            self.data_modified = DataItem.DataItem.utcnow()
 
                         @property
                         def data(self) -> DataAndMetadata._ImageDataType:
@@ -194,9 +194,12 @@ class ComputationQueueItem:
                         def data_item_merge(computation: Symbolic.Computation, data_item: DataItem.DataItem, data_item_clone: DataItem.DataItem) -> None:
                             # merge the result item clones back into the document. this method is guaranteed to run at
                             # periodic and shouldn't do anything too time-consuming.
-                            data_item_data_clone_modified = data_item_clone.data_modified or datetime.datetime.min
+                            data_item_clone_data_modified = data_item_clone.data_modified or datetime.datetime.min
                             with data_item.data_item_changes(), data_item.data_source_changes():
-                                if data_item_data_clone_modified > data_item_data_modified:
+                                # note: use data_modified, but Windows doesn't have high enough time resolution
+                                # on fast machines, so ensure that any data_modified timestamp is created using
+                                # DataItem.utcnow() / Schema.utcnow().
+                                if data_item_clone_data_modified > data_item_data_modified:
                                     data_item.set_xdata(data_item_clone.xdata)
                                 if computation.error_text != error_text:
                                     computation.error_text = error_text

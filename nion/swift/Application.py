@@ -108,7 +108,7 @@ class Application(UIApplication.BaseApplication):
 
         ui.set_persistence_handler(PersistenceHandler())
         setattr(self.ui, "persistence_root", "3")  # sets of preferences
-        self.version_str = "0.16.3"
+        self.version_str = "0.16.4"
 
         self.document_model_available_event = Event.Event()
 
@@ -322,11 +322,7 @@ class Application(UIApplication.BaseApplication):
             project_reference = None
             update_last_project_reference = False
 
-        # for backwards compatibility for beta versions. remove after limited beta sites updated.
-        if not project_reference:
-            project_reference = profile.get_project_reference(profile.work_project_reference_uuid) if profile.work_project_reference_uuid else None
-
-        if project_reference:
+        if project_reference and project_reference.is_valid:
             try:
                 document_controller = self.open_project_window(project_reference, update_last_project_reference)
             except Exception:
@@ -379,8 +375,8 @@ class Application(UIApplication.BaseApplication):
             filter_str = "Projects (*.nsproj);;Legacy Libraries (*.nslib);;All Files (*.*)"
             import_dir = ui.get_persistent_string("open_directory", ui.get_document_location())
             paths, selected_filter, selected_directory = ui.get_file_paths_dialog(_("Add Existing Library"), import_dir, filter_str)
-            ui.set_persistent_string("open_directory", selected_directory)
             if len(paths) == 1:
+                ui.set_persistent_string("open_directory", selected_directory)
                 project_reference = profile.open_project(pathlib.Path(paths[0]))
                 if project_reference:
                     self.open_project_reference(project_reference)
@@ -604,7 +600,7 @@ class Application(UIApplication.BaseApplication):
                         except FileExistsError:
                             message = _("Upgraded project already exists.")
                             self.show_ok_dialog(_("Error Upgrading Project"), f"{message}\n{project_reference.path}")
-                            logging.info(f"Project already exists: {project_reference.path}")
+                            logging.getLogger("loader").info(f"Project already exists: {project_reference.path}")
                             new_project_reference = None
                         except Exception as e:
                             self.show_ok_dialog(_("Error Upgrading Project"), _("Unable to upgrade project."))

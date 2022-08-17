@@ -9,6 +9,7 @@ import typing
 import uuid
 
 from nion.swift.model import Utility
+from nion.utils import DateTime
 
 if typing.TYPE_CHECKING:
     from nion.swift.model import FileStorageSystem
@@ -535,7 +536,7 @@ def migrate_to_v8(reader_info_list: typing.List[FileStorageSystem.ReaderInfo]) -
                 timezone = datetime_original.get("timezone")
                 local_datetime = Utility.get_datetime_from_datetime_item(datetime_original)
                 if not local_datetime:
-                    local_datetime = datetime.datetime.utcnow()
+                    local_datetime = DateTime.utcnow()
                 data_source_dict["created"] = (local_datetime - datetime.timedelta(minutes=dst_adjust + tz_adjust)).isoformat()
                 data_source_dict["modified"] = data_source_dict["created"]
                 properties["created"] = data_source_dict["created"]

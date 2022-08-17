@@ -282,7 +282,8 @@ class TestDisplayItemClass(unittest.TestCase):
             self.assertIsNotNone(display_item.get_display_layer_display_data_channel(0))
             self.assertIsNotNone(display_item.get_display_layer_display_data_channel(1))
             self.assertIsNotNone(display_item.get_display_layer_property(0, "fill_color"))
-            self.assertIsNotNone(display_item.get_display_layer_property(1, "fill_color"))
+            self.assertIsNotNone(display_item.get_display_layer_property(1, "stroke_color"))
+            self.assertIsNone(display_item.get_display_layer_property(1, "fill_color"))
 
     def test_second_layer_to_line_plot_enables_caption(self):
         with TestContext.create_memory_context() as test_context:

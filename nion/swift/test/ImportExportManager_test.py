@@ -18,6 +18,7 @@ from nion.swift.model import DataItem
 from nion.swift.model import ImportExportManager
 from nion.swift.model import Utility
 from nion.swift.test import TestContext
+from nion.utils import DateTime
 
 
 class TestImportExportManagerClass(unittest.TestCase):
@@ -118,7 +119,7 @@ class TestImportExportManagerClass(unittest.TestCase):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
             current_working_directory = os.getcwd()
-            extensions = ("jpeg", "png", "gif", "bmp")
+            extensions = ("jpeg", "png", "gif", "bmp", "webp")
             for extension in extensions:
                 file_path = os.path.join(current_working_directory, f"__file.{extension}")
                 handler = ImportExportManager.StandardImportExportHandler(f"{extension}-io-handler", extension, [extension])
@@ -155,7 +156,7 @@ class TestImportExportManagerClass(unittest.TestCase):
         with contextlib.closing(ImportExportManager.create_data_item_from_data_element(data_element)) as data_item:
             self.assertIsNotNone(data_item.created)
             self.assertEqual(data_item.timezone_offset, "+0300")
-            local_offset_seconds = int(round((datetime.datetime.now() - datetime.datetime.utcnow()).total_seconds()))
+            local_offset_seconds = int(round((datetime.datetime.now() - DateTime.utcnow()).total_seconds()))
             # check both matches for DST
             match1 = datetime.datetime(year=2015, month=6, day=10, hour=19 - 3, minute=31, second=52, microsecond=780511) + datetime.timedelta(seconds=local_offset_seconds)
             match2 = datetime.datetime(year=2015, month=6, day=10, hour=19 - 3, minute=31, second=52, microsecond=780511) + datetime.timedelta(seconds=local_offset_seconds + 3600)

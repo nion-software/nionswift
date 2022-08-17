@@ -6,12 +6,12 @@ Reference: https://en.wikipedia.org/wiki/Data_modeling
 from __future__ import annotations
 
 import copy
-import datetime
 import gettext
 import typing
 import uuid
 
 from nion.swift.model import Schema
+from nion.utils import DateTime
 
 _ = gettext.gettext
 
@@ -312,7 +312,7 @@ def transform_forward(d: PersistentDictType) -> PersistentDictType:
         for display_layer in display_item.get("display_layers", list()):
             display_layer["type"] = "display_layer"
             display_layer["uuid"] = str(uuid.uuid4())
-            display_layer["modified"] = copy.copy(display_item.get("modified", str(datetime.datetime.utcnow())))
+            display_layer["modified"] = copy.copy(display_item.get("modified", str(DateTime.utcnow())))
             data_index = display_layer.pop("data_index", None)
             if data_index is not None and 0 <= data_index < len(display_data_channels):
                 display_layer["display_data_channel"] = display_data_channels[data_index]["uuid"]
