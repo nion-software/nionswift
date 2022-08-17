@@ -461,7 +461,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             x_sale_factor = top_layer_x_scale / layer_x_scale
             layer_left = int(numpy.floor((((left * top_layer_width) + top_layer_x_offset) * x_sale_factor) - layer_x_offset))
             layer_left = max(0, min(layer_left, top_layer_width))
-            layer_right = int(numpy.ceil((((right * top_layer_width) + top_layer_x_offset) * x_sale_factor) - layer_x_offset))
+            layer_right = int(numpy.floor((((right * top_layer_width) + top_layer_x_offset) * x_sale_factor) - layer_x_offset))
             layer_right = min(top_layer_width, max(layer_right, 0))
 
             # get values of interval region for this particular stacked_data_layer
@@ -481,10 +481,9 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             # These computations translate the data values into the displayed values
             # this must be done regardless if the data is global or of an interval
             y_scale_factor = layer_y_scale / top_layer_y_scale
-            y_offset_delta = layer_y_offset - top_layer_y_offset
-            layer_min = (layer_values * y_scale_factor) + y_offset_delta
+            layer_min = (layer_values * y_scale_factor) + layer_y_offset
             layer_min = numpy.min(layer_min)
-            layer_max = (layer_values * y_scale_factor) + y_offset_delta
+            layer_max = (layer_values * y_scale_factor) + layer_y_offset
             layer_max = numpy.max(layer_max)
 
             y_minimums.append(0.0 if layer_min > 0.0 else layer_min)

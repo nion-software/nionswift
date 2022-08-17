@@ -2602,7 +2602,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             axes = line_plot_canvas_item._axes
             self.assertAlmostEqual(axes.drawn_left_channel, 0)
             self.assertAlmostEqual(axes.drawn_right_channel, 11)
-            self.assertAlmostEqual(4 * 2 * 8 * 1.2, axes.uncalibrated_data_max)
+            self.assertAlmostEqual(3 * 2 * 8 * 1.2, axes.uncalibrated_data_max)
             self.assertAlmostEqual(-3 * 2 * 8 * 1.2, axes.uncalibrated_data_min)
 
     def test_stacked_lineplot_interval_zoom_with_different_intensity_calibrations_with_no_selected_interval(self):
@@ -2678,7 +2678,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             axes = line_plot_canvas_item._axes
             self.assertAlmostEqual(axes.drawn_left_channel, 0)
             self.assertAlmostEqual(axes.drawn_right_channel, 11)
-            self.assertAlmostEqual(4 * 2 * 8 * 1.2, axes.uncalibrated_data_max)
+            self.assertAlmostEqual(3 * 2 * 8 * 1.2, axes.uncalibrated_data_max)
             self.assertAlmostEqual(-3 * 2 * 8 * 1.2, axes.uncalibrated_data_min)
 
     def test_stacked_lineplot_interval_zoom_with_different_intensity_calibrations_with_intensity_offset(self):
@@ -2719,8 +2719,8 @@ class TestDisplayPanelClass(unittest.TestCase):
             axes = line_plot_canvas_item._axes
             self.assertAlmostEqual(axes.drawn_left_channel, 0)
             self.assertAlmostEqual(axes.drawn_right_channel, 11)
-            self.assertAlmostEqual(((4 * 2) + 4) * 1.2, axes.uncalibrated_data_max)
-            self.assertAlmostEqual(-3 - 5 + 1, axes.uncalibrated_data_min)
+            self.assertAlmostEqual(((3 * 2) + 4) * 1.2, axes.uncalibrated_data_max)
+            self.assertAlmostEqual((-3 - 5) * 1.2, axes.uncalibrated_data_min)
 
 
 if __name__ == '__main__':
