@@ -22,11 +22,13 @@ import uuid
 # local libraries
 from nion.data import Core
 from nion.data import DataAndMetadata
+from nion.swift.model import Activity
 from nion.swift.model import DataItem
 from nion.swift.model import DataStructure
 from nion.swift.model import DisplayItem
 from nion.swift.model import Graphics
 from nion.swift.model import Persistence
+from nion.swift.model import PlugInManager
 from nion.utils import Converter
 from nion.utils import Event
 from nion.utils import Geometry
@@ -2083,6 +2085,90 @@ class Computation(Persistence.PersistentObject):
         self.needs_update = False
 
 
+class ComputationActivity(Activity.Activity):
+    def __init__(self, computation: Computation) -> None:
+        super().__init__("computation", computation.label or computation.processing_id or str())
+        self.computation = computation
+        self.__state = "pending"
+
+    @property
+    def state(self) -> str:
+        return self.__state
+
+    @state.setter
+    def state(self, value: str) -> None:
+        self.__state = value
+        self.notify_property_changed("state")
+        self.notify_property_changed("displayed_title")
+
+    @property
+    def displayed_title(self) -> str:
+        return self.title + " (" + self.state + ")"
+
+
+class ComputationQueueItem:
+    def __init__(self, computation: Computation, computation_min_period: float, computation_min_factor: float) -> None:
+        self.computation = computation
+        self.__computation_min_period = computation_min_period
+        self.__computation_min_factor = computation_min_factor
+        self.valid = True
+        self.__activity_lock = threading.RLock()
+        self.activity: typing.Optional[ComputationActivity] = ComputationActivity(computation)
+        self.compute_obj: typing.Optional[ComputationCommitterLike] = None
+        self.error_text: typing.Optional[str] = None
+        Activity.append_activity(self.activity)
+
+    def close(self) -> None:
+        if self.activity:
+            Activity.activity_finished(self.activity)
+            self.activity = None
+
+    def abort(self) -> None:
+        with self.__activity_lock:
+            if self.activity:
+                Activity.activity_finished(self.activity)
+                self.activity = None
+
+    def __release_activity(self) -> typing.Optional[Activity.Activity]:
+        with self.__activity_lock:
+            activity = self.activity
+            self.activity = None
+            if activity:
+                activity.state = "merging"
+            return activity
+
+    def recompute(self) -> typing.Optional[ComputationQueueItem]:
+        # evaluate the computation in a thread safe manner
+        # returns a list of functions that must be called on the main thread to finish the recompute action
+        # threadsafe
+        computation = self.computation
+        if computation and computation.needs_update:
+            if self.activity:
+                self.activity.state = "computing"
+            try:
+                api = PlugInManager.api_broker_fn("~1.0", None)
+                start_time = time.perf_counter()
+                self.compute_obj, self.error_text = computation.evaluate(api)
+                eval_time = time.perf_counter() - start_time
+                throttle_time = max(self.__computation_min_period - (time.perf_counter() - computation.last_evaluate_data_time), 0) if not self.error_text else 0.0
+                time.sleep(max(throttle_time, min(eval_time * self.__computation_min_factor, 1.0)))
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+            return self
+        with self.__activity_lock:
+            if self.activity:
+                Activity.activity_finished(self.activity)
+                self.activity = None
+        return None
+
+    def merge(self) -> None:
+        if self.computation.error_text != self.error_text:
+            self.computation.error_text = self.error_text
+        if self.valid and self.compute_obj and not self.error_text:
+            self.compute_obj.commit()
+
+
 # for computations
 
 _computation_types: typing.Dict[str, typing.Callable[[_APIComputation], ComputationHandlerLike]] = dict()
@@ -2100,3 +2186,12 @@ def xdata_expression(expression: str) -> str:
 
 def data_expression(expression: str) -> str:
     return "import numpy\nimport uuid\nfrom nion.data import xdata_1_0 as xd\ntarget.data = " + expression
+
+
+def evaluate_data(computation: Computation) -> DataAndMetadata.DataAndMetadata:
+    api = PlugInManager.api_broker_fn("~1.0", None)
+    compute_obj, error_text = computation.evaluate(api)
+    if compute_obj:
+        compute_obj.commit()
+    computation.error_text = error_text
+    return typing.cast(DataAndMetadata.DataAndMetadata, compute_obj._target_xdata if compute_obj else None)
