@@ -68,22 +68,28 @@ class Closeable(typing.Protocol):
 
 
 class ComputationMerge:
-    def __init__(self, computation: Symbolic.Computation, activity: typing.Optional[Activity.Activity], fn: typing.Optional[typing.Callable[[], None]] = None, closeables: typing.Optional[typing.List[Closeable]] = None) -> None:
+    def __init__(self,
+                 computation: Symbolic.Computation,
+                 activity: typing.Optional[Activity.Activity],
+                 q_item: ComputationQueueItem,
+                 compute_obj: typing.Optional[Symbolic.ComputationCommitterLike],
+                 error_text: typing.Optional[str]) -> None:
         self.computation = computation
-        self.fn = fn
-        self.closeables = closeables or list()
         self.activity = activity
+        self.q_item = q_item
+        self.compute_obj = compute_obj
+        self.error_text = error_text
 
     def close(self) -> None:
-        for closeable in self.closeables:
-            closeable.close()
         if self.activity:
             Activity.activity_finished(self.activity)
             self.activity = None
 
     def exec(self) -> None:
-        if callable(self.fn):
-            self.fn()
+        if self.computation.error_text != self.error_text:
+            self.computation.error_text = self.error_text
+        if self.q_item.valid and self.compute_obj and not self.error_text:
+            self.compute_obj.commit()
 
 
 class ComputationActivity(Activity.Activity):
@@ -134,77 +140,22 @@ class ComputationQueueItem:
         # returns a list of functions that must be called on the main thread to finish the recompute action
         # threadsafe
         pending_data_item_merge: typing.Optional[ComputationMerge] = None
-        data_item: typing.Optional[DataItem.DataItem] = None
         computation = self.computation
         if computation and computation.needs_update:
             if self.activity:
                 self.activity.state = "computing"
-            if computation.expression:
-                data_item = typing.cast(DataItem.DataItem, computation.get_output("target"))
             try:
                 api = PlugInManager.api_broker_fn("~1.0", None)
-                if not data_item:
-                    start_time = time.perf_counter()
-                    compute_obj, error_text = computation.evaluate(api)
-                    eval_time = time.perf_counter() - start_time
-                    if error_text and computation.error_text != error_text:
-                        def update_error_text(computation: Symbolic.Computation) -> None:
-                            computation.error_text = error_text
-
-                        pending_data_item_merge = ComputationMerge(computation, self.__release_activity(), functools.partial(update_error_text, computation))
-                    else:
-                        throttle_time = max(DocumentModel.computation_min_period - (time.perf_counter() - computation.last_evaluate_data_time), 0)
-                        time.sleep(max(throttle_time, min(eval_time * DocumentModel.computation_min_factor, 1.0)))
-                        if self.valid and compute_obj:  # TODO: race condition for 'valid'
-                            pending_data_item_merge = ComputationMerge(computation, self.__release_activity(), functools.partial(compute_obj.commit))
-                        else:
-                            pending_data_item_merge = ComputationMerge(computation, self.__release_activity())
-                else:
-                    start_time = time.perf_counter()
-
-                    class DataItemTarget:
-                        def __init__(self) -> None:
-                            self.__xdata: typing.Optional[DataAndMetadata._DataAndMetadataLike] = None
-                            self.data_modified = datetime.datetime.min
-
-                        @property
-                        def xdata(self) -> typing.Optional[DataAndMetadata._DataAndMetadataLike]:
-                            return self.__xdata
-
-                        @xdata.setter
-                        def xdata(self, value: typing.Optional[DataAndMetadata._DataAndMetadataLike]) -> None:
-                            self.__xdata = DataAndMetadata.promote_ndarray(value) if value is not None else None
-                            self.data_modified = DataItem.DataItem.utcnow()
-
-                        @property
-                        def data(self) -> DataAndMetadata._ImageDataType:
-                            return typing.cast(DataAndMetadata._ImageDataType, None)
-
-                        @data.setter
-                        def data(self, value: DataAndMetadata._ImageDataType) -> None:
-                            self.xdata = DataAndMetadata.new_data_and_metadata(value)
-
-                    data_item_target = DataItemTarget()
-                    data_item_data_modified = data_item.data_modified or datetime.datetime.min
-                    error_text = computation.evaluate_with_target(api, data_item_target)
-                    eval_time = time.perf_counter() - start_time
-                    throttle_time = max(DocumentModel.computation_min_period - (time.perf_counter() - computation.last_evaluate_data_time), 0)
-                    time.sleep(max(throttle_time, min(eval_time * DocumentModel.computation_min_factor, 1.0)))
-                    if self.valid:  # TODO: race condition for 'valid'
-                        def data_item_merge(computation: Symbolic.Computation, data_item: DataItem.DataItem, data_item_clone: DataItem.DataItem) -> None:
-                            # merge the result item clones back into the document. this method is guaranteed to run at
-                            # periodic and shouldn't do anything too time-consuming.
-                            data_item_clone_data_modified = data_item_clone.data_modified or datetime.datetime.min
-                            with data_item.data_item_changes(), data_item.data_source_changes():
-                                # note: use data_modified, but Windows doesn't have high enough time resolution
-                                # on fast machines, so ensure that any data_modified timestamp is created using
-                                # DataItem.utcnow() / Schema.utcnow().
-                                if data_item_clone_data_modified > data_item_data_modified:
-                                    data_item.set_xdata(data_item_clone.xdata)
-                                if computation.error_text != error_text:
-                                    computation.error_text = error_text
-
-                        pending_data_item_merge = ComputationMerge(computation, self.__release_activity(), functools.partial(data_item_merge, computation, data_item, data_item_target), [])
+                start_time = time.perf_counter()
+                compute_obj, error_text = computation.evaluate(api)
+                eval_time = time.perf_counter() - start_time
+                throttle_time = max(DocumentModel.computation_min_period - (time.perf_counter() - computation.last_evaluate_data_time), 0) if not error_text else 0.0
+                time.sleep(max(throttle_time, min(eval_time * DocumentModel.computation_min_factor, 1.0)))
+                pending_data_item_merge = ComputationMerge(computation,
+                                                           self.__release_activity(),
+                                                           self,
+                                                           compute_obj,
+                                                           error_text)
             except Exception as e:
                 import traceback
                 traceback.print_exc()
@@ -3163,16 +3114,8 @@ DocumentModel.register_processing_descriptions(DocumentModel._get_builtin_proces
 
 def evaluate_data(computation: Symbolic.Computation) -> DataAndMetadata.DataAndMetadata:
     api = PlugInManager.api_broker_fn("~1.0", None)
-    data_item = DataItem.new_data_item(None)
-    with contextlib.closing(data_item):
-        api_data_item = api._new_api_object(data_item)
-        if computation.expression:
-            error_text = computation.evaluate_with_target(api, api_data_item)
-            computation.error_text = error_text
-            return typing.cast(DataAndMetadata.DataAndMetadata, api_data_item.data_and_metadata)
-        else:
-            compute_obj, error_text = computation.evaluate(api)
-            if compute_obj:
-                compute_obj.commit()
-            computation.error_text = error_text
-            return typing.cast(DataAndMetadata.DataAndMetadata, computation.get_output("target").xdata)
+    compute_obj, error_text = computation.evaluate(api)
+    if compute_obj:
+        compute_obj.commit()
+    computation.error_text = error_text
+    return typing.cast(DataAndMetadata.DataAndMetadata, compute_obj._target_xdata if compute_obj else None)
