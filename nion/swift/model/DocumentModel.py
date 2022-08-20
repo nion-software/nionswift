@@ -10,7 +10,6 @@ import datetime
 import functools
 import gettext
 import threading
-import time
 import types
 import typing
 import uuid
@@ -18,7 +17,6 @@ import weakref
 
 # local libraries
 from nion.data import DataAndMetadata
-from nion.swift.model import Activity
 from nion.swift.model import Cache
 from nion.swift.model import Changes
 from nion.swift.model import Connection
@@ -29,7 +27,6 @@ from nion.swift.model import DataStructure
 from nion.swift.model import DisplayItem
 from nion.swift.model import Graphics
 from nion.swift.model import Observer
-from nion.swift.model import PlugInManager
 from nion.swift.model import Persistence
 from nion.swift.model import Processing
 from nion.swift.model import Project
@@ -65,106 +62,6 @@ def insert_item_order(uuid_order: typing.List[Persistence.PersistentObjectSpecif
 
 class Closeable(typing.Protocol):
     def close(self) -> None: ...
-
-
-class ComputationMerge:
-    def __init__(self,
-                 computation: Symbolic.Computation,
-                 activity: typing.Optional[Activity.Activity],
-                 q_item: ComputationQueueItem,
-                 compute_obj: typing.Optional[Symbolic.ComputationCommitterLike],
-                 error_text: typing.Optional[str]) -> None:
-        self.computation = computation
-        self.activity = activity
-        self.q_item = q_item
-        self.compute_obj = compute_obj
-        self.error_text = error_text
-
-    def close(self) -> None:
-        if self.activity:
-            Activity.activity_finished(self.activity)
-            self.activity = None
-
-    def exec(self) -> None:
-        if self.computation.error_text != self.error_text:
-            self.computation.error_text = self.error_text
-        if self.q_item.valid and self.compute_obj and not self.error_text:
-            self.compute_obj.commit()
-
-
-class ComputationActivity(Activity.Activity):
-    def __init__(self, computation: Symbolic.Computation) -> None:
-        super().__init__("computation", computation.label or computation.processing_id or str())
-        self.computation = computation
-        self.__state = "pending"
-
-    @property
-    def state(self) -> str:
-        return self.__state
-
-    @state.setter
-    def state(self, value: str) -> None:
-        self.__state = value
-        self.notify_property_changed("state")
-        self.notify_property_changed("displayed_title")
-
-    @property
-    def displayed_title(self) -> str:
-        return self.title + " (" + self.state + ")"
-
-
-class ComputationQueueItem:
-    def __init__(self, *, computation: Symbolic.Computation) -> None:
-        self.computation = computation
-        self.valid = True
-        self.__activity_lock = threading.RLock()
-        self.activity: typing.Optional[ComputationActivity] = ComputationActivity(computation)
-        Activity.append_activity(self.activity)
-
-    def abort(self) -> None:
-        with self.__activity_lock:
-            if self.activity:
-                Activity.activity_finished(self.activity)
-                self.activity = None
-
-    def __release_activity(self) -> typing.Optional[Activity.Activity]:
-        with self.__activity_lock:
-            activity = self.activity
-            self.activity = None
-            if activity:
-                activity.state = "merging"
-            return activity
-
-    def recompute(self) -> typing.Optional[ComputationMerge]:
-        # evaluate the computation in a thread safe manner
-        # returns a list of functions that must be called on the main thread to finish the recompute action
-        # threadsafe
-        pending_data_item_merge: typing.Optional[ComputationMerge] = None
-        computation = self.computation
-        if computation and computation.needs_update:
-            if self.activity:
-                self.activity.state = "computing"
-            try:
-                api = PlugInManager.api_broker_fn("~1.0", None)
-                start_time = time.perf_counter()
-                compute_obj, error_text = computation.evaluate(api)
-                eval_time = time.perf_counter() - start_time
-                throttle_time = max(DocumentModel.computation_min_period - (time.perf_counter() - computation.last_evaluate_data_time), 0) if not error_text else 0.0
-                time.sleep(max(throttle_time, min(eval_time * DocumentModel.computation_min_factor, 1.0)))
-                pending_data_item_merge = ComputationMerge(computation,
-                                                           self.__release_activity(),
-                                                           self,
-                                                           compute_obj,
-                                                           error_text)
-            except Exception as e:
-                import traceback
-                traceback.print_exc()
-                # computation.error_text = _("Unable to compute data")
-        with self.__activity_lock:
-            if self.activity:
-                Activity.activity_finished(self.activity)
-                self.activity = None
-        return pending_data_item_merge
 
 
 class Transaction:
@@ -718,8 +615,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.__computation_changed_delay_list: typing.Optional[typing.List[Symbolic.Computation]] = None
         self.__data_item_references: typing.Dict[str, DocumentModel.DataItemReference] = dict()
         self.__computation_queue_lock = threading.RLock()
-        self.__computation_pending_queue: typing.List[ComputationQueueItem] = list()
-        self.__computation_active_item: typing.Optional[ComputationQueueItem] = None
+        self.__computation_pending_queue: typing.List[Symbolic.ComputationQueueItem] = list()
+        self.__computation_active_item: typing.Optional[Symbolic.ComputationQueueItem] = None
         self.__data_items: typing.List[DataItem.DataItem] = list()
         self.__display_items: typing.List[DisplayItem.DisplayItem] = list()
         self.__data_structures: typing.List[DataStructure.DataStructure] = list()
@@ -738,7 +635,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.__pending_data_item_updates: typing.List[DataItem.DataItem] = list()
 
         self.__pending_data_item_merge_lock = threading.RLock()
-        self.__pending_data_item_merge: typing.Optional[ComputationMerge] = None
+        self.__pending_data_item_merge: typing.Optional[Symbolic.ComputationQueueItem] = None
         self.__current_computation: typing.Optional[Symbolic.Computation] = None
 
         self.__call_soon_queue: typing.List[typing.Callable[[], None]] = list()
@@ -1472,7 +1369,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             for computation_queue_item in self.__computation_pending_queue:
                 if computation and computation_queue_item.computation == computation:
                     return
-            computation_queue_item = ComputationQueueItem(computation=computation)
+            computation_queue_item = Symbolic.ComputationQueueItem(computation, DocumentModel.computation_min_period, DocumentModel.computation_min_factor)
             self.__computation_pending_queue.append(computation_queue_item)
         self.dispatch_task(self.__recompute)
 
@@ -1734,7 +1631,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             if computation_queue_item:
                 # an item was put into the active queue, so compute it, then merge
                 pending_data_item_merge = computation_queue_item.recompute()
-                if pending_data_item_merge is not None:
+                if pending_data_item_merge:
                     with self.__pending_data_item_merge_lock:
                         if self.__pending_data_item_merge:
                             self.__pending_data_item_merge.close()
@@ -1754,7 +1651,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             computation = pending_data_item_merge.computation
             self.__current_computation = computation
             try:
-                pending_data_item_merge.exec()
+                pending_data_item_merge.merge()
             finally:
                 self.__current_computation = None
                 with self.__computation_queue_lock:
@@ -3113,9 +3010,4 @@ DocumentModel.register_processing_descriptions(DocumentModel._get_builtin_proces
 
 
 def evaluate_data(computation: Symbolic.Computation) -> DataAndMetadata.DataAndMetadata:
-    api = PlugInManager.api_broker_fn("~1.0", None)
-    compute_obj, error_text = computation.evaluate(api)
-    if compute_obj:
-        compute_obj.commit()
-    computation.error_text = error_text
-    return typing.cast(DataAndMetadata.DataAndMetadata, compute_obj._target_xdata if compute_obj else None)
+    return Symbolic.evaluate_data(computation)
