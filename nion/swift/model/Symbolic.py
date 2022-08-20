@@ -12,6 +12,7 @@ from __future__ import annotations
 import ast
 import contextlib
 import copy
+import datetime
 import difflib
 import threading
 import time
@@ -41,6 +42,13 @@ _APIComputation = typing.Any
 class ComputationHandlerLike(typing.Protocol):
     def execute(self, **kwargs: typing.Any) -> None: ...
     def commit(self) -> None: ...
+
+
+class ComputationCommitterLike(typing.Protocol):
+    def commit(self) -> None: ...
+
+    @property
+    def _target_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]: raise NotImplementedError()
 
 
 def update_diff_notify(o: Observable.Observable, name: str, before_items: typing.List[Persistence.PersistentObject], after_items: typing.List[Persistence.PersistentObject]) -> None:
@@ -988,6 +996,7 @@ class BoundDataItem(BoundItemBase):
             self.__data_item_changed_event_listener = None
         self.__item_reference.on_item_registered = None
         self.__item_reference.on_item_unregistered = None
+        self.__item_reference = typing.cast(typing.Any, None)
         super().close()
 
     @property
@@ -1770,36 +1779,113 @@ class Computation(Persistence.PersistentObject):
             is_resolved = is_resolved and result.is_resolved
         return kwargs, is_resolved
 
-    def evaluate(self, api: typing.Any) -> typing.Tuple[typing.Optional[ComputationHandlerLike], typing.Optional[str]]:
-        compute_obj = None
-        error_text = None
-        needs_update = self.needs_update
-        self.needs_update = False
-        if needs_update:
-            kwargs, is_resolved = self.__resolve_inputs(api)
-            if is_resolved:
-                processing_id = self.processing_id
-                compute_class = _computation_types.get(processing_id) if processing_id else None
-                if compute_class:
-                    try:
-                        api_computation = api._new_api_object(self)
-                        api_computation.api = api
-                        compute_obj = compute_class(api_computation)
-                        compute_obj.execute(**kwargs)
-                    except Exception as e:
-                        # import sys, traceback
-                        # traceback.print_exc()
-                        # traceback.format_exception(*sys.exc_info())
+    def evaluate(self, api: typing.Any) -> typing.Tuple[typing.Optional[ComputationCommitterLike], typing.Optional[str]]:
+        if self.expression:
+
+            class DataItemProtocol(typing.Protocol):
+                data_modified: datetime.datetime
+
+                @property
+                def xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]: raise NotImplementedError()
+
+                @xdata.setter
+                def xdata(self, value: typing.Optional[DataAndMetadata._DataAndMetadataLike]) -> None: ...
+
+                @property
+                def data(self) -> DataAndMetadata._ImageDataType: raise NotImplementedError()
+
+                @data.setter
+                def data(self, value: DataAndMetadata._ImageDataType) -> None: ...
+
+            class DataItemTarget(DataItemProtocol):
+                def __init__(self) -> None:
+                    self.__xdata: typing.Optional[DataAndMetadata.DataAndMetadata] = None
+                    self.data_modified = datetime.datetime.min
+
+                @property
+                def xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+                    return self.__xdata
+
+                @xdata.setter
+                def xdata(self, value: typing.Optional[DataAndMetadata._DataAndMetadataLike]) -> None:
+                    self.__xdata = DataAndMetadata.promote_ndarray(value) if value is not None else None
+                    self.data_modified = DataItem.DataItem.utcnow()
+
+                @property
+                def data(self) -> DataAndMetadata._ImageDataType:
+                    return typing.cast(DataAndMetadata._ImageDataType, None)
+
+                @data.setter
+                def data(self, value: DataAndMetadata._ImageDataType) -> None:
+                    self.xdata = DataAndMetadata.new_data_and_metadata(value)
+
+            data_item = typing.cast(DataItem.DataItem, self.get_output("target"))
+            data_item_created = False
+            if not data_item:
+                data_item = DataItem.new_data_item(None)
+                data_item_created = True
+
+            data_item_target = DataItemTarget()
+            data_item_data_modified = data_item.data_modified or datetime.datetime.min
+            error_text = self.evaluate_with_target(api, data_item_target)
+
+            class ComputeObject(ComputationCommitterLike):
+                def __init__(self, data_item: DataItem.DataItem, data_item_clone: DataItemProtocol, do_close_data_item: bool) -> None:
+                    self.__data_item = data_item
+                    self.__data_item_clone = data_item_clone
+                    self.__do_close_data_item = do_close_data_item
+                    self.__xdata: typing.Optional[DataAndMetadata.DataAndMetadata] = None
+
+                def commit(self) -> None:
+                    # merge the result item clones back into the document. this method is guaranteed to run at
+                    # periodic and shouldn't do anything too time-consuming.
+                    data_item_clone_data_modified = self.__data_item_clone.data_modified or datetime.datetime.min
+                    with self.__data_item.data_item_changes(), self.__data_item.data_source_changes():
+                        # note: use data_modified, but Windows doesn't have high enough time resolution
+                        # on fast machines, so ensure that any data_modified timestamp is created using
+                        # DataItem.utcnow() / Schema.utcnow().
+                        if data_item_clone_data_modified > data_item_data_modified:
+                            self.__data_item.set_xdata(self.__data_item_clone.xdata)
+                    if self.__do_close_data_item:
+                        self.__xdata = self.__data_item.xdata
+                        self.__data_item.close()
+                        self.__data_item = typing.cast(typing.Any, None)
+
+                @property
+                def _target_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+                    return self.__data_item.xdata if self.__data_item else self.__xdata
+
+            return ComputeObject(data_item, data_item_target, data_item_created), error_text
+        else:
+            compute_obj: typing.Optional[ComputationHandlerLike] = None
+            error_text = None
+            needs_update = self.needs_update
+            self.needs_update = False
+            if needs_update:
+                kwargs, is_resolved = self.__resolve_inputs(api)
+                if is_resolved:
+                    processing_id = self.processing_id
+                    compute_class = _computation_types.get(processing_id) if processing_id else None
+                    if compute_class:
+                        try:
+                            api_computation = api._new_api_object(self)
+                            api_computation.api = api
+                            compute_obj = compute_class(api_computation)
+                            compute_obj.execute(**kwargs)
+                        except Exception as e:
+                            # import sys, traceback
+                            # traceback.print_exc()
+                            # traceback.format_exception(*sys.exc_info())
+                            compute_obj = None
+                            error_text = str(e) or "Unable to evaluate script."  # a stack trace would be too much information right now
+                    else:
                         compute_obj = None
-                        error_text = str(e) or "Unable to evaluate script."  # a stack trace would be too much information right now
+                        error_text = "Missing computation (" + (self.processing_id or "unknown") + ")."
                 else:
-                    compute_obj = None
-                    error_text = "Missing computation (" + (self.processing_id or "unknown") + ")."
-            else:
-                error_text = "Missing parameters."
-            self._evaluation_count_for_test += 1
-            self.last_evaluate_data_time = time.perf_counter()
-        return compute_obj, error_text
+                    error_text = "Missing parameters."
+                self._evaluation_count_for_test += 1
+                self.last_evaluate_data_time = time.perf_counter()
+            return typing.cast(ComputationCommitterLike, compute_obj), error_text
 
     def evaluate_with_target(self, api: typing.Any, target: typing.Any) -> typing.Optional[str]:
         assert target is not None
