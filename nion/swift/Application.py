@@ -42,6 +42,7 @@ from nion.swift.model import DocumentModel
 from nion.swift.model import FileStorageSystem
 from nion.swift.model import PlugInManager
 from nion.swift.model import Profile
+from nion.swift.model import Symbolic
 from nion.ui import Application as UIApplication
 from nion.ui import CanvasItem
 from nion.ui import Declarative
@@ -98,8 +99,8 @@ class Application(UIApplication.BaseApplication):
         self.__class__.count += 1
 
         # reset these values for tests. otherwise tests run slower after app.start is called in any previous test.
-        DocumentModel.DocumentModel.computation_min_period = 0.0
-        DocumentModel.DocumentModel.computation_min_factor = 0.0
+        Symbolic.computation_min_period = 0.0
+        Symbolic.computation_min_factor = 0.0
 
         logging.getLogger("migration").setLevel(logging.ERROR)
         logging.getLogger("loader").setLevel(logging.ERROR)
@@ -247,8 +248,8 @@ class Application(UIApplication.BaseApplication):
             self.__profile.script_items_updated = True
 
         # configure the document model object.
-        DocumentModel.DocumentModel.computation_min_period = 0.1
-        DocumentModel.DocumentModel.computation_min_factor = 1.0
+        Symbolic.computation_min_period = 0.1
+        Symbolic.computation_min_factor = 1.0
 
         # if it was created, it probably means it is migrating from an old version. so add all recent projects.
         # they will initially be disabled and the user will have to explicitly upgrade them.

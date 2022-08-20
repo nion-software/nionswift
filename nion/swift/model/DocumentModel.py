@@ -565,9 +565,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
     """
     count = 0  # useful for detecting leaks in tests
 
-    computation_min_period = 0.0
-    computation_min_factor = 0.0
-
     def __init__(self, project: Project.Project, *, storage_cache: typing.Optional[Cache.CacheLike] = None) -> None:
         super().__init__()
         self.__class__.count += 1
@@ -614,9 +611,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.__computation_output_changed_listeners: typing.Dict[Symbolic.Computation, Event.EventListener] = dict()
         self.__computation_changed_delay_list: typing.Optional[typing.List[Symbolic.Computation]] = None
         self.__data_item_references: typing.Dict[str, DocumentModel.DataItemReference] = dict()
-        self.__computation_queue_lock = threading.RLock()
-        self.__computation_pending_queue: typing.List[Symbolic.ComputationQueueItem] = list()
-        self.__computation_active_item: typing.Optional[Symbolic.ComputationQueueItem] = None
         self.__data_items: typing.List[DataItem.DataItem] = list()
         self.__display_items: typing.List[DisplayItem.DisplayItem] = list()
         self.__data_structures: typing.List[DataStructure.DataStructure] = list()
@@ -634,8 +628,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.__pending_data_item_updates_lock = threading.RLock()
         self.__pending_data_item_updates: typing.List[DataItem.DataItem] = list()
 
-        self.__pending_data_item_merge_lock = threading.RLock()
-        self.__pending_data_item_merge: typing.Optional[Symbolic.ComputationQueueItem] = None
+        self.__computation_queue_lock = threading.RLock()
+        self.__computation_queue: typing.List[Symbolic.Computation] = list()
+        self.__pending_computation_lock = threading.RLock()
+        self.__pending_computation: typing.Optional[Symbolic.Computation] = None
         self.__current_computation: typing.Optional[Symbolic.Computation] = None
 
         self.__call_soon_queue: typing.List[typing.Callable[[], None]] = list()
@@ -712,15 +708,11 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
         # stop computations
         with self.__computation_queue_lock:
-            self.__computation_pending_queue.clear()
-            if self.__computation_active_item:
-                self.__computation_active_item.valid = False
-                self.__computation_active_item = None
-
-        with self.__pending_data_item_merge_lock:
-            if self.__pending_data_item_merge:
-                self.__pending_data_item_merge.close()
-            self.__pending_data_item_merge = None
+            self.__computation_queue.clear()
+        with self.__pending_computation_lock:
+            if self.__pending_computation:
+                self.__pending_computation.abort_pending()
+            self.__pending_computation = None
 
         # r_vars
         MappedItemManager().unregister_document(self)
@@ -920,17 +912,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
     def __handle_data_item_removed(self, data_item: DataItem.DataItem) -> None:
         self.__transaction_manager._remove_item(data_item)
-        library_computation = self.get_data_item_computation(data_item)
-        with self.__computation_queue_lock:
-            computation_pending_queue = self.__computation_pending_queue
-            self.__computation_pending_queue = list()
-            for computation_queue_item in computation_pending_queue:
-                if not computation_queue_item.computation is library_computation:
-                    self.__computation_pending_queue.append(computation_queue_item)
-                else:
-                    computation_queue_item.abort()
-            if self.__computation_active_item and library_computation is self.__computation_active_item.computation:
-                self.__computation_active_item.valid = False
+        computation = self.get_data_item_computation(data_item)
+        if computation:
+            self.__remove_computation_from_queue(computation)
         with self.__pending_data_item_updates_lock:
             if data_item in self.__pending_data_item_updates:
                 self.__pending_data_item_updates.remove(data_item)
@@ -1366,11 +1350,11 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         # item is not already in the queue, it adds it and ensures the dispatch thread eventually
         # executes the computation.
         with self.__computation_queue_lock:
-            for computation_queue_item in self.__computation_pending_queue:
-                if computation and computation_queue_item.computation == computation:
+            for computation_queue_item in self.__computation_queue:
+                if computation and computation_queue_item == computation:
                     return
-            computation_queue_item = Symbolic.ComputationQueueItem(computation, DocumentModel.computation_min_period, DocumentModel.computation_min_factor)
-            self.__computation_pending_queue.append(computation_queue_item)
+            computation.become_pending()
+            self.__computation_queue.append(computation)
         self.dispatch_task(self.__recompute)
 
     def __establish_computation_dependencies(self, old_inputs: typing.Set[Persistence.PersistentObject], new_inputs: typing.Set[Persistence.PersistentObject], old_outputs: typing.Set[Persistence.PersistentObject], new_outputs: typing.Set[Persistence.PersistentObject]) -> None:
@@ -1610,9 +1594,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         while True:
             self.__computation_thread_pool.run_all()
             if merge:
-                self.perform_data_item_merge()
+                self.commit_pending_computation()
                 with self.__computation_queue_lock:
-                    if not (self.__computation_pending_queue or self.__computation_active_item or self.__pending_data_item_merge):
+                    if not (self.__computation_queue or self.__pending_computation):
                         break
             else:
                 break
@@ -1621,43 +1605,38 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.__computation_thread_pool.start(1)
 
     def __recompute(self) -> None:
+        # this runs on a thread
         while True:
             computation_queue_item = None
             with self.__computation_queue_lock:
-                if not self.__computation_active_item and self.__computation_pending_queue:
-                    computation_queue_item = self.__computation_pending_queue.pop(0)
-                    self.__computation_active_item = computation_queue_item
+                if not self.__pending_computation and self.__computation_queue:
+                    computation_queue_item = self.__computation_queue.pop(0)
 
             if computation_queue_item:
                 # an item was put into the active queue, so compute it, then merge
-                pending_data_item_merge = computation_queue_item.recompute()
-                if pending_data_item_merge:
-                    with self.__pending_data_item_merge_lock:
-                        if self.__pending_data_item_merge:
-                            self.__pending_data_item_merge.close()
-                        self.__pending_data_item_merge = pending_data_item_merge
-                    self.__call_soon(self.perform_data_item_merge)
-                else:
-                    with self.__computation_queue_lock:
-                        self.__computation_active_item = None
+                pending_computation = computation_queue_item.recompute()
+                if pending_computation:
+                    with self.__pending_computation_lock:
+                        if self.__pending_computation:
+                            self.__pending_computation.abort_pending()
+                        self.__pending_computation = pending_computation
+                    self.__call_soon(self.commit_pending_computation)
             else:
                 break
 
-    def perform_data_item_merge(self) -> None:
-        with self.__pending_data_item_merge_lock:
-            pending_data_item_merge = self.__pending_data_item_merge
-            self.__pending_data_item_merge = None
-        if pending_data_item_merge:
-            computation = pending_data_item_merge.computation
-            self.__current_computation = computation
+    def commit_pending_computation(self) -> None:
+        with self.__pending_computation_lock:
+            pending_computation = self.__pending_computation
+            self.__pending_computation = None
+        if pending_computation:
+            self.__current_computation = pending_computation
             try:
-                pending_data_item_merge.merge()
+                # a commit may result in deleting the computation being committed.
+                # the current_computation is used to avoid that situation.
+                pending_computation.commit_pending()
             finally:
                 self.__current_computation = None
-                with self.__computation_queue_lock:
-                    self.__computation_active_item = None
-                computation.is_initial_computation_complete.set()
-                pending_data_item_merge.close()
+                pending_computation.is_initial_computation_complete.set()
         self.dispatch_task(self.__recompute)
 
     async def compute_immediate(self, event_loop: asyncio.AbstractEventLoop, computation: Symbolic.Computation, timeout: typing.Optional[float] = None) -> None:
@@ -2099,20 +2078,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.notify_insert_item("computations", computation, before_index)
 
     def __handle_computation_removed(self, computation: Symbolic.Computation) -> None:
-        # remove it from the persistent_storage
-        assert computation is not None
-        assert computation in self.__computations
         # remove it from any computation queues
-        with self.__computation_queue_lock:
-            computation_pending_queue = self.__computation_pending_queue
-            self.__computation_pending_queue = list()
-            for computation_queue_item in computation_pending_queue:
-                if not computation_queue_item.computation is computation:
-                    self.__computation_pending_queue.append(computation_queue_item)
-                else:
-                    computation_queue_item.abort()
-            if self.__computation_active_item and computation is self.__computation_active_item.computation:
-                self.__computation_active_item.valid = False
+        self.__remove_computation_from_queue(computation)
         computation_changed_listener = self.__computation_changed_listeners.pop(computation, None)
         if computation_changed_listener: computation_changed_listener.close()
         computation_output_changed_listener = self.__computation_output_changed_listeners.pop(computation, None)
@@ -2123,13 +2090,26 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         # remove from internal list
         self.__computations.remove(computation)
 
+    def __remove_computation_from_queue(self, computation: Symbolic.Computation) -> None:
+        with self.__computation_queue_lock:
+            computation_pending_queue = self.__computation_queue
+            self.__computation_queue = list()
+            for computation_queue_item in computation_pending_queue:
+                if not computation_queue_item is computation:
+                    self.__computation_queue.append(computation_queue_item)
+                else:
+                    computation_queue_item.abort_pending()
+            pending_data_item_merge = self.__pending_computation  # use variable to avoid race condition
+            if pending_data_item_merge and computation is pending_data_item_merge:
+                pending_data_item_merge.abort_pending()
+
     def __computation_changed(self, computation: Symbolic.Computation) -> None:
         # when the computation is mutated, this function is called. it calls the handle computation
         # changed or mutated method to resolve computation variables and update dependencies between
         # library objects. it also fires the computation_updated_event to allow the user interface
         # to update.
         # during updating of dependencies, this HUGE hack is in place to delay the computation changed
-        # messages until ALL of the dependencies are updated so as to avoid the computation changed message
+        # messages until ALL the dependencies are updated to avoid the computation changed message
         # reestablishing dependencies during the updating of them. UGH. planning a better way...
         if self.__computation_changed_delay_list is not None:
             if computation not in self.__computation_changed_delay_list:
