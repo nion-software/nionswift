@@ -37,6 +37,9 @@ from nion.utils import Observable
 if typing.TYPE_CHECKING:
     from nion.swift.model import Project
 
+computation_min_period = 0.0
+computation_min_factor = 0.0
+
 
 _APIComputation = typing.Any
 
@@ -1440,6 +1443,11 @@ class Computation(Persistence.PersistentObject):
         self._inputs: typing.Set[Persistence.PersistentObject] = set()  # used by document model for tracking dependencies
         self._outputs: typing.Set[Persistence.PersistentObject] = set()
         self.pending_project: typing.Optional[Project.Project] = None  # used for new computations to tell them where they'll end up
+        self._activity_lock = threading.RLock()
+        self._activity: typing.Optional[ComputationActivity] = None
+        self._do_commit = True
+        self._compute_obj: typing.Optional[ComputationCommitterLike] = None
+        self._pending_error_text: typing.Optional[str] = None
 
     @property
     def variables(self) -> typing.Sequence[ComputationVariable]:
@@ -1839,7 +1847,7 @@ class Computation(Persistence.PersistentObject):
                     self.__xdata: typing.Optional[DataAndMetadata.DataAndMetadata] = None
 
                 def commit(self) -> None:
-                    # merge the result item clones back into the document. this method is guaranteed to run at
+                    # commit the result item clones back into the document. this method is guaranteed to run at
                     # periodic and shouldn't do anything too time-consuming.
                     data_item_clone_data_modified = self.__data_item_clone.data_modified or datetime.datetime.min
                     with self.__data_item.data_item_changes(), self.__data_item.data_source_changes():
@@ -1895,21 +1903,10 @@ class Computation(Persistence.PersistentObject):
         needs_update = self.needs_update
         self.needs_update = False
         if needs_update:
-            variables = dict()
-            for variable in self.variables:
-                bound_object = variable.bound_item
-                if bound_object is not None:
-                    resolved_object = bound_object.value if bound_object else None
-                    # in the ideal world, we could clone the object/data and computations would not be
-                    # able to modify the input objects; reality, though, dictates that performance is
-                    # more important than this protection. so use the resolved object directly.
-                    api_object = api._new_api_object(resolved_object) if resolved_object else None
-                    variables[variable.name] = api_object if api_object else resolved_object  # use api only if resolved_object is an api style object
-
+            variables, is_resolved = self.__resolve_inputs(api)
             expression = self.original_expression
             if expression:
                 error_text = self.__execute_code(api, expression, target, variables)
-
             self._evaluation_count_for_test += 1
             self.last_evaluate_data_time = time.perf_counter()
         return error_text
@@ -2084,6 +2081,56 @@ class Computation(Persistence.PersistentObject):
     def reset(self) -> None:
         self.needs_update = False
 
+    def become_pending(self) -> None:
+        if self._activity:
+            self._activity.state = self._activity.state + ", pending"
+        else:
+            self._activity = ComputationActivity(self)
+            Activity.append_activity(self._activity)
+
+    def abort_pending(self) -> None:
+        with self._activity_lock:
+            if self._activity:
+                Activity.activity_finished(self._activity)
+                self._activity = None
+        self._do_commit = False
+
+    def recompute(self) -> typing.Optional[Computation]:
+        # evaluate the computation in a thread safe manner
+        # returns a list of functions that must be called on the main thread to finish the recompute action
+        # threadsafe
+        if self.needs_update:
+            if self._activity:
+                self._activity.state = "computing"
+            try:
+                api = PlugInManager.api_broker_fn("~1.0", None)
+                start_time = time.perf_counter()
+                self._compute_obj, self._pending_error_text = self.evaluate(api)
+                self._do_commit = True
+                eval_time = time.perf_counter() - start_time
+                throttle_time = max(computation_min_period - (time.perf_counter() - self.last_evaluate_data_time), 0) if not self._pending_error_text else 0.0
+                time.sleep(max(throttle_time, min(eval_time * computation_min_factor, 1.0)))
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+            return self
+        with self._activity_lock:
+            if self._activity:
+                Activity.activity_finished(self._activity)
+                self._activity = None
+        return None
+
+    def commit_pending(self) -> None:
+        try:
+            if self.error_text != self._pending_error_text:
+                self.error_text = self._pending_error_text
+            if self._do_commit and self._compute_obj and not self._pending_error_text:
+                self._compute_obj.commit()
+        finally:
+            if self._activity:
+                Activity.activity_finished(self._activity)
+                self._activity = None
+
 
 class ComputationActivity(Activity.Activity):
     def __init__(self, computation: Computation) -> None:
@@ -2104,69 +2151,6 @@ class ComputationActivity(Activity.Activity):
     @property
     def displayed_title(self) -> str:
         return self.title + " (" + self.state + ")"
-
-
-class ComputationQueueItem:
-    def __init__(self, computation: Computation, computation_min_period: float, computation_min_factor: float) -> None:
-        self.computation = computation
-        self.__computation_min_period = computation_min_period
-        self.__computation_min_factor = computation_min_factor
-        self.valid = True
-        self.__activity_lock = threading.RLock()
-        self.activity: typing.Optional[ComputationActivity] = ComputationActivity(computation)
-        self.compute_obj: typing.Optional[ComputationCommitterLike] = None
-        self.error_text: typing.Optional[str] = None
-        Activity.append_activity(self.activity)
-
-    def close(self) -> None:
-        if self.activity:
-            Activity.activity_finished(self.activity)
-            self.activity = None
-
-    def abort(self) -> None:
-        with self.__activity_lock:
-            if self.activity:
-                Activity.activity_finished(self.activity)
-                self.activity = None
-
-    def __release_activity(self) -> typing.Optional[Activity.Activity]:
-        with self.__activity_lock:
-            activity = self.activity
-            self.activity = None
-            if activity:
-                activity.state = "merging"
-            return activity
-
-    def recompute(self) -> typing.Optional[ComputationQueueItem]:
-        # evaluate the computation in a thread safe manner
-        # returns a list of functions that must be called on the main thread to finish the recompute action
-        # threadsafe
-        computation = self.computation
-        if computation and computation.needs_update:
-            if self.activity:
-                self.activity.state = "computing"
-            try:
-                api = PlugInManager.api_broker_fn("~1.0", None)
-                start_time = time.perf_counter()
-                self.compute_obj, self.error_text = computation.evaluate(api)
-                eval_time = time.perf_counter() - start_time
-                throttle_time = max(self.__computation_min_period - (time.perf_counter() - computation.last_evaluate_data_time), 0) if not self.error_text else 0.0
-                time.sleep(max(throttle_time, min(eval_time * self.__computation_min_factor, 1.0)))
-            except Exception as e:
-                import traceback
-                traceback.print_exc()
-            return self
-        with self.__activity_lock:
-            if self.activity:
-                Activity.activity_finished(self.activity)
-                self.activity = None
-        return None
-
-    def merge(self) -> None:
-        if self.computation.error_text != self.error_text:
-            self.computation.error_text = self.error_text
-        if self.valid and self.compute_obj and not self.error_text:
-            self.compute_obj.commit()
 
 
 # for computations
