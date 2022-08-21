@@ -14,6 +14,7 @@ import contextlib
 import copy
 import datetime
 import difflib
+import gettext
 import threading
 import time
 import typing
@@ -42,6 +43,8 @@ computation_min_factor = 0.0
 
 
 _APIComputation = typing.Any
+
+_ = gettext.gettext
 
 
 def update_diff_notify(o: Observable.Observable, name: str, before_items: typing.List[Persistence.PersistentObject], after_items: typing.List[Persistence.PersistentObject]) -> None:
@@ -1433,9 +1436,7 @@ class Computation(Persistence.PersistentObject):
         self.pending_project: typing.Optional[Project.Project] = None  # used for new computations to tell them where they'll end up
         self._activity_lock = threading.RLock()
         self._activity: typing.Optional[ComputationActivity] = None
-        self._do_commit = True
-        self._compute_obj: typing.Optional[ComputeObject] = None
-        self._pending_error_text: typing.Optional[str] = None
+        self._executor: typing.Optional[ComputationExecutor] = None
 
     @property
     def variables(self) -> typing.Sequence[ComputationVariable]:
@@ -1777,55 +1778,26 @@ class Computation(Persistence.PersistentObject):
             is_resolved = is_resolved and result.is_resolved
         return kwargs, is_resolved
 
-    class ComputationExec:
-        def __init__(self) -> None:
-            self.compute_obj: typing.Optional[ComputeObject] = None
-            self.error_string: typing.Optional[str] = None
-
-        def commit(self) -> None:
-            if self.compute_obj:
-                self.compute_obj.commit()
-
-        @property
-        def _target_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
-            return self.compute_obj._target_xdata if self.compute_obj else None
-
-    def evaluate(self, api: typing.Any) -> typing.Tuple[typing.Optional[ComputeObject], typing.Optional[str]]:
-        compute_obj: typing.Optional[ComputeObject] = None
-        error_text = None
+    def evaluate(self, api: typing.Any) -> typing.Optional[ComputationExecutor]:
+        executor: typing.Optional[ComputationExecutor] = None
         needs_update = self.needs_update
         self.needs_update = False
         if needs_update:
+            if self.expression:
+                data_item = typing.cast(typing.Optional[DataItem.DataItem], self.get_output("target"))
+                executor = ScriptExpressionComputationExecutor(api, self.expression, data_item)
+            else:
+                api_computation = api._new_api_object(self)
+                api_computation.api = api
+                executor = RegisteredComputationExecutor(api_computation, self.processing_id)
             kwargs, is_resolved = self.__resolve_inputs(api)
             if is_resolved:
-                try:
-                    api_computation = api._new_api_object(self)
-                    api_computation.api = api
-                    if self.expression:
-                        data_item = typing.cast(typing.Optional[DataItem.DataItem], self.get_output("target"))
-                        compute_obj = ScriptExpressionComputeObject(api, self.expression, data_item)
-                    else:
-                        processing_id = self.processing_id
-                        compute_class = _computation_types.get(processing_id) if processing_id else None
-                        if compute_class:
-                            compute_obj = RegisteredComputeObject(compute_class(api_computation))
-                    if compute_obj:
-                        compute_obj.execute(**kwargs)
-                    else:
-                        error_text = "Missing computation (" + (self.processing_id or "unknown") + ")."
-                except Exception as e:
-                    # import sys, traceback
-                    # traceback.print_exc()
-                    # traceback.format_exception(*sys.exc_info())
-                    if compute_obj:
-                        compute_obj.close()
-                        compute_obj = None
-                    error_text = str(e) or "Unable to evaluate script."  # a stack trace would be too much information right now
+                executor.execute(**kwargs)
             else:
-                error_text = "Missing parameters."
+                executor.error_text = _("Missing parameters.")
             self._evaluation_count_for_test += 1
             self.last_evaluate_data_time = time.perf_counter()
-        return compute_obj, error_text
+        return executor
 
     @property
     def is_resolved(self) -> bool:
@@ -1989,7 +1961,8 @@ class Computation(Persistence.PersistentObject):
             if self._activity:
                 Activity.activity_finished(self._activity)
                 self._activity = None
-        self._do_commit = False
+        if self._executor:
+            self._executor.abort()
 
     def recompute(self) -> typing.Optional[Computation]:
         # evaluate the computation in a thread safe manner
@@ -2000,12 +1973,10 @@ class Computation(Persistence.PersistentObject):
                 self._activity.state = "computing"
             try:
                 api = PlugInManager.api_broker_fn("~1.0", None)
-                start_time = time.perf_counter()
-                self._compute_obj, self._pending_error_text = self.evaluate(api)
-                self._do_commit = True
-                eval_time = time.perf_counter() - start_time
-                throttle_time = max(computation_min_period - (time.perf_counter() - self.last_evaluate_data_time), 0) if not self._pending_error_text else 0.0
-                time.sleep(max(throttle_time, min(eval_time * computation_min_factor, 1.0)))
+                self._executor = self.evaluate(api)
+                if self._executor:
+                    throttle_time = max(computation_min_period - (time.perf_counter() - self.last_evaluate_data_time), 0) if not self._executor.error_text else 0.0
+                    time.sleep(max(throttle_time, min(self._executor.last_execution_time * computation_min_factor, 1.0)))
             except Exception as e:
                 import traceback
                 traceback.print_exc()
@@ -2018,26 +1989,60 @@ class Computation(Persistence.PersistentObject):
 
     def commit_pending(self) -> None:
         try:
-            if self.error_text != self._pending_error_text:
-                self.error_text = self._pending_error_text
-            if self._do_commit and self._compute_obj and not self._pending_error_text:
-                self._compute_obj.commit()
+            if self._executor:
+                self._executor.commit()
+                if self.error_text != self._executor.error_text:
+                    self.error_text = self._executor.error_text
         finally:
             if self._activity:
                 Activity.activity_finished(self._activity)
                 self._activity = None
 
 
-class ComputeObject(typing.Protocol):
-    def close(self) -> None: ...
-    def execute(self, **kwargs: typing.Any) -> None: ...
-    def commit(self) -> None: ...
+class ComputationExecutor:
+
+    def __init__(self) -> None:
+        self.error_text: typing.Optional[str] = None
+        self.__last_execution_time: float = 0.0
+        self.__aborted = False
+
+    def close(self) -> None:
+        pass
+
+    def _execute(self, **kwargs: typing.Any) -> None: raise NotImplementedError()
+
+    def _commit(self) -> None: raise NotImplementedError()
+
+    def execute(self, **kwargs: typing.Any) -> None:
+        try:
+            start_time = time.perf_counter()
+            self._execute(**kwargs)
+            self.__last_execution_time = time.perf_counter() - start_time
+        except Exception as e:
+            # import sys, traceback
+            # traceback.print_exc()
+            # traceback.format_exception(*sys.exc_info())
+            self.__last_execution_time = 0.0
+            self.error_text = str(e) or "Unable to evaluate script."  # a stack trace would be too much information right now
+
+    def commit(self) -> None:
+        if not self.error_text and not self.__aborted:
+            self._commit()
+
+    def abort(self) -> None:
+        self.__aborted = True
 
     @property
-    def _target_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]: raise NotImplementedError()
+    def last_execution_time(self) -> float:
+        return self.__last_execution_time
+
+    @property
+    def _target_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+        return None
 
 
-class ScriptExpressionComputeObject(ComputeObject):
+class ScriptExpressionComputationExecutor(ComputationExecutor):
+
     class DataItemTarget:
         def __init__(self) -> None:
             self.__xdata: typing.Optional[DataAndMetadata.DataAndMetadata] = None
@@ -2060,7 +2065,8 @@ class ScriptExpressionComputeObject(ComputeObject):
         def data(self, value: DataAndMetadata._ImageDataType) -> None:
             self.xdata = DataAndMetadata.new_data_and_metadata(value)
 
-    def __init__(self, api: typing.Any, expression: str, data_item: typing.Optional[DataItem.DataItem]) -> None:
+    def __init__(self, api: typing.Any, expression: str, data_item: typing.Optional[DataItem.DataItem], **kwargs: typing.Any) -> None:
+        super().__init__()
         self.__api = api
         self.__expression = expression
         self.__data_item = data_item or DataItem.new_data_item(None)
@@ -2068,7 +2074,7 @@ class ScriptExpressionComputeObject(ComputeObject):
         self.__data_item_created = False
         if not data_item:
             self.__data_item_created = True
-        self.__data_item_target = ScriptExpressionComputeObject.DataItemTarget()
+        self.__data_item_target = ScriptExpressionComputationExecutor.DataItemTarget()
         self.__data_item_data_modified = self.__data_item.data_modified or datetime.datetime.min
 
     def close(self) -> None:
@@ -2077,7 +2083,7 @@ class ScriptExpressionComputeObject(ComputeObject):
             self.__data_item = typing.cast(typing.Any, None)
             self.__data_item_created = False
 
-    def execute(self, **kwargs: typing.Any) -> None:
+    def _execute(self, **kwargs: typing.Any) -> None:
         assert self.__data_item_target is not None
         if self.__expression:
             code_lines = []
@@ -2091,7 +2097,7 @@ class ScriptExpressionComputeObject(ComputeObject):
             compiled = compile(code, "expr", "exec")
             exec(compiled, g, l)
 
-    def commit(self) -> None:
+    def _commit(self) -> None:
         # commit the result item clones back into the document. this method is guaranteed to run at
         # periodic and shouldn't do anything too time-consuming.
         data_item_clone_data_modified = self.__data_item_target.data_modified or datetime.datetime.min
@@ -2110,6 +2116,23 @@ class ScriptExpressionComputeObject(ComputeObject):
     @property
     def _target_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
         return self.__data_item.xdata if self.__data_item else self.__xdata
+
+
+class RegisteredComputationExecutor(ComputationExecutor):
+    def __init__(self, api_computation: typing.Any, processing_id: typing.Optional[str]) -> None:
+        super().__init__()
+        compute_class = _computation_types.get(processing_id) if processing_id else None
+        self.__computation_handler = compute_class(api_computation) if compute_class else None
+        if not self.__computation_handler:
+            self.error_text = "Missing computation (" + (processing_id or "unknown") + ")."
+
+    def _execute(self, **kwargs: typing.Any) -> None:
+        if self.__computation_handler:
+            self.__computation_handler.execute(**kwargs)
+
+    def _commit(self) -> None:
+        if self.__computation_handler:
+            self.__computation_handler.commit()
 
 
 class ComputationActivity(Activity.Activity):
@@ -2131,21 +2154,6 @@ class ComputationActivity(Activity.Activity):
     @property
     def displayed_title(self) -> str:
         return self.title + " (" + self.state + ")"
-
-
-class RegisteredComputeObject(ComputeObject):
-
-    def __init__(self, computation_handler: ComputationHandlerLike) -> None:
-        self.__computation_handler = computation_handler
-
-    def close(self) -> None:
-        pass
-
-    def execute(self, **kwargs: typing.Any) -> None:
-        self.__computation_handler.execute(**kwargs)
-
-    def commit(self) -> None:
-        self.__computation_handler.commit()
 
 
 # for computations
@@ -2172,8 +2180,9 @@ def data_expression(expression: str) -> str:
 
 def evaluate_data(computation: Computation) -> DataAndMetadata.DataAndMetadata:
     api = PlugInManager.api_broker_fn("~1.0", None)
-    compute_obj, error_text = computation.evaluate(api)
-    if compute_obj:
-        compute_obj.commit()
-    computation.error_text = error_text
-    return typing.cast(DataAndMetadata.DataAndMetadata, compute_obj._target_xdata if compute_obj else None)
+    computation_executor = computation.evaluate(api)
+    if computation_executor:
+        computation_executor.commit()
+        computation_executor.close()
+        computation.error_text = computation_executor.error_text
+    return typing.cast(DataAndMetadata.DataAndMetadata, computation_executor._target_xdata if computation_executor else None)
