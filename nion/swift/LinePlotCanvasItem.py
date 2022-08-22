@@ -426,7 +426,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         if len(intervals) > 0:
             left = intervals[0][0]
             right = intervals[0][1]
-            for interval in intervals:
+            for interval in intervals[1:]:
                 left = min(interval[0], left)
                 right = max(interval[1], right)
         else:  # default to the whole area of the display if no intervals exist
@@ -437,7 +437,6 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         top_layer_x_offset = data_and_metadata.dimensional_calibrations[0].offset
         top_layer_x_scale = data_and_metadata.dimensional_calibrations[0].scale
         top_layer_y_scale = data_and_metadata.intensity_calibration.scale
-        top_layer_y_offset = data_and_metadata.intensity_calibration.offset
 
         y_minimums: typing.List[float] = []
         y_maximums: typing.List[float] = []
@@ -481,10 +480,9 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             # These computations translate the data values into the displayed values
             # this must be done regardless if the data is global or of an interval
             y_scale_factor = layer_y_scale / top_layer_y_scale
-            layer_min = (layer_values * y_scale_factor) + layer_y_offset
-            layer_min = numpy.min(layer_min)
-            layer_max = (layer_values * y_scale_factor) + layer_y_offset
-            layer_max = numpy.max(layer_max)
+            layer_values = (layer_values * y_scale_factor) + layer_y_offset
+            layer_min = numpy.min(layer_values)
+            layer_max = numpy.max(layer_values)
 
             y_minimums.append(0.0 if layer_min > 0.0 else layer_min)
             y_maximums.append(0.0 if layer_max < 0.0 else layer_max)
