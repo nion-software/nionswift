@@ -421,6 +421,9 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
     def __view_to_intervals(self, data_and_metadata: DataAndMetadata.DataAndMetadata, intervals: typing.List[typing.Tuple[float, float]]) -> None:
         """Change the view to encompass the channels and data represented by the given intervals."""
+        # Throughout this function, the terms x and y are used. While x describes the sequential position,
+        # the y component describes the value or in swift terms the *intensity* of the value at the point.
+        # X and Y are used to make understanding that these values are mapped to a 2D graph easier
 
         # get the farthest left and right interval bounds to zoom into
         if len(intervals) > 0:
