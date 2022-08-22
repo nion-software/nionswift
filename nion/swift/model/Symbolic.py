@@ -1434,9 +1434,6 @@ class Computation(Persistence.PersistentObject):
         self._inputs: typing.Set[Persistence.PersistentObject] = set()  # used by document model for tracking dependencies
         self._outputs: typing.Set[Persistence.PersistentObject] = set()
         self.pending_project: typing.Optional[Project.Project] = None  # used for new computations to tell them where they'll end up
-        self._activity_lock = threading.RLock()
-        self._activity: typing.Optional[ComputationActivity] = None
-        self._executor: typing.Optional[ComputationExecutor] = None
 
     @property
     def variables(self) -> typing.Sequence[ComputationVariable]:
@@ -1784,12 +1781,9 @@ class Computation(Persistence.PersistentObject):
         self.needs_update = False
         if needs_update:
             if self.expression:
-                data_item = typing.cast(typing.Optional[DataItem.DataItem], self.get_output("target"))
-                executor = ScriptExpressionComputationExecutor(api, self.expression, data_item)
+                executor = ScriptExpressionComputationExecutor(self, api)
             else:
-                api_computation = api._new_api_object(self)
-                api_computation.api = api
-                executor = RegisteredComputationExecutor(api_computation, self.processing_id)
+                executor = RegisteredComputationExecutor(self, api)
             kwargs, is_resolved = self.__resolve_inputs(api)
             if is_resolved:
                 executor.execute(**kwargs)
@@ -1949,65 +1943,44 @@ class Computation(Persistence.PersistentObject):
     def reset(self) -> None:
         self.needs_update = False
 
-    def become_pending(self) -> None:
-        if self._activity:
-            self._activity.state = self._activity.state + ", pending"
-        else:
-            self._activity = ComputationActivity(self)
-            Activity.append_activity(self._activity)
-
-    def abort_pending(self) -> None:
-        with self._activity_lock:
-            if self._activity:
-                Activity.activity_finished(self._activity)
-                self._activity = None
-        if self._executor:
-            self._executor.abort()
-
-    def recompute(self) -> typing.Optional[Computation]:
+    def recompute(self) -> typing.Optional[ComputationExecutor]:
         # evaluate the computation in a thread safe manner
         # returns a list of functions that must be called on the main thread to finish the recompute action
         # threadsafe
         if self.needs_update:
-            if self._activity:
-                self._activity.state = "computing"
             try:
                 api = PlugInManager.api_broker_fn("~1.0", None)
-                self._executor = self.evaluate(api)
-                if self._executor:
-                    throttle_time = max(computation_min_period - (time.perf_counter() - self.last_evaluate_data_time), 0) if not self._executor.error_text else 0.0
-                    time.sleep(max(throttle_time, min(self._executor.last_execution_time * computation_min_factor, 1.0)))
+                executor = self.evaluate(api)
+                if executor:
+                    throttle_time = max(computation_min_period - (time.perf_counter() - self.last_evaluate_data_time), 0) if not executor.error_text else 0.0
+                    time.sleep(max(throttle_time, min(executor.last_execution_time * computation_min_factor, 1.0)))
+                    return executor
             except Exception as e:
                 import traceback
                 traceback.print_exc()
-            return self
-        with self._activity_lock:
-            if self._activity:
-                Activity.activity_finished(self._activity)
-                self._activity = None
         return None
-
-    def commit_pending(self) -> None:
-        try:
-            if self._executor:
-                self._executor.commit()
-                if self.error_text != self._executor.error_text:
-                    self.error_text = self._executor.error_text
-        finally:
-            if self._activity:
-                Activity.activity_finished(self._activity)
-                self._activity = None
 
 
 class ComputationExecutor:
 
-    def __init__(self) -> None:
+    def __init__(self, computation: Computation) -> None:
+        self.__computation = computation
         self.error_text: typing.Optional[str] = None
         self.__last_execution_time: float = 0.0
         self.__aborted = False
+        self.__activity_lock = threading.RLock()
+        self.__activity: typing.Optional[ComputationActivity] = ComputationActivity(computation)
+        self.__activity.state = "computing"
+        Activity.append_activity(self.__activity)
 
     def close(self) -> None:
-        pass
+        if self.__activity:
+            Activity.activity_finished(self.__activity)
+            self.__activity = None
+
+    @property
+    def computation(self) -> Computation:
+        return self.__computation
 
     def _execute(self, **kwargs: typing.Any) -> None: raise NotImplementedError()
 
@@ -2027,10 +2000,21 @@ class ComputationExecutor:
 
     def commit(self) -> None:
         if not self.error_text and not self.__aborted:
-            self._commit()
+            try:
+                self._commit()
+            finally:
+                if self.__activity:
+                    Activity.activity_finished(self.__activity)
+                    self.__activity = None
+        if self.__computation.error_text != self.error_text:
+            self.__computation.error_text = self.error_text
 
     def abort(self) -> None:
         self.__aborted = True
+        with self.__activity_lock:
+            if self.__activity:
+                Activity.activity_finished(self.__activity)
+                self.__activity = None
 
     @property
     def last_execution_time(self) -> float:
@@ -2065,8 +2049,11 @@ class ScriptExpressionComputationExecutor(ComputationExecutor):
         def data(self, value: DataAndMetadata._ImageDataType) -> None:
             self.xdata = DataAndMetadata.new_data_and_metadata(value)
 
-    def __init__(self, api: typing.Any, expression: str, data_item: typing.Optional[DataItem.DataItem], **kwargs: typing.Any) -> None:
-        super().__init__()
+    def __init__(self, computation: Computation, api: typing.Any) -> None:
+        super().__init__(computation)
+        assert computation.expression
+        expression = computation.expression
+        data_item = typing.cast(typing.Optional[DataItem.DataItem], computation.get_output("target"))
         self.__api = api
         self.__expression = expression
         self.__data_item = data_item or DataItem.new_data_item(None)
@@ -2082,6 +2069,7 @@ class ScriptExpressionComputationExecutor(ComputationExecutor):
             self.__data_item.close()
             self.__data_item = typing.cast(typing.Any, None)
             self.__data_item_created = False
+        super().close()
 
     def _execute(self, **kwargs: typing.Any) -> None:
         assert self.__data_item_target is not None
@@ -2119,8 +2107,11 @@ class ScriptExpressionComputationExecutor(ComputationExecutor):
 
 
 class RegisteredComputationExecutor(ComputationExecutor):
-    def __init__(self, api_computation: typing.Any, processing_id: typing.Optional[str]) -> None:
-        super().__init__()
+    def __init__(self, computation: Computation, api: typing.Any) -> None:
+        super().__init__(computation)
+        processing_id = computation.processing_id
+        api_computation = api._new_api_object(computation)
+        api_computation.api = api
         compute_class = _computation_types.get(processing_id) if processing_id else None
         self.__computation_handler = compute_class(api_computation) if compute_class else None
         if not self.__computation_handler:
