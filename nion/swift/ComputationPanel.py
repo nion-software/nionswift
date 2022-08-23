@@ -31,12 +31,14 @@ from nion.ui import Declarative
 from nion.ui import Dialog
 from nion.ui import DrawingContext
 from nion.ui import UserInterface
+from nion.ui import Window
 from nion.utils import Binding
 from nion.utils import Converter
 from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import ListModel
 from nion.utils import Model
+from nion.utils import Observable
 from nion.utils import ReferenceCounting
 from nion.utils import Registry
 
@@ -1351,3 +1353,80 @@ class ComputationErrorNotificationComponentFactory(NotificationDialog.Notificati
         return None
 
 Registry.register_component(ComputationErrorNotificationComponentFactory(), {"notification-component-factory"})
+
+MDComponentFn = typing.Callable[[Window.Window, typing.Any], typing.Optional[Declarative.HandlerLike]]
+
+class MasterDetailHandler(Declarative.Handler):
+
+    def __init__(self, window: Window.Window, model: Observable.Observable, items_key: str, component_fn: MDComponentFn,
+                 title_getter: typing.Callable[[typing.Any], str]) -> None:
+        super().__init__()
+
+        self.__window = window
+        self.__component_fn = component_fn
+
+        self.items_model = model
+
+        self.titles_model = ListModel.MappedListModel(container=self.items_model,
+                                                      master_items_key=items_key,
+                                                      map_fn=title_getter)
+
+        self.__labels_property_model = ListModel.ListPropertyModel(self.titles_model)
+
+        self.index_model = Model.PropertyModel(0)
+
+        u = Declarative.DeclarativeUI()
+
+        item_list = u.create_list_box(items_ref="@binding(titles_model.items)",
+                                      width=160, height=480,
+                                      min_height=240, size_policy_horizontal="expanding",
+                                      current_index="@binding(index_model.value)")
+
+        item_stack = u.create_stack(items=f"items_model.{items_key}", item_component_id="detail", current_index="@binding(index_model.value)", width=320)
+
+        self.ui_view = u.create_column(u.create_row(item_list, item_stack, spacing=12))
+
+    def create_handler(self, component_id: str, container: typing.Optional[Symbolic.ComputationVariable] = None, item: typing.Any = None, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
+        if component_id == "detail":
+            return self.__component_fn(self.__window, item)
+        return None
+
+    def get_binding(self, source: Observable.Observable, property: str, converter: typing.Optional[Converter.ConverterLike[typing.Any, typing.Any]]) -> typing.Optional[Binding.Binding]:
+        if source == self.titles_model and property == "items":
+            return Binding.PropertyBinding(self.__labels_property_model, "value", converter=converter)
+        return None
+
+
+class ProjectItemsDialog(Declarative.WindowHandler):
+
+    def __init__(self, document_controller: DocumentController.DocumentController) -> None:
+        super().__init__()
+
+        self.__document_controller = document_controller
+
+        self.dialog_id = "project_items"
+
+        self.items_model = ListModel.FilteredListModel(container=document_controller.document_model, master_items_key="computations")
+        self.items_model.sort_key = operator.attrgetter("modified")
+        self.items_model.sort_reverse = True
+
+        # close any previous list dialog associated with the window
+        previous_window = getattr(document_controller, f"_{self.dialog_id}_dialog", None)
+        if isinstance(previous_window, ProjectItemsDialog):
+            previous_window.close_window()
+        setattr(document_controller, f"_{self.dialog_id}_dialog", self)
+
+        u = Declarative.DeclarativeUI()
+
+        window = u.create_window(u.create_component_instance(identifier="content"), title=_("Project Items (Computations)"), margin=12, window_style="tool")
+        self.run(window, parent_window=document_controller, persistent_id=self.dialog_id)
+        self.__document_controller.register_dialog(self.window)
+
+    def close(self) -> None:
+        setattr(self.__document_controller, f"_{self.dialog_id}_dialog", None)
+        super().close()
+
+    def create_handler(self, component_id: str, container: typing.Optional[Symbolic.ComputationVariable] = None, item: typing.Any = None, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
+        if component_id == "content":
+            return MasterDetailHandler(self.__document_controller, self.items_model, "items", typing.cast(MDComponentFn, ComputationHandler), operator.attrgetter("label"))
+        return None

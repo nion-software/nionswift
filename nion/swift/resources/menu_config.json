@@ -71,6 +71,13 @@
             },
             {
                 "type": "item",
+                "action_id": "window.project_items_dialog"
+            },
+            {
+                "type": "separator"
+            },
+            {
+                "type": "item",
                 "action_id": "window.toggle_filter"
             },
             {
