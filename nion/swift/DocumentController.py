@@ -2861,6 +2861,20 @@ class GenerateDataAction(Window.Action):
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
+class ProjectItemsDialogAction(Window.Action):
+    action_id = "window.project_items_dialog"
+    action_name = _("Project Items...")
+
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        raise NotImplementedError()
+
+    def invoke(self, context_: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context_)
+        window = typing.cast(DocumentController, context.window)
+        ComputationPanel.ProjectItemsDialog(window)
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
+
+
 class OpenConsoleAction(Window.Action):
     action_id = "window.open_console"
     action_name = _("Python Console...")
@@ -2926,6 +2940,7 @@ Window.register_action(OpenConsoleAction())
 Window.register_action(OpenNotificationsAction())
 Window.register_action(OpenProjectDialogAction())
 Window.register_action(OpenRunScriptsAction())
+Window.register_action(ProjectItemsDialogAction())
 Window.register_action(ToggleFilterAction())
 
 
