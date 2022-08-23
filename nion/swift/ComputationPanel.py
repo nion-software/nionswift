@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 # standard libraries
-import collections
 import functools
 import gettext
 import operator
@@ -23,7 +22,6 @@ from nion.swift import Undo
 from nion.swift.model import Changes
 from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
-from nion.swift.model import Graphics
 from nion.swift.model import Persistence
 from nion.swift.model import Symbolic
 from nion.ui import CanvasItem
@@ -1140,6 +1138,7 @@ class ComputationHandler(Declarative.Handler):
         self.computation_parameters_model.filter = ListModel.PredicateFilter(lambda v: v.variable_type not in Symbolic.Computation.data_source_types)
         self.is_custom = computation.expression is not None
         self.delete_state_model = Model.PropertyModel(0)
+        self.ui_view = self.__make_ui()
 
     def close(self) -> None:
         self.computation_inputs_model.close()
@@ -1147,6 +1146,32 @@ class ComputationHandler(Declarative.Handler):
         self.computation_parameters_model.close()
         self.computation_parameters_model = typing.cast(typing.Any, None)
         super().close()
+
+    def __make_ui(self) -> Declarative.UIDescriptionResult:
+        u = Declarative.DeclarativeUI()
+        label = u.create_label(text=self.computation.label)
+        inputs = u.create_column(items="computation_inputs_model.items", item_component_id="variable", spacing=8, size_policy_vertical="expanding")
+        results = u.create_column(items="computation.results", item_component_id="result", spacing=8, size_policy_vertical="expanding")
+        input_output_row = u.create_row(
+            u.create_column(inputs),
+            u.create_column(results),
+            spacing=12,
+            size_policy_vertical="expanding"
+        )
+        parameters = u.create_column(items="computation_parameters_model.items", item_component_id="variable", spacing=8)
+        if sys.platform == "darwin":
+            note = u.create_row(u.create_label(text=_("Use Command+Shift+E to edit data item script.")), visible="@binding(is_custom)")
+        else:
+            note = u.create_row(u.create_label(text=_("Use Ctrl+Shift+E to edit data item script.")), visible="@binding(is_custom)")
+        delete_row = u.create_row(u.create_stretch(), u.create_push_button(text=_("Delete"), spacing=12, on_clicked="handle_delete"))
+        delete_confirm_row = u.create_row(u.create_stretch(),
+                                          u.create_label(text=_("Are you sure?")),
+                                          u.create_push_button(text=_("Delete"), on_clicked="handle_confirm_delete"),
+                                          u.create_push_button(text=_("Cancel"), on_clicked="handle_cancel_delete"),
+                                          spacing=12)
+        delete_control_row = u.create_row(u.create_stack(delete_row, delete_confirm_row, current_index="@binding(delete_state_model.value)"))
+        controls = u.create_row(u.create_column(note, delete_control_row, u.create_stretch(), spacing=12), u.create_stretch())
+        return u.create_column(label, u.create_column(input_output_row, parameters, controls, spacing=12), spacing=12)
 
     def handle_delete(self, widget: Declarative.UIWidget) -> None:
         self.delete_state_model.value = 1
@@ -1182,15 +1207,15 @@ class InspectComputationDialog(Declarative.WindowHandler):
     # dynamic combo box
     # progress bar
 
-    def __init__(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation):
+    def __init__(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation) -> None:
         super().__init__()
 
         self.__document_controller = document_controller
 
         # close any previous computation inspector associated with the window
-        previous_computation_inspector = getattr(document_controller, "_computation_inspector", None)
-        if isinstance(previous_computation_inspector, InspectComputationDialog):
-            previous_computation_inspector.close_window()
+        previous_window = getattr(document_controller, "_computation_inspector", None)
+        if isinstance(previous_window, InspectComputationDialog):
+            previous_window.close_window()
         setattr(document_controller, "_computation_inspector", self)
 
         # define models that manage the state of the UI
@@ -1229,34 +1254,6 @@ class InspectComputationDialog(Declarative.WindowHandler):
             u = Declarative.DeclarativeUI()
             content = u.create_column(u.create_label(text=_("No computation.")))
             component = u.define_component(content=content)
-            return component
-        if resource_id == "single":
-            computation = self.computation_model.value
-            assert computation
-            u = Declarative.DeclarativeUI()
-            label = u.create_label(text=computation.label)
-            inputs = u.create_column(items="computation_inputs_model.items", item_component_id="variable", spacing=8, size_policy_vertical="expanding")
-            results = u.create_column(items="computation.results", item_component_id="result", spacing=8, size_policy_vertical="expanding")
-            input_output_row = u.create_row(
-                u.create_column(inputs),
-                u.create_column(results),
-                spacing=12,
-                size_policy_vertical="expanding"
-            )
-            parameters = u.create_column(items="computation_parameters_model.items", item_component_id="variable", spacing=8)
-            if sys.platform == "darwin":
-                note = u.create_row(u.create_label(text=_("Use Command+Shift+E to edit data item script.")), visible="@binding(is_custom)")
-            else:
-                note = u.create_row(u.create_label(text=_("Use Ctrl+Shift+E to edit data item script.")), visible="@binding(is_custom)")
-            delete_row = u.create_row(u.create_stretch(), u.create_push_button(text=_("Delete"), spacing=12, on_clicked="handle_delete"))
-            delete_confirm_row = u.create_row(u.create_stretch(),
-                                              u.create_label(text=_("Are you sure?")),
-                                              u.create_push_button(text=_("Delete"), on_clicked="handle_confirm_delete"),
-                                              u.create_push_button(text=_("Cancel"), on_clicked="handle_cancel_delete"),
-                                              spacing=12)
-            delete_control_row = u.create_row(u.create_stack(delete_row, delete_confirm_row, current_index="@binding(delete_state_model.value)"))
-            controls = u.create_row(u.create_column(note, delete_control_row, u.create_stretch(), spacing=12), u.create_stretch())
-            component = u.define_component(content=u.create_column(label, u.create_column(input_output_row, parameters, controls, spacing=12), spacing=12))
             return component
         return None
 
