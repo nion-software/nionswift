@@ -3668,11 +3668,55 @@ class DataStructureHandler(Declarative.Handler):
             self.data_structure.structure_type = self.variable.entity_id
 
 
+class DataStructurePropertyVariableHandler(Declarative.Handler):
+    # used to display a data structure property. this is a hack and may not be needed once new data structures
+    # are in place that have a guaranteed schema.
+    def __init__(self, variable: Symbolic.ComputationVariable) -> None:
+        super().__init__()
+        self.variable = variable
+        u = Declarative.DeclarativeUI()
+        label = u.create_label(text="@binding(variable.display_label)")
+        line_edit = u.create_label(text="@binding(variable_value)", width=300)
+        self.ui_view = u.create_column(label, line_edit, spacing=8)
+        self.__variable_listener = variable.property_changed_event.listen(ReferenceCounting.weak_partial(DataStructurePropertyVariableHandler.__property_changed, self))
+        if variable.bound_item:
+            self.__bound_item_listener = variable.changed_event.listen(ReferenceCounting.weak_partial(DataStructurePropertyVariableHandler.__changed, self))
+
+    @property
+    def variable_value(self) -> str:
+        return str(self.variable.bound_item.value) if self.variable.bound_item else str()
+
+    def __property_changed(self, key: str) -> None:
+        self.notify_property_changed("variable_value")
+
+    def __changed(self) -> None:
+        self.notify_property_changed("variable_value")
+
+
+class ConstantVariableHandler(Declarative.Handler):
+    # used to display a constant string
+    def __init__(self, variable: Symbolic.ComputationVariable, value: str) -> None:
+        super().__init__()
+        self.variable = variable
+        self.variable_value = value
+        u = Declarative.DeclarativeUI()
+        label = u.create_label(text="@binding(variable.display_label)")
+        line_edit = u.create_label(text="@binding(variable_value)", width=300)
+        self.ui_view = u.create_column(label, line_edit, spacing=8)
+
+
 class DataStructureVariableHandlerFactory(VariableHandlerComponentFactory):
     def make_variable_handler(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, computation_variable: Symbolic.ComputationVariable, variable_model: VariableValueModel) -> typing.Optional[Declarative.HandlerLike]:
         if computation_variable.variable_type == "structure":
-            data_structure = computation_variable.bound_item.value if computation_variable.bound_item else None
-            return DataStructureHandler(document_controller, computation, computation_variable, data_structure)
+            if computation_variable.property_name:
+                value = computation_variable.bound_item.value if computation_variable.bound_item else None
+                return DataStructurePropertyVariableHandler(computation_variable)
+            else:
+                data_structure = computation_variable.bound_item.value if computation_variable.bound_item else None
+                if isinstance(data_structure, DataStructure.DataStructure):
+                    return DataStructureHandler(document_controller, computation, computation_variable, data_structure)
+                else:
+                    return ConstantVariableHandler(computation_variable, _("N/A"))
         return None
 
 
