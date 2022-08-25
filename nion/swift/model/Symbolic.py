@@ -30,6 +30,7 @@ from nion.swift.model import DisplayItem
 from nion.swift.model import Graphics
 from nion.swift.model import Persistence
 from nion.swift.model import PlugInManager
+from nion.swift.model import Utility
 from nion.utils import Converter
 from nion.utils import Event
 from nion.utils import Geometry
@@ -1434,6 +1435,8 @@ class Computation(Persistence.PersistentObject):
         self._inputs: typing.Set[Persistence.PersistentObject] = set()  # used by document model for tracking dependencies
         self._outputs: typing.Set[Persistence.PersistentObject] = set()
         self.pending_project: typing.Optional[Project.Project] = None  # used for new computations to tell them where they'll end up
+        self.__elapsed_time: typing.Optional[float] = None
+        self.__last_timestamp: typing.Optional[datetime.datetime] = None
 
     @property
     def variables(self) -> typing.Sequence[ComputationVariable]:
@@ -1539,6 +1542,23 @@ class Computation(Persistence.PersistentObject):
         modified_state = self.modified_state
         self._set_persistent_property_value("error_text", value)
         self.modified_state = modified_state
+
+    def update_status(self, error_text: typing.Optional[str], elapsed_time: typing.Optional[float]) -> None:
+        self.__elapsed_time = elapsed_time
+        self.__last_timestamp = datetime.datetime.utcnow()
+        if self.error_text != error_text:
+            self.error_text = error_text
+        self.notify_property_changed("status")
+
+    @property
+    def status(self) -> str:
+        if self.error_text:
+            return _("Error: ") + self.error_text
+        if self.__elapsed_time and self.__last_timestamp:
+            local_modified_datetime = self.__last_timestamp + datetime.timedelta(minutes=Utility.local_utcoffset_minutes(self.__last_timestamp))
+            time_str = local_modified_datetime.strftime('%Y-%m-%d %H:%M:%S')
+            return f"Last: {time_str} ({round(self.__elapsed_time * 1000)}ms)"
+        return str()
 
     def __error_changed(self, name: str, value: typing.Optional[str]) -> None:
         self.notify_property_changed(name)
@@ -2006,6 +2026,8 @@ class ComputationExecutor:
                 if self.__activity:
                     Activity.activity_finished(self.__activity)
                     self.__activity = None
+        self.__computation.update_status(self.error_text, self.__last_execution_time)
+
         if self.__computation.error_text != self.error_text:
             self.__computation.error_text = self.error_text
 

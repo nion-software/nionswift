@@ -1138,6 +1138,8 @@ class ComputationHandler(Declarative.Handler):
         self.computation_parameters_model.filter = ListModel.PredicateFilter(lambda v: v.variable_type not in Symbolic.Computation.data_source_types)
         self.is_custom = computation.expression is not None
         self.delete_state_model = Model.PropertyModel(0)
+        self.__error_state_listener = computation.property_changed_event.listen(ReferenceCounting.weak_partial(ComputationHandler.__property_changed, self))
+        self.__is_error = self.computation.error_text is not None and self.computation.error_text != str()
         self.ui_view = self.__make_ui()
 
     def close(self) -> None:
@@ -1150,6 +1152,7 @@ class ComputationHandler(Declarative.Handler):
     def __make_ui(self) -> Declarative.UIDescriptionResult:
         u = Declarative.DeclarativeUI()
         label = u.create_label(text=self.computation.label)
+        status = u.create_label(text="@binding(computation.status)", color="@binding(status_color)", max_width=300)
         inputs = u.create_column(items="computation_inputs_model.items", item_component_id="variable", spacing=8, size_policy_vertical="expanding")
         results = u.create_column(items="computation.results", item_component_id="result", spacing=8, size_policy_vertical="expanding")
         input_output_row = u.create_row(
@@ -1170,8 +1173,17 @@ class ComputationHandler(Declarative.Handler):
                                           u.create_push_button(text=_("Cancel"), on_clicked="handle_cancel_delete"),
                                           spacing=12)
         delete_control_row = u.create_row(u.create_stack(delete_row, delete_confirm_row, current_index="@binding(delete_state_model.value)"))
-        controls = u.create_row(u.create_column(note, delete_control_row, u.create_stretch(), spacing=12), u.create_stretch())
-        return u.create_column(label, u.create_column(input_output_row, parameters, controls, spacing=12), spacing=12)
+        controls = u.create_row(u.create_column(status, note, delete_control_row, u.create_stretch(), spacing=12), u.create_stretch())
+        return u.create_column(label, u.create_column(input_output_row, parameters, u.create_divider(orientation="horizontal"), controls, spacing=12), spacing=12)
+
+    def __property_changed(self, key: str) -> None:
+        if key == "error_text":
+            self.__is_error = self.computation.error_text is not None and self.computation.error_text != str()
+            self.notify_property_changed("status_color")
+
+    @property
+    def status_color(self) -> str:
+        return "red" if self.__is_error else "black"
 
     def handle_delete(self, widget: Declarative.UIWidget) -> None:
         self.delete_state_model.value = 1
