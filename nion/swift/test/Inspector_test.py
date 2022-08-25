@@ -1151,7 +1151,7 @@ class TestInspectorClass(unittest.TestCase):
             self.assertFalse(computation.get_input_value("do_transpose"))
             inspector_section = next(x for x in inspector_panel._get_inspector_sections() if isinstance(x, Inspector.ComputationInspectorSection))
             cb_widget = inspector_section.find_widget_by_id("value")
-            cb_widget.on_checked_changed(True)
+            cb_widget.checked = True
             self.assertTrue(computation.get_input_value("do_transpose"))
             document_controller.handle_undo()
             self.assertFalse(computation.get_input_value("do_transpose"))
@@ -1176,7 +1176,7 @@ class TestInspectorClass(unittest.TestCase):
             old_sigma = computation.get_input_value("sigma")
             inspector_section = next(x for x in inspector_panel._get_inspector_sections() if isinstance(x, Inspector.ComputationInspectorSection))
             slider_widget = inspector_section.find_widget_by_id("slider_value")
-            slider_widget.on_value_changed(0)
+            slider_widget.value = 0
             self.assertEqual(0, computation.get_input_value("sigma"))
             document_controller.handle_undo()
             self.assertEqual(old_sigma, computation.get_input_value("sigma"))
@@ -1202,7 +1202,7 @@ class TestInspectorClass(unittest.TestCase):
             inspector_section = Inspector.ComputationInspectorSection(document_controller, new_data_item)
             with contextlib.closing(inspector_section):
                 field_widget = inspector_section.find_widget_by_id("value")
-                field_widget.on_editing_finished("100")
+                field_widget.editing_finished("100")
                 self.assertEqual(100, computation.get_input_value("bins"))
                 document_controller.handle_undo()
                 self.assertEqual(old_bins, computation.get_input_value("bins"))

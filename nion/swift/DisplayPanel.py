@@ -2656,7 +2656,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
                     document_controller.cursor_changed(position_and_value_text)
 
         if not self.__cursor_task:
-            self.__cursor_task = asyncio.get_event_loop().create_task(update_cursor(weakref.ref(self.__document_controller), weakref.ref(self.__display_item)))
+            self.__cursor_task = asyncio.get_event_loop_policy().get_event_loop().create_task(update_cursor(weakref.ref(self.__document_controller), weakref.ref(self.__display_item)))
 
     def drag_graphics(self, graphics: typing.Sequence[Graphics.Graphic]) -> None:
         display_item = self.display_item
