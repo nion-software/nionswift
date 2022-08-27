@@ -18,10 +18,12 @@ import weakref
 from nion.swift import DataItemThumbnailWidget
 from nion.swift import Inspector
 from nion.swift import MimeTypes
+from nion.swift import NotificationDialog
 from nion.swift import Undo
 from nion.swift.model import Changes
 from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
+from nion.swift.model import Notification
 from nion.swift.model import Persistence
 from nion.swift.model import Symbolic
 from nion.ui import CanvasItem
@@ -36,10 +38,12 @@ from nion.utils import Geometry
 from nion.utils import ListModel
 from nion.utils import Model
 from nion.utils import ReferenceCounting
+from nion.utils import Registry
 
 if typing.TYPE_CHECKING:
     from nion.swift import DocumentController
     from nion.swift.model import DocumentModel
+    from nion.ui import Application
 
 _DocumentControllerWeakRefType = typing.Callable[[], "DocumentController.DocumentController"]
 
@@ -1138,9 +1142,11 @@ class ComputationHandler(Declarative.Handler):
         self.computation_parameters_model.filter = ListModel.PredicateFilter(lambda v: v.variable_type not in Symbolic.Computation.data_source_types)
         self.is_custom = computation.expression is not None
         self.delete_state_model = Model.PropertyModel(0)
+        self.error_state_model = Model.PropertyModel(0)
         self.__error_state_listener = computation.property_changed_event.listen(ReferenceCounting.weak_partial(ComputationHandler.__property_changed, self))
         self.__is_error = self.computation.error_text is not None and self.computation.error_text != str()
         self.ui_view = self.__make_ui()
+        self.__property_changed("error_text")
 
     def close(self) -> None:
         self.computation_inputs_model.close()
@@ -1174,12 +1180,29 @@ class ComputationHandler(Declarative.Handler):
                                           spacing=12)
         delete_control_row = u.create_row(u.create_stack(delete_row, delete_confirm_row, current_index="@binding(delete_state_model.value)"))
         controls = u.create_row(u.create_column(status, note, delete_control_row, u.create_stretch(), spacing=12), u.create_stretch())
-        return u.create_column(label, u.create_column(input_output_row, parameters, u.create_divider(orientation="horizontal"), controls, spacing=12), spacing=12)
+        inspector_column = u.create_column(label, u.create_column(input_output_row, parameters, u.create_divider(orientation="horizontal"), controls, spacing=12), spacing=12)
+        error_column = u.create_column(
+            u.create_stack(
+                u.create_column(u.create_row(u.create_label(text=_("No Error")), u.create_stretch()), u.create_stretch()),
+                u.create_column(u.create_row(u.create_label(text=_("Error")), u.create_stretch()),
+                                u.create_row(u.create_label(text="@binding(computation.status)", color="@binding(status_color)", max_width=300), u.create_stretch()),
+                                u.create_text_edit(editable=False, placeholder_text=_("No stack trace."), text="@binding(computation.error_stack_trace)"),
+                                u.create_stretch(),
+                                spacing=8),
+                current_index="@binding(error_state_model.value)"
+            )
+        )
+        return u.create_tabs(
+            u.create_tab(_("Edit"), inspector_column),
+            u.create_tab(_("Errors"), error_column),
+            style="minimal"
+        )
 
     def __property_changed(self, key: str) -> None:
         if key == "error_text":
             self.__is_error = self.computation.error_text is not None and self.computation.error_text != str()
             self.notify_property_changed("status_color")
+            self.error_state_model.value = 1 if self.__is_error else 0
 
     @property
     def status_color(self) -> str:
@@ -1277,3 +1300,54 @@ class InspectComputationDialog(Declarative.WindowHandler):
             assert computation
             return ComputationHandler(self.__document_controller, computation)
         return None
+
+
+class ComputationErrorNotificationHandler(Declarative.Handler):
+    """Declarative component handler for a section in a multiple acquire method component."""
+
+    def __init__(self, app: Application.BaseApplication, notification: Symbolic.ComputationErrorNotification) -> None:
+        super().__init__()
+        self.app = app
+        self.notification = notification
+        u = Declarative.DeclarativeUI()
+        self.ui_view = u.create_row(
+            u.create_column(
+                u.create_row(
+                    u.create_label(text="@binding(notification.task_name)", color="#3366CC"),
+                    u.create_stretch(),
+                    {"type": "notification_char_button", "text": " \N{MULTIPLICATION X} ", "on_clicked": "handle_dismiss"},
+                    spacing=8
+                ),
+                u.create_row(
+                    {"type": "notification_char_button", "text": "Edit Computation...", "on_clicked": "handle_edit"},
+                    u.create_stretch(),
+                    spacing=8
+                ),
+                u.create_row(
+                    u.create_label(text="@binding(notification.text)", word_wrap=True, width=440),
+                    u.create_stretch(),
+                    spacing=8
+                ),
+                u.create_divider(orientation="horizontal"),
+                spacing=4,
+            ),
+        )
+
+    def handle_dismiss(self, widget: Declarative.UIWidget) -> None:
+        self.notification.dismiss()
+
+    def handle_edit(self, widget: Declarative.UIWidget) -> None:
+        computation = self.notification.computation
+        for window in self.app.windows:
+            document_model = typing.cast(typing.Optional["DocumentModel.DocumentModel"], getattr(window, "document_model", None))
+            if document_model and computation in document_model.computations:
+                InspectComputationDialog(typing.cast("DocumentController.DocumentController", window), computation)
+
+
+class ComputationErrorNotificationComponentFactory(NotificationDialog.NotificationComponentFactory):
+    def make_component(self, app: Application.BaseApplication, notification: Notification.Notification) -> typing.Optional[Declarative.HandlerLike]:
+        if isinstance(notification, Symbolic.ComputationErrorNotification):
+            return ComputationErrorNotificationHandler(app, notification)
+        return None
+
+Registry.register_component(ComputationErrorNotificationComponentFactory(), {"notification-component-factory"})

@@ -15,8 +15,10 @@ import copy
 import datetime
 import difflib
 import gettext
+import sys
 import threading
 import time
+import traceback
 import typing
 import uuid
 
@@ -28,6 +30,7 @@ from nion.swift.model import DataItem
 from nion.swift.model import DataStructure
 from nion.swift.model import DisplayItem
 from nion.swift.model import Graphics
+from nion.swift.model import Notification
 from nion.swift.model import Persistence
 from nion.swift.model import PlugInManager
 from nion.swift.model import Utility
@@ -1381,6 +1384,13 @@ class BoundList(BoundItemBase):
         self._update_base_items(self._get_base_items())
 
 
+
+class ComputationErrorNotification(Notification.Notification):
+    def __init__(self, computation: Computation) -> None:
+        super().__init__("nion.computation.error", "\N{WARNING SIGN} Computation Error", "The computation is in an error state.", computation.error_text or str())
+        self.computation = computation
+
+
 class Computation(Persistence.PersistentObject):
     """A computation on data and other inputs.
 
@@ -1437,6 +1447,8 @@ class Computation(Persistence.PersistentObject):
         self.pending_project: typing.Optional[Project.Project] = None  # used for new computations to tell them where they'll end up
         self.__elapsed_time: typing.Optional[float] = None
         self.__last_timestamp: typing.Optional[datetime.datetime] = None
+        self.__error_stack_trace = str()
+        self.__error_notification: typing.Optional[Notification.Notification] = None
 
     @property
     def variables(self) -> typing.Sequence[ComputationVariable]:
@@ -1542,6 +1554,22 @@ class Computation(Persistence.PersistentObject):
         modified_state = self.modified_state
         self._set_persistent_property_value("error_text", value)
         self.modified_state = modified_state
+        if value:
+            self.__error_notification = ComputationErrorNotification(self)
+            Notification.notify(self.__error_notification)
+        elif self.__error_notification:
+            self.__error_notification.dismiss()
+            self.__error_notification = None
+
+    @property
+    def error_stack_trace(self) -> str:
+        return self.__error_stack_trace
+
+    @error_stack_trace.setter
+    def error_stack_trace(self, value: str) -> None:
+        if self.__error_stack_trace != value:
+            self.__error_stack_trace = value
+            self.notify_property_changed("error_stack_trace")
 
     def update_status(self, error_text: typing.Optional[str], elapsed_time: typing.Optional[float]) -> None:
         self.__elapsed_time = elapsed_time
@@ -1986,6 +2014,7 @@ class ComputationExecutor:
     def __init__(self, computation: Computation) -> None:
         self.__computation = computation
         self.error_text: typing.Optional[str] = None
+        self.error_stack_trace = str()
         self.__last_execution_time: float = 0.0
         self.__aborted = False
         self.__activity_lock = threading.RLock()
@@ -2012,10 +2041,8 @@ class ComputationExecutor:
             self._execute(**kwargs)
             self.__last_execution_time = time.perf_counter() - start_time
         except Exception as e:
-            # import sys, traceback
-            # traceback.print_exc()
-            # traceback.format_exception(*sys.exc_info())
             self.__last_execution_time = 0.0
+            self.error_stack_trace = "".join(traceback.format_exception(*sys.exc_info()))
             self.error_text = str(e) or "Unable to evaluate script."  # a stack trace would be too much information right now
 
     def commit(self) -> None:
@@ -2030,6 +2057,9 @@ class ComputationExecutor:
 
         if self.__computation.error_text != self.error_text:
             self.__computation.error_text = self.error_text
+
+        if self.__computation.error_stack_trace != self.error_stack_trace:
+            self.__computation.error_stack_trace = self.error_stack_trace
 
     def abort(self) -> None:
         self.__aborted = True

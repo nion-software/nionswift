@@ -191,13 +191,15 @@ class NotificationHandler(Declarative.Handler):
 
 
 class NotificationComponentFactory(typing.Protocol):
-    def make_component(self, notification: Notification.Notification) -> typing.Optional[Declarative.HandlerLike]: ...
+    def make_component(self, app: Application.BaseApplication, notification: Notification.Notification) -> typing.Optional[Declarative.HandlerLike]: ...
 
 
 class NotificationDialog(Declarative.WindowHandler):
 
     def __init__(self, app: Application.BaseApplication) -> None:
         super().__init__()
+
+        self.app = app
 
         notifications = ListModel.ListModel[Notification.Notification]()
         stack_index = Model.PropertyModel[int](0)
@@ -207,6 +209,8 @@ class NotificationDialog(Declarative.WindowHandler):
 
         def notification_changed(key: str, value: Notification.Notification, index: int) -> None:
             stack_index.value = 1 if len(notifications.items) > 0 else 0
+            if len(notifications.items) == 0:
+                self.window.request_close()
 
         self.__notification_inserted_listener = self.notifications.item_inserted_event.listen(notification_changed)
         self.__notification_removed_listener = self.notifications.item_removed_event.listen(notification_changed)
@@ -246,7 +250,7 @@ class NotificationDialog(Declarative.WindowHandler):
             notification = typing.cast(Notification.Notification, item)
             for component in Registry.get_components_by_type("notification-component-factory"):
                 notification_handler = typing.cast(NotificationComponentFactory, component)
-                notification_component = notification_handler.make_component(notification)
+                notification_component = notification_handler.make_component(self.app, notification)
                 if notification_component:
                     return notification_component
             return NotificationHandler(notification)
@@ -276,7 +280,7 @@ def append_notification(notification: Notification.Notification) -> None:
         if notifications:
             notifications.append_item(notification)
 
-    if _app:
+    if _app and _app.event_loop:
         _app.event_loop.create_task(append_notification_async(notification))
 
 
