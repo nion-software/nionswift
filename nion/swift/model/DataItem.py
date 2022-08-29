@@ -1294,7 +1294,7 @@ def sort_by_date_key(data_item: typing.Union[DisplayItem.DisplayItem, DataItem])
 
 
 def new_data_item(data_and_metadata_in: typing.Optional[DataAndMetadata._DataAndMetadataLike] = None) -> DataItem:
-    data_and_metadata = DataAndMetadata.promote_ndarray(data_and_metadata_in) if data_and_metadata_in else None
+    data_and_metadata = DataAndMetadata.promote_ndarray(data_and_metadata_in) if data_and_metadata_in is not None else None
     data_item = DataItem(large_format=len(data_and_metadata.dimensional_shape) > 2 if data_and_metadata else False)
     data_item.set_xdata(data_and_metadata)
     return data_item

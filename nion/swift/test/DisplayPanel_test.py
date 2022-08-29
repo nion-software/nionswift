@@ -2514,7 +2514,8 @@ class TestDisplayPanelClass(unittest.TestCase):
             MimeTypes.mime_data_put_display_item(mime_data, display_item2)
             display_panel.content_canvas_item._set_drop_region(list(display_panel.display_canvas_item.get_drop_regions_map(display_item2).keys())[0])
             display_panel.content_canvas_item.drop(mime_data, 100, 50)
-            self.assertEqual(2, len(display_item.display_data_channels))
+            new_display_item = document_model.display_items[-1]
+            self.assertEqual(2, len(new_display_item.display_data_channels))
 
     def test_cursor_task_is_closed_when_display_panel_is_emptied(self):
         with TestContext.create_memory_context() as test_context:
@@ -2530,6 +2531,73 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_panel.cursor_changed((100, 100))
             document_model.remove_data_item(data_item)
             document_controller.periodic()
+
+    def test_making_composite_display_items(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            document_model.append_data_item(DataItem.new_data_item(numpy.zeros(8,)))
+            document_model.append_data_item(DataItem.new_data_item(numpy.zeros(8,)))
+            document_model.append_data_item(DataItem.new_data_item(numpy.zeros(8,)))
+            data_item1, data_item2, data_item3 = document_model.data_items
+            display_item1, display_item2, display_item3 = document_model.display_items
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item1)
+            # check assumptions
+            self.assertEqual(3, len(document_model.data_items))
+            self.assertEqual(3, len(document_model.display_items))
+            # add item 2 to item 1
+            document_controller.add_display_data_channel_to_or_create_composite(display_item1, display_item2, display_panel)
+            # check that a new data item was created that contains item 1 and item 2
+            self.assertEqual(3, len(document_model.data_items))
+            self.assertEqual(4, len(document_model.display_items))
+            new_display_item = document_model.display_items[-1]
+            self.assertEqual(2, len(new_display_item.display_layers))
+            self.assertEqual(2, len(new_display_item.display_data_channels))
+            self.assertEqual(data_item1, new_display_item.data_items[0])
+            self.assertEqual(data_item2, new_display_item.data_items[1])
+            # undo and check original assumptions
+            document_controller.last_undo_command.undo()
+            self.assertEqual(3, len(document_model.data_items))
+            self.assertEqual(3, len(document_model.display_items))
+            # redo and recheck new data item
+            document_controller.last_undo_command.redo()
+            self.assertEqual(3, len(document_model.data_items))
+            self.assertEqual(4, len(document_model.display_items))
+            new_display_item = document_model.display_items[-1]
+            self.assertEqual(2, len(new_display_item.display_layers))
+            self.assertEqual(2, len(new_display_item.display_data_channels))
+            self.assertEqual(data_item1, new_display_item.data_items[0])
+            self.assertEqual(data_item2, new_display_item.data_items[1])
+            # add item 3 to the new composite item and check that there are three layers
+            document_controller.add_display_data_channel_to_or_create_composite(new_display_item, display_item3, display_panel)
+            self.assertEqual(3, len(document_model.data_items))
+            self.assertEqual(4, len(document_model.display_items))
+            new_display_item = document_model.display_items[-1]
+            self.assertEqual(3, len(new_display_item.display_layers))
+            self.assertEqual(3, len(new_display_item.display_data_channels))
+            self.assertEqual(data_item1, new_display_item.data_items[0])
+            self.assertEqual(data_item2, new_display_item.data_items[1])
+            self.assertEqual(data_item3, new_display_item.data_items[2])
+            # undo check assumptions
+            document_controller.last_undo_command.undo()
+            self.assertEqual(3, len(document_model.data_items))
+            self.assertEqual(4, len(document_model.display_items))
+            new_display_item = document_model.display_items[-1]
+            self.assertEqual(2, len(new_display_item.display_layers))
+            self.assertEqual(2, len(new_display_item.display_data_channels))
+            self.assertEqual(data_item1, new_display_item.data_items[0])
+            self.assertEqual(data_item2, new_display_item.data_items[1])
+            # redo and check
+            document_controller.last_undo_command.redo()
+            self.assertEqual(3, len(document_model.data_items))
+            self.assertEqual(4, len(document_model.display_items))
+            new_display_item = document_model.display_items[-1]
+            self.assertEqual(3, len(new_display_item.display_layers))
+            self.assertEqual(3, len(new_display_item.display_data_channels))
+            self.assertEqual(data_item1, new_display_item.data_items[0])
+            self.assertEqual(data_item2, new_display_item.data_items[1])
+            self.assertEqual(data_item3, new_display_item.data_items[2])
 
     def test_interval_zoom(self):
         intervals = [(-2.5, -1.5), (-1.5, 0.0), (-1.5, 0.5), (0.0, 1.0), (0.5, 0.5), (0.5, 1.5), (1, 2.5), (2.5, 3.5)]
@@ -2564,7 +2632,7 @@ class TestDisplayPanelClass(unittest.TestCase):
                 self.assertAlmostEqual(axes.drawn_left_channel, (min(interval) - padding) * 1024)
                 self.assertAlmostEqual(axes.drawn_right_channel, (max(interval) + padding) * 1024)
 
-    def test_stacked_lineplot_interval_zoom_with_different_intensity_calibration_scales(self):
+    def test_composite_line_plot_interval_zoom_with_different_intensity_calibration_scales(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
             document_model = document_controller.document_model
@@ -2581,7 +2649,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item1)
             display_item.display_type = "line_plot"
             display_panel.set_display_panel_display_item(display_item)
-            display_panel.handle_drop_display_item("plus", document_model.get_display_item_for_data_item(data_item2))
+            document_controller.add_display_data_channel_to_composite(display_item, document_model.get_display_item_for_data_item(data_item2))
             display_panel.update()
             canvas_shape = (480, 640)
             document_controller.show_display_item(display_item)
@@ -2604,7 +2672,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             self.assertAlmostEqual(data_item1.intensity_calibration.convert_from_calibrated_value(48.0) * 1.2, axes.uncalibrated_data_max)
             self.assertAlmostEqual(data_item1.intensity_calibration.convert_from_calibrated_value(-32.0) * 1.2, axes.uncalibrated_data_min)
 
-    def test_stacked_lineplot_interval_zoom_with_different_intensity_calibrations_with_no_selected_interval(self):
+    def test_composite_line_plot_interval_zoom_with_different_intensity_calibrations_with_no_selected_interval(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
             document_model = document_controller.document_model
@@ -2621,7 +2689,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item1)
             display_item.display_type = "line_plot"
             display_panel.set_display_panel_display_item(display_item)
-            display_panel.handle_drop_display_item("plus", document_model.get_display_item_for_data_item(data_item2))
+            document_controller.add_display_data_channel_to_composite(display_item, document_model.get_display_item_for_data_item(data_item2))
             display_panel.update()
             canvas_shape = (480, 640)
             document_controller.show_display_item(display_item)
@@ -2638,7 +2706,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             self.assertAlmostEqual(data_item1.intensity_calibration.convert_from_calibrated_value(96.0) * 1.2, axes.uncalibrated_data_max)
             self.assertAlmostEqual(data_item1.intensity_calibration.convert_from_calibrated_value(-80.0) * 1.2, axes.uncalibrated_data_min)
 
-    def test_stacked_lineplot_interval_zoom_with_different_intensity_calibrations_with_different_intensity_units(self):
+    def test_composite_line_plot_interval_zoom_with_different_intensity_calibrations_with_different_intensity_units(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
             document_model = document_controller.document_model
@@ -2655,7 +2723,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item1)
             display_item.display_type = "line_plot"
             display_panel.set_display_panel_display_item(display_item)
-            display_panel.handle_drop_display_item("plus", document_model.get_display_item_for_data_item(data_item2))
+            document_controller.add_display_data_channel_to_composite(display_item, document_model.get_display_item_for_data_item(data_item2))
             display_panel.update()
             canvas_shape = (480, 640)
             document_controller.show_display_item(display_item)
@@ -2678,7 +2746,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             self.assertAlmostEqual(data_item1.intensity_calibration.convert_from_calibrated_value(3.0) * 1.2, axes.uncalibrated_data_max)
             self.assertAlmostEqual(data_item1.intensity_calibration.convert_from_calibrated_value(-2.0) * 1.2, axes.uncalibrated_data_min)
 
-    def test_stacked_lineplot_interval_zoom_with_different_intensity_calibrations_with_intensity_offset(self):
+    def test_composite_line_plot_interval_zoom_with_different_intensity_calibrations_with_intensity_offset(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
             document_model = document_controller.document_model
@@ -2695,7 +2763,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item1)
             display_item.display_type = "line_plot"
             display_panel.set_display_panel_display_item(display_item)
-            display_panel.handle_drop_display_item("plus", document_model.get_display_item_for_data_item(data_item2))
+            document_controller.add_display_data_channel_to_composite(display_item, document_model.get_display_item_for_data_item(data_item2))
             display_panel.update()
             canvas_shape = (480, 640)
             document_controller.show_display_item(display_item)
@@ -2718,7 +2786,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             self.assertAlmostEqual(data_item1.intensity_calibration.convert_from_calibrated_value(10.0) * 1.2, axes.uncalibrated_data_max)
             self.assertAlmostEqual(data_item1.intensity_calibration.convert_from_calibrated_value(-7.0) * 1.2, axes.uncalibrated_data_min)
 
-    def test_stacked_lineplot_interval_zoom_with_different_intensity_calibrations_with_multiple_intervals(self):
+    def test_composite_line_plot_interval_zoom_with_different_intensity_calibrations_with_multiple_intervals(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
             document_model = document_controller.document_model
@@ -2735,7 +2803,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item1)
             display_item.display_type = "line_plot"
             display_panel.set_display_panel_display_item(display_item)
-            display_panel.handle_drop_display_item("plus", document_model.get_display_item_for_data_item(data_item2))
+            document_controller.add_display_data_channel_to_composite(display_item, document_model.get_display_item_for_data_item(data_item2))
             display_panel.update()
             canvas_shape = (480, 640)
             document_controller.show_display_item(display_item)

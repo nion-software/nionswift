@@ -1981,7 +1981,7 @@ class ImageDisplayInspectorSection(InspectorSection):
 
 
 def make_legend_position(document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem) -> typing.Tuple[UserInterface.BoxWidget, Event.EventListener]:
-    # This function is currently only utilized by lineplots
+    # This function is currently only utilized by line plots
     ui = document_controller.ui
     legend_position_row = ui.create_row_widget()
     legend_position_options = [(_("None"), None), (_("Top Left"), "top-left"), (_("Top Right"), "top-right"), (_("Outer Left"), "outer-left"), (_("Outer Right"), "outer-right")]

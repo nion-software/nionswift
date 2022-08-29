@@ -62,9 +62,7 @@ class TestThumbnailsClass(unittest.TestCase):
                 self.assertFalse(display_item._display_cache.is_cached_value_dirty(display_item, "thumbnail_data"))
                 # now the source data changes and the inverted data needs computing.
                 # the thumbnail should also be dirty.
-                print(display_item.display_layers[0].fill_color)
                 display_item._set_display_layer_property(0, "fill_color", "teal")
-                print(display_item.display_layers[0].fill_color)
                 document_model.recompute_all()
                 self.assertTrue(display_item._display_cache.is_cached_value_dirty(display_item, "thumbnail_data"))
 

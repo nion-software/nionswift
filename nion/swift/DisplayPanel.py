@@ -2050,12 +2050,11 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
 
     def handle_drop_display_item(self, region: str, display_item: typing.Optional[DisplayItem.DisplayItem]) -> bool:
         if region == "plus":
-            data_item = display_item.data_item if display_item else None
-            if data_item and self.display_item:
-                command = AppendDisplayDataChannelCommand(self.__document_controller.document_model, self.display_item, data_item)
-                command.perform()
-                self.__document_controller.push_undo_command(command)
-                return True
+            target_display_item = self.display_item
+            if target_display_item and display_item:
+                new_display_item = self.__document_controller.add_display_data_channel_to_or_create_composite(target_display_item, display_item, self)
+                if new_display_item:
+                    return True
         return False
 
     def _drag_finished(self, document_controller: DocumentController.DocumentController, action: str) -> None:

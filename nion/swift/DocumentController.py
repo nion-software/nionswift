@@ -937,6 +937,93 @@ class DocumentController(Window.Window):
         # delete key gets handled by key handlers, but this method gets called by menu items
         self.remove_selected_graphics()
 
+    def add_display_data_channel_to_composite(self, target_display_item: DisplayItem.DisplayItem, display_item: DisplayItem.DisplayItem) -> bool:
+        # append the display data channel of the display_item to the target_display_item.
+        # the display_item must have a single data item.
+        # this is used for stacking line plot layers.
+        # returns True if success else False.
+        data_item = display_item.data_item if display_item else None
+        if data_item and target_display_item:
+            command = DisplayPanel.AppendDisplayDataChannelCommand(self.document_model, target_display_item, data_item)
+            command.perform()
+            self.push_undo_command(command)
+            return True
+        return False
+
+    class InsertDisplayItemCommand(Undo.UndoableCommand):
+
+        def __init__(self, document_controller: DocumentController, display_item: DisplayItem.DisplayItem, display_panel: DisplayPanel.DisplayPanel) -> None:
+            super().__init__(_("Insert Display Item"))
+            self.__document_controller = document_controller
+            workspace_controller = self.__document_controller.workspace_controller
+            self.__old_workspace_layout: typing.Optional[Persistence.PersistentDictType] = workspace_controller.deconstruct() if workspace_controller else None
+            self.__new_workspace_layout: typing.Optional[Persistence.PersistentDictType] = None
+            self.__display_item_proxy: typing.Optional[Persistence.PersistentObjectProxy[DisplayItem.DisplayItem]] = None
+            self.__display_item = display_item
+            self.__display_panel = display_panel
+            self.__undelete_log: typing.Optional[Changes.UndeleteLog] = None
+            self.initialize()
+
+        def close(self) -> None:
+            self.__document_controller = typing.cast(typing.Any, None)
+            if self.__display_item_proxy:
+                self.__display_item_proxy.close()
+                self.__display_item_proxy = None
+            self.__old_workspace_layout = None
+            self.__new_workspace_layout = None
+            if self.__undelete_log:
+                self.__undelete_log.close()
+                self.__undelete_log = None
+            self.__display_panel = typing.cast(typing.Any, None)
+            super().close()
+
+        def perform(self) -> None:
+            display_item = self.__display_item
+            self.__display_item_proxy = display_item.create_proxy() if display_item else None
+            self.__display_panel.set_display_item(display_item)
+
+        def _get_modified_state(self) -> typing.Any:
+            return self.__document_controller.document_model.modified_state
+
+        def _set_modified_state(self, modified_state: typing.Any) -> None:
+            self.__document_controller.document_model.modified_state = modified_state
+
+        def _redo(self) -> None:
+            assert self.__undelete_log
+            self.__document_controller.document_model.undelete_all(self.__undelete_log)
+            self.__undelete_log.close()
+            self.__undelete_log = None
+            workspace_controller = self.__document_controller.workspace_controller
+            assert workspace_controller
+            assert self.__new_workspace_layout is not None
+            workspace_controller.reconstruct(self.__new_workspace_layout)
+
+        def _undo(self) -> None:
+            display_item = self.__display_item_proxy.item if self.__display_item_proxy else None
+            assert display_item
+            workspace_controller = self.__document_controller.workspace_controller
+            assert workspace_controller
+            self.__new_workspace_layout = workspace_controller.deconstruct()
+            self.__undelete_log = self.__document_controller.document_model.remove_display_item_with_log(display_item)
+            assert self.__old_workspace_layout is not None
+            workspace_controller.reconstruct(self.__old_workspace_layout)
+
+    def add_display_data_channel_to_or_create_composite(self, target_display_item: DisplayItem.DisplayItem, display_item: DisplayItem.DisplayItem, display_panel: DisplayPanel.DisplayPanel) -> typing.Optional[DisplayItem.DisplayItem]:
+        data_item = display_item.data_item if display_item else None
+        if data_item and target_display_item:
+            if target_display_item.display_data_channel:
+                new_display_item = target_display_item.snapshot()
+                self.document_model.append_display_item(new_display_item)
+                new_display_item.append_display_data_channel_for_data_item(data_item)
+                new_display_item.title = target_display_item.title + _(" (Composite)")
+                command = DocumentController.InsertDisplayItemCommand(self, new_display_item, display_panel)
+                command.perform()
+                self.push_undo_command(command)
+                return new_display_item
+            elif self.add_display_data_channel_to_composite(target_display_item, display_item):
+                return target_display_item
+        return None
+
     class InsertDataGroupDisplayItemsCommand(Undo.UndoableCommand):
         def __init__(self, document_model: DocumentModel.DocumentModel, data_group: DataGroup.DataGroup, before_index: int, display_items: typing.Sequence[DisplayItem.DisplayItem]) -> None:
             super().__init__("Insert Data Items")
@@ -1961,7 +2048,7 @@ class DocumentController(Window.Window):
         if data_item:
             self._perform_duplicate(data_item)
 
-    class InsertDisplayItemCommand(Undo.UndoableCommand):
+    class InsertAndShowDisplayItemCommand(Undo.UndoableCommand):
 
         def __init__(self, document_controller: DocumentController, display_item: DisplayItem.DisplayItem, display_item_fn: typing.Callable[[DisplayItem.DisplayItem], DisplayItem.DisplayItem]) -> None:
             super().__init__(_("Insert Display Item"))
@@ -1972,7 +2059,6 @@ class DocumentController(Window.Window):
             self.__display_item_proxy: typing.Optional[Persistence.PersistentObjectProxy[DisplayItem.DisplayItem]] = None
             self.__display_item = display_item
             self.__display_item_fn = display_item_fn
-            self.__display_item_index = 0
             self.__undelete_log: typing.Optional[Changes.UndeleteLog] = None
             self.initialize()
 
@@ -2019,13 +2105,12 @@ class DocumentController(Window.Window):
             workspace_controller = self.__document_controller.workspace_controller
             assert workspace_controller
             self.__new_workspace_layout = workspace_controller.deconstruct()
-            self.__display_item_index = self.__document_controller.document_model.display_items.index(display_item)
             self.__undelete_log = self.__document_controller.document_model.remove_display_item_with_log(display_item)
             assert self.__old_workspace_layout is not None
             workspace_controller.reconstruct(self.__old_workspace_layout)
 
     def _perform_display_item_snapshot(self, display_item: DisplayItem.DisplayItem) -> None:
-        command = DocumentController.InsertDisplayItemCommand(self, display_item, self.document_model.get_display_item_snapshot_new)
+        command = DocumentController.InsertAndShowDisplayItemCommand(self, display_item, self.document_model.get_display_item_snapshot_new)
         command.perform()
         self.push_undo_command(command)
 
@@ -2035,12 +2120,12 @@ class DocumentController(Window.Window):
             self._perform_display_item_snapshot(display_item)
 
     def processing_display_copy(self, display_item: DisplayItem.DisplayItem) -> None:
-        command = DocumentController.InsertDisplayItemCommand(self, display_item, self.document_model.get_display_item_copy_new)
+        command = DocumentController.InsertAndShowDisplayItemCommand(self, display_item, self.document_model.get_display_item_copy_new)
         command.perform()
         self.push_undo_command(command)
 
     def processing_display_snapshot(self, display_item: DisplayItem.DisplayItem) -> None:
-        command = DocumentController.InsertDisplayItemCommand(self, display_item, self.document_model.get_display_snapshot_new)
+        command = DocumentController.InsertAndShowDisplayItemCommand(self, display_item, self.document_model.get_display_snapshot_new)
         command.perform()
         self.push_undo_command(command)
 
