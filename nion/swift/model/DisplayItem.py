@@ -1332,6 +1332,8 @@ class DisplayItem(Persistence.PersistentObject):
         self.define_relationship("display_layers", typing.cast(Persistence._PersistentObjectFactoryFn, display_layer_factory), insert=self.__insert_display_layer, remove=self.__remove_display_layer, hidden=True)
         self.define_relationship("display_data_channels", display_data_channel_factory, insert=self.__insert_display_data_channel, remove=self.__remove_display_data_channel, hidden=True)
 
+        self.__display_layer_changed_event_listeners: typing.List[Event.EventListener] = list()
+
         self.__display_data_channel_property_changed_event_listeners: typing.List[Event.EventListener] = list()
         self.__display_data_channel_data_item_will_change_event_listeners: typing.List[Event.EventListener] = list()
         self.__display_data_channel_data_item_did_change_event_listeners: typing.List[Event.EventListener] = list()
@@ -1645,12 +1647,18 @@ class DisplayItem(Persistence.PersistentObject):
         self.insert_display_layer(len(self.display_layers), display_layer)
 
     def __insert_display_layer(self, name: str, before_index: int, display_layer: DisplayLayer) -> None:
+        self.__display_layer_changed_event_listeners.insert(before_index, display_layer.property_changed_event.listen(self.__display_layer_changed))
         self.notify_insert_item("display_layers", display_layer, before_index)
         self.auto_display_legend()
 
     def __remove_display_layer(self, name: str, index: int, display_layer: DisplayLayer) -> None:
+        self.__display_layer_changed_event_listeners[index].close()
+        del self.__display_layer_changed_event_listeners[index]
         self.notify_remove_item("display_layers", display_layer, index)
         self.auto_display_legend()
+
+    def __display_layer_changed(self, name: str) -> None:
+        self.display_changed_event.fire()
 
     @property
     def display_layers_list(self) -> typing.List[Persistence.PersistentDictType]:

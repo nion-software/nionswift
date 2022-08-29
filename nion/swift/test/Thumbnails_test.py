@@ -10,6 +10,7 @@ import unittest
 from nion.swift import Application
 from nion.swift import DataItemThumbnailWidget
 from nion.swift import MimeTypes
+from nion.swift import Thumbnails
 from nion.swift.model import DataItem
 from nion.swift.test import TestContext
 from nion.ui import TestUI
@@ -46,6 +47,26 @@ class TestThumbnailsClass(unittest.TestCase):
                 self.assertTrue(valid)
                 self.assertIsNotNone(thumbnail)
                 self.assertTrue(mime_data.has_format(MimeTypes.DISPLAY_ITEM_MIME_TYPE))
+
+    def test_thumbnail_marked_dirty_when_display_layers_change(self):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            data_item = DataItem.DataItem(numpy.ones((8,)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.app.ui, display_item)
+            with thumbnail_source.ref():
+                thumbnail_source.recompute_data()
+                thumbnail_source.thumbnail_data
+                # here the data should be computed and the thumbnail should not be dirty
+                self.assertFalse(display_item._display_cache.is_cached_value_dirty(display_item, "thumbnail_data"))
+                # now the source data changes and the inverted data needs computing.
+                # the thumbnail should also be dirty.
+                print(display_item.display_layers[0].fill_color)
+                display_item._set_display_layer_property(0, "fill_color", "teal")
+                print(display_item.display_layers[0].fill_color)
+                document_model.recompute_all()
+                self.assertTrue(display_item._display_cache.is_cached_value_dirty(display_item, "thumbnail_data"))
 
 
 if __name__ == '__main__':
