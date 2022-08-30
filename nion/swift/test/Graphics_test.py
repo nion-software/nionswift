@@ -1300,6 +1300,35 @@ class TestGraphicsClass(unittest.TestCase):
             with self.assertRaises(Exception):
                 interval_graphic.end = numpy.array([3, 4])
 
+    def test_copy_paste_graphics(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((100, ), numpy.uint32))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            document_controller.show_display_item(document_model.get_display_item_for_data_item(data_item))
+            t = [
+                ("line", Graphics.LineGraphic),
+                ("rectangle", Graphics.RectangleGraphic),
+                ("ellipse", Graphics.EllipseGraphic),
+                ("point", Graphics.PointGraphic),
+                ("spot", Graphics.SpotGraphic),
+                ("wedge", Graphics.WedgeGraphic),
+                ("ring", Graphics.RingGraphic),
+                ("lattice", Graphics.LatticeGraphic),
+            ]
+            for name, c in t:
+                graphic = c()
+                display_item.add_graphic(graphic)
+                display_item.graphic_selection.set(0)
+                document_controller.handle_copy()
+                self.assertEqual(1, len(display_item.graphics))
+                document_controller.handle_paste()
+                self.assertEqual(2, len(display_item.graphics))
+                display_item.remove_graphic(display_item.graphics[0]).close()
+                display_item.remove_graphic(display_item.graphics[0]).close()
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

@@ -923,7 +923,7 @@ class RectangleTypeGraphic(Graphic):
 
     def mime_data_dict(self) -> Persistence.PersistentDictType:
         d = super().mime_data_dict()
-        d["bounds"] = tuple(self.bounds)
+        d["bounds"] = self.bounds.as_tuple()
         d["rotation"] = self.rotation
         return d
 
@@ -1267,7 +1267,7 @@ class LineTypeGraphic(Graphic):
     def mime_data_dict(self) -> Persistence.PersistentDictType:
         d = super().mime_data_dict()
         vector = self.vector
-        d["vector"] = vector[0], vector[1]
+        d["vector"] = vector[0].as_tuple(), vector[1].as_tuple()
         d["start_arrow_enabled"] = self.start_arrow_enabled
         d["end_arrow_enabled"] = self.start_arrow_enabled
         return d
@@ -1632,7 +1632,7 @@ class PointTypeGraphic(Graphic):
 
     def mime_data_dict(self) -> Persistence.PersistentDictType:
         d = super().mime_data_dict()
-        d["position"] = self.position
+        d["position"] = self.position.as_tuple()
         return d
 
     def read_from_mime_data(self, graphic_dict: Persistence.PersistentDictType) -> None:
@@ -1943,7 +1943,7 @@ class SpotGraphic(Graphic):
 
     def mime_data_dict(self) -> Persistence.PersistentDictType:
         d = super().mime_data_dict()
-        d["bounds"] = self.bounds
+        d["bounds"] = self.bounds.as_tuple()
         d["rotation"] = self.rotation
         return d
 
@@ -2616,8 +2616,8 @@ class LatticeGraphic(Graphic):
 
     def mime_data_dict(self) -> Persistence.PersistentDictType:
         d = super().mime_data_dict()
-        d["u_pos"] = self.u_pos
-        d["v_pos"] = self.v_pos
+        d["u_pos"] = tuple(self.u_pos)
+        d["v_pos"] = tuple(self.v_pos)
         d["radius"] = self.radius
         return d
 
