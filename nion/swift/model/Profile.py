@@ -40,7 +40,6 @@ class ProjectReference(Persistence.PersistentObject):
         self.__project_version: typing.Optional[int] = None
         self.__project_state = "invalid"
         self.__document_model: typing.Optional[DocumentModel.DocumentModel] = None
-        self.storage_cache: typing.Optional[Cache.CacheLike] = None
 
     @property
     def project_uuid(self) -> typing.Optional[uuid.UUID]:
@@ -140,7 +139,7 @@ class ProjectReference(Persistence.PersistentObject):
                     self.__project_state = project.project_state
                     self.__has_project_info_been_read = True
 
-    def load_project(self, profile_context: typing.Optional[ProfileContext]) -> None:
+    def load_project(self, profile_context: typing.Optional[ProfileContext], cache_dir_path: typing.Optional[pathlib.Path], *, cache_factory: typing.Optional[Cache.CacheFactory]) -> None:
         """Read project.
 
         The profile context is used during testing.
@@ -152,10 +151,23 @@ class ProjectReference(Persistence.PersistentObject):
             project_storage_system = self.make_storage(profile_context)
             if project_storage_system:
                 project_storage_system.load_properties()
-                project = Project.Project(project_storage_system)
+                if not cache_factory:
+                    assert cache_dir_path
+
+                    def encode(uuid_: uuid.UUID, alphabet: str) -> str:
+                        result = str()
+                        uuid_int = uuid_.int
+                        while uuid_int:
+                            uuid_int, digit = divmod(uuid_int, len(alphabet))
+                            result += alphabet[digit]
+                        return result
+
+                    encoded_base_path = "proj_" + encode(self.project_uuid or self.uuid, "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890")  # 25 character results
+                    cache_factory = Cache.DbCacheFactory(cache_dir_path, str(encoded_base_path))
+                project = Project.Project(project_storage_system, cache_factory)
 
             if project:
-                self.__document_model = DocumentModel.DocumentModel(project, storage_cache=self.storage_cache)
+                self.__document_model = DocumentModel.DocumentModel(project)
 
                 project.prepare_read_project()  # sets up the uuid, used next.
 
@@ -400,7 +412,8 @@ class Profile(Persistence.PersistentObject):
     count = 0  # useful for detecting leaks in tests
 
     def __init__(self, storage_system: typing.Optional[FileStorageSystem.PersistentStorageSystem] = None,
-                 storage_cache: typing.Optional[Cache.CacheLike] = None, *,
+                 cache_dir_path: typing.Optional[pathlib.Path] = None, *,
+                 cache_factory: typing.Optional[Cache.CacheFactory] = None,
                  profile_context: typing.Optional[ProfileContext] = None) -> None:
         super().__init__()
         self.__class__.count += 1
@@ -421,8 +434,10 @@ class Profile(Persistence.PersistentObject):
         self.storage_system = storage_system or FileStorageSystem.MemoryPersistentStorageSystem()
         self.storage_system.load_properties()
 
-        self.storage_cache: typing.Any = storage_cache or Cache.DictStorageCache()  # need to deallocate
         self.set_storage_system(self.storage_system)
+
+        self.__cache_dir_path = cache_dir_path
+        self.__cache_factory = cache_factory
 
         self.profile_context = None
 
@@ -437,8 +452,6 @@ class Profile(Persistence.PersistentObject):
             self.add_project_memory()
 
     def close(self) -> None:
-        self.storage_cache.close()
-        self.storage_cache = None
         self.storage_system.close()
         self.storage_system = typing.cast(typing.Any, None)
         if self.__projects_observer:
@@ -503,12 +516,10 @@ class Profile(Persistence.PersistentObject):
         self.notify_property_changed(name)
 
     def __insert_project_reference(self, name: str, before_index: int, project_reference: ProjectReference) -> None:
-        project_reference.storage_cache = self.storage_cache
         project_reference.read_project_info(self.profile_context)
         self.notify_insert_item("project_references", project_reference, before_index)
 
     def __remove_project_reference(self, name: str, index: int, project_reference: ProjectReference) -> None:
-        project_reference.storage_cache = None
         self.notify_remove_item("project_references", project_reference, index)
 
     @property
@@ -581,7 +592,7 @@ class Profile(Persistence.PersistentObject):
             self.storage_system.set_property(self, "version", FileStorageSystem.PROFILE_VERSION)
 
     def read_project(self, project_reference: ProjectReference) -> None:
-        project_reference.load_project(self.profile_context)
+        project_reference.load_project(self.profile_context, self.__cache_dir_path, cache_factory=self.__cache_factory)
 
     def create_project(self, project_dir: pathlib.Path, library_name: str) -> typing.Optional[ProjectReference]:
         project_name = pathlib.Path(library_name)
@@ -633,7 +644,7 @@ class Profile(Persistence.PersistentObject):
         else:
             project_reference.close()
             if load:
-                existing_project_reference.load_project(self.profile_context)
+                existing_project_reference.load_project(self.profile_context, self.__cache_dir_path, cache_factory=self.__cache_factory)
             return existing_project_reference
 
     def add_project_index(self, project_path: pathlib.Path, load: bool = True) -> ProjectReference:

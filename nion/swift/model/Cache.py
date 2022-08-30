@@ -2,6 +2,7 @@ from __future__ import annotations
 
 # standard libraries
 import copy
+import datetime
 import functools
 import logging
 import os
@@ -30,6 +31,11 @@ class CacheLike(typing.Protocol):
     def remove_cached_value(self, target: typing.Any, key: str) -> None: ...
     def is_cached_value_dirty(self, target: typing.Any, key: str) -> bool: ...
     def set_cached_value_dirty(self, target: typing.Any, key: str, dirty: bool = True) -> None: ...
+
+
+class CacheFactory(typing.Protocol):
+    def create_cache(self) -> CacheLike: ...
+    def release_cache(self, cache: CacheLike) -> None: ...
 
 
 class TracingCache(CacheLike):
@@ -526,3 +532,40 @@ class DbStorageCache(CacheLike):
         if _queue:
             _queue.put((functools.partial(self.__set_cached_value_dirty, target, key, dirty), None, event, "set_cached_value_dirty"))
         # event.wait()
+
+
+class DbCacheFactory(CacheFactory):
+    def __init__(self, cache_dir_path: pathlib.Path, identifier: str) -> None:
+        self.__cache_dir_path = cache_dir_path
+        self.__identifier = identifier
+
+    def __purge(self, cache_path: pathlib.Path) -> None:
+        try:
+            if self.__cache_dir_path.exists():
+                absolute_file_paths = set()
+                for file_path in self.__cache_dir_path.rglob("*.nscache"):
+                    absolute_file_paths.add(file_path)
+                for file_path in absolute_file_paths - {cache_path}:
+                    time_delta = datetime.datetime.now() - datetime.datetime.fromtimestamp(file_path.stat().st_mtime)
+                    if time_delta.days > 30:
+                        logging.getLogger("loader").info(f"Purging cache file {file_path}")
+                        file_path.unlink(True)
+        except Exception as e:
+            pass
+
+    def create_cache(self) -> CacheLike:
+        cache_path = (self.__cache_dir_path / (self.__identifier)).with_suffix(".nscache")
+        self.__purge(cache_path)
+        logging.getLogger("loader").info(f"Using cache {cache_path}")
+        return DbStorageCache(cache_path)
+
+    def release_cache(self, cache: CacheLike) -> None:
+        cache.close()
+
+
+class DictCacheFactory(CacheFactory):
+    def create_cache(self) -> CacheLike:
+        return DictStorageCache()
+
+    def release_cache(self, cache: CacheLike) -> None:
+        cache.close()

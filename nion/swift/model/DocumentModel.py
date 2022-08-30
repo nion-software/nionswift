@@ -565,7 +565,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
     """
     count = 0  # useful for detecting leaks in tests
 
-    def __init__(self, project: Project.Project, *, storage_cache: typing.Optional[Cache.CacheLike] = None) -> None:
+    def __init__(self, project: Project.Project) -> None:
         super().__init__()
         self.__class__.count += 1
 
@@ -595,11 +595,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.__project_item_removed_listener = project.item_removed_event.listen(self.__project_item_removed)
         self.__project_property_changed_listener = project.property_changed_event.listen(self.__project_property_changed)
 
-        self.storage_cache = storage_cache
-        self.__storage_cache: typing.Optional[Cache.CacheLike] = None  # needed to deallocate
-        if not storage_cache:
-            self.__storage_cache = Cache.DictStorageCache()
-            self.storage_cache = self.__storage_cache
         self.__transaction_manager = TransactionManager(self)
         self.__data_structure_listeners: typing.Dict[DataStructure.DataStructure, Event.EventListener] = dict()
         self.__live_data_items_lock = threading.RLock()
@@ -730,10 +725,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         for data_item_reference in self.__data_item_references.values():
             data_item_reference.close()
         self.__data_item_references = typing.cast(typing.Any, None)
-
-        if self.__storage_cache:
-            self.__storage_cache.close()
-            self.__storage_cache = None
 
         self.__computation_thread_pool.close()
         self.__computation_thread_pool = typing.cast(typing.Any, None)
@@ -1010,8 +1001,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         assert display_item is not None
         assert display_item not in self.__display_items
         # data item bookkeeping
-        if self.storage_cache:
-            display_item.set_storage_cache(self.storage_cache)
+        display_item.set_storage_cache(self.__project.storage_cache)
         # insert in internal list
         before_index = len(self.__display_items)
         self.__display_items.append(display_item)

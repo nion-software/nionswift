@@ -9,6 +9,7 @@ import uuid
 import weakref
 
 # local libraries
+from nion.swift.model import Cache
 from nion.swift.model import Changes
 from nion.swift.model import Connection
 from nion.swift.model import DataGroup
@@ -40,7 +41,7 @@ class Project(Persistence.PersistentObject):
 
     _processing_descriptions: PersistentDictType = dict()
 
-    def __init__(self, storage_system: FileStorageSystem.ProjectStorageSystem) -> None:
+    def __init__(self, storage_system: FileStorageSystem.ProjectStorageSystem, cache_factory: typing.Optional[Cache.CacheFactory] = None) -> None:
         super().__init__()
 
         self.define_type("project")
@@ -70,11 +71,18 @@ class Project(Persistence.PersistentObject):
 
         self.set_storage_system(self.__storage_system)
 
+        self.__cache_factory = cache_factory
+        self.__cache = cache_factory.create_cache() if cache_factory else None
+
     def close(self) -> None:
         self.handle_start_read = None
         self.handle_insert_model_item = None
         self.handle_remove_model_item = None
         self.handle_finish_read = None
+        if self.__cache_factory:
+            self.__cache_factory.release_cache(typing.cast(Cache.CacheLike, self.__cache))
+            self.__cache_factory = None
+            self.__cache = None
         self.__storage_system.close()
         self.__storage_system = typing.cast(typing.Any, None)
         super().close()
@@ -157,6 +165,11 @@ class Project(Persistence.PersistentObject):
     @property
     def storage_system_path(self) -> pathlib.Path:
         return pathlib.Path(self.__storage_system.get_identifier())
+
+    @property
+    def storage_cache(self) -> Cache.CacheLike:
+        assert self.__cache
+        return self.__cache
 
     @property
     def project_uuid(self) -> typing.Optional[uuid.UUID]:

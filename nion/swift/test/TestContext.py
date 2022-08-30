@@ -111,11 +111,21 @@ class MemoryProfileContext:
         self.trash_map = self.x_trash_map[self.project_uuid] = dict()
 
     def create_profile(self, add_project: bool = True) -> Profile.Profile:
+        class CacheFactory(Cache.CacheFactory):
+            def __init__(self, cache: Cache.CacheLike) -> None:
+                self.cache = cache
+
+            def create_cache(self) -> Cache.CacheLike:
+                return self.cache
+
+            def release_cache(self, cache: Cache.CacheLike) -> None:
+                pass
+
         if not self.__profile:
             library_properties = {"version": FileStorageSystem.PROFILE_VERSION}
             storage_system = self.__storage_system
             storage_system.set_library_properties(library_properties)
-            profile = Profile.Profile(storage_system=storage_system, storage_cache=self.storage_cache)
+            profile = Profile.Profile(storage_system=storage_system, cache_factory=CacheFactory(self.storage_cache))
             profile.storage_system = storage_system
             profile.profile_context = self
             if add_project:
@@ -126,7 +136,7 @@ class MemoryProfileContext:
         else:
             storage_system = self.__storage_system
             storage_system.load_properties()
-            profile = Profile.Profile(storage_system=storage_system, storage_cache=self.storage_cache)
+            profile = Profile.Profile(storage_system=storage_system, cache_factory=CacheFactory(self.storage_cache))
             profile.storage_system = storage_system
             profile.profile_context = self
             self.__items_exit.append(profile.close)

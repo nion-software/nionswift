@@ -81,8 +81,7 @@ class TempProfileContext:
             project_path.write_text(project_data_json, "utf-8")
             storage_system = FileStorageSystem.FilePersistentStorageSystem(profile_path)
             storage_system.load_properties()
-            storage_cache = Cache.DbStorageCache(self.profiles_dir / "ProfileCache.cache")
-            profile = Profile.Profile(storage_system=storage_system, storage_cache=storage_cache)
+            profile = Profile.Profile(storage_system=storage_system, cache_factory=Cache.DbCacheFactory(self.profiles_dir, "X"))
             profile.storage_system = storage_system
             profile.profile_context = self
             profile.add_project_index(project_path)
@@ -93,8 +92,7 @@ class TempProfileContext:
             profile_path = self.profiles_dir / pathlib.Path(profile_name or "Profile").with_suffix(".nsprof")
             storage_system = FileStorageSystem.FilePersistentStorageSystem(profile_path)
             storage_system.load_properties()
-            storage_cache = Cache.DbStorageCache(self.profiles_dir / "ProfileCache.cache")
-            profile = Profile.Profile(storage_system=storage_system, storage_cache=storage_cache)
+            profile = Profile.Profile(storage_system=storage_system, cache_factory=Cache.DbCacheFactory(self.profiles_dir, "X"))
             profile.storage_system = storage_system
             profile.profile_context = self
             self.__items_to_close.append(profile)
@@ -296,15 +294,15 @@ class TestStorageClass(unittest.TestCase):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
                 display_item = document_model.get_display_item_for_data_item(data_item)
-                document_model.storage_cache.set_cached_value(display_item, "thumbnail_data", numpy.zeros((128, 128, 4), dtype=numpy.uint8))
-                self.assertFalse(document_model.storage_cache.is_cached_value_dirty(display_item, "thumbnail_data"))
+                display_item._display_cache.set_cached_value(display_item, "thumbnail_data", numpy.zeros((128, 128, 4), dtype=numpy.uint8))
+                self.assertFalse(display_item._display_cache.is_cached_value_dirty(display_item, "thumbnail_data"))
             # read it back
             document_model = profile_context.create_document_model(auto_close=False)
             with document_model.ref():
                 read_data_item = document_model.data_items[0]
                 read_display_item = document_model.get_display_item_for_data_item(read_data_item)
                 # thumbnail data should still be valid
-                self.assertFalse(document_model.storage_cache.is_cached_value_dirty(read_display_item, "thumbnail_data"))
+                self.assertFalse(read_display_item._display_cache.is_cached_value_dirty(read_display_item, "thumbnail_data"))
 
     def test_reloading_thumbnail_from_cache_does_not_mark_it_as_dirty(self):
         # tests caching on display

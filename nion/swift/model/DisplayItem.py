@@ -1551,9 +1551,10 @@ class DisplayItem(Persistence.PersistentObject):
             display_item.add_display_layer_for_display_data_channel(display_item.display_data_channels[data_index], **self.get_display_layer_properties(i))
         return display_item
 
-    def set_storage_cache(self, storage_cache: Cache.CacheLike) -> None:
-        self.__suspendable_storage_cache = Cache.SuspendableCache(storage_cache)
-        self.__cache.set_storage_cache(self._suspendable_storage_cache, self)
+    def set_storage_cache(self, storage_cache: typing.Optional[Cache.CacheLike]) -> None:
+        if storage_cache:
+            self.__suspendable_storage_cache = Cache.SuspendableCache(storage_cache)
+            self.__cache.set_storage_cache(self._suspendable_storage_cache, self)
 
     @property
     def _suspendable_storage_cache(self) -> typing.Optional[Cache.CacheLike]:

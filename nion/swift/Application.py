@@ -530,10 +530,13 @@ class Application(UIApplication.BaseApplication):
             logging.getLogger("loader").info(f"Using existing profile {profile_path}")
         storage_system = FileStorageSystem.FilePersistentStorageSystem(profile_path)
         storage_system.load_properties()
-        cache_path = profile_path.parent / pathlib.Path(profile_path.stem + " Cache").with_suffix(".nscache")
-        logging.getLogger("loader").info(f"Using cache {cache_path}")
-        storage_cache = Cache.DbStorageCache(cache_path)
-        profile = Profile.Profile(storage_system=storage_system, storage_cache=storage_cache)
+        old_cache_path = profile_path.parent / pathlib.Path(profile_path.stem + " Cache").with_suffix(".nscache")
+        if old_cache_path.exists():
+            logging.getLogger("loader").info(f"Removing old cache {old_cache_path}")
+            old_cache_path.unlink()
+        cache_dir_path = profile_path.parent / "Cache"
+        cache_dir_path.mkdir(parents=True, exist_ok=True)
+        profile = Profile.Profile(storage_system=storage_system, cache_dir_path=cache_dir_path)
         profile.read_profile()
         return profile, create_new_profile
 
