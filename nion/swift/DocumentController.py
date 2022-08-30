@@ -2,6 +2,7 @@ from __future__ import annotations
 
 # standard libraries
 import copy
+import contextlib
 import datetime
 import functools
 import gettext
@@ -57,6 +58,7 @@ from nion.ui import Dialog
 from nion.ui import PreferencesDialog
 from nion.ui import Window
 from nion.ui import UserInterface
+from nion.utils import Color
 from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import ListModel
@@ -927,8 +929,8 @@ class DocumentController(Window.Window):
                 return True
             display_item_to_paste = MimeTypes.mime_data_get_display_item(mime_data, self.document_model)
             data_item_to_paste = display_item_to_paste.data_item if display_item_to_paste else None
-            if data_item_to_paste:
-                append_command = DisplayPanel.AppendDisplayDataChannelCommand(self.document_model, display_item, data_item_to_paste)
+            if display_item_to_paste and data_item_to_paste:
+                append_command = DisplayPanel.AppendDisplayDataChannelCommand(self.document_model, display_item, data_item_to_paste, display_item_to_paste.display_layers[0])
                 append_command.perform()
                 self.push_undo_command(append_command)
         return False
@@ -944,7 +946,7 @@ class DocumentController(Window.Window):
         # returns True if success else False.
         data_item = display_item.data_item if display_item else None
         if data_item and target_display_item:
-            command = DisplayPanel.AppendDisplayDataChannelCommand(self.document_model, target_display_item, data_item)
+            command = DisplayPanel.AppendDisplayDataChannelCommand(self.document_model, target_display_item, data_item, display_item.display_layers[0])
             command.perform()
             self.push_undo_command(command)
             return True
@@ -1014,7 +1016,14 @@ class DocumentController(Window.Window):
             if target_display_item.display_data_channel:
                 new_display_item = target_display_item.snapshot()
                 self.document_model.append_display_item(new_display_item)
-                new_display_item.append_display_data_channel_for_data_item(data_item)
+                display_layer = copy.deepcopy(display_item.display_layers[0])
+                with contextlib.closing(display_layer):
+                    display_layer_color_str = display_layer.fill_color or display_layer.stroke_color or DisplayItem.DisplayItem.DEFAULT_COLORS[0]
+                    display_layer_color_str = target_display_item.get_unique_display_layer_color(Color.Color(display_layer_color_str))
+                    display_layer.fill_color = None
+                    display_layer.stroke_color = display_layer_color_str
+                    display_layer_properties = display_layer.get_display_layer_properties()
+                new_display_item.append_display_data_channel_for_data_item(data_item, display_layer_properties)
                 new_display_item.title = target_display_item.title + _(" (Composite)")
                 command = DocumentController.InsertDisplayItemCommand(self, new_display_item, display_panel)
                 command.perform()

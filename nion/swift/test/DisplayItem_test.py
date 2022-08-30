@@ -277,7 +277,7 @@ class TestDisplayItemClass(unittest.TestCase):
             document_model.append_data_item(data_item2)
             display_item = document_model.get_display_item_for_data_item(data_item)
             self.assertEqual(1, len(display_item.display_layers))
-            display_item.append_display_data_channel_for_data_item(data_item2)
+            display_item.append_display_data_channel_for_data_item(data_item2, {"stroke_color": "#000"})
             self.assertEqual(2, len(display_item.display_layers))
             self.assertIsNotNone(display_item.get_display_layer_display_data_channel(0))
             self.assertIsNotNone(display_item.get_display_layer_display_data_channel(1))

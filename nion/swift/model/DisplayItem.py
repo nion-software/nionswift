@@ -1239,10 +1239,13 @@ def display_data_channel_factory(lookup_id: typing.Callable[[str], str]) -> Disp
 
 
 class DisplayLayer(Schema.Entity):
-    def __init__(self) -> None:
+    def __init__(self, display_layer_properties: typing.Optional[Persistence.PersistentDictType] = None) -> None:
         super().__init__(Model.DisplayLayer)
         self.persistent_storage = None
         self.display_data_channel: typing.Optional[DisplayDataChannel] = None
+        display_layer_properties = display_layer_properties or dict()
+        for k, v in display_layer_properties.items():
+            setattr(self, k, v)
 
     @property
     def display_item(self) -> DisplayItem:
@@ -1253,6 +1256,13 @@ class DisplayLayer(Schema.Entity):
         if context:
             display_layer._set_entity_context(context)
         return display_layer
+
+    def get_display_layer_properties(self) -> Persistence.PersistentDictType:
+        display_layer_properties = self.write_to_dict()
+        display_layer_properties.pop("uuid", None)
+        display_layer_properties.pop("modified", None)
+        display_layer_properties.pop("display_data_channel", None)
+        return display_layer_properties
 
     @property
     def label(self) -> typing.Optional[str]:
@@ -1506,7 +1516,10 @@ class DisplayItem(Persistence.PersistentObject):
                     data_item = display_data_channel.data_item
                     if data_item:
                         for data_row in range(data_item.dimensional_shape[0]):
-                            self.__add_display_layer_auto(DisplayLayer(), display_data_channel, data_row)
+                            display_layer = DisplayLayer()
+                            display_layer.stroke_color = self.get_unique_display_layer_color()
+                            display_layer.fill_color = None if len(self.display_data_channels) > 1 else display_layer.stroke_color
+                            self.__add_display_layer_auto(display_layer, display_data_channel, data_row)
         else:
             while len(self.display_layers) > 1:
                 # use the version of remove that does not cascade
@@ -1756,12 +1769,7 @@ class DisplayItem(Persistence.PersistentObject):
         self.insert_display_layer_for_display_data_channel(len(self.display_layers), display_data_channel, **kwargs)
 
     def get_display_layer_properties(self, index: int) -> Persistence.PersistentDictType:
-        assert 0 <= index < len(self.display_layers)
-        display_layer_properties = self.display_layers[index].write_to_dict()
-        display_layer_properties.pop("uuid", None)
-        display_layer_properties.pop("modified", None)
-        display_layer_properties.pop("display_data_channel", None)
-        return display_layer_properties
+        return self.display_layers[index].get_display_layer_properties()
 
     def get_display_data_channel_layer_use_count(self, display_data_channel: DisplayDataChannel) -> int:
         count = 0
@@ -1782,11 +1790,16 @@ class DisplayItem(Persistence.PersistentObject):
                 return False
         return True
 
-    def append_display_data_channel_for_data_item(self, data_item: DataItem.DataItem) -> None:
+    def append_display_data_channel_for_data_item(self, data_item: DataItem.DataItem, display_layer_properties: typing.Optional[Persistence.PersistentDictType] = None) -> None:
         if not data_item in self.data_items:
             try:
+                if display_layer_properties is None:
+                    display_layer_properties = dict()
+                    unique_color_str = self.get_unique_display_layer_color()
+                    display_layer_properties["fill_color"] = unique_color_str
+                    display_layer_properties["stroke_color"] = unique_color_str
                 display_data_channel = DisplayDataChannel(data_item)
-                self.append_display_data_channel(display_data_channel, display_layer=DisplayLayer())
+                self.append_display_data_channel(display_data_channel, display_layer=DisplayLayer(display_layer_properties))
             except Exception as e:
                 import traceback; traceback.print_exc()
 
@@ -2009,11 +2022,14 @@ class DisplayItem(Persistence.PersistentObject):
         if display_layer:
             self.__add_display_layer_auto(display_layer, display_data_channel)
 
-    def __get_unique_display_layer_color(self) -> str:
+    def get_unique_display_layer_color(self, preferred_color: typing.Optional[Color.Color] = None) -> str:
         existing_colors: typing.List[Color.Color] = list()
         existing_colors.extend([Color.Color(display_layer.fill_color).to_color_without_alpha() for display_layer in self.display_layers])
         existing_colors.extend([Color.Color(display_layer.stroke_color).to_color_without_alpha() for display_layer in self.display_layers])
-        possible_colors = [Color.Color(color) for color in DisplayItem.DEFAULT_COLORS]
+        possible_colors: typing.List[Color.Color] = list()
+        if preferred_color:
+            possible_colors.append(preferred_color)
+        possible_colors += [Color.Color(color) for color in DisplayItem.DEFAULT_COLORS]
         for possible_color in possible_colors:
             if not any(map(operator.methodcaller("matches_without_alpha", possible_color), existing_colors)):
                 return possible_color.to_named_color_without_alpha().color_str or DisplayItem.DEFAULT_COLORS[0]
@@ -2026,17 +2042,9 @@ class DisplayItem(Persistence.PersistentObject):
             self.set_display_property("legend_position", None)
 
     def __add_display_layer_auto(self, display_layer: DisplayLayer, display_data_channel: DisplayDataChannel, data_row: int = 0) -> None:
-        # this fill color code breaks encapsulation. i'm leaving it here as a convenience for now.
-        # eventually there should be a connection to a display controller based on the display type which can be
-        # used to set defaults for the layers.
         display_layer.display_data_channel = display_data_channel
         if data_row is not None:
             display_layer.data_row = data_row
-        if not display_layer.fill_color:
-            display_layer.fill_color = self.__get_unique_display_layer_color()
-            display_layer.stroke_color = display_layer.fill_color
-            if len(self.display_data_channels) > 1:  # if the layer is an additional stack
-                display_layer.fill_color = None
         self.append_display_layer(display_layer)
         self.auto_display_legend()
 

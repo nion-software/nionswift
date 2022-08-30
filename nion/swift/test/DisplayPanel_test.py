@@ -2124,7 +2124,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             self.assertEqual(1, len(display_item.data_items))
             self.assertEqual(1, len(display_item.display_layers))
             # perform command
-            command = DisplayPanel.AppendDisplayDataChannelCommand(document_model, display_item, data_item2)
+            command = DisplayPanel.AppendDisplayDataChannelCommand(document_model, display_item, data_item2, DisplayItem.display_layer_factory(typing.cast(typing.Any, None)))
             command.perform()
             document_controller.push_undo_command(command)
             self.assertEqual(2, len(document_model.data_items))
@@ -2598,6 +2598,32 @@ class TestDisplayPanelClass(unittest.TestCase):
             self.assertEqual(data_item1, new_display_item.data_items[0])
             self.assertEqual(data_item2, new_display_item.data_items[1])
             self.assertEqual(data_item3, new_display_item.data_items[2])
+
+    def test_making_composite_display_items_keeps_colors(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            document_model.append_data_item(DataItem.new_data_item(numpy.zeros(8,)))
+            document_model.append_data_item(DataItem.new_data_item(numpy.zeros(8,)))
+            document_model.append_data_item(DataItem.new_data_item(numpy.zeros(8,)))
+            display_item1, display_item2, display_item3 = document_model.display_items
+            display_item1.display_layers[0].fill_color = "red"
+            display_item1.display_layers[0].stroke_color = "red"
+            display_item2.display_layers[0].fill_color = "green"
+            display_item2.display_layers[0].stroke_color = None
+            display_item3.display_layers[0].fill_color = None
+            display_item3.display_layers[0].stroke_color = "blue"
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item1)
+            document_controller.add_display_data_channel_to_or_create_composite(display_item1, display_item2, display_panel)
+            new_display_item = document_model.display_items[-1]
+            document_controller.add_display_data_channel_to_or_create_composite(new_display_item, display_item3, display_panel)
+            self.assertEqual("red", new_display_item.display_layers[0].fill_color)
+            self.assertEqual("red", new_display_item.display_layers[0].stroke_color)
+            self.assertIsNone(new_display_item.display_layers[1].fill_color)
+            self.assertEqual("green", new_display_item.display_layers[1].stroke_color)
+            self.assertIsNone(new_display_item.display_layers[2].fill_color)
+            self.assertEqual("blue", new_display_item.display_layers[2].stroke_color)
 
     def test_interval_zoom(self):
         intervals = [(-2.5, -1.5), (-1.5, 0.0), (-1.5, 0.5), (0.0, 1.0), (0.5, 0.5), (0.5, 1.5), (1, 2.5), (2.5, 3.5)]

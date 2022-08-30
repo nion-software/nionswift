@@ -547,7 +547,7 @@ class ReferenceField(Field):
         return self
 
     def write(self) -> DictValue:
-        return str(self.__reference_uuid)
+        return str(self.__reference_uuid) if self.__reference_uuid else None
 
     @property
     def field_value(self) -> typing.Any:

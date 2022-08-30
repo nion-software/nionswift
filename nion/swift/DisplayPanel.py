@@ -41,6 +41,7 @@ from nion.ui import DrawingContext
 from nion.ui import GridCanvasItem
 from nion.ui import UserInterface
 from nion.ui import Window
+from nion.utils import Color
 from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import ListModel
@@ -1079,12 +1080,13 @@ class InsertGraphicsCommand(Undo.UndoableCommand):
 class AppendDisplayDataChannelCommand(Undo.UndoableCommand):
 
     def __init__(self, document_model: DocumentModel.DocumentModel, display_item: DisplayItem.DisplayItem,
-                 data_item: DataItem.DataItem, *, title: typing.Optional[str] = None,
+                 data_item: DataItem.DataItem, display_layer: DisplayItem.DisplayLayer, *, title: typing.Optional[str] = None,
                  command_id: typing.Optional[str] = None, **kwargs: typing.Any) -> None:
         super().__init__(title if title else _("Append Display"), command_id=command_id)
         self.__document_model = document_model
         self.__display_item_proxy = display_item.create_proxy()
         self.__data_item_proxy = data_item.create_proxy()
+        self.__display_layer = copy.deepcopy(display_layer)
         self.__old_properties: typing.Optional[typing.Tuple[Persistence.PersistentDictType, typing.List[Persistence.PersistentDictType], str]] = None
         self.__display_data_channel_index = 0
         self.__value_dict = kwargs
@@ -1103,7 +1105,14 @@ class AppendDisplayDataChannelCommand(Undo.UndoableCommand):
         data_item = self.__data_item_proxy.item
         if display_item and data_item:
             self.__old_properties = display_item.save_properties()
-            display_item.append_display_data_channel_for_data_item(data_item)
+            display_layer = copy.deepcopy(self.__display_layer)
+            with contextlib.closing(display_layer):
+                display_layer_color_str = display_layer.fill_color or display_layer.stroke_color or DisplayItem.DisplayItem.DEFAULT_COLORS[0]
+                display_layer_color_str = display_item.get_unique_display_layer_color(Color.Color(display_layer_color_str))
+                display_layer.fill_color = None
+                display_layer.stroke_color = display_layer_color_str
+                display_layer_properties = display_layer.get_display_layer_properties()
+            display_item.append_display_data_channel_for_data_item(data_item, display_layer_properties)
             self.__display_data_channel_index = display_item.display_data_channels.index(display_item.get_display_data_channel_for_data_item(data_item))
 
     def _get_modified_state(self) -> typing.Any:
