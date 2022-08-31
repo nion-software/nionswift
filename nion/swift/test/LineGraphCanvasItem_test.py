@@ -21,6 +21,8 @@ from nion.swift.test import TestContext
 from nion.ui import CanvasItem
 from nion.ui import DrawingContext
 from nion.ui import TestUI
+from nion.utils import Color
+from nion.utils import Geometry
 
 
 def _enumerate_child_canvas_items_postorder(
@@ -271,10 +273,11 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             display_panel.layout_immediate((640, 480))
             axes = display_panel.display_canvas_item._axes
             drawing_context = DrawingContext.DrawingContext()
-            calibrated_data_min = axes.calibrated_data_min
-            calibrated_data_max = axes.calibrated_data_max
-            calibrated_data_range = calibrated_data_max - calibrated_data_min
-            LineGraphCanvasItem.draw_line_graph(drawing_context, 480, 640, 0, 0, data_item.xdata, calibrated_data_min, calibrated_data_range, axes.calibrated_left_channel, axes.calibrated_right_channel, axes.x_calibration, "black", "black", None, axes.data_style, 0.5)
+            line_graph_layer = LineGraphCanvasItem.LineGraphLayer(data_item.xdata, Color.Color("black"), Color.Color("black"), None)
+            line_graph_layer.set_axes(axes)
+            line_graph_layer.calculate(Geometry.IntRect.from_tlbr(0, 0, 480, 640))
+            line_graph_layer.draw_fills(drawing_context)
+            line_graph_layer.draw_strokes(drawing_context)
             # ensure that the drawing commands are sufficiently populated to have drawn the graph
             self.assertGreater(len(drawing_context.commands), 100)
 
@@ -294,11 +297,11 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             axes = display_panel.display_canvas_item._axes
             self.assertEqual(axes.data_style, "log")
             drawing_context = DrawingContext.DrawingContext()
-            calibrated_data_min = axes.calibrated_data_min
-            calibrated_data_max = axes.calibrated_data_max
-            calibrated_data_range = calibrated_data_max - calibrated_data_min
-            display_xdata = display_panel.display_canvas_item.line_graph_canvas_item.calibrated_xdata
-            LineGraphCanvasItem.draw_line_graph(drawing_context, 480, 640, 0, 0, display_xdata, calibrated_data_min, calibrated_data_range, axes.calibrated_left_channel, axes.calibrated_right_channel, axes.x_calibration, "black", "black", None, axes.data_style, 0.5)
+            line_graph_layer = LineGraphCanvasItem.LineGraphLayer(data_item.xdata, Color.Color("black"), Color.Color("black"), None)
+            line_graph_layer.set_axes(axes)
+            line_graph_layer.calculate(Geometry.IntRect.from_tlbr(0, 0, 480, 640))
+            line_graph_layer.draw_fills(drawing_context)
+            line_graph_layer.draw_strokes(drawing_context)
             # ensure that the drawing commands are sufficiently populated to have drawn the graph
             self.assertGreater(len(drawing_context.commands), 100)
 
@@ -326,10 +329,10 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_display_item(display_item)
             display_panel.layout_immediate((640, 480))
-            self.assertTrue(numpy.array_equal(display_panel.display_canvas_item.line_graph_canvas_item.calibrated_xdata.data, numpy.full((8, ), 10)))
+            self.assertTrue(numpy.array_equal(display_panel.display_canvas_item.line_graph_layers_canvas_item.calibrated_xdata.data, numpy.full((8, ), 10)))
             display_item.calibration_style_id = "pixels-top-left"
             display_panel.layout_immediate((640, 480))
-            self.assertTrue(numpy.array_equal(display_panel.display_canvas_item.line_graph_canvas_item.calibrated_xdata.data, numpy.ones((8, ))))
+            self.assertTrue(numpy.array_equal(display_panel.display_canvas_item.line_graph_layers_canvas_item.calibrated_xdata.data, numpy.ones((8, ))))
 
     def test_line_plot_handles_calibrated_vs_uncalibrated_display(self):
         with TestContext.create_memory_context() as test_context:
@@ -342,10 +345,10 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_display_item(display_item)
             display_panel.layout_immediate((640, 480))
-            self.assertEqual(display_panel.display_canvas_item.line_graph_canvas_item.calibrated_xdata.dimensional_calibrations[-1].units, "nm")
+            self.assertEqual(display_panel.display_canvas_item.line_graph_layers_canvas_item.calibrated_xdata.dimensional_calibrations[-1].units, "nm")
             display_item.calibration_style_id = "pixels-top-left"
             display_panel.layout_immediate((640, 480))
-            self.assertFalse(display_panel.display_canvas_item.line_graph_canvas_item.calibrated_xdata.dimensional_calibrations[-1].units)
+            self.assertFalse(display_panel.display_canvas_item.line_graph_layers_canvas_item.calibrated_xdata.dimensional_calibrations[-1].units)
 
     def test_line_plot_with_no_data_handles_clicks(self):
         with TestContext.create_memory_context() as test_context:
@@ -374,11 +377,11 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             display_panel.layout_immediate((640, 480))
             axes = display_panel.display_canvas_item._axes
             drawing_context = DrawingContext.DrawingContext()
-            calibrated_data_min = axes.calibrated_data_min
-            calibrated_data_max = axes.calibrated_data_max
-            calibrated_data_range = calibrated_data_max - calibrated_data_min
-            display_xdata = display_panel.display_canvas_item.line_graph_canvas_item.calibrated_xdata
-            LineGraphCanvasItem.draw_line_graph(drawing_context, 480, 100, 0, 0, display_xdata, calibrated_data_min, calibrated_data_range, axes.calibrated_left_channel, axes.calibrated_right_channel, axes.x_calibration, "black", "black", None, axes.data_style, 0.5)
+            line_graph_layer = LineGraphCanvasItem.LineGraphLayer(data_item.xdata, Color.Color("black"), Color.Color("black"), None)
+            line_graph_layer.set_axes(axes)
+            line_graph_layer.calculate(Geometry.IntRect.from_tlbr(0, 0, 480, 640))
+            line_graph_layer.draw_fills(drawing_context)
+            line_graph_layer.draw_strokes(drawing_context)
             # ensure that the drawing commands are sufficiently populated to have drawn the graph
             self.assertGreater(len(drawing_context.commands), 100)
 

@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 # standard libraries
+import copy
 import dataclasses
 import gettext
 import math
@@ -30,9 +31,11 @@ from nion.swift.model import UISettings
 from nion.ui import CanvasItem
 from nion.ui import DrawingContext
 from nion.ui import UserInterface
+from nion.utils import Color
 from nion.utils import Geometry
 
 _NDArray = numpy.typing.NDArray[typing.Any]
+
 
 @dataclasses.dataclass
 class RegionInfo:
@@ -353,12 +356,64 @@ def draw_vertical_grid_lines(drawing_context: DrawingContext.DrawingContext, plo
         drawing_context.stroke()
 
 
-def draw_line_graph(drawing_context: DrawingContext.DrawingContext, plot_height: int, plot_width: int, plot_origin_y: int, plot_origin_x: int,
+class LineGraphSegment:
+    """Helper for constructing a segment of a line graph.
+
+    Keeps a path, provides drawing methods and methods to fill/stroke.
+    """
+
+    def __init__(self, path: typing.Optional[DrawingContext.DrawingContext] = None) -> None:
+        self.__path = path or DrawingContext.DrawingContext()
+        self.__first_point = Geometry.FloatPoint()
+        self.__last_point = Geometry.FloatPoint()
+        self.line_commands: typing.List[typing.Tuple[float, float]] = list()  # used for optimization
+
+    def __deepcopy__(self, memo: typing.Dict[typing.Any, typing.Any]) -> LineGraphSegment:
+        return LineGraphSegment(copy.deepcopy(self.__path))
+
+    @property
+    def path(self) -> DrawingContext.DrawingContext:
+        return self.__path
+
+    def move_to(self, x: float, y: float) -> None:
+        self.__path.move_to(x, y)
+        self.__first_point = Geometry.FloatPoint(x=x, y=y)
+
+    def line_to(self, x: float, y: float) -> None:
+        self.__path.line_to(x, y)
+
+    def final_line_to(self, x: float, y: float) -> None:
+        self.__path._line_to_multi(self.line_commands)
+        self.line_commands = list()
+        self.__path.line_to(x, y)
+        self.__last_point = Geometry.FloatPoint(x=x, y=y)
+
+    def fill(self, drawing_context: DrawingContext.DrawingContext, baseline: float, fill_color: Color.Color) -> None:
+        with drawing_context.saver():
+            drawing_context.begin_path()
+            drawing_context.add(self.__path)
+            drawing_context.line_to(self.__last_point.x, baseline)
+            drawing_context.line_to(self.__first_point.x, baseline)
+            drawing_context.close_path()
+            drawing_context.fill_style = fill_color.color_str
+            drawing_context.fill()
+
+    def stroke(self, drawing_context: DrawingContext.DrawingContext, baseline: float, stroke_color: Color.Color, stroke_width: float) -> None:
+        with drawing_context.saver():
+            drawing_context.begin_path()
+            drawing_context.add(self.__path)
+            drawing_context.line_to(self.__last_point.x, baseline)
+            drawing_context.line_width = stroke_width
+            drawing_context.stroke_style = stroke_color.color_str
+            drawing_context.stroke()
+
+
+def calculate_line_graph(plot_height: int, plot_width: int, plot_origin_y: int, plot_origin_x: int,
                     calibrated_xdata: DataAndMetadata.DataAndMetadata, calibrated_data_min: float,
                     calibrated_data_range: float, calibrated_left_channel: float, calibrated_right_channel: float,
-                    x_calibration: Calibration.Calibration, fill_color: typing.Optional[str],
-                    stroke_color: typing.Optional[str], rebin_cache: typing.Optional[typing.Dict[str, typing.Any]],
-                    data_style: str, stroke_width: float) -> None:
+                    x_calibration: Calibration.Calibration,
+                    rebin_cache: typing.Optional[typing.Dict[str, typing.Any]],
+                    data_style: str) -> typing.Tuple[typing.List[LineGraphSegment], int]:
     # calculate how the data is displayed
     xdata_calibration = calibrated_xdata.dimensional_calibrations[-1]
     assert xdata_calibration.units == x_calibration.units
@@ -366,12 +421,12 @@ def draw_line_graph(drawing_context: DrawingContext.DrawingContext, plot_height:
         displayed_calibrated_left_channel = min(calibrated_left_channel, xdata_calibration.convert_to_calibrated_value(0))
         displayed_calibrated_right_channel = max(calibrated_right_channel, xdata_calibration.convert_to_calibrated_value(calibrated_xdata.dimensional_shape[-1]))
         if displayed_calibrated_left_channel <= calibrated_right_channel or displayed_calibrated_right_channel >= calibrated_left_channel:
-            return  # data is outside drawing area
+            return list(), 0  # data is outside drawing area
     else:
         displayed_calibrated_left_channel = max(calibrated_left_channel, xdata_calibration.convert_to_calibrated_value(0))
         displayed_calibrated_right_channel = min(calibrated_right_channel, xdata_calibration.convert_to_calibrated_value(calibrated_xdata.dimensional_shape[-1]))
         if displayed_calibrated_left_channel >= calibrated_right_channel or displayed_calibrated_right_channel <= calibrated_left_channel:
-            return  # data is outside drawing area
+            return list(), 0  # data is outside drawing area
     data_left_channel = round(xdata_calibration.convert_from_calibrated_value(displayed_calibrated_left_channel))
     data_right_channel = round(xdata_calibration.convert_from_calibrated_value(displayed_calibrated_right_channel))
     left = round((displayed_calibrated_left_channel - calibrated_left_channel) / (calibrated_right_channel - calibrated_left_channel) * plot_width + plot_origin_x)
@@ -383,7 +438,7 @@ def draw_line_graph(drawing_context: DrawingContext.DrawingContext, plot_height:
     if 0 <= data_left_channel < data_right_channel and data_right_channel <= calibrated_xdata.dimensional_shape[-1]:
         calibrated_xdata = calibrated_xdata[data_left_channel:data_right_channel]
     else:
-        return
+        return list(), 0
     x_calibration = calibrated_xdata.dimensional_calibrations[-1]
     calibrated_left_channel = x_calibration.convert_to_calibrated_value(0)
     calibrated_right_channel = x_calibration.convert_to_calibrated_value(calibrated_xdata.dimensional_shape[-1])
@@ -391,94 +446,70 @@ def draw_line_graph(drawing_context: DrawingContext.DrawingContext, plot_height:
     uncalibrated_left_channel = x_calibration.convert_from_calibrated_value(calibrated_left_channel)
     uncalibrated_right_channel = x_calibration.convert_from_calibrated_value(calibrated_right_channel)
     uncalibrated_width = uncalibrated_right_channel - uncalibrated_left_channel
-    with drawing_context.saver():
-        stroke_path = DrawingContext.DrawingContext()
-        drawing_context.begin_path()
-        if calibrated_data_range != 0.0 and uncalibrated_width > 0.0:
-            if data_style == "log":
-                baseline = plot_origin_y + plot_height
-            else:
-                baseline = plot_origin_y + plot_height - int(plot_height * float(0.0 - calibrated_data_min) / calibrated_data_range)
-
-            baseline = min(plot_origin_y + plot_height, baseline)
-            baseline = max(plot_origin_y, baseline)
-            # rebin so that uncalibrated_width corresponds to plot width
-            calibrated_data = calibrated_xdata._data_ex
-            binned_length = int(calibrated_data.shape[-1] * plot_width / uncalibrated_width)
-            shape_origin_x = plot_origin_x
-            shape_origin_y = baseline
-            did_draw = False
-            if binned_length > 0:
-                binned_data = Image.rebin_1d(calibrated_data, binned_length, rebin_cache)
-                binned_left = int(uncalibrated_left_channel * plot_width / uncalibrated_width)
-                # draw the plot
-                px = plot_origin_x
-                last_py = baseline
-                for i in range(0, plot_width):
-                    px = plot_origin_x + i
-                    binned_index = binned_left + i
-                    data_value = binned_data[binned_index] if binned_index >= 0 and binned_index < binned_length else numpy.nan
-                    if not numpy.isnan(data_value):
-                        # plot_origin_y is the TOP of the drawing
-                        # py extends DOWNWARDS
-                        py = plot_origin_y + plot_height - (plot_height * (data_value - calibrated_data_min) / calibrated_data_range)
-                        py = max(plot_origin_y, py)
-                        py = min(plot_origin_y + plot_height, py)
-                        if did_draw:
-                            # only draw horizontal lines when necessary
-                            if py != last_py:
-                                # draw forward from last_px to px at last_py level
-                                stroke_path.line_to(px, last_py)
-                                stroke_path.line_to(px, py)
-                        else:
-                            did_draw = True
-                            shape_origin_x = px
-                            shape_origin_y = baseline
-                            if i == 0:
-                                stroke_path.move_to(px, py)
-                            else:
-                                stroke_path.move_to(px, baseline)
-                                stroke_path.line_to(px, py)
-                        last_py = py
-                    else:
-                        if did_draw:
-                            did_draw = False
-                            stroke_path.line_to(px, last_py)
-                            if stroke_color and not fill_color:
-                                stroke_path.line_to(px, shape_origin_y)
-                            finalize_path(drawing_context, stroke_path, shape_origin_x, px, shape_origin_y, fill_color, stroke_color, stroke_width)
-                            stroke_path = DrawingContext.DrawingContext()
-                            drawing_context.begin_path()
-
-                stroke_path.line_to(plot_origin_x + plot_width, last_py)
-
-                if did_draw:
-                    finalize_path(drawing_context, stroke_path, shape_origin_x, px, shape_origin_y, fill_color, stroke_color, stroke_width)
-
+    segments: typing.List[LineGraphSegment] = list()
+    segment = LineGraphSegment()
+    line_commands = segment.line_commands
+    # segment_path = segment.path  # partially optimized; see note below
+    # note: testing performance using a loop around drawing commands in test_line_plot_handle_calibrated_x_axis_with_negative_scale
+    if calibrated_data_range != 0.0 and uncalibrated_width > 0.0:
+        if data_style == "log":
+            baseline = plot_origin_y + plot_height
         else:
-            if fill_color or stroke_color:
-                drawing_context.move_to(plot_origin_x, plot_origin_y + plot_height * 0.5)
-                drawing_context.line_to(plot_origin_x + plot_width, plot_origin_y + plot_height * 0.5)
-                drawing_context.line_width = stroke_width
-                drawing_context.stroke_style = fill_color or stroke_color
-                drawing_context.stroke()
+            baseline = plot_origin_y + plot_height - int(plot_height * float(0.0 - calibrated_data_min) / calibrated_data_range)
 
+        baseline = min(plot_origin_y + plot_height, baseline)
+        baseline = max(plot_origin_y, baseline)
+        # rebin so that uncalibrated_width corresponds to plot width
+        calibrated_data = calibrated_xdata._data_ex
+        binned_length = int(calibrated_data.shape[-1] * plot_width / uncalibrated_width)
+        did_draw = False
+        if binned_length > 0:
+            binned_data = Image.rebin_1d(calibrated_data, binned_length, rebin_cache)
+            binned_data_is_nan = numpy.isnan(binned_data)
+            binned_left = int(uncalibrated_left_channel * plot_width / uncalibrated_width)
+            # draw the plot
+            last_py = baseline
+            for i in range(0, plot_width):
+                px = plot_origin_x + i
+                binned_index = binned_left + i
+                if binned_index >= 0 and binned_index < binned_length and not binned_data_is_nan[binned_index]:
+                    data_value = binned_data[binned_index]
+                    # plot_origin_y is the TOP of the drawing
+                    # py extends DOWNWARDS
+                    py = plot_origin_y + plot_height - (plot_height * (data_value - calibrated_data_min) / calibrated_data_range)
+                    py = max(plot_origin_y, py)
+                    py = min(plot_origin_y + plot_height, py)
+                    if did_draw:
+                        # only draw horizontal lines when necessary
+                        if py != last_py:
+                            # draw forward from last_px to px at last_py level
+                            # note: using optimized line commands to optimize this critical code.
+                            line_commands.append((px, last_py))
+                            line_commands.append((px, py))
+                            # partially optimized code below.
+                            # segment_path.line_to(px, last_py)
+                            # segment_path.line_to(px, py)
+                    else:
+                        did_draw = True
+                        if i == 0:
+                            segment.move_to(px, py)
+                        else:
+                            segment.move_to(px, baseline)
+                            segment.line_to(px, py)
+                    last_py = py
+                else:
+                    if did_draw:
+                        did_draw = False
+                        segment.final_line_to(px, last_py)
+                        segments.append(segment)
+                        segment = LineGraphSegment()
 
-def finalize_path(drawing_context: DrawingContext.DrawingContext, stroke_path: DrawingContext.DrawingContext,
-                  path_origin_x: float, path_end_x: float, path_baseline: float, fill_color: typing.Optional[str],
-                  stroke_color: typing.Optional[str], stroke_width: float) -> None:
-    if fill_color:
-        drawing_context.add(stroke_path)
-        drawing_context.line_to(path_end_x, path_baseline)
-        drawing_context.line_to(path_origin_x, path_baseline)
-        drawing_context.close_path()
-        drawing_context.fill_style = fill_color
-        drawing_context.fill()
-    if stroke_color:
-        drawing_context.add(stroke_path)
-        drawing_context.line_width = stroke_width
-        drawing_context.stroke_style = stroke_color
-        drawing_context.stroke()
+            segment.final_line_to(plot_origin_x + plot_width, last_py)
+
+            if did_draw:
+                segments.append(segment)
+        return segments, baseline
+    return list(), 0
 
 
 def draw_frame(drawing_context: DrawingContext.DrawingContext, plot_height: int, plot_origin_x: int, plot_origin_y: int, plot_width: int) -> None:
@@ -546,66 +577,41 @@ class LineGraphBackgroundCanvasItem(CanvasItem.AbstractCanvasItem):
                 draw_vertical_grid_lines(drawing_context, plot_height, plot_origin_y, x_ticks)
 
 
-class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
-    """Canvas item to draw the line plot itself."""
+class LineGraphLayer:
+    """Represents a layer of the line graph.
 
-    def __init__(self) -> None:
-        super().__init__()
-        self.__axes: typing.Optional[LineGraphAxes] = None
-        self.__fill_color: typing.Optional[str] = None
-        self.__stroke_color: typing.Optional[str] = None
-        self.__stroke_width = 0.5
-        self.__uncalibrated_xdata: typing.Optional[DataAndMetadata.DataAndMetadata] = None
+    Tracks the data, calibrated data, axes. Provides methods to calculate the segments and draw fills/strokes separately.
+    """
+
+    def __init__(self, uncalibrated_xdata: typing.Optional[DataAndMetadata.DataAndMetadata], fill_color: typing.Optional[Color.Color],
+                 stroke_color: typing.Optional[Color.Color], stroke_width: typing.Optional[float]) -> None:
+        self.uncalibrated_xdata = uncalibrated_xdata
+        self.fill_color = fill_color
+        self.stroke_color = stroke_color
+        self.stroke_width = stroke_width or 0.5
         self.__calibrated_xdata: typing.Optional[DataAndMetadata.DataAndMetadata] = None
-        self.__retained_rebin_1d: typing.Dict[str, typing.Any] = dict()
+        self.retained_rebin_1d: typing.Dict[str, typing.Any] = dict()
+        self.__axes: typing.Optional[LineGraphAxes] = None
+        self.segments: typing.List[LineGraphSegment] = list()
+        self.baseline = 0.0
 
-    def set_fill_color(self, color: typing.Optional[str]) -> None:
-        if self.__fill_color != color:
-            self.__fill_color = color
-            self.update()
-
-    def set_stroke_color(self, color: typing.Optional[str]) -> None:
-        if self.__stroke_color != color:
-            self.__stroke_color = color
-            self.update()
-
-    def set_stroke_width(self, width: typing.Optional[float]) -> None:
-        if width is not None and self.__stroke_width != width:
-            self.__stroke_width = width
-            self.update()
-
-    def set_uncalibrated_xdata(self, uncalibrated_xdata: typing.Optional[DataAndMetadata.DataAndMetadata]) -> None:
-        if not DataAndMetadata.is_equal(uncalibrated_xdata, self.__uncalibrated_xdata):
-            self.__uncalibrated_xdata = uncalibrated_xdata
-            self.__calibrated_xdata = None
-            self.update()
+    def set_axes(self, axes: typing.Optional[LineGraphAxes]) -> None:
+        self.__axes = axes
+        self.__calibrated_xdata = None
 
     @property
     def calibrated_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
-        if self.__calibrated_xdata is None and self.__uncalibrated_xdata is not None:
-            assert self.__axes
-            self.__calibrated_xdata = self.__axes.calculate_calibrated_xdata(self.__uncalibrated_xdata)
+        if self.__axes and self.uncalibrated_xdata and not self.__calibrated_xdata:
+            self.__calibrated_xdata = self.__axes.calculate_calibrated_xdata(self.uncalibrated_xdata)
         return self.__calibrated_xdata
 
-    @property
-    def _axes(self) -> typing.Optional[LineGraphAxes]:  # for testing only
-        return self.__axes
-
-    def set_axes(self, axes: typing.Optional[LineGraphAxes]) -> None:
-        if not are_axes_equal(self.__axes, axes):
-            self.__axes = axes
-            self.__calibrated_xdata = None
-            self.update()
-
-    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
-        # draw the data, if any
-        axes = self.__axes
+    def calculate(self, canvas_bounds: Geometry.IntRect) -> None:
         calibrated_xdata = self.calibrated_xdata
-        stroke_color = self.__stroke_color
-        fill_color = self.__fill_color
-        stroke_width = self.__stroke_width
-        canvas_bounds = self.canvas_bounds
-        if axes and canvas_bounds and calibrated_xdata is not None:
+        segments: typing.List[LineGraphSegment] = list()
+        baseline = 0.0
+        if calibrated_xdata is not None and self.__axes:
+            axes = self.__axes
+
             plot_width = canvas_bounds.width - 1
             plot_height = canvas_bounds.height - 1
             plot_origin_x = canvas_bounds.left
@@ -623,7 +629,75 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
 
             # draw the line plot itself
             if x_calibration and x_calibration.units == calibrated_xdata.dimensional_calibrations[-1].units:
-                draw_line_graph(drawing_context, plot_height, plot_width, plot_origin_y, plot_origin_x, calibrated_xdata, calibrated_data_min, calibrated_data_range, calibrated_left_channel, calibrated_right_channel, x_calibration, fill_color, stroke_color, self.__retained_rebin_1d, axes.data_style, stroke_width)
+                segments, baseline = calculate_line_graph(plot_height, plot_width, plot_origin_y, plot_origin_x,
+                                                          calibrated_xdata,
+                                                          calibrated_data_min, calibrated_data_range,
+                                                          calibrated_left_channel,
+                                                          calibrated_right_channel, x_calibration,
+                                                          self.retained_rebin_1d, axes.data_style)
+        self.segments = segments
+        self.baseline = baseline
+
+    def draw_fills(self, drawing_context: DrawingContext.DrawingContext) -> None:
+        if self.fill_color:
+            for segment in self.segments:
+                segment.fill(drawing_context, self.baseline, Color.Color(self.fill_color))
+
+    def draw_strokes(self, drawing_context: DrawingContext.DrawingContext) -> None:
+        if self.stroke_color:
+            for segment in self.segments:
+                segment.stroke(drawing_context, self.baseline, Color.Color(self.stroke_color), self.stroke_width)
+
+
+class LineGraphLayersCanvasItem(CanvasItem.AbstractCanvasItem):
+    """Canvas item to draw the line plot layer by layer.
+
+    Draws the fills followed by the strokes.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.__axes: typing.Optional[LineGraphAxes] = None
+        self.__line_graph_layers: typing.List[LineGraphLayer] = list()
+
+    @property
+    def _axes(self) -> typing.Optional[LineGraphAxes]:  # for testing only
+        return self.__axes
+
+    def set_axes(self, axes: typing.Optional[LineGraphAxes]) -> None:
+        if not are_axes_equal(self.__axes, axes):
+            self.__axes = axes
+            for line_graph_layer in self.__line_graph_layers:
+                line_graph_layer.set_axes(axes)
+            self.update()
+
+    def update_line_graph_layers(self, line_graph_layers: typing.Sequence[LineGraphLayer], axes: typing.Optional[LineGraphAxes]) -> None:
+        self.__line_graph_layers.clear()
+        self.__line_graph_layers.extend(line_graph_layers)
+        self.__axes = None  # forces set_axes to update
+        self.set_axes(axes)
+
+    @property
+    def calibrated_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+        # convenience function make older tests run
+        return self.__line_graph_layers[0].calibrated_xdata if len(self.__line_graph_layers) > 0 else None
+
+    @property
+    def calibrated_data(self) -> typing.Optional[DataAndMetadata._ImageDataType]:
+        # convenience function make older tests run
+        calibrated_xdata = self.calibrated_xdata
+        return calibrated_xdata.data if calibrated_xdata else None
+
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
+        canvas_bounds = self.canvas_bounds
+        if canvas_bounds:
+            line_graph_layers = list(self.__line_graph_layers)
+            for line_graph_layer in reversed(line_graph_layers):
+                line_graph_layer.calculate(canvas_bounds)
+            for line_graph_layer in reversed(line_graph_layers):
+                line_graph_layer.draw_fills(drawing_context)
+            for line_graph_layer in reversed(line_graph_layers):
+                line_graph_layer.draw_strokes(drawing_context)
 
 
 class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):

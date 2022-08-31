@@ -23,6 +23,7 @@ from nion.swift.model import Graphics
 from nion.swift.model import UISettings
 from nion.swift.model import Utility
 from nion.ui import CanvasItem
+from nion.utils import Color
 from nion.utils import Geometry
 from nion.utils import Registry
 
@@ -110,7 +111,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
         self.__line_graph_area_stack = CanvasItem.CanvasItemComposition()
         self.__line_graph_background_canvas_item = LineGraphCanvasItem.LineGraphBackgroundCanvasItem()
-        self.__line_graph_stack = CanvasItem.CanvasItemComposition()
+        self.__line_graph_layers_canvas_item = LineGraphCanvasItem.LineGraphLayersCanvasItem()
         self.__line_graph_regions_canvas_item = LineGraphCanvasItem.LineGraphRegionsCanvasItem()
         self.__line_graph_legend_row = CanvasItem.CanvasItemComposition()
         self.__line_graph_legend_row.layout = CanvasItem.CanvasItemRowLayout(margins=Geometry.Margins(4, 8, 4, 8))
@@ -134,13 +135,10 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.__line_graph_outer_right_column.add_stretch()
         self.__line_graph_frame_canvas_item = LineGraphCanvasItem.LineGraphFrameCanvasItem()
         self.__line_graph_area_stack.add_canvas_item(self.__line_graph_background_canvas_item)
-        self.__line_graph_area_stack.add_canvas_item(self.__line_graph_stack)
+        self.__line_graph_area_stack.add_canvas_item(self.__line_graph_layers_canvas_item)
         self.__line_graph_area_stack.add_canvas_item(self.__line_graph_regions_canvas_item)
         self.__line_graph_area_stack.add_canvas_item(self.__line_graph_legend_column)
         self.__line_graph_area_stack.add_canvas_item(self.__line_graph_frame_canvas_item)
-
-        for i in range(16):
-            self.__line_graph_stack.add_canvas_item(LineGraphCanvasItem.LineGraphCanvasItem())
 
         self.__line_graph_vertical_axis_label_canvas_item = LineGraphCanvasItem.LineGraphVerticalAxisLabelCanvasItem()
         self.__line_graph_vertical_axis_scale_canvas_item = LineGraphCanvasItem.LineGraphVerticalAxisScaleCanvasItem()
@@ -244,16 +242,12 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         super().close()
 
     @property
-    def line_graph_stack(self) -> CanvasItem.CanvasItemComposition:
-        return self.__line_graph_stack
-
-    @property
     def default_aspect_ratio(self) -> float:
         return (1 + 5 ** 0.5) / 2  # golden ratio
 
     @property
-    def line_graph_canvas_item(self) -> typing.Optional[LineGraphCanvasItem.LineGraphCanvasItem]:
-        return typing.cast(LineGraphCanvasItem.LineGraphCanvasItem, self.__line_graph_stack.canvas_items[0]) if self.__line_graph_stack else None
+    def line_graph_layers_canvas_item(self) -> LineGraphCanvasItem.LineGraphLayersCanvasItem:
+        return self.__line_graph_layers_canvas_item
 
     # for testing
     @property
@@ -303,7 +297,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         This method saves the display values and data and triggers an update. It should be as fast as possible.
 
         As a layer, this canvas item will respond to the update by calling prepare_render on the layer's rendering
-        thread. Prepare render will call prepare_display which will construct new axes and update all of the constituent
+        thread. Prepare render will call prepare_display which will construct new axes and update all constituent
         canvas items such as the axes labels and the graph layers. Each will trigger its own update if its inputs have
         changed.
 
@@ -570,7 +564,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
             colors = list(DisplayItem.DisplayItem.DEFAULT_COLORS)
 
-            max_layer_count = len(self.__line_graph_stack.canvas_items)
+            MAX_LAYER_COUNT = 16
 
             display_layers = list(self.__display_layers)
 
@@ -578,26 +572,28 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                 index = 0
                 for scalar_index, scalar_xdata in enumerate(scalar_xdata_list):
                     if scalar_xdata and scalar_xdata.is_data_1d:
-                        if index < max_layer_count:
+                        if index < MAX_LAYER_COUNT:
                             display_layers.append({"fill_color": colors[index] if index == 0 else None, "stroke_color": colors[index] if index > 0 else None, "data_index": scalar_index})
                             index += 1
                     if scalar_xdata and scalar_xdata.is_data_2d:
-                        for row in range(min(scalar_xdata.data_shape[-1], max_layer_count)):
-                            if index < max_layer_count:
+                        for row in range(min(scalar_xdata.data_shape[-1], MAX_LAYER_COUNT)):
+                            if index < MAX_LAYER_COUNT:
                                 display_layers.append({"fill_color": colors[index] if index == 0 else None, "stroke_color": colors[index] if index > 0 else None, "data_index": scalar_index, "data_row": row})
                                 index += 1
 
             self.___has_valid_drawn_graph_data = False
 
-            display_layer_count = len(self.__display_layers[0:max_layer_count])
+            line_graph_layers: typing.List[LineGraphCanvasItem.LineGraphLayer] = list()
 
-            for index, display_layer in enumerate(self.__display_layers[0:max_layer_count]):
-                fill_color = display_layer.get("fill_color")
-                stroke_color = display_layer.get("stroke_color")
-                stroke_width = display_layer.get("stroke_width")
+            for index, display_layer in enumerate(self.__display_layers[0:MAX_LAYER_COUNT]):
+                fill_color_str = display_layer.get("fill_color")
+                stroke_color_str = display_layer.get("stroke_color")
+                stroke_width = display_layer.get("stroke_width", 0.5)
                 data_index = display_layer.get("data_index", 0)
                 data_row = display_layer.get("data_row", 0)
                 if 0 <= data_index < len(scalar_xdata_list):
+                    fill_color = Color.Color(fill_color_str) if fill_color_str else None
+                    stroke_color = Color.Color(stroke_color_str) if stroke_color_str else None
                     scalar_xdata = scalar_xdata_list[data_index]
                     if scalar_xdata:
                         data_row = max(0, min(scalar_xdata.dimensional_shape[0] - 1, data_row))
@@ -606,23 +602,13 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                         if scalar_xdata.is_data_2d:
                             scalar_data = scalar_xdata.data[data_row:data_row + 1, :].reshape((scalar_xdata.dimensional_shape[-1],))  # type: ignore
                             scalar_xdata = DataAndMetadata.new_data_and_metadata(scalar_data, intensity_calibration, [displayed_dimensional_calibration])
-                    line_graph_canvas_item = typing.cast(LineGraphCanvasItem.LineGraphCanvasItem, self.__line_graph_stack.canvas_items[display_layer_count - (index + 1)])
-                    line_graph_canvas_item.set_fill_color(fill_color)
-                    line_graph_canvas_item.set_stroke_color(stroke_color)
-                    line_graph_canvas_item.set_stroke_width(stroke_width)
-                    line_graph_canvas_item.set_axes(axes)
-                    line_graph_canvas_item.set_uncalibrated_xdata(scalar_xdata)
+                    line_graph_layers.append(LineGraphCanvasItem.LineGraphLayer(scalar_xdata, fill_color, stroke_color, stroke_width))
                     self.___has_valid_drawn_graph_data = scalar_xdata is not None
 
-            # clear the remaining layers
-            for index in range(len(display_layers), max_layer_count):
-                line_graph_canvas_item = typing.cast(LineGraphCanvasItem.LineGraphCanvasItem, self.__line_graph_stack.canvas_items[index])
-                line_graph_canvas_item.set_axes(None)
-                line_graph_canvas_item.set_uncalibrated_xdata(None)
+            self.__line_graph_layers_canvas_item.update_line_graph_layers(line_graph_layers, axes)
 
-            legend_position = self.__legend_position
             legend_entries = list()
-            for index, display_layer in enumerate(self.__display_layers[0:max_layer_count]):
+            for index, display_layer in enumerate(self.__display_layers[0:MAX_LAYER_COUNT]):
                 data_index = display_layer.get("data_index", None)
                 data_row = display_layer.get("data_row", None)
                 label = display_layer.get("label", str())
@@ -639,9 +625,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
             self.__update_canvas_items(axes, legend_entries)
         else:
-            for line_graph_canvas_item in typing.cast(typing.Sequence[LineGraphCanvasItem.LineGraphCanvasItem], self.__line_graph_stack.canvas_items):
-                line_graph_canvas_item.set_axes(None)
-                line_graph_canvas_item.set_uncalibrated_xdata(None)
+            self.__line_graph_layers_canvas_item.update_line_graph_layers(list(), None)
             self.__update_canvas_items(None, list())
 
     def _prepare_render(self) -> None:
@@ -687,7 +671,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
     def __update_canvas_items(self, axes: typing.Optional[LineGraphCanvasItem.LineGraphAxes], legend_entries: typing.Sequence[LineGraphCanvasItem.LegendEntry]) -> None:
         self.__line_graph_background_canvas_item.set_axes(axes)
         self.__line_graph_regions_canvas_item.set_axes(axes)
-        self.__line_graph_regions_canvas_item.set_calibrated_data(self.line_graph_canvas_item.calibrated_xdata.data if self.line_graph_canvas_item and self.line_graph_canvas_item.calibrated_xdata else None)
+        self.__line_graph_regions_canvas_item.set_calibrated_data(self.line_graph_layers_canvas_item.calibrated_data)
         self.__line_graph_frame_canvas_item.set_draw_frame(bool(axes))
         self.__line_graph_legend_canvas_item.set_legend_entries(legend_entries)
         self.__line_graph_outer_left_legend.set_legend_entries(legend_entries)
@@ -842,19 +826,18 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
     def _mouse_dragged(self, start: float, end: float, modifiers: typing.Optional[UserInterface.KeyboardModifiers] = None) -> None:
         # for testing
-        line_graph_canvas_item = self.line_graph_canvas_item
-        if line_graph_canvas_item:
-            canvas_rect = line_graph_canvas_item.canvas_rect
-            if canvas_rect:
-                plot_origin = line_graph_canvas_item.map_to_canvas_item(Geometry.IntPoint(), self)
-                plot_left = canvas_rect.left + plot_origin.x
-                plot_width = canvas_rect.width
-                modifiers = modifiers if modifiers else CanvasItem.KeyboardModifiers()
-                self.mouse_pressed(plot_left + round(plot_width * start), 100, modifiers)
-                self.mouse_position_changed(plot_left + round(plot_width * start), 100, modifiers)
-                self.mouse_position_changed(plot_left + round(plot_width * (start + end) / 2), 100, modifiers)
-                self.mouse_position_changed(plot_left + round(plot_width * end), 100, modifiers)
-                self.mouse_released(plot_left + round(plot_width * end), 100, modifiers)
+        line_graph_layers_canvas_item = self.line_graph_layers_canvas_item
+        canvas_rect = line_graph_layers_canvas_item.canvas_rect
+        if canvas_rect:
+            plot_origin = line_graph_layers_canvas_item.map_to_canvas_item(Geometry.IntPoint(), self)
+            plot_left = canvas_rect.left + plot_origin.x
+            plot_width = canvas_rect.width
+            modifiers = modifiers if modifiers else CanvasItem.KeyboardModifiers()
+            self.mouse_pressed(plot_left + round(plot_width * start), 100, modifiers)
+            self.mouse_position_changed(plot_left + round(plot_width * start), 100, modifiers)
+            self.mouse_position_changed(plot_left + round(plot_width * (start + end) / 2), 100, modifiers)
+            self.mouse_position_changed(plot_left + round(plot_width * end), 100, modifiers)
+            self.mouse_released(plot_left + round(plot_width * end), 100, modifiers)
 
     def context_menu_event(self, x: int, y: int, gx: int, gy: int) -> bool:
         assert self.delegate
@@ -1127,10 +1110,10 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         if self.__mouse_in and self.__last_mouse:
             pos_1d = None
             axes = self.__axes
-            line_graph_canvas_item = self.line_graph_canvas_item
-            if axes and line_graph_canvas_item:
-                mouse = self.map_to_canvas_item(self.__last_mouse, line_graph_canvas_item)
-                canvas_bounds = line_graph_canvas_item.canvas_bounds
+            line_graph_layers_canvas_item = self.line_graph_layers_canvas_item
+            if axes:
+                mouse = self.map_to_canvas_item(self.__last_mouse, line_graph_layers_canvas_item)
+                canvas_bounds = line_graph_layers_canvas_item.canvas_bounds
                 if canvas_bounds and canvas_bounds.contains_point(mouse):
                     mouse = mouse - canvas_bounds.origin
                     x = float(mouse.x) / canvas_bounds.width
