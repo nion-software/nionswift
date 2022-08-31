@@ -607,6 +607,22 @@ class TestWorkspaceClass(unittest.TestCase):
             # compare against new layout
             self.assertEqual(new_workspace_layout, workspace_controller._workspace_layout)
 
+    def test_workspace_change_workspace_to_data_thumbnail_grid_works(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((8, 8)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+            workspace_controller = document_controller.workspace_controller
+            display_panel = workspace_controller.display_panels[0]
+            document_controller.workspace_controller.switch_to_display_content(display_panel, "data-display-panel", display_item)
+            document_controller.workspace_controller.switch_to_display_content(display_panel, "browser-display-panel")
+            document_controller.workspace_controller.switch_to_display_content(display_panel, "thumbnail-browser-display-panel")
+            document_controller.workspace_controller.switch_to_display_content(display_panel, "empty-display-panel")
+
     def test_workspace_change_workspace_undo_redo(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()

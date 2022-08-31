@@ -21,6 +21,7 @@ from nion.swift import FilterPanel
 from nion.swift import MimeTypes
 from nion.swift import Panel
 from nion.swift import Undo
+from nion.swift.model import Persistence
 from nion.swift.model import Utility
 from nion.swift.model import WorkspaceLayout
 from nion.ui import CanvasItem
@@ -30,7 +31,6 @@ if typing.TYPE_CHECKING:
     from nion.swift import DocumentController
     from nion.swift.model import DisplayItem
     from nion.swift.model import DocumentModel
-    from nion.swift.model import Persistence
     from nion.swift.model import Project
 
 
