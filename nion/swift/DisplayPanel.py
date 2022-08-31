@@ -2067,8 +2067,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         return False
 
     def _drag_finished(self, document_controller: DocumentController.DocumentController, action: str) -> None:
-        if action == "move":
-            document_controller.display_panel_finish_drag(self)
+        document_controller.display_panel_finish_drag(self, action)
 
     def display_clicked(self, modifiers: UserInterface.KeyboardModifiers) -> bool:
         if self._is_selected() and not (modifiers.shift or modifiers.control):
@@ -2346,6 +2345,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         self.__begin_drag(mime_data, thumbnail)
 
     def __begin_drag(self, mime_data: UserInterface.MimeData, thumbnail_data: typing.Optional[_NDArray]) -> None:
+        self.document_controller.replaced_display_panel_content_flag = True
         self.drag(mime_data, thumbnail_data, drag_finished_fn=functools.partial(self._drag_finished, self.__document_controller))
 
     def cycle_display(self) -> None:

@@ -142,6 +142,7 @@ class DocumentController(Window.Window):
         if project_reference:
             self.window_file_path = project_reference.path
         self.__workspace_controller: typing.Optional[Workspace.Workspace] = None
+        self.replaced_display_panel_content_flag = False  # whether to set replaced display panel content
         self.replaced_display_panel_content: typing.Optional[Persistence.PersistentDictType] = None  # used to facilitate display panel functionality to exchange displays
         self.__selected_display_panel: typing.Optional[DisplayPanel.DisplayPanel] = None
         self.__secondary_display_panels: typing.List[DisplayPanel.DisplayPanel] = list()
@@ -619,8 +620,11 @@ class DocumentController(Window.Window):
         if self.selected_display_panel == display_panel:
             self.selected_display_panel = None
 
-    def display_panel_finish_drag(self, display_panel: DisplayPanel.DisplayPanel) -> None:
-        if self.replaced_display_panel_content is not None:
+    def display_panel_finish_drag(self, display_panel: DisplayPanel.DisplayPanel, action: str) -> None:
+        # replaced_display_panel_content should only be set when dragging from another display panel
+        # it is used to remove/swap the old content. but we need to be careful that the content doesn't
+        # get left around for another drag and cause unexpected behavior.
+        if action == "move" and self.replaced_display_panel_content is not None:
             d = self.replaced_display_panel_content
             display_panel.change_display_panel_content(d)
             last_command = self.last_undo_command
@@ -632,6 +636,7 @@ class DocumentController(Window.Window):
                                                                    last_command._old_workspace_layout)
                 self.pop_undo_command()
                 self.push_undo_command(command)
+        self.replaced_display_panel_content_flag = False
         self.replaced_display_panel_content = None
 
     @property

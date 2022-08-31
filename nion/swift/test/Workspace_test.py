@@ -690,6 +690,7 @@ class TestWorkspaceClass(unittest.TestCase):
             # save the original layout
             old_workspace_layout = copy.deepcopy(workspace_controller._workspace_layout)
             # change the display by dragging 2 into 1
+            document_controller.replaced_display_panel_content_flag = True  # this would get set by the drag command
             command = workspace_controller._replace_displayed_display_item(display_panel, None, display_panel2.save_contents())
             document_controller.push_undo_command(command)
             display_panel2._drag_finished(document_controller, "move")
@@ -1169,6 +1170,7 @@ class TestWorkspaceClass(unittest.TestCase):
             # simulate drag. data_item2 in right panel swaps with data_item1 in left panel.
             mime_data = self.app.ui.create_mime_data()
             MimeTypes.mime_data_put_display_item(mime_data, display_item2)
+            document_controller.replaced_display_panel_content_flag = True  # this would get set by the drag command
             document_controller.workspace_controller.handle_drop(document_controller.workspace_controller.display_panels[0], mime_data, "middle", 160, 240)
             document_controller.workspace_controller.display_panels[1]._drag_finished(document_controller, "move")
             self.assertEqual(document_controller.workspace_controller.display_panels[0].display_item, display_item2)

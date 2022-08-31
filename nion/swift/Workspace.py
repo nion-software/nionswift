@@ -843,7 +843,8 @@ class Workspace:
                                          display_item: typing.Optional[DisplayItem.DisplayItem],
                                          d: typing.Optional[Persistence.PersistentDictType] = None) -> Undo.UndoableCommand:
         """ Used in drag/drop support. """
-        self.document_controller.replaced_display_panel_content = display_panel.save_contents()
+        if self.document_controller.replaced_display_panel_content_flag:
+            self.document_controller.replaced_display_panel_content = display_panel.save_contents()
         command = ChangeWorkspaceContentsCommand(self, _("Replace Display Panel"))
         if display_item:
             display_panel.set_display_panel_display_item(display_item, detect_controller=True)
