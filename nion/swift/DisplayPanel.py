@@ -2204,7 +2204,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
 
             if display_item:
                 def clear_display() -> None:
-                    self.set_display_item(None)
+                    self.set_display_panel_display_item(None, True)
 
                 def handle_title_changed(title: str) -> None:
                     self.__update_title()
