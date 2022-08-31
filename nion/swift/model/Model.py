@@ -312,7 +312,7 @@ def transform_forward(d: PersistentDictType) -> PersistentDictType:
         for display_layer in display_item.get("display_layers", list()):
             display_layer["type"] = "display_layer"
             display_layer["uuid"] = str(uuid.uuid4())
-            display_layer["modified"] = copy.copy(display_item.get("modified", str(DateTime.utcnow())))
+            display_layer["modified"] = copy.copy(display_item.get("modified", DateTime.utcnow().isoformat()))
             data_index = display_layer.pop("data_index", None)
             if data_index is not None and 0 <= data_index < len(display_data_channels):
                 display_layer["display_data_channel"] = display_data_channels[data_index]["uuid"]

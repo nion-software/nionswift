@@ -4234,6 +4234,20 @@ class TestStorageClass(unittest.TestCase):
                 self.assertEqual(display_item.display_data_channels[0], display_item.get_display_layer_display_data_channel(0))
                 self.assertEqual(display_item.display_data_channels[1], display_item.get_display_layer_display_data_channel(1))
 
+    def test_display_layers_are_modifiable_after_reload(self):
+        # this tests that the 'modified' property of display layers is set properly.
+        # this showed up in the UI, but I could not reliably reproduce it in the UI.
+        # here it was easily reproduced (and fixed).
+        with create_memory_profile_context() as profile_context:
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                data_item = DataItem.DataItem(numpy.zeros((8,)))
+                document_model.append_data_item(data_item)
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                display_item = document_model.display_items[0]
+                display_item._set_display_layer_property(0, "stroke_color", "red")
+
     def test_data_item_variable_reloads(self):
         with create_memory_profile_context() as profile_context:
             self.assertEqual(0, len(DocumentModel.MappedItemManager().item_map.keys()))
