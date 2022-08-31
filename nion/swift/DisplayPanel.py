@@ -2111,6 +2111,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         if not display_panel_controller:
             self.header_canvas_item.reset_header_colors()
         if self.__display_panel_controller:
+            self.__switch_to_no_browser()
             self.set_display_item(self.__display_item)
 
     # sets the data item that this panel displays

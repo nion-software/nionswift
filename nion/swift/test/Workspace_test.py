@@ -1490,6 +1490,24 @@ class TestWorkspaceClass(unittest.TestCase):
         finally:
             DisplayPanel._test_log_exceptions = True
 
+    def test_switching_display_panel_to_controller_from_browser_switches_to_display_item(self):
+        data_item = DataItem.DataItem(numpy.zeros((8, 8)))
+        DisplayPanel.DisplayPanelManager().register_display_panel_controller_factory("test", TestWorkspaceClass.DisplayPanelControllerFactory(data_item))
+        try:
+            with TestContext.create_memory_context() as test_context:
+                document_controller = test_context.create_document_controller()
+                document_model = document_controller.document_model
+                document_model.append_data_item(data_item)
+                workspace = document_controller.workspace_controller.new_workspace("1", {"type": "image"})
+                document_controller.workspace_controller.change_workspace(workspace)
+                display_panel = document_controller.workspace_controller.display_panels[0]
+                document_controller.workspace_controller.switch_to_display_content(display_panel, "browser-display-panel")
+                self.assertEqual("grid", display_panel.display_panel_type)  # check assumptions
+                display_panel.change_display_panel_content({"type": "image", "controller_type": "test"})
+                self.assertEqual("data_item", display_panel.display_panel_type)
+        finally:
+            DisplayPanel.DisplayPanelManager().unregister_display_panel_controller_factory("test")
+
     def test_data_display_panel_with_controller_only_enabled_for_primary_display_item(self):
         data_item = DataItem.DataItem(numpy.zeros((8, 8)))
         DisplayPanel.DisplayPanelManager().register_display_panel_controller_factory("test", TestWorkspaceClass.DisplayPanelControllerFactory(data_item))
