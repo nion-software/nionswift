@@ -17,14 +17,17 @@ class UndeleteBase(abc.ABC):
 
 
 class UndeleteLog:
+    count = 0  # useful for detecting leaks in tests
 
     def __init__(self) -> None:
+        UndeleteLog.count += 1
         self.__items : typing.List[UndeleteBase] = list()
 
     def close(self) -> None:
         for item in self.__items:
             item.close()
         self.__items = typing.cast(typing.Any, None)
+        UndeleteLog.count -= 1
 
     def append(self, item: UndeleteBase) -> None:
         self.__items.append(item)

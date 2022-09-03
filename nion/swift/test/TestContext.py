@@ -8,6 +8,7 @@ import uuid
 from nion.swift import Application
 from nion.swift import DocumentController
 from nion.swift.model import Cache
+from nion.swift.model import Changes
 from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
@@ -30,6 +31,7 @@ def begin_leaks() -> None:
     Persistence.PersistentObjectReference.count = 0
     Persistence.PersistentObject.count = 0
     ReferenceCounting.ReferenceCounted.count = 0
+    Changes.UndeleteLog.count = 0
     DataItem.DataItem._data_count = 0
 
 
@@ -45,6 +47,7 @@ def end_leaks(test_case: unittest.TestCase) -> None:
     test_case.assertEqual(0, Persistence.PersistentObject.count)
     test_case.assertEqual(0, ReferenceCounting.ReferenceCounted.count)
     test_case.assertEqual(0, DisplayItem.DisplayValues._count)
+    test_case.assertEqual(0, Changes.UndeleteLog.count)
     # the next assert is very aggressive, particularly difficult to satisfy with async/threading (histogram).
     # test_case.assertEqual(0, DataItem.DataItem._data_count)
 
