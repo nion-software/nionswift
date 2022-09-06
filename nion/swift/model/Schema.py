@@ -18,6 +18,7 @@ from nion.utils import Observable
 DictValue = typing.Union[typing.Dict[str, typing.Any], typing.List[typing.Any], typing.Tuple[typing.Any], str, float, int, bool, None]
 ItemProxyEntity = typing.Optional[typing.Any]  # use this to make it easy to switch to Entity later
 PersistentDictType = typing.Dict[str, DictValue]
+PersistentMappingType = typing.Mapping[str, DictValue]
 _WeakReferenceType = typing.Any  # Python 3.9+ fix these
 
 ANY = "any"
@@ -799,7 +800,7 @@ class Entity(Observable.Observable):
         for field in self.__field_dict.values():
             field.set_context(context)
 
-    def read(self, properties: PersistentDictType) -> Entity:
+    def read(self, properties: PersistentMappingType) -> Entity:
         # unregister old uuid
         if self.__context:
             self.__context.unregister(self)
@@ -914,7 +915,7 @@ class Entity(Observable.Observable):
     def begin_reading(self) -> None:
         pass
 
-    def read_from_dict(self, properties: PersistentDictType) -> None:
+    def read_from_dict(self, properties: PersistentMappingType) -> None:
         self.read(properties)
 
     def finish_reading(self) -> None:
@@ -1028,7 +1029,7 @@ class EntityType:
     def _transforms(self) -> _EntityTransforms:
         return self.__transforms
 
-    def create(self, context: typing.Optional[EntityContext] = None, d: typing.Optional[PersistentDictType] = None) -> Entity:
+    def create(self, context: typing.Optional[EntityContext] = None, d: typing.Optional[PersistentMappingType] = None) -> Entity:
         entity = self.__factory(self, context) if callable(self.__factory) else Entity(self, context)
         if d is not None:
             entity.read(d)
