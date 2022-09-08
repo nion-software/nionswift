@@ -497,7 +497,9 @@ class ItemExplorerWidget(Widgets.CompositeWidgetBase):
     """Provide a widget wrapper for an item explorer controller."""
 
     def __init__(self, ui: UserInterface.UserInterface, item_explorer_controller: ItemExplorerController):
-        content_widget = ui.create_column_widget()
+        # note: the expanding policies ensure that the first update has non-empty widget size.
+        # this showed up when switching from list to grid the first time.
+        content_widget = ui.create_column_widget(properties={"size-policy-horizontal": "expanding", "size-policy-vertical": "expanding"})
         super().__init__(content_widget)
         self.item_explorer_controller = item_explorer_controller
         data_list_widget = ui.create_canvas_widget()
