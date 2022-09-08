@@ -1691,7 +1691,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
         def set_data_item_specifier(self, project: Project.Project, data_item_specifier: typing.Optional[Persistence.PersistentObjectSpecifier]) -> None:
             data_item_proxy = project.create_item_proxy(item_specifier=data_item_specifier)
-            if data_item_proxy.item != self.__data_item:
+            # data_item_proxy may be an old proxy, only update if it is valid and different from the existing one.
+            if data_item_proxy.item and data_item_proxy.item != self.__data_item:
                 assert self.__starts == 0
                 assert self.__pending_starts == 0
                 assert not self.__data_item_transaction

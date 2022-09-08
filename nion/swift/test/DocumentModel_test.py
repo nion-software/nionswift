@@ -2312,6 +2312,24 @@ class TestDocumentModelClass(unittest.TestCase):
                 data_item_reference = document_model.get_data_item_reference("abc")
                 self.assertEqual(document_model.data_items[0], data_item_reference.data_item)
 
+    def test_started_data_item_reference_updates_when_outdated(self):
+        with create_memory_profile_context() as profile_context:
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                data_item = DataItem.DataItem(numpy.ones((4, 4)))
+                data_item2 = DataItem.DataItem(numpy.ones((4, )))
+                document_model.append_data_item(data_item)
+                document_model.append_data_item(data_item2)
+                project = document_model._project
+                project._set_persistent_property_value("data_item_references", {"invalid_ref": str(uuid.uuid4())})
+                data_item_reference = document_model.get_data_item_reference("invalid_ref")
+                data_item_reference.data_item = data_item2
+                document_model.get_data_item_reference("invalid_ref").start()
+                # this may be redundant in real code, but triggers the error as of how its written now.
+                # when this new ref updates, it would have a conflict with the old ref and the set data item,
+                # resulting in an exception.
+                document_model._update_data_item_reference("new_ref", data_item)
+
     def test_display_items_with_multiple_data_channels_list_all_sources(self):
         with create_memory_profile_context() as profile_context:
             document_model = profile_context.create_document_model(auto_close=False)
