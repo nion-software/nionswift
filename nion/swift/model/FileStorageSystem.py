@@ -313,7 +313,7 @@ class PersistentStorageSystem(Persistence.PersistentStorageInterface):
         return dict(), list()
 
     def get_storage_properties(self) -> PersistentDictType:
-        """Return the internal properties. Callers should not modify and it is ok to not return a copy."""
+        """Return the internal properties. Callers should not modify; it is ok to not return a copy."""
         return self.__properties
 
     def migrate_to_latest(self) -> None:
@@ -852,7 +852,7 @@ class FileProjectStorageSystem(ProjectStorageSystem):
         return properties
 
     def _write_properties(self) -> None:
-        self.__write_properties_inner(Model.transform_backward(self.get_storage_properties()))
+        self.__write_properties_inner(Model.transform_backward(copy.deepcopy(self.get_storage_properties())))
 
     def __write_properties_inner(self, properties: PersistentDictType) -> None:
         if self.__project_path:

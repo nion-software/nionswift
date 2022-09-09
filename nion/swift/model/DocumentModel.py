@@ -224,7 +224,7 @@ class TransactionManager:
 
 class UndeleteObjectSpecifier(Changes.UndeleteBase):
 
-    def __init__(self, document_model: DocumentModel, computation: Symbolic.Computation, index: int, variable_index: int, object_specifier: Persistence.PersistentDictType) -> None:
+    def __init__(self, document_model: DocumentModel, computation: Symbolic.Computation, index: int, variable_index: int, object_specifier: Symbolic.Specifier) -> None:
         self.computation_proxy = computation.create_proxy()
         self.variable_index = variable_index
         self.specifier = object_specifier
@@ -2493,7 +2493,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 "sources": [{"name": "src", "label": _("Source"), "croppable": True}], "parameters": [x_binning_param, y_binning_param]}
             vs["rebin_factor_1d"] = {"title": _("Rebin"), "expression": "xd.rebin_factor({src}.cropped_display_xdata, (x_binning,))",
                 "sources": [{"name": "src", "label": _("Source"), "croppable": True}], "parameters": [x_binning_param]}
-            is_sequence_param = {"name": "is_sequence", "label": _("Sequence"), "type": "bool", "value": False, "value_default": False}
+            is_sequence_param = {"name": "is_sequence", "label": _("Sequence"), "type": "boolean", "value": False, "value_default": False}
             collection_dims_param = {"name": "collection_dims", "label": _("Collection Dimensions"), "type": "integral", "value": 0, "value_default": 0, "value_min": 0, "value_max": 0}
             datum_dims_param = {"name": "datum_dims", "label": _("Datum Dimensions"), "type": "integral", "value": 1, "value_default": 1, "value_min": 1, "value_max": 0}
             vs["redimension"] = {"title": _("Redimension"), "expression": "xd.redimension({src}.xdata, xd.data_descriptor(is_sequence=is_sequence, collection_dims=collection_dims, datum_dims=datum_dims))",

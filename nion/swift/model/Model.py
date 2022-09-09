@@ -201,8 +201,7 @@ DisplayItem = Schema.entity("display_item", None, None, {
 
 Specifier = Schema.entity("specifier", None, None, {
     "version": Schema.prop(Schema.INT),
-    "reference": Schema.reference(),
-    "context_uuid": Schema.prop(Schema.UUID, Schema.OPTIONAL)
+    "reference_uuid": Schema.prop(Schema.UUID),
 })
 
 DataSourceSpecifier = Schema.entity("data_source", Specifier, None, {})
@@ -224,8 +223,8 @@ ComputationVariable = Schema.entity("variable", None, None, {
     "value_default": Schema.prop(Schema.ANY),
     "value_min": Schema.prop(Schema.ANY),
     "value_max": Schema.prop(Schema.ANY),
-    "item": Schema.component(Specifier),
-    "item2": Schema.component(Specifier),
+    "item": Schema.component(Specifier, required=False),
+    "item2": Schema.component(Specifier, required=False),
     "items": Schema.array(Schema.component(Specifier), Schema.OPTIONAL),
     "property_name": Schema.prop(Schema.STRING),
     "control_type": Schema.prop(Schema.STRING),
@@ -337,36 +336,38 @@ def transform_forward(d: PersistentDictType) -> PersistentDictType:
 
     # ensure the specifier to graphic has a unique entity_id
     # note this uses the non-renamed fields (specifier=item; secondary_specifier=item2; object_specifiers=items; specifiers=items)
-    for computation in d.get("computations", list()):
-        for variable in computation.get("variables", list()):
-            if variable.get("specifier", dict()).get("type") == "graphic":
-                variable["specifier"]["type"] = "graphic-specifier"
-            if variable.get("secondary_specifier", dict()).get("type") == "graphic":
-                variable["secondary_specifier"]["type"] = "graphic-specifier"
-            for v in variable.get("object_specifiers", list()):
-                if v.get("type") == "graphic":
-                    v["type"] = "graphic-specifier"
-        for result in computation.get("results", list()):
-            if result.get("specifier", dict()).get("type") == "graphic":
-                result["specifier"]["type"] = "graphic-specifier"
-            for r in result.get("specifiers", list()):
-                if r.get("type") == "graphic":
-                    r["type"] = "graphic-specifier"
-
-    # these will be used for improved specifiers in the future
-    # for computation in d.get("computations", list()):
-    #     for variable in computation.get("variables", list()):
-    #         if not variable.get("secondary_specifier", None):
-    #             variable.pop("secondary_specifier", None)
-    #         specifier = variable.get("specifier", None)
-    #         if specifier:
-    #             specifier["reference"] = specifier.pop("uuid")
-    #     for result in computation.get("results", list()):
-    #         if not result.get("secondary_specifier", None):
-    #             result.pop("secondary_specifier", None)
-    #         specifier = result.get("specifier", None)
-    #         if specifier:
-    #             specifier["reference"] = specifier.pop("uuid")
+    # also change uuid fields to reference_uuid
+    for computation_d in d.get("computations", list()):
+        for variable_d in computation_d.get("variables", list()):
+            specifier_d = variable_d.get("specifier", dict())
+            secondary_specifier_d = variable_d.get("secondary_specifier", dict())
+            # clean up secondary_specifier
+            if not secondary_specifier_d:
+                variable_d.pop("secondary_specifier", None)
+            if specifier_d:
+                specifier_d["reference_uuid"] = specifier_d.pop("uuid")
+            if secondary_specifier_d:
+                secondary_specifier_d["reference_uuid"] = secondary_specifier_d.pop("uuid")
+            # now update the graphic types
+            if specifier_d.get("type") == "graphic":
+                variable_d["specifier"]["type"] = "graphic-specifier"
+            if secondary_specifier_d.get("type") == "graphic":
+                variable_d["secondary_specifier"]["type"] = "graphic-specifier"
+            for v in variable_d.get("object_specifiers", list()):
+                if v is not None:
+                    v["reference_uuid"] = v.pop("uuid")
+                    if v.get("type") == "graphic":
+                        v["type"] = "graphic-specifier"
+        for result_d in computation_d.get("results", list()):
+            result_specifier_d = result_d.get("specifier", dict())
+            result_specifier_d["reference_uuid"] = result_specifier_d.pop("uuid")
+            if result_specifier_d.get("type") == "graphic":
+                result_specifier_d["type"] = "graphic-specifier"
+            for r in result_d.get("specifiers", list()):
+                if r is not None:
+                    r["reference_uuid"] = r.pop("uuid")
+                    if r.get("type") == "graphic":
+                        r["type"] = "graphic-specifier"
 
     return d
 
@@ -387,32 +388,41 @@ def transform_backward(d: PersistentDictType) -> PersistentDictType:
 
     # ensure the specifier to graphic uses PROJECT_VERSION 3 compatible keys
     # note this uses the non-renamed fields (specifier=item; secondary_specifier=item2; object_specifiers=items; specifiers=items)
-    for computation in d.get("computations", list()):
-        for variable in computation.get("variables", list()):
-            if variable.get("specifier", dict()).get("type") == "graphic-specifier":
-                variable["specifier"]["type"] = "graphic"
-            if variable.get("secondary_specifier", dict()).get("type") == "graphic-specifier":
-                variable["secondary_specifier"]["type"] = "graphic"
-            for v in variable.get("object_specifiers", list()):
-                if v is not None and v.get("type") == "graphic-specifier":
-                    v["type"] = "graphic"
-        for result in computation.get("results", list()):
-            if result.get("specifier", dict()).get("type") == "graphic-specifier":
-                result["specifier"]["type"] = "graphic"
-            for r in result.get("specifiers", list()):
-                if r is not None and r.get("type") == "graphic-specifier":
-                    r["type"] = "graphic"
 
-    # these will be used for improved specifiers in the future
-    # for computation in d.get("computations", list()):
-    #     for variable in computation.get("variables", list()):
-    #         specifier = variable.get("specifier", None)
-    #         if specifier:
-    #             specifier["uuid"] = specifier.pop("reference")
-    #     for result in computation.get("results", list()):
-    #         specifier = result.get("specifier", None)
-    #         if specifier:
-    #             specifier["uuid"] = specifier.pop("reference")
+    # NOTE: The backing dict is not carefully handled - so sometimes it will contain the transformed dict and sometimes
+    # it won't. Obviously this is a problem; but the code currently works around it by adding extra checks for whether
+    # reference_uuid is in the item dict's. This will be cleaned up in a future refactoring.
+
+    for computation_d in d.get("computations", list()):
+        for variable_d in computation_d.get("variables", list()):
+            specifier_d = variable_d.get("specifier", dict())
+            secondary_specifier_d = variable_d.get("secondary_specifier", dict())
+            if specifier_d and "reference_uuid" in specifier_d:
+                specifier_d["uuid"] = specifier_d.pop("reference_uuid")
+            if secondary_specifier_d and "reference_uuid" in secondary_specifier_d:
+                secondary_specifier_d["uuid"] = secondary_specifier_d.pop("reference_uuid")
+            if specifier_d.get("type") == "graphic-specifier":
+                variable_d["specifier"]["type"] = "graphic"
+            if secondary_specifier_d.get("type") == "graphic-specifier":
+                variable_d["secondary_specifier"]["type"] = "graphic"
+            for v in variable_d.get("object_specifiers", list()):
+                if v is not None:
+                    if "reference_uuid" in v:
+                        v["uuid"] = v.pop("reference_uuid")
+                    if v.get("type") == "graphic-specifier":
+                        v["type"] = "graphic"
+        for result_d in computation_d.get("results", list()):
+            result_specifier_d = result_d.get("specifier", dict())
+            if result_specifier_d and "reference_uuid" in result_specifier_d:
+                result_specifier_d["uuid"] = result_specifier_d.pop("reference_uuid")
+            if result_specifier_d.get("type") == "graphic-specifier":
+                result_specifier_d["type"] = "graphic"
+            for r in result_d.get("specifiers", list()):
+                if r is not None:
+                    if "reference_uuid" in r:
+                        r["uuid"] = r.pop("reference_uuid")
+                    if r.get("type") == "graphic-specifier":
+                        r["type"] = "graphic"
 
     return d
 

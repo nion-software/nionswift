@@ -3844,7 +3844,7 @@ class TestStorageClass(unittest.TestCase):
                 computed_data_item = DataItem.DataItem(data.copy())
                 document_model.append_data_item(computed_data_item)
                 document_model.set_data_item_computation(computed_data_item, computation)
-                x.value_type = "integral"
+                x.value_type = Symbolic.ComputationVariableType.INTEGRAL
                 x.value = 6
             document_model = profile_context.create_document_model(auto_close=False)
             with document_model.ref():

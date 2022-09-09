@@ -1127,7 +1127,7 @@ class TestInspectorClass(unittest.TestCase):
             line_edit_widget1 = inspector_section._variables_column_widget.children[0].content_widget.find_widget_by_id("value")
             line_edit_widget1.editing_finished("1")
             self.assertEqual(x.value, 1)
-            x.value_type = "real"
+            x.value_type = Symbolic.ComputationVariableType.REAL
             document_controller.periodic()
             line_edit_widget2 = inspector_section._variables_column_widget.children[0].content_widget.find_widget_by_id("value")
             line_edit_widget2.editing_finished("1.1")

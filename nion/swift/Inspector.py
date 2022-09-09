@@ -3203,7 +3203,7 @@ class BooleanVariableHandler(Declarative.Handler):
 
 class BooleanVariableHandlerFactory(VariableHandlerComponentFactory2):
     def make_variable_handler(self, computation_inspector_context: ComputationInspectorContext, computation: Symbolic.Computation, computation_variable: Symbolic.ComputationVariable, variable_model: VariableValueModel, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
-        if computation_variable.variable_type == "boolean":
+        if computation_variable.variable_type == Symbolic.ComputationVariableType.BOOLEAN:
             return BooleanVariableHandler(computation_variable, variable_model)
         return None
 
@@ -3235,9 +3235,9 @@ class IntegerVariableHandler(Declarative.Handler):
 
 class IntegerVariableHandlerFactory(VariableHandlerComponentFactory2):
     def make_variable_handler(self, computation_inspector_context: ComputationInspectorContext, computation: Symbolic.Computation, computation_variable: Symbolic.ComputationVariable, variable_model: VariableValueModel, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
-        if computation_variable.variable_type == "integral" and computation_variable.has_range:
+        if computation_variable.variable_type == Symbolic.ComputationVariableType.INTEGRAL and computation_variable.has_range:
             return IntegerSliderVariableHandler(computation_variable, variable_model)
-        elif computation_variable.variable_type == "integral":
+        elif computation_variable.variable_type == Symbolic.ComputationVariableType.INTEGRAL:
             return IntegerVariableHandler(computation_variable, variable_model)
         return None
 
@@ -3270,9 +3270,9 @@ class RealVariableHandler(Declarative.Handler):
 
 class RealVariableHandlerFactory(VariableHandlerComponentFactory2):
     def make_variable_handler(self, computation_inspector_context: ComputationInspectorContext, computation: Symbolic.Computation, computation_variable: Symbolic.ComputationVariable, variable_model: VariableValueModel, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
-        if computation_variable.variable_type == "real" and computation_variable.has_range:
+        if computation_variable.variable_type == Symbolic.ComputationVariableType.REAL and computation_variable.has_range:
             return RealSliderVariableHandler(computation_variable, variable_model)
-        elif computation_variable.variable_type == "real":
+        elif computation_variable.variable_type == Symbolic.ComputationVariableType.REAL:
             return RealVariableHandler(computation_variable, variable_model)
         return None
 
@@ -3323,9 +3323,9 @@ class StringVariableHandler(Declarative.Handler):
 
 class StringVariableHandlerFactory(VariableHandlerComponentFactory2):
     def make_variable_handler(self, computation_inspector_context: ComputationInspectorContext, computation: Symbolic.Computation, computation_variable: Symbolic.ComputationVariable, variable_model: VariableValueModel, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
-        if computation_variable.variable_type == "string" and computation_variable.control_type == "choice":
+        if computation_variable.variable_type == Symbolic.ComputationVariableType.STRING and computation_variable.control_type == "choice":
             return ChoiceVariableHandler(computation_variable, variable_model)
-        if computation_variable.variable_type == "string":
+        if computation_variable.variable_type == Symbolic.ComputationVariableType.STRING:
             return StringVariableHandler(computation_variable, variable_model)
         return None
 
@@ -3417,7 +3417,7 @@ class DataSourceVariableHandler(Declarative.Handler):
 
 class DataSourceVariableHandlerFactory(VariableHandlerComponentFactory2):
     def make_variable_handler(self, computation_inspector_context: ComputationInspectorContext, computation: Symbolic.Computation, computation_variable: Symbolic.ComputationVariable, variable_model: VariableValueModel, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
-        if computation_variable.variable_type in Symbolic.Computation.data_source_types:
+        if computation_variable.variable_type in Symbolic._data_source_types:
             return DataSourceVariableHandler(computation_inspector_context.window, computation, computation_variable, variable_model)
         return None
 
@@ -3585,7 +3585,7 @@ class GraphicHandler(Declarative.Handler):
 
 class GraphicVariableHandlerFactory(VariableHandlerComponentFactory2):
     def make_variable_handler(self, computation_inspector_context: ComputationInspectorContext, computation: Symbolic.Computation, computation_variable: Symbolic.ComputationVariable, variable_model: VariableValueModel, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
-        if computation_variable.variable_type == "graphic-specifier":
+        if computation_variable.variable_type == Symbolic.ComputationVariableType.GRAPHIC:
             graphic = computation_variable.bound_item.value if computation_variable.bound_item else None
             return GraphicHandler(computation_inspector_context.window, computation, computation_variable, graphic)
         return None
@@ -3730,7 +3730,7 @@ class ConstantVariableHandler(Declarative.Handler):
 
 class DataStructureVariableHandlerFactory(VariableHandlerComponentFactory2):
     def make_variable_handler(self, computation_inspector_context: ComputationInspectorContext, computation: Symbolic.Computation, computation_variable: Symbolic.ComputationVariable, variable_model: VariableValueModel, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
-        if computation_variable.variable_type == "structure":
+        if computation_variable.variable_type == Symbolic.ComputationVariableType.STRUCTURE:
             if computation_variable.property_name:
                 return DataStructurePropertyVariableHandler(computation_inspector_context, computation_variable)
             else:

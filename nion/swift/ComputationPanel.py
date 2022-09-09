@@ -504,7 +504,15 @@ class ComputationPanelSection:
             name_text_edit = ui.create_line_edit_widget()
             name_text_edit.bind_text(ChangeVariableBinding(document_controller, computation, variable, "name"))
 
-            type_items = [("boolean", _("Boolean")), ("integral", _("Integer")), ("real", _("Real")), ("string", _("String")),("data_source", _("Data Source")), ("graphic-specifier", _("Graphic"))]
+            type_items = [
+                (Symbolic.ComputationVariableType.BOOLEAN, _("Boolean")),
+                (Symbolic.ComputationVariableType.INTEGRAL, _("Integer")),
+                (Symbolic.ComputationVariableType.REAL, _("Real")),
+                (Symbolic.ComputationVariableType.STRING, _("String")),
+                (Symbolic.ComputationVariableType.DATA_SOURCE, _("Data Source")),
+                (Symbolic.ComputationVariableType.GRAPHIC, _("Graphic"))
+            ]
+
             type_combo_box = ui.create_combo_box_widget(items=type_items, item_getter=operator.itemgetter(1))
 
             remove_button = ui.create_push_button_widget(_("X"))
@@ -690,17 +698,17 @@ class ComputationPanelSection:
         def select_stack(stack: UserInterface.BoxWidget, variable: Symbolic.ComputationVariable) -> None:
             stack.remove_all()
             variable_type = variable.variable_type
-            if variable_type == "boolean":
+            if variable_type == Symbolic.ComputationVariableType.BOOLEAN:
                 stack.add(make_boolean_row(ui, variable, change_type, on_remove))
-            elif variable_type == "integral":
+            elif variable_type == Symbolic.ComputationVariableType.INTEGRAL:
                 stack.add(make_number_row(ui, variable, Converter.IntegerToStringConverter(), change_type, on_remove))
-            elif variable_type == "real":
+            elif variable_type == Symbolic.ComputationVariableType.REAL:
                 stack.add(make_number_row(ui, variable, Converter.FloatToStringConverter(), change_type, on_remove))
-            elif variable_type == "string":
+            elif variable_type == Symbolic.ComputationVariableType.STRING:
                 stack.add(make_string_row(ui, variable, None, change_type, on_remove))
-            elif variable_type == "data_source":
+            elif variable_type == Symbolic.ComputationVariableType.DATA_SOURCE:
                 stack.add(make_specifier_row(ui, variable, change_type, on_remove))
-            elif variable_type == "graphic-specifier":
+            elif variable_type == Symbolic.ComputationVariableType.GRAPHIC:
                 stack.add(make_specifier_row(ui, variable, change_type, on_remove))
             else:
                 stack.add(make_empty_row(ui, variable, change_type, on_remove))
@@ -912,7 +920,7 @@ class EditComputationDialog(Dialog.ActionDialog):
             self.__data_item_row.add_spacing(8)
             for section in self.__sections:
                 variable = section.variable
-                if variable.variable_type in ("data_source", ):
+                if variable.variable_type == Symbolic.ComputationVariableType.DATA_SOURCE:
                     computation = self.__computation_model.computation
                     assert computation
                     widget, listeners = make_image_chooser(document_controller, computation, variable, self.content.drag)
@@ -1137,9 +1145,9 @@ class ComputationInspectorModel(Observable.Observable):
         super().__init__()
         self.computation = computation
         self.computation_inputs_model = ListModel.FilteredListModel(container=computation, master_items_key="variables")
-        self.computation_inputs_model.filter = ListModel.PredicateFilter(lambda v: v.variable_type in Symbolic.Computation.data_source_types)
+        self.computation_inputs_model.filter = ListModel.PredicateFilter(lambda v: v.variable_type in Symbolic._data_source_types)
         self.computation_parameters_model = ListModel.FilteredListModel(container=computation, master_items_key="variables")
-        self.computation_parameters_model.filter = ListModel.PredicateFilter(lambda v: v.variable_type not in Symbolic.Computation.data_source_types)
+        self.computation_parameters_model.filter = ListModel.PredicateFilter(lambda v: v.variable_type not in Symbolic._data_source_types)
         self.is_custom = computation.expression is not None
         self.error_state_model = Model.PropertyModel(0)
         self.__error_state_listener = computation.property_changed_event.listen(ReferenceCounting.weak_partial(ComputationInspectorModel.__property_changed, self))

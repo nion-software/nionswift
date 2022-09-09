@@ -1367,7 +1367,7 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.append_data_item(data_item3)
             computation = document_model.create_computation()
             computation.create_input_item("src1", Symbolic.make_item(data_item))
-            computation.create_input_item("src2", Symbolic.make_item(data_item2), _item_specifier=DataStructure.get_object_specifier(data_item2))
+            computation.create_input_item("src2", Symbolic.make_item(data_item2), _item_specifier=Symbolic.get_object_specifier(data_item2))
             computation.create_output_item("dst", Symbolic.make_item(data_item3))
             computation.processing_id = "add2"
             document_model.append_computation(computation)
@@ -1415,7 +1415,7 @@ class TestDocumentModelClass(unittest.TestCase):
                 # document_model.append_data_item(data_item3)  # purposely not added
                 computation = document_model.create_computation()
                 computation.create_input_item("src_xdata", Symbolic.make_item(data_item, type="xdata"))
-                computation.create_output_item("dst", Symbolic.make_item(data_item3), _item_specifier=DataStructure.get_object_specifier(data_item3))
+                computation.create_output_item("dst", Symbolic.make_item(data_item3), _item_specifier=Symbolic.get_object_specifier(data_item3))
                 computation.processing_id = "pass_thru"
                 document_model.append_computation(computation)
                 document_model.recompute_all()
@@ -1430,7 +1430,7 @@ class TestDocumentModelClass(unittest.TestCase):
             # document_model.append_data_item(data_item)  # purposely not added
             document_model.append_data_item(data_item3)
             computation = document_model.create_computation()
-            computation.create_input_item("src_xdata", Symbolic.make_item(data_item, type="xdata"), _item_specifier=DataStructure.get_object_specifier(data_item))
+            computation.create_input_item("src_xdata", Symbolic.make_item(data_item, type="xdata"), _item_specifier=Symbolic.get_object_specifier(data_item))
             computation.create_output_item("dst", Symbolic.make_item(data_item3))
             computation.processing_id = "pass_thru"
             document_model.append_computation(computation)
@@ -1448,7 +1448,7 @@ class TestDocumentModelClass(unittest.TestCase):
             # document_model.append_data_item(data_item3)  # purposely not added
             computation = document_model.create_computation()
             computation.create_input_item("src_xdata", Symbolic.make_item(data_item, type="xdata"))
-            computation.create_output_item("dst", Symbolic.make_item(data_item3), _item_specifier=DataStructure.get_object_specifier(data_item3))
+            computation.create_output_item("dst", Symbolic.make_item(data_item3), _item_specifier=Symbolic.get_object_specifier(data_item3))
             computation.processing_id = "pass_thru"
             document_model.append_computation(computation)
             self.assertFalse(computation.is_resolved)
@@ -1468,7 +1468,7 @@ class TestDocumentModelClass(unittest.TestCase):
             # document_model.append_data_structure(data_structure)  # purposely not added
             computation = document_model.create_computation()
             computation.create_input_item("src", Symbolic.make_item(data_item))
-            computation.create_input_item("data_structure", Symbolic.make_item(data_structure), _item_specifier=DataStructure.get_object_specifier(data_structure))
+            computation.create_input_item("data_structure", Symbolic.make_item(data_structure), _item_specifier=Symbolic.get_object_specifier(data_structure))
             computation.create_output_item("dst", Symbolic.make_item(data_item2))
             computation.processing_id = "set_const_struct"
             document_model.append_computation(computation)
@@ -1499,7 +1499,7 @@ class TestDocumentModelClass(unittest.TestCase):
             # display_item.add_graphic(graphic)  # purposely not added
             computation = document_model.create_computation()
             computation.create_input_item("src", Symbolic.make_item(data_item))
-            computation.create_input_item("graphic", Symbolic.make_item(graphic), _item_specifier=DataStructure.get_object_specifier(graphic))
+            computation.create_input_item("graphic", Symbolic.make_item(graphic), _item_specifier=Symbolic.get_object_specifier(graphic))
             computation.create_output_item("dst", Symbolic.make_item(data_item2))
             computation.processing_id = "set_const_graphic"
             document_model.append_computation(computation)
