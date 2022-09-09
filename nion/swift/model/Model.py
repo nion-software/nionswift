@@ -199,6 +199,23 @@ DisplayItem = Schema.entity("display_item", None, None, {
     "display_data_channels": Schema.array(Schema.component(DisplayDataChannel)),
 })
 
+Specifier = Schema.entity("specifier", None, None, {
+    "version": Schema.prop(Schema.INT),
+    "reference": Schema.reference(),
+    "context_uuid": Schema.prop(Schema.UUID, Schema.OPTIONAL)
+})
+
+DataSourceSpecifier = Schema.entity("data_source", Specifier, None, {})
+DataItemSpecifier = Schema.entity("data_item", Specifier, None, {})
+GraphicSpecifier = Schema.entity("graphic", Specifier, None, {})
+StructureSpecifier = Schema.entity("structure", Specifier, None, {})
+DataSpecifier = Schema.entity("xdata", Specifier, None, {})
+DisplayDataSpecifier = Schema.entity("display_xdata", Specifier, None, {})
+CroppedDataSpecifier = Schema.entity("cropped_xdata", Specifier, None, {})
+CroppedDisplayDataSpecifier = Schema.entity("cropped_display_xdata", Specifier, None, {})
+FilterDataSpecifier = Schema.entity("filter_xdata", Specifier, None, {})
+FilteredDataSpecifier = Schema.entity("filtered_xdata", Specifier, None, {})
+
 ComputationVariable = Schema.entity("variable", None, None, {
     "name": Schema.prop(Schema.STRING),
     "label": Schema.prop(Schema.STRING),
@@ -207,9 +224,9 @@ ComputationVariable = Schema.entity("variable", None, None, {
     "value_default": Schema.prop(Schema.ANY),
     "value_min": Schema.prop(Schema.ANY),
     "value_max": Schema.prop(Schema.ANY),
-    "item": Schema.reference(),
-    "item2": Schema.reference(),
-    "items": Schema.array(Schema.reference(), Schema.OPTIONAL),
+    "item": Schema.component(Specifier),
+    "item2": Schema.component(Specifier),
+    "items": Schema.array(Schema.component(Specifier), Schema.OPTIONAL),
     "property_name": Schema.prop(Schema.STRING),
     "control_type": Schema.prop(Schema.STRING),
 })
@@ -221,8 +238,8 @@ ComputationVariable.rename("items", "object_specifiers")
 ComputationResult = Schema.entity("output", None, None, {
     "name": Schema.prop(Schema.STRING),
     "label": Schema.prop(Schema.STRING),
-    "item": Schema.reference(),
-    "items": Schema.array(Schema.reference(), Schema.OPTIONAL),
+    "item": Schema.component(Specifier),
+    "items": Schema.array(Schema.component(Specifier), Schema.OPTIONAL),
 })
 
 ComputationResult.rename("item", "specifier")
@@ -316,6 +333,20 @@ def transform_forward(d: PersistentDictType) -> PersistentDictType:
             data_index = display_layer.pop("data_index", None)
             if data_index is not None and 0 <= data_index < len(display_data_channels):
                 display_layer["display_data_channel"] = display_data_channels[data_index]["uuid"]
+    # these will be used for improved specifiers in the future
+    # for computation in d.get("computations", list()):
+    #     for variable in computation.get("variables", list()):
+    #         if not variable.get("secondary_specifier", None):
+    #             variable.pop("secondary_specifier", None)
+    #         specifier = variable.get("specifier", None)
+    #         if specifier:
+    #             specifier["reference"] = specifier.pop("uuid")
+    #     for result in computation.get("results", list()):
+    #         if not result.get("secondary_specifier", None):
+    #             result.pop("secondary_specifier", None)
+    #         specifier = result.get("specifier", None)
+    #         if specifier:
+    #             specifier["reference"] = specifier.pop("uuid")
     return d
 
 
@@ -331,6 +362,16 @@ def transform_backward(d: PersistentDictType) -> PersistentDictType:
             data_index = display_data_channel_map.get(display_data_channel_uuid, None)
             if data_index is not None:
                 display_layer["data_index"] = data_index
+    # these will be used for improved specifiers in the future
+    # for computation in d.get("computations", list()):
+    #     for variable in computation.get("variables", list()):
+    #         specifier = variable.get("specifier", None)
+    #         if specifier:
+    #             specifier["uuid"] = specifier.pop("reference")
+    #     for result in computation.get("results", list()):
+    #         specifier = result.get("specifier", None)
+    #         if specifier:
+    #             specifier["uuid"] = specifier.pop("reference")
     return d
 
 
@@ -373,6 +414,7 @@ Profile = Schema.entity("profile", None, 2, {
     "work_project": Schema.reference(ProjectReference),
     "closed_items": Schema.prop(Schema.SET),
     "script_items": Schema.array(Schema.component(ScriptItem)),
+    "script_items_updated": Schema.prop(Schema.BOOLEAN)
 })
 
 Profile.rename("target_project", "target_project_reference_uuid")

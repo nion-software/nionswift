@@ -595,8 +595,7 @@ class ComponentField(Field):
 
     def read(self, dict_value: typing.Any) -> Field:
         assert self.__type
-        self.__entity = self.__type.create(self._context)
-        self.__entity.read(dict_value)
+        self.__entity = self.__type.create(self._context, dict_value)
         return self
 
     def write(self) -> DictValue:
@@ -868,7 +867,8 @@ class Entity(Observable.Observable):
         if field:
             field.set_field_value(self, value)
             self._field_value_changed(name, field.write())
-            self._set_modified(utcnow())
+            if name not in ("modified", "uuid"):
+                self._set_modified(utcnow())
             self.property_changed_event.fire(name)
         else:
             raise AttributeError()
@@ -1030,6 +1030,13 @@ class EntityType:
         return self.__transforms
 
     def create(self, context: typing.Optional[EntityContext] = None, d: typing.Optional[PersistentMappingType] = None) -> Entity:
+        type = d.get("type", None) if d else None
+        if type:
+            concrete_subclasses = self.concrete_subclasses
+            if concrete_subclasses:
+                for concrete_subclass in concrete_subclasses:
+                    if type == concrete_subclass.entity_id:
+                        return concrete_subclass.create(context, d)
         entity = self.__factory(self, context) if callable(self.__factory) else Entity(self, context)
         if d is not None:
             entity.read(d)

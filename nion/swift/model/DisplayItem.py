@@ -1265,6 +1265,14 @@ class DisplayLayer(Schema.Entity):
         return display_layer_properties
 
     @property
+    def display_data_channel(self) -> typing.Optional[DisplayDataChannel]:
+        return typing.cast(typing.Optional[DisplayDataChannel], self._get_field_value("display_data_channel"))
+
+    @display_data_channel.setter
+    def display_data_channel(self, value: typing.Optional[DisplayDataChannel]) -> None:
+        self._set_field_value("display_data_channel", value)
+
+    @property
     def label(self) -> typing.Optional[str]:
         return typing.cast(typing.Optional[str], self._get_field_value("label"))
 
