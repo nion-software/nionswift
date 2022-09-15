@@ -12,6 +12,19 @@ in bug fix releases, we choose to include them for evaluation and feedback. If y
 or have feedback about these types of new features, please contact us or file issues at
 https://github.com/nion-software/nionswift/issues.
 
+Version 0.16.5 (2022-09-15)
+---------------------------
+* `#887 <https://github.com/nion-software/nionswift/issues/887>`_ Fix issue with grid browser not drawing in some cases.
+* `#619 <https://github.com/nion-software/nionswift/issues/619>`_, `#885 <https://github.com/nion-software/nionswift/issues/885>`_, `#886 <https://github.com/nion-software/nionswift/issues/886>`_ Fix issues switching from acquisition controller panel to regular display.
+* `#657 <https://github.com/nion-software/nionswift/issues/657>`_ Make secondary layers use stroke-only rather than fill on composite line plots. Draw fills and then strokes.
+* `#884 <https://github.com/nion-software/nionswift/issues/884>`_ Fix copy/paste regression for graphics.
+* `#679 <https://github.com/nion-software/nionswift/issues/679>`_ Use separate thumbnail cache for each project and purge when unused. Saves disk space.
+* `#345 <https://github.com/nion-software/nionswift/issues/345>`_ Create new display item when initially creating composite line plot (drag/drop or copy/paste).
+* `#883 <https://github.com/nion-software/nionswift/issues/883>`_ Fix issue where composite line plot thumbnails would not update.
+* `#866 <https://github.com/nion-software/nionswift/issues/866>`_ Handle zoom-to-interval using Enter key on composite line plots.
+* `#577 <https://github.com/nion-software/nionswift/issues/577>`_ Show error state of computation in computation editor.
+* `#878 <https://github.com/nion-software/nionswift/issues/878>`_ Handle renamed project index/data folder.
+
 Version 0.16.4 (2022-07-26)
 ---------------------------
 * `#640 <https://github.com/nion-software/nionswift/issues/640>`_ Improve file dialogs handling of default directory.
