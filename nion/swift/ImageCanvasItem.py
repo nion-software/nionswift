@@ -223,11 +223,12 @@ class ScaleMarkerCanvasItem(CanvasItem.AbstractCanvasItem):
         dimensional_calibration = self.__dimensional_calibration
         if dimensional_calibration is not None:  # display scale marker?
             screen_pixel_per_image_pixel = self.__screen_pixel_per_image_pixel_stream.value
-            if screen_pixel_per_image_pixel and screen_pixel_per_image_pixel > 0.0:
+            dimensional_scale = dimensional_calibration.scale
+            if screen_pixel_per_image_pixel and screen_pixel_per_image_pixel > 0.0 and not math.isnan(dimensional_scale):
                 scale_marker_image_width = self.scale_marker_width / screen_pixel_per_image_pixel
-                calibrated_scale_marker_width = Geometry.make_pretty2(scale_marker_image_width * dimensional_calibration.scale, True)
+                calibrated_scale_marker_width = Geometry.make_pretty2(scale_marker_image_width * dimensional_scale, True)
                 # update the scale marker width
-                scale_marker_image_width = calibrated_scale_marker_width / dimensional_calibration.scale
+                scale_marker_image_width = calibrated_scale_marker_width / dimensional_scale
                 scale_marker_width = round(scale_marker_image_width * screen_pixel_per_image_pixel)
                 text1 = dimensional_calibration.convert_to_calibrated_size_str(scale_marker_image_width)
                 text2 = self.__info_text

@@ -2309,6 +2309,12 @@ class DisplayItem(Persistence.PersistentObject):
         dimensional_calibrations = self.displayed_dimensional_calibrations
         intensity_calibration = self.displayed_intensity_calibration
 
+        if not all(map(operator.attrgetter("is_valid"), dimensional_calibrations)):
+            dimensional_calibrations = [Calibration.Calibration() for _ in dimensional_calibrations]
+
+        if not intensity_calibration.is_valid:
+            intensity_calibration = Calibration.Calibration()
+
         if display_data_channel is None or pos is None:
             if self.__is_composite_data and (pos is not None and len(pos) == 1):
                 return u"{0}".format(dimensional_calibrations[-1].convert_to_calibrated_value_str(pos[0])), str()

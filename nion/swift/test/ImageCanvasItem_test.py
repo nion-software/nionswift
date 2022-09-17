@@ -1,5 +1,6 @@
 # standard libraries
 import logging
+import math
 import unittest
 
 # third party libraries
@@ -108,6 +109,20 @@ class TestImageCanvasItemClass(unittest.TestCase):
             display_panel.root_container.layout_immediate((1000 + header_height, 1000))
             # run test
             self.assertEqual(display_panel.display_canvas_item._scale_marker_canvas_item_for_test._dimension_calibration_for_test.units, "b")
+
+    def test_scale_marker_with_invalid_calibration(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            display_panel = document_controller.selected_display_panel
+            calibrations = [Calibration.Calibration(scale=math.nan), Calibration.Calibration(scale=math.nan)]
+            data_and_metadata = DataAndMetadata.new_data_and_metadata(numpy.ones((10, 10)), dimensional_calibrations=calibrations)
+            data_item = DataItem.new_data_item(data_and_metadata)
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel.set_display_panel_display_item(display_item)
+            header_height = display_panel.header_canvas_item.header_height
+            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
 
     def test_tool_returns_to_pointer_after_but_not_during_creating_rectangle(self):
         # setup

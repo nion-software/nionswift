@@ -1,4 +1,5 @@
 # standard libraries
+import math
 import time
 import unittest
 
@@ -6,6 +7,7 @@ import unittest
 import numpy
 
 # local libraries
+from nion.data import Calibration
 from nion.data import DataAndMetadata
 from nion.swift import Application
 from nion.swift.model import DataItem
@@ -245,3 +247,19 @@ class TestInfoPanelClass(unittest.TestCase):
             self.assertEqual(info_panel.label_row_2.text, "Value: {}".format(data[20, 30, 12, 8]))
             self.assertIsNone(info_panel.label_row_3.text, None)
             display_panel.display_canvas_item.mouse_exited()
+
+    def test_cursor_over_invalid_calibration_display_without_exception(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_and_metadata = DataAndMetadata.new_data_and_metadata(numpy.zeros((4, 4)), dimensional_calibrations=[Calibration.Calibration(scale=math.nan), Calibration.Calibration(scale=math.nan)])
+            data_item = DataItem.new_data_item(data_and_metadata)
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            header_height = display_panel.header_canvas_item.header_height
+            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
+            p, v = display_item.get_value_and_position_text((2, 2))
+            self.assertEqual("2.0, 2.0", p)
+            self.assertEqual(v, "0")
