@@ -32,14 +32,13 @@ from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.swift.model import Schema
 from nion.swift.model import Symbolic
-from nion.ui import CanvasItem
 from nion.ui import Declarative
-from nion.ui import DrawingContext
 from nion.ui import UserInterface
 from nion.ui import Widgets
 from nion.ui import Window
 from nion.utils import Binding
 from nion.utils import Converter
+from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import Model
 from nion.utils import Observable
@@ -876,10 +875,10 @@ class LinePlotDisplayLayersInspectorSection(InspectorSection):
                 label_row.add_spacing(12)
                 label_edit_widget.on_editing_finished = functools.partial(change_label, label_edit_widget, display_layer)
                 # move up, move down, add layer, remove layer
-                move_forward_button_widget = TextPushButtonWidget(ui, "\N{UPWARDS WHITE ARROW}")
-                move_backward_button_widget = TextPushButtonWidget(ui, "\N{DOWNWARDS WHITE ARROW}")
-                add_layer_button_widget = TextPushButtonWidget(ui, "\N{PLUS SIGN}")
-                remove_layer_button_widget = TextPushButtonWidget(ui, "\N{MINUS SIGN}")
+                move_forward_button_widget = Widgets.TextPushButtonWidget(ui, "\N{UPWARDS WHITE ARROW}")
+                move_backward_button_widget = Widgets.TextPushButtonWidget(ui, "\N{DOWNWARDS WHITE ARROW}")
+                add_layer_button_widget = Widgets.TextPushButtonWidget(ui, "\N{PLUS SIGN}")
+                remove_layer_button_widget = Widgets.TextPushButtonWidget(ui, "\N{MINUS SIGN}")
                 button_row = ui.create_row_widget()
                 button_row.add(move_forward_button_widget)
                 button_row.add(move_backward_button_widget)
@@ -3871,109 +3870,6 @@ class ComputationInspectorSection(InspectorSection):
         super().close()
 
 
-from nion.utils import Event
-
-class TextButtonCell:
-
-    def __init__(self, text: str) -> None:
-        super().__init__()
-        self.update_event = Event.Event()
-        self.__text = text
-
-    def paint_cell(self, drawing_context: DrawingContext.DrawingContext, rect: Geometry.IntRect, style: typing.Set[str]) -> None:
-
-        # disabled (default is enabled)
-        # checked, partial (default is unchecked)
-        # hover, active (default is none)
-
-        drawing_context.text_baseline = "middle"
-        drawing_context.text_align = "center"
-        drawing_context.fill_style = "#000"
-        drawing_context.fill_text(self.__text, rect.center.x, rect.center.y)
-
-        overlay_color = None
-        if "disabled" in style:
-            overlay_color = "rgba(255, 255, 255, 0.5)"
-        else:
-            if "active" in style:
-                overlay_color = "rgba(128, 128, 128, 0.5)"
-            elif "hover" in style:
-                overlay_color = "rgba(128, 128, 128, 0.1)"
-
-        drawing_context.fill_style = "#444"
-        drawing_context.fill()
-        drawing_context.stroke_style = "#444"
-        drawing_context.stroke()
-
-        if overlay_color:
-            rect_args = rect[0][1], rect[0][0], rect[1][1], rect[1][0]
-            drawing_context.begin_path()
-            drawing_context.rect(*rect_args)
-            drawing_context.fill_style = overlay_color
-            drawing_context.fill()
-
-
-class TextButtonCanvasItem(CanvasItem.CellCanvasItem):
-
-    def __init__(self, text: str) -> None:
-        super().__init__()
-        self.cell = TextButtonCell(text)
-        self.wants_mouse_events = True
-        self.on_button_clicked: typing.Optional[typing.Callable[[], None]] = None
-
-    def close(self) -> None:
-        self.on_button_clicked = None
-        super().close()
-
-    def mouse_entered(self) -> bool:
-        self._mouse_inside = True
-        return super().mouse_entered()
-
-    def mouse_exited(self) -> bool:
-        self._mouse_inside = False
-        return super().mouse_exited()
-
-    def mouse_pressed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
-        self._mouse_pressed = True
-        return True
-
-    def mouse_released(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
-        self._mouse_pressed = False
-        return True
-
-    def mouse_clicked(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
-        if self.enabled:
-            if self.on_button_clicked:
-                self.on_button_clicked()
-        return True
-
-
-class TextPushButtonWidget(Widgets.CompositeWidgetBase):
-    def __init__(self, ui: UserInterface.UserInterface, text: str) -> None:
-        content_widget = ui.create_column_widget()
-        super().__init__(content_widget)
-        self.on_button_clicked: typing.Optional[typing.Callable[[], None]] = None
-        font = "normal 11px serif"
-        font_metrics = ui.get_font_metrics(font, text)
-        text_button_canvas_item = TextButtonCanvasItem(text)
-        text_button_canvas_item.update_sizing(text_button_canvas_item.sizing.with_fixed_size(Geometry.IntSize(height=font_metrics.height + 6, width=font_metrics.width + 6)))
-
-        def button_clicked() -> None:
-            if callable(self.on_button_clicked):
-                self.on_button_clicked()
-
-        text_button_canvas_item.on_button_clicked = button_clicked
-
-        text_button_canvas_widget = ui.create_canvas_widget(properties={"height": 20, "width": 20})
-        text_button_canvas_widget.canvas_item.add_canvas_item(text_button_canvas_item)
-        # ugh. this is a partially working stop-gap when a canvas item is in a widget it will not get mouse exited reliably
-        root_container = text_button_canvas_item.root_container
-        assert root_container
-        text_button_canvas_widget.on_mouse_exited = root_container.canvas_widget.on_mouse_exited
-
-        content_widget.add(text_button_canvas_widget)
-
-
 class RemoveDisplayDataChannelCommand(Undo.UndoableCommand):
 
     def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem, display_data_channel: DisplayItem.DisplayDataChannel) -> None:
@@ -4043,7 +3939,7 @@ class DataItemLabelWidget(Widgets.CompositeWidgetBase):
         super().__init__(content_widget)
 
         remove_icon = "\N{MULTIPLICATION X}" if sys.platform != "darwin" else "\N{BALLOT X}"
-        remove_display_data_channel_button = TextPushButtonWidget(ui, remove_icon)
+        remove_display_data_channel_button = Widgets.TextPushButtonWidget(ui, remove_icon)
 
         section_title_row = ui.create_row_widget()
         section_title_label_widget = ui.create_label_widget()
