@@ -326,7 +326,7 @@ def are_axes_equal(axes1: typing.Optional[LineGraphAxes], axes2: typing.Optional
     return True
 
 
-def draw_background(drawing_context: DrawingContext.DrawingContext, plot_rect: Geometry.IntRect, background_color: typing.Optional[str]) -> None:
+def draw_background(drawing_context: DrawingContext.DrawingContext, plot_rect: Geometry.IntRect, background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]) -> None:
     with drawing_context.saver():
         drawing_context.begin_path()
         drawing_context.rect(plot_rect.left, plot_rect.top, plot_rect.width, plot_rect.height)
