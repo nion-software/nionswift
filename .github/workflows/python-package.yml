@@ -37,7 +37,7 @@ jobs:
       run: |
         pip install -r test-requirements.txt
         # use 971 due to abstract method bug in 981
-        python -m pip install mypy==0.971
+        python -m pip install mypy
         python -m pip install flake8
         mypy --version
     - name: Type Checking

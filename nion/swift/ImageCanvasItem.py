@@ -133,6 +133,14 @@ class ImageCanvasItemMapping(Graphics.CoordinateMappingLike):
     def calibrated_origin_widget(self) -> Geometry.FloatPoint:
         return self.map_point_image_to_widget(self.calibrated_origin_image)
 
+    def map_point_channel_norm_to_channel(self, x: float) -> float:
+        raise NotImplementedError()
+
+    def map_point_channel_norm_to_widget(self, x: float) -> float:
+        raise NotImplementedError()
+
+    def map_point_widget_to_channel_norm(self, pos: Geometry.FloatPoint) -> float:
+        raise NotImplementedError()
 
 
 class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):

@@ -223,6 +223,12 @@ class ShadowCache(CacheLike):
         self.__storage_cache = storage_cache
         self.__spill_cache(target)
 
+    def suspend_cache(self) -> None:
+        return  # required to avoid being recognized as abstract by mypy
+
+    def spill_cache(self) -> None:
+        return  # required to avoid being recognized as abstract by mypy
+
     # the cache system stores values that are expensive to calculate for quick retrieval.
     # an item can be marked dirty in the cache so that callers can determine whether that
     # value needs to be recalculated. marking a value as dirty doesn't affect the current
@@ -340,10 +346,10 @@ class DictStorageCache(CacheLike):
         return DictStorageCache(cache=self.__cache, cache_dirty=self.__cache_dirty)
 
     def suspend_cache(self) -> None:
-        pass
+        return  # required to avoid being recognized as abstract by mypy
 
     def spill_cache(self) -> None:
-        pass
+        return  # required to avoid being recognized as abstract by mypy
 
     def set_cached_value(self, target: typing.Any, key: str, value: typing.Any, dirty: bool = False) -> None:
         cache = self.__cache.setdefault(target.uuid, dict())
@@ -396,10 +402,10 @@ class DbStorageCache(CacheLike):
         DbStorageCache.count -= 1
 
     def suspend_cache(self) -> None:
-        pass
+        return  # required to avoid being recognized as abstract by mypy
 
     def spill_cache(self) -> None:
-        pass
+        return  # required to avoid being recognized as abstract by mypy
 
     def __run(self, cache_filename: pathlib.Path) -> None:
         self.conn = sqlite3.connect(str(cache_filename))

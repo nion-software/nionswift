@@ -66,6 +66,27 @@ class LinePlotCanvasItemMapping(Graphics.CoordinateMappingLike):
     def calibrated_origin_widget(self) -> Geometry.FloatPoint:
         return Geometry.FloatPoint()
 
+    def map_point_image_norm_to_image(self, p: Geometry.FloatPoint) -> Geometry.FloatPoint:
+        raise NotImplementedError()
+
+    def map_point_image_norm_to_widget(self, p: Geometry.FloatPoint) -> Geometry.FloatPoint:
+        raise NotImplementedError()
+
+    def map_point_image_to_image_norm(self, p: Geometry.FloatPoint) -> Geometry.FloatPoint:
+        raise NotImplementedError()
+
+    def map_point_widget_to_image(self, p: Geometry.FloatPoint) -> Geometry.FloatPoint:
+        raise NotImplementedError()
+
+    def map_point_widget_to_image_norm(self, p: Geometry.FloatPoint) -> Geometry.FloatPoint:
+        raise NotImplementedError()
+
+    def map_size_image_to_widget(self, s: Geometry.FloatSize) -> Geometry.FloatSize:
+        raise NotImplementedError()
+
+    def map_size_image_norm_to_widget(self, s: Geometry.FloatSize) -> Geometry.FloatSize:
+        raise NotImplementedError()
+
 
 class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
     """Display a line plot.
