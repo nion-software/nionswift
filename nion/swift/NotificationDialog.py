@@ -20,7 +20,6 @@ from __future__ import annotations
 # standard libraries
 import functools
 import gettext
-import sys
 import typing
 
 # third party libraries
@@ -30,13 +29,13 @@ import typing
 from nion.swift.model import Notification
 from nion.ui import CanvasItem
 from nion.ui import Declarative
+from nion.utils import Geometry
 from nion.utils import Model
 from nion.utils import ListModel
 from nion.utils import Registry
 
 if typing.TYPE_CHECKING:
     from nion.ui import Application
-    from nion.ui import DrawingContext
     from nion.ui import UserInterface
     from nion.ui import Window
     from nion.utils import Event
@@ -44,105 +43,17 @@ if typing.TYPE_CHECKING:
 _ = gettext.gettext
 
 
-class CharButtonCanvasItem(CanvasItem.TextButtonCanvasItem):
-
-    def __init__(self, char: str) -> None:
-        super().__init__()
-        self.__char = char
-        self.wants_mouse_events = True
-        self.__mouse_inside = False
-        self.__mouse_pressed = False
-        self.font = "normal 13px serif"
-        self.fill_style_pressed = "rgb(192, 192, 192)"
-        self.border_style_pressed = "rgb(192, 192, 192)"
-        self.fill_style_hover = "rgb(224, 224, 224)"
-        self.border_style_hover = "rgb(224, 224, 224)"
-        self.stroke_style = "#3366CC"
-        self.on_clicked : typing.Optional[typing.Callable[[], None]] = None
-
-    def close(self) -> None:
-        self.on_clicked = None
-        super().close()
-
-    @property
-    def char(self) -> str:
-        return self.__char
-
-    @char.setter
-    def char(self, value: str) -> None:
-        self.__char = value
-        self.update()
-
-    def mouse_entered(self) -> bool:
-        self.__mouse_inside = True
-        self.update()
-        return True
-
-    def mouse_exited(self) -> bool:
-        self.__mouse_inside = False
-        self.update()
-        return True
-
-    def mouse_pressed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
-        self.__mouse_pressed = True
-        self.update()
-        return True
-
-    def mouse_released(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
-        self.__mouse_pressed = False
-        self.update()
-        return True
-
-    def mouse_clicked(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
-        if self.enabled:
-            if callable(self.on_clicked):
-                self.on_clicked()
-        return True
-
-    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
-        canvas_size = self.canvas_size
-        if not canvas_size:
-            return
-        with drawing_context.saver():
-            center_x = int(canvas_size.width * 0.5)
-            center_y = int(canvas_size.height * 0.5)
-            drawing_context.begin_path()
-            drawing_context.begin_path()
-            drawing_context.rect(0, 0, canvas_size.width, canvas_size.height)
-            if self.enabled:
-                if self.__mouse_inside:
-                    if self.__mouse_pressed:
-                        if self.fill_style_pressed:
-                            drawing_context.fill_style = self.fill_style_pressed
-                            drawing_context.fill()
-                        if self.border_style_pressed:
-                            drawing_context.stroke_style = self.border_style_pressed
-                            drawing_context.stroke()
-                    else:
-                        if self.fill_style_hover:
-                            drawing_context.fill_style = self.fill_style_hover
-                            drawing_context.fill()
-                        if self.border_style_hover:
-                            drawing_context.stroke_style = self.border_style_hover
-                            drawing_context.stroke()
-            drawing_context.begin_path()
-            drawing_context.text_align = "center"
-            drawing_context.text_baseline = "middle"
-            drawing_context.fill_style = self.stroke_style
-            drawing_context.font = self.font
-            drawing_context.fill_text(self.__char, center_x, center_y + 1)
-
-
 class CharButtonConstructor:
     def construct(self, d_type: str, ui: UserInterface.UserInterface, window: typing.Optional[Window.Window],
                   d: Declarative.UIDescription, handler: Declarative.HandlerLike,
                   finishes: typing.List[typing.Callable[[], None]]) -> typing.Optional[UserInterface.Widget]:
         if d_type == "notification_char_button":
-            font = "normal 13px serif"
             text = d["text"]
-            fm = ui.get_font_metrics(font, text)
-            canvas_item = CharButtonCanvasItem(text)
-            widget = ui.create_canvas_widget(properties={"height": fm.height + 4, "width": fm.width + 4})
+            canvas_item = CanvasItem.TextButtonCanvasItem(text)
+            canvas_item.text_font = "normal 13px serif"
+            canvas_item.padding = Geometry.IntSize(canvas_item.padding.height, 0)
+            canvas_item.size_to_content(ui.get_font_metrics)
+            widget = ui.create_canvas_widget(properties={"height": canvas_item.sizing.preferred_height, "width": canvas_item.sizing.preferred_width})
             widget.canvas_item.add_canvas_item(canvas_item)
             if handler:
                 Declarative.connect_name(widget, d, handler)

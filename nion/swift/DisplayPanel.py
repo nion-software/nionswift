@@ -618,7 +618,7 @@ class IndexValueSliderCanvasItem(CanvasItem.CanvasItemComposition):
         self.layout = CanvasItem.CanvasItemRowLayout()
         self.update_sizing(self.sizing.with_preferred_height(0))
         self.__slider_row = CanvasItem.CanvasItemComposition()
-        self.__slider_row.layout = CanvasItem.CanvasItemRowLayout(spacing=8)
+        self.__slider_row.layout = CanvasItem.CanvasItemRowLayout(spacing=4)
         self.__slider_canvas_item = CanvasItem.SliderCanvasItem()
         self.__slider_text = CanvasItem.StaticTextCanvasItem("9999")
         self.add_spacing(12)
@@ -658,18 +658,13 @@ class IndexValueSliderCanvasItem(CanvasItem.CanvasItemComposition):
                 if self.__play_button_model and callable(self.__play_button_handler):
                     def play_button_model_changed(value: typing.Optional[bool]) -> None:
                         value = value or False
-                        play_pause_button.char = "\N{BLACK SQUARE}" if value else "\N{BLACK RIGHT-POINTING TRIANGLE}"
+                        play_pause_button.text = "\N{BLACK SQUARE}" if value else "\N{BLACK RIGHT-POINTING TRIANGLE}"
                         play_pause_button.size_to_content(self.__get_font_metrics_fn)
 
-                    # play_pause_button = NotificationDialog.CharButtonCanvasItem("\N{BLACK RIGHT-POINTING TRIANGLE}")
-                    play_pause_button = NotificationDialog.CharButtonCanvasItem("\N{BLACK RIGHT-POINTING TRIANGLE}")
-                    play_pause_button.font = "12px"
-                    play_pause_button.fill_style_pressed = "rgba(192, 192, 192, 0.10)"
-                    play_pause_button.border_style_pressed = "rgba(192, 192, 192, 0.10)"
-                    play_pause_button.fill_style_hover = "rgba(224, 224, 224, 0.10)"
-                    play_pause_button.border_style_hover = "rgba(224, 224, 224, 0.10)"
-                    play_pause_button.stroke_style = "black"
-                    play_pause_button.on_clicked = self.__play_button_handler
+                    play_pause_button = CanvasItem.TextButtonCanvasItem("\N{BLACK RIGHT-POINTING TRIANGLE}")
+                    play_pause_button.text_font = "12px"
+                    play_pause_button.size_to_content(self.__get_font_metrics_fn)
+                    play_pause_button.on_button_clicked = self.__play_button_handler
                     play_button_model_changed(self.__play_button_model.value or False)
                     self.__play_button_model.on_value_changed = play_button_model_changed
                     self.__slider_row.add_canvas_item(play_pause_button)
