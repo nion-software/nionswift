@@ -12,6 +12,11 @@ in bug fix releases, we choose to include them for evaluation and feedback. If y
 or have feedback about these types of new features, please contact us or file issues at
 https://github.com/nion-software/nionswift/issues.
 
+Version 0.16.6 (2022-10-03)
+---------------------------
+* `#891 <https://github.com/nion-software/nionswift/issues/891>`_ Fix issue in handling edited text in utility dialogs.
+* Minor changes to support plug-ins.
+
 Version 0.16.5 (2022-09-15)
 ---------------------------
 * `#887 <https://github.com/nion-software/nionswift/issues/887>`_ Fix issue with grid browser not drawing in some cases.
