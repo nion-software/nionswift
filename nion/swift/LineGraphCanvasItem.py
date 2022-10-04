@@ -287,16 +287,16 @@ class LineGraphAxes:
         y_calibration = self.y_calibration
         if y_calibration:
             if self.data_style == "log":
-                calibrated_data = y_calibration.offset + y_calibration.scale * uncalibrated_xdata.data  # type: ignore
-                calibrated_data[calibrated_data <= 0] = numpy.nan  # type: ignore
-                numpy.log10(calibrated_data, out=calibrated_data)  # type: ignore
+                calibrated_data = y_calibration.offset + y_calibration.scale * uncalibrated_xdata.data
+                calibrated_data[calibrated_data <= 0] = numpy.nan
+                numpy.log10(calibrated_data, out=calibrated_data)
             else:
-                calibrated_data = y_calibration.offset + y_calibration.scale * uncalibrated_xdata.data  # type: ignore
+                calibrated_data = y_calibration.offset + y_calibration.scale * uncalibrated_xdata.data
         else:
             if self.data_style == "log":
-                calibrated_data = uncalibrated_xdata.data.copy()  # type: ignore
-                calibrated_data[calibrated_data <= 0] = numpy.nan  # type: ignore
-                numpy.log10(calibrated_data, out=calibrated_data)  # type: ignore
+                calibrated_data = uncalibrated_xdata.data.copy()
+                calibrated_data[calibrated_data <= 0] = numpy.nan
+                numpy.log10(calibrated_data, out=calibrated_data)
             else:
                 calibrated_data = uncalibrated_xdata.data
         if calibrated_data is not None:

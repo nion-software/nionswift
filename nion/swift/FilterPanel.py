@@ -338,12 +338,12 @@ class TreeNode:
 
     def __eq__(self, other: typing.Any) -> bool:
         if isinstance(other, TreeNode):
-            return self.key == other.key  # type: ignore
+            return self.key == other.key
         return False
 
     def __ne__(self, other: typing.Any) -> bool:
         if isinstance(other, TreeNode):
-            return self.key != other.key  # type: ignore
+            return self.key != other.key
         return False
 
     def __gt__(self, other: typing.Any) -> bool:

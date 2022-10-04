@@ -529,11 +529,11 @@ def make_rectangle_mask(data_shape: DataAndMetadata.ShapeType, center: Geometry.
     a, b = bounds.top + bounds.height * 0.5, bounds.left + bounds.width * 0.5
     y, x = numpy.ogrid[-a:data_shape[0] - a, -b:data_shape[1] - b]  # type: ignore
     if rotation == 0.0:
-        mask_eq = (numpy.fabs(x) / (bounds.width / 2) <= 1) & (numpy.fabs(y) / (bounds.height / 2) <= 1)  # type: ignore
+        mask_eq = (numpy.fabs(x) / (bounds.width / 2) <= 1) & (numpy.fabs(y) / (bounds.height / 2) <= 1)
     else:
         angle_sin = math.sin(rotation)
         angle_cos = math.cos(rotation)
-        mask_eq = (numpy.fabs(x*angle_cos - y*angle_sin) / (bounds.width / 2) <= 1) & (numpy.fabs(y*angle_cos + x*angle_sin) / (bounds.height / 2) <= 1)  # type: ignore
+        mask_eq = (numpy.fabs(x*angle_cos - y*angle_sin) / (bounds.width / 2) <= 1) & (numpy.fabs(y*angle_cos + x*angle_sin) / (bounds.height / 2) <= 1)
     mask[mask_eq] = 1
     return mask
 
@@ -2015,7 +2015,7 @@ class SpotGraphic(Graphic):
         mask2_data = mask2.data
         assert mask1_data is not None
         assert mask2_data is not None
-        return numpy.logical_or(mask1_data, mask2_data)  # type: ignore
+        return numpy.logical_or(mask1_data, mask2_data)
 
     # test point hit
     def test(self, mapping: CoordinateMappingLike, ui_settings: UISettings.UISettings, p: Geometry.FloatPoint, move_only: bool) -> typing.Tuple[typing.Optional[str], bool]:
@@ -2484,8 +2484,8 @@ class RingGraphic(Graphic):
         y, x = numpy.ogrid[-a:data_shape[0] - a, -b:data_shape[1] - b]  # type: ignore
         outer_radius = self.radius_1 if self.radius_1 > self.radius_2 else self.radius_2
         inner_radius = self.radius_1 if self.radius_1 < self.radius_2 else self.radius_2
-        outer_eq = x * x + y * y <= (bounds_int[1][0] * outer_radius) ** 2  # type: ignore
-        inner_eq = x * x + y * y <= (bounds_int[1][0] * inner_radius) ** 2  # type: ignore
+        outer_eq = x * x + y * y <= (bounds_int[1][0] * outer_radius) ** 2
+        inner_eq = x * x + y * y <= (bounds_int[1][0] * inner_radius) ** 2
         if self.mode == "band-pass":
             mask[outer_eq] = 1
             mask[inner_eq] = 0

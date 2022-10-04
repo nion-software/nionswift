@@ -70,7 +70,7 @@ def generate_lookup_array_from_points(points: _PointsType, n: int) -> _RGBA8Imag
         rgb: numpy.typing.NDArray[typing.Any] = numpy.array([b, g, r])
         ix = int(math.floor(x * (n - 1)))
         if last_ix is None:
-            out_array.append(numpy.copy(rgb))  # type: ignore
+            out_array.append(numpy.copy(rgb))
         elif ix > last_ix:
             amount = (rgb - last_rgb) / (ix - last_ix)
             for x in range(ix - last_ix):
@@ -78,7 +78,7 @@ def generate_lookup_array_from_points(points: _PointsType, n: int) -> _RGBA8Imag
         else:
             assert ix >= last_ix
         last_ix = ix
-        last_rgb = numpy.copy(rgb)  # type: ignore
+        last_rgb = numpy.copy(rgb)
     return numpy.array(out_array).astype(numpy.uint8)
 
 

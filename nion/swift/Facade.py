@@ -1012,7 +1012,7 @@ class DataItem(metaclass=SharedInstance):
 
         Scriptable: Yes
         """
-        self.__data_item.set_data(numpy.copy(data))  # type: ignore
+        self.__data_item.set_data(numpy.copy(data))
 
     def set_data(self, data: NDArray) -> None:
         """Set the data.
@@ -3181,7 +3181,7 @@ class API_1:
 
         Scriptable: No
         """
-        data_copy = numpy.copy(data)  # type: ignore
+        data_copy = numpy.copy(data)
         return self.create_data_and_metadata(data_copy, intensity_calibration, dimensional_calibrations, metadata, timestamp)
 
     class DelegateIOHandler(ImportExportManager.ImportExportHandler):

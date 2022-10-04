@@ -53,7 +53,7 @@ class ProcessingComputation:
             xdata = data_source.xdata
             assert xdata
             self.__xdata = None
-            indexes = numpy.ndindex(xdata.navigation_dimension_shape)  # type: ignore
+            indexes = numpy.ndindex(xdata.navigation_dimension_shape)
             for index in indexes:
                 index_data_source = DataItem.DataSource(data_source._display_data_channel, data_source.graphic._graphic if data_source.graphic else None, xdata[index])
                 index_kw_args = {next(iter(kwargs.keys())): index_data_source}
@@ -170,7 +170,7 @@ class ProcessingGaussianWindow(ProcessingBase):
         elif src_xdata and src_xdata.datum_dimension_count == 2:
             # uses circularly rotated approach of generating 2D filter from 1D
             h, w = src_xdata.datum_dimension_shape
-            y, x = numpy.meshgrid(numpy.linspace(-h / 2, h / 2, h), numpy.linspace(-w / 2, w / 2, w))  # type: ignore
+            y, x = numpy.meshgrid(numpy.linspace(-h / 2, h / 2, h), numpy.linspace(-w / 2, w / 2, w))
             s = 1 / (min(w, h) * sigma)
             r = numpy.sqrt(y * y + x * x) * s
             return src_xdata * numpy.exp(-0.5 * r * r)  # type: ignore
@@ -195,8 +195,8 @@ class ProcessingHammingWindow(ProcessingBase):
         elif src_xdata and src_xdata.datum_dimension_count == 2:
             # uses outer product approach of generating 2D filter from 1D
             h, w = src_xdata.datum_dimension_shape
-            w0 = numpy.reshape(scipy.signal.hamming(w), (1, w))  # type: ignore
-            w1 = numpy.reshape(scipy.signal.hamming(h), (h, 1))  # type: ignore
+            w0 = numpy.reshape(scipy.signal.hamming(w), (1, w))
+            w1 = numpy.reshape(scipy.signal.hamming(h), (h, 1))
             return src_xdata * w0 * w1
         return None
 
@@ -219,8 +219,8 @@ class ProcessingHannWindow(ProcessingBase):
         elif src_xdata and src_xdata.datum_dimension_count == 2:
             # uses outer product approach of generating 2D filter from 1D
             h, w = src_xdata.datum_dimension_shape
-            w0 = numpy.reshape(scipy.signal.hann(w), (1, w))  # type: ignore
-            w1 = numpy.reshape(scipy.signal.hann(h), (h, 1))  # type: ignore
+            w0 = numpy.reshape(scipy.signal.hann(w), (1, w))
+            w1 = numpy.reshape(scipy.signal.hann(h), (h, 1))
             return src_xdata * w0 * w1
         return None
 
@@ -241,7 +241,7 @@ class ProcessingMappedSum(ProcessingBase):
     def process(self, *, src: DataItem.DataSource, **kwargs: typing.Any) -> _ProcessingResult:
         filtered_xdata = src.filtered_xdata
         if filtered_xdata:
-            return DataAndMetadata.ScalarAndMetadata.from_value(numpy.sum(filtered_xdata), filtered_xdata.intensity_calibration)  # type: ignore
+            return DataAndMetadata.ScalarAndMetadata.from_value(numpy.sum(filtered_xdata), filtered_xdata.intensity_calibration)
         return None
 
 

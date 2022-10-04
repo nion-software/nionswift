@@ -500,11 +500,11 @@ def convert_to_uint8(d: _DataArrayType) -> numpy.typing.NDArray[numpy.uint8]:
     elif d.dtype == numpy.dtype(numpy.uint64):
         return typing.cast(numpy.typing.NDArray[numpy.uint8], numpy.right_shift(d, 56).astype(numpy.uint8))
     # now check float type
-    mn, mx = numpy.nanmin(d), numpy.nanmax(d)  # type: ignore
+    mn, mx = numpy.nanmin(d), numpy.nanmax(d)
     if str(d.dtype).startswith("float") and mn >= 0 and mx <= 1:
-        return typing.cast(numpy.typing.NDArray[numpy.uint8], numpy.round(d.astype(numpy.float64) * 255).astype(numpy.uint8))  # type: ignore
+        return typing.cast(numpy.typing.NDArray[numpy.uint8], numpy.round(d.astype(numpy.float64) * 255).astype(numpy.uint8))
     elif numpy.isfinite(mn) and numpy.isfinite(mx) and mn != mx:
-        return typing.cast(numpy.typing.NDArray[numpy.uint8], numpy.round((d.astype(d.astype(numpy.float64)) - mn) / (mx - mn) * 255).astype(numpy.uint8))  # type: ignore
+        return typing.cast(numpy.typing.NDArray[numpy.uint8], numpy.round((d.astype(d.astype(numpy.float64)) - mn) / (mx - mn) * 255).astype(numpy.uint8))
     else:
         return d.astype(numpy.uint8)
 
@@ -513,7 +513,7 @@ def read_image_from_file(filename: pathlib.Path) -> _DataArrayType:
     if str(filename).startswith(":"):
         return numpy.zeros((20, 20, 4), numpy.uint8)
     # TODO: fix typing when imageio gets their numpy typing correct.
-    image = imageio.imread(filename, index=0)  # type: ignore
+    image = imageio.imread(filename, index=0)
     if image is not None:
         image_u8 = convert_to_uint8(image)
         if len(image_u8.shape) == 3:
@@ -576,7 +576,7 @@ class StandardImportExportHandler(ImportExportHandler):
         data = display_values.display_rgba  # export the display rather than the data for these types
         assert data is not None
         # TODO: fix typing when imageio gets their numpy typing correct.
-        imageio.imwrite(path, Image.get_rgb_view(data), extension="." + extension)  # type: ignore
+        imageio.imwrite(path, Image.get_rgb_view(data), extension="." + extension)
 
 
 class CSVImportExportHandler(ImportExportHandler):
@@ -585,7 +585,7 @@ class CSVImportExportHandler(ImportExportHandler):
         super().__init__(io_handler_id, name, extensions)
 
     def read_data_elements(self, extension: str, path: pathlib.Path) -> typing.List[DataElementType]:
-        data = numpy.loadtxt(str(path), delimiter=',')  # type: ignore
+        data = numpy.loadtxt(str(path), delimiter=',')
         if data is not None:
             data_element: DataElementType = dict()
             data_element["data"] = data
@@ -600,7 +600,7 @@ class CSVImportExportHandler(ImportExportHandler):
         assert data_item
         data = data_item.data
         if data is not None:
-            numpy.savetxt(path, data, delimiter=', ')  # type: ignore
+            numpy.savetxt(path, data, delimiter=', ')
 
 
 def build_table(display_item: DisplayItem.DisplayItem) -> typing.Tuple[typing.List[str], typing.List[_DataArrayType]]:
@@ -692,7 +692,7 @@ class NDataImportExportHandler(ImportExportHandler):
         if "metadata.json" in namelist and "data.npy" in namelist:
             metadata = json.loads(zip_file.read("metadata.json").decode("utf-8"))
             data_bytes = zip_file.read("data.npy")
-            data = numpy.load(io.BytesIO(data_bytes))  # type: ignore
+            data = numpy.load(io.BytesIO(data_bytes))
             if data is not None:
                 data_element = metadata
                 data_element["data"] = data
@@ -714,7 +714,7 @@ class NDataImportExportHandler(ImportExportHandler):
             try:
                 with open(metadata_path, "w") as fp:
                     json.dump(data_element, fp)
-                numpy.save(data_path, data)  # type: ignore
+                numpy.save(data_path, data)
                 zip_file = zipfile.ZipFile(path, 'w')
                 zip_file.write(metadata_path, "metadata.json")
                 zip_file.write(data_path, "data.npy")
@@ -739,7 +739,7 @@ class NumPyImportExportHandler(ImportExportHandler):
         super().__init__(io_handler_id, name, extensions)
 
     def read_data_elements(self, extension: str, path: pathlib.Path) -> typing.List[DataElementType]:
-        data = numpy.load(str(path))  # type: ignore
+        data = numpy.load(str(path))
         metadata_path = path.with_suffix(".json")
         if metadata_path.exists():
             with open(metadata_path) as f:
@@ -766,7 +766,7 @@ class NumPyImportExportHandler(ImportExportHandler):
             try:
                 with open(str(metadata_path), "w") as fp:
                     json.dump(data_element, fp)
-                numpy.save(str(data_path), data)  # type: ignore
+                numpy.save(str(data_path), data)
             except Exception:
                 os.remove(str(metadata_path))
                 os.remove(str(data_path))

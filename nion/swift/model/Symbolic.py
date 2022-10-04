@@ -1727,7 +1727,7 @@ class Computation(Persistence.PersistentObject):
         # Note: _item_specifier is only for testing
         if output_item and output_item.items is not None:
             specifiers = [DataStructure.get_object_specifier(item.item) for item in output_item.items]
-            result = ComputationOutput(name, specifiers=specifiers, label=label)  # type: ignore  # mypy bug with Union/None
+            result = ComputationOutput(name, specifiers=specifiers, label=label)  # type: ignore
             self.append_item("results", result)
             self.computation_mutated_event.fire()
             return result
@@ -1735,7 +1735,7 @@ class Computation(Persistence.PersistentObject):
             assert not output_item.type
             assert not output_item.secondary_item
             specifier = _item_specifier or DataStructure.get_object_specifier(output_item.item)
-            result = ComputationOutput(name, specifier=specifier, label=label)  # type: ignore  # mypy bug with Union/None
+            result = ComputationOutput(name, specifier=specifier, label=label)
             self.append_item("results", result)
             self.computation_mutated_event.fire()
             return result

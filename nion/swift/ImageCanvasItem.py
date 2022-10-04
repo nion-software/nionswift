@@ -602,7 +602,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                 # is a small percentage of the overall data and was falling outside
                 # the included range. This is the new simplified algorithm. Future
                 # feature may allow user to select more complex algorithms.
-                mn, mx = numpy.nanmin(data), numpy.nanmax(data)  # type: ignore
+                mn, mx = numpy.nanmin(data), numpy.nanmax(data)
                 delegate.update_display_data_channel_properties({"display_limits": (mn, mx)})
         return True
 
