@@ -206,7 +206,7 @@ class Recorder:
                     intensity_calibration = last_xdata.intensity_calibration
                     dimensional_calibrations = last_xdata.dimensional_calibrations
                     data_descriptor = last_xdata.data_descriptor
-                    stacked_data = numpy.vstack([last_xdata.data, [current_xdata.data]])  # type: ignore
+                    stacked_data = numpy.vstack([last_xdata.data, [current_xdata.data]])
                     sequence_xdata = DataAndMetadata.new_data_and_metadata(
                         stacked_data,
                         intensity_calibration=intensity_calibration, dimensional_calibrations=dimensional_calibrations,
@@ -221,7 +221,7 @@ class Recorder:
                     data_descriptor = DataAndMetadata.DataDescriptor(True,
                                                                      current_xdata.data_descriptor.collection_dimension_count,
                                                                      current_xdata.data_descriptor.datum_dimension_count)
-                    new_axis_data = current_xdata.data[numpy.newaxis, ...]  # type: ignore
+                    new_axis_data = current_xdata.data[numpy.newaxis, ...]
                     sequence_xdata = DataAndMetadata.new_data_and_metadata(new_axis_data,
                                                                            intensity_calibration=intensity_calibration,
                                                                            dimensional_calibrations=dimensional_calibrations,

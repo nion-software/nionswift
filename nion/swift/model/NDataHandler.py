@@ -360,7 +360,7 @@ def rewrite_zip(file_path: str, properties: PersistentDictType) -> None:
             data = None
             if b"data.npy" in dir_files:
                 fp.seek(local_files[dir_files[b"data.npy"][1]][1])
-                data = numpy.load(fp)  # type: ignore
+                data = numpy.load(fp)
             fp.seek(0)
             write_zip_fp(fp, data, properties)
 

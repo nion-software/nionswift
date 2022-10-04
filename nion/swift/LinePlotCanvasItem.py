@@ -554,7 +554,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                         # the data needs to have an intensity scale matching intensity_calibration. convert the data to use the common scale.
                         scale = scalar_intensity_calibration.scale / intensity_calibration.scale
                         offset = (scalar_intensity_calibration.offset - intensity_calibration.offset) / intensity_calibration.scale
-                        scalar_data = scalar_data * scale + offset  # type: ignore
+                        scalar_data = scalar_data * scale + offset
                         scalar_xdata_list.append(DataAndMetadata.new_data_and_metadata(scalar_data, scalar_intensity_calibration, scalar_dimensional_calibrations))
                 else:
                     scalar_xdata_list.append(None)
@@ -621,7 +621,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                         intensity_calibration = scalar_xdata.intensity_calibration
                         displayed_dimensional_calibration = scalar_xdata.dimensional_calibrations[-1]
                         if scalar_xdata.is_data_2d:
-                            scalar_data = scalar_xdata.data[data_row:data_row + 1, :].reshape((scalar_xdata.dimensional_shape[-1],))  # type: ignore
+                            scalar_data = scalar_xdata.data[data_row:data_row + 1, :].reshape((scalar_xdata.dimensional_shape[-1],))
                             scalar_xdata = DataAndMetadata.new_data_and_metadata(scalar_data, intensity_calibration, [displayed_dimensional_calibration])
                     line_graph_layers.append(LineGraphCanvasItem.LineGraphLayer(scalar_xdata, fill_color, stroke_color, stroke_width))
                     self.___has_valid_drawn_graph_data = scalar_xdata is not None

@@ -255,7 +255,7 @@ def adjustment_factory(adjustment_d: Persistence.PersistentDictType) -> typing.O
                 self.__gamma = gamma
 
             def transform(self, data: _ImageDataType, display_limits: typing.Tuple[float, float]) -> _ImageDataType:
-                return numpy.power(numpy.clip(data, 0.0, 1.0), self.__gamma, dtype=numpy.float32)  # type: ignore
+                return numpy.power(numpy.clip(data, 0.0, 1.0), self.__gamma, dtype=numpy.float32)
 
         return AdjustGamma(adjustment_d.get("gamma", 1.0))
     elif adjustment_d.get("type", None) == "log":
@@ -270,11 +270,11 @@ def adjustment_factory(adjustment_d: Persistence.PersistentDictType) -> typing.O
         class AdjustEqualized:
             def transform(self, data: _ImageDataType, display_limits: typing.Tuple[float, float]) -> _ImageDataType:
                 data = numpy.clip(data, 0.0, 1.0)
-                histogram, bins = numpy.histogram(data.flatten(), 256, density=True)  # type: ignore
+                histogram, bins = numpy.histogram(data.flatten(), 256, density=True)
                 histogram_cdf = histogram.cumsum()
                 histogram_cdf = histogram_cdf / histogram_cdf[-1]
-                equalized = numpy.interp(data.flatten(), bins[:-1], histogram_cdf)  # type: ignore
-                return equalized.reshape(data.shape)  # type: ignore
+                equalized = numpy.interp(data.flatten(), bins[:-1], histogram_cdf)
+                return equalized.reshape(data.shape)
 
         return AdjustEqualized()
     else:
@@ -439,7 +439,7 @@ class DisplayValues:
                     if Image.is_shape_and_dtype_rgb_type(data_shape, data_dtype):
                         self.__data_sample = None
                     elif Image.is_shape_and_dtype_complex_type(data_shape, data_dtype):
-                        self.__data_sample = numpy.sort(numpy.random.choice(display_data.reshape(numpy.product(display_data.shape, dtype=numpy.uint64)), 200))  # type: ignore
+                        self.__data_sample = numpy.sort(numpy.random.choice(display_data.reshape(numpy.product(display_data.shape, dtype=numpy.uint64)), 200))
                     else:
                         self.__data_sample = None
                 else:
@@ -1230,7 +1230,7 @@ class DisplayDataChannel(Persistence.PersistentObject):
             # is a small percentage of the overall data and was falling outside
             # the included range. This is the new simplified algorithm. Future
             # feature may allow user to select more complex algorithms.
-            mn, mx = numpy.array(numpy.nanmin(data)).item(), numpy.array(numpy.nanmax(data)).item()  # type: ignore
+            mn, mx = numpy.array(numpy.nanmin(data)).item(), numpy.array(numpy.nanmax(data)).item()
             self.display_limits = mn, mx
 
 
@@ -2284,8 +2284,8 @@ class DisplayItem(Persistence.PersistentObject):
         right_channel = int(min(1.0, right + extra) * data_and_metadata.data_shape[-1])
         self.set_display_property("left_channel", left_channel)
         self.set_display_property("right_channel", right_channel)
-        data_min = numpy.amin(data_and_metadata.data[..., left_channel:right_channel])  # type: ignore
-        data_max = numpy.amax(data_and_metadata.data[..., left_channel:right_channel])  # type: ignore
+        data_min = numpy.amin(data_and_metadata.data[..., left_channel:right_channel])
+        data_max = numpy.amax(data_and_metadata.data[..., left_channel:right_channel])
         if data_min > 0 and data_max > 0:
             self.set_display_property("y_min", 0.0)
             self.set_display_property("y_max", data_max * 1.2)

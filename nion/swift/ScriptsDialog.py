@@ -638,7 +638,7 @@ class RunScriptDialog(Dialog.ActionDialog):
                     ui_version = ui_version if ui_version else "~1.0"
                     api = PlugInManager.api_broker_fn(version, ui_version)
                     queued_api = FacadeQueued.API(api, None)  # type: ignore
-                    queued_api._queue_task = api.queue_task  # type: ignore
+                    queued_api._queue_task = api.queue_task
                     return queued_api
 
                 def get_ui(self, version: str) -> Declarative.DeclarativeUI:

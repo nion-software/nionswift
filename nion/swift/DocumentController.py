@@ -1284,7 +1284,7 @@ class DocumentController(Window.Window):
         def close(self) -> None:
             if self.__data_group_proxy:
                 self.__data_group_proxy.close()
-                self.__data_group_proxy = None  # type: ignore
+                self.__data_group_proxy = None
             self.__container_proxy.close()
             self.__container_proxy = typing.cast(typing.Any, None)
             super().close()
@@ -1320,7 +1320,7 @@ class DocumentController(Window.Window):
             assert data_group
             container.remove_item("data_groups", data_group)
             self.__data_group_proxy.close()
-            self.__data_group_proxy = None  # type: ignore
+            self.__data_group_proxy = None
 
         def _redo(self) -> None:
             self.perform()

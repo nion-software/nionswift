@@ -525,7 +525,7 @@ class ReferenceField(Field):
     def close(self) -> None:
         if self.__reference:
             self.__reference.close()
-            self.__reference = None  # type: ignore
+            self.__reference = None
         super().close()
 
     def set_context(self, context: typing.Optional[EntityContext]) -> None:
