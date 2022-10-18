@@ -13,10 +13,12 @@ import os
 import pathlib
 import re
 import subprocess
+import tempfile
 import threading
 import traceback
 import typing
 import sys
+import webbrowser
 
 # third part imports
 import numpy.typing
@@ -33,6 +35,7 @@ from nion.ui import Widgets
 from nion.utils import Converter
 from nion.utils import Selection
 from nion.utils import Geometry
+from nion.swift.model import Notification
 
 if typing.TYPE_CHECKING:
     from nion.swift import DocumentController
@@ -144,6 +147,7 @@ class ScriptListItem:
         self.indent_level = indent_level
         self.show_dirname = show_dirname
         self.script_item: typing.Optional[Profile.ScriptItem] = None
+        self.__help_files: typing.List[str] = list()
 
     @property
     def full_path(self) -> str:
@@ -160,6 +164,22 @@ class ScriptListItem:
     @property
     def exists(self) -> bool:
         return self._exists
+
+    @property
+    def help_files(self) -> typing.List[str]:
+        return self.__help_files
+
+    def search_help_files(self) -> None:
+        help_files = []
+        if os.path.isdir(self.dirname):
+            dirlist = os.listdir(self.dirname)
+            basename, extension = os.path.splitext(self.basename)
+            for item in dirlist:
+                item_name, item_extension = os.path.splitext(item)
+                if item_name == basename and item_extension != extension:
+                    help_files.append(os.path.join(self.dirname, item))
+        self.__help_files = help_files
+        return None
 
     def check_existence(self) -> bool:
         self._exists = os.path.exists(self.full_path)
@@ -229,6 +249,17 @@ def open_location(location: str) -> None:
         subprocess.run(['explorer', str(location)])
     elif sys.platform == 'linux':
         subprocess.check_call(['xdg-open', '--', str(location)])
+
+
+def convert_help_file(path: str) -> str:
+    temp_file = tempfile.NamedTemporaryFile(suffix=".html", delete=False)
+    temp_file.close()
+    title = "Help for " + os.path.splitext(os.path.basename(path))[0]
+    result = subprocess.run(["pandoc", "-s", "-o", os.path.realpath(temp_file.name), os.path.realpath(path),
+                             f"--metadata=title:{title}"])
+    if result.returncode:
+        raise RuntimeError(f"Pandoc exited with code {result.returncode}.")
+    return temp_file.name
 
 
 class ScriptListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
@@ -343,6 +374,12 @@ class ScriptListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
                                               rect[0][0] + 20 - 4)
 
 
+MISSING_HELP_FILE_MESSAGE = """This script does not have an associated help file.
+If you would like to add one, simply create a text file next to the script with the same name as the script.
+The built-in help format is "html", but most other formats can be converted automatically via "pandoc" if it is installed.
+"""
+
+
 class RunScriptDialog(Dialog.ActionDialog):
 
     def __init__(self, document_controller: "DocumentController.DocumentController"):
@@ -398,6 +435,7 @@ class RunScriptDialog(Dialog.ActionDialog):
 
         def selected_changed(indexes: typing.AbstractSet[int]) -> None:
             run_button_widget.enabled = len(indexes) == 1
+            help_button_widget.enabled = run_button_widget.enabled
 
         def add_clicked() -> None:
             assert self.__profile
@@ -455,6 +493,35 @@ class RunScriptDialog(Dialog.ActionDialog):
                     script_path = script_item.full_path
                     self.run_script(script_path)
 
+        def help_clicked() -> None:
+            indexes = self.scripts_list_widget.selected_items
+            if len(indexes) == 1:
+                script_item = self.scripts_list_widget.items[list(indexes)[0]]
+                script_item.search_help_files()
+                for path in script_item.help_files:
+                    if os.path.splitext(path)[1] in {".htm", ".html"}:
+                        webbrowser.open("file://" + os.path.realpath(path))
+                        return
+
+                for path in script_item.help_files:
+                    try:
+                        converted = convert_help_file(path)
+                    except:
+                        import traceback
+                        traceback.print_exc()
+                        Notification.notify(Notification.Notification("nion.scripts.error",
+                                                                      f"\N{WARNING SIGN} {script_item.basename}",
+                                                                      "Error during help file conversion",
+                                                                      traceback.format_exc(chain=False, limit=1)))
+                        return
+                    else:
+                        webbrowser.open("file://" + os.path.realpath(converted))
+                        return
+                Notification.notify(Notification.Notification("nion.scripts.warning",
+                                                              f"\N{INFORMATION SOURCE} {script_item.basename}",
+                                                              "No help file available", MISSING_HELP_FILE_MESSAGE))
+
+
         def item_selected(index: int) -> bool:
             run_clicked()
             return True
@@ -482,6 +549,10 @@ class RunScriptDialog(Dialog.ActionDialog):
         run_button_widget.on_clicked = run_clicked
         run_button_widget.enabled = False
 
+        help_button_widget = ui.create_push_button_widget(_("Show help"))
+        help_button_widget.on_clicked = help_clicked
+        help_button_widget.enabled = False
+
         list_widget_row = ui.create_row_widget()
         list_widget_row.add_spacing(8)
         list_widget_row.add(self.scripts_list_widget)
@@ -499,6 +570,8 @@ class RunScriptDialog(Dialog.ActionDialog):
         button_row.add(remove_button_widget)
         button_row.add_stretch()
         button_row.add(run_button_widget)
+        button_row.add_spacing(4)
+        button_row.add(help_button_widget)
         button_row.add_spacing(12)
 
         select_column = ui.create_column_widget()
