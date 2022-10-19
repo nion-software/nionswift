@@ -1918,7 +1918,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             display_data_channel_copy.contrast = display_data_channel.contrast
             display_data_channel_copy.adjustments = copy.deepcopy(display_data_channel.adjustments)
             display_data_channels.append(display_data_channel_copy)
-            self.append_data_item(data_item_copy)
+            self.append_data_item(data_item_copy, False)
         for display_data_channel in display_data_channels:
             display_item_copy.append_display_data_channel(display_data_channel, display_layer=DisplayItem.DisplayLayer())
         # the display layers will be disrupted by appending data channels; so just recopy them here
