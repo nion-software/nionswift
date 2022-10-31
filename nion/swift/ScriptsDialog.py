@@ -252,14 +252,11 @@ def open_location(location: str) -> None:
 
 
 def convert_help_file(path: str) -> str:
-    temp_file = tempfile.NamedTemporaryFile(suffix=".html", delete=False)
-    temp_file.close()
-    title = "Help for " + os.path.splitext(os.path.basename(path))[0]
-    result = subprocess.run(["pandoc", "-s", "-o", os.path.realpath(temp_file.name), os.path.realpath(path),
-                             f"--metadata=title:{title}"])
-    if result.returncode:
-        raise RuntimeError(f"Pandoc exited with code {result.returncode}.")
-    return temp_file.name
+    """Convert help file from a supported format to native html.
+
+    Takes the path to a help file as an argument and should return the path to the converted help file.
+    """
+    raise NotImplementedError()
 
 
 class ScriptListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
@@ -375,8 +372,7 @@ class ScriptListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
 
 
 MISSING_HELP_FILE_MESSAGE = """This script does not have an associated help file.
-If you would like to add one, simply create a text file next to the script with the same name as the script.
-The built-in help format is "html", but most other formats can be converted automatically via "pandoc" if it is installed.
+If you would like to add one, simply create an html file next to the script with the same name as the script.
 """
 
 
