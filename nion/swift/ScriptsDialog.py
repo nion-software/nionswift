@@ -376,6 +376,10 @@ If you would like to add one, simply create an html file next to the script with
 """
 
 
+class ScriptCancelException(Exception):
+    pass
+
+
 class RunScriptDialog(Dialog.ActionDialog):
 
     def __init__(self, document_controller: "DocumentController.DocumentController"):
@@ -736,7 +740,10 @@ class RunScriptDialog(Dialog.ActionDialog):
 
                 stdout = StdoutCatcher()
                 with contextlib.redirect_stdout(typing.cast(typing.Any, stdout)), contextlib.redirect_stderr(typing.cast(typing.Any, stdout)):
-                    exec(compiled, g)
+                    try:
+                        exec(compiled, g)
+                    except ScriptCancelException as e:
+                        self.print(_("Script canceled by user."))
             except Exception:
                 self.print("{}: {}".format(_("Error"), traceback.format_exc()))
 
@@ -825,14 +832,14 @@ class RunScriptDialog(Dialog.ActionDialog):
                 self.document_controller.add_task("ui_" + str(id(self)), self.__handle_output_and_q)
             accept_event.wait()
             if self.__is_closed:
-                raise Exception("Cancel")
+                raise ScriptCancelException()
 
         def update_message_column() -> None:
             self.__message_column.remove_all()
             self.__message_column.add(self.__make_cancel_row())
         self.document_controller.add_task("ui_" + str(id(self)), update_message_column)
         if result is None:
-            raise Exception("Cancel")
+            raise ScriptCancelException()
         return result
 
     def get_integer(self, prompt: str, default_value: int = 0) -> int:
@@ -862,7 +869,7 @@ class RunScriptDialog(Dialog.ActionDialog):
                 self.document_controller.add_task("show_" + str(id(self)), self.__handle_output_and_q)
             accept_event.wait()
             if self.__is_closed:
-                raise Exception("Cancel")
+                raise ScriptCancelException()
 
     def __register_sync_event(self, sync_event: threading.Event) -> None:
         self.__sync_events.add(sync_event)
@@ -902,7 +909,7 @@ class RunScriptDialog(Dialog.ActionDialog):
                 self.document_controller.add_task("ui_" + str(id(self)), self.__handle_output_and_q)
             accept_event.wait()
             if self.__is_closed:
-                raise Exception("Cancel")
+                raise ScriptCancelException()
 
         def update_message_column() -> None:
             self.__message_column.remove_all()
