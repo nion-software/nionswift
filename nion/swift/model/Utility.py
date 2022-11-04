@@ -67,7 +67,7 @@ try:
         if local_utcoffset_override is not None:
             return local_utcoffset_override[0]
         datetime_local = datetime_local if datetime_local else datetime.datetime.now()
-        return int(pytz.reference.LocalTimezone().utcoffset(datetime_local).total_seconds() // 60)  # type: ignore
+        return int(pytz.reference.LocalTimezone().utcoffset(datetime_local).total_seconds() // 60)
 except ImportError:
     def local_utcoffset_minutes(datetime_local: typing.Optional[datetime.datetime] = None) -> int:
         if local_utcoffset_override is not None:
