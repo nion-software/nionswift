@@ -36,7 +36,6 @@ from nion.swift import Task
 from nion.swift import ToolbarPanel
 from nion.swift import Workspace
 from nion.swift.model import ApplicationData
-from nion.swift.model import Cache
 from nion.swift.model import ColorMaps
 from nion.swift.model import DocumentModel
 from nion.swift.model import FileStorageSystem
@@ -109,7 +108,7 @@ class Application(UIApplication.BaseApplication):
 
         ui.set_persistence_handler(PersistenceHandler())
         setattr(self.ui, "persistence_root", "3")  # sets of preferences
-        self.version_str = "0.16.6"
+        self.version_str = "0.16.7"
 
         self.document_model_available_event = Event.Event()
 

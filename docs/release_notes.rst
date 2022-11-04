@@ -12,6 +12,11 @@ in bug fix releases, we choose to include them for evaluation and feedback. If y
 or have feedback about these types of new features, please contact us or file issues at
 https://github.com/nion-software/nionswift/issues.
 
+Version 0.16.7 (2022-11-04)
+---------------------------
+* `#897 <https://github.com/nion-software/nionswift/issues/897>`_ Canceling script no longer prints stack trace (but does give one line cancel message).
+* `#893 <https://github.com/nion-software/nionswift/issues/893>`_ Fix snapshot creating multiple copies.
+
 Version 0.16.6 (2022-10-03)
 ---------------------------
 * `#891 <https://github.com/nion-software/nionswift/issues/891>`_ Fix issue in handling edited text in utility dialogs.
