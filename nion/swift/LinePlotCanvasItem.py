@@ -674,8 +674,8 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                     text_pos = Geometry.IntPoint(y=rect.top, x=rect.right - 100)
                     drawing_context.begin_path()
                     drawing_context.move_to(text_pos.x, text_pos.y)
-                    drawing_context.line_to(text_pos.x + 120, text_pos.y)
-                    drawing_context.line_to(text_pos.x + 120, text_pos.y + 60)
+                    drawing_context.line_to(text_pos.x + 200, text_pos.y)
+                    drawing_context.line_to(text_pos.x + 200, text_pos.y + 60)
                     drawing_context.line_to(text_pos.x, text_pos.y + 60)
                     drawing_context.close_path()
                     drawing_context.fill_style = "rgba(255, 255, 255, 0.6)"

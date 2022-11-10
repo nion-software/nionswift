@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import collections
 import contextlib
+import dataclasses
 import datetime
 import functools
 import logging
@@ -291,27 +292,37 @@ class AtomicFileWriter:
                 raise
 
 
+@dataclasses.dataclass
+class FPSRecord:
+    window_elapsed_times: typing.List[float] = dataclasses.field(default_factory=list)
+    window_elapsed_time: float = 0.0
+    last_tick: typing.Optional[float] = None
+    last_window_frame_mean: float = 0.0
+    last_window_frame_std: float = 0.0
+
+
 def fps_tick(fps_id: str) -> str:
-    v = globals().setdefault("__fps_" + fps_id, [0, 0.0, None, 0.0, None, []])
-    v[0] += 1
+    v = globals().setdefault("__fps_" + fps_id, FPSRecord())
     next_time = time.perf_counter()
-    while len(v[5]) > 100:
-        v[5].pop(0)
-    if v[2] is not None:
-        v[5].append(next_time - v[2])
-    v[1] += next_time - v[2] if v[2] is not None else 0.0
-    if v[1] > 1.0:
-        v[3] = v[0] / v[1]
-        v[0] = 0
-        v[1] = 0.0
-    v[2] = next_time
+    if v.last_tick is not None:
+        elapsed_time = next_time - v.last_tick
+        v.window_elapsed_times.append(elapsed_time)
+        v.window_elapsed_time += elapsed_time
+    if v.window_elapsed_time > 1.0:
+        v.last_window_frame_mean = numpy.mean(v.window_elapsed_times)
+        v.last_window_frame_std = numpy.std(v.window_elapsed_times)
+        v.window_elapsed_time = 0.0
+        v.window_elapsed_times = list()
+    v.last_tick = next_time
     return fps_get(fps_id)
 
 
 def fps_get(fps_id: str) -> str:
-    v = globals().setdefault("__fps_" + fps_id, [0, 0.0, None, 0.0, None, []])
-    # s = numpy.std(v[5]) if len(v[5]) > 0 else 0.0
-    return str(int(v[3] * 100) / 100.0)  # + " " + str(int(s*1000)) + "ms"
+    v = globals().setdefault("__fps_" + fps_id, FPSRecord())
+    m = v.last_window_frame_mean
+    r = 1 / m if m != 0.0 else 0.0
+    s = v.last_window_frame_std
+    return str(int(r * 10) / 10.0) + "fps / " + str(int(m * 1000)) + "ms / " + str(int(s * 1000)) + "ms"
 
 
 Trace = collections.namedtuple("Trace", ["start_time", "last_time_ref", "min_elapsed", "discard", "all"])
