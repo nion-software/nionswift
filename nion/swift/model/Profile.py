@@ -120,7 +120,7 @@ class ProjectReference(Persistence.PersistentObject):
     def project_reference_parts(self) -> typing.Sequence[str]:
         raise NotImplementedError()
 
-    def make_storage(self, profile_context: typing.Optional[ProfileContext]) -> typing.Optional[FileStorageSystem.ProjectStorageSystem]:
+    def make_storage(self, profile_context: typing.Optional[ProfileContext]) -> typing.Optional[FileStorageSystem.ProjectStorageSystemInterface]:
         raise NotImplementedError()
 
     def read_project_info(self, profile_context: typing.Optional[ProfileContext]) -> None:
@@ -208,7 +208,7 @@ class ProjectReference(Persistence.PersistentObject):
                 return self._upgrade_project_storage_system(project_storage_system)
         return None
 
-    def _upgrade_project_storage_system(self, project_storage_system: FileStorageSystem.ProjectStorageSystem) -> ProjectReference:
+    def _upgrade_project_storage_system(self, project_storage_system: FileStorageSystem.ProjectStorageSystemInterface) -> ProjectReference:
         raise NotImplementedError()
 
 
@@ -237,7 +237,7 @@ class IndexProjectReference(ProjectReference):
         project_path = self.project_path
         return project_path.parts if project_path else tuple()
 
-    def make_storage(self, profile_context: typing.Optional[ProfileContext]) -> typing.Optional[FileStorageSystem.ProjectStorageSystem]:
+    def make_storage(self, profile_context: typing.Optional[ProfileContext]) -> typing.Optional[FileStorageSystem.ProjectStorageSystemInterface]:
         project_path = self.project_path
         if project_path:
             return FileStorageSystem.make_index_project_storage_system(project_path)
@@ -283,7 +283,7 @@ class FolderProjectReference(ProjectReference):
     def project_reference_parts(self) -> typing.Sequence[str]:
         return self.project_folder_path.parts if self.project_folder_path else tuple()
 
-    def make_storage(self, profile_context: typing.Optional[ProfileContext]) -> typing.Optional[FileStorageSystem.ProjectStorageSystem]:
+    def make_storage(self, profile_context: typing.Optional[ProfileContext]) -> typing.Optional[FileStorageSystem.ProjectStorageSystemInterface]:
         if self.project_folder_path:
             return FileStorageSystem.make_folder_project_storage_system(self.project_folder_path)
         return None
@@ -299,7 +299,7 @@ class FolderProjectReference(ProjectReference):
         except Exception:
             return super()._get_last_used()
 
-    def _upgrade_project_storage_system(self, project_storage_system: FileStorageSystem.ProjectStorageSystem) -> ProjectReference:
+    def _upgrade_project_storage_system(self, project_storage_system: FileStorageSystem.ProjectStorageSystemInterface) -> ProjectReference:
         legacy_path = pathlib.Path(project_storage_system.get_identifier())
         target_project_path = legacy_path.parent.with_suffix(".nsproj")
         target_data_path = target_project_path.with_name(target_project_path.stem + " Data")
@@ -311,7 +311,7 @@ class FolderProjectReference(ProjectReference):
             {"version": FileStorageSystem.PROJECT_VERSION, "uuid": str(target_project_uuid),
              "project_data_folders": [str(target_data_path.stem)]})
         target_project_path.write_text(target_project_data_json, "utf-8")
-        with contextlib.closing(FileStorageSystem.FileProjectStorageSystem(target_project_path)) as new_storage_system:
+        with contextlib.closing(FileStorageSystem.make_index_project_storage_system(target_project_path)) as new_storage_system:
             new_storage_system.load_properties()
             FileStorageSystem.migrate_to_latest(project_storage_system, new_storage_system)
         new_project_reference = IndexProjectReference()
@@ -411,7 +411,7 @@ def script_item_factory(lookup_id: typing.Callable[[str], str]) -> typing.Option
 class Profile(Persistence.PersistentObject):
     count = 0  # useful for detecting leaks in tests
 
-    def __init__(self, storage_system: typing.Optional[FileStorageSystem.PersistentStorageSystem] = None,
+    def __init__(self, storage_system: typing.Optional[Persistence.PersistentStorageInterface] = None,
                  cache_dir_path: typing.Optional[pathlib.Path] = None, *,
                  cache_factory: typing.Optional[Cache.CacheFactory] = None,
                  profile_context: typing.Optional[ProfileContext] = None) -> None:
@@ -431,7 +431,8 @@ class Profile(Persistence.PersistentObject):
             typing.Callable[[typing.Callable[[str], str]], typing.Optional[Persistence.PersistentObject]],
             script_item_factory), hidden=True)
 
-        self.storage_system = storage_system or FileStorageSystem.MemoryPersistentStorageSystem()
+        # ensure a storage system; use a memory based storage as a fallback (for testing).
+        self.storage_system = storage_system or FileStorageSystem.make_memory_persistent_storage_system()
         self.storage_system.load_properties()
 
         self.set_storage_system(self.storage_system)
@@ -546,42 +547,15 @@ class Profile(Persistence.PersistentObject):
         self.notify_remove_item("script_items", script_item, index)
 
     @property
-    def _profile_storage_system(self) -> typing.Optional[FileStorageSystem.PersistentStorageSystem]:
+    def _profile_storage_system(self) -> typing.Optional[Persistence.PersistentStorageInterface]:
         return self.storage_system
-
-    class TransactionContext:
-        def __init__(self, profile: Profile) -> None:
-            self.__profile = profile
-
-        def __enter__(self) -> Profile.TransactionContext:
-            profile_storage_system = self.__profile._profile_storage_system
-            if profile_storage_system:
-                profile_storage_system.enter_write_delay(self.__profile)
-            for project in self.__profile.projects:
-                project.project_storage_system.enter_transaction()
-            return self
-
-        def __exit__(self, exception_type: typing.Optional[typing.Type[BaseException]],
-                     value: typing.Optional[BaseException],
-                     traceback: typing.Optional[types.TracebackType]) -> typing.Optional[bool]:
-            profile_storage_system = self.__profile._profile_storage_system
-            if profile_storage_system:
-                profile_storage_system.exit_write_delay(self.__profile)
-                profile_storage_system.rewrite_item(self.__profile)
-            for project in self.__profile.projects:
-                project.project_storage_system.exit_transaction()
-            return None
-
-    def transaction_context(self) -> contextlib.AbstractContextManager[Profile.TransactionContext]:
-        """Return a context object for a document-wide transaction."""
-        return Profile.TransactionContext(self)
 
     def read_profile(self) -> None:
         # read the properties from the storage system. called after open.
-        properties = self.storage_system.read_properties()
+        properties = self.storage_system.get_storage_properties()
 
         # if the properties match the current version, read the properties.
-        if properties.get("version", 0) == FileStorageSystem.PROFILE_VERSION:
+        if properties is not None and properties.get("version", 0) == FileStorageSystem.PROFILE_VERSION:
             self.begin_reading()
             try:
                 if not self.project_references:  # hack for testing. tests will have already set up profile.

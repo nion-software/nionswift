@@ -98,8 +98,8 @@ class DataItemStorageAdapter:
         return self.__storage_handler.read_data()
 
 
-def migrate_to_latest(source_project_storage_system: ProjectStorageSystem,
-                      target_project_storage_system: typing.Optional[ProjectStorageSystem] = None) -> None:
+def migrate_to_latest(source_project_storage_system: ProjectStorageSystemInterface,
+                      target_project_storage_system: typing.Optional[ProjectStorageSystemInterface] = None) -> None:
     """Migrate the library data in source to target, upgrading them in the process.
 
     If target is None, then migration is done in place.
@@ -115,12 +115,14 @@ def migrate_to_latest(source_project_storage_system: ProjectStorageSystem,
     # iterate through migration stages from newest to oldest, reading data items, updating them to the latest
     # version, and copying them to the new library. migration stages are the high level directories representing
     # different library versions up to 13. after version 13, files are stored in project files which have their own
-    # versioning.
+    # versioning. run newest to oldest so that deletions in newer libraries won't be migrated; nor will data items
+    # in older projects with the same uuid in a newer project.
+
     for migration_stage in source_project_storage_system._get_migration_stages():
 
         # find all data items for the given migration stage and return a list of storage handlers.
         # examples of storage handlers are NDataHandler and HDF5Handler. these give low level access to the file.
-        # every storage handle must be closed.
+        # every storage handler must be closed.
         storage_handlers = source_project_storage_system._find_data_items(migration_stage)
 
         # next, construct a list of ReaderInfo objects. ReaderInfo stores the properties portion of the data item,
@@ -225,7 +227,7 @@ def migrate_to_latest(source_project_storage_system: ProjectStorageSystem,
 
     # propagate the UUID
     source_library_properties = source_project_storage_system.get_storage_properties()
-    if "uuid" in source_library_properties:
+    if source_library_properties and "uuid" in source_library_properties:
         library_properties["uuid"] = source_library_properties["uuid"]
 
     target_project_storage_system._migrate_library_properties(library_properties, reader_info_list)
@@ -383,9 +385,6 @@ class PersistentStorageSystem(Persistence.PersistentStorageInterface):
     def rewrite_item(self, item: Persistence.PersistentObject) -> None:
         self.__write_properties_if_not_delayed(item)
 
-    def read_properties(self) -> PersistentDictType:
-        return self.get_storage_properties()
-
     def enter_transaction(self) -> None:
         self.__write_delay_count += 1
 
@@ -449,7 +448,54 @@ class MemoryPersistentStorageSystem(PersistentStorageSystem):
         self.load_properties()
 
 
-class ProjectStorageSystem(PersistentStorageSystem):
+class ProjectStorageSystemMigrationStage:
+    pass
+
+
+class ProjectStorageSystemInterface(Persistence.PersistentStorageInterface, typing.Protocol):
+
+    @abc.abstractmethod
+    def _get_identifier(self) -> str: ...
+
+    @abc.abstractmethod
+    def reset(self) -> None: ...
+
+    @abc.abstractmethod
+    def _get_migration_stages(self) -> typing.Sequence[ProjectStorageSystemMigrationStage]: ...
+
+    @abc.abstractmethod
+    def _find_data_items(self, migration_stage: ProjectStorageSystemMigrationStage) -> typing.Sequence[StorageHandler.StorageHandler]: ...
+
+    @abc.abstractmethod
+    def _is_storage_handler_large_format(self, storage_handler: StorageHandler.StorageHandler) -> bool: ...
+
+    @abc.abstractmethod
+    def _migrate_data_item(self, reader_info: ReaderInfo, index: int, count: int) -> typing.Optional[ReaderInfo]: ...
+
+    @abc.abstractmethod
+    def _migrate_library_properties(self, library_properties: PersistentDictType, reader_info_list: typing.List[ReaderInfo]) -> None: ...
+
+    @abc.abstractmethod
+    def _read_library_properties(self, migration_stage: ProjectStorageSystemMigrationStage) -> PersistentDictType: ...
+
+    @abc.abstractmethod
+    def _get_relationship_persistent_dict(self, container: Persistence.PersistentObject, item: Persistence.PersistentObject, key: str, index: int) -> typing.Optional[PersistentDictType]: ...
+
+    def _get_relationship_persistent_dict_by_uuid(self, container: Persistence.PersistentObject, item: Persistence.PersistentObject, key: str) -> typing.Optional[PersistentDictType]: ...
+
+    def read_project_properties(self) -> typing.Tuple[PersistentDictType, typing.Sequence[ReaderError]]: ...
+
+    def restore_item(self, data_item_uuid: uuid.UUID) -> typing.Optional[PersistentDictType]: ...
+
+    def prune(self) -> None: ...
+
+    def migrate_to_latest(self) -> None: ...
+
+    def get_identifier(self) -> str:
+        return self._get_identifier()
+
+
+class ProjectStorageSystem(PersistentStorageSystem, ProjectStorageSystemInterface):
     """Persistent storage system to provide special handling of data items."""
 
     def __init__(self) -> None:
@@ -462,18 +508,12 @@ class ProjectStorageSystem(PersistentStorageSystem):
         self.__storage_adapter_map.clear()
 
     @abc.abstractmethod
-    def _get_identifier(self) -> str: ...
-
-    @abc.abstractmethod
     def _make_storage_handler(self, data_item: DataItem.DataItem,
                               file_handler: typing.Optional[_CreateStorageHandlerFn] = None) -> StorageHandler.StorageHandler:
         ...
 
     @abc.abstractmethod
     def _find_storage_handlers(self) -> typing.Sequence[StorageHandler.StorageHandler]: ...
-
-    @abc.abstractmethod
-    def _is_storage_handler_large_format(self, storage_handler: StorageHandler.StorageHandler) -> bool: ...
 
     @abc.abstractmethod
     def _remove_storage_handler(self, storage_handler: StorageHandler.StorageHandler, *, safe: bool = False) -> None: ...
@@ -484,30 +524,26 @@ class ProjectStorageSystem(PersistentStorageSystem):
     @abc.abstractmethod
     def _prune(self) -> None: ...
 
-    @abc.abstractmethod
-    def _migrate_data_item(self, reader_info: ReaderInfo, index: int, count: int) -> typing.Optional[ReaderInfo]: ...
-
-    @abc.abstractmethod
-    def _migrate_library_properties(self, library_properties: PersistentDictType, reader_info_list: typing.List[ReaderInfo]) -> None: ...
-
-    @abc.abstractmethod
-    def _get_migration_stages(self) -> typing.List[typing.Tuple[pathlib.Path, pathlib.Path]]: ...
-
-    @abc.abstractmethod
-    def _read_library_properties(self, migration_stage: typing.Tuple[pathlib.Path, pathlib.Path]) -> PersistentDictType: ...
-
-    @abc.abstractmethod
-    def _find_data_items(self, migration_stage: typing.Tuple[pathlib.Path, pathlib.Path]) -> typing.Sequence[StorageHandler.StorageHandler]: ...
-
-    def get_identifier(self) -> str:
-        return self._get_identifier()
-
     @property
     def _data_properties_map(self) -> typing.Dict[uuid.UUID, DataItemStorageAdapter]:
         return self.__storage_adapter_map
 
     def reset(self) -> None:
         self.__storage_adapter_map = dict()
+
+    def _get_relationship_persistent_dict(self, container: Persistence.PersistentObject, item: Persistence.PersistentObject, key: str, index: int) -> typing.Optional[PersistentDictType]:
+        if key == "data_items":
+            return self._data_properties_map[item.uuid].properties
+        else:
+            # note: the storage system is acting as a delegate and must only call the inner version of this function to avoid recursion.
+            return container._get_relationship_persistent_dict_inner(item, key, index)
+
+    def _get_relationship_persistent_dict_by_uuid(self, container: Persistence.PersistentObject, item: Persistence.PersistentObject, key: str) -> typing.Optional[PersistentDictType]:
+        if key == "data_items":
+            return self._data_properties_map[item.uuid].properties
+        else:
+            # note: the storage system is acting as a delegate and must only call the inner version of this function to avoid recursion.
+            return container._get_relationship_persistent_dict_by_uuid_inner(item, key)
 
     def get_persistent_dict(self, name: str, item_uuid: uuid.UUID) -> PersistentDictType:
         if name == "data_items":
@@ -687,6 +723,13 @@ class ProjectStorageSystem(PersistentStorageSystem):
 
     def __restore_item(self, data_item_uuid: uuid.UUID) -> typing.Optional[PersistentDictType]:
         return self._restore_item(data_item_uuid)
+
+
+class FileProjectStorageSystemMigrationStage(ProjectStorageSystemMigrationStage):
+    def __init__(self, library_path: pathlib.Path, library_folder: pathlib.Path) -> None:
+        self.library_path = library_path
+        self.library_folder = library_folder
+
 
 
 class FileProjectStorageSystem(ProjectStorageSystem):
@@ -885,12 +928,13 @@ class FileProjectStorageSystem(ProjectStorageSystem):
             (library_path / "Nion Swift Workspace.nslib", library_path / "Nion Swift Data"),
         ]
 
-    def _get_migration_stages(self) -> typing.List[typing.Tuple[pathlib.Path, pathlib.Path]]:
-        return self._get_migration_paths(self.__project_path.parent)
+    def _get_migration_stages(self) -> typing.Sequence[ProjectStorageSystemMigrationStage]:
+        return list([FileProjectStorageSystemMigrationStage(p, f) for p, f in self._get_migration_paths(self.__project_path.parent)])
 
-    def _read_library_properties(self, migration_stage: typing.Tuple[pathlib.Path, pathlib.Path]) -> PersistentDictType:
+    def _read_library_properties(self, migration_stage: ProjectStorageSystemMigrationStage) -> PersistentDictType:
+        migration_stage = typing.cast(FileProjectStorageSystemMigrationStage, migration_stage)
         properties = dict()
-        project_path = migration_stage[0]
+        project_path = migration_stage.library_path
         if project_path and os.path.exists(project_path):
             try:
                 with project_path.open("r") as fp:
@@ -899,8 +943,9 @@ class FileProjectStorageSystem(ProjectStorageSystem):
                 os.replace(project_path, project_path.with_suffix(".bak"))
         return properties
 
-    def _find_data_items(self, migration_stage: typing.Tuple[pathlib.Path, pathlib.Path]) -> typing.Sequence[StorageHandler.StorageHandler]:
-        return self.__find_storage_handlers(migration_stage[1])
+    def _find_data_items(self, migration_stage: ProjectStorageSystemMigrationStage) -> typing.Sequence[StorageHandler.StorageHandler]:
+        migration_stage = typing.cast(FileProjectStorageSystemMigrationStage, migration_stage)
+        return self.__find_storage_handlers(migration_stage.library_folder)
 
     def __get_base_path(self, data_item: DataItem.DataItem) -> pathlib.Path:
         data_item_uuid = data_item.uuid
@@ -1104,28 +1149,36 @@ class MemoryProjectStorageSystem(ProjectStorageSystem):
         self.__data_properties_map.clear()
         self.__data_properties_map.update(data_properties_map)
 
-    def _get_migration_stages(self) -> typing.List[typing.Tuple[pathlib.Path, pathlib.Path]]:
-        return [(pathlib.Path(), pathlib.Path())]
+    def _get_migration_stages(self) -> typing.Sequence[ProjectStorageSystemMigrationStage]:
+        return [ProjectStorageSystemMigrationStage()]
 
-    def _read_library_properties(self, migration_stage: typing.Tuple[pathlib.Path, pathlib.Path]) -> PersistentDictType:
+    def _read_library_properties(self, migration_stage: ProjectStorageSystemMigrationStage) -> PersistentDictType:
         return copy.deepcopy(self.__library_properties)
 
-    def _find_data_items(self, migration_stage: typing.Tuple[pathlib.Path, pathlib.Path]) -> typing.Sequence[StorageHandler.StorageHandler]:
+    def _find_data_items(self, migration_stage: ProjectStorageSystemMigrationStage) -> typing.Sequence[StorageHandler.StorageHandler]:
         return self._find_storage_handlers()
 
 
-def make_index_project_storage_system(project_path: pathlib.Path) -> typing.Optional[ProjectStorageSystem]:
+def make_file_persistent_storage_system(path: pathlib.Path) -> Persistence.PersistentStorageInterface:
+    return FilePersistentStorageSystem(path)
+
+
+def make_memory_persistent_storage_system() -> Persistence.PersistentStorageInterface:
+    return MemoryPersistentStorageSystem()
+
+
+def make_index_project_storage_system(project_path: pathlib.Path) -> ProjectStorageSystemInterface:
     return FileProjectStorageSystem(project_path)
 
 
-def make_folder_project_storage_system(project_folder_path: pathlib.Path) -> typing.Optional[ProjectStorageSystem]:
+def make_folder_project_storage_system(project_folder_path: pathlib.Path) -> typing.Optional[ProjectStorageSystemInterface]:
     for project_file, project_dir in FileProjectStorageSystem._get_migration_paths(project_folder_path):
         if project_file.exists():
             return FileProjectStorageSystem(project_file, project_dir)
     return None
 
 
-def make_memory_project_storage_system(profile_context: typing.Any, _uuid: uuid.UUID, d: PersistentDictType) -> typing.Optional[ProjectStorageSystem]:
+def make_memory_project_storage_system(profile_context: typing.Any, _uuid: uuid.UUID, d: PersistentDictType) -> typing.Optional[ProjectStorageSystemInterface]:
     storage_system_uuid = d.get("uuid") or _uuid or uuid.uuid4()  # allow d to override project uuid for testing failures
     # the profile context must be valid here.
     new_project_properties = profile_context.x_project_properties.setdefault(storage_system_uuid,

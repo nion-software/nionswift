@@ -351,7 +351,7 @@ class ProjectTreeCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
     def item_tool_tip(self, index: int) -> typing.Optional[str]:
         display_item = self.__tree_model.value[index]
         if isinstance(display_item, ProjectPanelProjectItem):
-            return str(display_item.project_reference.project.storage_system_path if display_item.project_reference.project else _("Missing"))
+            return display_item.project_reference.project.storage_location_str if display_item.project_reference.project else _("Missing")
         return None
 
     def context_menu_event(self, index: typing.Optional[int], x: int, y: int, gx: int, gy: int) -> bool:

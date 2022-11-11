@@ -79,7 +79,7 @@ class TempProfileContext:
             project_uuid = uuid.uuid4()
             project_data_json = json.dumps({"version": FileStorageSystem.PROJECT_VERSION, "uuid": str(project_uuid), "project_data_folders": [project_data_name or "Data"]})
             project_path.write_text(project_data_json, "utf-8")
-            storage_system = FileStorageSystem.FilePersistentStorageSystem(profile_path)
+            storage_system = FileStorageSystem.make_file_persistent_storage_system(profile_path)
             storage_system.load_properties()
             profile = Profile.Profile(storage_system=storage_system, cache_factory=Cache.DbCacheFactory(self.profiles_dir, "X"))
             profile.storage_system = storage_system
@@ -90,7 +90,7 @@ class TempProfileContext:
             return profile
         else:
             profile_path = self.profiles_dir / pathlib.Path(profile_name or "Profile").with_suffix(".nsprof")
-            storage_system = FileStorageSystem.FilePersistentStorageSystem(profile_path)
+            storage_system = FileStorageSystem.make_file_persistent_storage_system(profile_path)
             storage_system.load_properties()
             profile = Profile.Profile(storage_system=storage_system, cache_factory=Cache.DbCacheFactory(self.profiles_dir, "X"))
             profile.storage_system = storage_system

@@ -218,12 +218,12 @@ class MemoryProjectReference(Profile.ProjectReference):
     def project_reference_parts(self) -> typing.Tuple[str]:
         return ("memory",)
 
-    def make_storage(self, profile_context: typing.Optional[MemoryProfileContext]) -> typing.Optional[FileStorageSystem.ProjectStorageSystem]:
+    def make_storage(self, profile_context: typing.Optional[MemoryProfileContext]) -> typing.Optional[FileStorageSystem.ProjectStorageSystemInterface]:
         if self.__make_storage_error:
             raise Exception("make_storage_error")
         return FileStorageSystem.make_memory_project_storage_system(profile_context, self.project_uuid, self.__d)
 
-    def _upgrade_project_storage_system(self, project_storage_system: FileStorageSystem.ProjectStorageSystem) -> Profile.ProjectReference:
+    def _upgrade_project_storage_system(self, project_storage_system: FileStorageSystem.ProjectStorageSystemInterface) -> Profile.ProjectReference:
         new_project_reference = MemoryProjectReference()
         new_project_reference.project_uuid = uuid.uuid4()
         return new_project_reference
