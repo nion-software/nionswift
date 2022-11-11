@@ -41,7 +41,7 @@ class Project(Persistence.PersistentObject):
 
     _processing_descriptions: PersistentDictType = dict()
 
-    def __init__(self, storage_system: FileStorageSystem.ProjectStorageSystem, cache_factory: typing.Optional[Cache.CacheFactory] = None) -> None:
+    def __init__(self, storage_system: FileStorageSystem.ProjectStorageSystemInterface, cache_factory: typing.Optional[Cache.CacheFactory] = None) -> None:
         super().__init__()
 
         self.define_type("project")
@@ -163,8 +163,8 @@ class Project(Persistence.PersistentObject):
         return self.handle_remove_model_item(container, name, item, safe)
 
     @property
-    def storage_system_path(self) -> pathlib.Path:
-        return pathlib.Path(self.__storage_system.get_identifier())
+    def storage_location_str(self) -> str:
+        return self.__storage_system.get_identifier()
 
     @property
     def storage_cache(self) -> Cache.CacheLike:
@@ -209,7 +209,7 @@ class Project(Persistence.PersistentObject):
         return ListModel.PredicateFilter(functools.partial(is_display_item_active, weakref.ref(self)))
 
     @property
-    def project_storage_system(self) -> FileStorageSystem.ProjectStorageSystem:
+    def project_storage_system(self) -> FileStorageSystem.ProjectStorageSystemInterface:
         return self.__storage_system
 
     def __data_item_inserted(self, name: str, before_index: int, data_item: DataItem.DataItem) -> None:
@@ -249,16 +249,12 @@ class Project(Persistence.PersistentObject):
         self.notify_remove_item("data_groups", data_group, index)
 
     def _get_relationship_persistent_dict(self, item: Persistence.PersistentObject, key: str, index: int) -> typing.Optional[PersistentDictType]:
-        if key == "data_items":
-            return self.__storage_system.get_persistent_dict("data_items", item.uuid)
-        else:
-            return super()._get_relationship_persistent_dict(item, key, index)
+        # note: this delegates to storage system. the storage system must only call the inner version of this function to avoid recursion.
+        return self.__storage_system._get_relationship_persistent_dict(self, item, key, index)
 
     def _get_relationship_persistent_dict_by_uuid(self, item: Persistence.PersistentObject, key: str) -> typing.Optional[PersistentDictType]:
-        if key == "data_items":
-            return self.__storage_system.get_persistent_dict("data_items", item.uuid)
-        else:
-            return super()._get_relationship_persistent_dict_by_uuid(item, key)
+        # note: this delegates to storage system. the storage system must only call the inner version of this function to avoid recursion.
+        return self.__storage_system._get_relationship_persistent_dict_by_uuid(self, item, key)
 
     def prepare_read_project(self) -> None:
         logging.getLogger("loader").info(f"Loading project {self.__storage_system.get_identifier()}")

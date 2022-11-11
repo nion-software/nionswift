@@ -230,7 +230,13 @@ class PersistentRelationship:
         return self.key if self.key else self.name
 
 
-class PersistentStorageInterface(abc.ABC):
+class PersistentStorageInterface(typing.Protocol):
+
+    @abc.abstractmethod
+    def close(self) -> None: ...
+
+    @abc.abstractmethod
+    def load_properties(self) -> None: ...
 
     @abc.abstractmethod
     def get_storage_properties(self) -> typing.Optional[PersistentDictType]: ...
@@ -273,6 +279,12 @@ class PersistentStorageInterface(abc.ABC):
 
     @abc.abstractmethod
     def rewrite_item(self, item: PersistentObject) -> None: ...
+
+    @abc.abstractmethod
+    def enter_transaction(self) -> None: ...
+
+    @abc.abstractmethod
+    def exit_transaction(self) -> None: ...
 
 
 class PersistentObjectContext:
@@ -788,9 +800,23 @@ class PersistentObject(Observable.Observable):
         return self.persistent_dict[key] if self.persistent_dict is not None else None
 
     def _get_relationship_persistent_dict(self, item: PersistentObject, key: str, index: int) -> typing.Optional[PersistentDictType]:
+        # by using inner and outer functions, allows subclasses to override the outer method, delegate it,
+        # and have the delegate call back to the inner method. hopefully this is temporary as the file system is refactored.
+        return self._get_relationship_persistent_dict_inner(item, key, index)
+
+    def _get_relationship_persistent_dict_inner(self, item: PersistentObject, key: str, index: int) -> typing.Optional[PersistentDictType]:
+        # by using inner and outer functions, allows subclasses to override the outer method, delegate it,
+        # and have the delegate call back to the inner method. hopefully this is temporary as the file system is refactored.
         return self.persistent_dict[key][index] if self.persistent_dict is not None else None
 
     def _get_relationship_persistent_dict_by_uuid(self, item: PersistentObject, key: str) -> typing.Optional[PersistentDictType]:
+        # by using inner and outer functions, allows subclasses to override the outer method, delegate it,
+        # and have the delegate call back to the inner method. hopefully this is temporary as the file system is refactored.
+        return self._get_relationship_persistent_dict_by_uuid_inner(item, key)
+
+    def _get_relationship_persistent_dict_by_uuid_inner(self, item: PersistentObject, key: str) -> typing.Optional[PersistentDictType]:
+        # by using inner and outer functions, allows subclasses to override the outer method, delegate it,
+        # and have the delegate call back to the inner method. hopefully this is temporary as the file system is refactored.
         if self.persistent_dict:
             item_uuid = str(item.uuid)
             for item_d in self.persistent_dict.get(key, list()):

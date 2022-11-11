@@ -527,7 +527,7 @@ class Application(UIApplication.BaseApplication):
             profile_path.write_text(profile_json, "utf-8")
         else:
             logging.getLogger("loader").info(f"Using existing profile {profile_path}")
-        storage_system = FileStorageSystem.FilePersistentStorageSystem(profile_path)
+        storage_system = FileStorageSystem.make_file_persistent_storage_system(profile_path)
         storage_system.load_properties()
         old_cache_path = profile_path.parent / pathlib.Path(profile_path.stem + " Cache").with_suffix(".nscache")
         if old_cache_path.exists():
