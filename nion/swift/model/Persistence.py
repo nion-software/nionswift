@@ -242,6 +242,24 @@ class PersistentStorageInterface(typing.Protocol):
     def get_storage_properties(self) -> typing.Optional[PersistentDictType]: ...
 
     @abc.abstractmethod
+    def _register_persistent_dict(self, item: PersistentObject, persistent_dict: typing.Optional[PersistentDictType]) -> None: ...
+
+    @abc.abstractmethod
+    def _unregister_persistent_dict(self, item: PersistentObject) -> None: ...
+
+    @abc.abstractmethod
+    def _get_persistent_dict(self, item: PersistentObject) -> typing.Optional[PersistentDictType]: ...
+
+    @abc.abstractmethod
+    def _get_item_persistent_dict(self, container: PersistentObject, key: str) -> typing.Optional[PersistentDictType]: ...
+
+    @abc.abstractmethod
+    def _get_relationship_persistent_dict(self, container: PersistentObject, item: PersistentObject, key: str, index: int) -> typing.Optional[PersistentDictType]: ...
+
+    @abc.abstractmethod
+    def _get_relationship_persistent_dict_by_uuid(self, container: PersistentObject, item: PersistentObject, key: str) -> typing.Optional[PersistentDictType]: ...
+
+    @abc.abstractmethod
     def get_properties(self, object: typing.Any) -> typing.Optional[PersistentDictType]: ...
 
     @abc.abstractmethod
@@ -285,6 +303,9 @@ class PersistentStorageInterface(typing.Protocol):
 
     @abc.abstractmethod
     def exit_transaction(self) -> None: ...
+
+    @abc.abstractmethod
+    def _get_persistence_write_count(self, item: PersistentObject) -> typing.Optional[int]: ...
 
 
 class PersistentObjectContext:
@@ -564,6 +585,7 @@ class PersistentObjectParent:
         return self.__weak_parent()
 
 
+
 class PersistentObject(Observable.Observable):
     """
         Base class for objects being stored in a PersistentObjectContext.
@@ -624,7 +646,6 @@ class PersistentObject(Observable.Observable):
         self.modified_state = 0
         self.__modified = DateTime.utcnow()
         self.persistent_object_parent: typing.Optional[PersistentObjectParent] = None
-        self.__persistent_dict: typing.Optional[PersistentDictType] = None
         self.__persistent_storage: typing.Optional[PersistentStorageInterface] = None
         self.persistent_object_context_changed_event = Event.Event()
         self.__item_references: typing.List[PersistentObjectReference] = list()
@@ -633,6 +654,8 @@ class PersistentObject(Observable.Observable):
         self.ghost_properties = typing.Counter[str]()
 
     def close(self) -> None:
+        if self.persistent_storage:
+            self.persistent_storage._unregister_persistent_dict(self)
         self.about_to_close_event.fire()
         assert not self._closed
         self._closed = True
@@ -717,8 +740,7 @@ class PersistentObject(Observable.Observable):
 
     def set_storage_system(self, storage_system: PersistentStorageInterface) -> None:
         """Set the storage system for this item."""
-        self.persistent_dict = storage_system.get_storage_properties()
-        self.persistent_storage = storage_system
+        self._set_persistent_storage(storage_system.get_storage_properties(), storage_system)
 
     def update_storage_system(self) -> None:
         """Update the storage system properties by re-reading from storage.
@@ -726,7 +748,7 @@ class PersistentObject(Observable.Observable):
         Useful when reloading.
         """
         assert self.persistent_storage
-        self.persistent_dict = self.persistent_storage.get_storage_properties()
+        self._set_persistent_storage(self.persistent_storage.get_storage_properties() if self.persistent_storage else None, self.persistent_storage)
 
     def update_item_context(self, item: PersistentObject) -> None:
         """Update the context on the item."""
@@ -766,65 +788,27 @@ class PersistentObject(Observable.Observable):
 
     @property
     def persistent_dict(self) -> typing.Optional[PersistentDictType]:
-        return self.__persistent_dict
+        return self.persistent_storage._get_persistent_dict(self) if self.persistent_storage else None
 
-    @persistent_dict.setter
-    def persistent_dict(self, persistent_dict: typing.Optional[PersistentDictType]) -> None:
-        self.__persistent_dict = persistent_dict
+    def _set_persistent_storage(self, persistent_dict: typing.Optional[PersistentDictType], persistent_storage: typing.Optional[PersistentStorageInterface]) -> None:
+        if persistent_storage:
+            persistent_storage._unregister_persistent_dict(self)
+        self.__persistent_storage = persistent_storage
+        if persistent_storage:
+            persistent_storage._register_persistent_dict(self, persistent_dict)
         for key in self.__items.keys():
             item = self.__items[key].value
             if item:
-                item.persistent_dict = self._get_item_persistent_dict(item, key) if persistent_dict is not None else None
-                item.persistent_storage = self.persistent_storage if persistent_dict is not None else None
+                d = self.persistent_storage._get_item_persistent_dict(self, key) if self.persistent_storage else None
+                item._set_persistent_storage(d if persistent_dict is not None else None, self.persistent_storage if persistent_dict is not None else None)
         for key in self.__relationships.keys():
             for index, item in enumerate(self.__relationships[key].values):
-                item.persistent_dict = self._get_relationship_persistent_dict(item, key, index) if persistent_dict is not None else None
-                item.persistent_storage = self.persistent_storage if persistent_dict is not None else None
+                d = self.persistent_storage._get_relationship_persistent_dict(self, item, key, index) if self.persistent_storage else None
+                item._set_persistent_storage(d if persistent_dict is not None else None, self.persistent_storage if persistent_dict is not None else None)
 
     @property
     def persistent_storage(self) -> typing.Optional[PersistentStorageInterface]:
         return self.__persistent_storage
-
-    @persistent_storage.setter
-    def persistent_storage(self, persistent_storage: PersistentStorageInterface) -> None:
-        self.__persistent_storage = persistent_storage
-        for key in self.__items.keys():
-            item = self.__items[key].value
-            if item:
-                item.persistent_storage = persistent_storage
-        for key in self.__relationships.keys():
-            for index, item in enumerate(self.__relationships[key].values):
-                item.persistent_storage = persistent_storage
-
-    def _get_item_persistent_dict(self, item: typing.Any, key: str) -> typing.Optional[PersistentDictType]:
-        return self.persistent_dict[key] if self.persistent_dict is not None else None
-
-    def _get_relationship_persistent_dict(self, item: PersistentObject, key: str, index: int) -> typing.Optional[PersistentDictType]:
-        # by using inner and outer functions, allows subclasses to override the outer method, delegate it,
-        # and have the delegate call back to the inner method. hopefully this is temporary as the file system is refactored.
-        return self._get_relationship_persistent_dict_inner(item, key, index)
-
-    def _get_relationship_persistent_dict_inner(self, item: PersistentObject, key: str, index: int) -> typing.Optional[PersistentDictType]:
-        # by using inner and outer functions, allows subclasses to override the outer method, delegate it,
-        # and have the delegate call back to the inner method. hopefully this is temporary as the file system is refactored.
-        return self.persistent_dict[key][index] if self.persistent_dict is not None else None
-
-    def _get_relationship_persistent_dict_by_uuid(self, item: PersistentObject, key: str) -> typing.Optional[PersistentDictType]:
-        # by using inner and outer functions, allows subclasses to override the outer method, delegate it,
-        # and have the delegate call back to the inner method. hopefully this is temporary as the file system is refactored.
-        return self._get_relationship_persistent_dict_by_uuid_inner(item, key)
-
-    def _get_relationship_persistent_dict_by_uuid_inner(self, item: PersistentObject, key: str) -> typing.Optional[PersistentDictType]:
-        # by using inner and outer functions, allows subclasses to override the outer method, delegate it,
-        # and have the delegate call back to the inner method. hopefully this is temporary as the file system is refactored.
-        if self.persistent_dict:
-            item_uuid = str(item.uuid)
-            for item_d in self.persistent_dict.get(key, list()):
-                # if uuid.UUID(item_d.get("uuid")) == item.uuid:
-                #     return item_d
-                if item_d.get("uuid") == item_uuid:  # a little dangerous, comparing the uuid str's, significantly faster
-                    return typing.cast(PersistentDictType, item_d)
-        return None
 
     def define_type(self, type: str) -> None:
         self.__type = type
@@ -920,6 +904,9 @@ class PersistentObject(Observable.Observable):
         if self.persistent_object_context:
             self.property_changed("uuid", str(self.uuid))  # dummy write
 
+    def _get_persistence_write_count(self) -> typing.Optional[int]:
+        return self.persistent_storage._get_persistence_write_count(self) if self.persistent_storage else None
+
     @property
     def item_names(self) -> typing.Sequence[str]:
         return list(self.__items.keys())
@@ -961,8 +948,8 @@ class PersistentObject(Observable.Observable):
                 item.begin_reading()
                 item.read_from_dict(item_dict)
                 self.__set_item(key, item)
-                item.persistent_dict = self._get_item_persistent_dict(item, key)
-                item.persistent_storage = self.persistent_storage
+                d = self.persistent_storage._get_item_persistent_dict(self, key) if self.persistent_storage else None
+                item._set_persistent_storage(d, self.persistent_storage)
         for key in self.__relationships.keys():
             storage_key = self.__relationships[key].storage_key
             for item_dict in properties.get(storage_key, list()):
@@ -1105,8 +1092,8 @@ class PersistentObject(Observable.Observable):
 
     def load_item(self, name: str, before_index: int, item: PersistentObject) -> None:
         """ Load item in persistent storage and then into relationship storage, but don't update modified or notify persistent storage. """
-        item.persistent_dict = self._get_relationship_persistent_dict_by_uuid(item, name) or dict()
-        item.persistent_storage = self.persistent_storage
+        d = self.persistent_storage._get_relationship_persistent_dict_by_uuid(self, item, name) or dict() if self.persistent_storage else None
+        item._set_persistent_storage(d, self.persistent_storage)
         relationship = self.__relationships[name]
         relationship.values.insert(before_index, item)
         relationship.index[item.uuid] = item
@@ -1127,8 +1114,7 @@ class PersistentObject(Observable.Observable):
             relationship.remove(name, index, item)
         item.persistent_object_context = None
         item.persistent_object_parent = None
-        item.persistent_storage = None
-        item.persistent_dict = None
+        item._set_persistent_storage(None, None)
         item.close()
 
     def insert_item(self, name: str, before_index: int, item: PersistentObject) -> None:
