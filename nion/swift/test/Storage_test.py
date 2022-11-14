@@ -917,14 +917,14 @@ class TestStorageClass(unittest.TestCase):
             document_model = profile_context.create_document_model(auto_close=False)
             with document_model.ref():
                 data_item = document_model.data_items[0]
-                write_count = data_item.persistent_storage._data_properties_map[data_item.uuid].storage_handler._write_count
+                write_count = data_item._get_persistence_write_count()
                 self.assertTrue(numpy.array_equal(ones.data, data_item.data))
                 data_item.set_data_and_metadata_partial(zeros.data_metadata,
                                                   zeros, (slice(0,8), slice(0, 8)),
                                                   (slice(0,8), slice(0, 8)))
                 self.assertTrue(numpy.array_equal(zeros.data, data_item.data))
                 # ensure no explicit writes took place. the data copy will be memory mapped.
-                self.assertEqual(write_count, data_item.persistent_storage._data_properties_map[data_item.uuid].storage_handler._write_count)
+                self.assertEqual(write_count, data_item._get_persistence_write_count())
             document_model = profile_context.create_document_model(auto_close=False)
             with document_model.ref():
                 data_item = document_model.data_items[0]

@@ -248,14 +248,6 @@ class Project(Persistence.PersistentObject):
     def __data_group_removed(self, name: str, index: int, data_group: DataGroup.DataGroup) -> None:
         self.notify_remove_item("data_groups", data_group, index)
 
-    def _get_relationship_persistent_dict(self, item: Persistence.PersistentObject, key: str, index: int) -> typing.Optional[PersistentDictType]:
-        # note: this delegates to storage system. the storage system must only call the inner version of this function to avoid recursion.
-        return self.__storage_system._get_relationship_persistent_dict(self, item, key, index)
-
-    def _get_relationship_persistent_dict_by_uuid(self, item: Persistence.PersistentObject, key: str) -> typing.Optional[PersistentDictType]:
-        # note: this delegates to storage system. the storage system must only call the inner version of this function to avoid recursion.
-        return self.__storage_system._get_relationship_persistent_dict_by_uuid(self, item, key)
-
     def prepare_read_project(self) -> None:
         logging.getLogger("loader").info(f"Loading project {self.__storage_system.get_identifier()}")
         self._raw_properties, self.__reader_errors = self.__storage_system.read_project_properties()  # combines library and data item properties

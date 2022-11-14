@@ -270,6 +270,32 @@ class PersistentStorageSystem(Persistence.PersistentStorageInterface):
         """Return the internal properties. Callers should not modify and it is ok to not return a copy."""
         return self.__properties
 
+    def _register_persistent_dict(self, item: Persistence.PersistentObject, persistent_dict: typing.Optional[PersistentDictType]) -> None:
+        setattr(item, "__persistent_dict", persistent_dict)
+
+    def _unregister_persistent_dict(self, item: Persistence.PersistentObject) -> None:
+        setattr(item, "__persistent_dict", None)
+
+    def _get_persistent_dict(self, item: Persistence.PersistentObject) -> typing.Optional[PersistentDictType]:
+        return getattr(item, "__persistent_dict", None)
+
+    def _get_item_persistent_dict(self, container: Persistence.PersistentObject, key: str) -> typing.Optional[PersistentDictType]:
+        d = getattr(container, "__persistent_dict", None)
+        return d[key] if d is not None else None
+
+    def _get_relationship_persistent_dict(self, container: Persistence.PersistentObject, item: Persistence.PersistentObject, key: str, index: int) -> typing.Optional[PersistentDictType]:
+        d = getattr(container, "__persistent_dict", None)
+        return d[key][index] if d is not None else None
+
+    def _get_relationship_persistent_dict_by_uuid(self, container: Persistence.PersistentObject, item: Persistence.PersistentObject, key: str) -> typing.Optional[PersistentDictType]:
+        d = getattr(container, "__persistent_dict", None)
+        if d is not None:
+            item_uuid = str(item.uuid)
+            for item_d in d.get(key, list()):
+                if item_d.get("uuid") == item_uuid:  # a little dangerous, comparing the uuid str's, significantly faster
+                    return typing.cast(PersistentDictType, item_d)
+        return None
+
     def __write_properties_if_not_delayed(self, item: typing.Optional[Persistence.PersistentObject]) -> None:
         if not item or self.__write_delay_counts.get(item, 0) == 0:
             self._write_item_properties(item)
@@ -299,14 +325,12 @@ class PersistentStorageSystem(Persistence.PersistentStorageInterface):
 
     def insert_item(self, parent: Persistence.PersistentObject, name: str, before_index: int, item: Persistence.PersistentObject) -> None:
         # insert item in internal storage
-        item.persistent_dict = item.write_to_dict()
-        item.persistent_storage = self
+        item._set_persistent_storage(item.write_to_dict(), self)
         self._insert_item(parent, name, before_index, item)
 
     def remove_item(self, parent: Persistence.PersistentObject, name: str, index: int, item: Persistence.PersistentObject) -> None:
         self._remove_item(parent, name, index, item)
-        item.persistent_dict = typing.cast(typing.Any, None)
-        item.persistent_storage = typing.cast(Persistence.PersistentStorageInterface, None)
+        item._set_persistent_storage(None, None)
 
     def _insert_item(self, parent: Persistence.PersistentObject, name: str, before_index: int, item: Persistence.PersistentObject) -> None:
         storage_dict = self.__update_modified_and_get_storage_dict(parent)
@@ -328,15 +352,13 @@ class PersistentStorageSystem(Persistence.PersistentStorageInterface):
         if item:
             # set the item and update its persistent context
             with self.__properties_lock:
-                item.persistent_dict = item.write_to_dict()
-                item.persistent_storage = self
+                item._set_persistent_storage(item.write_to_dict(), self)
                 storage_dict[name] = item.persistent_dict
         else:
             # clear the item
             with self.__properties_lock:
                 storage_dict.pop(name, None)
-                item.persistent_dict = typing.cast(typing.Any, None)
-                item.persistent_storage = typing.cast(Persistence.PersistentStorageInterface, None)
+                item._set_persistent_storage(None, None)
         self.__write_properties_if_not_delayed(parent)
 
     def set_property(self, object: Persistence.PersistentObject, name: str, value: typing.Any, delayed: bool = False) -> None:
@@ -392,6 +414,9 @@ class PersistentStorageSystem(Persistence.PersistentStorageInterface):
         self.__write_delay_count -= 1
         if self.__write_delay_count == 0:
             self.__write_properties_if_not_delayed(None)
+
+    def _get_persistence_write_count(self, item: Persistence.PersistentObject) -> typing.Optional[int]:
+        return None
 
 
 class FilePersistentStorageSystem(PersistentStorageSystem):
@@ -478,11 +503,6 @@ class ProjectStorageSystemInterface(Persistence.PersistentStorageInterface, typi
     @abc.abstractmethod
     def _read_library_properties(self, migration_stage: ProjectStorageSystemMigrationStage) -> PersistentDictType: ...
 
-    @abc.abstractmethod
-    def _get_relationship_persistent_dict(self, container: Persistence.PersistentObject, item: Persistence.PersistentObject, key: str, index: int) -> typing.Optional[PersistentDictType]: ...
-
-    def _get_relationship_persistent_dict_by_uuid(self, container: Persistence.PersistentObject, item: Persistence.PersistentObject, key: str) -> typing.Optional[PersistentDictType]: ...
-
     def read_project_properties(self) -> typing.Tuple[PersistentDictType, typing.Sequence[ReaderError]]: ...
 
     def restore_item(self, data_item_uuid: uuid.UUID) -> typing.Optional[PersistentDictType]: ...
@@ -531,19 +551,20 @@ class ProjectStorageSystem(PersistentStorageSystem, ProjectStorageSystemInterfac
     def reset(self) -> None:
         self.__storage_adapter_map = dict()
 
+    def _get_persistence_write_count(self, item: Persistence.PersistentObject) -> typing.Optional[int]:
+        return getattr(self._data_properties_map[item.uuid].storage_handler, "_write_count", None)
+
     def _get_relationship_persistent_dict(self, container: Persistence.PersistentObject, item: Persistence.PersistentObject, key: str, index: int) -> typing.Optional[PersistentDictType]:
         if key == "data_items":
             return self._data_properties_map[item.uuid].properties
         else:
-            # note: the storage system is acting as a delegate and must only call the inner version of this function to avoid recursion.
-            return container._get_relationship_persistent_dict_inner(item, key, index)
+            return super()._get_relationship_persistent_dict(container, item, key, index)
 
     def _get_relationship_persistent_dict_by_uuid(self, container: Persistence.PersistentObject, item: Persistence.PersistentObject, key: str) -> typing.Optional[PersistentDictType]:
         if key == "data_items":
             return self._data_properties_map[item.uuid].properties
         else:
-            # note: the storage system is acting as a delegate and must only call the inner version of this function to avoid recursion.
-            return container._get_relationship_persistent_dict_by_uuid_inner(item, key)
+            return super()._get_relationship_persistent_dict_by_uuid(container, item, key)
 
     def get_persistent_dict(self, name: str, item_uuid: uuid.UUID) -> PersistentDictType:
         if name == "data_items":
