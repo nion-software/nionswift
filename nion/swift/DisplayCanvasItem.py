@@ -1,3 +1,4 @@
+import abc
 import typing
 
 from nion.swift import Undo
@@ -76,8 +77,10 @@ class DisplayCanvasItem(CanvasItem.CanvasItemComposition):
     @property
     def mouse_mapping(self) -> Graphics.CoordinateMappingLike: raise NotImplementedError()
 
+    @abc.abstractmethod
     def add_display_control(self, display_control_canvas_item: CanvasItem.AbstractCanvasItem, role: typing.Optional[str] = None) -> None: ...
 
+    @abc.abstractmethod
     def handle_auto_display(self) -> bool: ...
 
     def update_display_properties_and_layers(self, display_calibration_info: DisplayItem.DisplayCalibrationInfo,

@@ -452,11 +452,11 @@ class GridCanvasItemDelegate(GridCanvasItem.GridCanvasItemDelegate):
         return self.__data_grid_controller.display_item_adapter_count
 
     @property
-    def items(self) -> typing.List[DisplayItemAdapter]:
+    def items(self) -> typing.Sequence[DisplayItemAdapter]:
         return self.__data_grid_controller.display_item_adapters
 
     @items.setter
-    def items(self, value: typing.List[DisplayItemAdapter]) -> None:
+    def items(self, value: typing.Sequence[DisplayItemAdapter]) -> None:
         raise NotImplementedError()
 
     def paint_item(self, drawing_context: DrawingContext.DrawingContext, display_item_adapter: DisplayItemAdapter, rect: Geometry.IntRect, is_selected: bool) -> None:

@@ -24,7 +24,7 @@ if typing.TYPE_CHECKING:
     from nion.ui import UserInterface
 
 
-class DisplayScriptCanvasItemDelegate:
+class DisplayScriptCanvasItemDelegate(typing.Protocol):
     # interface must be implemented by the delegate
 
     def begin_mouse_tracking(self) -> None: ...

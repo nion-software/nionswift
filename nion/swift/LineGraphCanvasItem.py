@@ -1195,7 +1195,7 @@ class LineGraphVerticalAxisLabelCanvasItem(CanvasItem.AbstractCanvasItem):
                     drawing_context.translate(-x, -y)
 
 
-class LineGraphLegendCanvasItemDelegate:
+class LineGraphLegendCanvasItemDelegate(typing.Protocol):
     # interface must be implemented by the delegate
 
     def create_move_display_layer_command(self, display_item: DisplayItem.DisplayItem, src_index: int, target_index: int) -> Undo.UndoableCommand: ...

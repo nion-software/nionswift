@@ -119,7 +119,7 @@ class SimpleLineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
     def __init__(self) -> None:
         super().__init__()
         self.__data: typing.Optional[_NDArray] = None
-        self.__background_color: typing.Optional[str] = None
+        self.__background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]] = None
         self.__retained_rebin_1d: typing.Dict[str, typing.Any] = dict()
 
     @property
@@ -137,12 +137,12 @@ class SimpleLineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
         self.update()
 
     @property
-    def background_color(self) -> typing.Optional[str]:
+    def background_color(self) -> typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]:
         """Return the background color."""
         return self.__background_color
 
     @background_color.setter
-    def background_color(self, background_color: typing.Optional[str]) -> None:
+    def background_color(self, background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]) -> None:
         """Set the background color. Use CSS color format."""
         self.__background_color = background_color
         self.update()
@@ -251,12 +251,12 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
         super().close()
 
     @property
-    def background_color(self) -> typing.Optional[str]:
+    def background_color(self) -> typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]:
         """Return the background color."""
         return self.__simple_line_graph_canvas_item.background_color
 
     @background_color.setter
-    def background_color(self, background_color: typing.Optional[str]) -> None:
+    def background_color(self, background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]) -> None:
         """Set the background color, in the CSS color format."""
         self.__simple_line_graph_canvas_item.background_color = background_color
 
