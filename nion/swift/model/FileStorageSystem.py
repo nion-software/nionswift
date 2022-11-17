@@ -261,6 +261,30 @@ class PersistentStorageSystem(Persistence.PersistentStorageInterface):
         """Read internal properties from persistent storage."""
         ...
 
+    def __set_persistent_storage(self, item: Persistence.PersistentObject, persistent_dict: typing.Optional[Persistence.PersistentDictType], persistent_storage: typing.Optional[Persistence.PersistentStorageInterface]) -> None:
+        persistent_storage = typing.cast(typing.Optional[PersistentStorageSystem], persistent_storage)
+        if persistent_storage:
+            persistent_storage._unregister_persistent_dict(item)
+        item.persistent_storage = persistent_storage
+        if persistent_storage:
+            persistent_storage._register_persistent_dict(item, persistent_dict)
+        for key in item.item_names:
+            component_item = item.get_item(key)
+            if component_item:
+                d = item.persistent_storage._get_item_persistent_dict(item, key) if item.persistent_storage else None
+                self.__set_persistent_storage(component_item, d if persistent_dict is not None else None, item.persistent_storage if persistent_dict is not None else None)
+        for key in item.relationship_names:
+            for index, relationship_item in enumerate(item.get_relationship_items(key)):
+                d = item.persistent_storage._get_relationship_persistent_dict(item, relationship_item, key, index) if item.persistent_storage else None
+                self.__set_persistent_storage(relationship_item, d if persistent_dict is not None else None, item.persistent_storage if persistent_dict is not None else None)
+
+    def set_root_item(self, item: Persistence.PersistentObject) -> None:
+        """Set the storage system for this item."""
+        self.__set_persistent_storage(item, self.get_storage_properties(), self)
+
+    def unload_item(self, item: Persistence.PersistentObject) -> None:
+        self._unregister_persistent_dict(item)
+
     def load_properties(self) -> None:
         """Read properties and store them in internal storage. Should be called immediately after instantiation."""
         with self.__properties_lock:
@@ -309,11 +333,11 @@ class PersistentStorageSystem(Persistence.PersistentStorageInterface):
             self.__write_properties_if_not_delayed(persistent_object_parent.parent)
 
     def get_properties(self, item: Persistence.PersistentObject) -> typing.Optional[PersistentDictType]:
-        return item.persistent_dict
+        return self._get_persistent_dict(item)
 
     def __update_modified_and_get_storage_dict(self, item: Persistence.PersistentObject) -> PersistentDictType:
         # update modified time on object and all parent objects in internal storage
-        storage_dict = item.persistent_dict
+        storage_dict = self._get_persistent_dict(item)
         assert storage_dict is not None
         with self.__properties_lock:
             storage_dict["modified"] = item.modified.isoformat()
@@ -323,20 +347,31 @@ class PersistentStorageSystem(Persistence.PersistentStorageInterface):
             self.__update_modified_and_get_storage_dict(parent)
         return storage_dict
 
-    def insert_item(self, parent: Persistence.PersistentObject, name: str, before_index: int, item: Persistence.PersistentObject) -> None:
+    def insert_relationship_item(self, parent: Persistence.PersistentObject, name: str, before_index: int, item: Persistence.PersistentObject) -> None:
         # insert item in internal storage
-        item._set_persistent_storage(item.write_to_dict(), self)
+        self.__set_persistent_storage(item, item.write_to_dict(), self)
         self._insert_item(parent, name, before_index, item)
 
-    def remove_item(self, parent: Persistence.PersistentObject, name: str, index: int, item: Persistence.PersistentObject) -> None:
+    def remove_relationship_item(self, parent: Persistence.PersistentObject, name: str, index: int, item: Persistence.PersistentObject) -> None:
         self._remove_item(parent, name, index, item)
-        item._set_persistent_storage(None, None)
+        self.__set_persistent_storage(item, None, None)
+
+    def load_relationship_item(self, parent: Persistence.PersistentObject, name: str, before_index: int, item: Persistence.PersistentObject) -> None:
+        d = self._get_relationship_persistent_dict_by_uuid(parent, item, name) or dict()
+        self.__set_persistent_storage(item, d, self)
+
+    def unload_relationship_item(self, parent: Persistence.PersistentObject, item: Persistence.PersistentObject) -> None:
+        self.__set_persistent_storage(item, None, None)
+
+    def load_component_item(self, parent: Persistence.PersistentObject, name: str, item: Persistence.PersistentObject) -> None:
+        d = self._get_item_persistent_dict(parent, name) or dict()
+        self.__set_persistent_storage(item, d, self)
 
     def _insert_item(self, parent: Persistence.PersistentObject, name: str, before_index: int, item: Persistence.PersistentObject) -> None:
         storage_dict = self.__update_modified_and_get_storage_dict(parent)
         with self.__properties_lock:
             item_list = storage_dict.setdefault(name, list())
-            item_list.insert(before_index, item.persistent_dict)
+            item_list.insert(before_index, self._get_persistent_dict(item))
         self.__write_properties_if_not_delayed(parent)
 
     def _remove_item(self, parent: Persistence.PersistentObject, name: str, index: int, item: Persistence.PersistentObject) -> None:
@@ -347,18 +382,18 @@ class PersistentStorageSystem(Persistence.PersistentStorageInterface):
             del item_list[index]
         self.__write_properties_if_not_delayed(parent)
 
-    def set_item(self, parent: Persistence.PersistentObject, name: str, item: Persistence.PersistentObject) -> None:
+    def set_component_item(self, parent: Persistence.PersistentObject, name: str, item: Persistence.PersistentObject) -> None:
         storage_dict = self.__update_modified_and_get_storage_dict(parent)
         if item:
             # set the item and update its persistent context
             with self.__properties_lock:
-                item._set_persistent_storage(item.write_to_dict(), self)
-                storage_dict[name] = item.persistent_dict
+                self.__set_persistent_storage(item, item.write_to_dict(), self)
+                storage_dict[name] = self._get_persistent_dict(item)
         else:
             # clear the item
             with self.__properties_lock:
                 storage_dict.pop(name, None)
-                item._set_persistent_storage(None, None)
+                self.__set_persistent_storage(item, None, None)
         self.__write_properties_if_not_delayed(parent)
 
     def set_property(self, object: Persistence.PersistentObject, name: str, value: typing.Any, delayed: bool = False) -> None:
@@ -646,8 +681,9 @@ class ProjectStorageSystem(PersistentStorageSystem, ProjectStorageSystemInterfac
             item_uuid = item.uuid
             storage_handler = self._make_storage_handler(item)
             assert item_uuid not in self.__storage_adapter_map
-            assert item.persistent_dict is not None
-            storage_adapter = DataItemStorageAdapter(storage_handler, item.persistent_dict)
+            persistent_dict = self._get_persistent_dict(item)
+            assert persistent_dict is not None
+            storage_adapter = DataItemStorageAdapter(storage_handler, persistent_dict)
             self.__storage_adapter_map[item_uuid] = storage_adapter
         else:
             super()._insert_item(parent, name, before_index, item)
