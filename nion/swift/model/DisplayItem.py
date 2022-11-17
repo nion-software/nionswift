@@ -1241,26 +1241,11 @@ def display_data_channel_factory(lookup_id: typing.Callable[[str], str]) -> Disp
 class DisplayLayer(Schema.Entity):
     def __init__(self, display_layer_properties: typing.Optional[Persistence.PersistentDictType] = None) -> None:
         super().__init__(Model.DisplayLayer)
-        self.__persistent_storage: typing.Optional[Persistence.PersistentStorageInterface] = None
+        self.persistent_storage: typing.Optional[Persistence.PersistentStorageInterface] = None
         self.display_data_channel: typing.Optional[DisplayDataChannel] = None
         display_layer_properties = display_layer_properties or dict()
         for k, v in display_layer_properties.items():
             setattr(self, k, v)
-
-    @property
-    def persistent_dict(self) -> typing.Optional[Persistence.PersistentDictType]:
-        return self.persistent_storage._get_persistent_dict(typing.cast(Persistence.PersistentObject, self)) if self.persistent_storage else None
-
-    @property
-    def persistent_storage(self) -> typing.Optional[Persistence.PersistentStorageInterface]:
-        return self.__persistent_storage
-
-    def _set_persistent_storage(self, persistent_dict: typing.Optional[Persistence.PersistentDictType], persistent_storage: typing.Optional[Persistence.PersistentStorageInterface]) -> None:
-        if persistent_storage:
-            persistent_storage._unregister_persistent_dict(typing.cast(Persistence.PersistentObject, self))
-        self.__persistent_storage = persistent_storage
-        if persistent_storage:
-            persistent_storage._register_persistent_dict(typing.cast(Persistence.PersistentObject, self), persistent_dict)
 
     @property
     def display_item(self) -> DisplayItem:

@@ -236,40 +236,37 @@ class PersistentStorageInterface(typing.Protocol):
     def close(self) -> None: ...
 
     @abc.abstractmethod
+    def set_root_item(self, item: PersistentObject) -> None: ...
+
+    @abc.abstractmethod
+    def unload_item(self, item: PersistentObject) -> None: ...
+
+    @abc.abstractmethod
     def load_properties(self) -> None: ...
 
     @abc.abstractmethod
     def get_storage_properties(self) -> typing.Optional[PersistentDictType]: ...
 
     @abc.abstractmethod
-    def _register_persistent_dict(self, item: PersistentObject, persistent_dict: typing.Optional[PersistentDictType]) -> None: ...
-
-    @abc.abstractmethod
-    def _unregister_persistent_dict(self, item: PersistentObject) -> None: ...
-
-    @abc.abstractmethod
-    def _get_persistent_dict(self, item: PersistentObject) -> typing.Optional[PersistentDictType]: ...
-
-    @abc.abstractmethod
-    def _get_item_persistent_dict(self, container: PersistentObject, key: str) -> typing.Optional[PersistentDictType]: ...
-
-    @abc.abstractmethod
-    def _get_relationship_persistent_dict(self, container: PersistentObject, item: PersistentObject, key: str, index: int) -> typing.Optional[PersistentDictType]: ...
-
-    @abc.abstractmethod
-    def _get_relationship_persistent_dict_by_uuid(self, container: PersistentObject, item: PersistentObject, key: str) -> typing.Optional[PersistentDictType]: ...
-
-    @abc.abstractmethod
     def get_properties(self, object: typing.Any) -> typing.Optional[PersistentDictType]: ...
 
     @abc.abstractmethod
-    def insert_item(self, parent: PersistentObject, name: str, before_index: int, item: PersistentObject) -> None: ...
+    def insert_relationship_item(self, parent: PersistentObject, name: str, before_index: int, item: PersistentObject) -> None: ...
 
     @abc.abstractmethod
-    def remove_item(self, parent: PersistentObject, name: str, index: int, item: PersistentObject) -> None: ...
+    def remove_relationship_item(self, parent: PersistentObject, name: str, index: int, item: PersistentObject) -> None: ...
 
     @abc.abstractmethod
-    def set_item(self, parent: PersistentObject, name: str, item: PersistentObject) -> None: ...
+    def load_relationship_item(self, parent: PersistentObject, name: str, before_index: int, item: PersistentObject) -> None: ...
+
+    @abc.abstractmethod
+    def unload_relationship_item(self, parent: PersistentObject, item: PersistentObject) -> None: ...
+
+    @abc.abstractmethod
+    def load_component_item(self, parent: PersistentObject, name: str, item: PersistentObject) -> None: ...
+
+    @abc.abstractmethod
+    def set_component_item(self, parent: PersistentObject, name: str, item: PersistentObject) -> None: ...
 
     @abc.abstractmethod
     def set_property(self, object: PersistentObject, name: str, value: typing.Any, delayed: bool = False) -> None: ...
@@ -655,7 +652,7 @@ class PersistentObject(Observable.Observable):
 
     def close(self) -> None:
         if self.persistent_storage:
-            self.persistent_storage._unregister_persistent_dict(self)
+            self.persistent_storage.unload_item(self)
         self.about_to_close_event.fire()
         assert not self._closed
         self._closed = True
@@ -740,7 +737,7 @@ class PersistentObject(Observable.Observable):
 
     def set_storage_system(self, storage_system: PersistentStorageInterface) -> None:
         """Set the storage system for this item."""
-        self._set_persistent_storage(storage_system.get_storage_properties(), storage_system)
+        storage_system.set_root_item(self)
 
     def update_storage_system(self) -> None:
         """Update the storage system properties by re-reading from storage.
@@ -748,7 +745,7 @@ class PersistentObject(Observable.Observable):
         Useful when reloading.
         """
         assert self.persistent_storage
-        self._set_persistent_storage(self.persistent_storage.get_storage_properties() if self.persistent_storage else None, self.persistent_storage)
+        self.persistent_storage.set_root_item(self)
 
     def update_item_context(self, item: PersistentObject) -> None:
         """Update the context on the item."""
@@ -787,28 +784,12 @@ class PersistentObject(Observable.Observable):
         self.persistent_object_context_changed_event.fire()
 
     @property
-    def persistent_dict(self) -> typing.Optional[PersistentDictType]:
-        return self.persistent_storage._get_persistent_dict(self) if self.persistent_storage else None
-
-    def _set_persistent_storage(self, persistent_dict: typing.Optional[PersistentDictType], persistent_storage: typing.Optional[PersistentStorageInterface]) -> None:
-        if persistent_storage:
-            persistent_storage._unregister_persistent_dict(self)
-        self.__persistent_storage = persistent_storage
-        if persistent_storage:
-            persistent_storage._register_persistent_dict(self, persistent_dict)
-        for key in self.__items.keys():
-            item = self.__items[key].value
-            if item:
-                d = self.persistent_storage._get_item_persistent_dict(self, key) if self.persistent_storage else None
-                item._set_persistent_storage(d if persistent_dict is not None else None, self.persistent_storage if persistent_dict is not None else None)
-        for key in self.__relationships.keys():
-            for index, item in enumerate(self.__relationships[key].values):
-                d = self.persistent_storage._get_relationship_persistent_dict(self, item, key, index) if self.persistent_storage else None
-                item._set_persistent_storage(d if persistent_dict is not None else None, self.persistent_storage if persistent_dict is not None else None)
-
-    @property
     def persistent_storage(self) -> typing.Optional[PersistentStorageInterface]:
         return self.__persistent_storage
+
+    @persistent_storage.setter
+    def persistent_storage(self, persistent_storage: typing.Optional[PersistentStorageInterface]) -> None:
+        self.__persistent_storage = persistent_storage
 
     def define_type(self, type: str) -> None:
         self.__type = type
@@ -948,8 +929,8 @@ class PersistentObject(Observable.Observable):
                 item.begin_reading()
                 item.read_from_dict(item_dict)
                 self.__set_item(key, item)
-                d = self.persistent_storage._get_item_persistent_dict(self, key) if self.persistent_storage else None
-                item._set_persistent_storage(d, self.persistent_storage)
+                if self.persistent_storage:
+                    self.persistent_storage.load_component_item(self, key, item)
         for key in self.__relationships.keys():
             storage_key = self.__relationships[key].storage_key
             for item_dict in properties.get(storage_key, list()):
@@ -1092,13 +1073,13 @@ class PersistentObject(Observable.Observable):
 
     def load_item(self, name: str, before_index: int, item: PersistentObject) -> None:
         """ Load item in persistent storage and then into relationship storage, but don't update modified or notify persistent storage. """
-        d = self.persistent_storage._get_relationship_persistent_dict_by_uuid(self, item, name) or dict() if self.persistent_storage else None
-        item._set_persistent_storage(d, self.persistent_storage)
         relationship = self.__relationships[name]
         relationship.values.insert(before_index, item)
         relationship.index[item.uuid] = item
         item.about_to_be_inserted(self)
         item.persistent_object_parent = PersistentObjectParent(self, relationship_name=name)
+        if self.persistent_storage:
+            self.persistent_storage.load_relationship_item(self, name, before_index, item)
         if self.persistent_object_context:  # when item is not top level, self will not have persistent object context
             item.persistent_object_context = self.persistent_object_context
         if relationship.insert:
@@ -1114,7 +1095,8 @@ class PersistentObject(Observable.Observable):
             relationship.remove(name, index, item)
         item.persistent_object_context = None
         item.persistent_object_parent = None
-        item._set_persistent_storage(None, None)
+        if self.persistent_storage:
+            self.persistent_storage.unload_relationship_item(self, item)
         item.close()
 
     def insert_item(self, name: str, before_index: int, item: PersistentObject) -> None:
@@ -1127,8 +1109,9 @@ class PersistentObject(Observable.Observable):
         # the persistent_object_parent and relationship need to be established before
         # calling item_inserted.
         item.about_to_be_inserted(self)
+        if self.persistent_storage:
+            self.persistent_storage.insert_relationship_item(self, name, before_index, item)
         if self.persistent_object_context:
-            self.item_inserted(name, before_index, item)  # this will also update item's persistent_object_context
             item.persistent_object_context = self.persistent_object_context
         if relationship.insert:
             relationship.insert(name, before_index, item)
@@ -1149,8 +1132,8 @@ class PersistentObject(Observable.Observable):
             relationship.remove(name, item_index, item)
         if self.persistent_object_context:  # only clear if self has a context; it won't if it is still being constructed
             item.persistent_object_context = None
-        if self.persistent_object_context:
-            self.item_removed(name, item_index, item)  # this will also update item's persistent_object_context
+        if self.persistent_storage:
+            self.persistent_storage.remove_relationship_item(self, name, item_index, item)  # this will also update item's persistent_object_context
         item.persistent_object_parent = None
         item.close()
 
@@ -1174,22 +1157,14 @@ class PersistentObject(Observable.Observable):
         relationship = self.__relationships[name]
         return relationship.index.get(uuid)
 
-    def item_inserted(self, name: str, before_index: int, item: PersistentObject) -> None:
-        """ Call this to notify this context that the item before before_index has just been inserted into the parent in
-        the relationship with the given name. """
-        assert self.persistent_storage
-        self.persistent_storage.insert_item(self, name, before_index, item)
-
-    def item_removed(self, name: str, index: int, item: PersistentObject) -> None:
-        """ Call this to notify this context that the item at item_index has been removed from the parent in the
-        relationship with the given name. """
-        assert self.persistent_storage
-        self.persistent_storage.remove_item(self, name, index, item)
+    def get_relationship_items(self, name: str) -> typing.List[PersistentObject]:
+        """Return the relationship items without making a copy."""
+        return self.__relationships[name].values
 
     def item_set(self, name: str, item: PersistentObject) -> None:
         """ Call this to notify this context that an item with name has been set on the parent. """
         assert self.persistent_storage
-        self.persistent_storage.set_item(self, name, item)
+        self.persistent_storage.set_component_item(self, name, item)
 
     def property_changed(self, name: str, value: typing.Any) -> None:
         """ Call this to notify this context that a property with name has changed to value on object. """
