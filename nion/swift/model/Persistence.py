@@ -6,20 +6,20 @@ from __future__ import annotations
 # standard libraries
 import abc
 import copy
+import dataclasses
 import datetime
 import json
 import logging
 import operator
-
-import numpy
-import numpy.typing
 import re
+import traceback
 import typing
 import uuid
 import weakref
 
 # third party libraries
-# None
+import numpy
+import numpy.typing
 
 # local libraries
 from nion.utils import Converter
@@ -230,10 +230,23 @@ class PersistentRelationship:
         return self.key if self.key else self.name
 
 
+@dataclasses.dataclass
+class ReaderError:
+    identifier: str
+    exception: Exception
+    tb: traceback.StackSummary
+
+
 class PersistentStorageInterface(typing.Protocol):
 
     @abc.abstractmethod
+    def get_identifier(self) -> str: ...
+
+    @abc.abstractmethod
     def close(self) -> None: ...
+
+    @abc.abstractmethod
+    def reset(self) -> None: ...
 
     @abc.abstractmethod
     def set_root_item(self, item: PersistentObject) -> None: ...
@@ -245,7 +258,15 @@ class PersistentStorageInterface(typing.Protocol):
     def load_properties(self) -> None: ...
 
     @abc.abstractmethod
+    def read_project_properties(self) -> typing.Tuple[PersistentDictType, typing.Sequence[ReaderError]]:
+        """Read from storage."""
+        ...
+
+    @abc.abstractmethod
     def get_storage_properties(self) -> typing.Optional[PersistentDictType]: ...
+
+    @abc.abstractmethod
+    def migrate_to_latest(self) -> None: ...
 
     @abc.abstractmethod
     def get_properties(self, object: typing.Any) -> typing.Optional[PersistentDictType]: ...
@@ -294,6 +315,12 @@ class PersistentStorageInterface(typing.Protocol):
 
     @abc.abstractmethod
     def rewrite_item(self, item: PersistentObject) -> None: ...
+
+    @abc.abstractmethod
+    def restore_item(self, data_item_uuid: uuid.UUID) -> typing.Optional[PersistentDictType]: ...
+
+    @abc.abstractmethod
+    def prune(self) -> None: ...
 
     @abc.abstractmethod
     def enter_transaction(self) -> None: ...
