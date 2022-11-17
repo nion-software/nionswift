@@ -41,7 +41,7 @@ class Project(Persistence.PersistentObject):
 
     _processing_descriptions: PersistentDictType = dict()
 
-    def __init__(self, storage_system: FileStorageSystem.ProjectStorageSystemInterface, cache_factory: typing.Optional[Cache.CacheFactory] = None) -> None:
+    def __init__(self, storage_system: Persistence.PersistentStorageInterface, cache_factory: typing.Optional[Cache.CacheFactory] = None) -> None:
         super().__init__()
 
         self.define_type("project")
@@ -65,7 +65,7 @@ class Project(Persistence.PersistentObject):
         self.__has_been_read = False
 
         self._raw_properties: typing.Optional[PersistentDictType] = None
-        self.__reader_errors: typing.Sequence[FileStorageSystem.ReaderError] = list()
+        self.__reader_errors: typing.Sequence[Persistence.ReaderError] = list()
 
         self.__storage_system = storage_system
 
@@ -209,7 +209,7 @@ class Project(Persistence.PersistentObject):
         return ListModel.PredicateFilter(functools.partial(is_display_item_active, weakref.ref(self)))
 
     @property
-    def project_storage_system(self) -> FileStorageSystem.ProjectStorageSystemInterface:
+    def project_storage_system(self) -> Persistence.PersistentStorageInterface:
         return self.__storage_system
 
     def __data_item_inserted(self, name: str, before_index: int, data_item: DataItem.DataItem) -> None:

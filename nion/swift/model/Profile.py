@@ -120,7 +120,7 @@ class ProjectReference(Persistence.PersistentObject):
     def project_reference_parts(self) -> typing.Sequence[str]:
         raise NotImplementedError()
 
-    def make_storage(self, profile_context: typing.Optional[ProfileContext]) -> typing.Optional[FileStorageSystem.ProjectStorageSystemInterface]:
+    def make_storage(self, profile_context: typing.Optional[ProfileContext]) -> typing.Optional[Persistence.PersistentStorageInterface]:
         raise NotImplementedError()
 
     def read_project_info(self, profile_context: typing.Optional[ProfileContext]) -> None:
@@ -208,7 +208,7 @@ class ProjectReference(Persistence.PersistentObject):
                 return self._upgrade_project_storage_system(project_storage_system)
         return None
 
-    def _upgrade_project_storage_system(self, project_storage_system: FileStorageSystem.ProjectStorageSystemInterface) -> ProjectReference:
+    def _upgrade_project_storage_system(self, project_storage_system: Persistence.PersistentStorageInterface) -> ProjectReference:
         raise NotImplementedError()
 
 
@@ -237,7 +237,7 @@ class IndexProjectReference(ProjectReference):
         project_path = self.project_path
         return project_path.parts if project_path else tuple()
 
-    def make_storage(self, profile_context: typing.Optional[ProfileContext]) -> typing.Optional[FileStorageSystem.ProjectStorageSystemInterface]:
+    def make_storage(self, profile_context: typing.Optional[ProfileContext]) -> typing.Optional[Persistence.PersistentStorageInterface]:
         project_path = self.project_path
         if project_path:
             return FileStorageSystem.make_index_project_storage_system(project_path)
@@ -283,7 +283,7 @@ class FolderProjectReference(ProjectReference):
     def project_reference_parts(self) -> typing.Sequence[str]:
         return self.project_folder_path.parts if self.project_folder_path else tuple()
 
-    def make_storage(self, profile_context: typing.Optional[ProfileContext]) -> typing.Optional[FileStorageSystem.ProjectStorageSystemInterface]:
+    def make_storage(self, profile_context: typing.Optional[ProfileContext]) -> typing.Optional[Persistence.PersistentStorageInterface]:
         if self.project_folder_path:
             return FileStorageSystem.make_folder_project_storage_system(self.project_folder_path)
         return None
@@ -299,7 +299,7 @@ class FolderProjectReference(ProjectReference):
         except Exception:
             return super()._get_last_used()
 
-    def _upgrade_project_storage_system(self, project_storage_system: FileStorageSystem.ProjectStorageSystemInterface) -> ProjectReference:
+    def _upgrade_project_storage_system(self, project_storage_system: Persistence.PersistentStorageInterface) -> ProjectReference:
         legacy_path = pathlib.Path(project_storage_system.get_identifier())
         target_project_path = legacy_path.parent.with_suffix(".nsproj")
         target_data_path = target_project_path.with_name(target_project_path.stem + " Data")
@@ -313,7 +313,10 @@ class FolderProjectReference(ProjectReference):
         target_project_path.write_text(target_project_data_json, "utf-8")
         with contextlib.closing(FileStorageSystem.make_index_project_storage_system(target_project_path)) as new_storage_system:
             new_storage_system.load_properties()
-            FileStorageSystem.migrate_to_latest(project_storage_system, new_storage_system)
+            FileStorageSystem.migrate_to_latest(
+                typing.cast(FileStorageSystem.MigrationReader, project_storage_system),
+                typing.cast(FileStorageSystem.MigrationWriter, new_storage_system)
+            )
         new_project_reference = IndexProjectReference()
         new_project_reference.project_path = target_project_path
         new_project_reference.project_uuid = target_project_uuid
