@@ -64,6 +64,8 @@ __application_data = ApplicationData()
 
 def set_file_path(file_path: pathlib.Path) -> None:
     __application_data.file_path = file_path
+    # requires special bootstrapping for session metadata
+    __session_metadata.update()
 
 
 def get_data() -> typing.Dict[str, typing.Any]:
@@ -86,9 +88,13 @@ class SessionMetadata:
         microscopist_field = StructuredModel.define_field("microscopist", StructuredModel.STRING)
         sample_field = StructuredModel.define_field("sample", StructuredModel.STRING)
         sample_area_field = StructuredModel.define_field("sample_area", StructuredModel.STRING)
-        schema = StructuredModel.define_record("SessionMetadata", [site_field, instrument_field, task_field, microscopist_field, sample_field, sample_area_field])
 
-        self.__model = StructuredModel.build_model(schema, value=get_data().get("session_metadata", dict()))
+        fields = [site_field, instrument_field, task_field, microscopist_field, sample_field, sample_area_field]
+        self.__field_descriptions = typing.cast(typing.List[typing.Mapping[str, typing.Any]], fields)
+
+        schema = StructuredModel.define_record("SessionMetadata", fields)
+
+        self.__model = typing.cast(StructuredModel.RecordModel, StructuredModel.build_model(schema, value=get_data().get("session_metadata", dict())))
 
         def model_changed() -> None:
             data = get_data()
@@ -99,7 +105,17 @@ class SessionMetadata:
 
     @property
     def model(self) -> StructuredModel.RecordModel:
-        return typing.cast(StructuredModel.RecordModel, self.__model)
+        return self.__model
+
+    def update(self) -> None:
+        # handle special bootstrapping for session metadata. this can be solved in the long
+        # run by using a data structure which properly notifies listeners of changes when reloaded.
+        field_names = [fd["name"] for fd in self.__field_descriptions]
+        fields = get_data().get("session_metadata", dict())
+        for field in fields:
+            if field in field_names:
+                setattr(self.__model, field, fields[field])
+
 
 __session_metadata = SessionMetadata()
 
