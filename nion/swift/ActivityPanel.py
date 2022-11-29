@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 # standard libraries
+import asyncio
 import gettext
+import threading
 import typing
 
 # third party libraries
@@ -39,25 +41,70 @@ class ActivityComponentFactory(typing.Protocol):
     def make_activity_component(self, activity: Activity.Activity) -> typing.Optional[Declarative.HandlerLike]: ...
 
 
+class TaskHelper:
+    def __init__(self) -> None:
+        self.__pending_task_lock = threading.RLock()
+        self.__pending_task: typing.Optional[asyncio.Task[None]] = None
+
+    def close(self) -> None:
+        with self.__pending_task_lock:
+            if self.__pending_task:
+                self.__pending_task.cancel()
+                self.__pending_task = None
+
+    def register_task(self, task: asyncio.Task[None]) -> None:
+        with self.__pending_task_lock:
+            if self.__pending_task:
+                self.__pending_task.cancel()
+                self.__pending_task = None
+            self.__pending_task = task
+
+            def clear_pending(t: asyncio.Task[None]) -> None:
+                self.__pending_task = task
+
+            task.add_done_callback(clear_pending)
+
+
 class ActivityController(Declarative.Handler):
     def __init__(self, document_controller: DocumentController.DocumentController) -> None:
         super().__init__()
         self.document_controller = document_controller
 
+        self.__activity_appended_task = TaskHelper()
+        self.__activity_finished_task = TaskHelper()
+
+        # the activities list model is used for the UI, but is not threadsafe.
+        # the pending activities is used for items that might be waiting to be added
+        # to the list model.
+        self.__pending_activities_lock = threading.RLock()
+        self.__pending_append_activities: typing.List[Activity.Activity] = list()
+        self.__pending_finished_activities: typing.List[Activity.Activity] = list()
+
         activities = ListModel.ListModel[Activity.Activity]()
         stack_index = Model.PropertyModel[int](0)
 
         def activity_appended(activity: Activity.Activity) -> None:
-            async def append_activity(activity: Activity.Activity) -> None:
-                activities.append_item(activity)
+            async def append_activity() -> None:
+                with self.__pending_activities_lock:
+                    for activity in self.__pending_append_activities:
+                        activities.append_item(activity)
 
-            document_controller.event_loop.create_task(append_activity(activity))
+            with self.__pending_activities_lock:
+                self.__pending_append_activities.append(activity)
+                self.__activity_finished_task.register_task(document_controller.event_loop.create_task(append_activity()))
 
         def activity_finished(activity: Activity.Activity) -> None:
-            async def finish_activity(activity: Activity.Activity) -> None:
-                activities.remove_item(activities.items.index(activity))
+            async def finish_activity() -> None:
+                with self.__pending_activities_lock:
+                    for activity in reversed(self.__pending_finished_activities):
+                        activities.remove_item(activities.items.index(activity))
 
-            document_controller.event_loop.create_task(finish_activity(activity))
+            with self.__pending_activities_lock:
+                if activity in self.__pending_append_activities:
+                    self.__pending_append_activities.remove(activity)
+                else:
+                    self.__pending_finished_activities.append(activity)
+                self.__activity_finished_task.register_task(document_controller.event_loop.create_task(finish_activity()))
 
         self.__activity_appended_listener = Activity.activity_appended_event.listen(activity_appended)
         self.__activity_finished_listener = Activity.activity_finished_event.listen(activity_finished)
@@ -89,6 +136,13 @@ class ActivityController(Declarative.Handler):
             spacing=8,
             margin=8
         )
+
+    def close(self) -> None:
+        self.__activity_appended_listener = typing.cast(typing.Any, None)
+        self.__activity_finished_listener = typing.cast(typing.Any, None)
+        self.__activity_appended_task.close()
+        self.__activity_finished_task.close()
+        super().close()
 
     def create_handler(self, component_id: str, container: typing.Any = None, item: typing.Any = None, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
         # this is called to construct contained declarative component handlers within this handler.
