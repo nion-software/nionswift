@@ -88,6 +88,7 @@ class ActivityController(Declarative.Handler):
                 with self.__pending_activities_lock:
                     for activity in self.__pending_append_activities:
                         activities.append_item(activity)
+                    self.__pending_append_activities.clear()
 
             with self.__pending_activities_lock:
                 self.__pending_append_activities.append(activity)
@@ -98,6 +99,7 @@ class ActivityController(Declarative.Handler):
                 with self.__pending_activities_lock:
                     for activity in reversed(self.__pending_finished_activities):
                         activities.remove_item(activities.items.index(activity))
+                    self.__pending_finished_activities.clear()
 
             with self.__pending_activities_lock:
                 if activity in self.__pending_append_activities:
