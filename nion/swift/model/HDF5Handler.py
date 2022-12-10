@@ -3,7 +3,6 @@
 """
 from __future__ import annotations
 
-import dataclasses
 import datetime
 import io
 import json
@@ -158,6 +157,10 @@ class HDF5Handler(StorageHandler.StorageHandler):
         self.__close_fp()
         _file_manager.close(pathlib.Path(self.__file_path))
 
+    @property
+    def factory(self) -> StorageHandler.StorageHandlerFactoryLike:
+        return HDF5HandlerFactory()
+
     # called before the file is moved; close but don't count.
     def prepare_move(self) -> None:
         with self.__lock:
@@ -172,21 +175,6 @@ class HDF5Handler(StorageHandler.StorageHandler):
     def is_valid(self) -> bool:
         return True
 
-    @classmethod
-    def is_matching(self, file_path: str) -> bool:
-        if file_path.endswith(".h5") and os.path.exists(file_path):
-            return True
-        return False
-
-    @classmethod
-    def make(cls, file_path: pathlib.Path) -> StorageHandler.StorageHandler:
-        return cls(cls.make_path(file_path))
-
-    @classmethod
-    def make_path(cls, file_path: pathlib.Path) -> str:
-        return str(file_path.with_suffix(cls.get_extension()))
-
-    @classmethod
     def get_extension(self) -> str:
         return ".h5"
 
@@ -293,3 +281,20 @@ class HDF5Handler(StorageHandler.StorageHandler):
     def __close_fp(self) -> None:
         self.__dataset = None
         self.__file.close()
+
+
+class HDF5HandlerFactory(StorageHandler.StorageHandlerFactoryLike):
+
+    def is_matching(self, file_path: str) -> bool:
+        if file_path.endswith(".h5") and os.path.exists(file_path):
+            return True
+        return False
+
+    def make(self, file_path: pathlib.Path) -> StorageHandler.StorageHandler:
+        return HDF5Handler(self.make_path(file_path))
+
+    def make_path(self, file_path: pathlib.Path) -> str:
+        return str(file_path.with_suffix(self.get_extension()))
+
+    def get_extension(self) -> str:
+        return ".h5"

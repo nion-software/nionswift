@@ -392,6 +392,10 @@ class NDataHandler(StorageHandler.StorageHandler):
     def close(self) -> None:
         NDataHandler.count -= 1
 
+    @property
+    def factory(self) -> StorageHandler.StorageHandlerFactoryLike:
+        return NDataHandlerFactory()
+
     # called before the file is moved; close but don't count.
     def prepare_move(self) -> None:
         pass
@@ -404,36 +408,6 @@ class NDataHandler(StorageHandler.StorageHandler):
     def is_valid(self) -> bool:
         return True
 
-    @classmethod
-    def is_matching(cls, file_path: str) -> bool:
-        """
-            Return whether the given absolute file path is an ndata file.
-        """
-        if file_path.endswith(".ndata") and os.path.exists(file_path):
-            try:
-                with open(file_path, "r+b") as fp:
-                    local_files, dir_files, eocd = parse_zip(fp)
-                    contains_data = b"data.npy" in dir_files
-                    contains_metadata = b"metadata.json" in dir_files
-                    file_count = contains_data + contains_metadata  # use fact that True is 1, False is 0
-                    # TODO: make sure ndata isn't compressed, or handle it
-                    if len(dir_files) != file_count or file_count == 0:
-                        return False
-                    return True
-            except Exception as e:
-                logging.error("Exception parsing ndata file: %s", file_path)
-                logging.error(str(e))
-        return False
-
-    @classmethod
-    def make(cls, file_path: pathlib.Path) -> StorageHandler.StorageHandler:
-        return NDataHandler(NDataHandler.make_path(file_path))
-
-    @classmethod
-    def make_path(cls, file_path: pathlib.Path) -> str:
-        return str(file_path.with_suffix(cls.get_extension()))
-
-    @classmethod
     def get_extension(self) -> str:
         return ".ndata"
 
@@ -524,3 +498,33 @@ class NDataHandler(StorageHandler.StorageHandler):
             #logging.debug("DELETE data file %s", absolute_file_path)
             if os.path.isfile(absolute_file_path):
                 os.remove(absolute_file_path)
+
+
+class NDataHandlerFactory(StorageHandler.StorageHandlerFactoryLike):
+
+    def is_matching(self, file_path: str) -> bool:
+        """Return whether the given absolute file path is a ndata file."""
+        if file_path.endswith(".ndata") and os.path.exists(file_path):
+            try:
+                with open(file_path, "r+b") as fp:
+                    local_files, dir_files, eocd = parse_zip(fp)
+                    contains_data = b"data.npy" in dir_files
+                    contains_metadata = b"metadata.json" in dir_files
+                    file_count = contains_data + contains_metadata  # use fact that True is 1, False is 0
+                    # TODO: make sure ndata isn't compressed, or handle it
+                    if len(dir_files) != file_count or file_count == 0:
+                        return False
+                    return True
+            except Exception as e:
+                logging.error("Exception parsing ndata file: %s", file_path)
+                logging.error(str(e))
+        return False
+
+    def make(self, file_path: pathlib.Path) -> StorageHandler.StorageHandler:
+        return NDataHandler(self.make_path(file_path))
+
+    def make_path(self, file_path: pathlib.Path) -> str:
+        return str(file_path.with_suffix(self.get_extension()))
+
+    def get_extension(self) -> str:
+        return ".ndata"

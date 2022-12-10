@@ -120,8 +120,8 @@ class TempProfileContext:
         self.__profile = None
 
     @property
-    def _file_handlers(self):
-        return FileStorageSystem.FileProjectStorageSystem._file_handlers
+    def _file_handler_factories(self):
+        return FileStorageSystem.FileProjectStorageSystem._file_handler_factories
 
     def __enter__(self):
         return self
@@ -3087,9 +3087,9 @@ class TestStorageClass(unittest.TestCase):
             data_source_dict["dimensional_calibrations"] = [{ "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }]
             data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
             data_item_dict["data_sources"] = [data_source_dict]
-            file_handler = profile_context._file_handlers[0]
-            file_path = pathlib.Path(data_path, "File").with_suffix(file_handler.get_extension())
-            handler = file_handler(file_path)
+            file_handler_factory = profile_context._file_handler_factories[0]
+            file_path = pathlib.Path(data_path, "File").with_suffix(file_handler_factory.get_extension())
+            handler = file_handler_factory.make(file_path)
             with contextlib.closing(handler):
                 handler.write_properties(data_item_dict, DateTime.utcnow())
                 handler.write_data(numpy.zeros((8,8)), DateTime.utcnow())
@@ -3097,9 +3097,9 @@ class TestStorageClass(unittest.TestCase):
             document_model = profile_context.create_document_model(auto_close=False)
             with document_model.ref():
                 document_model._project.migrate_to_latest()
-                file_path = document_model.data_items[0]._test_get_file_path()
+                file_path = pathlib.Path(document_model.data_items[0]._test_get_file_path())
             # verify
-            handler = profile_context._file_handlers[0](file_path)
+            handler = profile_context._file_handler_factories[0].make(file_path)
             with contextlib.closing(handler):
                 new_data_item_dict = handler.read_properties()
                 self.assertEqual(new_data_item_dict["uuid"], data_item_dict["uuid"])
@@ -3143,9 +3143,9 @@ class TestStorageClass(unittest.TestCase):
             data_source_dict["dimensional_calibrations"] = [{ "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }]
             data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
             data_item_dict["data_sources"] = [data_source_dict]
-            file_handler = profile_context._file_handlers[0]
-            file_path = pathlib.Path(data_path, "File").with_suffix(file_handler.get_extension())
-            handler = file_handler(file_path)
+            file_handler_factory = profile_context._file_handler_factories[0]
+            file_path = pathlib.Path(data_path, "File").with_suffix(file_handler_factory.get_extension())
+            handler = file_handler_factory.make(file_path)
             with contextlib.closing(handler):
                 handler.write_properties(data_item_dict, DateTime.utcnow())
                 handler.write_data(numpy.zeros((8,8)), DateTime.utcnow())
@@ -3154,7 +3154,7 @@ class TestStorageClass(unittest.TestCase):
             with document_model.ref():
                 document_model._project.migrate_to_latest()
             # verify
-            handler = profile_context._file_handlers[0](file_path)
+            handler = profile_context._file_handler_factories[0].make(file_path)
             with contextlib.closing(handler):
                 new_data_item_dict = handler.read_properties()
                 self.assertEqual(new_data_item_dict["uuid"], data_item_dict["uuid"])
@@ -3181,8 +3181,8 @@ class TestStorageClass(unittest.TestCase):
             data_source_dict["dimensional_calibrations"] = [{ "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }]
             data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
             data_item_dict["data_sources"] = [data_source_dict]
-            file_handler = profile_context._file_handlers[0]
-            handler = file_handler(pathlib.Path(data_path, "File").with_suffix(file_handler.get_extension()))
+            file_handler_factory = profile_context._file_handler_factories[0]
+            handler = file_handler_factory.make(pathlib.Path(data_path, "File").with_suffix(file_handler_factory.get_extension()))
             with contextlib.closing(handler):
                 handler.write_properties(data_item_dict, DateTime.utcnow())
                 handler.write_data(numpy.zeros((8,8)), DateTime.utcnow())
@@ -3216,8 +3216,8 @@ class TestStorageClass(unittest.TestCase):
             data_source_dict["dimensional_calibrations"] = [{ "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }]
             data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
             data_item_dict["data_sources"] = [data_source_dict]
-            file_handler = profile_context._file_handlers[0]
-            handler = file_handler(pathlib.Path(data_path, "File").with_suffix(file_handler.get_extension()))
+            file_handler_factory = profile_context._file_handler_factories[0]
+            handler = file_handler_factory.make(pathlib.Path(data_path, "File").with_suffix(file_handler_factory.get_extension()))
             with contextlib.closing(handler):
                 handler.write_properties(data_item_dict, DateTime.utcnow())
                 handler.write_data(numpy.zeros((8,8)), DateTime.utcnow())
@@ -3249,8 +3249,8 @@ class TestStorageClass(unittest.TestCase):
             data_source_dict["dimensional_calibrations"] = [{ "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }]
             data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
             data_item_dict["data_sources"] = [data_source_dict]
-            file_handler = profile_context._file_handlers[0]
-            handler = file_handler(pathlib.Path(data_path, "File").with_suffix(file_handler.get_extension()))
+            file_handler_factory = profile_context._file_handler_factories[0]
+            handler = file_handler_factory.make(pathlib.Path(data_path, "File").with_suffix(file_handler_factory.get_extension()))
             with contextlib.closing(handler):
                 handler.write_properties(data_item_dict, DateTime.utcnow())
                 handler.write_data(numpy.zeros((8,8)), DateTime.utcnow())
@@ -3294,8 +3294,8 @@ class TestStorageClass(unittest.TestCase):
             data_source_dict["dimensional_calibrations"] = [{ "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }]
             data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
             data_item_dict["data_sources"] = [data_source_dict]
-            file_handler = profile_context._file_handlers[0]
-            handler = file_handler(pathlib.Path(data_path, "File").with_suffix(file_handler.get_extension()))
+            file_handler_factory = profile_context._file_handler_factories[0]
+            handler = file_handler_factory.make(pathlib.Path(data_path, "File").with_suffix(file_handler_factory.get_extension()))
             with contextlib.closing(handler):
                 handler.write_properties(data_item_dict, DateTime.utcnow())
                 handler.write_data(numpy.zeros((8,8)), DateTime.utcnow())
@@ -3328,8 +3328,8 @@ class TestStorageClass(unittest.TestCase):
             data_source_dict["dimensional_calibrations"] = [{ "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }]
             data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
             data_item_dict["data_sources"] = [data_source_dict]
-            file_handler = profile_context._file_handlers[0]
-            handler = file_handler(pathlib.Path(data_path, "File").with_suffix(file_handler.get_extension()))
+            file_handler_factory = profile_context._file_handler_factories[0]
+            handler = file_handler_factory.make(pathlib.Path(data_path, "File").with_suffix(file_handler_factory.get_extension()))
             with contextlib.closing(handler):
                 handler.write_properties(data_item_dict, DateTime.utcnow())
                 handler.write_data(numpy.zeros((8,8)), DateTime.utcnow())
@@ -3378,8 +3378,8 @@ class TestStorageClass(unittest.TestCase):
             data_source_dict["dimensional_calibrations"] = [{ "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }]
             data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
             data_item_dict["data_sources"] = [data_source_dict]
-            file_handler = profile_context._file_handlers[0]
-            handler = file_handler(pathlib.Path(data_path, "File").with_suffix(file_handler.get_extension()))
+            file_handler_factory = profile_context._file_handler_factories[0]
+            handler = file_handler_factory.make(pathlib.Path(data_path, "File").with_suffix(file_handler_factory.get_extension()))
             with contextlib.closing(handler):
                 handler.write_properties(data_item_dict, DateTime.utcnow())
                 handler.write_data(numpy.zeros((8,8)), DateTime.utcnow())
@@ -3516,8 +3516,8 @@ class TestStorageClass(unittest.TestCase):
             data_source_dict["dimensional_calibrations"] = [{ "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }]
             data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
             data_item_dict["data_sources"] = [data_source_dict]
-            file_handler = profile_context._file_handlers[-1]  # HDF5
-            handler = file_handler(pathlib.Path(data_path, "File").with_suffix(file_handler.get_extension()))
+            file_handler_factory = profile_context._file_handler_factories[-1]  # HDF5
+            handler = file_handler_factory.make(pathlib.Path(data_path, "File").with_suffix(file_handler_factory.get_extension()))
             with contextlib.closing(handler):
                 handler.write_properties(data_item_dict, DateTime.utcnow())
                 handler.write_data(numpy.zeros((8,8)), DateTime.utcnow())
@@ -4068,8 +4068,8 @@ class TestStorageClass(unittest.TestCase):
             file_path1b_base, file_path1b_ext = os.path.splitext(file_path1b)
             file_path2b_base, file_path2b_ext = os.path.splitext(file_path2b)
             # check assumptions, works for both NData+HDF5 or HDF5 only
-            self.assertTrue(profile_context._file_handlers[0].is_matching(file_path1))
-            self.assertTrue(profile_context._file_handlers[-1].is_matching(file_path2))
+            self.assertTrue(profile_context._file_handler_factories[0].is_matching(file_path1))
+            self.assertTrue(profile_context._file_handler_factories[-1].is_matching(file_path2))
             # self.assertNotEqual(file_path1_ext, file_path2_ext)  # assumes different file formats, use 2 lines above instead
             # check results
             self.assertEqual(file_path1_ext, file_path1a_ext)

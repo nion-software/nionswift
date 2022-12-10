@@ -556,7 +556,7 @@ class ProjectStorageSystem(PersistentStorageSystem):
         self.__storage_adapter_map.clear()
 
     @abc.abstractmethod
-    def _make_storage_handler(self, data_item: DataItem.DataItem, file_handler: typing.Optional[_CreateStorageHandlerFn] = None) -> StorageHandler.StorageHandler: ...
+    def _make_storage_handler(self, data_item: DataItem.DataItem, file_handler: typing.Optional[StorageHandler.StorageHandlerFactoryLike] = None) -> StorageHandler.StorageHandler: ...
 
     @abc.abstractmethod
     def _find_storage_handlers(self) -> typing.Sequence[StorageHandler.StorageHandler]: ...
@@ -804,7 +804,7 @@ class FileProjectStorageSystemMigrationStage(ProjectStorageSystemMigrationStage)
 
 class FileProjectStorageSystem(ProjectStorageSystem):
 
-    _file_handlers: typing.List[_CreateStorageHandlerFn] = [NDataHandler.NDataHandler, HDF5Handler.HDF5Handler]
+    _file_handler_factories: typing.List[StorageHandler.StorageHandlerFactoryLike] = [NDataHandler.NDataHandlerFactory(), HDF5Handler.HDF5HandlerFactory()]
 
     def __init__(self, project_path: pathlib.Path, project_data_path: typing.Optional[pathlib.Path] = None) -> None:
         super().__init__()
@@ -872,14 +872,13 @@ class FileProjectStorageSystem(ProjectStorageSystem):
     def get_identifier(self) -> str:
         return str(self.__project_path)
 
-    def _make_storage_handler(self, data_item: DataItem.DataItem,
-                              file_handler: typing.Optional[_CreateStorageHandlerFn] = None) -> StorageHandler.StorageHandler:
+    def _make_storage_handler(self, data_item: DataItem.DataItem, file_handler_factory: typing.Optional[StorageHandler.StorageHandlerFactoryLike] = None) -> StorageHandler.StorageHandler:
         # if there are two handlers, first is small, second is large
         # if there is only one handler, it is used in all cases
         large_format = hasattr(data_item, "large_format") and data_item.large_format
-        file_handler = file_handler if file_handler else (self._file_handlers[-1] if large_format else self._file_handlers[0])
+        file_handler_factory = file_handler_factory if file_handler_factory else (self._file_handler_factories[-1] if large_format else self._file_handler_factories[0])
         assert self.__project_data_path is not None
-        return file_handler.make(self.__project_data_path / self.__get_base_path(data_item))
+        return file_handler_factory.make(self.__project_data_path / self.__get_base_path(data_item))
 
     def _find_storage_handlers(self) -> typing.Sequence[StorageHandler.StorageHandler]:
         return self.__find_storage_handlers(self.__project_data_path)
@@ -917,11 +916,11 @@ class FileProjectStorageSystem(ProjectStorageSystem):
                         data_item.read_from_dict(properties)
                         data_item.finish_reading()
                         old_file_path = storage_handler.reference
-                        new_file_path = storage_handler.make_path(self.__project_data_path / self.__get_base_path(data_item))
+                        new_file_path = storage_handler.factory.make_path(self.__project_data_path / self.__get_base_path(data_item))
                         if not os.path.exists(new_file_path):
                             os.makedirs(os.path.dirname(new_file_path), exist_ok=True)
                             shutil.move(old_file_path, new_file_path)
-                        self._make_storage_handler(data_item, file_handler=None).close()  # what's this line for?
+                        self._make_storage_handler(data_item).close()  # what's this line for?
                         properties["__large_format"] = isinstance(storage_handler, HDF5Handler.HDF5Handler)
                         return properties
         finally:
@@ -956,10 +955,10 @@ class FileProjectStorageSystem(ProjectStorageSystem):
             old_data_item.finish_reading()
             old_data_item_path = storage_handler.reference
             # ask the storage system for the file handler for the data item path
-            file_handler = self.__get_file_handler_for_file(str(old_data_item_path))
+            file_handler_factory = self.__get_file_handler_factory_for_file(str(old_data_item_path))
             # ask the storage system to make a storage handler (an instance of a file handler) for the data item
             # this ensures that the storage handler (file format) is the same as before.
-            with contextlib.closing(self._make_storage_handler(old_data_item, file_handler)) as target_storage_handler:
+            with contextlib.closing(self._make_storage_handler(old_data_item, file_handler_factory)) as target_storage_handler:
                 if target_storage_handler and storage_handler.reference != target_storage_handler.reference:
                     os.makedirs(os.path.dirname(target_storage_handler.reference), exist_ok=True)
                     target_storage_handler.prepare_move()
@@ -1040,10 +1039,10 @@ class FileProjectStorageSystem(ProjectStorageSystem):
         path_components.append(encoded_base_path)
         return pathlib.Path(*path_components)
 
-    def __get_file_handler_for_file(self, path: str) -> typing.Optional[_CreateStorageHandlerFn]:
-        for file_handler in self._file_handlers:
-            if file_handler.is_matching(path):
-                return file_handler
+    def __get_file_handler_factory_for_file(self, path: str) -> typing.Optional[StorageHandler.StorageHandlerFactoryLike]:
+        for file_handler_factory in self._file_handler_factories:
+            if file_handler_factory.is_matching(path):
+                return file_handler_factory
         return None
 
     def __find_storage_handlers(self, directory: typing.Optional[pathlib.Path], *, skip_trash: bool = True) -> typing.Sequence[StorageHandler.StorageHandler]:
@@ -1054,10 +1053,10 @@ class FileProjectStorageSystem(ProjectStorageSystem):
                 if not skip_trash or file_path.parent.name != "trash":
                     if not file_path.name.startswith("."):
                         absolute_file_paths.add(str(file_path))
-            for file_handler in self._file_handlers:
-                for data_file in filter(file_handler.is_matching, absolute_file_paths):
+            for file_handler_factory in self._file_handler_factories:
+                for data_file in filter(file_handler_factory.is_matching, absolute_file_paths):
                     try:
-                        storage_handler = file_handler.make(pathlib.Path(data_file))
+                        storage_handler = file_handler_factory.make(pathlib.Path(data_file))
                         assert storage_handler.is_valid
                         storage_handlers.append(storage_handler)
                     except Exception as e:
@@ -1081,17 +1080,9 @@ class MemoryStorageHandler(StorageHandler.StorageHandler):
         self.__data_properties_map = typing.cast(typing.Dict[str, PersistentDictType], None)
         self.__data_map = typing.cast(typing.Dict[str, _NDArray], None)
 
-    @classmethod
-    def is_matching(cls, file_path: str) -> bool:
-        return True
-
-    @classmethod
-    def make(cls, file_path: pathlib.Path) -> StorageHandler.StorageHandler:
-        return MemoryStorageHandler(str(uuid.uuid4()), dict(), dict(), Event.Event())
-
-    @classmethod
-    def make_path(cls, file_path: pathlib.Path) -> str:
-        return str(file_path)
+    @property
+    def factory(self) -> StorageHandler.StorageHandlerFactoryLike:
+        return MemoryStorageHandlerFactory()
 
     @property
     def reference(self) -> str:
@@ -1124,6 +1115,21 @@ class MemoryStorageHandler(StorageHandler.StorageHandler):
         pass
 
 
+class MemoryStorageHandlerFactory(StorageHandler.StorageHandlerFactoryLike):
+
+    def is_matching(self, file_path: str) -> bool:
+        return True
+
+    def make(self, file_path: pathlib.Path) -> StorageHandler.StorageHandler:
+        return MemoryStorageHandler(str(uuid.uuid4()), dict(), dict(), Event.Event())
+
+    def make_path(self, file_path: pathlib.Path) -> str:
+        return str(file_path)
+
+    def get_extension(self) -> str:
+        return ".memory"
+
+
 class MemoryProjectStorageSystem(ProjectStorageSystem):
 
     def __init__(self, *, library_properties: typing.Optional[PersistentDictType] = None,
@@ -1150,7 +1156,7 @@ class MemoryProjectStorageSystem(ProjectStorageSystem):
     def get_identifier(self) -> str:
         return "memory"
 
-    def _make_storage_handler(self, data_item: DataItem.DataItem, file_handler: typing.Optional[_CreateStorageHandlerFn] = None) -> MemoryStorageHandler:
+    def _make_storage_handler(self, data_item: DataItem.DataItem, file_handler: typing.Optional[StorageHandler.StorageHandlerFactoryLike] = None) -> MemoryStorageHandler:
         data_item_uuid_str = str(data_item.uuid)
         return MemoryStorageHandler(data_item_uuid_str, self.__data_properties_map, self.__data_map, self._test_data_read_event)
 
