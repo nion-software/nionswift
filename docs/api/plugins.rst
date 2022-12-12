@@ -178,3 +178,4 @@ A list of items that make a well defined plug-in package.
 - Settings are isolated; don't read other settings
 - Clean install/uninstall with pip
 - Avoid committing large files to GitHub projects (use Git LFS instead).
+- Load local resources using ``pkgutil.get_data`` or using ``importlib.resources``.
