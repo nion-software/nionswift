@@ -2471,16 +2471,18 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 "sources": [{"name": "src", "label": _("Source"), "croppable": True}], "parameters": [do_transpose_param, do_flip_v_param, do_flip_h_param]}
             width_param = {"name": "width", "label": _("Width"), "type": "integral", "value": 256, "value_default": 256, "value_min": 1}
             height_param = {"name": "height", "label": _("Height"), "type": "integral", "value": 256, "value_default": 256, "value_min": 1}
-            x_binning_param = {"name": "x_binning", "label": _("X Binning"), "type": "integral", "value": 2, "value_default": 2, "value_min": 1}
-            y_binning_param = {"name": "y_binning", "label": _("Y Binning"), "type": "integral", "value": 2, "value_default": 2, "value_min": 1}
-            vs["rebin"] = {"title": _("Rebin"), "expression": "xd.rebin_image({src}.cropped_display_xdata, (y_binning, x_binning))",
-                "sources": [{"name": "src", "label": _("Source"), "croppable": True}], "parameters": [y_binning_param, x_binning_param]}
-            vs["rebin_1d"] = {"title": _("Rebin"), "expression": "xd.rebin_image({src}.cropped_display_xdata, (x_binning,))",
-                "sources": [{"name": "src", "label": _("Source"), "croppable": True}], "parameters": [x_binning_param]}
+            vs["rebin"] = {"title": _("Rebin"), "expression": "xd.rebin_image({src}.cropped_display_xdata, (height, width))",
+                "sources": [{"name": "src", "label": _("Source"), "croppable": True}], "parameters": [width_param, height_param]}
             vs["resample"] = {"title": _("Resample"), "expression": "xd.resample_image({src}.cropped_display_xdata, (height, width))",
                 "sources": [{"name": "src", "label": _("Source"), "croppable": True}], "parameters": [width_param, height_param]}
             vs["resize"] = {"title": _("Resize"), "expression": "xd.resize({src}.cropped_display_xdata, (height, width), 'mean')",
                 "sources": [{"name": "src", "label": _("Source"), "croppable": True}], "parameters": [width_param, height_param]}
+            x_binning_param = {"name": "x_binning", "label": _("X Binning"), "type": "integral", "value": 2, "value_default": 2, "value_min": 1}
+            y_binning_param = {"name": "y_binning", "label": _("Y Binning"), "type": "integral", "value": 2, "value_default": 2, "value_min": 1}
+            vs["rebin_factor"] = {"title": _("Rebin"), "expression": "xd.rebin_factor({src}.cropped_display_xdata, (y_binning, x_binning))",
+                "sources": [{"name": "src", "label": _("Source"), "croppable": True}], "parameters": [x_binning_param, y_binning_param]}
+            vs["rebin_factor_1d"] = {"title": _("Rebin"), "expression": "xd.rebin_factor({src}.cropped_display_xdata, (x_binning,))",
+                "sources": [{"name": "src", "label": _("Source"), "croppable": True}], "parameters": [x_binning_param]}
             is_sequence_param = {"name": "is_sequence", "label": _("Sequence"), "type": "bool", "value": False, "value_default": False}
             collection_dims_param = {"name": "collection_dims", "label": _("Collection Dimensions"), "type": "integral", "value": 0, "value_default": 0, "value_min": 0, "value_max": 0}
             datum_dims_param = {"name": "datum_dims", "label": _("Datum Dimensions"), "type": "integral", "value": 1, "value_default": 1, "value_min": 1, "value_max": 0}
@@ -2596,9 +2598,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
     def get_rebin_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
         if data_item and data_item.xdata:
             if len(data_item.xdata.data_shape) == 2:
-                return self.__make_computation("rebin", [(display_item, data_item, crop_region)])
+                return self.__make_computation("rebin_factor", [(display_item, data_item, crop_region)])
             elif len(data_item.xdata.data_shape) == 1:
-                return self.__make_computation("rebin_1d", [(display_item, data_item, crop_region)])
+                return self.__make_computation("rebin_factor_1d", [(display_item, data_item, crop_region)])
         return None
 
     def get_resample_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
