@@ -323,6 +323,23 @@ class FolderProjectReference(ProjectReference):
         return new_project_reference
 
 
+class PlaceholderProjectReference(ProjectReference):
+
+    def __init__(self, type: str) -> None:
+        super().__init__(type)
+
+    @property
+    def is_valid(self) -> bool:
+        return False
+
+    @property
+    def project_reference_parts(self) -> typing.Sequence[str]:
+        return (self.type, str(self.project_uuid or uuid.UUID()))
+
+    def make_storage(self, profile_context: typing.Optional[ProfileContext]) -> typing.Optional[Persistence.PersistentStorageInterface]:
+        return None
+
+
 project_reference_factory_hook: typing.Optional[typing.Callable[[str], typing.Optional[ProjectReference]]] = None
 
 
@@ -334,7 +351,7 @@ def project_reference_factory(lookup_id: typing.Callable[[str], str]) -> typing.
         return FolderProjectReference()
     if callable(project_reference_factory_hook):
         return project_reference_factory_hook(type)
-    return None
+    return PlaceholderProjectReference(type)
 
 
 class ScriptItem(Schema.Entity):

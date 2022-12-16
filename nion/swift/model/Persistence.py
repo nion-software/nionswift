@@ -962,7 +962,7 @@ class PersistentObject(Observable.Observable):
             storage_key = self.__relationships[key].storage_key
             for item_dict in properties.get(storage_key, list()):
                 factory = self.__relationships[key].factory
-                # the object has not been constructed yet, but we needs its
+                # the object has not been constructed yet, but we need its
                 # type or id to construct it. so we need to look it up by key/index/name.
                 # to minimize the interface to the factory methods, just pass a closure
                 # which looks up by name.
@@ -970,9 +970,7 @@ class PersistentObject(Observable.Observable):
                     return item_dict.get(name, default)
 
                 item = factory(lookup_id)
-                if item is None:
-                    logging.debug("Unable to read %s", key)
-                assert item is not None
+                assert item is not None, f"Unable to read relationship {key} {item_dict}"
                 # read the item from the dict
                 item.begin_reading()
                 item.read_from_dict(item_dict)
