@@ -17,6 +17,8 @@ import threading
 import traceback
 import typing
 import sys
+import urllib.parse
+import webbrowser
 
 # third part imports
 import numpy.typing
@@ -42,6 +44,8 @@ if typing.TYPE_CHECKING:
 _NDArray = numpy.typing.NDArray[typing.Any]
 
 _ = gettext.gettext
+
+NO_DESCRIPTION_AVAILABLE_TEXT = _("*No description available*.")
 
 
 def pose_get_string_message_box(ui: UserInterface.UserInterface, message_column: UserInterface.BoxWidget, caption: str,
@@ -400,8 +404,31 @@ class RunScriptDialog(Dialog.ActionDialog):
                 if full_path not in sys.path:
                     sys.path.append(full_path)
 
+        def update_script_description() -> None:
+            indexes = self.scripts_list_widget.selected_items
+            if len(indexes) == 1:
+                script_item = self.scripts_list_widget.items[list(indexes)[0]]
+                # Use "type" instead of "isinstance" to exclude subclasses from matching
+                if type(script_item) is ScriptListItem:
+                    script_path = pathlib.Path(script_item.full_path)
+                    script_ast = None
+                    if script_path.exists():
+                        try:
+                            with open(script_path) as f:
+                                script = f.read()
+
+                            script_ast = ast.parse(script, script_path.stem, 'exec')
+                        except Exception as e:
+                            pass
+                        docstring = ast.get_docstring(script_ast) if script_ast else None
+                        if docstring:
+                            text_browser_widget.markdown = docstring
+                        else:
+                            text_browser_widget.markdown = NO_DESCRIPTION_AVAILABLE_TEXT
+
         def selected_changed(indexes: typing.AbstractSet[int]) -> None:
             run_button_widget.enabled = len(indexes) == 1
+            update_script_description()
 
         def add_clicked() -> None:
             assert self.__profile
@@ -463,6 +490,13 @@ class RunScriptDialog(Dialog.ActionDialog):
             run_clicked()
             return True
 
+        def handle_anchor_clicked(anchor: str) -> bool:
+            o = urllib.parse.urlparse(anchor)
+            if o.scheme in ("http", "https"):
+                webbrowser.open(anchor)
+                return True
+            return False
+
         self.scripts_list_widget = Widgets.ListWidget(ui, ScriptListCanvasItemDelegate(ui, document_controller,
                                                                                        self.rebuild_scripts_list),
                                                       items=items, selection_style=Selection.Style.single_or_none,
@@ -491,6 +525,15 @@ class RunScriptDialog(Dialog.ActionDialog):
         list_widget_row.add(self.scripts_list_widget)
         list_widget_row.add_spacing(8)
 
+        text_browser_widget = ui.create_text_browser_widget()
+        text_browser_widget.markdown = NO_DESCRIPTION_AVAILABLE_TEXT
+        text_browser_widget.on_anchor_clicked = handle_anchor_clicked
+
+        description_row = ui.create_row_widget(properties={"height": 110})
+        description_row.add_spacing(8)
+        description_row.add(text_browser_widget)
+        description_row.add_spacing(8)
+
         close_button_widget = ui.create_push_button_widget(_("Close"))
         close_button_widget.on_clicked = self.request_close
 
@@ -508,6 +551,8 @@ class RunScriptDialog(Dialog.ActionDialog):
         select_column = ui.create_column_widget()
         select_column.add_spacing(8)
         select_column.add(list_widget_row)
+        select_column.add_spacing(8)
+        select_column.add(description_row)
         select_column.add_spacing(8)
         select_column.add(button_row)
         select_column.add_spacing(8)
