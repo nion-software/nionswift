@@ -889,6 +889,23 @@ class TestStorageClass(unittest.TestCase):
             with document_model.ref():
                 self.assertTrue(numpy.array_equal(document_model.data_items[0].data, zeros))
 
+    def test_metadata_works_in_reserved_data(self):
+        with create_temp_profile_context() as profile_context:
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                data_item = DataItem.DataItem()
+                document_model.append_data_item(data_item)
+                data_item.reserve_data(data_shape=(8, 8), data_dtype=numpy.dtype(numpy.float32), data_descriptor=DataAndMetadata.DataDescriptor(False, 0, 2))
+                data_item.metadata = {"test": 99}
+                self.assertTrue(numpy.array_equal(numpy.zeros((8, 8)), data_item.data))
+                with data_item.data_ref() as dr:
+                    dr.data = numpy.ones((8, 8))
+                self.assertTrue(numpy.array_equal(numpy.ones((8, 8)), data_item.data))
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                data_item = document_model.data_items[0]
+                self.assertEqual(data_item.metadata, {"test": 99})
+
     def test_data_changes_reserves_non_large_format_file(self):
         with create_temp_profile_context() as profile_context:
             document_model = profile_context.create_document_model(auto_close=False)
