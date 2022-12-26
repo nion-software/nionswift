@@ -17,6 +17,7 @@ from nion.swift.model import HDF5Handler
 from nion.swift.model import NDataHandler
 from nion.swift.model import Persistence
 from nion.swift.model import Profile
+from nion.swift.model import Symbolic
 from nion.ui import TestUI
 from nion.utils import Event
 from nion.utils import ReferenceCounting
@@ -33,10 +34,12 @@ def begin_leaks() -> None:
     ReferenceCounting.ReferenceCounted.count = 0
     Changes.UndeleteLog.count = 0
     DataItem.DataItem._data_count = 0
+    Symbolic.BoundItemBase.count = 0
 
 
 def end_leaks(test_case: unittest.TestCase) -> None:
     gc.collect()  # force garbage collection before checking counts
+    test_case.assertEqual(0, Symbolic.BoundItemBase.count)
     test_case.assertEqual(0, Cache.DbStorageCache.count)
     test_case.assertEqual(0, NDataHandler.NDataHandler.count)
     test_case.assertEqual(0, HDF5Handler.HDF5Handler.count)

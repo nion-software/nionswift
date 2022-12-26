@@ -283,6 +283,10 @@ class ComputationVariable(Persistence.PersistentObject):
         self.__bound_item_base_item_inserted_event_listener: typing.Optional[Event.EventListener] = None
         self.__bound_item_base_item_removed_event_listener: typing.Optional[Event.EventListener] = None
 
+    def close(self) -> None:
+        self.unbind()
+        super().close()
+
     def __repr__(self) -> str:
         return "{} ({} {} {} {} {})".format(super().__repr__(), self.name, self.label, self.value, self._specifier, self._secondary_specifier)
 
@@ -759,15 +763,18 @@ def result_factory(lookup_id: typing.Callable[[str], str]) -> ComputationOutput:
 class BoundItemBase(Observable.Observable):
     # note: base objects are different from items temporarily while the notification machinery is put in place
 
+    count = 0
+
     def __init__(self, specifier: Persistence.PersistentDictType) -> None:
         super().__init__()
+        BoundItemBase.count += 1
         self.specifier = specifier
         self.changed_event = Event.Event()
         self.valid = False
         self.__base_items: typing.List[Persistence.PersistentObject] = list()
 
     def close(self) -> None:
-        pass
+        BoundItemBase.count -= 1
 
     @property
     def value(self) -> typing.Any:
@@ -1339,6 +1346,7 @@ class BoundList(BoundItemBase):
         self.__changed_listeners = typing.cast(typing.Any, None)
         self.__inserted_listeners = typing.cast(typing.Any, None)
         self.__removed_listeners = typing.cast(typing.Any, None)
+        super().close()
 
     @property
     def value(self) -> typing.List[typing.Any]:
@@ -1945,7 +1953,9 @@ class Computation(Persistence.PersistentObject):
 
     def get_input_value(self, name: str) -> typing.Any:
         variable = self._get_variable(name)
-        return variable.bound_variable.value if variable and variable.bound_variable else None
+        assert variable
+        with contextlib.closing(variable.bound_variable) as bound_variable:
+            return bound_variable.value if variable and bound_variable else None
 
     def get_variable_input_items(self, name: str) -> typing.Set[Persistence.PersistentObject]:
         variable = self._get_variable(name)
