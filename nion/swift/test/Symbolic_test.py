@@ -452,7 +452,7 @@ class TestSymbolicClass(unittest.TestCase):
     def test_computation_fires_needs_update_event_when_display_data_changes(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            data = ((numpy.random.randn(2, 2, 2, 2) + 1) * 10).astype(numpy.uint32)
+            data = numpy.random.uniform(0, 10, (2, 2, 2, 2)).astype(numpy.uint32)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -747,7 +747,7 @@ class TestSymbolicClass(unittest.TestCase):
     def test_columns_and_rows_and_radius_functions_return_correct_values(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            data = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
+            data = numpy.random.uniform(0, 10, (10, 8)).astype(numpy.uint32)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
             computation = document_model.create_computation(Symbolic.xdata_expression("xd.row(a.xdata.data_shape, -1, 1) + xd.column(a.xdata.data_shape, -1, 1) + xd.radius(a.xdata.data_shape)"))
@@ -760,7 +760,7 @@ class TestSymbolicClass(unittest.TestCase):
     def test_copying_data_item_with_computation_copies_computation(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            data = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
+            data = numpy.random.uniform(0, 10, (10, 8)).astype(numpy.uint32)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
             computation = document_model.create_computation(Symbolic.xdata_expression("-a.xdata"))
@@ -777,7 +777,7 @@ class TestSymbolicClass(unittest.TestCase):
     def test_changing_computation_source_data_updates_computation(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            data = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
+            data = numpy.random.uniform(0, 10, (10, 8)).astype(numpy.uint32)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
             computation = document_model.create_computation(Symbolic.xdata_expression("-a.xdata"))
@@ -788,7 +788,7 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(data_item.data, data))
             self.assertTrue(numpy.array_equal(computed_data_item.data, -data_item.data))
-            data_item.set_data(((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32))
+            data_item.set_data(numpy.random.uniform(0, 10, (10, 8)).astype(numpy.uint32))
             document_model.recompute_all()
             self.assertFalse(numpy.array_equal(data_item.data, data))
             self.assertTrue(numpy.array_equal(computed_data_item.data, -data_item.data))
@@ -815,7 +815,7 @@ class TestSymbolicClass(unittest.TestCase):
     def test_computation_extracts_data_property_of_data_item(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            data = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
+            data = numpy.random.uniform(0, 10, (10, 8)).astype(numpy.uint32)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
             computation = document_model.create_computation(Symbolic.xdata_expression("a.xdata"))
@@ -861,7 +861,7 @@ class TestSymbolicClass(unittest.TestCase):
     def test_computation_extracts_display_data_property_of_data_item(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            src_data = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
+            src_data = numpy.random.uniform(0, 10, (10, 8)).astype(numpy.uint32)
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -1011,7 +1011,7 @@ class TestSymbolicClass(unittest.TestCase):
     def test_computation_reparsing_keeps_variables(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            src_data = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
+            src_data = numpy.random.uniform(0, 10, (10, 8)).astype(numpy.uint32)
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
             computation = document_model.create_computation(Symbolic.xdata_expression("a.xdata + x"))
@@ -1025,7 +1025,7 @@ class TestSymbolicClass(unittest.TestCase):
     def test_computation_using_object_parses_and_evaluates(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            src_data = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
+            src_data = numpy.random.uniform(0, 10, (10, 8)).astype(numpy.uint32)
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
             computation = document_model.create_computation(Symbolic.xdata_expression("a.xdata + x"))
@@ -1037,7 +1037,7 @@ class TestSymbolicClass(unittest.TestCase):
     def test_computation_using_object_updates_when_data_changes(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            src_data = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
+            src_data = numpy.random.uniform(0, 10, (10, 8)).astype(numpy.uint32)
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
             computation = document_model.create_computation(Symbolic.xdata_expression("a.xdata + x"))
@@ -1053,7 +1053,7 @@ class TestSymbolicClass(unittest.TestCase):
             read_computation.read_from_dict(d)
             read_computation.needs_update = True
             document_model.append_computation(read_computation)
-            src_data2 = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
+            src_data2 = numpy.random.uniform(0, 10, (10, 8)).astype(numpy.uint32)
             data_item.set_data(src_data2)
             self.assertTrue(numpy.array_equal(DocumentModel.evaluate_data(read_computation).data, src_data2 + 5))
 
@@ -1160,7 +1160,7 @@ class TestSymbolicClass(unittest.TestCase):
     def test_computation_with_object_writes_and_reads(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            src_data = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
+            src_data = numpy.random.uniform(0, 10, (10, 8)).astype(numpy.uint32)
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
             computation = document_model.create_computation(Symbolic.xdata_expression("a.xdata + 4"))
@@ -1176,7 +1176,7 @@ class TestSymbolicClass(unittest.TestCase):
     def test_computation_with_object_reloads(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            src_data = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
+            src_data = numpy.random.uniform(0, 10, (10, 8)).astype(numpy.uint32)
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
             computation = document_model.create_computation(Symbolic.xdata_expression("a.xdata + x"))
@@ -1197,7 +1197,7 @@ class TestSymbolicClass(unittest.TestCase):
     def test_computation_with_object_evaluates_correctly_after_changing_the_variable_name(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            src_data = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
+            src_data = numpy.random.uniform(0, 10, (10, 8)).astype(numpy.uint32)
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
             computation = document_model.create_computation(Symbolic.xdata_expression("a.xdata + x"))
@@ -1212,8 +1212,8 @@ class TestSymbolicClass(unittest.TestCase):
     def test_computation_with_object_evaluates_correctly_after_changing_the_specifier(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            src_data1 = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
-            src_data2 = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
+            src_data1 = numpy.random.uniform(0, 10, (10, 8)).astype(numpy.uint32)
+            src_data2 = numpy.random.uniform(0, 10, (10, 8)).astype(numpy.uint32)
             data_item1 = DataItem.DataItem(src_data1)
             data_item2 = DataItem.DataItem(src_data2)
             document_model.append_data_item(data_item1)
@@ -1230,8 +1230,8 @@ class TestSymbolicClass(unittest.TestCase):
     def test_computation_fires_needs_update_event_when_specifier_changes(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            src_data1 = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
-            src_data2 = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
+            src_data1 = numpy.random.uniform(0, 10, (10, 8)).astype(numpy.uint32)
+            src_data2 = numpy.random.uniform(0, 10, (10, 8)).astype(numpy.uint32)
             data_item1 = DataItem.DataItem(src_data1)
             data_item2 = DataItem.DataItem(src_data2)
             document_model.append_data_item(data_item1)
@@ -1250,8 +1250,8 @@ class TestSymbolicClass(unittest.TestCase):
     def test_computation_in_document_recomputes_when_specifier_changes(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            src_data1 = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
-            src_data2 = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
+            src_data1 = numpy.random.uniform(0, 10, (10, 8)).astype(numpy.uint32)
+            src_data2 = numpy.random.uniform(0, 10, (10, 8)).astype(numpy.uint32)
             data_item1 = DataItem.DataItem(src_data1)
             data_item2 = DataItem.DataItem(src_data2)
             document_model.append_data_item(data_item1)
@@ -1302,7 +1302,7 @@ class TestSymbolicClass(unittest.TestCase):
     def test_computation_with_raw_reference_copies(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            src_data = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
+            src_data = numpy.random.uniform(0, 10, (10, 8)).astype(numpy.uint32)
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
