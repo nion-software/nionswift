@@ -99,7 +99,9 @@ class ProcessingBase:
         self.sources: typing.List[PersistentDictType] = list()
         self.parameters: typing.List[PersistentDictType] = list()
         self.attributes: PersistentDictType = dict()
+        # if processing is mappable, it can be applied to elements of a sequence/collection (navigable) data item
         self.is_mappable = False
+        # if processing produces scalar data, it must be applied to a sequence/collection (navigable) data item
         self.is_scalar = False
 
     def register_computation(self) -> None:
@@ -264,6 +266,9 @@ class ProcessingMappedAverage(ProcessingBase):
             return DataAndMetadata.ScalarAndMetadata.from_value(numpy.average(filtered_xdata), filtered_xdata.intensity_calibration)  # type: ignore
         return None
 
+# registered components show up in two places in the UI:
+#  - in the Processing > Fourier sub-menu if they have 'windows' in the 'sections' property.
+#  - as menu items referencing the processing_id.
 
 # Registry.register_component(ProcessingFFT(), {"processing-component"})
 # Registry.register_component(ProcessingIFFT(), {"processing-component"})

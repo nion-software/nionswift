@@ -3708,7 +3708,6 @@ class DataStructureVariableHandlerFactory(VariableHandlerComponentFactory):
     def make_variable_handler(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, computation_variable: Symbolic.ComputationVariable, variable_model: VariableValueModel) -> typing.Optional[Declarative.HandlerLike]:
         if computation_variable.variable_type == "structure":
             if computation_variable.property_name:
-                value = computation_variable.bound_item.value if computation_variable.bound_item else None
                 return DataStructurePropertyVariableHandler(computation_variable)
             else:
                 data_structure = computation_variable.bound_item.value if computation_variable.bound_item else None

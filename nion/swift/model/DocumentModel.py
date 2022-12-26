@@ -721,7 +721,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.__implicit_line_profile_intervals_connection.close()
         self.__implicit_line_profile_intervals_connection = typing.cast(typing.Any, None)
 
-        # make sure the data item references shut down cleanly
+        # make sure the data item references are shut down cleanly
         for data_item_reference in self.__data_item_references.values():
             data_item_reference.close()
         self.__data_item_references = typing.cast(typing.Any, None)
@@ -2377,9 +2377,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 new_regions[region_name] = point_graphic
 
         # save setting the computation until last to work around threaded clone/merge operation bug.
-        # the bug is that setting the computation triggers the recompute to occur on a thread.
-        # the recompute clones the data item and runs the operation. meanwhile this thread
-        # updates the connection. now the recompute finishes and merges back the data item
+        # the bug is that setting the computation triggers the computation to occur on a thread.
+        # the computation clones the data item and runs the operation. meanwhile this thread
+        # updates the connection. now the computation finishes and merges back the data item
         # which was cloned before the connection was established, effectively reversing the
         # update that matched the graphic interval to the slice interval on the display.
         # the result is that the slice interval on the display would get set to the default
@@ -2433,9 +2433,13 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                     "parameters": processing_component.parameters,
                     "attributes": processing_component.attributes,
                 }
+                # if processing is mappable, it can be applied to elements of a sequence/collection (navigable) data item
+                # this also create a UI element to indicate whether the operation _should_ be mapped if it is able to be mapped.
                 if processing_component.is_mappable and not processing_component.is_scalar:
                     mapping_param = {"name": "mapping", "label": _("Sequence/Collection Mapping"), "type": "string", "value": "none", "value_default": "none", "control_type": "choice"}
                     vs[processing_component.processing_id].setdefault("parameters", list()).insert(0, mapping_param)
+                # if processing produces scalar data, it must be applied to a sequence/collection (navigable) data item
+                # this also creates a connection between a pick point on the output to the navigable location on the source.
                 if processing_component.is_mappable and processing_component.is_scalar:
                     map_out_region = {"name": "pick_point", "type": "point", "params": {"label": _("Pick"), "role": "collection_index"}}
                     vs[processing_component.processing_id]["out_regions"] = [map_out_region]

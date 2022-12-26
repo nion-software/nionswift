@@ -31,7 +31,7 @@ class DataStructure(Persistence.PersistentObject):
         self.define_type("data_structure")
         self.define_property("structure_type", structure_type, changed=self.__structure_type_changed, hidden=True)
         self.define_property("source_specifier", changed=self.__source_specifier_changed, key="source_uuid", hidden=True)
-        # properties is handled explicitly
+        # properties are handled explicitly
         self.data_structure_changed_event = Event.Event()
         self.data_structure_objects_changed_event = Event.Event()
         self.__source_reference = self.create_item_reference(item=source)
