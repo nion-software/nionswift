@@ -3624,8 +3624,10 @@ class DataStructureHandler(Declarative.Handler):
             # set initial value to None if nothing else is selected
             if self.__entity_choice is None:
                 self.__entity_choice = len(self.__entity_types) + 1
+            label = u.create_label(text="@binding(variable.display_label)")
+            link = u.create_push_button(text="\N{RIGHTWARDS BLACK ARROW}", on_clicked="handle_link", border_color="transparent", background_color="rgba(0,0,0,0.0)", style="minimal", size_policy_horizontal="maximum")
             self.ui_view = u.create_row(
-                u.create_label(text="@binding(variable.display_label)"),
+                u.create_row(label, link, u.create_stretch()),
                 u.create_combo_box(items_ref="entity_choices", current_index="@binding(entity_choice)"),
                 u.create_stretch(), spacing=8)
         else:
@@ -3666,17 +3668,24 @@ class DataStructureHandler(Declarative.Handler):
             assert self.variable.entity_id
             self.data_structure.structure_type = self.variable.entity_id
 
+    def handle_link(self, item: Declarative.UIWidget) -> None:
+        bound_item = self.variable.bound_item
+        if bound_item and len(bound_item.base_items) > 0:
+            self.document_controller.open_project_item(bound_item.base_items[0])
+
 
 class DataStructurePropertyVariableHandler(Declarative.Handler):
     # used to display a data structure property. this is a hack and may not be needed once new data structures
     # are in place that have a guaranteed schema.
-    def __init__(self, variable: Symbolic.ComputationVariable) -> None:
+    def __init__(self, document_controller: DocumentController.DocumentController, variable: Symbolic.ComputationVariable) -> None:
         super().__init__()
+        self.__document_controller = document_controller
         self.variable = variable
         u = Declarative.DeclarativeUI()
         label = u.create_label(text="@binding(variable.display_label)")
+        link = u.create_push_button(text="\N{RIGHTWARDS BLACK ARROW}", on_clicked="handle_link", border_color="transparent", background_color="rgba(0,0,0,0.0)", style="minimal", size_policy_horizontal="maximum")
         line_edit = u.create_label(text="@binding(variable_value)", width=300)
-        self.ui_view = u.create_column(label, line_edit, spacing=8)
+        self.ui_view = u.create_column(u.create_row(label, link, u.create_stretch()), line_edit, u.create_stretch(), spacing=8)
         self.__variable_listener = variable.property_changed_event.listen(ReferenceCounting.weak_partial(DataStructurePropertyVariableHandler.__property_changed, self))
         if variable.bound_item:
             self.__bound_item_listener = variable.changed_event.listen(ReferenceCounting.weak_partial(DataStructurePropertyVariableHandler.__changed, self))
@@ -3690,6 +3699,11 @@ class DataStructurePropertyVariableHandler(Declarative.Handler):
 
     def __changed(self) -> None:
         self.notify_property_changed("variable_value")
+
+    def handle_link(self, item: Declarative.UIWidget) -> None:
+        bound_item = self.variable.bound_item
+        if bound_item and len(bound_item.base_items) > 0:
+            self.__document_controller.open_project_item(bound_item.base_items[0])
 
 
 class ConstantVariableHandler(Declarative.Handler):
@@ -3708,7 +3722,7 @@ class DataStructureVariableHandlerFactory(VariableHandlerComponentFactory):
     def make_variable_handler(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, computation_variable: Symbolic.ComputationVariable, variable_model: VariableValueModel) -> typing.Optional[Declarative.HandlerLike]:
         if computation_variable.variable_type == "structure":
             if computation_variable.property_name:
-                return DataStructurePropertyVariableHandler(computation_variable)
+                return DataStructurePropertyVariableHandler(document_controller, computation_variable)
             else:
                 data_structure = computation_variable.bound_item.value if computation_variable.bound_item else None
                 if isinstance(data_structure, DataStructure.DataStructure):
