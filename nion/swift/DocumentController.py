@@ -41,6 +41,7 @@ from nion.swift import Workspace
 from nion.swift.model import Changes
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
+from nion.swift.model import DataStructure
 from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
@@ -893,6 +894,15 @@ class DocumentController(Window.Window):
         if data_item:
             recorder_dialog = RecorderPanel.RecorderDialog(self, data_item)
             recorder_dialog.show()
+
+    def open_project_item(self, item: Persistence.PersistentObject) -> None:
+        # open the dialog if it doesn't exist
+        if not getattr(self, "_project_items_dialog", None):
+            self.perform_action("window.project_items_dialog")
+        # get the dialog again, which may have been opened
+        project_items_dialog = typing.cast(typing.Optional[ComputationPanel.ProjectItemsDialog], getattr(self, "_project_items_dialog", None))
+        if project_items_dialog:
+            project_items_dialog.open_project_item(item)
 
     def __deep_copy(self) -> None:
         self._dispatch_any_to_focus_widget("handle_deep_copy")

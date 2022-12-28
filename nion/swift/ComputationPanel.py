@@ -1161,6 +1161,7 @@ class ComputationHandler(Declarative.Handler):
     def __make_ui(self) -> Declarative.UIDescriptionResult:
         u = Declarative.DeclarativeUI()
         label = u.create_label(text=self.computation.label)
+        source_line = u.create_component_instance("source_component")
         status = u.create_label(text="@binding(computation.status)", color="@binding(status_color)", max_width=300)
         inputs = u.create_column(items="computation_inputs_model.items", item_component_id="variable", spacing=8, size_policy_vertical="expanding")
         results = u.create_column(items="computation.results", item_component_id="result", spacing=8, size_policy_vertical="expanding")
@@ -1183,7 +1184,7 @@ class ComputationHandler(Declarative.Handler):
                                           spacing=12)
         delete_control_row = u.create_row(u.create_stack(delete_row, delete_confirm_row, current_index="@binding(delete_state_model.value)"))
         controls = u.create_row(u.create_column(status, note, delete_control_row, u.create_stretch(), spacing=12), u.create_stretch())
-        inspector_column = u.create_column(label, u.create_column(input_output_row, parameters, u.create_divider(orientation="horizontal"), controls, spacing=12), spacing=12)
+        inspector_column = u.create_column(label, source_line, u.create_column(input_output_row, parameters, u.create_divider(orientation="horizontal"), controls, spacing=12), spacing=12)
         error_column = u.create_column(
             u.create_stack(
                 u.create_column(u.create_row(u.create_label(text=_("No Error")), u.create_stretch()), u.create_stretch()),
@@ -1228,6 +1229,8 @@ class ComputationHandler(Declarative.Handler):
             return VariableHandler(self.document_controller, self.computation, typing.cast(Symbolic.ComputationVariable, item))
         elif component_id == "result":
             return ResultHandler(self.document_controller, self.computation, typing.cast(Symbolic.ComputationOutput, item))
+        elif component_id == "source_component":
+            return ReferenceHandler(self.document_controller, _("Source"), self.computation.source)
         return None
 
 
@@ -1356,6 +1359,75 @@ class ComputationErrorNotificationComponentFactory(NotificationDialog.Notificati
 Registry.register_component(ComputationErrorNotificationComponentFactory(), {"notification-component-factory"})
 
 
+class ReferenceHandler(Declarative.Handler):
+    def __init__(self, document_controller: DocumentController.DocumentController, label: str, item: typing.Optional[Persistence.PersistentObject]) -> None:
+        super().__init__()
+        self.document_controller = document_controller
+        self.label = label
+        self.item = item
+        self.ui_view = self.__make_ui()
+
+    def __make_ui(self) -> Declarative.UIDescriptionResult:
+        u = Declarative.DeclarativeUI()
+        if self.item:
+            label = u.create_label(text=self.item.__class__.__name__)
+            link = u.create_push_button(text="\N{RIGHTWARDS BLACK ARROW}", on_clicked="handle_link",
+                                        border_color="transparent", background_color="rgba(0,0,0,0.0)", style="minimal",
+                                        size_policy_horizontal="maximum")
+            label_section = u.create_row(label, link)
+        else:
+            label_section = u.create_label(text=_("None"))
+        return u.create_row(
+            u.create_label(text=self.label, width=60),
+            label_section,
+            u.create_stretch(),
+            spacing=12)
+
+    def handle_link(self, item: Declarative.UIWidget) -> None:
+        if self.item:
+            self.document_controller.open_project_item(self.item)
+
+
+class DataItemHandler(Declarative.Handler):
+    def __init__(self, document_controller: DocumentController.DocumentController, data_item: DataItem.DataItem):
+        super().__init__()
+        self.document_controller = document_controller
+        self.item = data_item
+        self.ui_view = self._make_ui()
+        self.uuid_converter = Converter.UuidToStringConverter()
+        self.date_converter = Converter.DatetimeToStringConverter(is_local=True, format="%Y-%m-%d %H:%M:%S %Z")
+
+    @property
+    def display_item(self) -> typing.Optional[DisplayItem.DisplayItem]:
+        document_model = self.document_controller.document_model
+        return document_model.get_best_display_item_for_data_item(self.item)
+
+    def _make_ui(self) -> Declarative.UIDescriptionResult:
+        u = Declarative.DeclarativeUI()
+        label = u.create_label(text=self.item.title)
+        uuid_row = u.create_row(u.create_label(text="UUID:", width=60), u.create_label(text="@binding(item.uuid, converter=uuid_converter)"), u.create_stretch(), spacing=12)
+        modified_row = u.create_row(u.create_label(text="Modified:", width=60), u.create_label(text="@binding(item.modified, converter=date_converter)"), u.create_label(text="(local)"), u.create_stretch(), spacing=12)
+        source_line = u.create_component_instance("source_component")
+        data_source_chooser = {
+            "type": "data_source_chooser",
+            "display_item": "@binding(display_item)",
+            "min_width": 80,
+            "min_height": 80,
+        }
+        return u.create_column(label,
+                               uuid_row,
+                               modified_row,
+                               source_line,
+                               data_source_chooser,
+                               u.create_stretch(),
+                               spacing=12)
+
+    def create_handler(self, component_id: str, container: typing.Optional[Symbolic.ComputationVariable] = None, item: typing.Any = None, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
+        if component_id == "source_component":
+            return ReferenceHandler(self.document_controller, _("Source"), self.item.source)
+        return None
+
+
 class DataStructureHandler(Declarative.Handler):
     def __init__(self, document_controller: DocumentController.DocumentController, data_structure: DataStructure.DataStructure):
         super().__init__()
@@ -1371,7 +1443,7 @@ class DataStructureHandler(Declarative.Handler):
         uuid_row = u.create_row(u.create_label(text="UUID:", width=60), u.create_label(text="@binding(data_structure.uuid, converter=uuid_converter)"), u.create_stretch(), spacing=12)
         modified_row = u.create_row(u.create_label(text="Modified:", width=60), u.create_label(text="@binding(data_structure.modified, converter=date_converter)"), u.create_label(text="(local)"), u.create_stretch(), spacing=12)
         entity = self.data_structure.entity
-        source_line = u.create_row(u.create_label(text="Source:", width=60), u.create_label(text=str(self.data_structure.source.uuid if self.data_structure.source else _("None"))), u.create_stretch(), spacing=12)
+        source_line = u.create_component_instance("source_component")
         label2 = u.create_label(text=entity.entity_type.entity_id if entity else "NO ENTITY")
         label3 = u.create_label(text=str(entity.entity_type._field_type_map) if entity else str(self.data_structure.write_to_dict()["properties"]), max_width=300)
         return u.create_column(label,
@@ -1380,6 +1452,11 @@ class DataStructureHandler(Declarative.Handler):
                                source_line,
                                label2,
                                label3, u.create_stretch(), spacing=12)
+
+    def create_handler(self, component_id: str, container: typing.Optional[Symbolic.ComputationVariable] = None, item: typing.Any = None, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
+        if component_id == "source_component":
+            return ReferenceHandler(self.document_controller, _("Source"), self.data_structure.source)
+        return None
 
 
 MDComponentFn = typing.Callable[[Window.Window, typing.Any], typing.Optional[Declarative.HandlerLike]]
@@ -1393,6 +1470,7 @@ class MasterDetailHandler(Declarative.Handler):
         self.__window = window
         self.__component_fn = component_fn
 
+        # the items for which the details are displayed.
         self.items_model = model
 
         self.titles_model = ListModel.MappedListModel(container=self.items_model,
@@ -1401,6 +1479,7 @@ class MasterDetailHandler(Declarative.Handler):
 
         self.__labels_property_model = ListModel.ListPropertyModel(self.titles_model)
 
+        # the selected item in the items_model
         self.index_model = Model.PropertyModel(0)
 
         u = Declarative.DeclarativeUI()
@@ -1414,9 +1493,12 @@ class MasterDetailHandler(Declarative.Handler):
 
         self.ui_view = u.create_row(u.create_column(item_list), u.create_column(item_stack), spacing=12)
 
+        self._detail_components: typing.Dict[typing.Any, typing.Optional[Declarative.HandlerLike]] = dict()
+
     def create_handler(self, component_id: str, container: typing.Optional[Symbolic.ComputationVariable] = None, item: typing.Any = None, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
         if component_id == "detail":
-            return self.__component_fn(self.__window, item)
+            self._detail_components[item] = self.__component_fn(self.__window, item)
+            return self._detail_components[item]
         return None
 
     def get_binding(self, source: Observable.Observable, property: str, converter: typing.Optional[Converter.ConverterLike[typing.Any, typing.Any]]) -> typing.Optional[Binding.Binding]:
@@ -1426,10 +1508,13 @@ class MasterDetailHandler(Declarative.Handler):
 
 
 class ProjectItemsEntry:
-    def __init__(self, title: str, model: Observable.Observable, items_key: str, component_fn: MDComponentFn,
+    def __init__(self, title: str, document_model: DocumentModel.DocumentModel, master_items_key: str, component_fn: MDComponentFn,
                  title_getter: typing.Callable[[typing.Any], str]) -> None:
+        model = ListModel.FilteredListModel(container=document_model, master_items_key=master_items_key)
+        model.sort_key = operator.attrgetter("modified")
+        model.sort_reverse = True
         self.model = model
-        self.items_key = items_key
+        self.items_key = "items"
         self.component_fn = component_fn
         self.title_getter = title_getter
         self.label = title
@@ -1447,10 +1532,11 @@ class ProjectItemsContent(Declarative.Handler):
         self.__item = item
         u = Declarative.DeclarativeUI()
         self.ui_view = u.create_component_instance(identifier="content")
+        self._master_detail_handler = make_master_detail(self.__document_controller, self.__item)
 
     def create_handler(self, component_id: str, container: typing.Optional[Symbolic.ComputationVariable] = None, item: typing.Any = None, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
         if component_id == "content":
-            return make_master_detail(self.__document_controller, self.__item)
+            return self._master_detail_handler
         return None
 
 
@@ -1465,22 +1551,23 @@ class ProjectItemsDialog(Declarative.WindowHandler):
 
         self.items_model = ListModel.ListModel[ProjectItemsEntry]()
 
-        computation_items_model = ListModel.FilteredListModel(container=document_controller.document_model, master_items_key="computations")
-        computation_items_model.sort_key = operator.attrgetter("modified")
-        computation_items_model.sort_reverse = True
-
-        data_structure_items_model = ListModel.FilteredListModel(container=document_controller.document_model, master_items_key="data_structures")
-        data_structure_items_model.sort_key = operator.attrgetter("modified")
-        data_structure_items_model.sort_reverse = True
-
-        self.items_model.append_item(ProjectItemsEntry(_("Computations"), computation_items_model, "items", typing.cast(MDComponentFn, ComputationHandler), operator.attrgetter("label")))
-        self.items_model.append_item(ProjectItemsEntry(_("Data Structures"), data_structure_items_model, "items", typing.cast(MDComponentFn, DataStructureHandler), operator.attrgetter("structure_type")))
+        self.items_model.append_item(
+            ProjectItemsEntry(_("Computations"), document_controller.document_model, "computations",
+                              typing.cast(MDComponentFn, ComputationHandler), operator.attrgetter("label")))
+        self.items_model.append_item(
+            ProjectItemsEntry(_("Data Structures"), document_controller.document_model, "data_structures",
+                              typing.cast(MDComponentFn, DataStructureHandler), operator.attrgetter("structure_type")))
+        self.items_model.append_item(
+            ProjectItemsEntry(_("Data Items"), document_controller.document_model, "data_items",
+                              typing.cast(MDComponentFn, DataItemHandler), operator.attrgetter("title")))
 
         # close any previous list dialog associated with the window
         previous_window = getattr(document_controller, f"_{self.dialog_id}_dialog", None)
         if isinstance(previous_window, ProjectItemsDialog):
             previous_window.close_window()
         setattr(document_controller, f"_{self.dialog_id}_dialog", self)
+
+        self.__master_detail_handler = MasterDetailHandler(self.__document_controller, self.items_model, "items", typing.cast(MDComponentFn, ProjectItemsContent), operator.attrgetter("label"))
 
         u = Declarative.DeclarativeUI()
 
@@ -1494,5 +1581,15 @@ class ProjectItemsDialog(Declarative.WindowHandler):
 
     def create_handler(self, component_id: str, container: typing.Optional[Symbolic.ComputationVariable] = None, item: typing.Any = None, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
         if component_id == "content":
-            return MasterDetailHandler(self.__document_controller, self.items_model, "items", typing.cast(MDComponentFn, ProjectItemsContent), operator.attrgetter("label"))
+            return self.__master_detail_handler
         return None
+
+    def open_project_item(self, item: Persistence.PersistentObject) -> None:
+        for index, project_items in enumerate(self.items_model.items):
+            if item in project_items.model.items:
+                self.__master_detail_handler.index_model.value = index
+                item_index = project_items.model.items.index(item)
+                content_handler = typing.cast(ProjectItemsContent, self.__master_detail_handler._detail_components[self.items_model._items[self.__master_detail_handler.index_model.value]])
+                detail_handler = typing.cast(MasterDetailHandler, content_handler._master_detail_handler)
+                detail_handler.index_model.value = item_index
+        print(f"open project item {item}")
