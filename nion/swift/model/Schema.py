@@ -648,6 +648,12 @@ class FieldType(abc.ABC):
         self.__args = args
         self.__kwargs = kwargs
 
+    def __repr__(self) -> str:
+        return self._get_repr([])
+
+    def _get_repr(self, parents: typing.List[typing.Any]) -> str:
+        raise NotImplementedError()
+
     @property
     def _field_class(self) -> typing.Callable[..., Field]:
         return self.__field_class
@@ -677,12 +683,21 @@ class PropertyType(FieldType):
         self.optional = optional
         self.default = default
 
+    def _get_repr(self, parents: typing.List[typing.Any]) -> str:
+        return self.type
+
 
 class TupleType(FieldType):
     def __init__(self, type: FieldType, optional: bool, default: typing.Optional[typing.Sequence[typing.Any]]) -> None:
         super().__init__(TupleField, type, optional, default)
         self.type = type
         self.optional = optional
+
+    def _get_repr(self, parents: typing.List[typing.Any]) -> str:
+        if self not in parents:
+            return f"tuple[{self.type}]"
+        else:
+            return f"tuple[self]"
 
 
 class FixedTupleType(FieldType):
@@ -691,11 +706,23 @@ class FixedTupleType(FieldType):
         self.types = list(types)
         self.optional = optional
 
+    def _get_repr(self, parents: typing.List[typing.Any]) -> str:
+        types_str = ", ".join(t._get_repr(parents + [self]) if t not in parents else "self" for t in self.types)
+        return f"fixed_tuple[{types_str}]"
+
 
 class RecordType(FieldType):
     def __init__(self, field_type_map: typing.Mapping[str, FieldType]) -> None:
         super().__init__(RecordField, field_type_map)
         self.__field_type_map = dict(field_type_map)
+
+    @property
+    def _field_type_map(self) -> typing.Mapping[str, FieldType]:
+        return self.__field_type_map
+
+    def _get_repr(self, parents: typing.List[typing.Any]) -> str:
+        types_str = ", ".join(f"{t}: {f._get_repr(parents + [self]) if f not in parents else 'self'}" for t, f in self.__field_type_map.items())
+        return f"record[{types_str}]"
 
 
 class ArrayType(FieldType):
@@ -703,6 +730,12 @@ class ArrayType(FieldType):
         super().__init__(ArrayField, type, optional)
         self.type = type
         self.optional = optional
+
+    def _get_repr(self, parents: typing.List[typing.Any]) -> str:
+        if self not in parents:
+            return f"array[{self.type._get_repr(parents + [self])}]"
+        else:
+            return f"array[self]"
 
 
 class MapType(FieldType):
@@ -712,11 +745,23 @@ class MapType(FieldType):
         self.value = value
         self.optional = optional
 
+    def _get_repr(self, parents: typing.List[typing.Any]) -> str:
+        if self not in parents:
+            return f"map[{self.key}: {self.value._get_repr(parents + [self])}]"
+        else:
+            return f"map[{self.key}: self]"
+
 
 class ReferenceType(FieldType):
     def __init__(self, type: typing.Optional[EntityType]) -> None:
         super().__init__(ReferenceField, type)
         self.type = type
+
+    def _get_repr(self, parents: typing.List[typing.Any]) -> str:
+        if self not in parents:
+            return f"reference[{self.type._get_repr(parents + [self]) if self.type else 'None'}]"
+        else:
+            return f"reference[self]"
 
 
 class ComponentType(FieldType):
@@ -734,6 +779,12 @@ class ComponentType(FieldType):
             return self._call(context, self._field_class, *((field_type, ) + self._args[1:]), **self._kwargs).read(dict_value)
         else:
             return ComponentPlaceholderField(context).read(dict_value)
+
+    def _get_repr(self, parents: typing.List[typing.Any]) -> str:
+        if self not in parents:
+            return f"component[{entity_types[self.entity_id]._get_repr(parents + [self])}]"
+        else:
+            return f"component[self]"
 
 
 _EntityTransform = typing.Callable[[PersistentDictType], PersistentDictType]
@@ -1012,6 +1063,16 @@ class EntityType:
         for k, v in field_type_map.items():
             self.__field_type_map[k] = v
         register_entity_type(entity_id, self)
+
+    def __repr__(self) -> str:
+        return self._get_repr([])
+
+    def _get_repr(self, parents: typing.List[typing.Any]) -> str:
+        version_str = f", {self.__version}" if self.__version is not None else str()
+        base_str = f" ({self.__base.entity_id})" if self.__base else str()
+        fields_str = f" (" + ", ".join([f"{n}: {t._get_repr(parents + [self]) if t not in parents else 'self'}" for n, t in self.__field_type_map.items()]) + ")"
+        r = f"entity [{self.__entity_id}{version_str}]{base_str}{fields_str}"
+        return r
 
     @property
     def _version(self) -> typing.Optional[int]:
