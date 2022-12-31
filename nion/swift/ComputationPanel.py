@@ -24,8 +24,10 @@ from nion.swift.model import Changes
 from nion.swift.model import DataItem
 from nion.swift.model import DataStructure
 from nion.swift.model import DisplayItem
+from nion.swift.model import Model as DataModel
 from nion.swift.model import Notification
 from nion.swift.model import Persistence
+from nion.swift.model import Schema
 from nion.swift.model import Symbolic
 from nion.ui import CanvasItem
 from nion.ui import Declarative
@@ -42,6 +44,7 @@ from nion.utils import Model
 from nion.utils import Observable
 from nion.utils import ReferenceCounting
 from nion.utils import Registry
+from nion.utils.ReferenceCounting import weak_partial
 
 if typing.TYPE_CHECKING:
     from nion.swift import DocumentController
@@ -51,6 +54,8 @@ if typing.TYPE_CHECKING:
 _DocumentControllerWeakRefType = typing.Callable[[], "DocumentController.DocumentController"]
 
 _ = gettext.gettext
+
+T = typing.TypeVar('T')
 
 
 class AddVariableCommand(Undo.UndoableCommand):
@@ -1388,6 +1393,103 @@ class ReferenceHandler(Declarative.Handler):
             self.document_controller.open_project_item(self.item)
 
 
+class EntityPropertyHandler(Declarative.Handler):
+    def __init__(self, value_model: Model.PropertyModel[typing.Any], name: str, value_type: Schema.PropertyType) -> None:
+        super().__init__()
+        self.value_model = value_model
+        self.ui_view = self._make_ui(name, value_type)
+        self.int_converter = Converter.IntegerToStringConverter()
+        self.float_converter = Converter.FloatToStringConverter()
+        self.date_converter = Converter.DatetimeToStringConverter(is_local=True, format="%Y-%m-%d %H:%M:%S %Z")
+        self.uuid_converter = Converter.UuidToStringConverter()
+
+    def _make_ui(self, name: str, value_type: Schema.PropertyType) -> Declarative.UIDescriptionResult:
+        u = Declarative.DeclarativeUI()
+        if value_type.type == Schema.STRING:
+            return u.create_row(u.create_label(text=name, width=60),
+                                u.create_label(text=f"@binding(value_model.value)"),
+                                u.create_stretch(), spacing=12)
+        elif value_type.type == Schema.BOOLEAN:
+            return u.create_row(u.create_label(text=name, width=60),
+                                u.create_check_box(text=f"@binding(value_model.value)"),
+                                u.create_stretch(), spacing=12)
+        elif value_type.type == Schema.INT:
+            return u.create_row(u.create_label(text=name, width=60),
+                                u.create_label(text=f"@binding(value_model.value, converter=int_converter)"),
+                                u.create_stretch(), spacing=12)
+        elif value_type.type == Schema.FLOAT:
+            return u.create_row(u.create_label(text=name, width=60),
+                                u.create_label(text=f"@binding(value_model.value, converter=float_converter)"),
+                                u.create_stretch(), spacing=12)
+        elif value_type.type == Schema.TIMESTAMP:
+            return u.create_row(u.create_label(text=name, width=60),
+                                u.create_label(text=f"@binding(value_model.value, converter=date_converter)"),
+                                u.create_stretch(), spacing=12)
+        elif value_type.type == Schema.UUID:
+            return u.create_row(u.create_label(text=name, width=60),
+                                u.create_label(text=f"@binding(value_model.value, converter=uuid_converter)"),
+                                u.create_stretch(), spacing=12)
+        return u.create_row(u.create_label(text=name, width=60),
+                            u.create_label(text=str(type(value_type))),
+                            u.create_stretch(),
+                            spacing=12)
+
+
+class EntityValueIndexModel(Model.PropertyModel[T], typing.Generic[T]):
+    # NOTE: read only
+
+    def __init__(self, value_model: Model.PropertyModel[T], index: int) -> None:
+        assert value_model.value is not None
+        super().__init__(getattr(value_model, "value")[index])
+        self.__value_model = value_model
+
+        def property_changed(property_model: EntityValueIndexModel[T], value_model: Model.PropertyModel[T], property_name: str) -> None:
+            # check if changed property matches property name for this object
+            if property_name == "value":
+                property_model.value = getattr(value_model, property_name)[index]
+
+        self.__listener = self.__value_model.property_changed_event.listen(weak_partial(property_changed, self, self.__value_model))
+
+
+class EntityFieldsHandler(Declarative.Handler):
+    def __init__(self, name: str, indent: int, field_list: typing.Sequence[typing.Tuple[str, Schema.FieldType, Model.PropertyModel[typing.Any]]]) -> None:
+        super().__init__()
+        self.indent = indent
+        self.field_list = list(field_list)
+        u = Declarative.DeclarativeUI()
+        self.ui_view = u.create_column(
+            u.create_label(text=name, width=60),
+            u.create_row(u.create_spacing(indent * 4),
+                         u.create_column(items="field_list", item_component_id="entity_field", spacing=8)),
+            spacing = 8,
+        )
+
+    def create_handler(self, component_id: str, container: typing.Optional[Symbolic.ComputationVariable] = None, item: typing.Any = None, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
+        if component_id == "entity_field" and item is not None:
+            field_name, value_type, value_model = typing.cast(typing.Tuple[str, Schema.FieldType, Model.PropertyModel[typing.Any]], item)
+            if isinstance(value_type, Schema.PropertyType):
+                return EntityPropertyHandler(value_model, field_name, value_type)
+            if isinstance(value_type, Schema.FixedTupleType):
+                field_list = [(str(i), t, EntityValueIndexModel(value_model, i)) for i, t in enumerate(value_type.types)]
+                return EntityFieldsHandler(field_name, self.indent + 1, field_list)
+
+            class DummyHandler(Declarative.HandlerLike):
+                def __init__(self) -> None:
+                    u = Declarative.DeclarativeUI()
+                    self.ui_view = u.create_row(u.create_label(text=field_name, width=60), u.create_label(text=str(value_type)), u.create_stretch(), spacing=12)
+                def close(self) -> None:
+                    pass
+
+            return DummyHandler()
+
+        return None
+
+
+def make_entity_fields_handler(item: Observable.Observable, entity_type: Schema.EntityType) -> EntityFieldsHandler:
+    field_list = [(n, t, Model.PropertyChangedPropertyModel[typing.Any](item, n)) for n, t in entity_type._field_type_map.items()]
+    return EntityFieldsHandler(entity_type.entity_id, 0, field_list)
+
+
 class DataItemHandler(Declarative.Handler):
     def __init__(self, document_controller: DocumentController.DocumentController, data_item: DataItem.DataItem):
         super().__init__()
@@ -1414,17 +1516,25 @@ class DataItemHandler(Declarative.Handler):
             "min_width": 80,
             "min_height": 80,
         }
-        return u.create_column(label,
-                               uuid_row,
-                               modified_row,
-                               source_line,
-                               data_source_chooser,
-                               u.create_stretch(),
-                               spacing=12)
+        inspector_column = u.create_column(label,
+                                           uuid_row,
+                                           modified_row,
+                                           source_line,
+                                           data_source_chooser,
+                                           u.create_stretch(),
+                                           spacing=12)
+        entity_component = u.create_component_instance("entity_component")
+        return u.create_tabs(
+            u.create_tab(_("Data Item"), inspector_column),
+            u.create_tab(_("Details"), entity_component),
+            style="minimal"
+        )
 
     def create_handler(self, component_id: str, container: typing.Optional[Symbolic.ComputationVariable] = None, item: typing.Any = None, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
         if component_id == "source_component":
             return ReferenceHandler(self.document_controller, _("Source"), self.item.source)
+        if component_id == "entity_component":
+            return make_entity_fields_handler(self.item, DataModel.DataItem)
         return None
 
 
@@ -1444,18 +1554,30 @@ class DataStructureHandler(Declarative.Handler):
         modified_row = u.create_row(u.create_label(text="Modified:", width=60), u.create_label(text="@binding(data_structure.modified, converter=date_converter)"), u.create_label(text="(local)"), u.create_stretch(), spacing=12)
         entity = self.data_structure.entity
         source_line = u.create_component_instance("source_component")
-        label2 = u.create_label(text=entity.entity_type.entity_id if entity else "NO ENTITY")
-        label3 = u.create_label(text=str(entity.entity_type._field_type_map) if entity else str(self.data_structure.write_to_dict()["properties"]), max_width=300)
+        if entity and entity.entity_type:
+            entity_component = u.create_component_instance("entity_component")
+        else:
+            label2 = u.create_label(text=entity.entity_type.entity_id if entity else "NO ENTITY")
+            label3 = u.create_label(text=str(entity.entity_type._field_type_map) if entity else str(self.data_structure.write_to_dict()["properties"]), max_width=300)
+            entity_component = u.create_column(label2, label3, spacing=12)
         return u.create_column(label,
                                uuid_row,
                                modified_row,
                                source_line,
-                               label2,
-                               label3, u.create_stretch(), spacing=12)
+                               entity_component,
+                               u.create_stretch(),
+                               spacing=12)
 
     def create_handler(self, component_id: str, container: typing.Optional[Symbolic.ComputationVariable] = None, item: typing.Any = None, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
         if component_id == "source_component":
             return ReferenceHandler(self.document_controller, _("Source"), self.data_structure.source)
+        if component_id == "entity_component":
+            entity = self.data_structure.entity
+            assert entity
+            # note: use data structure as the base item of the entity field handler since the entity is not quite
+            # properly connected to the data structure. setting a value on the data structure does not send a property
+            # changed value from the entity.
+            return make_entity_fields_handler(self.data_structure, entity.entity_type)
         return None
 
 
