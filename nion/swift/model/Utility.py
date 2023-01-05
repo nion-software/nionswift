@@ -10,6 +10,7 @@ import functools
 import logging
 import os
 import pathlib
+import re
 import sys
 import threading
 import time
@@ -471,3 +472,16 @@ class Timer:
         if self.threshold == 0.0 or (current_time - self.last_time_ns) // 1E9 > self.threshold:
             print(f"{title}: {(current_time - self.start_time_ns) // 1E6}ms +{(current_time - self.last_time_ns) // 1E6}ms")
         self.last_time_ns = current_time
+
+
+def sanitize_filename(path_as_str: str) -> str:
+    """Splits leading directories from file name, and sanitizes file names.
+    Filenames will be conformed to POSIX's portable file name character set (a-Z0-9._-), plus spaces.
+    This function assumes you have already isolated the filename from the path
+    :param path_as_str: File name as a string
+    :return: Tuple containing path parts extracted from the file name, followed by the file_name
+    """
+    path_as_str = path_as_str.replace("\\", "/")
+    path_as_str = re.sub(r"[^\w\-\. ]", "", path_as_str)
+
+    return path_as_str

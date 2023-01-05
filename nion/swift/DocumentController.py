@@ -761,7 +761,7 @@ class DocumentController(Window.Window):
             self.ui.set_persistent_string("import_directory", selected_directory)
             self.receive_files(paths, display_panel=self.next_result_display_panel())
 
-    def export_file(self, display_item: DisplayItem.DisplayItem) -> None:
+    def export_file(self, display_item: DisplayItem.DisplayItem, path: typing.Optional[str] = None) -> None:
         # present a loadfile dialog to the user
         writers = ImportExportManager.ImportExportManager().get_writers_for_display_item(display_item)
         name_writer_dict: typing.Dict[typing.Tuple[str, str], typing.Any] = dict()  # TODO: fix writer typing
@@ -776,13 +776,22 @@ class DocumentController(Window.Window):
             filter_line = writer_name + " files (" + writer_extensions + ")"
             filter_lines.append(filter_line)
             filter_line_to_writer_map[filter_line] = writer
-        filter = ";;".join(filter_lines)
-        filter += ";;All Files (*.*)"
+        filter_str = ";;".join(filter_lines)
+        filter_str += ";;All Files (*.*)"
         export_dir = self.ui.get_persistent_string("export_directory", self.ui.get_document_location())
         export_dir = os.path.join(export_dir, display_item.displayed_title)
+        export_dir = export_dir.replace("\\", "/").replace("/", os.sep)
         selected_filter = self.ui.get_persistent_string("export_filter")
-        path, selected_filter, selected_directory = self.get_save_file_path(_("Export File"), export_dir, filter, selected_filter)
+        if not path:
+            path, selected_filter, selected_directory = self.get_save_file_path(_("Export File"), export_dir, filter_str, selected_filter)
+        else:
+            extension = path.split(".")[-1]
+            filter_map = [extension in filter_line for filter_line in filter_lines]
+            if True in filter_map:
+                selected_filter = filter_lines[filter_map.index(True)]
+            selected_directory = export_dir if len(export_dir.split(os.sep)) > 1 else ".{}".format(os.sep)
         selected_writer = filter_line_to_writer_map.get(selected_filter)
+        path = path.replace("\\", "/").replace("/", os.sep)
         if path and not os.path.splitext(path)[1]:
             if selected_writer:
                 path = path + os.path.extsep + selected_writer.extensions[0]
@@ -799,14 +808,19 @@ class DocumentController(Window.Window):
         elif len(display_items) == 1:
             self.export_file(display_items[0])
 
-    def export_svg(self, display_item: DisplayItem.DisplayItem) -> None:
+    def export_svg(self, display_item: DisplayItem.DisplayItem, path: typing.Optional[str] = None) -> None:
         filter = "SVG File (*.svg);;All Files (*.*)"
         export_dir = self.ui.get_persistent_string("export_directory", self.ui.get_document_location())
         export_dir = os.path.join(export_dir, display_item.displayed_title)
-        path, selected_filter, selected_directory = self.get_save_file_path(_("Export File"), export_dir, filter, None)
+        export_dir = export_dir.replace("\\", "/").replace("/", os.sep)
+        if not path:
+            path, selected_filter, selected_directory = self.get_save_file_path(_("Export File"), export_dir, filter, None)
+        else:
+            selected_directory = export_dir if len(export_dir.split(os.sep)) > 1 else ".{}".format(os.sep)
         if path and not os.path.splitext(path)[1]:
             path = path + os.path.extsep + "svg"
         if path:
+            path = path.replace("\\", "/").replace("/", os.sep)
             self.ui.set_persistent_string("export_directory", selected_directory)
 
             if display_item.display_data_shape and len(display_item.display_data_shape) == 2:
@@ -820,7 +834,9 @@ class DocumentController(Window.Window):
 
             svg = drawing_context.to_svg(shape, view_box)
 
-            with Utility.AtomicFileWriter(pathlib.Path(path)) as fp:
+            path_obj = pathlib.Path(path)
+            path_obj = path_obj.with_name(Utility.sanitize_filename(path_obj.name))
+            with Utility.AtomicFileWriter(path_obj) as fp:
                 fp.write(svg)
 
     # this method creates a task. it is thread safe.
