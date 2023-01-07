@@ -1394,7 +1394,7 @@ class ReferenceHandler(Declarative.Handler):
 
 
 class EntityPropertyHandler(Declarative.Handler):
-    def __init__(self, value_model: Model.PropertyModel[typing.Any], name: str, value_type: Schema.PropertyType) -> None:
+    def __init__(self, name: str, value_type: Schema.PropertyType, value_model: Model.PropertyModel[typing.Any]) -> None:
         super().__init__()
         self.value_model = value_model
         self.ui_view = self._make_ui(name, value_type)
@@ -1435,6 +1435,56 @@ class EntityPropertyHandler(Declarative.Handler):
                             spacing=12)
 
 
+class EntityTupleModel(Observable.Observable):
+    # takes a property model and generates item inserted/removed events when the value changes.
+    # observers can treat this as a dynamic list with 'items' key.
+
+    def __init__(self, value_model: Model.PropertyModel[typing.Any]) -> None:
+        super().__init__()
+        self.items: typing.List[typing.Any] = list()
+
+        def property_changed(tuple_model: EntityTupleModel, property_name: str) -> None:
+            # check if changed property matches property name for this object
+            if property_name == "value":
+                while tuple_model.items:
+                    item = tuple_model.items.pop()
+                    tuple_model.notify_remove_item("items", item, len(tuple_model.items))
+                items = typing.cast(typing.List[typing.Any], value_model.value)
+                for index, item in enumerate(items):
+                    tuple_model.items.append((index, item))
+                    tuple_model.notify_insert_item("items", tuple_model.items[-1], len(tuple_model.items))
+
+        self.__listener = value_model.property_changed_event.listen(weak_partial(property_changed, self))
+
+        property_changed(self, "value")
+
+
+class EntityTupleHandler(Declarative.Handler):
+    def __init__(self, name: str, indent: int, value_type: Schema.FieldType, value_model: Model.PropertyModel[typing.Any]) -> None:
+        super().__init__()
+        self.value_model = value_model
+        self.value_type = value_type
+        self.indent = indent
+        self.tuple_model = EntityTupleModel(value_model)
+        u = Declarative.DeclarativeUI()
+        # the items in tuple_model (tuples an index and a value of value_type) will get passed to create_handler in the
+        # item parameter. this is accomplished by passing items to create_column below. the item_component_id is
+        # used to match this column with the request for a handler.
+        self.ui_view = u.create_column(
+            u.create_row(u.create_spacing(indent), u.create_label(text=name, width=60), u.create_stretch()),
+            u.create_row(u.create_spacing(indent * 4),
+                         u.create_column(items="tuple_model.items", item_component_id="entity_field", spacing=8)),
+            spacing = 8,
+        )
+
+    def create_handler(self, component_id: str, container: typing.Optional[ListModel.ListModel[typing.Any]] = None, item: typing.Any = None, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
+        # item is a tuple of type index, self.value_type
+        if component_id == "entity_field" and item is not None:
+            index, item_ = item
+            return make_field_handler(str(index), self.indent, self.value_type, Model.PropertyModel(item_))
+        return None
+
+
 class EntityValueIndexModel(Model.PropertyModel[T], typing.Generic[T]):
     # NOTE: read only
 
@@ -1457,37 +1507,62 @@ class EntityFieldsHandler(Declarative.Handler):
         self.indent = indent
         self.field_list = list(field_list)
         u = Declarative.DeclarativeUI()
+        # the items in field_list (field-name/value-type/property-model) will get passed to create_handler in the
+        # item parameter. this is accomplished by passing items to create_column below. the item_component_id is
+        # used to match this column with the request for a handler.
         self.ui_view = u.create_column(
-            u.create_label(text=name, width=60),
+            u.create_row(u.create_spacing(indent), u.create_label(text=name, width=60), u.create_stretch()),
             u.create_row(u.create_spacing(indent * 4),
                          u.create_column(items="field_list", item_component_id="entity_field", spacing=8)),
             spacing = 8,
         )
 
     def create_handler(self, component_id: str, container: typing.Optional[Symbolic.ComputationVariable] = None, item: typing.Any = None, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
+        # item is a tuple of field name, value type, and value model. it comes from the field list passed during init.
         if component_id == "entity_field" and item is not None:
             field_name, value_type, value_model = typing.cast(typing.Tuple[str, Schema.FieldType, Model.PropertyModel[typing.Any]], item)
-            if isinstance(value_type, Schema.PropertyType):
-                return EntityPropertyHandler(value_model, field_name, value_type)
-            if isinstance(value_type, Schema.FixedTupleType):
-                field_list = [(str(i), t, EntityValueIndexModel(value_model, i)) for i, t in enumerate(value_type.types)]
-                return EntityFieldsHandler(field_name, self.indent + 1, field_list)
-
-            class DummyHandler(Declarative.HandlerLike):
-                def __init__(self) -> None:
-                    u = Declarative.DeclarativeUI()
-                    self.ui_view = u.create_row(u.create_label(text=field_name, width=60), u.create_label(text=str(value_type)), u.create_stretch(), spacing=12)
-                def close(self) -> None:
-                    pass
-
-            return DummyHandler()
-
+            return make_field_handler(field_name, self.indent, value_type, value_model)
         return None
 
 
-def make_entity_fields_handler(item: Observable.Observable, entity_type: Schema.EntityType) -> EntityFieldsHandler:
+class HasFieldTypeMap(typing.Protocol):
+    @property
+    def _field_type_map(self) -> typing.Mapping[str, Schema.FieldType]: raise NotImplementedError()
+
+
+def make_record_handler(item: Observable.Observable, name: str, entity_type: HasFieldTypeMap) -> EntityFieldsHandler:
     field_list = [(n, t, Model.PropertyChangedPropertyModel[typing.Any](item, n)) for n, t in entity_type._field_type_map.items()]
-    return EntityFieldsHandler(entity_type.entity_id, 0, field_list)
+    return EntityFieldsHandler(name, 0, field_list)
+
+
+def make_field_handler(field_name: str, indent: int, value_type: Schema.FieldType, value_model: Model.PropertyModel[typing.Any]) -> typing.Optional[Declarative.HandlerLike]:
+    # when item type is property type, create an entity property handler, passing the value type and property model directly.
+    if isinstance(value_type, Schema.PropertyType):
+        return EntityPropertyHandler(field_name, value_type, value_model)
+
+    # when item type is tuple type, create an entity tuple handler, passing the value type of the tuple and the property model directly.
+    # the tuple handler will watch for changes to the property model and update its internal list accordingly.
+    if isinstance(value_type, Schema.TupleType):
+        return EntityTupleHandler(field_name, indent + 1, value_type.type, value_model)
+
+    # when item type is fixed tuple type, make a list of field-name/value-type/property-model tuples, creating
+    # entity value index models to access the individual fields, and recursively create another entity fields
+    # handler with the list.
+    if isinstance(value_type, Schema.FixedTupleType):
+        field_list = [(str(i), t, EntityValueIndexModel(value_model, i)) for i, t in enumerate(value_type.types)]
+        return EntityFieldsHandler(field_name, indent + 1, field_list)
+
+    # fall through to a dummy handler.
+    class DummyHandler(Declarative.HandlerLike):
+        def __init__(self) -> None:
+            u = Declarative.DeclarativeUI()
+            self.ui_view = u.create_row(u.create_label(text=field_name, width=60), u.create_label(text=str(value_type)),
+                                        u.create_stretch(), spacing=12)
+
+        def close(self) -> None:
+            pass
+
+    return DummyHandler()
 
 
 class DataItemHandler(Declarative.Handler):
@@ -1534,7 +1609,7 @@ class DataItemHandler(Declarative.Handler):
         if component_id == "source_component":
             return ReferenceHandler(self.document_controller, _("Source"), self.item.source)
         if component_id == "entity_component":
-            return make_entity_fields_handler(self.item, DataModel.DataItem)
+            return make_record_handler(self.item, DataModel.DataItem.entity_id, DataModel.DataItem)
         return None
 
 
@@ -1577,7 +1652,7 @@ class DataStructureHandler(Declarative.Handler):
             # note: use data structure as the base item of the entity field handler since the entity is not quite
             # properly connected to the data structure. setting a value on the data structure does not send a property
             # changed value from the entity.
-            return make_entity_fields_handler(self.data_structure, entity.entity_type)
+            return make_record_handler(self.data_structure, entity.entity_type.entity_id, entity.entity_type)
         return None
 
 
