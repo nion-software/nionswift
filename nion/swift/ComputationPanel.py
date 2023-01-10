@@ -1450,7 +1450,7 @@ class EntityTupleModel(Observable.Observable):
                     item = tuple_model.items.pop()
                     tuple_model.notify_remove_item("items", item, len(tuple_model.items))
                 items = typing.cast(typing.List[typing.Any], value_model.value)
-                for index, item in enumerate(items):
+                for index, item in enumerate(items or tuple()):
                     tuple_model.items.append((index, item))
                     tuple_model.notify_insert_item("items", tuple_model.items[-1], len(tuple_model.items))
 
@@ -1579,6 +1579,15 @@ class MaybePropertyChangedPropertyModel(Model.PropertyModel[typing.Any]):
         setattr(self.__observable, self.__property_name, value)
 
 
+class DummyHandler(Declarative.HandlerLike):
+    def __init__(self, field_name: str, text: str) -> None:
+        u = Declarative.DeclarativeUI()
+        self.ui_view = u.create_row(u.create_label(text=field_name, width=60), u.create_label(text=text), u.create_stretch(), spacing=12)
+
+    def close(self) -> None:
+        pass
+
+
 class HasFieldTypeMap(typing.Protocol):
     @property
     def _field_type_map(self) -> typing.Mapping[str, Schema.FieldType]: raise NotImplementedError()
@@ -1609,8 +1618,10 @@ def make_field_handler(field_name: str, indent: int, value_type: Schema.FieldTyp
     # when item type is record type, use make_record_handler to where the item is the value of the value_model passed
     # to this function.
     if isinstance(value_type, Schema.RecordType):
-        assert value_model.value is not None
-        return make_record_handler(value_model.value, field_name, indent + 1, value_type)
+        if value_model.value is not None:
+            return make_record_handler(value_model.value, field_name, indent + 1, value_type)
+        else:
+            return DummyHandler(field_name, "NONE")
 
     # when item type is array type, create an entity array handler, passing the value type of the array and the property model directly.
     # the array handler will watch for changes to either the property model or the list value of the property model and update its
@@ -1619,16 +1630,7 @@ def make_field_handler(field_name: str, indent: int, value_type: Schema.FieldTyp
         return EntityArrayHandler(field_name, indent + 1, value_type.type, value_model)
 
     # fall through to a dummy handler.
-    class DummyHandler(Declarative.HandlerLike):
-        def __init__(self) -> None:
-            u = Declarative.DeclarativeUI()
-            self.ui_view = u.create_row(u.create_label(text=field_name, width=60), u.create_label(text=str(value_type)),
-                                        u.create_stretch(), spacing=12)
-
-        def close(self) -> None:
-            pass
-
-    return DummyHandler()
+    return DummyHandler(field_name, str(value_type))
 
 
 class DataItemHandler(Declarative.Handler):
@@ -1664,7 +1666,7 @@ class DataItemHandler(Declarative.Handler):
                                            data_source_chooser,
                                            u.create_stretch(),
                                            spacing=12)
-        entity_component = u.create_scroll_area(u.create_component_instance("entity_component"))
+        entity_component = u.create_scroll_area(u.create_column(u.create_component_instance("entity_component"), u.create_stretch()))
         return u.create_tabs(
             u.create_tab(_("Data Item"), inspector_column),
             u.create_tab(_("Details"), entity_component),
@@ -1676,6 +1678,45 @@ class DataItemHandler(Declarative.Handler):
             return ReferenceHandler(self.document_controller, _("Source"), self.item.source)
         if component_id == "entity_component":
             return make_record_handler(self.item, DataModel.DataItem.entity_id, 0, DataModel.DataItem)
+        return None
+
+
+class DisplayItemHandler(Declarative.Handler):
+    def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem):
+        super().__init__()
+        self.document_controller = document_controller
+        self.display_item = display_item
+        self.ui_view = self._make_ui()
+        self.uuid_converter = Converter.UuidToStringConverter()
+        self.date_converter = Converter.DatetimeToStringConverter(is_local=True, format="%Y-%m-%d %H:%M:%S %Z")
+
+    def _make_ui(self) -> Declarative.UIDescriptionResult:
+        u = Declarative.DeclarativeUI()
+        label = u.create_label(text=self.display_item.title)
+        uuid_row = u.create_row(u.create_label(text="UUID:", width=60), u.create_label(text="@binding(display_item.uuid, converter=uuid_converter)"), u.create_stretch(), spacing=12)
+        modified_row = u.create_row(u.create_label(text="Modified:", width=60), u.create_label(text="@binding(display_item.modified, converter=date_converter)"), u.create_label(text="(local)"), u.create_stretch(), spacing=12)
+        data_source_chooser = {
+            "type": "data_source_chooser",
+            "display_item": "@binding(display_item)",
+            "min_width": 80,
+            "min_height": 80,
+        }
+        inspector_column = u.create_column(label,
+                                           uuid_row,
+                                           modified_row,
+                                           data_source_chooser,
+                                           u.create_stretch(),
+                                           spacing=12)
+        entity_component = u.create_scroll_area(u.create_column(u.create_component_instance("entity_component"), u.create_stretch()))
+        return u.create_tabs(
+            u.create_tab(_("Display Item"), inspector_column),
+            u.create_tab(_("Details"), entity_component),
+            style="minimal"
+        )
+
+    def create_handler(self, component_id: str, container: typing.Optional[Symbolic.ComputationVariable] = None, item: typing.Any = None, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
+        if component_id == "entity_component":
+            return make_record_handler(self.display_item, DataModel.DisplayItem.entity_id, 0, DataModel.DisplayItem)
         return None
 
 
@@ -1823,6 +1864,9 @@ class ProjectItemsDialog(Declarative.WindowHandler):
         self.items_model.append_item(
             ProjectItemsEntry(_("Data Items"), document_controller.document_model, "data_items",
                               typing.cast(MDComponentFn, DataItemHandler), operator.attrgetter("title")))
+        self.items_model.append_item(
+            ProjectItemsEntry(_("Display Items"), document_controller.document_model, "display_items",
+                              typing.cast(MDComponentFn, DisplayItemHandler), operator.attrgetter("title")))
 
         # close any previous list dialog associated with the window
         previous_window = getattr(document_controller, f"_{self.dialog_id}_dialog", None)
