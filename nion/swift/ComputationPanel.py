@@ -23,13 +23,13 @@ from nion.swift import NotificationDialog
 from nion.swift import Undo
 from nion.swift.model import Changes
 from nion.swift.model import DataItem
-from nion.swift.model import DataStructure
 from nion.swift.model import DisplayItem
 from nion.swift.model import Model as DataModel
 from nion.swift.model import Notification
 from nion.swift.model import Persistence
 from nion.swift.model import Schema
 from nion.swift.model import Symbolic
+from nion.swift.model import WorkspaceLayout
 from nion.ui import CanvasItem
 from nion.ui import Declarative
 from nion.ui import Dialog
@@ -50,7 +50,11 @@ from nion.utils.ReferenceCounting import weak_partial
 
 if typing.TYPE_CHECKING:
     from nion.swift import DocumentController
+    from nion.swift.model import Connection
+    from nion.swift.model import DataGroup
+    from nion.swift.model import DataStructure
     from nion.swift.model import DocumentModel
+    from nion.swift.model import Project
     from nion.ui import Application
 
 _DocumentControllerWeakRefType = typing.Callable[[], "DocumentController.DocumentController"]
@@ -1683,42 +1687,84 @@ class DataItemHandler(Declarative.Handler):
         return None
 
 
-class DisplayItemHandler(Declarative.Handler):
-    def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem):
-        super().__init__()
-        self.document_controller = document_controller
-        self.display_item = display_item
-        self.ui_view = self._make_ui()
-        self.uuid_converter = Converter.UuidToStringConverter()
-        self.date_converter = Converter.DatetimeToStringConverter(is_local=True, format="%Y-%m-%d %H:%M:%S %Z")
+class ItemInspectorHandlerFactory(typing.Protocol):
+    def make_component(self, item: typing.Any) -> typing.Optional[Declarative.HandlerLike]: ...
 
-    def _make_ui(self) -> Declarative.UIDescriptionResult:
-        u = Declarative.DeclarativeUI()
-        label = u.create_label(text=self.display_item.title)
-        uuid_row = u.create_row(u.create_label(text="UUID:", width=60), u.create_label(text="@binding(display_item.uuid, converter=uuid_converter)"), u.create_stretch(), spacing=12)
-        modified_row = u.create_row(u.create_label(text="Modified:", width=60), u.create_label(text="@binding(display_item.modified, converter=date_converter)"), u.create_label(text="(local)"), u.create_stretch(), spacing=12)
+
+class DisplayItemInspectorHandler(Declarative.Handler):
+    def __init__(self, display_item: DisplayItem.DisplayItem) -> None:
+        super().__init__()
+
+        self.display_item = display_item
+
         data_source_chooser = {
             "type": "data_source_chooser",
             "display_item": "@binding(display_item)",
             "min_width": 80,
             "min_height": 80,
         }
-        inspector_column = u.create_column(label,
-                                           uuid_row,
-                                           modified_row,
-                                           data_source_chooser,
-                                           u.create_stretch(),
-                                           spacing=12)
+
+        self.ui_view = data_source_chooser
+
+
+class DisplayItemInspectorHandlerFactory(ItemInspectorHandlerFactory):
+    def make_component(self, item: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
+        if isinstance(item, DisplayItem.DisplayItem):
+            return DisplayItemInspectorHandler(item)
+        return None
+
+
+Registry.register_component(DisplayItemInspectorHandlerFactory(), {"item-inspector-handler-factory"})
+
+
+class ItemPageHandler(Declarative.Handler):
+    def __init__(self,
+                 item: typing.Any,
+                 entity_type: Schema.EntityType,
+                 title: str,
+                 item_title_getter: typing.Optional[typing.Callable[[typing.Any], str]] = None) -> None:
+        super().__init__()
+        self.item = item
+        self.__title = title
+        self.__entity_type = entity_type
+        self.__item_title_getter = item_title_getter
+        self.__item_inspector_handler: typing.Optional[Declarative.HandlerLike] = None
+        self.uuid_converter = Converter.UuidToStringConverter()
+        self.date_converter = Converter.DatetimeToStringConverter(is_local=True, format="%Y-%m-%d %H:%M:%S %Z")
+        self.ui_view = self._make_ui()
+
+    def _make_ui(self) -> Declarative.UIDescriptionResult:
+        u = Declarative.DeclarativeUI()
         entity_component = u.create_scroll_area(u.create_column(u.create_component_instance("entity_component"), u.create_stretch()))
+        for component in Registry.get_components_by_type("item-inspector-handler-factory"):
+            item_inspector_handler_factory = typing.cast(ItemInspectorHandlerFactory, component)
+            item_inspector_handler = item_inspector_handler_factory.make_component(self.item)
+            if item_inspector_handler:
+                label = u.create_label(text=self.__item_title_getter(self.item) if self.__item_title_getter else self.__entity_type.entity_id)
+                uuid_row = u.create_row(u.create_label(text="UUID:", width=60), u.create_label(text="@binding(item.uuid, converter=uuid_converter)"), u.create_stretch(), spacing=12)
+                modified_row = u.create_row(u.create_label(text="Modified:", width=60), u.create_label(text="@binding(item.modified, converter=date_converter)"), u.create_label(text="(local)"), u.create_stretch(), spacing=12)
+                self.__item_inspector_handler = item_inspector_handler
+                inspector_column = u.create_column(label,
+                                                   uuid_row,
+                                                   modified_row,
+                                                   u.create_component_instance("item_inspector_component"),
+                                                   u.create_stretch(),
+                                                   spacing=12)
+                return u.create_tabs(
+                    u.create_tab(self.__title, inspector_column),
+                    u.create_tab(_("Details"), entity_component),
+                    style="minimal"
+                )
         return u.create_tabs(
-            u.create_tab(_("Display Item"), inspector_column),
             u.create_tab(_("Details"), entity_component),
             style="minimal"
         )
 
     def create_handler(self, component_id: str, container: typing.Optional[Symbolic.ComputationVariable] = None, item: typing.Any = None, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
         if component_id == "entity_component":
-            return make_record_handler(self.display_item, DataModel.DisplayItem.entity_id, 0, DataModel.DisplayItem)
+            return make_record_handler(self.item, self.__entity_type.entity_id, 0, self.__entity_type)
+        if component_id == "item_inspector_component":
+            return self.__item_inspector_handler
         return None
 
 
@@ -1885,7 +1931,7 @@ class MasterDetailHandler(Declarative.Handler):
 
 
 class ProjectItemsEntry:
-    def __init__(self, title: str, document_model: DocumentModel.DocumentModel, master_items_key: str, component_fn: DynamicWidgetConstructorFn,
+    def __init__(self, title: str, document_model: Observable.Observable, master_items_key: str, component_fn: DynamicWidgetConstructorFn,
                  title_getter: typing.Callable[[typing.Any], str]) -> None:
         model = ListModel.FilteredListModel(container=document_model, master_items_key=master_items_key)
         model.sort_key = operator.attrgetter("modified")
@@ -1916,6 +1962,15 @@ class ProjectItemsContent(Declarative.Handler):
         return None
 
 
+ProjectExtra = Schema.entity("project_extra", None, 3, {
+    "title": Schema.prop(Schema.STRING),
+    "workspace": Schema.reference(DataModel.Workspace),
+    "data_item_references": Schema.map(Schema.STRING, Schema.reference(DataModel.DataItem)),
+    "mapped_items": Schema.array(Schema.reference(DataModel.DataItem), Schema.OPTIONAL),
+    "project_data_folders": Schema.array(Schema.prop(Schema.PATH)),
+})
+
+
 class ProjectItemsDialog(Declarative.WindowHandler):
 
     def __init__(self, document_controller: DocumentController.DocumentController) -> None:
@@ -1937,7 +1992,19 @@ class ProjectItemsDialog(Declarative.WindowHandler):
             return DataItemHandler(document_controller, item)
 
         def create_display_item_handler(item: DisplayItem.DisplayItem) -> typing.Optional[Declarative.HandlerLike]:
-            return DisplayItemHandler(document_controller, item)
+            return ItemPageHandler(item, DataModel.DisplayItem, _("Display Item"), operator.attrgetter("title"))
+
+        def create_connection_handler(item: Connection.Connection) -> typing.Optional[Declarative.HandlerLike]:
+            return ItemPageHandler(item, DataModel.Connection, _("Connection"))
+
+        def create_data_group_handler(item: DataGroup.DataGroup) -> typing.Optional[Declarative.HandlerLike]:
+            return ItemPageHandler(item, DataModel.DataGroup, _("Data Group"), operator.attrgetter("title"))
+
+        def create_project_handler(item: Project.Project) -> typing.Optional[Declarative.HandlerLike]:
+            return ItemPageHandler(item, ProjectExtra, _("Project"), operator.attrgetter("title"))
+
+        def create_workspace_handler(item: WorkspaceLayout.WorkspaceLayout) -> typing.Optional[Declarative.HandlerLike]:
+            return ItemPageHandler(item, DataModel.Workspace, _("Workspace"), operator.attrgetter("name"))
 
         self.items_model.append_item(
             ProjectItemsEntry(_("Computations"), document_controller.document_model, "computations",
@@ -1951,6 +2018,18 @@ class ProjectItemsDialog(Declarative.WindowHandler):
         self.items_model.append_item(
             ProjectItemsEntry(_("Display Items"), document_controller.document_model, "display_items",
                               create_display_item_handler, operator.attrgetter("title")))
+        self.items_model.append_item(
+            ProjectItemsEntry(_("Connections"), document_controller.document_model, "connections",
+                              create_connection_handler, lambda x: str(x.uuid)))
+        self.items_model.append_item(
+            ProjectItemsEntry(_("Data Groups"), document_controller.document_model, "data_groups",
+                              create_data_group_handler, operator.attrgetter("title")))
+        self.items_model.append_item(
+            ProjectItemsEntry(_("Projects"), typing.cast(typing.Any, document_controller.app).profile, "projects",
+                              create_project_handler, operator.attrgetter("title")))
+        self.items_model.append_item(
+            ProjectItemsEntry(_("Workspaces"), document_controller.project, "workspaces",
+                              create_workspace_handler, operator.attrgetter("name")))
 
         # close any previous list dialog associated with the window
         previous_window = getattr(document_controller, f"_{self.dialog_id}_dialog", None)
