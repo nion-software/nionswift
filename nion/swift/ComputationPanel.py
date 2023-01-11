@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 # standard libraries
+import asyncio
 import functools
 import gettext
 import operator
@@ -34,6 +35,7 @@ from nion.ui import Declarative
 from nion.ui import Dialog
 from nion.ui import DrawingContext
 from nion.ui import UserInterface
+from nion.ui import Widgets
 from nion.ui import Window
 from nion.utils import Binding
 from nion.utils import Converter
@@ -1763,15 +1765,61 @@ class DataStructureHandler(Declarative.Handler):
         return None
 
 
-MDComponentFn = typing.Callable[[Window.Window, typing.Any], typing.Optional[Declarative.HandlerLike]]
+DynamicWidgetConstructorFn = typing.Callable[[typing.Any], typing.Optional[Declarative.HandlerLike]]
+
+
+class DynamicWidget(UserInterface.Widget):
+    """Widget which only adds content when the produce when produce_widget is called."""
+    def __init__(self, ui: UserInterface.UserInterface, event_loop: asyncio.AbstractEventLoop, component_fn: DynamicWidgetConstructorFn) -> None:
+        self.__ui = ui
+        self.__event_loop = event_loop
+        self.__component_fn = component_fn
+        self.__widget = ui.create_column_widget()
+        super().__init__(Widgets.CompositeWidgetBehavior(self.__widget))
+
+    def produce_widget(self, item: typing.Any) -> None:
+        if self.__widget.child_count == 0:
+            handler = self.__component_fn(item)
+            if handler:
+                self.__widget.add(Declarative.DeclarativeWidget(self.__ui, self.__event_loop, handler))
+
+
+class DynamicHandler(Declarative.Handler):
+    """Dynamic handler which contains a dynamic widget and only makes the widget when produce_widget is called."""
+    def __init__(self, item: typing.Any, component_fn: DynamicWidgetConstructorFn) -> None:
+        super().__init__()
+        self.__item = item
+        self.component_fn = component_fn
+        self.ui_view = {"type": "dynamic", "name": "dynamic_widget"}
+        self.dynamic_widget: typing.Optional[DynamicWidget] = None
+
+    def produce_widget(self) -> None:
+        if self.dynamic_widget:
+            self.dynamic_widget.produce_widget(self.__item)
+
+
+class DynamicDeclarativeWidgetConstructor:
+    def construct(self, d_type: str, ui: UserInterface.UserInterface, window: typing.Optional[Window.Window],
+                  d: Declarative.UIDescription, handler: Declarative.HandlerLike,
+                  finishes: typing.List[typing.Callable[[], None]]) -> typing.Optional[UserInterface.Widget]:
+        if d_type == "dynamic":
+            assert window
+            widget = DynamicWidget(ui, window.event_loop, typing.cast(DynamicHandler, handler).component_fn)
+            if "name" in d:
+                setattr(handler, d["name"], widget)
+            return widget
+        return None
+
+
+Registry.register_component(DynamicDeclarativeWidgetConstructor(), {"declarative_constructor"})
+
 
 class MasterDetailHandler(Declarative.Handler):
 
-    def __init__(self, window: Window.Window, model: Observable.Observable, items_key: str, component_fn: MDComponentFn,
+    def __init__(self, model: Observable.Observable, items_key: str, component_fn: DynamicWidgetConstructorFn,
                  title_getter: typing.Callable[[typing.Any], str]) -> None:
         super().__init__()
 
-        self.__window = window
         self.__component_fn = component_fn
 
         # the items for which the details are displayed.
@@ -1782,6 +1830,15 @@ class MasterDetailHandler(Declarative.Handler):
                                                       map_fn=title_getter)
 
         self.__labels_property_model = ListModel.ListPropertyModel(self.titles_model)
+
+        # set up a shadow list following the model/items_key
+
+        def make_shadow(item: typing.Any) -> typing.Any:
+            return DynamicHandler(item, component_fn)
+
+        self.shadow_items = ListModel.MappedListModel(container=self.items_model,
+                                                      master_items_key=items_key,
+                                                      map_fn=make_shadow)
 
         # the selected item in the items_model
         self.index_model = Model.PropertyModel(0)
@@ -1799,10 +1856,26 @@ class MasterDetailHandler(Declarative.Handler):
 
         self._detail_components: typing.Dict[typing.Any, typing.Optional[Declarative.HandlerLike]] = dict()
 
-    def create_handler(self, component_id: str, container: typing.Optional[Symbolic.ComputationVariable] = None, item: typing.Any = None, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
+        def index_changed(property: str) -> None:
+            if property == "value":
+                self.__update_dynamic_widget()
+
+        self.__listener = self.index_model.property_changed_event.listen(index_changed)
+
+    def __update_dynamic_widget(self) -> None:
+        index = self.index_model.value or 0
+        if 0 <= index < len(self.shadow_items.items):
+            typing.cast(DynamicHandler, self.shadow_items.items[index]).produce_widget()
+
+    def init_handler(self) -> None:
+        self.__update_dynamic_widget()
+
+    def create_handler(self, component_id: str, container: typing.Optional[ListModel.ListModel[Declarative.HandlerLike]] = None, item: typing.Any = None, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
         if component_id == "detail":
-            self._detail_components[item] = self.__component_fn(self.__window, item)
-            return self._detail_components[item]
+            assert container
+            handler = typing.cast(Declarative.HandlerLike, self.shadow_items.items[container.items.index(item)])
+            self._detail_components[item] = handler
+            return handler
         return None
 
     def get_binding(self, source: Observable.Observable, property: str, converter: typing.Optional[Converter.ConverterLike[typing.Any, typing.Any]]) -> typing.Optional[Binding.Binding]:
@@ -1812,7 +1885,7 @@ class MasterDetailHandler(Declarative.Handler):
 
 
 class ProjectItemsEntry:
-    def __init__(self, title: str, document_model: DocumentModel.DocumentModel, master_items_key: str, component_fn: MDComponentFn,
+    def __init__(self, title: str, document_model: DocumentModel.DocumentModel, master_items_key: str, component_fn: DynamicWidgetConstructorFn,
                  title_getter: typing.Callable[[typing.Any], str]) -> None:
         model = ListModel.FilteredListModel(container=document_model, master_items_key=master_items_key)
         model.sort_key = operator.attrgetter("modified")
@@ -1824,19 +1897,18 @@ class ProjectItemsEntry:
         self.label = title
 
 
-def make_master_detail(document_controller: DocumentController.DocumentController, project_item_handler: ProjectItemsEntry) -> Declarative.HandlerLike:
-    return MasterDetailHandler(document_controller, project_item_handler.model, project_item_handler.items_key, project_item_handler.component_fn, project_item_handler.title_getter)
+def make_master_detail(project_item_handler: ProjectItemsEntry) -> Declarative.HandlerLike:
+    return MasterDetailHandler(project_item_handler.model, project_item_handler.items_key, project_item_handler.component_fn, project_item_handler.title_getter)
 
 
 class ProjectItemsContent(Declarative.Handler):
 
-    def __init__(self, document_controller: DocumentController.DocumentController, item: typing.Any) -> None:
+    def __init__(self, item: typing.Any) -> None:
         super().__init__()
-        self.__document_controller = document_controller
         self.__item = item
         u = Declarative.DeclarativeUI()
         self.ui_view = u.create_component_instance(identifier="content")
-        self._master_detail_handler = make_master_detail(self.__document_controller, self.__item)
+        self._master_detail_handler = make_master_detail(self.__item)
 
     def create_handler(self, component_id: str, container: typing.Optional[Symbolic.ComputationVariable] = None, item: typing.Any = None, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
         if component_id == "content":
@@ -1855,18 +1927,30 @@ class ProjectItemsDialog(Declarative.WindowHandler):
 
         self.items_model = ListModel.ListModel[ProjectItemsEntry]()
 
+        def create_computation_handler(item: Symbolic.Computation) -> typing.Optional[Declarative.HandlerLike]:
+            return ComputationHandler(document_controller, item)
+
+        def create_data_structure_handler(item: DataStructure.DataStructure) -> typing.Optional[Declarative.HandlerLike]:
+            return DataStructureHandler(document_controller, item)
+
+        def create_data_item_handler(item: DataItem.DataItem) -> typing.Optional[Declarative.HandlerLike]:
+            return DataItemHandler(document_controller, item)
+
+        def create_display_item_handler(item: DisplayItem.DisplayItem) -> typing.Optional[Declarative.HandlerLike]:
+            return DisplayItemHandler(document_controller, item)
+
         self.items_model.append_item(
             ProjectItemsEntry(_("Computations"), document_controller.document_model, "computations",
-                              typing.cast(MDComponentFn, ComputationHandler), operator.attrgetter("label")))
+                              create_computation_handler, operator.attrgetter("label")))
         self.items_model.append_item(
             ProjectItemsEntry(_("Data Structures"), document_controller.document_model, "data_structures",
-                              typing.cast(MDComponentFn, DataStructureHandler), operator.attrgetter("structure_type")))
+                              create_data_structure_handler, operator.attrgetter("structure_type")))
         self.items_model.append_item(
             ProjectItemsEntry(_("Data Items"), document_controller.document_model, "data_items",
-                              typing.cast(MDComponentFn, DataItemHandler), operator.attrgetter("title")))
+                              create_data_item_handler, operator.attrgetter("title")))
         self.items_model.append_item(
             ProjectItemsEntry(_("Display Items"), document_controller.document_model, "display_items",
-                              typing.cast(MDComponentFn, DisplayItemHandler), operator.attrgetter("title")))
+                              create_display_item_handler, operator.attrgetter("title")))
 
         # close any previous list dialog associated with the window
         previous_window = getattr(document_controller, f"_{self.dialog_id}_dialog", None)
@@ -1874,7 +1958,7 @@ class ProjectItemsDialog(Declarative.WindowHandler):
             previous_window.close_window()
         setattr(document_controller, f"_{self.dialog_id}_dialog", self)
 
-        self.__master_detail_handler = MasterDetailHandler(self.__document_controller, self.items_model, "items", typing.cast(MDComponentFn, ProjectItemsContent), operator.attrgetter("label"))
+        self.__master_detail_handler = MasterDetailHandler(self.items_model, "items", typing.cast(DynamicWidgetConstructorFn, ProjectItemsContent), operator.attrgetter("label"))
 
         u = Declarative.DeclarativeUI()
 
