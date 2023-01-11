@@ -1485,6 +1485,32 @@ class EntityTupleHandler(Declarative.Handler):
         return None
 
 
+class EntityArrayHandler(Declarative.Handler):
+    def __init__(self, name: str, indent: int, value_type: Schema.FieldType, value_model: Model.PropertyModel[typing.Any]) -> None:
+        super().__init__()
+        self.value_model = value_model
+        self.value_type = value_type
+        self.indent = indent
+        self.tuple_model = EntityTupleModel(value_model)
+        u = Declarative.DeclarativeUI()
+        # the items in tuple_model (tuples an index and a value of value_type) will get passed to create_handler in the
+        # item parameter. this is accomplished by passing items to create_column below. the item_component_id is
+        # used to match this column with the request for a handler.
+        self.ui_view = u.create_column(
+            u.create_row(u.create_spacing(indent), u.create_label(text=name, width=60), u.create_stretch()),
+            u.create_row(u.create_spacing(indent * 4),
+                         u.create_column(items="tuple_model.items", item_component_id="entity_field", spacing=8)),
+            spacing = 8,
+        )
+
+    def create_handler(self, component_id: str, container: typing.Optional[ListModel.ListModel[typing.Any]] = None, item: typing.Any = None, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
+        # item is a tuple of type index, self.value_type
+        if component_id == "entity_field" and item is not None:
+            index, item_ = item
+            return make_field_handler(str(index), self.indent, self.value_type, Model.PropertyModel(item_))
+        return None
+
+
 class EntityValueIndexModel(Model.PropertyModel[T], typing.Generic[T]):
     # NOTE: read only
 
@@ -1525,14 +1551,42 @@ class EntityFieldsHandler(Declarative.Handler):
         return None
 
 
+class MaybePropertyChangedPropertyModel(Model.PropertyModel[typing.Any]):
+    """Observes a property on another item and makes it a standard property model.
+
+    When the observed property changes, update this value.
+
+    When this value changes, update the observed property.
+    """
+
+    def __init__(self, observable: Observable.Observable, property_name: str) -> None:
+        super().__init__(getattr(observable, property_name, None))
+        self.__observable = observable
+        self.__property_name = property_name
+
+        def property_changed(property_model: MaybePropertyChangedPropertyModel, observable: Observable.Observable, property_name: str, property_name_: str) -> None:
+            # check if changed property matches property name for this object
+            if property_name_ == property_name:
+                property_model.value = getattr(observable, property_name)
+
+        if hasattr(self.__observable, "property_changed_event"):
+            self.__listener = self.__observable.property_changed_event.listen(weak_partial(property_changed, self, observable, property_name))
+
+    def _set_value(self, value: typing.Optional[T]) -> None:
+        super()._set_value(value)
+        # set the property on the observed object. this will trigger a property changed, but will be ignored since
+        # the value doesn't change.
+        setattr(self.__observable, self.__property_name, value)
+
+
 class HasFieldTypeMap(typing.Protocol):
     @property
     def _field_type_map(self) -> typing.Mapping[str, Schema.FieldType]: raise NotImplementedError()
 
 
-def make_record_handler(item: Observable.Observable, name: str, entity_type: HasFieldTypeMap) -> EntityFieldsHandler:
-    field_list = [(n, t, Model.PropertyChangedPropertyModel[typing.Any](item, n)) for n, t in entity_type._field_type_map.items()]
-    return EntityFieldsHandler(name, 0, field_list)
+def make_record_handler(item: Observable.Observable, name: str, indent: int, entity_type: HasFieldTypeMap) -> EntityFieldsHandler:
+    field_list = [(n, t, MaybePropertyChangedPropertyModel(item, n)) for n, t in entity_type._field_type_map.items()]
+    return EntityFieldsHandler(name, indent, field_list)
 
 
 def make_field_handler(field_name: str, indent: int, value_type: Schema.FieldType, value_model: Model.PropertyModel[typing.Any]) -> typing.Optional[Declarative.HandlerLike]:
@@ -1551,6 +1605,18 @@ def make_field_handler(field_name: str, indent: int, value_type: Schema.FieldTyp
     if isinstance(value_type, Schema.FixedTupleType):
         field_list = [(str(i), t, EntityValueIndexModel(value_model, i)) for i, t in enumerate(value_type.types)]
         return EntityFieldsHandler(field_name, indent + 1, field_list)
+
+    # when item type is record type, use make_record_handler to where the item is the value of the value_model passed
+    # to this function.
+    if isinstance(value_type, Schema.RecordType):
+        assert value_model.value is not None
+        return make_record_handler(value_model.value, field_name, indent + 1, value_type)
+
+    # when item type is array type, create an entity array handler, passing the value type of the array and the property model directly.
+    # the array handler will watch for changes to either the property model or the list value of the property model and update its
+    # internal list accordingly.
+    if isinstance(value_type, Schema.ArrayType):
+        return EntityArrayHandler(field_name, indent + 1, value_type.type, value_model)
 
     # fall through to a dummy handler.
     class DummyHandler(Declarative.HandlerLike):
@@ -1598,7 +1664,7 @@ class DataItemHandler(Declarative.Handler):
                                            data_source_chooser,
                                            u.create_stretch(),
                                            spacing=12)
-        entity_component = u.create_component_instance("entity_component")
+        entity_component = u.create_scroll_area(u.create_component_instance("entity_component"))
         return u.create_tabs(
             u.create_tab(_("Data Item"), inspector_column),
             u.create_tab(_("Details"), entity_component),
@@ -1609,7 +1675,7 @@ class DataItemHandler(Declarative.Handler):
         if component_id == "source_component":
             return ReferenceHandler(self.document_controller, _("Source"), self.item.source)
         if component_id == "entity_component":
-            return make_record_handler(self.item, DataModel.DataItem.entity_id, DataModel.DataItem)
+            return make_record_handler(self.item, DataModel.DataItem.entity_id, 0, DataModel.DataItem)
         return None
 
 
@@ -1652,7 +1718,7 @@ class DataStructureHandler(Declarative.Handler):
             # note: use data structure as the base item of the entity field handler since the entity is not quite
             # properly connected to the data structure. setting a value on the data structure does not send a property
             # changed value from the entity.
-            return make_record_handler(self.data_structure, entity.entity_type.entity_id, entity.entity_type)
+            return make_record_handler(self.data_structure, entity.entity_type.entity_id, 0, entity.entity_type)
         return None
 
 
