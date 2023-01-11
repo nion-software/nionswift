@@ -669,7 +669,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
     def __resolve_mapped_items(self) -> None:
         # handle the reference variable assignments
-        for mapped_item in self._project.mapped_items:
+        mapped_items = self._project.mapped_items
+        mapped_items_valid = list(mapped_items)
+        for mapped_item in mapped_items:
             item_proxy = self._project.create_item_proxy(
                 item_specifier=Persistence.read_persistent_specifier(mapped_item))
             with contextlib.closing(item_proxy):
@@ -677,6 +679,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                     display_item = typing.cast(Persistence.PersistentObject, item_proxy.item)
                     if not display_item in MappedItemManager().item_map.values():
                         MappedItemManager().register(self, item_proxy.item)
+                else:
+                    mapped_items_valid.remove(mapped_item)
+        if len(mapped_items_valid) < len(mapped_items):
+            self._project.mapped_items = mapped_items_valid
 
     def __resolve_data_item_references(self) -> None:
         # update the data item references
