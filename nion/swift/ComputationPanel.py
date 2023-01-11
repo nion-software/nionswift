@@ -1370,10 +1370,14 @@ class ComputationErrorNotificationComponentFactory(NotificationDialog.Notificati
 Registry.register_component(ComputationErrorNotificationComponentFactory(), {"notification-component-factory"})
 
 
+class ReferenceHandlerContext(typing.Protocol):
+    def open_project_item(self, item: Persistence.PersistentObject) -> None: ...
+
+
 class ReferenceHandler(Declarative.Handler):
-    def __init__(self, document_controller: DocumentController.DocumentController, label: str, item: typing.Optional[Persistence.PersistentObject]) -> None:
+    def __init__(self, context: ReferenceHandlerContext, label: str, item: typing.Optional[Persistence.PersistentObject]) -> None:
         super().__init__()
-        self.document_controller = document_controller
+        self.context = context
         self.label = label
         self.item = item
         self.ui_view = self.__make_ui()
@@ -1387,7 +1391,7 @@ class ReferenceHandler(Declarative.Handler):
                                         size_policy_horizontal="maximum")
             label_section = u.create_row(label, link)
         else:
-            label_section = u.create_label(text=_("None"))
+            label_section = u.create_label(text=_("None [reference]"))
         return u.create_row(
             u.create_label(text=self.label, width=60),
             label_section,
@@ -1396,7 +1400,7 @@ class ReferenceHandler(Declarative.Handler):
 
     def handle_link(self, item: Declarative.UIWidget) -> None:
         if self.item:
-            self.document_controller.open_project_item(self.item)
+            self.context.open_project_item(self.item)
 
 
 class EntityPropertyHandler(Declarative.Handler):
@@ -1435,8 +1439,9 @@ class EntityPropertyHandler(Declarative.Handler):
             return u.create_row(u.create_label(text=name, width=60),
                                 u.create_label(text=f"@binding(value_model.value, converter=uuid_converter)"),
                                 u.create_stretch(), spacing=12)
+        NOT_DISPLAYED = _("not displayed")
         return u.create_row(u.create_label(text=name, width=60),
-                            u.create_label(text=str(type(value_type))),
+                            u.create_label(text=f"{value_type.type} ({NOT_DISPLAYED})"),
                             u.create_stretch(),
                             spacing=12)
 
@@ -1466,8 +1471,9 @@ class EntityTupleModel(Observable.Observable):
 
 
 class EntityTupleHandler(Declarative.Handler):
-    def __init__(self, name: str, indent: int, value_type: Schema.FieldType, value_model: Model.PropertyModel[typing.Any]) -> None:
+    def __init__(self, context: ReferenceHandlerContext, name: str, indent: int, value_type: Schema.FieldType, value_model: Model.PropertyModel[typing.Any]) -> None:
         super().__init__()
+        self.context = context
         self.value_model = value_model
         self.value_type = value_type
         self.indent = indent
@@ -1487,13 +1493,14 @@ class EntityTupleHandler(Declarative.Handler):
         # item is a tuple of type index, self.value_type
         if component_id == "entity_field" and item is not None:
             index, item_ = item
-            return make_field_handler(str(index), self.indent, self.value_type, Model.PropertyModel(item_))
+            return make_field_handler(self.context, str(index), self.indent, self.value_type, Model.PropertyModel(item_))
         return None
 
 
 class EntityArrayHandler(Declarative.Handler):
-    def __init__(self, name: str, indent: int, value_type: Schema.FieldType, value_model: Model.PropertyModel[typing.Any]) -> None:
+    def __init__(self, context: ReferenceHandlerContext, name: str, indent: int, value_type: Schema.FieldType, value_model: Model.PropertyModel[typing.Any]) -> None:
         super().__init__()
+        self.context = context
         self.value_model = value_model
         self.value_type = value_type
         self.indent = indent
@@ -1513,7 +1520,7 @@ class EntityArrayHandler(Declarative.Handler):
         # item is a tuple of type index, self.value_type
         if component_id == "entity_field" and item is not None:
             index, item_ = item
-            return make_field_handler(str(index), self.indent, self.value_type, Model.PropertyModel(item_))
+            return make_field_handler(self.context, str(index), self.indent, self.value_type, Model.PropertyModel(item_))
         return None
 
 
@@ -1534,8 +1541,9 @@ class EntityValueIndexModel(Model.PropertyModel[T], typing.Generic[T]):
 
 
 class EntityFieldsHandler(Declarative.Handler):
-    def __init__(self, name: str, indent: int, field_list: typing.Sequence[typing.Tuple[str, Schema.FieldType, Model.PropertyModel[typing.Any]]]) -> None:
+    def __init__(self, context: ReferenceHandlerContext, name: str, indent: int, field_list: typing.Sequence[typing.Tuple[str, Schema.FieldType, Model.PropertyModel[typing.Any]]]) -> None:
         super().__init__()
+        self.context = context
         self.indent = indent
         self.field_list = list(field_list)
         u = Declarative.DeclarativeUI()
@@ -1553,7 +1561,7 @@ class EntityFieldsHandler(Declarative.Handler):
         # item is a tuple of field name, value type, and value model. it comes from the field list passed during init.
         if component_id == "entity_field" and item is not None:
             field_name, value_type, value_model = typing.cast(typing.Tuple[str, Schema.FieldType, Model.PropertyModel[typing.Any]], item)
-            return make_field_handler(field_name, self.indent, value_type, value_model)
+            return make_field_handler(self.context, field_name, self.indent, value_type, value_model)
         return None
 
 
@@ -1599,12 +1607,12 @@ class HasFieldTypeMap(typing.Protocol):
     def _field_type_map(self) -> typing.Mapping[str, Schema.FieldType]: raise NotImplementedError()
 
 
-def make_record_handler(item: Observable.Observable, name: str, indent: int, entity_type: HasFieldTypeMap) -> EntityFieldsHandler:
+def make_record_handler(context: ReferenceHandlerContext, item: Observable.Observable, name: str, indent: int, entity_type: HasFieldTypeMap) -> EntityFieldsHandler:
     field_list = [(n, t, MaybePropertyChangedPropertyModel(item, n)) for n, t in entity_type._field_type_map.items()]
-    return EntityFieldsHandler(name, indent, field_list)
+    return EntityFieldsHandler(context, name, indent, field_list)
 
 
-def make_field_handler(field_name: str, indent: int, value_type: Schema.FieldType, value_model: Model.PropertyModel[typing.Any]) -> typing.Optional[Declarative.HandlerLike]:
+def make_field_handler(context: ReferenceHandlerContext, field_name: str, indent: int, value_type: Schema.FieldType, value_model: Model.PropertyModel[typing.Any]) -> typing.Optional[Declarative.HandlerLike]:
     # when item type is property type, create an entity property handler, passing the value type and property model directly.
     if isinstance(value_type, Schema.PropertyType):
         return EntityPropertyHandler(field_name, value_type, value_model)
@@ -1612,28 +1620,47 @@ def make_field_handler(field_name: str, indent: int, value_type: Schema.FieldTyp
     # when item type is tuple type, create an entity tuple handler, passing the value type of the tuple and the property model directly.
     # the tuple handler will watch for changes to the property model and update its internal list accordingly.
     if isinstance(value_type, Schema.TupleType):
-        return EntityTupleHandler(field_name, indent + 1, value_type.type, value_model)
+        return EntityTupleHandler(context, field_name, indent + 1, value_type.type, value_model)
 
     # when item type is fixed tuple type, make a list of field-name/value-type/property-model tuples, creating
     # entity value index models to access the individual fields, and recursively create another entity fields
     # handler with the list.
     if isinstance(value_type, Schema.FixedTupleType):
-        field_list = [(str(i), t, EntityValueIndexModel(value_model, i)) for i, t in enumerate(value_type.types)]
-        return EntityFieldsHandler(field_name, indent + 1, field_list)
+        if value_model.value is not None:
+            field_list = [(str(i), t, EntityValueIndexModel(value_model, i)) for i, t in enumerate(value_type.types)]
+            return EntityFieldsHandler(context, field_name, indent + 1, field_list)
+        else:
+            return DummyHandler(field_name, "NONE [fixed-tuple]")
 
     # when item type is record type, use make_record_handler to where the item is the value of the value_model passed
     # to this function.
     if isinstance(value_type, Schema.RecordType):
         if value_model.value is not None:
-            return make_record_handler(value_model.value, field_name, indent + 1, value_type)
+            return make_record_handler(context, value_model.value, field_name, indent + 1, value_type)
         else:
-            return DummyHandler(field_name, "NONE")
+            return DummyHandler(field_name, "NONE [record]")
 
     # when item type is array type, create an entity array handler, passing the value type of the array and the property model directly.
     # the array handler will watch for changes to either the property model or the list value of the property model and update its
     # internal list accordingly.
     if isinstance(value_type, Schema.ArrayType):
-        return EntityArrayHandler(field_name, indent + 1, value_type.type, value_model)
+        return EntityArrayHandler(context, field_name, indent + 1, value_type.type, value_model)
+
+    # map
+
+    # reference
+    if isinstance(value_type, Schema.ReferenceType):
+        return ReferenceHandler(context, field_name, value_model.value)
+
+    # when item type is component type, use make_record_handler to where the item is the value of the value_model passed
+    # to this function. get the entity type from the component type.
+    if isinstance(value_type, Schema.ComponentType):
+        if value_model.value is not None:
+            entity_type = Schema.get_entity_type(value_type.entity_id)
+            assert entity_type
+            return make_record_handler(context, value_model.value, field_name, indent + 1, entity_type)
+        else:
+            return DummyHandler(field_name, "NONE [component]")
 
     # fall through to a dummy handler.
     return DummyHandler(field_name, str(value_type))
@@ -1683,7 +1710,7 @@ class DataItemHandler(Declarative.Handler):
         if component_id == "source_component":
             return ReferenceHandler(self.document_controller, _("Source"), self.item.source)
         if component_id == "entity_component":
-            return make_record_handler(self.item, DataModel.DataItem.entity_id, 0, DataModel.DataItem)
+            return make_record_handler(self.document_controller, self.item, DataModel.DataItem.entity_id, 0, DataModel.DataItem)
         return None
 
 
@@ -1719,11 +1746,13 @@ Registry.register_component(DisplayItemInspectorHandlerFactory(), {"item-inspect
 
 class ItemPageHandler(Declarative.Handler):
     def __init__(self,
+                 context: ReferenceHandlerContext,
                  item: typing.Any,
                  entity_type: Schema.EntityType,
                  title: str,
                  item_title_getter: typing.Optional[typing.Callable[[typing.Any], str]] = None) -> None:
         super().__init__()
+        self.context = context
         self.item = item
         self.__title = title
         self.__entity_type = entity_type
@@ -1762,16 +1791,16 @@ class ItemPageHandler(Declarative.Handler):
 
     def create_handler(self, component_id: str, container: typing.Optional[Symbolic.ComputationVariable] = None, item: typing.Any = None, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
         if component_id == "entity_component":
-            return make_record_handler(self.item, self.__entity_type.entity_id, 0, self.__entity_type)
+            return make_record_handler(self.context, self.item, self.__entity_type.entity_id, 0, self.__entity_type)
         if component_id == "item_inspector_component":
             return self.__item_inspector_handler
         return None
 
 
 class DataStructureHandler(Declarative.Handler):
-    def __init__(self, document_controller: DocumentController.DocumentController, data_structure: DataStructure.DataStructure):
+    def __init__(self, context: ReferenceHandlerContext, data_structure: DataStructure.DataStructure):
         super().__init__()
-        self.document_controller = document_controller
+        self.context = context
         self.data_structure = data_structure
         self.ui_view = self.__make_ui()
         self.uuid_converter = Converter.UuidToStringConverter()
@@ -1800,14 +1829,14 @@ class DataStructureHandler(Declarative.Handler):
 
     def create_handler(self, component_id: str, container: typing.Optional[Symbolic.ComputationVariable] = None, item: typing.Any = None, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
         if component_id == "source_component":
-            return ReferenceHandler(self.document_controller, _("Source"), self.data_structure.source)
+            return ReferenceHandler(self.context, _("Source"), self.data_structure.source)
         if component_id == "entity_component":
             entity = self.data_structure.entity
             assert entity
             # note: use data structure as the base item of the entity field handler since the entity is not quite
             # properly connected to the data structure. setting a value on the data structure does not send a property
             # changed value from the entity.
-            return make_record_handler(self.data_structure, entity.entity_type.entity_id, 0, entity.entity_type)
+            return make_record_handler(self.context, self.data_structure, entity.entity_type.entity_id, 0, entity.entity_type)
         return None
 
 
@@ -1822,12 +1851,17 @@ class DynamicWidget(UserInterface.Widget):
         self.__component_fn = component_fn
         self.__widget = ui.create_column_widget()
         super().__init__(Widgets.CompositeWidgetBehavior(self.__widget))
+        self.__handler: typing.Optional[Declarative.HandlerLike] = None
+
+    @property
+    def dynamic_handler(self) -> typing.Optional[Declarative.HandlerLike]:
+        return self.__handler
 
     def produce_widget(self, item: typing.Any) -> None:
         if self.__widget.child_count == 0:
-            handler = self.__component_fn(item)
-            if handler:
-                self.__widget.add(Declarative.DeclarativeWidget(self.__ui, self.__event_loop, handler))
+            self.__handler = self.__component_fn(item)
+            if self.__handler:
+                self.__widget.add(Declarative.DeclarativeWidget(self.__ui, self.__event_loop, self.__handler))
 
 
 class DynamicHandler(Declarative.Handler):
@@ -1992,19 +2026,19 @@ class ProjectItemsDialog(Declarative.WindowHandler):
             return DataItemHandler(document_controller, item)
 
         def create_display_item_handler(item: DisplayItem.DisplayItem) -> typing.Optional[Declarative.HandlerLike]:
-            return ItemPageHandler(item, DataModel.DisplayItem, _("Display Item"), operator.attrgetter("title"))
+            return ItemPageHandler(self, item, DataModel.DisplayItem, _("Display Item"), operator.attrgetter("title"))
 
         def create_connection_handler(item: Connection.Connection) -> typing.Optional[Declarative.HandlerLike]:
-            return ItemPageHandler(item, DataModel.Connection, _("Connection"))
+            return ItemPageHandler(self, item, DataModel.Connection, _("Connection"))
 
         def create_data_group_handler(item: DataGroup.DataGroup) -> typing.Optional[Declarative.HandlerLike]:
-            return ItemPageHandler(item, DataModel.DataGroup, _("Data Group"), operator.attrgetter("title"))
+            return ItemPageHandler(self, item, DataModel.DataGroup, _("Data Group"), operator.attrgetter("title"))
 
         def create_project_handler(item: Project.Project) -> typing.Optional[Declarative.HandlerLike]:
-            return ItemPageHandler(item, ProjectExtra, _("Project"), operator.attrgetter("title"))
+            return ItemPageHandler(self, item, ProjectExtra, _("Project"), operator.attrgetter("title"))
 
         def create_workspace_handler(item: WorkspaceLayout.WorkspaceLayout) -> typing.Optional[Declarative.HandlerLike]:
-            return ItemPageHandler(item, DataModel.Workspace, _("Workspace"), operator.attrgetter("name"))
+            return ItemPageHandler(self, item, DataModel.Workspace, _("Workspace"), operator.attrgetter("name"))
 
         self.items_model.append_item(
             ProjectItemsEntry(_("Computations"), document_controller.document_model, "computations",
@@ -2055,11 +2089,30 @@ class ProjectItemsDialog(Declarative.WindowHandler):
         return None
 
     def open_project_item(self, item: Persistence.PersistentObject) -> None:
+        # print(f"{type(item)=} {item=}")
+
+        class Visitor(Schema.Visitor):
+            def __init__(self, base_value: typing.Any) -> None:
+                self.base_value = base_value
+                self.breadcrumbs: typing.Sequence[typing.Any] = list()
+
+            def visit(self, accessor: Schema.Accessor) -> None:
+                value = accessor.get_value(self.base_value)
+                if value == item and isinstance(accessor.field_type, Schema.ComponentType):
+                    self.breadcrumbs = accessor.breadcrumbs(self.base_value)
+
+        project = self.__document_controller.project
+        visitor = Visitor(project)
+        DataModel.Project.visit(typing.cast(Schema.Entity, project), Schema.BaseAccessor(Schema.reference(DataModel.Project), "project"), visitor)
+
         for index, project_items in enumerate(self.items_model.items):
-            if item in project_items.model.items:
-                self.__master_detail_handler.index_model.value = index
-                item_index = project_items.model.items.index(item)
-                content_handler = typing.cast(ProjectItemsContent, self.__master_detail_handler._detail_components[self.items_model._items[self.__master_detail_handler.index_model.value]])
-                detail_handler = typing.cast(MasterDetailHandler, content_handler._master_detail_handler)
-                detail_handler.index_model.value = item_index
-        print(f"open project item {item}")
+            for value in reversed(visitor.breadcrumbs):
+                if value in project_items.model.items:
+                    self.__master_detail_handler.index_model.value = index
+                    item_index = project_items.model.items.index(value)
+                    detail_component = typing.cast(DynamicHandler, self.__master_detail_handler._detail_components[self.items_model._items[self.__master_detail_handler.index_model.value]])
+                    assert detail_component.dynamic_widget and detail_component.dynamic_widget.dynamic_handler
+                    content_handler = typing.cast(ProjectItemsContent, detail_component.dynamic_widget.dynamic_handler)
+                    detail_handler = typing.cast(MasterDetailHandler, content_handler._master_detail_handler)
+                    detail_handler.index_model.value = item_index
+                    return
