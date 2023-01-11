@@ -120,6 +120,87 @@ class ItemProxy:
         self.__item = item
 
 
+class Accessor(typing.Protocol):
+    accessor: typing.Optional[Accessor]
+    field_type: FieldType
+
+    def get_value(self, item: typing.Any) -> typing.Any: ...
+
+    def breadcrumbs(self, item: typing.Any) -> typing.Sequence[typing.Any]: ...
+
+
+class BaseAccessor(Accessor):
+    def __init__(self, field_type: FieldType, field_name: str) -> None:
+        self.accessor = None
+        self.field_type = field_type
+        self.field_name = field_name
+
+    def __repr__(self) -> str:
+        return f"{self.field_name}"
+
+    def get_value(self, item: typing.Any) -> typing.Any:
+        return item
+
+    def breadcrumbs(self, item: typing.Any) -> typing.Sequence[typing.Any]:
+        return [item]
+
+
+class FieldAccessor(Accessor):
+    def __init__(self, accessor: Accessor, field_type: FieldType, field_name: str) -> None:
+        self.accessor = accessor
+        self.field_type = field_type
+        self.field_name = field_name
+
+    def __repr__(self) -> str:
+        return f"{self.accessor}.{self.field_name}"
+
+    def get_value(self, item: typing.Any) -> typing.Any:
+        return getattr(self.accessor.get_value(item), self.field_name, None)
+
+    def breadcrumbs(self, item: typing.Any) -> typing.Sequence[typing.Any]:
+        return self.accessor.breadcrumbs(item)
+
+
+class IndexAccessor(Accessor):
+    def __init__(self, accessor: Accessor, field_type: FieldType, index: int) -> None:
+        self.accessor = accessor
+        self.field_type = field_type
+        self.index = index
+
+    def __repr__(self) -> str:
+        return f"{self.accessor}[{self.index}]"
+
+    def get_value(self, item: typing.Any) -> typing.Any:
+        return self.accessor.get_value(item)[self.index]
+
+    def breadcrumbs(self, item: typing.Any) -> typing.Sequence[typing.Any]:
+        return list(self.accessor.breadcrumbs(item)) + [self.get_value(item)]
+
+
+class MapAccessor(Accessor):
+    def __init__(self, accessor: Accessor, field_type: FieldType, key: typing.Any) -> None:
+        self.accessor = accessor
+        self.field_type = field_type
+        self.key = key
+
+    def __repr__(self) -> str:
+        return f"{self.accessor}['{self.key}']"
+
+    def get_value(self, item: typing.Any) -> typing.Any:
+        return self.accessor.get_value(item)[self.key]
+
+    def breadcrumbs(self, item: typing.Any) -> typing.Sequence[typing.Any]:
+        return list(self.accessor.breadcrumbs(item)) + [self.get_value(item)]
+
+
+class Visitor(typing.Protocol):
+    def visit(self, accessor: Accessor) -> None: ...
+
+
+class SupportsVisit(typing.Protocol):
+    def visit(self, value: typing.Any, accessor: Accessor, visitor: Visitor) -> None: ...
+
+
 class EntityContext(abc.ABC):
 
     @abc.abstractmethod
@@ -654,6 +735,9 @@ class FieldType(abc.ABC):
     def _get_repr(self, parents: typing.List[typing.Any]) -> str:
         raise NotImplementedError()
 
+    def visit(self, value: typing.Any, accessor: Accessor, visitor: Visitor) -> None:
+        raise NotImplementedError()
+
     @property
     def _field_class(self) -> typing.Callable[..., Field]:
         return self.__field_class
@@ -686,6 +770,9 @@ class PropertyType(FieldType):
     def _get_repr(self, parents: typing.List[typing.Any]) -> str:
         return self.type
 
+    def visit(self, value: typing.Any, accessor: Accessor, visitor: Visitor) -> None:
+        pass
+
 
 class TupleType(FieldType):
     def __init__(self, type: FieldType, optional: bool, default: typing.Optional[typing.Sequence[typing.Any]]) -> None:
@@ -699,6 +786,14 @@ class TupleType(FieldType):
         else:
             return f"tuple[self]"
 
+    def visit(self, value: typing.Tuple[typing.Any], accessor: Accessor, visitor: Visitor) -> None:
+        for index, tuple_value in enumerate(value):
+            next_accessor = IndexAccessor(accessor, self.type, index)
+            # inform the visitor of the tuple entry
+            visitor.visit(next_accessor)
+            # then visit the value
+            self.type.visit(tuple_value, next_accessor, visitor)
+
 
 class FixedTupleType(FieldType):
     def __init__(self, types: typing.Sequence[FieldType], optional: bool, default: typing.Optional[typing.Tuple[typing.Any, ...]]) -> None:
@@ -709,6 +804,14 @@ class FixedTupleType(FieldType):
     def _get_repr(self, parents: typing.List[typing.Any]) -> str:
         types_str = ", ".join(t._get_repr(parents + [self]) if t not in parents else "self" for t in self.types)
         return f"fixed_tuple[{types_str}]"
+
+    def visit(self, value: typing.Tuple[typing.Any], accessor: Accessor, visitor: Visitor) -> None:
+        for index, tuple_value in enumerate(value):
+            next_accessor = IndexAccessor(accessor, self.types[index], index)
+            # inform the visitor of the tuple entry
+            visitor.visit(next_accessor)
+            # then visit the value
+            self.types[index].visit(tuple_value, next_accessor, visitor)
 
 
 class RecordType(FieldType):
@@ -724,6 +827,16 @@ class RecordType(FieldType):
         types_str = ", ".join(f"{t}: {f._get_repr(parents + [self]) if f not in parents else 'self'}" for t, f in self.__field_type_map.items())
         return f"record[{types_str}]"
 
+    def visit(self, value: typing.Any, accessor: Accessor, visitor: Visitor) -> None:
+        for field_name, field_type in self.__field_type_map.items():
+            next_accessor = FieldAccessor(accessor, field_type, field_name)
+            # inform the visitor of the field
+            visitor.visit(next_accessor)
+            # then visit each field
+            field_value = getattr(value, field_name)
+            if field_value is not None:
+                field_type.visit(field_value, next_accessor, visitor)
+
 
 class ArrayType(FieldType):
     def __init__(self, type: FieldType, optional: bool) -> None:
@@ -737,19 +850,35 @@ class ArrayType(FieldType):
         else:
             return f"array[self]"
 
+    def visit(self, value: typing.Sequence[typing.Any], accessor: Accessor, visitor: Visitor) -> None:
+        for index, array_value in enumerate(value):
+            next_accessor = IndexAccessor(accessor, self.type, index)
+            # inform the visitor of the tuple entry
+            visitor.visit(next_accessor)
+            # then visit the value
+            self.type.visit(array_value, next_accessor, visitor)
+
 
 class MapType(FieldType):
-    def __init__(self, key: str, value: FieldType, optional: bool) -> None:
-        super().__init__(MapField, key, value, optional)
+    def __init__(self, key: str, value_type: FieldType, optional: bool) -> None:
+        super().__init__(MapField, key, value_type, optional)
         self.key = key
-        self.value = value
+        self.value_type = value_type
         self.optional = optional
 
     def _get_repr(self, parents: typing.List[typing.Any]) -> str:
         if self not in parents:
-            return f"map[{self.key}: {self.value._get_repr(parents + [self])}]"
+            return f"map[{self.key}: {self.value_type._get_repr(parents + [self])}]"
         else:
             return f"map[{self.key}: self]"
+
+    def visit(self, value: typing.Mapping[typing.Any, typing.Any], accessor: Accessor, visitor: Visitor) -> None:
+        for map_key, map_value in value.items():
+            next_accessor = MapAccessor(accessor, self.value_type, map_key)
+            # inform the visitor of the tuple entry
+            visitor.visit(next_accessor)
+            # then visit the value
+            self.value_type.visit(map_value, next_accessor, visitor)
 
 
 class ReferenceType(FieldType):
@@ -762,6 +891,9 @@ class ReferenceType(FieldType):
             return f"reference[{self.type._get_repr(parents + [self]) if self.type else 'None'}]"
         else:
             return f"reference[self]"
+
+    def visit(self, value: typing.Any, accessor: Accessor, visitor: Visitor) -> None:
+        pass
 
 
 class ComponentType(FieldType):
@@ -785,6 +917,9 @@ class ComponentType(FieldType):
             return f"component[{entity_types[self.entity_id]._get_repr(parents + [self])}]"
         else:
             return f"component[self]"
+
+    def visit(self, value: Entity, accessor: Accessor, visitor: Visitor) -> None:
+        entity_types[self.entity_id].visit(value, accessor, visitor)
 
 
 _EntityTransform = typing.Callable[[PersistentDictType], PersistentDictType]
@@ -1073,6 +1208,16 @@ class EntityType:
         fields_str = f" (" + ", ".join([f"{n}: {t._get_repr(parents + [self]) if t not in parents else 'self'}" for n, t in self.__field_type_map.items()]) + ")"
         r = f"entity [{self.__entity_id}{version_str}]{base_str}{fields_str}"
         return r
+
+    def visit(self, value: Entity, accessor: Accessor, visitor: Visitor) -> None:
+        for field_name, field_type in self.__field_type_map.items():
+            next_accessor = FieldAccessor(accessor, field_type, field_name)
+            # inform the visitor of the field
+            visitor.visit(next_accessor)
+            # then visit each field
+            field_value = getattr(value, field_name, None)
+            if field_value is not None:
+                field_type.visit(field_value, next_accessor, visitor)
 
     @property
     def _version(self) -> typing.Optional[int]:
