@@ -2881,7 +2881,7 @@ class ProjectItemsDialogAction(Window.Action):
     def invoke(self, context_: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context_)
         window = typing.cast(DocumentController, context.window)
-        ComputationPanel.ProjectItemsDialog(window)
+        ComputationPanel.make_project_items_dialog(window)
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
