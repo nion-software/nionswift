@@ -33,6 +33,7 @@ from nion.swift import ImageCanvasItem
 from nion.swift import MimeTypes
 from nion.swift import NotificationDialog
 from nion.swift import Panel
+from nion.swift import ProjectItemsDialog
 from nion.swift import RecorderPanel
 from nion.swift import ScriptsDialog
 from nion.swift import Task
@@ -895,12 +896,12 @@ class DocumentController(Window.Window):
             recorder_dialog = RecorderPanel.RecorderDialog(self, data_item)
             recorder_dialog.show()
 
-    def open_project_item(self, item: Persistence.PersistentObject) -> None:
-        # open the dialog if it doesn't exist
+    def open_project_item(self, item: typing.Any) -> None:
+        # open the project dialog if not open already and select the object corresponding to or containing the item.
         if not getattr(self, "_project_items_dialog", None):
             self.perform_action("window.project_items_dialog")
         # get the dialog again, which may have been opened
-        project_items_dialog = typing.cast(typing.Optional[ComputationPanel.ProjectItemsDialog], getattr(self, "_project_items_dialog", None))
+        project_items_dialog = typing.cast(typing.Optional[ProjectItemsDialog.ProjectItemsDialog], getattr(self, "_project_items_dialog", None))
         if project_items_dialog:
             project_items_dialog.open_project_item(item)
 
@@ -2881,7 +2882,7 @@ class ProjectItemsDialogAction(Window.Action):
     def invoke(self, context_: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context_)
         window = typing.cast(DocumentController, context.window)
-        ComputationPanel.make_project_items_dialog(window)
+        ProjectItemsDialog.make_project_items_dialog(window)
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
