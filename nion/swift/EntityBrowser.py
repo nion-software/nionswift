@@ -76,6 +76,14 @@ class ReferenceHandler(Declarative.Handler):
                 reference_handler.open_project_item(self.item)
 
 
+class ItemToStringConverter(Converter.ConverterLike[typing.Any, str]):
+    def convert(self, value: typing.Optional[typing.Any]) -> typing.Optional[str]:
+        return f"{str(value)}" if value else None
+
+    def convert_back(self, formatted_value: typing.Optional[str]) -> typing.Optional[typing.Any]:
+        return str()
+
+
 class EntityPropertyHandler(Declarative.Handler):
     def __init__(self, name: str, value_type: Schema.PropertyType, value_model: Model.PropertyModel[typing.Any]) -> None:
         super().__init__()
@@ -85,6 +93,7 @@ class EntityPropertyHandler(Declarative.Handler):
         self.float_converter = Converter.FloatToStringConverter()
         self.date_converter = Converter.DatetimeToStringConverter(is_local=True, format="%Y-%m-%d %H:%M:%S %Z")
         self.uuid_converter = Converter.UuidToStringConverter()
+        self.str_converter = ItemToStringConverter()
 
     def _make_ui(self, name: str, value_type: Schema.PropertyType) -> Declarative.UIDescriptionResult:
         u = Declarative.DeclarativeUI()
@@ -112,6 +121,14 @@ class EntityPropertyHandler(Declarative.Handler):
             return u.create_row(u.create_label(text=name, width=60),
                                 u.create_label(text=f"@binding(value_model.value, converter=uuid_converter)"),
                                 u.create_stretch(), spacing=12)
+        elif value_type.type in (Schema.DICT, Schema.LIST, Schema.SET):
+            return u.create_row(u.create_label(text=name, width=60),
+                                u.create_row(
+                                    u.create_label(text=f"{value_type.type}: "),
+                                    u.create_label(text=f"@binding(value_model.value, converter=str_converter)"),
+                                ),
+                                u.create_stretch(),
+                                spacing=12)
         NOT_DISPLAYED = _("not displayed")
         return u.create_row(u.create_label(text=name, width=60),
                             u.create_label(text=f"{value_type.type} ({NOT_DISPLAYED})"),
