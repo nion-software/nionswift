@@ -3157,11 +3157,12 @@ class ChangeComputationVariableCommand(Undo.UndoableCommand):
 
 
 class VariableHandlerComponentFactory(typing.Protocol):
+    # keep this around until no one is using it. new variable handler components should preference VariableHandlerComponentFactory2.
     def make_variable_handler(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, computation_variable: Symbolic.ComputationVariable, variable_model: VariableValueModel) -> typing.Optional[Declarative.HandlerLike]: ...
 
 
 class VariableHandlerComponentFactory2(typing.Protocol):
-    def make_variable_handler(self, computation_inspector_context: ComputationInspectorContext, computation: Symbolic.Computation, computation_variable: Symbolic.ComputationVariable, variable_model: VariableValueModel) -> typing.Optional[Declarative.HandlerLike]: ...
+    def make_variable_handler(self, computation_inspector_context: ComputationInspectorContext, computation: Symbolic.Computation, computation_variable: Symbolic.ComputationVariable, variable_model: VariableValueModel, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]: ...
 
 
 class VariableValueModel(Observable.Observable):
@@ -3201,7 +3202,7 @@ class BooleanVariableHandler(Declarative.Handler):
 
 
 class BooleanVariableHandlerFactory(VariableHandlerComponentFactory2):
-    def make_variable_handler(self, computation_inspector_context: ComputationInspectorContext, computation: Symbolic.Computation, computation_variable: Symbolic.ComputationVariable, variable_model: VariableValueModel) -> typing.Optional[Declarative.HandlerLike]:
+    def make_variable_handler(self, computation_inspector_context: ComputationInspectorContext, computation: Symbolic.Computation, computation_variable: Symbolic.ComputationVariable, variable_model: VariableValueModel, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
         if computation_variable.variable_type == "boolean":
             return BooleanVariableHandler(computation_variable, variable_model)
         return None
@@ -3233,7 +3234,7 @@ class IntegerVariableHandler(Declarative.Handler):
 
 
 class IntegerVariableHandlerFactory(VariableHandlerComponentFactory2):
-    def make_variable_handler(self, computation_inspector_context: ComputationInspectorContext, computation: Symbolic.Computation, computation_variable: Symbolic.ComputationVariable, variable_model: VariableValueModel) -> typing.Optional[Declarative.HandlerLike]:
+    def make_variable_handler(self, computation_inspector_context: ComputationInspectorContext, computation: Symbolic.Computation, computation_variable: Symbolic.ComputationVariable, variable_model: VariableValueModel, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
         if computation_variable.variable_type == "integral" and computation_variable.has_range:
             return IntegerSliderVariableHandler(computation_variable, variable_model)
         elif computation_variable.variable_type == "integral":
@@ -3268,7 +3269,7 @@ class RealVariableHandler(Declarative.Handler):
 
 
 class RealVariableHandlerFactory(VariableHandlerComponentFactory2):
-    def make_variable_handler(self, computation_inspector_context: ComputationInspectorContext, computation: Symbolic.Computation, computation_variable: Symbolic.ComputationVariable, variable_model: VariableValueModel) -> typing.Optional[Declarative.HandlerLike]:
+    def make_variable_handler(self, computation_inspector_context: ComputationInspectorContext, computation: Symbolic.Computation, computation_variable: Symbolic.ComputationVariable, variable_model: VariableValueModel, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
         if computation_variable.variable_type == "real" and computation_variable.has_range:
             return RealSliderVariableHandler(computation_variable, variable_model)
         elif computation_variable.variable_type == "real":
@@ -3321,7 +3322,7 @@ class StringVariableHandler(Declarative.Handler):
 
 
 class StringVariableHandlerFactory(VariableHandlerComponentFactory2):
-    def make_variable_handler(self, computation_inspector_context: ComputationInspectorContext, computation: Symbolic.Computation, computation_variable: Symbolic.ComputationVariable, variable_model: VariableValueModel) -> typing.Optional[Declarative.HandlerLike]:
+    def make_variable_handler(self, computation_inspector_context: ComputationInspectorContext, computation: Symbolic.Computation, computation_variable: Symbolic.ComputationVariable, variable_model: VariableValueModel, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
         if computation_variable.variable_type == "string" and computation_variable.control_type == "choice":
             return ChoiceVariableHandler(computation_variable, variable_model)
         if computation_variable.variable_type == "string":
@@ -3415,7 +3416,7 @@ class DataSourceVariableHandler(Declarative.Handler):
 
 
 class DataSourceVariableHandlerFactory(VariableHandlerComponentFactory2):
-    def make_variable_handler(self, computation_inspector_context: ComputationInspectorContext, computation: Symbolic.Computation, computation_variable: Symbolic.ComputationVariable, variable_model: VariableValueModel) -> typing.Optional[Declarative.HandlerLike]:
+    def make_variable_handler(self, computation_inspector_context: ComputationInspectorContext, computation: Symbolic.Computation, computation_variable: Symbolic.ComputationVariable, variable_model: VariableValueModel, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
         if computation_variable.variable_type in Symbolic.Computation.data_source_types:
             return DataSourceVariableHandler(computation_inspector_context.window, computation, computation_variable, variable_model)
         return None
@@ -3583,7 +3584,7 @@ class GraphicHandler(Declarative.Handler):
 
 
 class GraphicVariableHandlerFactory(VariableHandlerComponentFactory2):
-    def make_variable_handler(self, computation_inspector_context: ComputationInspectorContext, computation: Symbolic.Computation, computation_variable: Symbolic.ComputationVariable, variable_model: VariableValueModel) -> typing.Optional[Declarative.HandlerLike]:
+    def make_variable_handler(self, computation_inspector_context: ComputationInspectorContext, computation: Symbolic.Computation, computation_variable: Symbolic.ComputationVariable, variable_model: VariableValueModel, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
         if computation_variable.variable_type == "graphic":
             graphic = computation_variable.bound_item.value if computation_variable.bound_item else None
             return GraphicHandler(computation_inspector_context.window, computation, computation_variable, graphic)
@@ -3630,6 +3631,7 @@ class DataStructureHandler(Declarative.Handler):
             if self.__entity_choice is None:
                 self.__entity_choice = len(self.__entity_types) + 1
             label = u.create_label(text="@binding(variable.display_label)")
+            # the link is optional (for now) - it does not appear in the standard computation panel.
             link = u.create_push_button(text="\N{RIGHTWARDS BLACK ARROW}", on_clicked="handle_link", border_color="transparent", background_color="rgba(0,0,0,0.0)", style="minimal", size_policy_horizontal="maximum")
             self.ui_view = u.create_row(
                 u.create_row(label, *([link] if computation_inspector_context.do_references else []), u.create_stretch()),
@@ -3674,6 +3676,7 @@ class DataStructureHandler(Declarative.Handler):
             self.data_structure.structure_type = self.variable.entity_id
 
     def handle_link(self, item: Declarative.UIWidget) -> None:
+        # when the user clicks the link associated with the referenced component, open the referenced item in the project items dialog.
         bound_item = self.variable.bound_item
         if bound_item and len(bound_item.base_items) > 0:
             self.computation_inspector_context.reference_handler.open_project_item(bound_item.base_items[0])
@@ -3688,6 +3691,7 @@ class DataStructurePropertyVariableHandler(Declarative.Handler):
         self.variable = variable
         u = Declarative.DeclarativeUI()
         label = u.create_label(text="@binding(variable.display_label)")
+        # the link is optional (for now) - it does not appear in the standard computation panel.
         link = u.create_push_button(text="\N{RIGHTWARDS BLACK ARROW}", on_clicked="handle_link", border_color="transparent", background_color="rgba(0,0,0,0.0)", style="minimal", size_policy_horizontal="maximum")
         line_edit = u.create_label(text="@binding(variable_value)", width=300)
         self.ui_view = u.create_column(u.create_row(label, *([link] if computation_inspector_context.do_references else []), u.create_stretch()), line_edit, u.create_stretch(), spacing=8)
@@ -3706,6 +3710,7 @@ class DataStructurePropertyVariableHandler(Declarative.Handler):
         self.notify_property_changed("variable_value")
 
     def handle_link(self, item: Declarative.UIWidget) -> None:
+        # when the user clicks the link associated with the referenced component, open the referenced item in the project items dialog.
         bound_item = self.variable.bound_item
         if bound_item and len(bound_item.base_items) > 0:
             self.computation_inspector_context.reference_handler.open_project_item(bound_item.base_items[0])
@@ -3724,7 +3729,7 @@ class ConstantVariableHandler(Declarative.Handler):
 
 
 class DataStructureVariableHandlerFactory(VariableHandlerComponentFactory2):
-    def make_variable_handler(self, computation_inspector_context: ComputationInspectorContext, computation: Symbolic.Computation, computation_variable: Symbolic.ComputationVariable, variable_model: VariableValueModel) -> typing.Optional[Declarative.HandlerLike]:
+    def make_variable_handler(self, computation_inspector_context: ComputationInspectorContext, computation: Symbolic.Computation, computation_variable: Symbolic.ComputationVariable, variable_model: VariableValueModel, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
         if computation_variable.variable_type == "structure":
             if computation_variable.property_name:
                 return DataStructurePropertyVariableHandler(computation_inspector_context, computation_variable)
@@ -3754,7 +3759,7 @@ class GraphicListVariableHandler(Declarative.Handler):
 
 
 class GraphicListVariableHandlerFactory(VariableHandlerComponentFactory2):
-    def make_variable_handler(self, computation_inspector_context: ComputationInspectorContext, computation: Symbolic.Computation, computation_variable: Symbolic.ComputationVariable, variable_model: VariableValueModel) -> typing.Optional[Declarative.HandlerLike]:
+    def make_variable_handler(self, computation_inspector_context: ComputationInspectorContext, computation: Symbolic.Computation, computation_variable: Symbolic.ComputationVariable, variable_model: VariableValueModel, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
         if computation_variable.is_list:
             graphic = computation_variable.bound_item.value if computation_variable.bound_item else None
             return GraphicListVariableHandler(computation_inspector_context.window, computation, computation_variable, graphic)
@@ -3794,6 +3799,10 @@ def make_computation_variable_component(computation_inspector_context: Computati
 
 
 class ComputationInspectorContext(EntityBrowser.Context):
+    # a context for the inspectors (not consistently available in all inspectors yet)
+    # allows access to a reference handler (when the user clicks links on referenced components),
+    # the window (document controller), the document model, and whether to provide link controls.
+
     def __init__(self, document_controller: DocumentController.DocumentController, reference_handler: typing.Optional[EntityBrowser.ReferenceHandlerContext] = None, provide_reference_links: bool = False) -> None:
         super().__init__()
         self.values["reference_handler"] = reference_handler or document_controller
