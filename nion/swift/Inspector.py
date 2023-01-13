@@ -20,6 +20,7 @@ import weakref
 from nion.data import Calibration
 from nion.swift import DataItemThumbnailWidget
 from nion.swift import DisplayPanel
+from nion.swift import EntityBrowser
 from nion.swift import MimeTypes
 from nion.swift import Panel
 from nion.swift import Undo
@@ -3159,6 +3160,10 @@ class VariableHandlerComponentFactory(typing.Protocol):
     def make_variable_handler(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, computation_variable: Symbolic.ComputationVariable, variable_model: VariableValueModel) -> typing.Optional[Declarative.HandlerLike]: ...
 
 
+class VariableHandlerComponentFactory2(typing.Protocol):
+    def make_variable_handler(self, computation_inspector_context: ComputationInspectorContext, computation: Symbolic.Computation, computation_variable: Symbolic.ComputationVariable, variable_model: VariableValueModel) -> typing.Optional[Declarative.HandlerLike]: ...
+
+
 class VariableValueModel(Observable.Observable):
     def __init__(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable) -> None:
         super().__init__()
@@ -3195,8 +3200,8 @@ class BooleanVariableHandler(Declarative.Handler):
         self.ui_view = checkbox
 
 
-class BooleanVariableHandlerFactory(VariableHandlerComponentFactory):
-    def make_variable_handler(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, computation_variable: Symbolic.ComputationVariable, variable_model: VariableValueModel) -> typing.Optional[Declarative.HandlerLike]:
+class BooleanVariableHandlerFactory(VariableHandlerComponentFactory2):
+    def make_variable_handler(self, computation_inspector_context: ComputationInspectorContext, computation: Symbolic.Computation, computation_variable: Symbolic.ComputationVariable, variable_model: VariableValueModel) -> typing.Optional[Declarative.HandlerLike]:
         if computation_variable.variable_type == "boolean":
             return BooleanVariableHandler(computation_variable, variable_model)
         return None
@@ -3227,8 +3232,8 @@ class IntegerVariableHandler(Declarative.Handler):
         self.ui_view = u.create_column(label, line_edit, spacing=8)
 
 
-class IntegerVariableHandlerFactory(VariableHandlerComponentFactory):
-    def make_variable_handler(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, computation_variable: Symbolic.ComputationVariable, variable_model: VariableValueModel) -> typing.Optional[Declarative.HandlerLike]:
+class IntegerVariableHandlerFactory(VariableHandlerComponentFactory2):
+    def make_variable_handler(self, computation_inspector_context: ComputationInspectorContext, computation: Symbolic.Computation, computation_variable: Symbolic.ComputationVariable, variable_model: VariableValueModel) -> typing.Optional[Declarative.HandlerLike]:
         if computation_variable.variable_type == "integral" and computation_variable.has_range:
             return IntegerSliderVariableHandler(computation_variable, variable_model)
         elif computation_variable.variable_type == "integral":
@@ -3262,8 +3267,8 @@ class RealVariableHandler(Declarative.Handler):
         self.ui_view = u.create_column(label, line_edit, spacing=8)
 
 
-class RealVariableHandlerFactory(VariableHandlerComponentFactory):
-    def make_variable_handler(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, computation_variable: Symbolic.ComputationVariable, variable_model: VariableValueModel) -> typing.Optional[Declarative.HandlerLike]:
+class RealVariableHandlerFactory(VariableHandlerComponentFactory2):
+    def make_variable_handler(self, computation_inspector_context: ComputationInspectorContext, computation: Symbolic.Computation, computation_variable: Symbolic.ComputationVariable, variable_model: VariableValueModel) -> typing.Optional[Declarative.HandlerLike]:
         if computation_variable.variable_type == "real" and computation_variable.has_range:
             return RealSliderVariableHandler(computation_variable, variable_model)
         elif computation_variable.variable_type == "real":
@@ -3315,8 +3320,8 @@ class StringVariableHandler(Declarative.Handler):
         self.ui_view = u.create_column(label, line_edit, spacing=8)
 
 
-class StringVariableHandlerFactory(VariableHandlerComponentFactory):
-    def make_variable_handler(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, computation_variable: Symbolic.ComputationVariable, variable_model: VariableValueModel) -> typing.Optional[Declarative.HandlerLike]:
+class StringVariableHandlerFactory(VariableHandlerComponentFactory2):
+    def make_variable_handler(self, computation_inspector_context: ComputationInspectorContext, computation: Symbolic.Computation, computation_variable: Symbolic.ComputationVariable, variable_model: VariableValueModel) -> typing.Optional[Declarative.HandlerLike]:
         if computation_variable.variable_type == "string" and computation_variable.control_type == "choice":
             return ChoiceVariableHandler(computation_variable, variable_model)
         if computation_variable.variable_type == "string":
@@ -3409,10 +3414,10 @@ class DataSourceVariableHandler(Declarative.Handler):
         document_controller.push_undo_command(command)
 
 
-class DataSourceVariableHandlerFactory(VariableHandlerComponentFactory):
-    def make_variable_handler(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, computation_variable: Symbolic.ComputationVariable, variable_model: VariableValueModel) -> typing.Optional[Declarative.HandlerLike]:
+class DataSourceVariableHandlerFactory(VariableHandlerComponentFactory2):
+    def make_variable_handler(self, computation_inspector_context: ComputationInspectorContext, computation: Symbolic.Computation, computation_variable: Symbolic.ComputationVariable, variable_model: VariableValueModel) -> typing.Optional[Declarative.HandlerLike]:
         if computation_variable.variable_type in Symbolic.Computation.data_source_types:
-            return DataSourceVariableHandler(document_controller, computation, computation_variable, variable_model)
+            return DataSourceVariableHandler(computation_inspector_context.window, computation, computation_variable, variable_model)
         return None
 
 
@@ -3577,18 +3582,18 @@ class GraphicHandler(Declarative.Handler):
         return u.create_label(text=_("Unsupported Graphic") + f" {graphic.type}")
 
 
-class GraphicVariableHandlerFactory(VariableHandlerComponentFactory):
-    def make_variable_handler(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, computation_variable: Symbolic.ComputationVariable, variable_model: VariableValueModel) -> typing.Optional[Declarative.HandlerLike]:
+class GraphicVariableHandlerFactory(VariableHandlerComponentFactory2):
+    def make_variable_handler(self, computation_inspector_context: ComputationInspectorContext, computation: Symbolic.Computation, computation_variable: Symbolic.ComputationVariable, variable_model: VariableValueModel) -> typing.Optional[Declarative.HandlerLike]:
         if computation_variable.variable_type == "graphic":
             graphic = computation_variable.bound_item.value if computation_variable.bound_item else None
-            return GraphicHandler(document_controller, computation, computation_variable, graphic)
+            return GraphicHandler(computation_inspector_context.window, computation, computation_variable, graphic)
         return None
 
 
 class DataStructureHandler(Declarative.Handler):
-    def __init__(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable, data_structure: DataStructure.DataStructure):
+    def __init__(self, computation_inspector_context: ComputationInspectorContext, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable, data_structure: DataStructure.DataStructure):
         super().__init__()
-        self.document_controller = document_controller
+        self.computation_inspector_context = computation_inspector_context
         self.computation = computation
         self.variable = variable
         self.data_structure = data_structure
@@ -3627,7 +3632,7 @@ class DataStructureHandler(Declarative.Handler):
             label = u.create_label(text="@binding(variable.display_label)")
             link = u.create_push_button(text="\N{RIGHTWARDS BLACK ARROW}", on_clicked="handle_link", border_color="transparent", background_color="rgba(0,0,0,0.0)", style="minimal", size_policy_horizontal="maximum")
             self.ui_view = u.create_row(
-                u.create_row(label, link, u.create_stretch()),
+                u.create_row(label, *([link] if computation_inspector_context.do_references else []), u.create_stretch()),
                 u.create_combo_box(items_ref="entity_choices", current_index="@binding(entity_choice)"),
                 u.create_stretch(), spacing=8)
         else:
@@ -3671,21 +3676,21 @@ class DataStructureHandler(Declarative.Handler):
     def handle_link(self, item: Declarative.UIWidget) -> None:
         bound_item = self.variable.bound_item
         if bound_item and len(bound_item.base_items) > 0:
-            self.document_controller.open_project_item(bound_item.base_items[0])
+            self.computation_inspector_context.reference_handler.open_project_item(bound_item.base_items[0])
 
 
 class DataStructurePropertyVariableHandler(Declarative.Handler):
     # used to display a data structure property. this is a hack and may not be needed once new data structures
     # are in place that have a guaranteed schema.
-    def __init__(self, document_controller: DocumentController.DocumentController, variable: Symbolic.ComputationVariable) -> None:
+    def __init__(self, computation_inspector_context: ComputationInspectorContext, variable: Symbolic.ComputationVariable) -> None:
         super().__init__()
-        self.__document_controller = document_controller
+        self.computation_inspector_context = computation_inspector_context
         self.variable = variable
         u = Declarative.DeclarativeUI()
         label = u.create_label(text="@binding(variable.display_label)")
         link = u.create_push_button(text="\N{RIGHTWARDS BLACK ARROW}", on_clicked="handle_link", border_color="transparent", background_color="rgba(0,0,0,0.0)", style="minimal", size_policy_horizontal="maximum")
         line_edit = u.create_label(text="@binding(variable_value)", width=300)
-        self.ui_view = u.create_column(u.create_row(label, link, u.create_stretch()), line_edit, u.create_stretch(), spacing=8)
+        self.ui_view = u.create_column(u.create_row(label, *([link] if computation_inspector_context.do_references else []), u.create_stretch()), line_edit, u.create_stretch(), spacing=8)
         self.__variable_listener = variable.property_changed_event.listen(ReferenceCounting.weak_partial(DataStructurePropertyVariableHandler.__property_changed, self))
         if variable.bound_item:
             self.__bound_item_listener = variable.changed_event.listen(ReferenceCounting.weak_partial(DataStructurePropertyVariableHandler.__changed, self))
@@ -3703,7 +3708,7 @@ class DataStructurePropertyVariableHandler(Declarative.Handler):
     def handle_link(self, item: Declarative.UIWidget) -> None:
         bound_item = self.variable.bound_item
         if bound_item and len(bound_item.base_items) > 0:
-            self.__document_controller.open_project_item(bound_item.base_items[0])
+            self.computation_inspector_context.reference_handler.open_project_item(bound_item.base_items[0])
 
 
 class ConstantVariableHandler(Declarative.Handler):
@@ -3718,15 +3723,15 @@ class ConstantVariableHandler(Declarative.Handler):
         self.ui_view = u.create_column(label, line_edit, spacing=8)
 
 
-class DataStructureVariableHandlerFactory(VariableHandlerComponentFactory):
-    def make_variable_handler(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, computation_variable: Symbolic.ComputationVariable, variable_model: VariableValueModel) -> typing.Optional[Declarative.HandlerLike]:
+class DataStructureVariableHandlerFactory(VariableHandlerComponentFactory2):
+    def make_variable_handler(self, computation_inspector_context: ComputationInspectorContext, computation: Symbolic.Computation, computation_variable: Symbolic.ComputationVariable, variable_model: VariableValueModel) -> typing.Optional[Declarative.HandlerLike]:
         if computation_variable.variable_type == "structure":
             if computation_variable.property_name:
-                return DataStructurePropertyVariableHandler(document_controller, computation_variable)
+                return DataStructurePropertyVariableHandler(computation_inspector_context, computation_variable)
             else:
                 data_structure = computation_variable.bound_item.value if computation_variable.bound_item else None
                 if isinstance(data_structure, DataStructure.DataStructure):
-                    return DataStructureHandler(document_controller, computation, computation_variable, data_structure)
+                    return DataStructureHandler(computation_inspector_context, computation, computation_variable, data_structure)
                 else:
                     return ConstantVariableHandler(computation_variable, _("N/A"))
         return None
@@ -3748,11 +3753,11 @@ class GraphicListVariableHandler(Declarative.Handler):
         return None
 
 
-class GraphicListVariableHandlerFactory(VariableHandlerComponentFactory):
-    def make_variable_handler(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, computation_variable: Symbolic.ComputationVariable, variable_model: VariableValueModel) -> typing.Optional[Declarative.HandlerLike]:
+class GraphicListVariableHandlerFactory(VariableHandlerComponentFactory2):
+    def make_variable_handler(self, computation_inspector_context: ComputationInspectorContext, computation: Symbolic.Computation, computation_variable: Symbolic.ComputationVariable, variable_model: VariableValueModel) -> typing.Optional[Declarative.HandlerLike]:
         if computation_variable.is_list:
             graphic = computation_variable.bound_item.value if computation_variable.bound_item else None
-            return GraphicListVariableHandler(document_controller, computation, computation_variable, graphic)
+            return GraphicListVariableHandler(computation_inspector_context.window, computation, computation_variable, graphic)
         return None
 
 
@@ -3766,7 +3771,7 @@ Registry.register_component(DataStructureVariableHandlerFactory(), {"variable-ha
 Registry.register_component(GraphicListVariableHandlerFactory(), {"variable-handler-fallback-component-factory"})
 
 
-def make_computation_variable_component(document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable, variable_value_model: VariableValueModel) -> typing.Optional[Declarative.HandlerLike]:
+def make_computation_variable_component(computation_inspector_context: ComputationInspectorContext, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable, variable_value_model: VariableValueModel) -> typing.Optional[Declarative.HandlerLike]:
     """Make a computation variable component.
 
     Components registered under 'variable-handler-component-factory' should subclass the
@@ -3774,17 +3779,43 @@ def make_computation_variable_component(document_controller: DocumentController.
     considered read-only. When the component needs to modify the variable value, it should do so by setting
     'variable_value.value'. This ensures that undo is handled properly.
     """
+    document_controller = computation_inspector_context.window
     for component in Registry.get_components_by_type("variable-handler-component-factory"):
         computation_variable_handler = typing.cast(VariableHandlerComponentFactory, component)
         variable_component = computation_variable_handler.make_variable_handler(document_controller, computation, variable, variable_value_model)
         if variable_component:
             return variable_component
     for component in Registry.get_components_by_type("variable-handler-fallback-component-factory"):
-        computation_variable_handler = typing.cast(VariableHandlerComponentFactory, component)
-        variable_component = computation_variable_handler.make_variable_handler(document_controller, computation, variable, variable_value_model)
+        computation_variable_handler2 = typing.cast(VariableHandlerComponentFactory2, component)
+        variable_component = computation_variable_handler2.make_variable_handler(computation_inspector_context, computation, variable, variable_value_model)
         if variable_component:
             return variable_component
     return None
+
+
+class ComputationInspectorContext(EntityBrowser.Context):
+    def __init__(self, document_controller: DocumentController.DocumentController, reference_handler: typing.Optional[EntityBrowser.ReferenceHandlerContext] = None, provide_reference_links: bool = False) -> None:
+        super().__init__()
+        self.values["reference_handler"] = reference_handler or document_controller
+        self.values["window"] = document_controller
+        self.values["document_model"] = document_controller.document_model
+        self.values["do_references"] = provide_reference_links
+
+    @property
+    def reference_handler(self) -> EntityBrowser.ReferenceHandlerContext:
+        return typing.cast(EntityBrowser.ReferenceHandlerContext, self.values["reference_handler"])
+
+    @property
+    def window(self) -> DocumentController.DocumentController:
+        return typing.cast("DocumentController.DocumentController", self.values["window"])
+
+    @property
+    def document_model(self) -> DocumentModel.DocumentModel:
+        return typing.cast(DocumentModel.DocumentModel, self.values["document_model"])
+
+    @property
+    def do_references(self) -> bool:
+        return self.values.get("do_references", False)
 
 
 class VariableWidget(Widgets.CompositeWidgetBase):
@@ -3797,15 +3828,16 @@ class VariableWidget(Widgets.CompositeWidgetBase):
     a single child which is the UI for the variable. The child is replaced if necessary.
     """
 
-    def __init__(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable) -> None:
+    def __init__(self, computation_inspector_context: ComputationInspectorContext, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable) -> None:
+        document_controller = computation_inspector_context.window
         self.__content_widget = document_controller.ui.create_column_widget()
         super().__init__(self.__content_widget)
         self.__unbinder = Unbinder()
-        self.__make_widget_from_variable(document_controller, computation, variable)
+        self.__make_widget_from_variable(computation_inspector_context, computation, variable)
 
         def rebuild_variable() -> None:
             self.__content_widget.remove_all()
-            self.__make_widget_from_variable(document_controller, computation, variable)
+            self.__make_widget_from_variable(computation_inspector_context, computation, variable)
 
         self.__variable_needs_rebuild_event_listener = variable.needs_rebuild_event.listen(rebuild_variable)
 
@@ -3816,16 +3848,18 @@ class VariableWidget(Widgets.CompositeWidgetBase):
         self.__unbinder = typing.cast(typing.Any, None)
         super().close()
 
-    def __make_widget_from_variable(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable) -> None:
+    def __make_widget_from_variable(self, computation_inspector_context: ComputationInspectorContext, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable) -> None:
+        document_controller = computation_inspector_context.window
         variable_value_model = VariableValueModel(document_controller, computation, variable)
-        handler = make_computation_variable_component(document_controller, computation, variable, variable_value_model)
+        handler = make_computation_variable_component(computation_inspector_context, computation, variable, variable_value_model)
         if handler:
             widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop, handler)
             self.__content_widget.add(widget)
 
 
 class ComputationInspectorSection(InspectorSection):
-    def __init__(self, document_controller: DocumentController.DocumentController, data_item: DataItem.DataItem) -> None:
+    def __init__(self, computation_inspector_context: ComputationInspectorContext, data_item: DataItem.DataItem) -> None:
+        document_controller = computation_inspector_context.window
         super().__init__(document_controller.ui, "computation", _("Computation"))
         self.__computation_variable_inserted_event_listener: typing.Optional[Event.EventListener]
         self.__computation_variable_removed_event_listener: typing.Optional[Event.EventListener]
@@ -3851,7 +3885,7 @@ class ComputationInspectorSection(InspectorSection):
             def variable_inserted(name: str, index: int, variable: Symbolic.ComputationVariable) -> None:
                 if name == "variables":
                     assert computation  # mypy bug: doesn't pass the 'if computation' here
-                    widget_wrapper = VariableWidget(document_controller, computation, variable)
+                    widget_wrapper = VariableWidget(computation_inspector_context, computation, variable)
                     self._variables_column_widget.insert(widget_wrapper, index)
 
             def variable_removed(name: str, index: int, variable: Symbolic.ComputationVariable) -> None:
@@ -4037,7 +4071,7 @@ class DataItemGroupWidget(Widgets.CompositeWidgetBase):
                 self.__content_widget.add(SliceInspectorSection(self.__document_controller, display_data_channel))
             elif display_data_channel.is_collection:
                 self.__content_widget.add(CollectionIndexInspectorSection(self.__document_controller, display_data_channel))
-            self.__content_widget.add(ComputationInspectorSection(self.__document_controller, data_item))
+            self.__content_widget.add(ComputationInspectorSection(ComputationInspectorContext(self.__document_controller), data_item))
 
 
 class DisplayInspector(Widgets.CompositeWidgetBase):
@@ -4111,7 +4145,7 @@ class DisplayInspector(Widgets.CompositeWidgetBase):
                         inspector_sections.append(SliceInspectorSection(document_controller, display_data_channel))
                     elif display_data_channel.is_collection:
                         inspector_sections.append(CollectionIndexInspectorSection(document_controller, display_data_channel))
-                    inspector_sections.append(ComputationInspectorSection(document_controller, data_item))
+                    inspector_sections.append(ComputationInspectorSection(ComputationInspectorContext(document_controller), data_item))
             if len(display_item.graphics) > 0:
                 inspector_sections.append(GraphicsInspectorSection(document_controller, display_item))
             def focus_default() -> None:

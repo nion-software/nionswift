@@ -1199,7 +1199,7 @@ class TestInspectorClass(unittest.TestCase):
             document_controller.periodic()
             computation = document_model.get_data_item_computation(new_data_item)
             old_bins = computation.get_input_value("bins")
-            inspector_section = Inspector.ComputationInspectorSection(document_controller, new_data_item)
+            inspector_section = Inspector.ComputationInspectorSection(Inspector.ComputationInspectorContext(document_controller), new_data_item)
             with contextlib.closing(inspector_section):
                 field_widget = inspector_section.find_widget_by_id("value")
                 field_widget.editing_finished("100")

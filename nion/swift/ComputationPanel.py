@@ -1029,19 +1029,18 @@ class EditComputationDialog(Dialog.ActionDialog):
 
 
 class VariableHandler(Declarative.Handler):
-    def __init__(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable):
+    def __init__(self, computation_inspector_context: Inspector.ComputationInspectorContext, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable):
         super().__init__()
-        self.document_controller = document_controller
         self.computation = computation
         self.variable = variable
-        variable_model = Inspector.VariableValueModel(document_controller, computation, variable)
+        variable_model = Inspector.VariableValueModel(computation_inspector_context.window, computation, variable)
         # use 2000 below to avoid a match slider, which gives rise to a bizarre slider bug https://bugreports.qt.io/browse/QTBUG-77368
         # also must be a multiple of inspector slider to avoid
         self.slider_converter = Converter.FloatToScaledIntegerConverter(2000, 0, 100)
         self.float_str_converter = Converter.FloatToStringConverter()
         self.int_str_converter = Converter.IntegerToStringConverter()
         self.property_changed_event = Event.Event()
-        self.__variable_component: typing.Optional[Declarative.HandlerLike] = Inspector.make_computation_variable_component(document_controller, computation, variable, variable_model)
+        self.__variable_component: typing.Optional[Declarative.HandlerLike] = Inspector.make_computation_variable_component(computation_inspector_context, computation, variable, variable_model)
         u = Declarative.DeclarativeUI()
         if self.__variable_component:
             self.ui_view = u.create_column(u.create_component_instance("component"), spacing=8)
@@ -1174,6 +1173,7 @@ class ComputationInspectorModel(Observable.Observable):
 class ComputationInspectorHandler(Declarative.Handler):
     def __init__(self, context: EntityBrowser.Context, computation: Symbolic.Computation):
         super().__init__()
+        assert isinstance(context, Inspector.ComputationInspectorContext)
         self.context = context
         self.document_controller = typing.cast("DocumentController.DocumentController", context.values["window"])
         self.model = ComputationInspectorModel(computation)
@@ -1229,7 +1229,7 @@ class ComputationInspectorHandler(Declarative.Handler):
 
     def create_handler(self, component_id: str, container: typing.Optional[Symbolic.ComputationVariable] = None, item: typing.Any = None, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
         if component_id == "variable":
-            return VariableHandler(self.document_controller, self.model.computation, typing.cast(Symbolic.ComputationVariable, item))
+            return VariableHandler(self.context, self.model.computation, typing.cast(Symbolic.ComputationVariable, item))
         elif component_id == "result":
             return ResultHandler(self.document_controller, self.model.computation, typing.cast(Symbolic.ComputationOutput, item))
         elif component_id == "source_component":
@@ -1269,7 +1269,7 @@ class ComputationErrorInspectorHandler(Declarative.Handler):
 class ComputationHandler(Declarative.Handler):
     def __init__(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation):
         super().__init__()
-        self.context = ComputationPanelContext(document_controller, document_controller, False)
+        self.context = Inspector.ComputationInspectorContext(document_controller, document_controller, False)
         self.computation = computation
         u = Declarative.DeclarativeUI()
         self.ui_view = u.create_tabs(
@@ -1409,31 +1409,6 @@ class ComputationErrorNotificationComponentFactory(NotificationDialog.Notificati
         return None
 
 Registry.register_component(ComputationErrorNotificationComponentFactory(), {"notification-component-factory"})
-
-
-class ComputationPanelContext(EntityBrowser.Context):
-    def __init__(self, document_controller: DocumentController.DocumentController, reference_handler: EntityBrowser.ReferenceHandlerContext, provide_reference_links: bool = False) -> None:
-        super().__init__()
-        self.values["reference_handler"] = reference_handler
-        self.values["window"] = document_controller
-        self.values["document_model"] = document_controller.document_model
-        self.values["do_references"] = provide_reference_links
-
-    @property
-    def reference_handler(self) -> EntityBrowser.ReferenceHandlerContext:
-        return typing.cast(EntityBrowser.ReferenceHandlerContext, self.values["reference_handler"])
-
-    @property
-    def window(self) -> EntityBrowser.ReferenceHandlerContext:
-        return typing.cast("DocumentController.DocumentController", self.values["window"])
-
-    @property
-    def document_model(self) -> DocumentModel.DocumentModel:
-        return typing.cast(DocumentModel.DocumentModel, self.values["document_model"])
-
-    @property
-    def do_references(self) -> bool:
-        return self.values.get("do_references", False)
 
 
 class DataItemInspectorHandler(Declarative.Handler):
@@ -1608,7 +1583,7 @@ class ProjectItemsDialog(Declarative.WindowHandler):
 
         self.items_model = ListModel.ListModel[EntityBrowser.ProjectItemsEntry]()
 
-        context = ComputationPanelContext(document_controller, self, True)
+        context = Inspector.ComputationInspectorContext(document_controller, self, True)
 
         self.items_model.append_item(
             EntityBrowser.ProjectItemsEntry(context, _("Computations"), document_controller.document_model,
