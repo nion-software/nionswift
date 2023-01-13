@@ -2,6 +2,7 @@ from __future__ import annotations
 
 # standard libraries
 import asyncio
+import dataclasses
 import functools
 import gettext
 import operator
@@ -1179,9 +1180,10 @@ class ComputationInspectorModel(Observable.Observable):
 
 
 class ComputationInspectorHandler(Declarative.Handler):
-    def __init__(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation):
+    def __init__(self, context: Context, computation: Symbolic.Computation):
         super().__init__()
-        self.document_controller = document_controller
+        self.context = context
+        self.document_controller = typing.cast("DocumentController.DocumentController", context.values["window"])
         self.model = ComputationInspectorModel(computation)
         self.delete_state_model = Model.PropertyModel(0)
         self.ui_view = self.__make_ui()
@@ -1195,7 +1197,7 @@ class ComputationInspectorHandler(Declarative.Handler):
     def __make_ui(self) -> Declarative.UIDescriptionResult:
         u = Declarative.DeclarativeUI()
         label = u.create_label(text=self.model.computation.label)
-        source_line = u.create_component_instance("source_component")
+        source_line = [u.create_component_instance("source_component")] if self.context.values.get("do_references", False) else []
         status = u.create_label(text="@binding(model.computation.status)", color="@binding(model.status_color)", max_width=300)
         inputs = u.create_column(items="model.computation_inputs_model.items", item_component_id="variable", spacing=8, size_policy_vertical="expanding")
         results = u.create_column(items="model.computation.results", item_component_id="result", spacing=8, size_policy_vertical="expanding")
@@ -1218,7 +1220,7 @@ class ComputationInspectorHandler(Declarative.Handler):
                                           spacing=12)
         delete_control_row = u.create_row(u.create_stack(delete_row, delete_confirm_row, current_index="@binding(delete_state_model.value)"))
         controls = u.create_row(u.create_column(status, note, delete_control_row, u.create_stretch(), spacing=12), u.create_stretch())
-        inspector_column = u.create_column(label, source_line, u.create_column(input_output_row, parameters, u.create_divider(orientation="horizontal"), controls, spacing=12), spacing=12)
+        inspector_column = u.create_column(label, *source_line, u.create_column(input_output_row, parameters, u.create_divider(orientation="horizontal"), controls, spacing=12), spacing=12)
         return inspector_column
 
     def handle_delete(self, widget: Declarative.UIWidget) -> None:
@@ -1239,14 +1241,14 @@ class ComputationInspectorHandler(Declarative.Handler):
         elif component_id == "result":
             return ResultHandler(self.document_controller, self.model.computation, typing.cast(Symbolic.ComputationOutput, item))
         elif component_id == "source_component":
-            return ReferenceHandler(self.document_controller, _("Source"), self.model.computation.source)
+            return ReferenceHandler(self.context, _("Source"), self.model.computation.source)
         return None
 
 
 class ComputationErrorInspectorHandler(Declarative.Handler):
-    def __init__(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation):
+    def __init__(self, context: Context, computation: Symbolic.Computation):
         super().__init__()
-        self.document_controller = document_controller
+        self.context = context
         self.model = ComputationInspectorModel(computation)
         self.ui_view = self.__make_ui()
         self.model.finish_init()
@@ -1275,7 +1277,7 @@ class ComputationErrorInspectorHandler(Declarative.Handler):
 class ComputationHandler(Declarative.Handler):
     def __init__(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation):
         super().__init__()
-        self.document_controller = document_controller
+        self.context = ComputationPanelContext(document_controller, document_controller, False)
         self.computation = computation
         u = Declarative.DeclarativeUI()
         self.ui_view = u.create_tabs(
@@ -1286,9 +1288,9 @@ class ComputationHandler(Declarative.Handler):
 
     def create_handler(self, component_id: str, container: typing.Optional[Symbolic.ComputationVariable] = None, item: typing.Any = None, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
         if component_id == "edit":
-            return ComputationInspectorHandler(self.document_controller, self.computation)
+            return ComputationInspectorHandler(self.context, self.computation)
         if component_id == "errors":
-            return ComputationErrorInspectorHandler(self.document_controller, self.computation)
+            return ComputationErrorInspectorHandler(self.context, self.computation)
         return None
 
 
@@ -1421,8 +1423,38 @@ class ReferenceHandlerContext(typing.Protocol):
     def open_project_item(self, item: Persistence.PersistentObject) -> None: ...
 
 
+@dataclasses.dataclass
+class Context:
+    values: typing.Dict[str, typing.Any] = dataclasses.field(default_factory=dict)
+
+
+class ComputationPanelContext(Context):
+    def __init__(self, document_controller: DocumentController.DocumentController, reference_handler: ReferenceHandlerContext, provide_reference_links: bool = False) -> None:
+        super().__init__()
+        self.values["reference_handler"] = reference_handler
+        self.values["window"] = document_controller
+        self.values["document_model"] = document_controller.document_model
+        self.values["do_references"] = provide_reference_links
+
+    @property
+    def reference_handler(self) -> ReferenceHandlerContext:
+        return typing.cast(ReferenceHandlerContext, self.values["reference_handler"])
+
+    @property
+    def window(self) -> ReferenceHandlerContext:
+        return typing.cast("DocumentController.DocumentController", self.values["window"])
+
+    @property
+    def document_model(self) -> DocumentModel.DocumentModel:
+        return typing.cast(DocumentModel.DocumentModel, self.values["document_model"])
+
+    @property
+    def do_references(self) -> bool:
+        return self.values.get("do_references", False)
+
+
 class ReferenceHandler(Declarative.Handler):
-    def __init__(self, context: ReferenceHandlerContext, label: str, item: typing.Optional[Persistence.PersistentObject]) -> None:
+    def __init__(self, context: Context, label: str, item: typing.Optional[Persistence.PersistentObject]) -> None:
         super().__init__()
         self.context = context
         self.label = label
@@ -1447,7 +1479,9 @@ class ReferenceHandler(Declarative.Handler):
 
     def handle_link(self, item: Declarative.UIWidget) -> None:
         if self.item:
-            self.context.open_project_item(self.item)
+            reference_handler = typing.cast(typing.Optional[ReferenceHandlerContext], self.context.values.get("reference_handler", None))
+            if reference_handler:
+                reference_handler.open_project_item(self.item)
 
 
 class EntityPropertyHandler(Declarative.Handler):
@@ -1518,7 +1552,7 @@ class EntityTupleModel(Observable.Observable):
 
 
 class EntityTupleHandler(Declarative.Handler):
-    def __init__(self, context: ReferenceHandlerContext, name: str, indent: int, value_type: Schema.FieldType, value_model: Model.PropertyModel[typing.Any]) -> None:
+    def __init__(self, context: Context, name: str, indent: int, value_type: Schema.FieldType, value_model: Model.PropertyModel[typing.Any]) -> None:
         super().__init__()
         self.context = context
         self.value_model = value_model
@@ -1545,7 +1579,7 @@ class EntityTupleHandler(Declarative.Handler):
 
 
 class EntityArrayHandler(Declarative.Handler):
-    def __init__(self, context: ReferenceHandlerContext, name: str, indent: int, value_type: Schema.FieldType, value_model: Model.PropertyModel[typing.Any]) -> None:
+    def __init__(self, context: Context, name: str, indent: int, value_type: Schema.FieldType, value_model: Model.PropertyModel[typing.Any]) -> None:
         super().__init__()
         self.context = context
         self.value_model = value_model
@@ -1588,7 +1622,7 @@ class EntityValueIndexModel(Model.PropertyModel[T], typing.Generic[T]):
 
 
 class EntityFieldsHandler(Declarative.Handler):
-    def __init__(self, context: ReferenceHandlerContext, name: str, indent: int, field_list: typing.Sequence[typing.Tuple[str, Schema.FieldType, Model.PropertyModel[typing.Any]]]) -> None:
+    def __init__(self, context: Context, name: str, indent: int, field_list: typing.Sequence[typing.Tuple[str, Schema.FieldType, Model.PropertyModel[typing.Any]]]) -> None:
         super().__init__()
         self.context = context
         self.indent = indent
@@ -1654,12 +1688,12 @@ class HasFieldTypeMap(typing.Protocol):
     def _field_type_map(self) -> typing.Mapping[str, Schema.FieldType]: raise NotImplementedError()
 
 
-def make_record_handler(context: ReferenceHandlerContext, item: Observable.Observable, name: str, indent: int, entity_type: HasFieldTypeMap) -> EntityFieldsHandler:
+def make_record_handler(context: Context, item: Observable.Observable, name: str, indent: int, entity_type: HasFieldTypeMap) -> EntityFieldsHandler:
     field_list = [(n, t, MaybePropertyChangedPropertyModel(item, n)) for n, t in entity_type._field_type_map.items()]
     return EntityFieldsHandler(context, name, indent, field_list)
 
 
-def make_field_handler(context: ReferenceHandlerContext, field_name: str, indent: int, value_type: Schema.FieldType, value_model: Model.PropertyModel[typing.Any]) -> typing.Optional[Declarative.HandlerLike]:
+def make_field_handler(context: Context, field_name: str, indent: int, value_type: Schema.FieldType, value_model: Model.PropertyModel[typing.Any]) -> typing.Optional[Declarative.HandlerLike]:
     # when item type is property type, create an entity property handler, passing the value type and property model directly.
     if isinstance(value_type, Schema.PropertyType):
         return EntityPropertyHandler(field_name, value_type, value_model)
@@ -1695,9 +1729,10 @@ def make_field_handler(context: ReferenceHandlerContext, field_name: str, indent
 
     # map
 
-    # reference
+    # reference is only used if allowed in the context.
     if isinstance(value_type, Schema.ReferenceType):
-        return ReferenceHandler(context, field_name, value_model.value)
+        if context.values.get("do_references", False):
+            return ReferenceHandler(context, field_name, value_model.value)
 
     # when item type is component type, use make_record_handler to where the item is the value of the value_model passed
     # to this function. get the entity type from the component type.
@@ -1714,11 +1749,11 @@ def make_field_handler(context: ReferenceHandlerContext, field_name: str, indent
 
 
 class ItemInspectorHandlerFactory(typing.Protocol):
-    def make_sections(self, context: ReferenceHandlerContext, item: typing.Any) -> typing.Sequence[typing.Tuple[str, Declarative.HandlerLike]]: ...
+    def make_sections(self, context: Context, item: typing.Any) -> typing.Sequence[typing.Tuple[str, Declarative.HandlerLike]]: ...
 
 
 class DataItemInspectorHandler(Declarative.Handler):
-    def __init__(self, context: ReferenceHandlerContext, data_item: DataItem.DataItem):
+    def __init__(self, context: Context, data_item: DataItem.DataItem):
         super().__init__()
         self.context = context
         self.item = data_item
@@ -1728,7 +1763,7 @@ class DataItemInspectorHandler(Declarative.Handler):
         label = u.create_label(text=self.item.title)
         uuid_row = u.create_row(u.create_label(text="UUID:", width=60), u.create_label(text="@binding(item.uuid, converter=uuid_converter)"), u.create_stretch(), spacing=12)
         modified_row = u.create_row(u.create_label(text="Modified:", width=60), u.create_label(text="@binding(item.modified, converter=date_converter)"), u.create_label(text="(local)"), u.create_stretch(), spacing=12)
-        source_line = u.create_component_instance("source_component")
+        source_line = [u.create_component_instance("source_component")] if context.values.get("do_references", False) else []
         data_source_chooser = {
             "type": "data_source_chooser",
             "display_item": "@binding(display_item)",
@@ -1738,14 +1773,14 @@ class DataItemInspectorHandler(Declarative.Handler):
         self.ui_view = u.create_column(label,
                                        uuid_row,
                                        modified_row,
-                                       source_line,
+                                       *source_line,
                                        data_source_chooser,
                                        u.create_stretch(),
                                        spacing=12)
 
     @property
     def display_item(self) -> typing.Optional[DisplayItem.DisplayItem]:
-        document_model = typing.cast(DocumentModel.DocumentModel, getattr(self.context, "document_model"))
+        document_model = typing.cast(DocumentModel.DocumentModel, self.context.values["document_model"])
         return document_model.get_best_display_item_for_data_item(self.item)
 
     def create_handler(self, component_id: str, container: typing.Optional[Symbolic.ComputationVariable] = None, item: typing.Any = None, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
@@ -1757,14 +1792,14 @@ class DataItemInspectorHandler(Declarative.Handler):
 
 
 class DataItemInspectorHandlerFactory(ItemInspectorHandlerFactory):
-    def make_sections(self, context: ReferenceHandlerContext, item: typing.Any) -> typing.Sequence[typing.Tuple[str, Declarative.HandlerLike]]:
+    def make_sections(self, context: Context, item: typing.Any) -> typing.Sequence[typing.Tuple[str, Declarative.HandlerLike]]:
         if isinstance(item, DataItem.DataItem):
             return [(_("Data Item"), DataItemInspectorHandler(context, item))]
         return list()
 
 
 class DisplayItemInspectorHandler(Declarative.Handler):
-    def __init__(self, context: ReferenceHandlerContext, display_item: DisplayItem.DisplayItem) -> None:
+    def __init__(self, context: Context, display_item: DisplayItem.DisplayItem) -> None:
         super().__init__()
 
         self.item = display_item
@@ -1797,14 +1832,14 @@ class DisplayItemInspectorHandler(Declarative.Handler):
 
 
 class DisplayItemInspectorHandlerFactory(ItemInspectorHandlerFactory):
-    def make_sections(self, context: ReferenceHandlerContext, item: typing.Any) -> typing.Sequence[typing.Tuple[str, Declarative.HandlerLike]]:
+    def make_sections(self, context: Context, item: typing.Any) -> typing.Sequence[typing.Tuple[str, Declarative.HandlerLike]]:
         if isinstance(item, DisplayItem.DisplayItem):
             return [(_("Display Item"), DisplayItemInspectorHandler(context, item))]
         return list()
 
 
 class DataStructureInspectorHandler(Declarative.Handler):
-    def __init__(self, context: ReferenceHandlerContext, data_structure: DataStructure.DataStructure):
+    def __init__(self, context: Context, data_structure: DataStructure.DataStructure):
         super().__init__()
         self.context = context
         self.data_structure = data_structure
@@ -1818,7 +1853,7 @@ class DataStructureInspectorHandler(Declarative.Handler):
         uuid_row = u.create_row(u.create_label(text="UUID:", width=60), u.create_label(text="@binding(data_structure.uuid, converter=uuid_converter)"), u.create_stretch(), spacing=12)
         modified_row = u.create_row(u.create_label(text="Modified:", width=60), u.create_label(text="@binding(data_structure.modified, converter=date_converter)"), u.create_label(text="(local)"), u.create_stretch(), spacing=12)
         entity = self.data_structure.entity
-        source_line = u.create_component_instance("source_component")
+        source_line = [u.create_component_instance("source_component")] if self.context.values.get("do_references", False) else []
         if entity and entity.entity_type:
             entity_component = u.create_component_instance("entity_component")
         else:
@@ -1828,7 +1863,7 @@ class DataStructureInspectorHandler(Declarative.Handler):
         return u.create_column(label,
                                uuid_row,
                                modified_row,
-                               source_line,
+                               *source_line,
                                entity_component,
                                u.create_stretch(),
                                spacing=12)
@@ -1847,19 +1882,18 @@ class DataStructureInspectorHandler(Declarative.Handler):
 
 
 class DataStructureInspectorHandlerFactory(ItemInspectorHandlerFactory):
-    def make_sections(self, context: ReferenceHandlerContext, item: typing.Any) -> typing.Sequence[typing.Tuple[str, Declarative.HandlerLike]]:
+    def make_sections(self, context: Context, item: typing.Any) -> typing.Sequence[typing.Tuple[str, Declarative.HandlerLike]]:
         if isinstance(item, DataStructure.DataStructure):
             return [(_("Data Structure"), DataStructureInspectorHandler(context, item))]
         return list()
 
 
 class ComputationInspectorHandlerFactory(ItemInspectorHandlerFactory):
-    def make_sections(self, context: ReferenceHandlerContext, item: typing.Any) -> typing.Sequence[typing.Tuple[str, Declarative.HandlerLike]]:
+    def make_sections(self, context: Context, item: typing.Any) -> typing.Sequence[typing.Tuple[str, Declarative.HandlerLike]]:
         if isinstance(item, Symbolic.Computation):
-            document_controller = typing.cast("DocumentController.DocumentController", context)
             return [
-                (_("Edit"), ComputationInspectorHandler(document_controller, item)),
-                (_("Errors"), ComputationErrorInspectorHandler(document_controller, item)),
+                (_("Edit"), ComputationInspectorHandler(context, item)),
+                (_("Errors"), ComputationErrorInspectorHandler(context, item)),
             ]
         return list()
 
@@ -1872,7 +1906,7 @@ Registry.register_component(ComputationInspectorHandlerFactory(), {"item-inspect
 
 class ItemPageHandler(Declarative.Handler):
     def __init__(self,
-                 context: ReferenceHandlerContext,
+                 context: Context,
                  item: typing.Any,
                  entity_type: typing.Optional[Schema.EntityType],
                  title: str,
@@ -2039,7 +2073,7 @@ class MasterDetailHandler(Declarative.Handler):
 
 
 class ProjectItemsEntry:
-    def __init__(self, context: ReferenceHandlerContext, title: str, document_model: Observable.Observable,
+    def __init__(self, context: Context, title: str, document_model: Observable.Observable,
                  master_items_key: str, entity_type: typing.Optional[Schema.EntityType], title2: str,
                  title_getter: typing.Callable[[typing.Any], str]) -> None:
         model = ListModel.FilteredListModel(container=document_model, master_items_key=master_items_key)
@@ -2096,29 +2130,31 @@ class ProjectItemsDialog(Declarative.WindowHandler):
 
         self.items_model = ListModel.ListModel[ProjectItemsEntry]()
 
+        context = ComputationPanelContext(document_controller, self, True)
+
         self.items_model.append_item(
-            ProjectItemsEntry(self, _("Computations"), document_controller.document_model, "computations",
+            ProjectItemsEntry(context, _("Computations"), document_controller.document_model, "computations",
                               DataModel.Computation, _("Computation"), operator.attrgetter("label")))
         self.items_model.append_item(
-            ProjectItemsEntry(self, _("Data Structures"), document_controller.document_model, "data_structures",
+            ProjectItemsEntry(context, _("Data Structures"), document_controller.document_model, "data_structures",
                               None, _("Data Structure"), operator.attrgetter("structure_type")))
         self.items_model.append_item(
-            ProjectItemsEntry(self, _("Data Items"), document_controller.document_model, "data_items",
+            ProjectItemsEntry(context, _("Data Items"), document_controller.document_model, "data_items",
                               DataModel.DataItem, _("Data Item"), operator.attrgetter("title")))
         self.items_model.append_item(
-            ProjectItemsEntry(self, _("Display Items"), document_controller.document_model, "display_items",
+            ProjectItemsEntry(context, _("Display Items"), document_controller.document_model, "display_items",
                               DataModel.DisplayItem, _("Display Item"), operator.attrgetter("title")))
         self.items_model.append_item(
-            ProjectItemsEntry(self, _("Connections"), document_controller.document_model, "connections",
+            ProjectItemsEntry(context, _("Connections"), document_controller.document_model, "connections",
                               DataModel.Connection, _("Connection"), lambda x: str(x.uuid)))
         self.items_model.append_item(
-            ProjectItemsEntry(self, _("Data Groups"), document_controller.document_model, "data_groups",
+            ProjectItemsEntry(context, _("Data Groups"), document_controller.document_model, "data_groups",
                               DataModel.DataGroup, _("Data Group"), operator.attrgetter("title")))
         self.items_model.append_item(
-            ProjectItemsEntry(self, _("Projects"), typing.cast(typing.Any, document_controller.app).profile, "projects",
+            ProjectItemsEntry(context, _("Projects"), typing.cast(typing.Any, document_controller.app).profile, "projects",
                               ProjectExtra, _("Project"), operator.attrgetter("title")))
         self.items_model.append_item(
-            ProjectItemsEntry(self, _("Workspaces"), document_controller.project, "workspaces",
+            ProjectItemsEntry(context, _("Workspaces"), document_controller.project, "workspaces",
                               DataModel.Workspace, _("Workspace"), operator.attrgetter("name")))
 
         # close any previous list dialog associated with the window
