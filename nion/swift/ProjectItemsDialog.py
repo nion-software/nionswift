@@ -1,3 +1,13 @@
+"""
+Provide a dialog to browse all project items.
+
+Use the schema of the project to determine the types/structure of the project and allow the user to browser all
+objects and follow links between objects.
+
+Uses the general entity browser and registers factories for specific inspectors (with names ending in
+'InspectorHandler') for each of the nionswift core objects with the entity browser.
+"""
+
 from __future__ import annotations
 
 # standard libraries
@@ -26,13 +36,8 @@ from nion.utils import Registry
 
 if typing.TYPE_CHECKING:
     from nion.swift import DocumentController
-    from nion.ui import Application
-
-_DocumentControllerWeakRefType = typing.Callable[[], "DocumentController.DocumentController"]
 
 _ = gettext.gettext
-
-T = typing.TypeVar('T')
 
 
 class DataItemInspectorHandler(Declarative.Handler):
@@ -69,8 +74,6 @@ class DataItemInspectorHandler(Declarative.Handler):
     def create_handler(self, component_id: str, container: typing.Optional[Symbolic.ComputationVariable] = None, item: typing.Any = None, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
         if component_id == "source_component":
             return EntityBrowser.ReferenceHandler(self.context, _("Source"), self.item.source)
-        if component_id == "entity_component":
-            return EntityBrowser.make_record_handler(self.context, self.item, DataModel.DataItem.entity_id, 0, DataModel.DataItem)
         return None
 
 
@@ -187,6 +190,9 @@ Registry.register_component(DataStructureInspectorHandlerFactory(), {"item-inspe
 Registry.register_component(ComputationInspectorHandlerFactory(), {"item-inspector-handler-factory"})
 
 
+# since data items, display items, and other root objects are already available as top level components in the
+# inspector, use an alternate schema for the project which does not include those items. this makes browsing the
+# non-items in the project easier.
 ProjectExtra = Schema.entity("project_extra", None, 3, {
     "title": Schema.prop(Schema.STRING),
     "workspace": Schema.reference(DataModel.Workspace),
@@ -205,35 +211,26 @@ class ProjectItemsDialog(Declarative.WindowHandler):
 
         self.dialog_id = "project_items"
 
-        self.items_model = ListModel.ListModel[EntityBrowser.ProjectItemsEntry]()
-
         context = Inspector.ComputationInspectorContext(document_controller, self, True)
 
-        self.items_model.append_item(
-            EntityBrowser.ProjectItemsEntry(context, _("Computations"), document_controller.document_model,
-                                            "computations", DataModel.Computation, _("Computation"), operator.attrgetter("label")))
-        self.items_model.append_item(
-            EntityBrowser.ProjectItemsEntry(context, _("Data Structures"), document_controller.document_model,
-                                            "data_structures", None, _("Data Structure"), operator.attrgetter("structure_type")))
-        self.items_model.append_item(
-            EntityBrowser.ProjectItemsEntry(context, _("Data Items"), document_controller.document_model, "data_items",
-                                            DataModel.DataItem, _("Data Item"), operator.attrgetter("title")))
-        self.items_model.append_item(
-            EntityBrowser.ProjectItemsEntry(context, _("Display Items"), document_controller.document_model,
-                                            "display_items", DataModel.DisplayItem, _("Display Item"), operator.attrgetter("title")))
-        self.items_model.append_item(
-            EntityBrowser.ProjectItemsEntry(context, _("Connections"), document_controller.document_model,
-                                            "connections", DataModel.Connection, _("Connection"), lambda x: str(x.uuid)))
-        self.items_model.append_item(
-            EntityBrowser.ProjectItemsEntry(context, _("Data Groups"), document_controller.document_model,
-                                            "data_groups", DataModel.DataGroup, _("Data Group"), operator.attrgetter("title")))
-        self.items_model.append_item(
-            EntityBrowser.ProjectItemsEntry(context, _("Projects"),
-                                            typing.cast(typing.Any, document_controller.app).profile, "projects",
-                                            ProjectExtra, _("Project"), operator.attrgetter("title")))
-        self.items_model.append_item(
-            EntityBrowser.ProjectItemsEntry(context, _("Workspaces"), document_controller.project, "workspaces",
-                                            DataModel.Workspace, _("Workspace"), operator.attrgetter("name")))
+        items = (
+            EntityBrowser.EntityBrowserEntry(context, _("Data Items"), document_controller.document_model, "data_items",
+                                             DataModel.DataItem, _("Data Item"), operator.attrgetter("title")),
+            EntityBrowser.EntityBrowserEntry(context, _("Display Items"), document_controller.document_model, "display_items",
+                                             DataModel.DisplayItem, _("Display Item"), operator.attrgetter("title")),
+            EntityBrowser.EntityBrowserEntry(context, _("Data Structures"), document_controller.document_model, "data_structures",
+                                             None, _("Data Structure"), operator.attrgetter("structure_type")),
+            EntityBrowser.EntityBrowserEntry(context, _("Computations"), document_controller.document_model, "computations",
+                                             DataModel.Computation, _("Computation"), operator.attrgetter("label")),
+            EntityBrowser.EntityBrowserEntry(context, _("Connections"), document_controller.document_model, "connections",
+                                             DataModel.Connection, _("Connection"), lambda x: str(x.uuid)),
+            EntityBrowser.EntityBrowserEntry(context, _("Data Groups"), document_controller.document_model, "data_groups",
+                                             DataModel.DataGroup, _("Data Group"), operator.attrgetter("title")),
+            EntityBrowser.EntityBrowserEntry(context, _("Projects"), typing.cast(typing.Any, document_controller.app).profile, "projects",
+                                             ProjectExtra, _("Project"), operator.attrgetter("title")),
+            EntityBrowser.EntityBrowserEntry(context, _("Workspaces"), document_controller.project, "workspaces",
+                                             DataModel.Workspace, _("Workspace"), operator.attrgetter("name")),
+        )
 
         # close any previous list dialog associated with the window
         previous_window = getattr(document_controller, f"_{self.dialog_id}_dialog", None)
@@ -241,7 +238,7 @@ class ProjectItemsDialog(Declarative.WindowHandler):
             previous_window.close_window()
         setattr(document_controller, f"_{self.dialog_id}_dialog", self)
 
-        self.__master_detail_handler = EntityBrowser.MasterDetailHandler(self.items_model, "items", typing.cast(EntityBrowser.DynamicWidgetConstructorFn, EntityBrowser.ProjectItemsContent), operator.attrgetter("label"))
+        self.__entity_browser_component = EntityBrowser.make_entity_browser_component(items)
 
         u = Declarative.DeclarativeUI()
 
@@ -255,7 +252,7 @@ class ProjectItemsDialog(Declarative.WindowHandler):
 
     def create_handler(self, component_id: str, container: typing.Optional[Symbolic.ComputationVariable] = None, item: typing.Any = None, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
         if component_id == "content":
-            return self.__master_detail_handler
+            return self.__entity_browser_component
         return None
 
     @property
@@ -263,32 +260,27 @@ class ProjectItemsDialog(Declarative.WindowHandler):
         return self.__document_controller.document_model
 
     def open_project_item(self, item: typing.Any) -> None:
-        class Visitor(Schema.Visitor):
-            def __init__(self, base_value: typing.Any) -> None:
-                self.base_value = base_value
-                self.breadcrumbs: typing.Sequence[typing.Any] = list()
-
-            def visit(self, accessor: Schema.Accessor) -> None:
-                value = accessor.get_value(self.base_value)
-                if value == item and isinstance(accessor.field_type, Schema.ComponentType):
-                    self.breadcrumbs = accessor.breadcrumbs(self.base_value)
-
-        project = self.__document_controller.project
-        visitor = Visitor(project)
-        DataModel.Project.visit(typing.cast(Schema.Entity, project), Schema.BaseAccessor(Schema.reference(DataModel.Project), "project"), visitor)
-
-        for index, project_items in enumerate(self.items_model.items):
-            for value in reversed(visitor.breadcrumbs):
-                if value in project_items.model.items:
-                    self.__master_detail_handler.index_model.value = index
-                    item_index = project_items.model.items.index(value)
-                    detail_component = typing.cast(EntityBrowser.DynamicHandler, self.__master_detail_handler._detail_components[self.items_model._items[self.__master_detail_handler.index_model.value]])
-                    assert detail_component.dynamic_widget and detail_component.dynamic_widget.dynamic_handler
-                    content_handler = typing.cast(EntityBrowser.ProjectItemsContent, detail_component.dynamic_widget.dynamic_handler)
-                    detail_handler = typing.cast(EntityBrowser.MasterDetailHandler, content_handler._master_detail_handler)
-                    detail_handler.index_model.value = item_index
-                    return
+        # in the entity browser component, focus the item, contained within `self.__document_controller.project` having type `DataModel.Project`.
+        EntityBrowser.open_project_item(self.__entity_browser_component, self.__document_controller.project, DataModel.Project, "project", item)
 
 
 def make_project_items_dialog(document_controller: DocumentController.DocumentController) -> None:
     ProjectItemsDialog(document_controller)
+
+
+"""
+Architectural Decision Records.
+
+ADR 2023-01-10: The entity browser should be independent from the project items dialog with the expectation that it is a general
+tool that can eventually be moved into the nionui framework. This implies that there is some way to supply the
+entity browser with custom tabs (item-inspector-handler-factory) that are nionswift specific.
+
+ADR 2023-01-10: The project items dialog should not be a primary tool for a typical user as it is too confusing. This implies that
+the computation dialog should not provide links to open the project items dialog.
+
+ADR 2023-01-10: The initial version of the project items dialog should be used for browsing the data structures and exploring
+the links; but not be an editor. This simplifies the implementation.
+
+ADR 2023-01-10: The project items dialog should allow a developer to browse the items and relationships in order to debug
+and understand the architecture.
+"""
