@@ -1,3 +1,10 @@
+"""
+Provide tools for a general entity browser.
+
+An entity is defined by a schema and this set of UI elements facilitates a master-detail hierarchy to browse
+entities (aka items/objects) that adhere to that schema.
+"""
+
 from __future__ import annotations
 
 # standard libraries
@@ -505,7 +512,7 @@ class MasterDetailHandler(Declarative.Handler):
         return None
 
 
-class ProjectItemsEntry:
+class EntityBrowserEntry:
     def __init__(self, context: Context, title: str, document_model: Observable.Observable,
                  master_items_key: str, entity_type: typing.Optional[Schema.EntityType], title2: str,
                  title_getter: typing.Callable[[typing.Any], str]) -> None:
@@ -524,11 +531,12 @@ class ProjectItemsEntry:
         self.label = title
 
 
-def make_master_detail(project_item_handler: ProjectItemsEntry) -> Declarative.HandlerLike:
+def make_master_detail(project_item_handler: EntityBrowserEntry) -> Declarative.HandlerLike:
     return MasterDetailHandler(project_item_handler.model, project_item_handler.items_key, project_item_handler.component_fn, project_item_handler.title_getter)
 
 
-class ProjectItemsContent(Declarative.Handler):
+class TopLevelItemHandler(Declarative.Handler):
+    # a master-detail for each top level item
 
     def __init__(self, item: typing.Any) -> None:
         super().__init__()
@@ -541,3 +549,44 @@ class ProjectItemsContent(Declarative.Handler):
         if component_id == "content":
             return self._master_detail_handler
         return None
+
+
+def open_project_item(entity_browser_component: Declarative.HandlerLike, base_item: typing.Any, base_type: Schema.EntityType, base_name: str, item: typing.Any) -> None:
+    """In the entity browser component, focus the item, contained within base_item having type base_type."""
+
+    entity_browser_component = typing.cast(MasterDetailHandler, entity_browser_component)
+
+    class Visitor(Schema.Visitor):
+        def __init__(self, base_value: typing.Any) -> None:
+            self.base_value = base_value
+            self.breadcrumbs: typing.Sequence[typing.Any] = list()
+
+        def visit(self, accessor: Schema.Accessor) -> None:
+            value = accessor.get_value(self.base_value)
+            if value == item and isinstance(accessor.field_type, Schema.ComponentType):
+                self.breadcrumbs = accessor.breadcrumbs(self.base_value)
+
+    visitor = Visitor(base_item)
+    base_type.visit(typing.cast(Schema.Entity, base_item), Schema.BaseAccessor(Schema.reference(base_type), base_name),
+                    visitor)
+
+    list_model = typing.cast(ListModel.ListModel[EntityBrowserEntry], entity_browser_component.items_model)
+    for index, project_items in enumerate(list_model.items):
+        for value in reversed(visitor.breadcrumbs):
+            if value in project_items.model.items:
+                entity_browser_component.index_model.value = index
+                item_index = project_items.model.items.index(value)
+                detail_component = typing.cast(DynamicHandler, entity_browser_component._detail_components[
+                    list_model._items[entity_browser_component.index_model.value]])
+                assert detail_component.dynamic_widget and detail_component.dynamic_widget.dynamic_handler
+                content_handler = typing.cast(TopLevelItemHandler, detail_component.dynamic_widget.dynamic_handler)
+                detail_handler = typing.cast(MasterDetailHandler, content_handler._master_detail_handler)
+                detail_handler.index_model.value = item_index
+                return
+
+
+def make_entity_browser_component(items: typing.Sequence[EntityBrowserEntry]) -> Declarative.HandlerLike:
+    """Make an entity browser component with the top level items."""
+
+    list_model = ListModel.ListModel[EntityBrowserEntry](items=items)
+    return MasterDetailHandler(list_model, "items", typing.cast(DynamicWidgetConstructorFn, TopLevelItemHandler), operator.attrgetter("label"))
