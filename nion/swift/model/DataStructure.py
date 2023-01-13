@@ -84,12 +84,21 @@ class DataStructure(Persistence.PersistentObject):
 
     def __getattr__(self, name: str) -> typing.Any:
         properties = self.__dict__.get("_DataStructure__properties", dict())
+        referenced_object_proxies = self.__dict__.get("_DataStructure__referenced_object_proxies", dict())
+        if name in referenced_object_proxies:
+            return self.get_referenced_object(name)
         if name in properties:
             return properties[name]
         raise AttributeError("%r object has no attribute %r" % (self.__class__, name))
 
     def __setattr__(self, name: str, value: typing.Any) -> None:
         properties = self.__dict__.get("_DataStructure__properties", dict())
+        referenced_object_proxies = self.__dict__.get("_DataStructure__referenced_object_proxies", dict())
+        if name in referenced_object_proxies:
+            if value is not None:
+                self.set_referenced_object(name, value)
+            else:
+                self.remove_referenced_object(name)
         if name in properties:
             if value is not None:
                 self.set_property_value(name, value)
@@ -149,6 +158,11 @@ class DataStructure(Persistence.PersistentObject):
         properties = super().write_to_dict()
         properties["properties"] = copy.deepcopy(self.__properties)
         return properties
+
+    def persistent_object_context_changed(self) -> None:
+        super().persistent_object_context_changed()
+        if self.__entity:
+            self.__entity._set_entity_context(typing.cast(Schema.EntityContext, self.persistent_object_context))
 
     @property
     def source(self) -> typing.Optional[Persistence.PersistentObject]:
