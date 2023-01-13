@@ -623,7 +623,14 @@ class ReferenceField(Field):
             self.__reference = None
 
     def read(self, dict_value: typing.Any) -> Field:
-        self.__reference_uuid = uuid.UUID(copy.deepcopy(dict_value))
+        if False and isinstance(dict_value, dict):
+            # NOTE: disabled until needed, use direct untyped references for now in all cases.
+            # support typed references which will have a type and a uuid.
+            # type is unchecked, for now.
+            self.__reference_uuid = uuid.UUID(dict_value["uuid"])
+        else:
+            # support direct untyped uuid references.
+            self.__reference_uuid = uuid.UUID(dict_value)
         if self.__reference and self._context:
             self._context.update_item_reference_uuid(self.__reference, self.__reference_uuid)
         return self
