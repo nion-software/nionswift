@@ -188,6 +188,8 @@ class PropertyConnection(Connection):
     def connected_items(self) -> typing.List[typing.Optional[Persistence.PersistentObject]]:
         return [self._source, self._target]
 
+    # _source and _target are provided for backwards code compatibility and should be preferred for internal use
+
     @property
     def _source(self) -> typing.Optional[Persistence.PersistentObject]:
         return self.__source_reference.item
@@ -195,6 +197,16 @@ class PropertyConnection(Connection):
     @property
     def _target(self) -> typing.Optional[Persistence.PersistentObject]:
         return self.__target_reference.item
+
+    # source and target are provided for introspection (schema/entity)
+
+    @property
+    def source(self) -> typing.Optional[Persistence.PersistentObject]:
+        return self._source
+
+    @property
+    def target(self) -> typing.Optional[Persistence.PersistentObject]:
+        return self._target
 
     def __source_specifier_changed(self, name: str, d: _SpecifierType) -> None:
         self.__source_reference.item_specifier = Persistence.read_persistent_specifier(d)
