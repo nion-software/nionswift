@@ -3580,12 +3580,12 @@ class GraphicHandler(Declarative.Handler):
                 u.create_line_edit(text="@binding(graphic.width)", width=90),
                 u.create_stretch(), spacing=12)
             return u.create_column(start_row, end_row, length_row, line_width_row, spacing=8)
-        return u.create_label(text=_("Unsupported Graphic") + f" {graphic.type}")
+        return u.create_label(text=_("Unsupported Graphic") + f" {graphic}")
 
 
 class GraphicVariableHandlerFactory(VariableHandlerComponentFactory2):
     def make_variable_handler(self, computation_inspector_context: ComputationInspectorContext, computation: Symbolic.Computation, computation_variable: Symbolic.ComputationVariable, variable_model: VariableValueModel, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
-        if computation_variable.variable_type == "graphic":
+        if computation_variable.variable_type == "graphic-specifier":
             graphic = computation_variable.bound_item.value if computation_variable.bound_item else None
             return GraphicHandler(computation_inspector_context.window, computation, computation_variable, graphic)
         return None

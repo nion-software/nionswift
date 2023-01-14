@@ -348,6 +348,9 @@ def make_field_handler(context: Context, field_name: str, indent: int, value_typ
     if isinstance(value_type, Schema.ComponentType):
         if value_model.value is not None:
             entity_type = Schema.get_entity_type(value_type.entity_id)
+            # hack to handle subclasses; look at the value itself and figure out the type if possible.
+            if value_model.value and hasattr(value_model.value, "type") and value_model.value.type != value_type.entity_id:
+                entity_type = Schema.entity_types.get(value_model.value.type, entity_type)
             assert entity_type
             return make_record_handler(context, value_model.value, field_name, indent + 1, entity_type)
         else:

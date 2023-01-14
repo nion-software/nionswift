@@ -207,7 +207,7 @@ Specifier = Schema.entity("specifier", None, None, {
 
 DataSourceSpecifier = Schema.entity("data_source", Specifier, None, {})
 DataItemSpecifier = Schema.entity("data_item", Specifier, None, {})
-GraphicSpecifier = Schema.entity("graphic", Specifier, None, {})
+GraphicSpecifier = Schema.entity("graphic-specifier", Specifier, None, {})
 StructureSpecifier = Schema.entity("structure", Specifier, None, {})
 DataSpecifier = Schema.entity("xdata", Specifier, None, {})
 DisplayDataSpecifier = Schema.entity("display_xdata", Specifier, None, {})
@@ -324,6 +324,7 @@ PersistentDictType = typing.Dict[str, typing.Any]
 
 
 def transform_forward(d: PersistentDictType) -> PersistentDictType:
+    # ensure the display_layer has a uuid and modified and looks like a regular entity.
     for display_item in d.get("display_items", list()):
         display_data_channels = display_item.get("display_data_channels", list())
         for display_layer in display_item.get("display_layers", list()):
@@ -333,6 +334,25 @@ def transform_forward(d: PersistentDictType) -> PersistentDictType:
             data_index = display_layer.pop("data_index", None)
             if data_index is not None and 0 <= data_index < len(display_data_channels):
                 display_layer["display_data_channel"] = display_data_channels[data_index]["uuid"]
+
+    # ensure the specifier to graphic has a unique entity_id
+    # note this uses the non-renamed fields (specifier=item; secondary_specifier=item2; object_specifiers=items; specifiers=items)
+    for computation in d.get("computations", list()):
+        for variable in computation.get("variables", list()):
+            if variable.get("specifier", dict()).get("type") == "graphic":
+                variable["specifier"]["type"] = "graphic-specifier"
+            if variable.get("secondary_specifier", dict()).get("type") == "graphic":
+                variable["secondary_specifier"]["type"] = "graphic-specifier"
+            for v in variable.get("object_specifiers", list()):
+                if v.get("type") == "graphic":
+                    v["type"] = "graphic-specifier"
+        for result in computation.get("results", list()):
+            if result.get("specifier", dict()).get("type") == "graphic":
+                result["specifier"]["type"] = "graphic-specifier"
+            for r in result.get("specifiers", list()):
+                if r.get("type") == "graphic":
+                    r["type"] = "graphic-specifier"
+
     # these will be used for improved specifiers in the future
     # for computation in d.get("computations", list()):
     #     for variable in computation.get("variables", list()):
@@ -347,10 +367,12 @@ def transform_forward(d: PersistentDictType) -> PersistentDictType:
     #         specifier = result.get("specifier", None)
     #         if specifier:
     #             specifier["reference"] = specifier.pop("uuid")
+
     return d
 
 
 def transform_backward(d: PersistentDictType) -> PersistentDictType:
+    # ensure the display_layer has a uuid and modified and looks like a regular entity (reverse)
     for display_item in d.get("display_items", list()):
         display_data_channels = display_item.get("display_data_channels", list())
         display_data_channel_map = {display_data_channel["uuid"]: index for index, display_data_channel in enumerate(display_data_channels)}
@@ -362,6 +384,25 @@ def transform_backward(d: PersistentDictType) -> PersistentDictType:
             data_index = display_data_channel_map.get(display_data_channel_uuid, None)
             if data_index is not None:
                 display_layer["data_index"] = data_index
+
+    # ensure the specifier to graphic uses PROJECT_VERSION 3 compatible keys
+    # note this uses the non-renamed fields (specifier=item; secondary_specifier=item2; object_specifiers=items; specifiers=items)
+    for computation in d.get("computations", list()):
+        for variable in computation.get("variables", list()):
+            if variable.get("specifier", dict()).get("type") == "graphic-specifier":
+                variable["specifier"]["type"] = "graphic"
+            if variable.get("secondary_specifier", dict()).get("type") == "graphic-specifier":
+                variable["secondary_specifier"]["type"] = "graphic"
+            for v in variable.get("object_specifiers", list()):
+                if v is not None and v.get("type") == "graphic-specifier":
+                    v["type"] = "graphic"
+        for result in computation.get("results", list()):
+            if result.get("specifier", dict()).get("type") == "graphic-specifier":
+                result["specifier"]["type"] = "graphic"
+            for r in result.get("specifiers", list()):
+                if r is not None and r.get("type") == "graphic-specifier":
+                    r["type"] = "graphic"
+
     # these will be used for improved specifiers in the future
     # for computation in d.get("computations", list()):
     #     for variable in computation.get("variables", list()):
@@ -372,6 +413,7 @@ def transform_backward(d: PersistentDictType) -> PersistentDictType:
     #         specifier = result.get("specifier", None)
     #         if specifier:
     #             specifier["uuid"] = specifier.pop("reference")
+
     return d
 
 

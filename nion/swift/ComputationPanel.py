@@ -504,7 +504,7 @@ class ComputationPanelSection:
             name_text_edit = ui.create_line_edit_widget()
             name_text_edit.bind_text(ChangeVariableBinding(document_controller, computation, variable, "name"))
 
-            type_items = [("boolean", _("Boolean")), ("integral", _("Integer")), ("real", _("Real")), ("string", _("String")),("data_source", _("Data Source")), ("graphic", _("Graphic"))]
+            type_items = [("boolean", _("Boolean")), ("integral", _("Integer")), ("real", _("Real")), ("string", _("String")),("data_source", _("Data Source")), ("graphic-specifier", _("Graphic"))]
             type_combo_box = ui.create_combo_box_widget(items=type_items, item_getter=operator.itemgetter(1))
 
             remove_button = ui.create_push_button_widget(_("X"))
@@ -700,7 +700,7 @@ class ComputationPanelSection:
                 stack.add(make_string_row(ui, variable, None, change_type, on_remove))
             elif variable_type == "data_source":
                 stack.add(make_specifier_row(ui, variable, change_type, on_remove))
-            elif variable_type == "graphic":
+            elif variable_type == "graphic-specifier":
                 stack.add(make_specifier_row(ui, variable, change_type, on_remove))
             else:
                 stack.add(make_empty_row(ui, variable, change_type, on_remove))

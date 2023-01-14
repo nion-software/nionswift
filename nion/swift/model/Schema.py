@@ -39,11 +39,8 @@ REQUIRED = False
 entity_types: typing.Dict[str, EntityType] = dict()
 
 
-def utcnow() -> datetime.datetime:
-    return DateTime.utcnow()
-
-
 def register_entity_type(entity_id: str, entity: EntityType) -> None:
+    assert entity_id not in entity_types
     entity_types[entity_id] = entity
 
 
@@ -53,6 +50,10 @@ def unregister_entity_type(entity_id: str) -> None:
 
 def get_entity_type(entity_id: str) -> typing.Optional[EntityType]:
     return entity_types.get(entity_id)
+
+
+def utcnow() -> datetime.datetime:
+    return DateTime.utcnow()
 
 
 def build_value(type: str, value: typing.Any) -> typing.Any:

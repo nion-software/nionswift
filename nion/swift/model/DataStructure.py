@@ -151,7 +151,7 @@ class DataStructure(Persistence.PersistentObject):
             self.__entity_property_changed_event_listener = self.__entity.property_changed_event.listen(entity_property_changed)
 
     def __configure_reference_proxy(self, property_name: str, value: typing.Any, item: typing.Optional[Persistence.PersistentObject]) -> None:
-        if isinstance(value, dict) and value.get("type") in {"data_item", "display_item", "data_source", "graphic", "structure"} and "uuid" in value:
+        if isinstance(value, dict) and value.get("type") in {"data_item", "display_item", "data_source", "graphic-specifier", "structure"} and "uuid" in value:
             self.__referenced_object_proxies[property_name] = self.create_item_proxy(item_specifier=Persistence.read_persistent_specifier(value["uuid"]), item=item)
 
     def write_to_dict(self) -> Persistence.PersistentDictType:
@@ -255,7 +255,7 @@ def get_object_specifier(object: typing.Optional[Persistence.PersistentObject], 
     elif isinstance(object, Graphics.Graphic):
         specifier = Persistence.PersistentObjectSpecifier(object.uuid)
         specifier_uuid = specifier.item_uuid if specifier else object.uuid
-        d = {"version": 1, "type": "graphic", "uuid": str(specifier_uuid)}
+        d = {"version": 1, "type": "graphic-specifier", "uuid": str(specifier_uuid)}
         return d
     elif isinstance(object, DataStructure):
         specifier = Persistence.PersistentObjectSpecifier(object.uuid)
