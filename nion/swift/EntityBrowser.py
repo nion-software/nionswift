@@ -405,8 +405,13 @@ class ItemPageHandler(Declarative.Handler):
 
     def create_handler(self, component_id: str, container: typing.Optional[typing.Any] = None, item: typing.Any = None, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
         if component_id == "entity_component":
-            assert self.__entity_type
-            return make_record_handler(self.context, self.item, self.__entity_type.entity_id, self.__entity_type)
+            # hack to handle subclasses; look at the value itself and figure out the type if possible.
+            entity_type = self.__entity_type
+            assert entity_type
+            if self.item and hasattr(self.item, "type") and self.item.type != entity_type.entity_id:
+                entity_type = Schema.entity_types.get(self.item.type, entity_type)
+                assert entity_type
+            return make_record_handler(self.context, self.item, entity_type.entity_id, entity_type)
         for handler_index, handler in enumerate(self.__handlers):
             if component_id == f"handler_{handler_index}":
                 return handler
