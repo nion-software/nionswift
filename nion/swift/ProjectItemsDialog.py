@@ -163,7 +163,7 @@ class DataStructureInspectorHandler(Declarative.Handler):
             # note: use data structure as the base item of the entity field handler since the entity is not quite
             # properly connected to the data structure. setting a value on the data structure does not send a property
             # changed value from the entity.
-            return EntityBrowser.make_record_handler(self.context, self.data_structure, entity.entity_type.entity_id, 0, entity.entity_type)
+            return EntityBrowser.make_record_handler(self.context, self.data_structure, entity.entity_type.entity_id, entity.entity_type)
         return None
 
 

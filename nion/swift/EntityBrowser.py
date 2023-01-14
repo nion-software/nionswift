@@ -35,6 +35,9 @@ _ = gettext.gettext
 
 T = typing.TypeVar('T')
 
+INDENT = 8
+LABEL_WIDTH = 100
+
 
 class ReferenceHandlerContext(typing.Protocol):
     def open_project_item(self, item: typing.Any) -> None: ...
@@ -64,7 +67,7 @@ class ReferenceHandler(Declarative.Handler):
         else:
             label_section = u.create_label(text=_("None [reference]"))
         return u.create_row(
-            u.create_label(text=self.label, width=60),
+            u.create_label(text=self.label, tool_tip=self.label, width=LABEL_WIDTH),
             label_section,
             u.create_stretch(),
             spacing=12)
@@ -78,7 +81,7 @@ class ReferenceHandler(Declarative.Handler):
 
 class ItemToStringConverter(Converter.ConverterLike[typing.Any, str]):
     def convert(self, value: typing.Optional[typing.Any]) -> typing.Optional[str]:
-        return f"{str(value)}" if value else None
+        return f"{str(value)}" if value else _("<empty>")
 
     def convert_back(self, formatted_value: typing.Optional[str]) -> typing.Optional[typing.Any]:
         return str()
@@ -98,31 +101,31 @@ class EntityPropertyHandler(Declarative.Handler):
     def _make_ui(self, name: str, value_type: Schema.PropertyType) -> Declarative.UIDescriptionResult:
         u = Declarative.DeclarativeUI()
         if value_type.type == Schema.STRING:
-            return u.create_row(u.create_label(text=name, width=60),
-                                u.create_label(text=f"@binding(value_model.value)"),
+            return u.create_row(u.create_label(text=name, tool_tip=name, width=LABEL_WIDTH),
+                                u.create_label(text=f"@binding(value_model.value, converter=str_converter)"),
                                 u.create_stretch(), spacing=12)
         elif value_type.type == Schema.BOOLEAN:
-            return u.create_row(u.create_label(text=name, width=60),
+            return u.create_row(u.create_label(text=name, tool_tip=name, width=LABEL_WIDTH),
                                 u.create_check_box(text=f"@binding(value_model.value)"),
                                 u.create_stretch(), spacing=12)
         elif value_type.type == Schema.INT:
-            return u.create_row(u.create_label(text=name, width=60),
+            return u.create_row(u.create_label(text=name, tool_tip=name, width=LABEL_WIDTH),
                                 u.create_label(text=f"@binding(value_model.value, converter=int_converter)"),
                                 u.create_stretch(), spacing=12)
         elif value_type.type == Schema.FLOAT:
-            return u.create_row(u.create_label(text=name, width=60),
+            return u.create_row(u.create_label(text=name, tool_tip=name, width=LABEL_WIDTH),
                                 u.create_label(text=f"@binding(value_model.value, converter=float_converter)"),
                                 u.create_stretch(), spacing=12)
         elif value_type.type == Schema.TIMESTAMP:
-            return u.create_row(u.create_label(text=name, width=60),
+            return u.create_row(u.create_label(text=name, tool_tip=name, width=LABEL_WIDTH),
                                 u.create_label(text=f"@binding(value_model.value, converter=date_converter)"),
                                 u.create_stretch(), spacing=12)
         elif value_type.type == Schema.UUID:
-            return u.create_row(u.create_label(text=name, width=60),
+            return u.create_row(u.create_label(text=name, tool_tip=name, width=LABEL_WIDTH),
                                 u.create_label(text=f"@binding(value_model.value, converter=uuid_converter)"),
                                 u.create_stretch(), spacing=12)
         elif value_type.type in (Schema.DICT, Schema.LIST, Schema.SET):
-            return u.create_row(u.create_label(text=name, width=60),
+            return u.create_row(u.create_label(text=name, tool_tip=name, width=LABEL_WIDTH),
                                 u.create_row(
                                     u.create_label(text=f"{value_type.type}: "),
                                     u.create_label(text=f"@binding(value_model.value, converter=str_converter)"),
@@ -130,7 +133,7 @@ class EntityPropertyHandler(Declarative.Handler):
                                 u.create_stretch(),
                                 spacing=12)
         NOT_DISPLAYED = _("not displayed")
-        return u.create_row(u.create_label(text=name, width=60),
+        return u.create_row(u.create_label(text=name, tool_tip=name, width=LABEL_WIDTH),
                             u.create_label(text=f"{value_type.type} ({NOT_DISPLAYED})"),
                             u.create_stretch(),
                             spacing=12)
@@ -161,21 +164,19 @@ class EntityTupleModel(Observable.Observable):
 
 
 class EntityTupleHandler(Declarative.Handler):
-    def __init__(self, context: Context, name: str, indent: int, value_type: Schema.FieldType, value_model: Model.PropertyModel[typing.Any]) -> None:
+    def __init__(self, context: Context, name: str, value_type: Schema.FieldType, value_model: Model.PropertyModel[typing.Any]) -> None:
         super().__init__()
         self.context = context
         self.value_model = value_model
         self.value_type = value_type
-        self.indent = indent
         self.tuple_model = EntityTupleModel(value_model)
         u = Declarative.DeclarativeUI()
         # the items in tuple_model (tuples an index and a value of value_type) will get passed to create_handler in the
         # item parameter. this is accomplished by passing items to create_column below. the item_component_id is
         # used to match this column with the request for a handler.
         self.ui_view = u.create_column(
-            u.create_row(u.create_spacing(indent), u.create_label(text=name, width=60), u.create_stretch()),
-            u.create_row(u.create_spacing(indent * 4),
-                         u.create_column(items="tuple_model.items", item_component_id="entity_field", spacing=8)),
+            u.create_row(u.create_label(text=name), u.create_stretch()),
+            u.create_row(u.create_spacing(INDENT), u.create_column(items="tuple_model.items", item_component_id="entity_field", spacing=8)),
             spacing = 8,
         )
 
@@ -183,26 +184,24 @@ class EntityTupleHandler(Declarative.Handler):
         # item is a tuple of type index, self.value_type
         if component_id == "entity_field" and item is not None:
             index, item_ = item
-            return make_field_handler(self.context, str(index), self.indent, self.value_type, Model.PropertyModel(item_))
+            return make_field_handler(self.context, str(index), self.value_type, Model.PropertyModel(item_))
         return None
 
 
 class EntityArrayHandler(Declarative.Handler):
-    def __init__(self, context: Context, name: str, indent: int, value_type: Schema.FieldType, value_model: Model.PropertyModel[typing.Any]) -> None:
+    def __init__(self, context: Context, name: str, value_type: Schema.FieldType, value_model: Model.PropertyModel[typing.Any]) -> None:
         super().__init__()
         self.context = context
         self.value_model = value_model
         self.value_type = value_type
-        self.indent = indent
         self.tuple_model = EntityTupleModel(value_model)
         u = Declarative.DeclarativeUI()
         # the items in tuple_model (tuples an index and a value of value_type) will get passed to create_handler in the
         # item parameter. this is accomplished by passing items to create_column below. the item_component_id is
         # used to match this column with the request for a handler.
         self.ui_view = u.create_column(
-            u.create_row(u.create_spacing(indent), u.create_label(text=name, width=60), u.create_stretch()),
-            u.create_row(u.create_spacing(indent * 4),
-                         u.create_column(items="tuple_model.items", item_component_id="entity_field", spacing=8)),
+            u.create_row(u.create_label(text=name), u.create_stretch()),
+            u.create_row(u.create_spacing(INDENT), u.create_column(items="tuple_model.items", item_component_id="entity_field", spacing=8)),
             spacing = 8,
         )
 
@@ -210,7 +209,7 @@ class EntityArrayHandler(Declarative.Handler):
         # item is a tuple of type index, self.value_type
         if component_id == "entity_field" and item is not None:
             index, item_ = item
-            return make_field_handler(self.context, str(index), self.indent, self.value_type, Model.PropertyModel(item_))
+            return make_field_handler(self.context, str(index), self.value_type, Model.PropertyModel(item_), display_component_type=True)
         return None
 
 
@@ -231,19 +230,25 @@ class EntityValueIndexModel(Model.PropertyModel[T], typing.Generic[T]):
 
 
 class EntityFieldsHandler(Declarative.Handler):
-    def __init__(self, context: Context, name: str, indent: int, field_list: typing.Sequence[typing.Tuple[str, Schema.FieldType, Model.PropertyModel[typing.Any]]]) -> None:
+    def __init__(self, context: Context, name: str, field_list: typing.Sequence[typing.Tuple[str, Schema.FieldType, Model.PropertyModel[typing.Any]]], *, component_type: typing.Optional[str] = None) -> None:
         super().__init__()
         self.context = context
-        self.indent = indent
         self.field_list = list(field_list)
         u = Declarative.DeclarativeUI()
         # the items in field_list (field-name/value-type/property-model) will get passed to create_handler in the
         # item parameter. this is accomplished by passing items to create_column below. the item_component_id is
         # used to match this column with the request for a handler.
+        component_type_row = u.create_row(u.create_label(text=_("type"), width=LABEL_WIDTH), u.create_label(text=component_type), u.create_stretch(), spacing=12)
         self.ui_view = u.create_column(
-            u.create_row(u.create_spacing(indent), u.create_label(text=name, width=60), u.create_stretch()),
-            u.create_row(u.create_spacing(indent * 4),
-                         u.create_column(items="field_list", item_component_id="entity_field", spacing=8)),
+            u.create_row(u.create_label(text=name), u.create_stretch()),
+            u.create_row(
+                u.create_spacing(INDENT),
+                u.create_column(
+                    *([component_type_row] if component_type else []),
+                    u.create_row(u.create_column(items="field_list", item_component_id="entity_field", spacing=8)),
+                    spacing=8
+                ),
+            ),
             spacing = 8,
         )
 
@@ -251,7 +256,7 @@ class EntityFieldsHandler(Declarative.Handler):
         # item is a tuple of field name, value type, and value model. it comes from the field list passed during init.
         if component_id == "entity_field" and item is not None:
             field_name, value_type, value_model = typing.cast(typing.Tuple[str, Schema.FieldType, Model.PropertyModel[typing.Any]], item)
-            return make_field_handler(self.context, field_name, self.indent, value_type, value_model)
+            return make_field_handler(self.context, field_name, value_type, value_model)
         return None
 
 
@@ -286,7 +291,7 @@ class MaybePropertyChangedPropertyModel(Model.PropertyModel[typing.Any]):
 class DummyHandler(Declarative.HandlerLike):
     def __init__(self, field_name: str, text: str) -> None:
         u = Declarative.DeclarativeUI()
-        self.ui_view = u.create_row(u.create_label(text=field_name, width=60), u.create_label(text=text), u.create_stretch(), spacing=12)
+        self.ui_view = u.create_row(u.create_label(text=field_name, tool_tip=field_name, width=LABEL_WIDTH), u.create_label(text=text), u.create_stretch(), spacing=12)
 
     def close(self) -> None:
         pass
@@ -297,12 +302,12 @@ class HasFieldTypeMap(typing.Protocol):
     def _field_type_map(self) -> typing.Mapping[str, Schema.FieldType]: raise NotImplementedError()
 
 
-def make_record_handler(context: Context, item: Observable.Observable, name: str, indent: int, entity_type: HasFieldTypeMap) -> EntityFieldsHandler:
+def make_record_handler(context: Context, item: Observable.Observable, name: str, entity_type: HasFieldTypeMap, *, display_component_type: bool = False) -> EntityFieldsHandler:
     field_list = [(n, t, MaybePropertyChangedPropertyModel(item, n)) for n, t in entity_type._field_type_map.items()]
-    return EntityFieldsHandler(context, name, indent, field_list)
+    return EntityFieldsHandler(context, name, field_list, component_type=getattr(entity_type, "entity_id", None))
 
 
-def make_field_handler(context: Context, field_name: str, indent: int, value_type: Schema.FieldType, value_model: Model.PropertyModel[typing.Any]) -> typing.Optional[Declarative.HandlerLike]:
+def make_field_handler(context: Context, field_name: str, value_type: Schema.FieldType, value_model: Model.PropertyModel[typing.Any], *, display_component_type: bool = False) -> typing.Optional[Declarative.HandlerLike]:
     # when item type is property type, create an entity property handler, passing the value type and property model directly.
     if isinstance(value_type, Schema.PropertyType):
         return EntityPropertyHandler(field_name, value_type, value_model)
@@ -310,7 +315,7 @@ def make_field_handler(context: Context, field_name: str, indent: int, value_typ
     # when item type is tuple type, create an entity tuple handler, passing the value type of the tuple and the property model directly.
     # the tuple handler will watch for changes to the property model and update its internal list accordingly.
     if isinstance(value_type, Schema.TupleType):
-        return EntityTupleHandler(context, field_name, indent + 1, value_type.type, value_model)
+        return EntityTupleHandler(context, field_name, value_type.type, value_model)
 
     # when item type is fixed tuple type, make a list of field-name/value-type/property-model tuples, creating
     # entity value index models to access the individual fields, and recursively create another entity fields
@@ -318,7 +323,7 @@ def make_field_handler(context: Context, field_name: str, indent: int, value_typ
     if isinstance(value_type, Schema.FixedTupleType):
         if value_model.value is not None:
             field_list = [(str(i), t, EntityValueIndexModel(value_model, i)) for i, t in enumerate(value_type.types)]
-            return EntityFieldsHandler(context, field_name, indent + 1, field_list)
+            return EntityFieldsHandler(context, field_name, field_list)
         else:
             return DummyHandler(field_name, "NONE [fixed-tuple]")
 
@@ -326,7 +331,7 @@ def make_field_handler(context: Context, field_name: str, indent: int, value_typ
     # to this function.
     if isinstance(value_type, Schema.RecordType):
         if value_model.value is not None:
-            return make_record_handler(context, value_model.value, field_name, indent + 1, value_type)
+            return make_record_handler(context, value_model.value, field_name, value_type)
         else:
             return DummyHandler(field_name, "NONE [record]")
 
@@ -334,7 +339,7 @@ def make_field_handler(context: Context, field_name: str, indent: int, value_typ
     # the array handler will watch for changes to either the property model or the list value of the property model and update its
     # internal list accordingly.
     if isinstance(value_type, Schema.ArrayType):
-        return EntityArrayHandler(context, field_name, indent + 1, value_type.type, value_model)
+        return EntityArrayHandler(context, field_name, value_type.type, value_model)
 
     # map
 
@@ -352,7 +357,7 @@ def make_field_handler(context: Context, field_name: str, indent: int, value_typ
             if value_model.value and hasattr(value_model.value, "type") and value_model.value.type != value_type.entity_id:
                 entity_type = Schema.entity_types.get(value_model.value.type, entity_type)
             assert entity_type
-            return make_record_handler(context, value_model.value, field_name, indent + 1, entity_type)
+            return make_record_handler(context, value_model.value, field_name, entity_type, display_component_type=display_component_type)
         else:
             return DummyHandler(field_name, "NONE [component]")
 
@@ -401,7 +406,7 @@ class ItemPageHandler(Declarative.Handler):
     def create_handler(self, component_id: str, container: typing.Optional[typing.Any] = None, item: typing.Any = None, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
         if component_id == "entity_component":
             assert self.__entity_type
-            return make_record_handler(self.context, self.item, self.__entity_type.entity_id, 0, self.__entity_type)
+            return make_record_handler(self.context, self.item, self.__entity_type.entity_id, self.__entity_type)
         for handler_index, handler in enumerate(self.__handlers):
             if component_id == f"handler_{handler_index}":
                 return handler
