@@ -814,7 +814,7 @@ def migrate_library_to_v2(library_properties: PersistentDictType) -> None:
             if specifier_dict.get("type") == "data_item_object":
                 specifier_dict["type"] = "data_item"
             if specifier_dict.get("type") == "region":
-                specifier_dict["type"] = "graphic"
+                specifier_dict["type"] = "graphic-specifier"
 
         for computation_dict in library_properties.get("computations", list()):
             for variable_dict in computation_dict.get("variables", list()):

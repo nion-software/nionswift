@@ -102,7 +102,7 @@ def create_bound_item(container: Persistence.PersistentObject,
             bound_item = BoundFilteredData(container, specifier, secondary_specifier)
         elif specifier_type == "structure":
             bound_item = BoundDataStructure(container, specifier, property_name)
-        elif specifier_type == "graphic":
+        elif specifier_type == "graphic-specifier":
             bound_item = BoundGraphic(container, specifier, property_name)
     return bound_item
 
@@ -671,7 +671,7 @@ class ComputationVariable(Persistence.PersistentObject):
                     specifier.pop("property", None)
                 self._specifier = specifier
                 self._secondary_specifier = self._secondary_specifier or {"version": 1}
-            elif value_type in ("graphic",):
+            elif value_type in ("graphic-specifier",):
                 self.value_type = None
                 self.control_type = None
                 self.value_default = None
