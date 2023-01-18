@@ -92,7 +92,7 @@ class ActivityController(Declarative.Handler):
 
             with self.__pending_activities_lock:
                 self.__pending_append_activities.append(activity)
-                self.__activity_finished_task.register_task(document_controller.event_loop.create_task(append_activity()))
+                self.__activity_appended_task.register_task(document_controller.event_loop.create_task(append_activity()))
 
         def activity_finished(activity: Activity.Activity) -> None:
             async def finish_activity() -> None:
