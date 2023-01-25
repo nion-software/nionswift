@@ -227,7 +227,7 @@ class ProjectItemsDialog(Declarative.WindowHandler):
             EntityBrowser.EntityBrowserEntry(context, _("Data Groups"), document_controller.document_model, "data_groups",
                                              DataModel.DataGroup, _("Data Group"), operator.attrgetter("title")),
             EntityBrowser.EntityBrowserEntry(context, _("Projects"), typing.cast(typing.Any, document_controller.app).profile, "projects",
-                                             ProjectExtra, _("Project"), operator.attrgetter("title")),
+                                             ProjectExtra, _("Project"), lambda x: x.title or _("Project")),
             EntityBrowser.EntityBrowserEntry(context, _("Workspaces"), document_controller.project, "workspaces",
                                              DataModel.Workspace, _("Workspace"), operator.attrgetter("name")),
         )

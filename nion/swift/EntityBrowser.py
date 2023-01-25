@@ -408,7 +408,7 @@ class ItemPageHandler(Declarative.Handler):
             # hack to handle subclasses; look at the value itself and figure out the type if possible.
             entity_type = self.__entity_type
             assert entity_type
-            if self.item and hasattr(self.item, "type") and self.item.type != entity_type.entity_id:
+            if self.item and hasattr(self.item, "type") and self.item.type in [t.entity_id for t in entity_type.subclasses]:
                 entity_type = Schema.entity_types.get(self.item.type, entity_type)
                 assert entity_type
             return make_record_handler(self.context, self.item, entity_type.entity_id, entity_type)
