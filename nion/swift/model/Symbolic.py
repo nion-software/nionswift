@@ -235,6 +235,19 @@ class Specifier(Schema.Entity, abc.ABC):
     def get_bound_item(self, container: Persistence.PersistentObject, secondary_specifier: typing.Optional[Specifier] = None, property_name: typing.Optional[str] = None) -> typing.Optional[BoundItemBase]:
         raise NotImplementedError()
 
+    # standard overrides from entity to fit within persistent object architecture
+
+    def _field_value_changed(self, name: str, value: typing.Any) -> None:
+        # this is called when a property changes. to be compatible with the older
+        # persistent object structure, check if persistent storage exists and pass
+        # the message along to persistent storage.
+        persistent_storage = typing.cast(Persistence.PersistentStorageInterface, getattr(self, "persistent_storage", None))
+        if persistent_storage:
+            if value is not None:
+                persistent_storage.set_property(typing.cast(Persistence.PersistentObject, self), name, value)
+            else:
+                persistent_storage.clear_property(typing.cast(Persistence.PersistentObject, self), name)
+
 
 class DataSourceSpecifier(Specifier):
     def __init__(self, entity_type: typing.Optional[Schema.EntityType] = None, context: typing.Optional[Schema.EntityContext] = None, *, version: typing.Optional[int] = None, reference_uuid: typing.Optional[uuid.UUID] = None) -> None:
