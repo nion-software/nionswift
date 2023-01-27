@@ -3112,6 +3112,10 @@ class ChangeComputationVariableCommand(Undo.UndoableCommand):
         self.__computation_proxy.close()
         self.__computation_proxy = typing.cast(typing.Any, None)
         self.__variable_index = typing.cast(typing.Any, None)
+        if self.__properties[1]:
+            self.__properties[1].close()
+        if self.__properties[2]:
+            self.__properties[2].close()
         self.__properties = typing.cast(typing.Any, None)
         self.__value_dict = typing.cast(typing.Any, None)
         super().close()

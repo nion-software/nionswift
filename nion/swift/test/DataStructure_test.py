@@ -43,11 +43,11 @@ class TestDataStructureClass(unittest.TestCase):
                 data_structure = DataStructure.DataStructure(structure_type="test_model")
                 document_model.append_data_structure(data_structure)
                 self.assertIsNotNone(data_structure.entity)
-                data_structure.entity.flag = False
+                data_structure.entity._set_field_value("flag", False)
                 self.assertEqual(data_structure.flag, False)
-                self.assertEqual(data_structure.flag, data_structure.entity.flag)
-                data_structure.entity.flag = True
+                self.assertEqual(data_structure.flag, data_structure.entity._get_field_value("flag"))
+                data_structure.entity._set_field_value("flag", True)
                 self.assertEqual(data_structure.flag, True)
-                self.assertEqual(data_structure.flag, data_structure.entity.flag)
+                self.assertEqual(data_structure.flag, data_structure.entity._get_field_value("flag"))
             finally:
                 DataStructure.DataStructure.unregister_entity(TestModel)

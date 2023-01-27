@@ -407,7 +407,7 @@ class PersistentStorageSystem(Persistence.PersistentStorageInterface):
             del item_list[index]
         self.__write_properties_if_not_delayed(parent)
 
-    def set_component_item(self, parent: Persistence.PersistentObject, name: str, item: Persistence.PersistentObject) -> None:
+    def set_component_item(self, parent: Persistence.PersistentObject, name: str, item: typing.Optional[Persistence.PersistentObject]) -> None:
         storage_dict = self.__update_modified_and_get_storage_dict(parent)
         if item:
             # set the item and update its persistent context
@@ -418,7 +418,8 @@ class PersistentStorageSystem(Persistence.PersistentStorageInterface):
             # clear the item
             with self.__properties_lock:
                 storage_dict.pop(name, None)
-                self.__set_persistent_storage(item, None, None)
+                if item:
+                    self.__set_persistent_storage(item, None, None)
         self.__write_properties_if_not_delayed(parent)
 
     def set_property(self, object: Persistence.PersistentObject, name: str, value: typing.Any, delayed: bool = False) -> None:

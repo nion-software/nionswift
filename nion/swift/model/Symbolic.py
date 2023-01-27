@@ -88,20 +88,27 @@ class ComputationOutput(Persistence.PersistentObject):
                  specifiers: typing.Optional[typing.Sequence[Specifier]] = None,
                  label: typing.Optional[str] = None) -> None:  # defaults are None for factory
         super().__init__()
-        specifier_d = specifier.write() if specifier else None
-        specifiers_d = [s.write() if s else None for s in specifiers] if specifiers is not None else None
         self.define_type("output")
         self.define_property("name", name, changed=self.__property_changed, hidden=True)
         self.define_property("label", label if label else name, hidden=True, changed=self.__property_changed)
-        self.define_property("specifier", specifier_d, hidden=True, changed=self.__property_changed)
-        self.define_property("specifiers", specifiers_d, hidden=True, changed=self.__property_changed)
+        self.define_item("specifier", typing.cast(Persistence._PersistentObjectFactoryFn, specifier_factory), changed=self.__specifier_changed, hidden=True)
+        self.define_relationship("specifiers", typing.cast(Persistence._PersistentObjectFactoryFn, specifier_factory), insert=self.__specifier_inserted, remove=self.__specifier_removed, hidden=True)
         self.__bound_item: typing.Optional[BoundItemBase] = None
         self.__bound_item_base_item_inserted_event_listener: typing.Optional[Event.EventListener] = None
         self.__bound_item_base_item_removed_event_listener: typing.Optional[Event.EventListener] = None
+        if specifier:
+            self.specifier = specifier
+        if specifiers is not None:  # form a list even if it is empty
+            self.specifiers = specifiers
 
     def close(self) -> None:
-        self.bound_item = None
+        self.unbind()
+        # continue closing
         super().close()
+
+    def persistent_object_context_changed(self) -> None:
+        if self.container:
+            self.bind()
 
     @property
     def bound_item(self) -> typing.Optional[BoundItemBase]:
@@ -126,36 +133,58 @@ class ComputationOutput(Persistence.PersistentObject):
         self.notify_property_changed("bound_item")
 
     @property
-    def _specifier(self) -> typing.Optional[Specifier]:
-        # specifier is stored as a dict (or None)
-        return read_specifier(self._get_persistent_property_value("specifier"))
+    def specifier(self) -> typing.Optional[Specifier]:
+        return typing.cast(typing.Optional[Specifier], self.get_item("specifier"))
 
-    @_specifier.setter
-    def _specifier(self, value: typing.Optional[Specifier]) -> None:
-        self._set_persistent_property_value("specifier", value.write() if value else None)
+    @specifier.setter
+    def specifier(self, value: typing.Optional[Specifier]) -> None:
+        self.set_item("specifier", value)
 
     @property
-    def _specifiers(self) -> typing.Optional[typing.Sequence[typing.Optional[Specifier]]]:
-        specifiers_d = self._get_persistent_property_value("specifiers")
-        return [read_specifier(item_d) for item_d in specifiers_d] if specifiers_d is not None else None
+    def specifiers(self) -> typing.Sequence[typing.Optional[Specifier]]:
+        return typing.cast(typing.Sequence[typing.Optional[Specifier]], self._get_relationship_values("specifiers"))
 
-    @_specifiers.setter
-    def _specifiers(self, value: typing.Optional[typing.Sequence[typing.Optional[Specifier]]]) -> None:
-        self._set_persistent_property_value("specifiers", [s.write() if s else None for s in value] if value else None)
+    @specifiers.setter
+    def specifiers(self, value: typing.Sequence[typing.Optional[Specifier]]) -> None:
+        needs_binding = True
+        while len(self.specifiers):
+            self.remove_item("specifiers", typing.cast(Persistence.PersistentObject, self.specifiers[-1]))
+            needs_binding = False
+        for specifier in value:
+            self.append_item("specifiers", typing.cast(Persistence.PersistentObject, specifier))
+            needs_binding = False
+        if needs_binding and self.container:
+            self.bind()
 
     def __property_changed(self, name: str, value: typing.Any) -> None:
         self.notify_property_changed(name)
-        if name in ("specifier", "specifiers"):
-            if self.container:
-                self.bind()
+
+    def __specifier_changed(self, name: str, old_value: typing.Any, new_value: typing.Any) -> None:
+        # rebind first, so that property changed listeners get the right value
+        if self.container:
+            self.bind()
+        # notify
+        self.notify_property_changed(name)
+
+    def __specifier_inserted(self, name: str, before_index: int, variable: ComputationVariable) -> None:
+        # rebind first, so that property changed listeners get the right value
+        if self.container:
+            self.bind()
+        # notify
+        self.notify_property_changed(name)
+
+    def __specifier_removed(self, name: str, index: int, variable: ComputationVariable) -> None:
+        # rebind first, so that property changed listeners get the right value
+        if self.container:
+            self.bind()
+        # notify
+        self.notify_property_changed(name)
 
     def bind(self) -> None:
-        if self._specifier:
-            self.bound_item = self._specifier.get_bound_item(self)
-        elif self._specifiers is not None:
-            self.bound_item = BoundList([object_specifier.get_bound_item(self) if object_specifier else None for object_specifier in self._specifiers])
+        if self.specifier:
+            self.bound_item = self.specifier.get_bound_item(self)
         else:
-            self.bound_item = None
+            self.bound_item = BoundList([object_specifier.get_bound_item(self) if object_specifier else None for object_specifier in self.specifiers])
 
     def unbind(self) -> None:
         self.bound_item = None
@@ -171,7 +200,7 @@ class ComputationOutput(Persistence.PersistentObject):
 
     @property
     def is_resolved(self) -> bool:
-        if not self._specifier and not self._specifiers:
+        if not self.specifier and not self.specifiers:
             return True  # nothing specified, so it is valid
         bound_item = self.bound_item
         if isinstance(bound_item, BoundList):
@@ -204,21 +233,24 @@ class ComputationOutput(Persistence.PersistentObject):
         self._set_persistent_property_value("label", value)
 
 
-class Specifier(Schema.Entity, abc.ABC):
+class Specifier(Schema.Entity):
     def __init__(self, entity_type: typing.Optional[Schema.EntityType] = None,
                  context: typing.Optional[Schema.EntityContext] = None, *, version: typing.Optional[int] = None,
-                 reference_uuid: typing.Optional[uuid.UUID] = None) -> None:
+                 reference: typing.Optional[Persistence.PersistentObject] = None) -> None:
         super().__init__(entity_type or Model.Specifier, context)
         self.persistent_storage = None
         if version is not None:
             self._set_field_value("version", version)
-        if reference_uuid is not None:
-            self._set_field_value("reference_uuid", reference_uuid)
+        if reference is not None:
+            self._set_field_value("reference", reference)
 
     def __eq__(self, other: typing.Any) -> bool:
         if other and isinstance(other, self.__class__):
             return self.write() == other.write()
         return False
+
+    def __hash__(self) -> typing.Any:
+        return hash(self.uuid)
 
     @property
     def variable_type(self) -> ComputationVariableType:
@@ -229,8 +261,17 @@ class Specifier(Schema.Entity, abc.ABC):
         return typing.cast(int, self._get_field_value("version"))
 
     @property
-    def reference_uuid(self) -> uuid.UUID:
-        return typing.cast(uuid.UUID, self._get_field_value("reference_uuid"))
+    def reference(self) -> typing.Optional[Persistence.PersistentObject]:
+        return typing.cast(Persistence.PersistentObject, self._get_field_value("reference"))
+
+    @reference.setter
+    def reference(self, value: typing.Optional[Persistence.PersistentObject]) -> None:
+        self._set_field_value("reference", value)
+
+    @property
+    def reference_uuid(self) -> typing.Optional[uuid.UUID]:
+        reference = self.reference
+        return reference.uuid if reference else typing.cast(Schema.ReferenceField, self.get_field("reference")).reference_uuid
 
     def get_bound_item(self, container: Persistence.PersistentObject, secondary_specifier: typing.Optional[Specifier] = None, property_name: typing.Optional[str] = None) -> typing.Optional[BoundItemBase]:
         raise NotImplementedError()
@@ -249,81 +290,89 @@ class Specifier(Schema.Entity, abc.ABC):
                 persistent_storage.clear_property(typing.cast(Persistence.PersistentObject, self), name)
 
 
+class EmptySpecifier(Specifier):
+    def __init__(self, entity_type: typing.Optional[Schema.EntityType] = None, context: typing.Optional[Schema.EntityContext] = None, *, version: typing.Optional[int] = None, reference: typing.Optional[Persistence.PersistentObject] = None) -> None:
+        super().__init__(Model.EmptySpecifier, context, version=version, reference=reference)
+
+    def get_bound_item(self, container: Persistence.PersistentObject, secondary_specifier: typing.Optional[Specifier] = None, property_name: typing.Optional[str] = None) -> typing.Optional[BoundItemBase]:
+        return None
+
+
 class DataSourceSpecifier(Specifier):
-    def __init__(self, entity_type: typing.Optional[Schema.EntityType] = None, context: typing.Optional[Schema.EntityContext] = None, *, version: typing.Optional[int] = None, reference_uuid: typing.Optional[uuid.UUID] = None) -> None:
-        super().__init__(Model.DataSourceSpecifier, context, version=version, reference_uuid=reference_uuid)
+    def __init__(self, entity_type: typing.Optional[Schema.EntityType] = None, context: typing.Optional[Schema.EntityContext] = None, *, version: typing.Optional[int] = None, reference: typing.Optional[Persistence.PersistentObject] = None) -> None:
+        super().__init__(Model.DataSourceSpecifier, context, version=version, reference=reference)
 
     def get_bound_item(self, container: Persistence.PersistentObject, secondary_specifier: typing.Optional[Specifier] = None, property_name: typing.Optional[str] = None) -> typing.Optional[BoundItemBase]:
         return BoundDataSource(container, self, secondary_specifier)
 
 
 class DataItemSpecifier(Specifier):
-    def __init__(self, entity_type: typing.Optional[Schema.EntityType] = None, context: typing.Optional[Schema.EntityContext] = None, *, version: typing.Optional[int] = None, reference_uuid: typing.Optional[uuid.UUID] = None) -> None:
-        super().__init__(Model.DataItemSpecifier, context, version=version, reference_uuid=reference_uuid)
+    def __init__(self, entity_type: typing.Optional[Schema.EntityType] = None, context: typing.Optional[Schema.EntityContext] = None, *, version: typing.Optional[int] = None, reference: typing.Optional[Persistence.PersistentObject] = None) -> None:
+        super().__init__(Model.DataItemSpecifier, context, version=version, reference=reference)
 
     def get_bound_item(self, container: Persistence.PersistentObject, secondary_specifier: typing.Optional[Specifier] = None, property_name: typing.Optional[str] = None) -> typing.Optional[BoundItemBase]:
         return BoundDataItem(container, self)
 
 
 class GraphicSpecifier(Specifier):
-    def __init__(self, entity_type: typing.Optional[Schema.EntityType] = None, context: typing.Optional[Schema.EntityContext] = None, *, version: typing.Optional[int] = None, reference_uuid: typing.Optional[uuid.UUID] = None) -> None:
-        super().__init__(Model.GraphicSpecifier, context, version=version, reference_uuid=reference_uuid)
+    def __init__(self, entity_type: typing.Optional[Schema.EntityType] = None, context: typing.Optional[Schema.EntityContext] = None, *, version: typing.Optional[int] = None, reference: typing.Optional[Persistence.PersistentObject] = None) -> None:
+        super().__init__(Model.GraphicSpecifier, context, version=version, reference=reference)
 
     def get_bound_item(self, container: Persistence.PersistentObject, secondary_specifier: typing.Optional[Specifier] = None, property_name: typing.Optional[str] = None) -> typing.Optional[BoundItemBase]:
         return BoundGraphic(container, self, property_name)
 
 
 class StructureSpecifier(Specifier):
-    def __init__(self, entity_type: typing.Optional[Schema.EntityType] = None, context: typing.Optional[Schema.EntityContext] = None, *, version: typing.Optional[int] = None, reference_uuid: typing.Optional[uuid.UUID] = None) -> None:
-        super().__init__(Model.StructureSpecifier, context, version=version, reference_uuid=reference_uuid)
+    def __init__(self, entity_type: typing.Optional[Schema.EntityType] = None, context: typing.Optional[Schema.EntityContext] = None, *, version: typing.Optional[int] = None, reference: typing.Optional[Persistence.PersistentObject] = None) -> None:
+        super().__init__(Model.StructureSpecifier, context, version=version, reference=reference)
 
     def get_bound_item(self, container: Persistence.PersistentObject, secondary_specifier: typing.Optional[Specifier] = None, property_name: typing.Optional[str] = None) -> typing.Optional[BoundItemBase]:
         return BoundDataStructure(container, self, property_name)
 
 
 class DataSpecifier(Specifier):
-    def __init__(self, entity_type: typing.Optional[Schema.EntityType] = None, context: typing.Optional[Schema.EntityContext] = None, *, version: typing.Optional[int] = None, reference_uuid: typing.Optional[uuid.UUID] = None) -> None:
-        super().__init__(Model.DataSpecifier, context, version=version, reference_uuid=reference_uuid)
+    def __init__(self, entity_type: typing.Optional[Schema.EntityType] = None, context: typing.Optional[Schema.EntityContext] = None, *, version: typing.Optional[int] = None, reference: typing.Optional[Persistence.PersistentObject] = None) -> None:
+        super().__init__(Model.DataSpecifier, context, version=version, reference=reference)
 
     def get_bound_item(self, container: Persistence.PersistentObject, secondary_specifier: typing.Optional[Specifier] = None, property_name: typing.Optional[str] = None) -> typing.Optional[BoundItemBase]:
         return BoundData(container, self)
 
 
 class DisplayDataSpecifier(Specifier):
-    def __init__(self, entity_type: typing.Optional[Schema.EntityType] = None, context: typing.Optional[Schema.EntityContext] = None, *, version: typing.Optional[int] = None, reference_uuid: typing.Optional[uuid.UUID] = None) -> None:
-        super().__init__(Model.DisplayDataSpecifier, context, version=version, reference_uuid=reference_uuid)
+    def __init__(self, entity_type: typing.Optional[Schema.EntityType] = None, context: typing.Optional[Schema.EntityContext] = None, *, version: typing.Optional[int] = None, reference: typing.Optional[Persistence.PersistentObject] = None) -> None:
+        super().__init__(Model.DisplayDataSpecifier, context, version=version, reference=reference)
 
     def get_bound_item(self, container: Persistence.PersistentObject, secondary_specifier: typing.Optional[Specifier] = None, property_name: typing.Optional[str] = None) -> typing.Optional[BoundItemBase]:
         return BoundDisplayData(container, self, secondary_specifier)
 
 
 class CroppedDataSpecifier(Specifier):
-    def __init__(self, entity_type: typing.Optional[Schema.EntityType] = None, context: typing.Optional[Schema.EntityContext] = None, *, version: typing.Optional[int] = None, reference_uuid: typing.Optional[uuid.UUID] = None) -> None:
-        super().__init__(Model.CroppedDataSpecifier, context, version=version, reference_uuid=reference_uuid)
+    def __init__(self, entity_type: typing.Optional[Schema.EntityType] = None, context: typing.Optional[Schema.EntityContext] = None, *, version: typing.Optional[int] = None, reference: typing.Optional[Persistence.PersistentObject] = None) -> None:
+        super().__init__(Model.CroppedDataSpecifier, context, version=version, reference=reference)
 
     def get_bound_item(self, container: Persistence.PersistentObject, secondary_specifier: typing.Optional[Specifier] = None, property_name: typing.Optional[str] = None) -> typing.Optional[BoundItemBase]:
         return BoundCroppedData(container, self, secondary_specifier)
 
 
 class CroppedDisplayDataSpecifier(Specifier):
-    def __init__(self, entity_type: typing.Optional[Schema.EntityType] = None, context: typing.Optional[Schema.EntityContext] = None, *, version: typing.Optional[int] = None, reference_uuid: typing.Optional[uuid.UUID] = None) -> None:
-        super().__init__(Model.CroppedDisplayDataSpecifier, context, version=version, reference_uuid=reference_uuid)
+    def __init__(self, entity_type: typing.Optional[Schema.EntityType] = None, context: typing.Optional[Schema.EntityContext] = None, *, version: typing.Optional[int] = None, reference: typing.Optional[Persistence.PersistentObject] = None) -> None:
+        super().__init__(Model.CroppedDisplayDataSpecifier, context, version=version, reference=reference)
 
     def get_bound_item(self, container: Persistence.PersistentObject, secondary_specifier: typing.Optional[Specifier] = None, property_name: typing.Optional[str] = None) -> typing.Optional[BoundItemBase]:
         return BoundCroppedDisplayData(container, self, secondary_specifier)
 
 
 class FilterDataSpecifier(Specifier):
-    def __init__(self, entity_type: typing.Optional[Schema.EntityType] = None, context: typing.Optional[Schema.EntityContext] = None, *, version: typing.Optional[int] = None, reference_uuid: typing.Optional[uuid.UUID] = None) -> None:
-        super().__init__(Model.FilterDataSpecifier, context, version=version, reference_uuid=reference_uuid)
+    def __init__(self, entity_type: typing.Optional[Schema.EntityType] = None, context: typing.Optional[Schema.EntityContext] = None, *, version: typing.Optional[int] = None, reference: typing.Optional[Persistence.PersistentObject] = None) -> None:
+        super().__init__(Model.FilterDataSpecifier, context, version=version, reference=reference)
 
     def get_bound_item(self, container: Persistence.PersistentObject, secondary_specifier: typing.Optional[Specifier] = None, property_name: typing.Optional[str] = None) -> typing.Optional[BoundItemBase]:
         return BoundFilterData(container, self, secondary_specifier)
 
 
 class FilteredDataSpecifier(Specifier):
-    def __init__(self, entity_type: typing.Optional[Schema.EntityType] = None, context: typing.Optional[Schema.EntityContext] = None, *, version: typing.Optional[int] = None, reference_uuid: typing.Optional[uuid.UUID] = None) -> None:
-        super().__init__(Model.FilteredDataSpecifier, context, version=version, reference_uuid=reference_uuid)
+    def __init__(self, entity_type: typing.Optional[Schema.EntityType] = None, context: typing.Optional[Schema.EntityContext] = None, *, version: typing.Optional[int] = None, reference: typing.Optional[Persistence.PersistentObject] = None) -> None:
+        super().__init__(Model.FilteredDataSpecifier, context, version=version, reference=reference)
 
     def get_bound_item(self, container: Persistence.PersistentObject, secondary_specifier: typing.Optional[Specifier] = None, property_name: typing.Optional[str] = None) -> typing.Optional[BoundItemBase]:
         return BoundFilteredData(container, self, secondary_specifier)
@@ -360,26 +409,26 @@ def get_object_specifier(object: typing.Optional[Persistence.PersistentObject], 
                          project: typing.Optional[Project.Project] = None) -> typing.Optional[Specifier]:
     # project is passed for testing only
     if isinstance(object, DataItem.DataItem) and not object_type:
-        return DataItemSpecifier(version=1, reference_uuid=object.uuid)
+        return DataItemSpecifier(version=1, reference=object)
     if isinstance(object, (DisplayItem.DisplayDataChannel, DataItem.DataItem)):
         if object_type == "xdata":
-            return DataSpecifier(version=1, reference_uuid=object.uuid)
+            return DataSpecifier(version=1, reference=object)
         elif object_type == "display_xdata":
-            return DisplayDataSpecifier(version=1, reference_uuid=object.uuid)
+            return DisplayDataSpecifier(version=1, reference=object)
         if object_type == "cropped_xdata":
-            return CroppedDataSpecifier(version=1, reference_uuid=object.uuid)
+            return CroppedDataSpecifier(version=1, reference=object)
         elif object_type == "cropped_display_xdata":
-            return CroppedDisplayDataSpecifier(version=1, reference_uuid=object.uuid)
+            return CroppedDisplayDataSpecifier(version=1, reference=object)
         if object_type == "filter_xdata":
-            return FilterDataSpecifier(version=1, reference_uuid=object.uuid)
+            return FilterDataSpecifier(version=1, reference=object)
         elif object_type == "filtered_xdata":
-            return FilteredDataSpecifier(version=1, reference_uuid=object.uuid)
+            return FilteredDataSpecifier(version=1, reference=object)
     if isinstance(object, DisplayItem.DisplayDataChannel):
-        return DataSourceSpecifier(version=1, reference_uuid=object.uuid)
+        return DataSourceSpecifier(version=1, reference=object)
     elif isinstance(object, Graphics.Graphic):
-        return GraphicSpecifier(version=1, reference_uuid=object.uuid)
+        return GraphicSpecifier(version=1, reference=object)
     elif isinstance(object, DataStructure.DataStructure):
-        return StructureSpecifier(version=1, reference_uuid=object.uuid)
+        return StructureSpecifier(version=1, reference=object)
     return None
 
 
@@ -489,10 +538,6 @@ class ComputationVariable(Persistence.PersistentObject):
         super().__init__()
         self.define_type("variable")
         # setup
-        specifier_d = specifier.write() if specifier else None
-        secondary_specifier_d = secondary_specifier.write() if secondary_specifier else None
-        item_specifiers = [get_object_specifier(item.item, item.type) if item and item.item else None for item in items] if items is not None else None
-        item_specifiers_d = [s.write() if s else None for s in item_specifiers] if item_specifiers is not None else None
         # contemplating changes here? remember that this is mainly a place to store a value and track changes
         # to the value. this is not a place to specify how the value is presented, even though there are some
         # existing fields (control_type) for that which are leftovers from the original implementation.
@@ -503,11 +548,11 @@ class ComputationVariable(Persistence.PersistentObject):
         self.define_property("value_default", value_default, changed=self.__property_changed, reader=self.__value_reader, writer=self.__value_writer, hidden=True)
         self.define_property("value_min", value_min, changed=self.__property_changed, reader=self.__value_reader, writer=self.__value_writer, hidden=True)
         self.define_property("value_max", value_max, changed=self.__property_changed, reader=self.__value_reader, writer=self.__value_writer, hidden=True)
-        self.define_property("specifier", specifier_d, changed=self.__item_changed, hidden=True)
-        self.define_property("secondary_specifier", secondary_specifier_d, changed=self.__item_changed, hidden=True)
         self.define_property("property_name", property_name, changed=self.__property_changed, hidden=True)
         self.define_property("control_type", control_type, changed=self.__property_changed, hidden=True)
-        self.define_property("object_specifiers", item_specifiers_d, changed=self.__property_changed, hidden=True)
+        self.define_item("specifier", typing.cast(Persistence._PersistentObjectFactoryFn, specifier_factory), changed=self.__specifier_changed, hidden=True)
+        self.define_item("secondary_specifier", typing.cast(Persistence._PersistentObjectFactoryFn, specifier_factory), changed=self.__specifier_changed, hidden=True)
+        self.define_relationship("object_specifiers", typing.cast(Persistence._PersistentObjectFactoryFn, specifier_factory), insert=self.__specifier_inserted, remove=self.__specifier_removed, hidden=True)
         self.changed_event = Event.Event()
         self.variable_type_changed_event = Event.Event()
         self.needs_rebuild_event = Event.Event()  # an event to be fired when the UI needs a rebuild
@@ -516,16 +561,19 @@ class ComputationVariable(Persistence.PersistentObject):
         self.__bound_item_base_item_inserted_event_listener: typing.Optional[Event.EventListener] = None
         self.__bound_item_base_item_removed_event_listener: typing.Optional[Event.EventListener] = None
         if specifier:
-            self._specifier = specifier
+            self.specifier = specifier
         if secondary_specifier:
-            self._secondary_specifier = secondary_specifier
+            self.secondary_specifier = secondary_specifier
+        if items is not None:  # form a list even if it is empty
+            self.object_specifiers = [get_object_specifier(item.item, item.type) if item and item.item else EmptySpecifier() for item in items] if items is not None else None
 
     def close(self) -> None:
         self.unbind()
+        # continue closing
         super().close()
 
     def __repr__(self) -> str:
-        return "{} ({} {} {} {} {})".format(super().__repr__(), self.name, self.label, self.value, self._specifier, self._secondary_specifier)
+        return "{} ({} {} {} {} {})".format(super().__repr__(), self.name, self.label, self.value, self.specifier, self.secondary_specifier)
 
     def read_from_dict(self, properties: Persistence.PersistentDictType) -> None:
         # used for persistence
@@ -537,6 +585,10 @@ class ComputationVariable(Persistence.PersistentObject):
     def write_to_dict(self) -> Persistence.PersistentDictType:
         # used for persistence. left here since read_from_dict is defined.
         return super().write_to_dict()
+
+    def persistent_object_context_changed(self) -> None:
+        if self.container:
+            self.bind()
 
     @property
     def name(self) -> str:
@@ -569,15 +621,6 @@ class ComputationVariable(Persistence.PersistentObject):
     @control_type.setter
     def control_type(self, value: typing.Optional[str]) -> None:
         self._set_persistent_property_value("control_type", value)
-
-    @property
-    def object_specifiers(self) -> typing.Optional[typing.Sequence[typing.Optional[Specifier]]]:
-        object_specifiers_d = self._get_persistent_property_value("object_specifiers")
-        return [read_specifier(item_d) for item_d in object_specifiers_d] if object_specifiers_d is not None else None
-
-    @object_specifiers.setter
-    def object_specifiers(self, value: typing.Optional[typing.Sequence[typing.Optional[Specifier]]]) -> None:
-        self._set_persistent_property_value("object_specifiers", [s.write() if s else None for s in value] if value else None)
 
     @property
     def property_name(self) -> typing.Optional[str]:
@@ -620,32 +663,48 @@ class ComputationVariable(Persistence.PersistentObject):
         self._set_persistent_property_value("value_max", value)
 
     @property
-    def _specifier(self) -> typing.Optional[Specifier]:
-        # specifier is stored as a dict (or None)
-        return read_specifier(self._get_persistent_property_value("specifier"))
+    def specifier(self) -> typing.Optional[Specifier]:
+        return typing.cast(typing.Optional[Specifier], self.get_item("specifier"))
 
-    @_specifier.setter
-    def _specifier(self, value: typing.Optional[Specifier]) -> None:
-        self._set_persistent_property_value("specifier", value.write() if value else None)
+    @specifier.setter
+    def specifier(self, value: typing.Optional[Specifier]) -> None:
+        self.set_item("specifier", value)
 
     @property
-    def _secondary_specifier(self) -> typing.Optional[Specifier]:
-        # specifier is stored as a dict (or None)
-        return read_specifier(self._get_persistent_property_value("secondary_specifier"))
+    def secondary_specifier(self) -> typing.Optional[Specifier]:
+        return typing.cast(typing.Optional[Specifier], self.get_item("secondary_specifier"))
 
-    @_secondary_specifier.setter
-    def _secondary_specifier(self, value: typing.Optional[Specifier]) -> None:
-        self._set_persistent_property_value("secondary_specifier", value.write() if value else None)
+    @secondary_specifier.setter
+    def secondary_specifier(self, value: typing.Optional[Specifier]) -> None:
+        self.set_item("secondary_specifier", value)
+
+    @property
+    def object_specifiers(self) -> typing.Sequence[typing.Optional[Specifier]]:
+        return typing.cast(typing.Sequence[typing.Optional[Specifier]], self._get_relationship_values("object_specifiers"))
+
+    @object_specifiers.setter
+    def object_specifiers(self, value: typing.Sequence[typing.Optional[Specifier]]) -> None:
+        needs_binding = True
+        while len(self.object_specifiers):
+            self.remove_item("object_specifiers", typing.cast(Persistence.PersistentObject, self.object_specifiers[-1]))
+            needs_binding = False
+        for specifier in value:
+            self.append_item("object_specifiers", typing.cast(Persistence.PersistentObject, specifier))
+            needs_binding = False
+        if needs_binding and self.container:
+            self.bind()
 
     def bind(self) -> None:
-        if self.object_specifiers is not None:
-            self.bound_item = BoundList([object_specifier.get_bound_item(self) if object_specifier else None for object_specifier in self.object_specifiers])
-        else:
+        if self.value_type is not None or self.specifier:
             variable_specifier = self._variable_specifier
             if variable_specifier:
-                self.bound_item = variable_specifier.get_bound_item(self, self._secondary_specifier, self.property_name)
+                self.bound_item = variable_specifier.get_bound_item(self, self.secondary_specifier, self.property_name)
             else:
                 self.bound_item = None
+        else:
+            self.bound_item = BoundList(
+                [object_specifier.get_bound_item(self) if object_specifier else None for object_specifier in
+                 self.object_specifiers])
 
     def unbind(self) -> None:
         self.bound_item = None
@@ -657,37 +716,20 @@ class ComputationVariable(Persistence.PersistentObject):
         return bound_item.get_items()
 
     def _insert_specifier_in_list(self, index: int, specifier: Specifier) -> None:
-        bound_item = specifier.get_bound_item(self)
-        assert bound_item
-        # self.changed_event.fire()  # implicit when setting object_specifiers
-        object_specifiers = list(self.object_specifiers or list())
-        object_specifiers.insert(index, copy.deepcopy(bound_item.specifier))
-        self.object_specifiers = object_specifiers
-        bound_list = self.bound_item
-        assert isinstance(bound_list, BoundList)
-        bound_list.item_inserted(index, bound_item)
-        self.notify_insert_item("_bound_items", bound_item, index)
+        self.insert_item("object_specifiers", index, typing.cast(Persistence.PersistentObject, specifier))
 
     def _remove_item_from_list(self, index: int) -> None:
-        # self.changed_event.fire()  # implicit when setting object_specifiers
-        object_specifiers = list(self.object_specifiers or list())
-        object_specifiers.pop(index)
-        self.object_specifiers = object_specifiers
-        bound_list = self.bound_item
-        assert isinstance(bound_list, BoundList)
-        value = bound_list.get_items()[index]
-        bound_list.item_removed(index)
-        self.notify_remove_item("_bound_items", value, index)
+        self.remove_item("object_specifiers", typing.cast(Persistence.PersistentObject, self.object_specifiers[index]))
 
     def save_properties(self) -> typing.Tuple[typing.Any, typing.Optional[Specifier], typing.Optional[Specifier]]:
         # used for undo
-        return self.value, self._specifier, self._secondary_specifier
+        return self.value, copy.deepcopy(self.specifier), copy.deepcopy(self.secondary_specifier)
 
     def restore_properties(self, properties: typing.Tuple[typing.Any, typing.Optional[Specifier], typing.Optional[Specifier]]) -> None:
         # used for undo
         self.value = properties[0]
-        self._specifier = properties[1]
-        self._secondary_specifier = properties[2]
+        self.specifier = properties[1]
+        self.secondary_specifier = properties[2]
 
     def __value_reader(self, persistent_property: Persistence.PersistentProperty, properties: Persistence.PersistentDictType) -> typing.Any:
         value_type = self.value_type
@@ -737,7 +779,7 @@ class ComputationVariable(Persistence.PersistentObject):
 
             return VariableSpecifier(self)
         else:
-            return self._specifier
+            return self.specifier
 
     @property
     def specified_object(self) -> typing.Optional[Persistence.PersistentObject]:
@@ -747,9 +789,9 @@ class ComputationVariable(Persistence.PersistentObject):
     @specified_object.setter
     def specified_object(self, value: typing.Optional[Persistence.PersistentObject]) -> None:
         if value:
-            self._specifier = get_object_specifier(value)
+            self.specifier = get_object_specifier(value)
         else:
-            self._specifier = DataSourceSpecifier(version=1, reference_uuid=uuid.uuid4())
+            self.specifier = None
 
     @property
     def secondary_specified_object(self) -> typing.Optional[Persistence.PersistentObject]:
@@ -758,9 +800,9 @@ class ComputationVariable(Persistence.PersistentObject):
     @secondary_specified_object.setter
     def secondary_specified_object(self, value: typing.Optional[Persistence.PersistentObject]) -> None:
         if value:
-            self._secondary_specifier = get_object_specifier(value)
+            self.secondary_specifier = get_object_specifier(value)
         else:
-            self._secondary_specifier = None
+            self.secondary_specifier = None
 
     @property
     def bound_variable(self) -> BoundItemBase:
@@ -821,7 +863,7 @@ class ComputationVariable(Persistence.PersistentObject):
 
     @property
     def is_resolved(self) -> bool:
-        if not self._specifier:
+        if not self.specifier:
             return True  # nothing specified, so it is valid
         bound_item = self.bound_item
         if isinstance(bound_item, BoundList):
@@ -852,20 +894,40 @@ class ComputationVariable(Persistence.PersistentObject):
         if name in ["value_type", "value_min", "value_max", "control_type"]:
             self.needs_rebuild_event.fire()
 
-    # def __item_changed(self, name: str, old_value: typing.Any, new_value: typing.Any) -> None:
-    def __item_changed(self, name: str, new_value: typing.Any) -> None:
+    def __specifier_changed(self, name: str, old_value: typing.Any, new_value: typing.Any) -> None:
         # rebind first, so that property changed listeners get the right value
+        # TODO: is this needed if the specifier is used directly in the bound item? (it is not now, but might be in the future)
         if name in ("specifier", "secondary_specifier"):
             if self.container:
-                if self._specifier:
-                    self.bound_item = self._specifier.get_bound_item(self.container, self._secondary_specifier, self.property_name)
+                if self.specifier:
+                    self.bound_item = self.specifier.get_bound_item(self.container, self.secondary_specifier, self.property_name)
                 else:
                     self.bound_item = None
         # notify
         if name in ("specifier"):
-            self.notify_set_item("specified_object", new_value)
+            self.notify_property_changed("specified_object")
         if name in ("secondary_specifier"):
-            self.notify_set_item("secondary_specified_object", new_value)
+            self.notify_property_changed("secondary_specified_object")
+        # send out the changed event
+        self.changed_event.fire()
+
+    def __specifier_inserted(self, name: str, before_index: int, specifier: typing.Optional[Specifier]) -> None:
+        # update the bound list
+        if self.container:
+            self.bind()
+            # self.notify_insert_item("_bound_items", bound_item, before_index)
+        # notify
+        self.notify_property_changed("specified_objects")
+        # send out the changed event
+        self.changed_event.fire()
+
+    def __specifier_removed(self, name: str, index: int, specifier: typing.Optional[Specifier]) -> None:
+        # update the bound list
+        if self.container:
+            self.bind()
+            # self.notify_remove_item("_bound_items", value, index)
+        # notify
+        self.notify_property_changed("specified_objects")
         # send out the changed event
         self.changed_event.fire()
 
@@ -892,16 +954,16 @@ class ComputationVariable(Persistence.PersistentObject):
     def variable_type(self) -> typing.Optional[ComputationVariableType]:
         if self.value_type is not None:
             return self.value_type
-        elif self._specifier is not None:
-            return self._specifier.variable_type
+        elif self.specifier is not None:
+            return self.specifier.variable_type
         return None
 
     @variable_type.setter
     def variable_type(self, value_type: typing.Optional[ComputationVariableType]) -> None:
         if value_type != self.variable_type:
             if value_type in (ComputationVariableType.BOOLEAN, ComputationVariableType.INTEGRAL, ComputationVariableType.REAL, ComputationVariableType.COMPLEX, ComputationVariableType.STRING):
-                self._specifier = None
-                self._secondary_specifier = None
+                self.specifier = None
+                self.secondary_specifier = None
                 self.value_type = value_type
                 self.control_type = self.get_control_type_default(value_type)
                 if value_type == ComputationVariableType.BOOLEAN:
@@ -927,43 +989,27 @@ class ComputationVariable(Persistence.PersistentObject):
                     self.value_default = None
                     self.value_min = None
                     self.value_max = None
-                    self._specifier = specifier
-                    self._secondary_specifier = None
+                    self.specifier = specifier
+                    self.secondary_specifier = None
             self.variable_type_changed_event.fire()
 
     @property
-    def _specifier_uuid_str(self) -> typing.Optional[str]:
-        return str(self._specifier.reference_uuid) if self._specifier else None
+    def specifier_reference(self) -> typing.Optional[Persistence.PersistentObject]:
+        return self.specifier.reference if self.specifier else None
 
-    @_specifier_uuid_str.setter
-    def _specifier_uuid_str(self, value: typing.Optional[str]) -> None:
-        converter = Converter.UuidToStringConverter()
-        reference_uuid = converter.convert_back(value)
-        if self._specifier and self._specifier.reference_uuid != reference_uuid:
-            assert reference_uuid
-            # for testing
-            self._specifier._set_field_value("reference_uuid", reference_uuid)
-            specifier: typing.Optional[Specifier] = self._specifier
-            if specifier and value:
-                specifier._set_field_value("reference_uuid", reference_uuid)
-            else:
-                specifier = None
-            self._specifier = specifier
-
-
+    @specifier_reference.setter
+    def specifier_reference(self, reference: typing.Optional[Persistence.PersistentObject]) -> None:
+        if self.specifier:
+            self.specifier.reference = reference
 
     @property
-    def _secondary_specifier_uuid_str(self) -> typing.Optional[str]:
-        return str(self._secondary_specifier.reference_uuid) if self._secondary_specifier else None
+    def secondary_specifier_reference(self) -> typing.Optional[Persistence.PersistentObject]:
+        return self.secondary_specifier.reference if self.secondary_specifier else None
 
-    @_secondary_specifier_uuid_str.setter
-    def _secondary_specifier_uuid_str(self, value: typing.Optional[str]) -> None:
-        converter = Converter.UuidToStringConverter()
-        reference_uuid = converter.convert_back(value)
-        if self._secondary_specifier and self._secondary_specifier.reference_uuid != reference_uuid:
-            assert reference_uuid
-            # for testing
-            self._secondary_specifier._set_field_value("reference_uuid", reference_uuid)
+    @secondary_specifier_reference.setter
+    def secondary_specifier_reference(self, reference: typing.Optional[Persistence.PersistentObject]) -> None:
+        if self.secondary_specifier:
+            self.secondary_specifier.reference = reference
 
     @property
     def display_label(self) -> str:
@@ -1578,7 +1624,6 @@ class BoundList(BoundItemBase):
         super().__init__(None)
         self.__bound_items: typing.List[typing.Optional[BoundItemBase]] = list()
         self.changed_event = Event.Event()
-        self.child_removed_event = Event.Event()
         self.is_list = True
         self.__changed_listeners: typing.List[typing.Optional[Event.EventListener]] = list()
         self.__inserted_listeners: typing.List[typing.Optional[Event.EventListener]] = list()
@@ -1743,7 +1788,7 @@ class Computation(Persistence.PersistentObject):
 
     def is_valid_with_removals(self, items: typing.Set[Persistence.PersistentObject]) -> bool:
         for variable in self.variables:
-            if variable.object_specifiers is not None:
+            if variable.object_specifiers:
                 input_items = set(variable.input_items)
                 # if removing items results in no bound items and at least some items are in bound items, computation
                 # is no longer valid. all items of at least one set have been removed. do not remove computations with
@@ -2021,13 +2066,14 @@ class Computation(Persistence.PersistentObject):
             # check if the bound item is a list and item in list matches the object. if so, create
             # an undelete entry for the variable. undelete entry describes how to reconstitute
             # the list item.
-            if variable.object_specifiers is not None:
+            if variable.object_specifiers:
                 for index, (object_specifier, bound_item) in enumerate(zip(variable.object_specifiers, variable._bound_items)):
                     base_items = bound_item.base_items if bound_item else list()
                     if object in base_items:
+                        object_specifier_copy = copy.deepcopy(object_specifier)
                         variables_index = self.variables.index(variable)
                         variable._remove_item_from_list(index)
-                        return (index, variables_index, copy.deepcopy(object_specifier))
+                        return (index, variables_index, object_specifier_copy)
         return None
 
     @property
@@ -2114,7 +2160,7 @@ class Computation(Persistence.PersistentObject):
         input_items: typing.Set[Persistence.PersistentObject] = set()
         container = self if self.persistent_object_context else self.pending_project or self
         for variable in self.variables:
-            if variable.object_specifiers is not None:
+            if variable.object_specifiers:
                 for object_specifier in variable.object_specifiers:
                     bound_item = object_specifier.get_bound_item(container) if object_specifier else None
                     if bound_item:
@@ -2122,7 +2168,7 @@ class Computation(Persistence.PersistentObject):
                             input_items.update(set(bound_item.base_items))
             else:
                 if variable._variable_specifier:
-                    bound_item = variable._variable_specifier.get_bound_item(container, variable._secondary_specifier, variable.property_name)
+                    bound_item = variable._variable_specifier.get_bound_item(container, variable.secondary_specifier, variable.property_name)
                     if bound_item:
                         with contextlib.closing(bound_item):
                             input_items.update(set(bound_item.base_items))
@@ -2132,13 +2178,13 @@ class Computation(Persistence.PersistentObject):
         output_items: typing.Set[Persistence.PersistentObject] = set()
         container = self if self.persistent_object_context else self.pending_project or self
         for result in self.results:
-            if result._specifier:
-                bound_item = result._specifier.get_bound_item(container) if result._specifier else None
+            if result.specifier:
+                bound_item = result.specifier.get_bound_item(container) if result.specifier else None
                 if bound_item:
                     with contextlib.closing(bound_item):
                         output_items.update(set(bound_item.base_items))
-            elif result._specifiers is not None:
-                for specifier in result._specifiers:
+            else:
+                for specifier in result.specifiers:
                     bound_item = specifier.get_bound_item(container) if specifier else None
                     if bound_item:
                         with contextlib.closing(bound_item):
@@ -2164,19 +2210,19 @@ class Computation(Persistence.PersistentObject):
             assert input_item.type is None
             assert input_item.secondary_item is None
             assert input_item.items is None
-            variable._specifier = get_object_specifier(input_item.item)
+            variable.specifier = get_object_specifier(input_item.item)
 
     def set_output_item(self, name:str, output_item: typing.Optional[ComputationItem]) -> None:
         result = self._get_output(name)
         if result:
             if output_item and output_item.items is not None:
-                result._specifiers = [get_object_specifier(o.item) for o in output_item.items]
+                result.specifiers = [get_object_specifier(o.item) for o in output_item.items]
             else:
                 if output_item:
                     assert output_item.item
                     assert output_item.type is None
                     assert output_item.secondary_item is None
-                result._specifier = get_object_specifier(output_item.item) if output_item else None
+                result.specifier = get_object_specifier(output_item.item) if output_item else None
 
     def get_input(self, name: str) -> typing.Any:
         variable = self._get_variable(name)

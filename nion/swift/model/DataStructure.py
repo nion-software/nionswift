@@ -137,8 +137,8 @@ class DataStructure(Persistence.PersistentObject):
             self.__entity = DataStructure.entity_types[self.structure_type].create(typing.cast(Schema.EntityContext, self.persistent_object_context), self.__properties)
 
             def entity_property_changed(name: str) -> None:
-                if name != "type":
-                    value = getattr(self.__entity, name)
+                if name != "type" and self.__entity:
+                    value = self.__entity._get_field_value(name)
                     self.__properties[name] = value
                     reference_object_proxy = self.__referenced_object_proxies.pop(name, None)
                     if reference_object_proxy:

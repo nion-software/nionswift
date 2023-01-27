@@ -287,7 +287,7 @@ class PersistentStorageInterface(typing.Protocol):
     def load_component_item(self, parent: PersistentObject, name: str, item: PersistentObject) -> None: ...
 
     @abc.abstractmethod
-    def set_component_item(self, parent: PersistentObject, name: str, item: PersistentObject) -> None: ...
+    def set_component_item(self, parent: PersistentObject, name: str, item: typing.Optional[PersistentObject]) -> None: ...
 
     @abc.abstractmethod
     def set_property(self, object: PersistentObject, name: str, value: typing.Any, delayed: bool = False) -> None: ...
@@ -702,14 +702,17 @@ class PersistentObject(Observable.Observable):
 
     def deepcopy_from(self, item: PersistentObject, memo: typing.Dict[typing.Any, typing.Any]) -> None:
         for key in self.__properties.keys():
-            value = item._get_persistent_property_value(key)
-            new_value = copy.deepcopy(value)
-            self._set_persistent_property_value(key, new_value)
+            self._copy_property(item, key)
         for key in self.__items.keys():
             self.set_item(key, copy.deepcopy(getattr(item, key)))
         for key in self.__relationships.keys():
             for child_item in getattr(item, key):
                 self.append_item(key, copy.deepcopy(child_item, memo))
+
+    def _copy_property(self, item: PersistentObject, key: str) -> None:
+        value = item._get_persistent_property_value(key)
+        new_value = copy.deepcopy(value)
+        self._set_persistent_property_value(key, new_value)
 
     @property
     def container(self) -> typing.Optional[PersistentObject]:
@@ -745,7 +748,8 @@ class PersistentObject(Observable.Observable):
     def about_to_be_removed(self, container: PersistentObject) -> None:
         # called before close and before item is removed from its container
         for item in self.__items.values():
-            item.value.about_to_be_removed(self)
+            if item.value:
+                item.value.about_to_be_removed(self)
         for relationship in self.__relationships.values():
             for relationship_item in reversed(relationship.values):
                 relationship_item.about_to_be_removed(self)
@@ -838,10 +842,10 @@ class PersistentObject(Observable.Observable):
             self.__properties[name] = PersistentProperty(name, value, make, read_only, hidden, recordable, validate, converter, changed, key, reader, writer)
 
     def define_item(self, name: str, factory: _PersistentObjectFactoryFn,
-                    item_changed: typing.Optional[typing.Callable[[str, typing.Any, typing.Any], None]] = None,
+                    changed: typing.Optional[typing.Callable[[str, typing.Any, typing.Any], None]] = None,
                     hidden: bool = False) -> None:
         assert hidden
-        self.__items[name] = PersistentItem(name, factory, item_changed, hidden)
+        self.__items[name] = PersistentItem(name, factory, changed, hidden)
 
     def define_relationship(self, name: str,
                             factory: _PersistentObjectFactoryFn,
@@ -1068,7 +1072,8 @@ class PersistentObject(Observable.Observable):
         item.value = value
         if value:
             value.persistent_object_parent = PersistentObjectParent(self, item_name=name)
-            value.persistent_object_context = self.persistent_object_context
+            if self.persistent_object_context:
+                value.persistent_object_context = self.persistent_object_context
         if item.item_changed:
             item.item_changed(name, old_value, value)
 
@@ -1089,12 +1094,12 @@ class PersistentObject(Observable.Observable):
         # calling item_changed.
         if self.persistent_object_context:
             self.item_set(name, value)  # this will also update item's persistent_object_context
-        if value:
-            value.persistent_object_context = self.persistent_object_context
-        else:
-            value.persistent_object_context = None
+            if value:
+                value.persistent_object_context = self.persistent_object_context
         if item.item_changed:
             item.item_changed(name, old_value, value)
+        if old_value:
+            old_value.close()
 
     def load_item(self, name: str, before_index: int, item: PersistentObject) -> None:
         """ Load item in persistent storage and then into relationship storage, but don't update modified or notify persistent storage. """

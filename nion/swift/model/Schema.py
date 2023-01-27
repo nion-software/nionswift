@@ -662,6 +662,10 @@ class ReferenceField(Field):
                 self.__shadow_item = None
             self.__reference_uuid = None
 
+    @property
+    def reference_uuid(self) -> typing.Optional[uuid.UUID]:
+        return self.__reference_uuid
+
 
 class ComponentField(Field):
     """A component field, references another entity with cascading delete."""
@@ -959,7 +963,9 @@ class Entity(Observable.Observable):
             self._set_entity_context(context)
 
     def close(self) -> None:
-        pass
+        for field in self.__field_dict.values():
+            field.close()
+        self.__field_dict.clear()
 
     def __deepcopy__(self, memo: typing.Dict[typing.Any, typing.Any]) -> Entity:
         entity_copy = self._deepcopy()
@@ -992,6 +998,18 @@ class Entity(Observable.Observable):
             self.__context.register(self)
         for field in self.__field_dict.values():
             field.set_context(context)
+
+    @property
+    def uuid(self) -> uuid.UUID:
+        return typing.cast(uuid.UUID, self._get_field_value("uuid"))
+
+    @uuid.setter
+    def uuid(self, value: uuid.UUID) -> None:
+        self._set_field_value("uuid", value)
+
+    @property
+    def modified(self) -> datetime.datetime:
+        return typing.cast(datetime.datetime, self._get_field_value("modified"))
 
     def read(self, properties: PersistentMappingType) -> Entity:
         # unregister old uuid

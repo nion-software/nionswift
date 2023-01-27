@@ -201,9 +201,12 @@ DisplayItem = Schema.entity("display_item", None, None, {
 
 Specifier = Schema.entity("specifier", None, None, {
     "version": Schema.prop(Schema.INT),
-    "reference_uuid": Schema.prop(Schema.UUID),
+    "reference": Schema.reference(),
 })
 
+Specifier.rename("reference", "reference_uuid")
+
+EmptySpecifier = Schema.entity("empty_specifier", Specifier, None, {})
 DataSourceSpecifier = Schema.entity("data_source", Specifier, None, {})
 DataItemSpecifier = Schema.entity("data_item", Specifier, None, {})
 GraphicSpecifier = Schema.entity("graphic-specifier", Specifier, None, {})
