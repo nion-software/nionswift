@@ -373,12 +373,12 @@ class ScriptItem(Schema.Entity):
         # this is called when a property changes. to be compatible with the older
         # persistent object structure, check if persistent storage exists and pass
         # the message along to persistent storage.
-        persistent_storage = getattr(self, "persistent_storage", None)
+        persistent_storage = typing.cast(Persistence.PersistentStorageInterface, getattr(self, "persistent_storage", None))
         if persistent_storage:
             if value is not None:
-                persistent_storage.set_property(self, name, value)
+                persistent_storage.set_property(typing.cast(Persistence.PersistentObject, self), name, value)
             else:
-                persistent_storage.clear_property(self, name)
+                persistent_storage.clear_property(typing.cast(Persistence.PersistentObject, self), name)
 
 
 class FileScriptItem(ScriptItem):
