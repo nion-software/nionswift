@@ -735,7 +735,7 @@ class TestSymbolicClass(unittest.TestCase):
     def test_computation_can_extract_item_from_scalar_tuple(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            data = ((numpy.random.randn(4, 2) + 1) * 10).astype(numpy.uint32)
+            data = numpy.random.uniform(0, 10, (4, 2)).astype(numpy.uint32)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
             computation = document_model.create_computation(Symbolic.xdata_expression("a.xdata + a.xdata.data_shape[1] + a.xdata.data_shape[0]"))
