@@ -1163,7 +1163,7 @@ class Entity(Observable.Observable):
         class ItemSpecifier:
 
             def __init__(self, *, item: typing.Optional[Entity] = None, item_uuid: typing.Optional[uuid.UUID] = None) -> None:
-                self.__item_uuid = typing.cast(uuid.UUID, item.uuid) if item else item_uuid
+                self.__item_uuid = item.uuid if item else item_uuid
                 assert (self.__item_uuid is None) or isinstance(self.__item_uuid, uuid.UUID)
 
             def __hash__(self) -> typing.Any:
