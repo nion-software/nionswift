@@ -307,7 +307,7 @@ class ScriptListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
     def __calculate_indent(self, display_item: typing.Any) -> int:
         # An item that can cause an indent_level > 0 is always an open folder
         triangle_string, icon_string = self._open_folder_icon_strings()
-        return round(4 + self.__ui.get_font_metrics(self._major_font_size(), triangle_string + icon_string).width * display_item.indent_level)
+        return round(4 + float(self.__ui.get_font_metrics(self._major_font_size(), triangle_string + icon_string).width * display_item.indent_level))
 
     def paint_item(self, drawing_context: DrawingContext.DrawingContext, display_item: typing.Any, rect: Geometry.IntRect, is_selected: bool) -> None:
         if isinstance(display_item, FolderListItem):
