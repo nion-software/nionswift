@@ -1199,6 +1199,19 @@ class Entity(Observable.Observable):
         return ItemSpecifier(item=self)
 
 
+EntityAttributePropertyType = typing.TypeVar('EntityAttributePropertyType')
+
+class EntityAttribute(typing.Generic[EntityAttributePropertyType]):
+    def __set_name__(self, owner: Entity, name: str) -> None:
+        self.name = name
+
+    def __get__(self, obj: Entity, type: typing.Optional[typing.Type[Entity]] = None) -> EntityAttributePropertyType:
+        return typing.cast(EntityAttributePropertyType, obj._get_field_value(self.name))
+
+    def __set__(self, obj: Entity, value: EntityAttributePropertyType) -> None:
+        obj._set_field_value(self.name, value)
+
+
 def no_transform(x: PersistentDictType) -> PersistentDictType:
     return x
 

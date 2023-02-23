@@ -1239,10 +1239,17 @@ def display_data_channel_factory(lookup_id: typing.Callable[[str], str]) -> Disp
 
 
 class DisplayLayer(Schema.Entity):
+    data_row = Schema.EntityAttribute[typing.Optional[int]]()
+    label = Schema.EntityAttribute[typing.Optional[str]]()
+    stroke_color = Schema.EntityAttribute[typing.Optional[str]]()
+    fill_color = Schema.EntityAttribute[typing.Optional[str]]()
+    stroke_width = Schema.EntityAttribute[typing.Optional[int]]()
+    display_data_channel = Schema.EntityAttribute[typing.Optional[DisplayDataChannel]]()
+
     def __init__(self, display_layer_properties: typing.Optional[Persistence.PersistentDictType] = None) -> None:
         super().__init__(Model.DisplayLayer)
         self.persistent_storage: typing.Optional[Persistence.PersistentStorageInterface] = None
-        self.display_data_channel: typing.Optional[DisplayDataChannel] = None
+        self.display_data_channel = None
         display_layer_properties = display_layer_properties or dict()
         for k, v in display_layer_properties.items():
             setattr(self, k, v)
@@ -1263,54 +1270,6 @@ class DisplayLayer(Schema.Entity):
         display_layer_properties.pop("modified", None)
         display_layer_properties.pop("display_data_channel", None)
         return display_layer_properties
-
-    @property
-    def display_data_channel(self) -> typing.Optional[DisplayDataChannel]:
-        return typing.cast(typing.Optional[DisplayDataChannel], self._get_field_value("display_data_channel"))
-
-    @display_data_channel.setter
-    def display_data_channel(self, value: typing.Optional[DisplayDataChannel]) -> None:
-        self._set_field_value("display_data_channel", value)
-
-    @property
-    def label(self) -> typing.Optional[str]:
-        return typing.cast(typing.Optional[str], self._get_field_value("label"))
-
-    @label.setter
-    def label(self, value: typing.Optional[str]) -> None:
-        self._set_field_value("label", value)
-
-    @property
-    def data_row(self) -> typing.Optional[int]:
-        return typing.cast(typing.Optional[int], self._get_field_value("data_row"))
-
-    @data_row.setter
-    def data_row(self, value: typing.Optional[int]) -> None:
-        self._set_field_value("data_row", value)
-
-    @property
-    def stroke_color(self) -> typing.Optional[str]:
-        return typing.cast(typing.Optional[str], self._get_field_value("stroke_color"))
-
-    @stroke_color.setter
-    def stroke_color(self, value: typing.Optional[str]) -> None:
-        self._set_field_value("stroke_color", value)
-
-    @property
-    def fill_color(self) -> typing.Optional[str]:
-        return typing.cast(typing.Optional[str], self._get_field_value("fill_color"))
-
-    @fill_color.setter
-    def fill_color(self, value: typing.Optional[str]) -> None:
-        self._set_field_value("fill_color", value)
-
-    @property
-    def stroke_width(self) -> typing.Optional[float]:
-        return typing.cast(typing.Optional[float], self._get_field_value("stroke_width"))
-
-    @stroke_width.setter
-    def stroke_width(self, value: typing.Optional[float]) -> None:
-        self._set_field_value("stroke_width", value)
 
     # standard overrides from entity to fit within persistent object architecture
 
