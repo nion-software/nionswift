@@ -37,6 +37,7 @@ _NDArray = numpy.typing.NDArray[typing.Any]
 
 
 class LinePlotCanvasItemMapping(Graphics.CoordinateMappingLike):
+    """A coordinate mapping for a line plot."""
 
     def __init__(self, scale: float, plot_rect: Geometry.IntRect, left_channel: int, right_channel: int) -> None:
         self.__scale = scale
@@ -89,7 +90,7 @@ class LinePlotCanvasItemMapping(Graphics.CoordinateMappingLike):
 
 
 class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
-    """Display a line plot.
+    """A canvas item to display a line plot.
 
     The layout is dependent on the axes due to the dependence on the width of the text labels in the vertical axis. The
     layout is handled by the canvas items after `refresh_layout` is called, which is only called when a change in axes

@@ -1196,7 +1196,10 @@ class LineGraphVerticalAxisLabelCanvasItem(CanvasItem.AbstractCanvasItem):
 
 
 class LineGraphLegendCanvasItemDelegate(typing.Protocol):
-    # interface must be implemented by the delegate
+    """Delegate for the line graph legend canvas item.
+
+    A set of actions initiated by the legend canvas item that the delegate must implement.
+    """
 
     def create_move_display_layer_command(self, display_item: DisplayItem.DisplayItem, src_index: int, target_index: int) -> Undo.UndoableCommand: ...
 
@@ -1212,7 +1215,7 @@ class LineGraphLegendCanvasItemDelegate(typing.Protocol):
 
 
 class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
-    """Canvas item to draw the line plot background and grid lines."""
+    """Canvas item to draw the line plot legend."""
 
     def __init__(self, ui_settings: UISettings.UISettings, delegate: LineGraphLegendCanvasItemDelegate) -> None:
         super().__init__()
@@ -1297,12 +1300,11 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
             self.update()
 
     def __get_legend_index(self, x: int, y: int, ignore_y: bool = False, insertion: bool = False) -> int:
-        """
-        Returns the current index at a certain x and y if over a legend item, otherwise returns -1. If ignore_y is set,
-        it will always return a value at the closest y value. (useful for determining where to drop an item). If
-        insertion is set, the index will be capped between 0 and length (instead of 0 and length-1) so that we can tell
-        if a user is trying to drop the item at the end of the list.
-        """
+        # Returns the current index at a certain x and y if over a legend item, otherwise returns -1. If ignore_y is set,
+        # it will always return a value at the closest y value. (useful for determining where to drop an item). If
+        # insertion is set, the index will be capped between 0 and length (instead of 0 and length-1) so that we can tell
+        # if a user is trying to drop the item at the end of the list.
+
         legend_entries = self.__legend_entries
 
         legend_width = 0
