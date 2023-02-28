@@ -22,7 +22,6 @@ import scipy.signal
 # local libraries
 from nion.data import DataAndMetadata
 from nion.data import xdata_1_0 as xd
-from nion.swift.model import DataItem
 from nion.swift.model import Symbolic
 from nion.utils import Registry
 
@@ -55,7 +54,7 @@ class ProcessingComputation:
             self.__xdata = None
             indexes = numpy.ndindex(xdata.navigation_dimension_shape)
             for index in indexes:
-                index_data_source = DataItem.DataSource(data_source._display_data_channel, data_source.graphic._graphic if data_source.graphic else None, xdata[index])
+                index_data_source = Symbolic.DataSource(data_source._display_data_channel, data_source.graphic._graphic if data_source.graphic else None, xdata[index])
                 index_kw_args = {next(iter(kwargs.keys())): index_data_source}
                 for k, v in list(kwargs.items())[1:]:
                     index_kw_args[k] = v
@@ -107,7 +106,7 @@ class ProcessingBase:
     def register_computation(self) -> None:
         Symbolic.register_computation_type(self.processing_id, functools.partial(ProcessingComputation, self))
 
-    def process(self, *, src: DataItem.DataSource, **kwargs: typing.Any) -> _ProcessingResult: ...
+    def process(self, *, src: Symbolic.DataSource, **kwargs: typing.Any) -> _ProcessingResult: ...
 
 
 class ProcessingFFT(ProcessingBase):
@@ -121,7 +120,7 @@ class ProcessingFFT(ProcessingBase):
         ]
         self.is_mappable = True
 
-    def process(self, *, src: DataItem.DataSource, **kwargs: typing.Any) -> _ProcessingResult:
+    def process(self, *, src: Symbolic.DataSource, **kwargs: typing.Any) -> _ProcessingResult:
         cropped_display_xdata = src.cropped_display_xdata
         return xd.fft(cropped_display_xdata) if cropped_display_xdata else None
 
@@ -136,7 +135,7 @@ class ProcessingIFFT(ProcessingBase):
             {"name": "src", "label": _("Source"), "use_display_data": False, "requirements": [{"type": "datum_rank", "values": (1, 2)}]},
         ]
 
-    def process(self, *, src: DataItem.DataSource, **kwargs: typing.Any) -> _ProcessingResult:
+    def process(self, *, src: Symbolic.DataSource, **kwargs: typing.Any) -> _ProcessingResult:
         src_xdata = src.xdata
         return xd.ifft(src_xdata) if src_xdata else None
 
@@ -163,7 +162,7 @@ class ProcessingGaussianWindow(ProcessingBase):
         ]
         self.is_mappable = True
 
-    def process(self, *, src: DataItem.DataSource, **kwargs: typing.Any) -> _ProcessingResult:
+    def process(self, *, src: Symbolic.DataSource, **kwargs: typing.Any) -> _ProcessingResult:
         sigma = kwargs.get("sigma", 1.0)
         src_xdata = src.xdata
         if src_xdata and src_xdata.datum_dimension_count == 1:
@@ -190,7 +189,7 @@ class ProcessingHammingWindow(ProcessingBase):
         ]
         self.is_mappable = True
 
-    def process(self, *, src: DataItem.DataSource, **kwargs: typing.Any) -> _ProcessingResult:
+    def process(self, *, src: Symbolic.DataSource, **kwargs: typing.Any) -> _ProcessingResult:
         src_xdata = src.xdata
         if src_xdata and src_xdata.datum_dimension_count == 1:
             return src_xdata * scipy.signal.hamming(src_xdata.datum_dimension_shape[0])  # type: ignore
@@ -214,7 +213,7 @@ class ProcessingHannWindow(ProcessingBase):
         ]
         self.is_mappable = True
 
-    def process(self, *, src: DataItem.DataSource, **kwargs: typing.Any) -> _ProcessingResult:
+    def process(self, *, src: Symbolic.DataSource, **kwargs: typing.Any) -> _ProcessingResult:
         src_xdata = src.xdata
         if src_xdata and  src_xdata.datum_dimension_count == 1:
             return src_xdata * scipy.signal.hann(src_xdata.datum_dimension_shape[0])  # type: ignore
@@ -240,7 +239,7 @@ class ProcessingMappedSum(ProcessingBase):
         self.is_scalar = True
         self.attributes["connection_type"] = "map"
 
-    def process(self, *, src: DataItem.DataSource, **kwargs: typing.Any) -> _ProcessingResult:
+    def process(self, *, src: Symbolic.DataSource, **kwargs: typing.Any) -> _ProcessingResult:
         filtered_xdata = src.filtered_xdata
         if filtered_xdata:
             return DataAndMetadata.ScalarAndMetadata.from_value(numpy.sum(filtered_xdata), filtered_xdata.intensity_calibration)
@@ -260,7 +259,7 @@ class ProcessingMappedAverage(ProcessingBase):
         self.is_scalar = True
         self.attributes["connection_type"] = "map"
 
-    def process(self, *, src: DataItem.DataSource, **kwargs: typing.Any) -> _ProcessingResult:
+    def process(self, *, src: Symbolic.DataSource, **kwargs: typing.Any) -> _ProcessingResult:
         filtered_xdata = src.filtered_xdata
         if filtered_xdata:
             return DataAndMetadata.ScalarAndMetadata.from_value(numpy.average(filtered_xdata), filtered_xdata.intensity_calibration)  # type: ignore

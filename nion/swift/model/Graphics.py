@@ -2912,6 +2912,19 @@ class LatticeGraphic(Graphic):
         return Geometry.FloatPoint(y=p1.y, x=p1.x)
 
 
+def create_mask_data(graphics: typing.Sequence[Graphic], shape: DataAndMetadata.ShapeType, calibrated_origin: Geometry.FloatPoint) -> DataAndMetadata._ImageDataType:
+    mask = None
+    for graphic in graphics:
+        if isinstance(graphic, (PointTypeGraphic, LineTypeGraphic, RectangleTypeGraphic, SpotGraphic, WedgeGraphic, RingGraphic, LatticeGraphic)):
+            if graphic.used_role in ("mask", "fourier_mask"):
+                if mask is None:
+                    mask = numpy.zeros(shape)
+                mask = numpy.logical_or(mask, graphic.get_mask(shape, calibrated_origin))
+    if mask is None:
+        mask = numpy.ones(shape)
+    return mask
+
+
 def factory(lookup_id: typing.Callable[[str], str]) -> Graphic:
     build_map: typing.Dict[str, typing.Callable[[], Graphic]] = {
         "line-graphic": LineGraphic,

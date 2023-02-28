@@ -71,7 +71,6 @@ from nion.swift.model import ImportExportManager
 from nion.swift.model import Metadata
 from nion.swift.model import Persistence
 from nion.swift.model import PlugInManager
-from nion.swift.model import Profile
 from nion.swift.model import Symbolic
 from nion.swift.model import Utility
 from nion.ui import CanvasItem as CanvasItemModule
@@ -1336,7 +1335,7 @@ class DataItem(metaclass=SharedInstance):
             if shape is not None:
                 calibrated_origin = Geometry.FloatPoint(y=self.__display_item.datum_calibrations[0].convert_from_calibrated_value(0.0),
                                                         x=self.__display_item.datum_calibrations[1].convert_from_calibrated_value(0.0))
-                mask = DataItemModule.create_mask_data(self.__display_item.graphics, shape, calibrated_origin)
+                mask = Graphics.create_mask_data(self.__display_item.graphics, shape, calibrated_origin)
                 return DataAndMetadata.DataAndMetadata.from_data(mask)
         return None
 
@@ -1350,15 +1349,15 @@ class DataItem(metaclass=SharedInstance):
 
 class DataSource(metaclass=SharedInstance):
 
-    def __init__(self, data_source: DataItemModule.DataSource) -> None:
+    def __init__(self, data_source: Symbolic.DataSource) -> None:
         self.__data_source = data_source
 
     @property
-    def _item(self) -> DataItemModule.DataSource:
+    def _item(self) -> Symbolic.DataSource:
         return self._data_source
 
     @property
-    def _data_source(self) -> DataItemModule.DataSource:
+    def _data_source(self) -> Symbolic.DataSource:
         return self.__data_source
 
     @property
@@ -3519,7 +3518,7 @@ def _new_api_object(object: typing.Any) -> typing.Any:
         return Display(object)
     if isinstance(object, Graphics.Graphic):
         return Graphic(object)
-    if isinstance(object, DataItemModule.DataSource):
+    if isinstance(object, Symbolic.DataSource):
         return DataSource(object)
     if isinstance(object, Symbolic.Computation):
         return Computation(object)

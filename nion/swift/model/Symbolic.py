@@ -9,13 +9,13 @@
 from __future__ import annotations
 
 # standard libraries
-import abc
 import ast
 import contextlib
 import copy
 import datetime
 import difflib
 import enum
+import functools
 import gettext
 import sys
 import threading
@@ -27,6 +27,7 @@ import uuid
 # local libraries
 from nion.data import Core
 from nion.data import DataAndMetadata
+from nion.data import Image
 from nion.swift.model import Activity
 from nion.swift.model import DataItem
 from nion.swift.model import DataStructure
@@ -38,7 +39,6 @@ from nion.swift.model import Persistence
 from nion.swift.model import PlugInManager
 from nion.swift.model import Schema
 from nion.swift.model import Utility
-from nion.utils import Converter
 from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import Observable
@@ -1054,6 +1054,279 @@ def result_factory(lookup_id: typing.Callable[[str], str]) -> ComputationOutput:
     return ComputationOutput()
 
 
+class DataSource:
+    def __init__(self, display_data_channel: DisplayItem.DisplayDataChannel, graphic: typing.Optional[Graphics.Graphic], xdata: typing.Optional[DataAndMetadata.DataAndMetadata] = None) -> None:
+        self.__display_data_channel = display_data_channel
+        self.__display_item = typing.cast("DisplayItem.DisplayItem", display_data_channel.container) if display_data_channel else None
+        self.__data_item = display_data_channel.data_item if display_data_channel else None
+        self.__graphic = graphic
+        self.__xdata = xdata
+
+    def close(self) -> None:
+        pass
+
+    @property
+    def display_data_channel(self) -> DisplayItem.DisplayDataChannel:
+        return self.__display_data_channel
+
+    @property
+    def display_item(self) -> typing.Optional[DisplayItem.DisplayItem]:
+        return self.__display_item
+
+    @property
+    def data_item(self) -> typing.Optional[DataItem.DataItem]:
+        return self.__data_item
+
+    @property
+    def graphic(self) -> typing.Optional[Graphics.Graphic]:
+        return self.__graphic
+
+    @property
+    def data(self) -> typing.Optional[DataAndMetadata._ImageDataType]:
+        return self.xdata.data if self.xdata else None
+
+    @property
+    def xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+        if self.__xdata is not None:
+            return self.__xdata
+        if self.data_item:
+            return self.data_item.xdata
+        return None
+
+    @property
+    def element_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+        display_data_channel = self.__display_data_channel
+        if display_data_channel:
+            if self.__xdata is not None:
+                return Core.function_convert_to_scalar(self.__xdata, display_data_channel.complex_display_type)
+            else:
+                display_values = display_data_channel.get_calculated_display_values()
+                if display_values:
+                    return display_values.element_data_and_metadata
+        return None
+
+    @property
+    def display_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+        display_data_channel = self.__display_data_channel
+        if display_data_channel:
+            if self.__xdata is not None:
+                return Core.function_convert_to_scalar(self.__xdata, display_data_channel.complex_display_type)
+            else:
+                display_values = display_data_channel.get_calculated_display_values()
+                if display_values:
+                    return display_values.display_data_and_metadata
+        return None
+
+    @property
+    def display_rgba(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+        display_data_channel = self.__display_data_channel
+        if display_data_channel:
+            if self.__xdata is not None:
+                return self.xdata
+            else:
+                display_values = display_data_channel.get_calculated_display_values()
+                if display_values:
+                    display_rgba = display_values.display_rgba
+                    return DataAndMetadata.new_data_and_metadata(Image.get_byte_view(display_rgba)) if display_rgba is not None else None
+        return None
+
+    @property
+    def normalized_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+        display_data_channel = self.__display_data_channel
+        if display_data_channel:
+            if self.__xdata is not None:
+                display_xdata = self.display_xdata
+                if display_xdata:
+                    return Core.function_rescale(display_xdata, (0, 1))
+                else:
+                    return None
+            else:
+                display_values = display_data_channel.get_calculated_display_values()
+                if display_values:
+                    return display_values.normalized_data_and_metadata
+        return None
+
+    @property
+    def adjusted_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+        display_data_channel = self.__display_data_channel
+        if display_data_channel:
+            if self.__xdata is not None:
+                return self.normalized_xdata
+            else:
+                display_values = display_data_channel.get_calculated_display_values()
+                if display_values:
+                    return display_values.adjusted_data_and_metadata
+        return None
+
+    @property
+    def transformed_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+        display_data_channel = self.__display_data_channel
+        if display_data_channel:
+            if self.__xdata is not None:
+                return self.normalized_xdata
+            else:
+                display_values = display_data_channel.get_calculated_display_values()
+                if display_values:
+                    return display_values.transformed_data_and_metadata
+        return None
+
+    def __cropped_xdata(self, xdata: typing.Optional[DataAndMetadata.DataAndMetadata]) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+        data_item = self.data_item
+        graphic = self.__graphic
+        if data_item:
+            if isinstance(graphic, Graphics.RectangleTypeGraphic) and xdata and xdata.is_data_2d:
+                if graphic.rotation:
+                    return Core.function_crop_rotated(xdata, graphic.bounds.as_tuple(), graphic.rotation)
+                else:
+                    return Core.function_crop(xdata, graphic.bounds.as_tuple())
+            if isinstance(graphic, Graphics.IntervalGraphic) and xdata and xdata.is_data_1d:
+                return Core.function_crop_interval(xdata, graphic.interval)
+        return xdata
+
+    @property
+    def cropped_element_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+        return self.__cropped_xdata(self.element_xdata)
+
+    @property
+    def cropped_display_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+        return self.__cropped_xdata(self.display_xdata)
+
+    @property
+    def cropped_normalized_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+        return self.__cropped_xdata(self.normalized_xdata)
+
+    @property
+    def cropped_adjusted_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+        return self.__cropped_xdata(self.adjusted_xdata)
+
+    @property
+    def cropped_transformed_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+        return self.__cropped_xdata(self.transformed_xdata)
+
+    @property
+    def cropped_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+        data_item = self.data_item
+        if data_item:
+            xdata = self.xdata
+            graphic = self.__graphic
+            if xdata and graphic:
+                if isinstance(graphic, Graphics.RectangleTypeGraphic):
+                    if graphic.rotation:
+                        return Core.function_crop_rotated(xdata, graphic.bounds.as_tuple(), graphic.rotation)
+                    else:
+                        return Core.function_crop(xdata, graphic.bounds.as_tuple())
+                if isinstance(graphic, Graphics.IntervalGraphic):
+                    return Core.function_crop_interval(xdata, graphic.interval)
+            return xdata
+        return None
+
+    @property
+    def filtered_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+        xdata = self.xdata
+        if self.__display_item and xdata and xdata.is_data_2d:
+            display_xdata = self.display_xdata
+            if display_xdata:
+                shape = display_xdata.data_shape
+                calibrated_origin = Geometry.FloatPoint(y=self.__display_item.datum_calibrations[0].convert_from_calibrated_value(0.0),
+                                                        x=self.__display_item.datum_calibrations[1].convert_from_calibrated_value(0.0))
+                if xdata.is_data_complex_type:
+                    return Core.function_fourier_mask(xdata, DataAndMetadata.DataAndMetadata.from_data(Graphics.create_mask_data(self.__display_item.graphics, shape, calibrated_origin)))
+                else:
+                    return DataAndMetadata.DataAndMetadata.from_data(Graphics.create_mask_data(self.__display_item.graphics, shape, calibrated_origin)) * display_xdata
+        return xdata
+
+    @property
+    def filter_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+        xdata = self.xdata
+        if self.__display_item and xdata and xdata.is_data_2d:
+            display_xdata = self.display_xdata
+            if display_xdata:
+                shape = display_xdata.data_shape
+                calibrated_origin = Geometry.FloatPoint(y=self.__display_item.datum_calibrations[0].convert_from_calibrated_value(0.0),
+                                                        x=self.__display_item.datum_calibrations[1].convert_from_calibrated_value(0.0))
+                return DataAndMetadata.DataAndMetadata.from_data(Graphics.create_mask_data(self.__display_item.graphics, shape, calibrated_origin))
+        return None
+
+
+class MonitoredDataSource(DataSource):
+    def __init__(self, display_data_channel: DisplayItem.DisplayDataChannel, graphic: typing.Optional[Graphics.Graphic], changed_event: Event.Event) -> None:
+        super().__init__(display_data_channel, graphic)
+        self.__display_item = typing.cast("DisplayItem.DisplayItem", display_data_channel.container)
+        self.__graphic = graphic
+        self.__changed_event = changed_event  # not public since it is passed in
+        self.__data_item = display_data_channel.data_item
+        # display_data_channel = self.__display_item.get_display_data_channel_for_data_item(self.__data_item) if self.__display_item else None
+        # self.__data_item_changed_event_listener = None
+        self.__data_item_changed_event_listener = self.__data_item.data_item_changed_event.listen(self.__changed_event.fire) if self.__data_item else None
+        self.__display_values_event_listener = display_data_channel.display_data_will_change_event.listen(self.__changed_event.fire)
+        self.__property_changed_listener: typing.Optional[Event.EventListener] = None
+
+        def property_changed(key: str) -> None:
+            self.__changed_event.fire()
+
+        if self.__graphic:
+            self.__property_changed_listener = self.__graphic.property_changed_event.listen(property_changed)
+
+        # when a graphic changes, if it's used in the mask or fourier_mask role, send out the changed event.
+        def filter_property_changed(graphic: Graphics.Graphic, key: str) -> None:
+            if key == "role" or graphic.used_role in ("mask", "fourier_mask"):
+                self.__changed_event.fire()
+
+        self.__graphic_property_changed_listeners: typing.List[typing.Optional[Event.EventListener]] = list()
+
+        # when a new graphic is inserted, track it
+        def graphic_inserted(key: str, graphic: Graphics.Graphic, before_index: int) -> None:
+            if key == "graphics":
+                property_changed_listener = None
+                if isinstance(graphic, (Graphics.PointTypeGraphic, Graphics.LineTypeGraphic, Graphics.RectangleTypeGraphic, Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
+                    property_changed_listener = graphic.property_changed_event.listen(functools.partial(filter_property_changed, graphic))
+                    self.__changed_event.fire()
+                self.__graphic_property_changed_listeners.insert(before_index, property_changed_listener)
+
+        # when a graphic is removed, untrack it
+        def graphic_removed(key: str, graphic: Graphics.Graphic, index: int) -> None:
+            if key == "graphics":
+                property_changed_listener = self.__graphic_property_changed_listeners.pop(index)
+                if property_changed_listener:
+                    property_changed_listener.close()
+                    self.__changed_event.fire()
+
+        self.__graphic_inserted_event_listener = self.__display_item.item_inserted_event.listen(graphic_inserted) if self.__display_item else None
+        self.__graphic_removed_event_listener = self.__display_item.item_removed_event.listen(graphic_removed) if self.__display_item else None
+
+        # set up initial tracking
+        for graphic in self.__display_item.graphics if self.__display_item else list():
+            property_changed_listener = None
+            if isinstance(graphic, (Graphics.PointTypeGraphic, Graphics.LineTypeGraphic, Graphics.RectangleTypeGraphic, Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
+                property_changed_listener = graphic.property_changed_event.listen(functools.partial(filter_property_changed, graphic))
+            self.__graphic_property_changed_listeners.append(property_changed_listener)
+
+    def close(self) -> None:
+        # shut down the trackers
+        for graphic_property_changed_listener in self.__graphic_property_changed_listeners:
+            if graphic_property_changed_listener:
+                graphic_property_changed_listener.close()
+        self.__graphic_property_changed_listeners = list()
+        if self.__graphic_inserted_event_listener:
+            self.__graphic_inserted_event_listener.close()
+            self.__graphic_inserted_event_listener = None
+        if self.__graphic_removed_event_listener:
+            self.__graphic_removed_event_listener.close()
+            self.__graphic_removed_event_listener = None
+        if self.__property_changed_listener:
+            self.__property_changed_listener.close()
+            self.__property_changed_listener = None
+        if self.__data_item_changed_event_listener:
+            self.__data_item_changed_event_listener.close()
+            self.__data_item_changed_event_listener = None
+        if self.__display_values_event_listener:
+            self.__display_values_event_listener.close()
+            self.__display_values_event_listener = typing.cast(typing.Any, None)
+        self.__display_item = None
+        self.__graphic = typing.cast(typing.Any, None)
+        self.__changed_event = typing.cast(typing.Any, None)
+
+
 class BoundItemBase(Observable.Observable):
     # note: base objects are different from items temporarily while the notification machinery is put in place
 
@@ -1204,7 +1477,7 @@ class BoundDataSource(BoundItemBase):
 
         self.__item_reference = container.create_item_reference(item_specifier=Persistence.read_persistent_specifier(specifier.reference_uuid if specifier else None))
         self.__graphic_reference = container.create_item_reference(item_specifier=Persistence.read_persistent_specifier(secondary_specifier.reference_uuid if secondary_specifier else None))
-        self.__data_source: typing.Optional[DataItem.DataSource] = None
+        self.__data_source: typing.Optional[DataSource] = None
 
         def maintain_data_source() -> None:
             if self.__data_source:
@@ -1213,7 +1486,7 @@ class BoundDataSource(BoundItemBase):
             display_data_channel = self._display_data_channel
             if display_data_channel and display_data_channel.data_item:
                 graphic = self._graphic
-                self.__data_source = DataItem.MonitoredDataSource(display_data_channel, graphic, self.changed_event)
+                self.__data_source = MonitoredDataSource(display_data_channel, graphic, self.changed_event)
             self.valid = self.__data_source is not None
             self._update_base_items(self._get_base_items())
 
@@ -1242,7 +1515,7 @@ class BoundDataSource(BoundItemBase):
         super().close()
 
     @property
-    def value(self) -> typing.Optional[DataItem.DataSource]:
+    def value(self) -> typing.Optional[DataSource]:
         return self.__data_source
 
     def _get_base_items(self) -> typing.List[Persistence.PersistentObject]:
@@ -1445,7 +1718,7 @@ class BoundFilterData(BoundFilterLikeData):
                         shape = display_data_and_metadata.data_shape
                         calibrated_origin = Geometry.FloatPoint(y=display_item.datum_calibrations[0].convert_from_calibrated_value(0.0),
                                                                 x=display_item.datum_calibrations[1].convert_from_calibrated_value(0.0))
-                        mask = DataItem.create_mask_data(display_item.graphics, shape, calibrated_origin)
+                        mask = Graphics.create_mask_data(display_item.graphics, shape, calibrated_origin)
                         return DataAndMetadata.DataAndMetadata.from_data(mask)
         return None
 
@@ -1466,7 +1739,7 @@ class BoundFilteredData(BoundFilterLikeData):
                     shape = xdata.data_shape
                     calibrated_origin = Geometry.FloatPoint(y=display_item.datum_calibrations[0].convert_from_calibrated_value(0.0),
                                                             x=display_item.datum_calibrations[1].convert_from_calibrated_value(0.0))
-                    mask = DataItem.create_mask_data(display_item.graphics, shape, calibrated_origin)
+                    mask = Graphics.create_mask_data(display_item.graphics, shape, calibrated_origin)
                     return Core.function_fourier_mask(xdata, DataAndMetadata.DataAndMetadata.from_data(mask))
                 return xdata
         return None
