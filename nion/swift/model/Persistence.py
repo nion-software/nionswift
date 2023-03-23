@@ -669,6 +669,7 @@ class PersistentObject(Observable.Observable):
         self.__modified_count = 0
         self.modified_state = 0
         self.__modified = DateTime.utcnow()
+        self.modified_event = Event.Event()
         self.persistent_object_parent: typing.Optional[PersistentObjectParent] = None
         self.__persistent_storage: typing.Optional[PersistentStorageInterface] = None
         self.persistent_object_context_changed_event = Event.Event()
@@ -1027,9 +1028,15 @@ class PersistentObject(Observable.Observable):
         self.__modified_count += 1
         self.modified_state += 1
         self.__modified = modified
+        self._modified_changed()
+        self.modified_event.fire()
         parent = self.persistent_object_parent.parent if self.persistent_object_parent else None
         if parent:
             parent.__update_modified(modified)
+
+    def _modified_changed(self) -> None:
+        """Subclasses can override to know when modification date changed."""
+        pass
 
     def _get_persistent_property(self, name: str) -> PersistentProperty:
         """ Subclasses can call this to get a property descriptor. """
