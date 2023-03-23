@@ -4108,7 +4108,7 @@ class DisplayInspector(Widgets.CompositeWidgetBase):
             title_row = self.ui.create_row_widget()
             title_label_widget = self.ui.create_label_widget()
             title_label_widget.text_font = "bold"
-            title_label_widget.bind_text(Binding.PropertyBinding(display_item, "title"))
+            title_label_widget.bind_text(Binding.PropertyBinding(display_item, "displayed_title"))
             title_row.add_spacing(20)
             title_row.add(title_label_widget)
             title_row.add_stretch()
