@@ -568,8 +568,7 @@ class SequenceIndexAdapter(IndexValueAdapter):
 
     def get_index_value_stream(self, display_data_channel_value_stream: Stream.AbstractStream[DisplayItem.DisplayDataChannel]) -> Stream.AbstractStream[float]:
         display_data_channel_value_stream = Stream.OptionalStream(display_data_channel_value_stream, lambda x: x is not None and x.is_sequence)
-        # mypy bug: typing on next line doesn't recognize OptionalStream[DisplayDataChannel] as a AbstractStream[Observable]
-        return Stream.PropertyChangedEventStream(display_data_channel_value_stream, "sequence_index")  # type: ignore
+        return Stream.PropertyChangedEventStream(display_data_channel_value_stream, "sequence_index")
 
     def get_index_value(self, display_data_channel: DisplayItem.DisplayDataChannel) -> float:
         sequence_length = display_data_channel.dimensional_shape[0] if display_data_channel.dimensional_shape is not None else 0
