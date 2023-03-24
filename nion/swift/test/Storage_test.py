@@ -4002,6 +4002,43 @@ class TestStorageClass(unittest.TestCase):
                 document_model.recompute_all()
                 self.assertTrue(numpy.array_equal(document_model.data_items[2].data, numpy.full((2, 2), 5)))
 
+    class NGraphics:
+        def __init__(self, computation, **kwargs):
+            self.computation = computation
+
+        def execute(self, src, value):
+            self.__src = src
+            self.__value = value
+
+        def commit(self):
+            graphics = self.computation.get_result("graphics")
+            while len(graphics) < self.__value:
+                graphic = self.__src.add_point_region(0.5, 0.5)
+                graphics.append(graphic)
+            while len(graphics) > self.__value:
+                self.__src.remove_region(graphics.pop())
+            self.computation.set_result("graphics", graphics)
+
+    def test_new_computation_with_list_result_reloads(self):
+        Symbolic.register_computation_type("n_graphics", self.NGraphics)
+        with create_memory_profile_context() as profile_context:
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                data_item = DataItem.DataItem(numpy.zeros((2, 2), int))
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                computation = document_model.create_computation()
+                computation.create_input_item("src", Symbolic.make_item(data_item))
+                value = computation.create_variable("value", "integral", 3)
+                computation.create_output_item("graphics", Symbolic.make_item_list([]))
+                computation.processing_id = "n_graphics"
+                document_model.append_computation(computation)
+                document_model.recompute_all()
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                document_model.recompute_all()
+
+
     def test_library_computation_with_list_input_with_missing_reloads_and_library_remove_data_item_still_functions(self):
         Symbolic.register_computation_type("add_n", self.AddN)
         with create_memory_profile_context() as profile_context:

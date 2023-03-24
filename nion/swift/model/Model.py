@@ -362,10 +362,11 @@ def transform_forward(d: PersistentDictType) -> PersistentDictType:
                     if v.get("type") == "graphic":
                         v["type"] = "graphic-specifier"
         for result_d in computation_d.get("results", list()):
-            result_specifier_d = result_d.get("specifier", dict())
-            result_specifier_d["reference_uuid"] = result_specifier_d.pop("uuid")
-            if result_specifier_d.get("type") == "graphic":
-                result_specifier_d["type"] = "graphic-specifier"
+            result_specifier_d = result_d.get("specifier", None)
+            if result_specifier_d is not None:
+                result_specifier_d["reference_uuid"] = result_specifier_d.pop("uuid")
+                if result_specifier_d.get("type") == "graphic":
+                    result_specifier_d["type"] = "graphic-specifier"
             for r in result_d.get("specifiers", list()):
                 if r is not None:
                     r["reference_uuid"] = r.pop("uuid")
