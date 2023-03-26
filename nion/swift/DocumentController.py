@@ -2701,7 +2701,7 @@ class DeleteItemAction(Window.Action):
         if data_item and len(context.model.get_display_items_for_data_item(data_item)) == 1:
             return _("Delete Data Item") + f" \"{data_item.title}\""
         elif display_item:
-            return _("Delete Display Item") + f" \"{display_item.title}\""
+            return _("Delete Display Item") + f" \"{display_item.displayed_title}\""
         elif context.display_items:
             return _("Delete Display Items") + f" ({len(context.display_items)})"
         return self.action_name
@@ -3570,7 +3570,7 @@ class DisplayRemoveAction(Window.Action):
         context = typing.cast(DocumentController.ActionContext, context)
         display_item = context.display_item
         if display_item:
-            return _("Delete Display Item") + f" \"{display_item.title}\""
+            return _("Delete Display Item") + f" \"{display_item.displayed_title}\""
         elif context.display_items:
             return _("Delete Display Items") + f" ({len(context.display_items)})"
         return self.action_name

@@ -490,11 +490,11 @@ class Workspace:
         def get_ancestor_splitter(display_panel: DisplayPanel.DisplayPanel, display_panels: typing.Sequence[DisplayPanel.DisplayPanel]) -> typing.Optional[CanvasItem.SplitterCanvasItem]:
             container = display_panel.container
             while isinstance(container, CanvasItem.SplitterCanvasItem):
-                descendent_display_panels: typing.List[DisplayPanel.DisplayPanel] = list()
-                append_child_display_panels(container, descendent_display_panels)
-                # check if all descendents are in the initial set of display panels
-                if set(descendent_display_panels) - set(display_panels):
-                    # not all descendent are selected
+                descendant_display_panels: typing.List[DisplayPanel.DisplayPanel] = list()
+                append_child_display_panels(container, descendant_display_panels)
+                # check if all descendants are in the initial set of display panels
+                if set(descendant_display_panels) - set(display_panels):
+                    # not all descendant are selected
                     return container
                 container = container.container
             return None

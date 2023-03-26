@@ -36,7 +36,7 @@ def _enumerate_child_canvas_items_postorder(
     yield canvas_item, depth
 
 
-def _find_first_descendent_of_type_postorder(
+def _find_first_descendant_of_type_postorder(
         canvas_item: CanvasItem.AbstractCanvasItem,
         canvas_item_type
 ) -> typing.Optional[CanvasItem.AbstractCanvasItem]:
@@ -462,14 +462,14 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel.set_display_panel_display_item(display_item)
 
-            lp_ci = _find_first_descendent_of_type_postorder(
+            lp_ci = _find_first_descendant_of_type_postorder(
                 display_panel,
                 LinePlotCanvasItem.LinePlotCanvasItem)
-            lp_graph_frame_ci = _find_first_descendent_of_type_postorder(
+            lp_graph_frame_ci = _find_first_descendant_of_type_postorder(
                 display_panel,
                 LineGraphCanvasItem.LineGraphFrameCanvasItem
             )
-            lp_vert_axis_scale_ci = _find_first_descendent_of_type_postorder(
+            lp_vert_axis_scale_ci = _find_first_descendant_of_type_postorder(
                 display_panel,
                 LineGraphCanvasItem.LineGraphVerticalAxisScaleCanvasItem
             )

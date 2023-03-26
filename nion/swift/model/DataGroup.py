@@ -256,35 +256,11 @@ def get_flat_display_item_generator_in_container(container: _DataGroupContainer)
                 yield display_item
 
 
-# Return the data_group matching name that is the descendent of the container.
+# Return the data_group matching name that is the descendant of the container.
 def get_data_group_in_container_by_title(container: _DataGroupContainer, data_group_title: str) -> typing.Optional[DataGroup]:
     for data_group in container.data_groups:
         if data_group.title == data_group_title:
             return data_group
-    return None
-
-
-# Return the display_item matching name that is the descendent of the container.
-def get_display_item_in_container_by_title(container: _DataGroupContainer, display_item_title: str) -> typing.Optional[DisplayItem.DisplayItem]:
-    for display_item in container.display_items:
-        if display_item.title == display_item_title:
-            return display_item
-    return None
-
-
-# Return the data_group matching name that is the descendent of the container.
-def get_data_group_in_container_by_uuid(container: _DataGroupContainer, data_group_uuid: uuid.UUID) -> typing.Optional[DataGroup]:
-    for data_group in container.data_groups:
-        if data_group.uuid == data_group_uuid:
-            return data_group
-    return None
-
-
-# Return the display_item matching name that is the descendent of the container.
-def get_display_item_in_container_by_uuid(container: _DataGroupContainer, display_item_uuid: uuid.UUID) -> typing.Optional[DisplayItem.DisplayItem]:
-    for display_item in container.display_items:
-        if display_item.uuid == display_item_uuid:
-            return display_item
     return None
 
 
