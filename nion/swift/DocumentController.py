@@ -175,7 +175,7 @@ class DocumentController(Window.Window):
         with self.__display_items_model.changes():  # change filter and sort together
             self.__display_items_model.container = self.document_model
             self.__display_items_model.filter = ListModel.AndFilter((self.project_filter, self.get_filter_predicate(None)))
-            self.__display_items_model.sort_key = DataItem.sort_by_date_key
+            self.__display_items_model.sort_key = DisplayItem.sort_by_date_key
             self.__display_items_model.sort_reverse = True
             typing.cast(typing.Any, self.__display_items_model).filter_id = None
 
@@ -471,7 +471,7 @@ class DocumentController(Window.Window):
                 with self.__display_items_model.changes():  # change filter and sort together
                     self.__display_items_model.container = self.document_model
                     self.__display_items_model.filter = ListModel.AndFilter((self.project_filter, self.get_filter_predicate(filter_id)))
-                    self.__display_items_model.sort_key = DataItem.sort_by_date_key
+                    self.__display_items_model.sort_key = DisplayItem.sort_by_date_key
                     self.__display_items_model.sort_reverse = True
                     typing.cast(typing.Any, self.__display_items_model).filter_id = filter_id
                 self.filter_changed_event.fire(None, filter_id)

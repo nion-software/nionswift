@@ -1284,11 +1284,6 @@ class DataItem(Persistence.PersistentObject):
         Metadata.delete_metadata_value(self, key)
 
 
-def sort_by_date_key(data_item: typing.Union[DisplayItem.DisplayItem, DataItem]) -> typing.Tuple[typing.Optional[str], datetime.datetime, str]:
-    """ A sort key to for the created field of a data item. The sort by uuid makes it determinate. """
-    return data_item.title + str(data_item.uuid) if data_item.is_live else str(), data_item.date_for_sorting, str(data_item.uuid)
-
-
 def new_data_item(data_and_metadata_in: typing.Optional[DataAndMetadata._DataAndMetadataLike] = None) -> DataItem:
     data_and_metadata = DataAndMetadata.promote_ndarray(data_and_metadata_in) if data_and_metadata_in is not None else None
     data_item = DataItem(large_format=len(data_and_metadata.dimensional_shape) > 2 if data_and_metadata else False)

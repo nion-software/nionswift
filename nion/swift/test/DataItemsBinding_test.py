@@ -11,6 +11,7 @@ import numpy
 
 # local libraries
 from nion.swift.model import DataItem
+from nion.swift.model import DisplayItem
 from nion.swift import Facade
 from nion.swift.test import TestContext
 from nion.utils import ListModel
@@ -297,25 +298,25 @@ class TestDataItemsModelModule(unittest.TestCase):
     def test_data_items_sorted_by_data_modified_date(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            filtered_data_items = ListModel.FilteredListModel(items_key="data_items")
+            filtered_data_items = ListModel.FilteredListModel(items_key="display_items")
             filtered_data_items.container = document_model
-            filtered_data_items.sort_key = DataItem.sort_by_date_key
+            filtered_data_items.sort_key = DisplayItem.sort_by_date_key
             for _ in range(4):
                 data_item = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
                 time.sleep(0.01)
             self.assertEqual(len(filtered_data_items.items), 4)
-            self.assertEqual(list(document_model.data_items), filtered_data_items.items)
+            self.assertEqual(list(document_model.display_items), filtered_data_items.items)
             with document_model.data_items[0].data_ref() as dr:
                 dr.data += 1
-            self.assertEqual([document_model.data_items[1], document_model.data_items[2], document_model.data_items[3], document_model.data_items[0]], filtered_data_items.items)
+            self.assertEqual([document_model.display_items[1], document_model.display_items[2], document_model.display_items[3], document_model.display_items[0]], filtered_data_items.items)
 
     def test_processed_data_items_sorted_by_source_data_modified_date(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            filtered_data_items = ListModel.FilteredListModel(items_key="data_items")
+            filtered_data_items = ListModel.FilteredListModel(items_key="display_items")
             filtered_data_items.container = document_model
-            filtered_data_items.sort_key = DataItem.sort_by_date_key
+            filtered_data_items.sort_key = DisplayItem.sort_by_date_key
             for _ in range(4):
                 data_item = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
@@ -324,9 +325,9 @@ class TestDataItemsModelModule(unittest.TestCase):
             document_model.recompute_all()
             self.assertEqual(len(filtered_data_items.items), 5)
             # new data item should be last
-            self.assertEqual(filtered_data_items.items.index(document_model.data_items[4]), 4)
-            self.assertEqual(filtered_data_items.items.index(document_model.data_items[0]), 0)
-            self.assertEqual(list(document_model.data_items[2:5]), filtered_data_items.items[2:])  # rest of list matches
+            self.assertEqual(filtered_data_items.items.index(document_model.display_items[4]), 4)
+            self.assertEqual(filtered_data_items.items.index(document_model.display_items[0]), 0)
+            self.assertEqual(list(document_model.display_items[2:5]), filtered_data_items.items[2:])  # rest of list matches
 
     def test_and_filter(self):
         f1 = ListModel.Filter(True)

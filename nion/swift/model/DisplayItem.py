@@ -2405,3 +2405,8 @@ def get_default_calibrated_calibration_style() -> CalibrationStyle:
 
 def get_default_uncalibrated_calibration_style() -> CalibrationStyle:
     return CalibrationStylePixelsCenter()
+
+
+def sort_by_date_key(display_item: DisplayItem) -> typing.Tuple[typing.Optional[str], datetime.datetime, str]:
+    """A sort key for display items. The sort by uuid makes it determinate."""
+    return display_item.title + str(display_item.uuid) if display_item.is_live else str(), display_item.date_for_sorting, str(display_item.uuid)
