@@ -172,5 +172,8 @@
     },
     "window.set_tool_mode.rectangle": {
         "display_panel": "c"
-    }
+    },
+	"graphics.add_ellipse_graphic": {
+		"window": "Ctrl+Alt+E"
+	}
 }
