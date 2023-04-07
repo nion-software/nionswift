@@ -129,15 +129,21 @@ class ProjectReference(Persistence.PersistentObject):
                 project_storage_system = self.make_storage(profile_context)
                 if project_storage_system:
                     project_storage_system.load_properties()
+                # handle the case where the project storage system is never read; the folder project case.
+                # this will get set again below if the project is read.
+                self.__project_state = "missing"
             except Exception:
                 project_storage_system = None
+            # note: the project state can be set two different ways, depending on whether the project is an index file
+            # or folder based project. in the former, the project state is set by the project itself. in the latter,
+            # the project state is set by the profile.
             if project_storage_system:
                 with contextlib.closing(Project.Project(project_storage_system)) as project:
                     if self.project_uuid != project.project_uuid:
                         self.project_uuid = project.project_uuid
                     self.__project_version = project.project_version
                     self.__project_state = project.project_state
-                    self.__has_project_info_been_read = True
+            self.__has_project_info_been_read = True
 
     def load_project(self, profile_context: typing.Optional[ProfileContext], cache_dir_path: typing.Optional[pathlib.Path], *, cache_factory: typing.Optional[Cache.CacheFactory]) -> None:
         """Read project.
