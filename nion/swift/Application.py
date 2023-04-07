@@ -395,7 +395,7 @@ class Application(UIApplication.BaseApplication):
 
             project_references_model = ListModel.FilteredListModel(container=self.__profile, items_key="project_references")
             project_references_model.filter = ListModel.PredicateFilter(lambda pr: bool(pr.project_state != "loaded"))
-            project_references_model.sort_key = lambda pr: pr.last_used or pr.modified
+            project_references_model.sort_key = lambda pr: pr.recents_key
             project_references_model.sort_reverse = True
 
             class ProjectReferenceItem:
@@ -578,7 +578,7 @@ class Application(UIApplication.BaseApplication):
         setattr(window, "_dynamic_recent_project_actions", list())
         profile = self.profile
         project_references: typing.List[Profile.ProjectReference] = list(filter(lambda pr: pr.project_state != "loaded", profile.project_references))
-        project_references = sorted(project_references, key=operator.attrgetter("last_used"), reverse=True)
+        project_references = sorted(project_references, key=operator.attrgetter("recents_key"), reverse=True)
         for project_reference in project_references[:20]:
             if project_reference.project_state != "loaded":
                 project_title = project_reference.title

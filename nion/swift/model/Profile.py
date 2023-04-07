@@ -61,6 +61,12 @@ class ProjectReference(Persistence.PersistentObject):
     def last_used(self, value: typing.Optional[datetime.datetime]) -> None:
         self._set_persistent_property_value("last_used", value)
 
+    @property
+    def recents_key(self) -> typing.Tuple[bool, typing.Optional[datetime.datetime]]:
+        # intended to be used as a key for sorting recents. the first value is a boolean indicating whether the project
+        # is loaded. the second value is the last used date. the sort should be reversed.
+        return self.project_state == "unloaded", self.last_used or self.modified
+
     def about_to_be_removed(self, container: Persistence.PersistentObject) -> None:
         self.unload_project()
         super().about_to_be_removed(container)
