@@ -390,12 +390,12 @@ class Application(UIApplication.BaseApplication):
                                       u.create_push_button(text=_("Open..."), on_clicked="open_project"),
                                       u.create_stretch(),
                                       u.create_push_button(text=_("Cancel"), on_clicked="close_window"),
-                                      u.create_push_button(text=_("Open Recent"), on_clicked="open_recent"),
+                                      u.create_push_button(text=_("Open Selected"), on_clicked="open_recent"),
                                       spacing=8)
 
             project_references_model = ListModel.FilteredListModel(container=self.__profile, items_key="project_references")
             project_references_model.filter = ListModel.PredicateFilter(lambda pr: bool(pr.project_state != "loaded"))
-            project_references_model.sort_key = lambda pr: pr.last_used
+            project_references_model.sort_key = lambda pr: pr.last_used or pr.modified
             project_references_model.sort_reverse = True
 
             class ProjectReferenceItem:
@@ -406,10 +406,13 @@ class Application(UIApplication.BaseApplication):
                 def __str__(self) -> str:
                     project_reference = self.project_reference
                     project_title = project_reference.title or str()
+                    project_title += " [" + (project_reference.last_used or project_reference.modified).strftime('%Y-%m-%d') + "]"
                     if project_reference.project_state == "needs_upgrade":
                         project_title += " " + _("(NEEDS UPGRADE)")
+                    elif project_reference.project_state == "missing":
+                        project_title += " " + _("(MISSING)")
                     elif project_reference.project_state != "unloaded" or project_reference.project_version != FileStorageSystem.PROJECT_VERSION:
-                        project_title += " " + _("(MISSING OR UNREADABLE)")
+                        project_title += " " + _("(UNREADABLE)")
                     return project_title
 
                 @property
@@ -423,14 +426,16 @@ class Application(UIApplication.BaseApplication):
 
             item_list = u.create_list_box(items_ref="@binding(list_property_model.value)",
                                           current_index="@binding(current_index)",
-                                          height=240, min_height=180, size_policy_horizontal="expanding",
+                                          min_height=180, min_width=240,
+                                          size_policy_horizontal="expanding",
+                                          size_policy_vertical="expanding",
                                           on_item_selected="recent_item_selected",
                                           on_item_handle_context_menu="item_handle_context_menu")
 
             main_column = u.create_column(u.create_label(text=_("Recent Projects")),
                                           item_list,
                                           u.create_spacing(13),
-                                          button_row, spacing=8, width=380)
+                                          button_row, spacing=8, min_width=360)
             window = u.create_window(main_column, title=_("Choose Project"), margin=12, window_style="tool")
 
             def open_project_reference(project_reference: Profile.ProjectReference) -> None:
@@ -493,7 +498,7 @@ class Application(UIApplication.BaseApplication):
                         menu.popup(gx, gy)
                     return True
 
-            ChooseProjectHandler(self).run(window, app=self)
+            ChooseProjectHandler(self).run(window, app=self, persistent_id="choose_project")
 
     def get_recent_library_paths(self) -> typing.List[pathlib.Path]:
         workspace_history = self.ui.get_persistent_object("workspace_history", list())
@@ -577,10 +582,13 @@ class Application(UIApplication.BaseApplication):
         for project_reference in project_references[:20]:
             if project_reference.project_state != "loaded":
                 project_title = project_reference.title
+                project_title += " [" + (project_reference.last_used or project_reference.modified).strftime('%Y-%m-%d') + "]"
                 if project_reference.project_state == "needs_upgrade":
                     project_title += " " + _("(NEEDS UPGRADE)")
+                elif project_reference.project_state == "missing":
+                    project_title += " " + _("(MISSING)")
                 elif project_reference.project_state != "unloaded" or project_reference.project_version != FileStorageSystem.PROJECT_VERSION:
-                    project_title += " " + _("(MISSING OR UNREADABLE)")
+                    project_title += " " + _("(UNREADABLE)")
                 action = menu.add_menu_item(project_title, functools.partial(self.open_project_reference, project_reference))
                 getattr(window, "_dynamic_recent_project_actions").append(action)
 

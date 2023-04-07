@@ -176,11 +176,14 @@ class Project(Persistence.PersistentObject):
         properties = self.__storage_system.get_storage_properties()
         try:
             return uuid.UUID(properties.get("uuid", str(uuid.uuid4()))) if properties else None
-        except Exception:
+        except Exception as e:
             return None
 
     @property
     def project_state(self) -> str:
+        properties = self.__storage_system.get_storage_properties()
+        if properties is not None and not properties:
+            return "missing"
         project_uuid = self.project_uuid
         project_version = self.project_version
         if project_uuid is not None and project_version is not None:
