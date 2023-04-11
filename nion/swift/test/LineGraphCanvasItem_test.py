@@ -138,6 +138,22 @@ class TestLineGraphCanvasItem(unittest.TestCase):
                 self.assertAlmostEqual(numpy.nanmin(calibrated_data), math.log10(numpy.nanmin(data)))
                 self.assertAlmostEqual(numpy.nanmax(calibrated_data), math.log10(numpy.nanmax(data)))
 
+    def test_graph_segments_are_calculated_correctly_with_nans(self):
+        # this was a bug in the original implementation
+        data = numpy.zeros((16,))
+        data[0] = numpy.nan
+        data[1] = 1
+        data[2] = numpy.nan
+        data[3:] = range(3,16,1)
+        segments, baseline = LineGraphCanvasItem.calculate_line_graph(
+            100, 32, 0, 0, DataAndMetadata.new_data_and_metadata(data),
+            0, 16, 0, 16, Calibration.Calibration(), None, "linear"
+        )
+        self.assertEqual(2, len(segments))
+        # make a rough check to ensure that the first segment is minimal; and the second one has some content.
+        self.assertLess(len(segments[0].path.commands), 8)
+        self.assertGreater(len(segments[1].path.commands), 8)
+
     def test_tool_returns_to_pointer_after_but_not_during_creating_interval(self):
         # setup
         with TestContext.create_memory_context() as test_context:

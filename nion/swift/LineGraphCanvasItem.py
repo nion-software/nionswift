@@ -503,6 +503,7 @@ def calculate_line_graph(plot_height: int, plot_width: int, plot_origin_y: int, 
                         segment.final_line_to(px, last_py)
                         segments.append(segment)
                         segment = LineGraphSegment()
+                        line_commands = segment.line_commands
 
             segment.final_line_to(plot_origin_x + plot_width, last_py)
 
