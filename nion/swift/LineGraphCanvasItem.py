@@ -448,6 +448,7 @@ def calculate_line_graph(plot_height: int, plot_width: int, plot_origin_y: int, 
     uncalibrated_width = uncalibrated_right_channel - uncalibrated_left_channel
     segments: typing.List[LineGraphSegment] = list()
     segment = LineGraphSegment()
+    # use line_commands as an optimization for adding line commands to the path. this is critical for performance.
     line_commands = segment.line_commands
     # segment_path = segment.path  # partially optimized; see note below
     # note: testing performance using a loop around drawing commands in test_line_plot_handle_calibrated_x_axis_with_negative_scale
@@ -503,6 +504,7 @@ def calculate_line_graph(plot_height: int, plot_width: int, plot_origin_y: int, 
                         segment.final_line_to(px, last_py)
                         segments.append(segment)
                         segment = LineGraphSegment()
+                        # update line_commands (a path drawing optimization) for the new segment.
                         line_commands = segment.line_commands
 
             segment.final_line_to(plot_origin_x + plot_width, last_py)
