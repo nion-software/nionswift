@@ -2456,9 +2456,9 @@ class TestDocumentModelClass(unittest.TestCase):
                 data_item3 = document_model.get_invert_new(display_item2, display_item2.data_item)
                 display_item3 = document_model.get_display_item_for_data_item(data_item3)
                 document_model.recompute_all()
-                self.assertFalse(data_item2.title)
+                self.assertEqual("test (Negate)", data_item2.title)
                 self.assertEqual("test (Negate)", display_item2.displayed_title)
-                self.assertFalse(data_item3.title)
+                self.assertEqual("test (Negate) (Negate)", data_item3.title)
                 self.assertEqual("test (Negate) (Negate)", display_item3.displayed_title)
 
     def test_copy_like_processing_produces_sensible_titles(self):

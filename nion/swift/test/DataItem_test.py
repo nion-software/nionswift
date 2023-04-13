@@ -23,7 +23,7 @@ from nion.swift import DataItemThumbnailWidget
 from nion.swift import Facade
 from nion.swift import Thumbnails
 from nion.swift.model import DataItem
-from nion.swift.model import DocumentModel
+from nion.swift.model import DynamicString
 from nion.swift.model import Graphics
 from nion.swift.model import Symbolic
 from nion.swift.model import Utility
@@ -1450,6 +1450,54 @@ class TestDataItemClass(unittest.TestCase):
             data_item.reserve_data(data_shape=(2, 2), data_dtype=numpy.dtype(numpy.float32), data_descriptor=DataAndMetadata.DataDescriptor(False, 0, 2))
             self.assertEqual(33, data_item.metadata.get("abc"))
             self.assertEqual(55, data_item.session_metadata.get("def"))
+
+    def test_setting_title_after_dynamic_title_updates_correctly(self):
+        # requirement: dynamic_titles
+        with create_memory_profile_context() as profile_context:
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                data_item = DataItem.DataItem(numpy.zeros((8,)))
+                data_item.dynamic_title = DynamicString._TestDynamicString()
+                document_model.append_data_item(data_item)
+                self.assertEqual("green", data_item.title)
+                data_item.title = "red"
+                self.assertEqual("red", data_item.title)
+
+    def test_computed_data_item_title(self):
+        # requirement: dynamic_titles
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            data_item = DataItem.DataItem()
+            data_item.title = "source"
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            data_item2 = document_model.get_invert_new(display_item, display_item.data_item)
+            self.assertEqual("source (Negate)", data_item2.title)
+            data_item.title = "source2"
+            self.assertEqual("source2 (Negate)", data_item2.title)
+
+    def test_setting_dynamic_title_immediately_updates_title_stream(self):
+        # requirement: dynamic_titles
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            data_item = DataItem.DataItem()
+            data_item.metadata = {"_slug_test": "nome"}
+            document_model.append_data_item(data_item)
+            # dynamic title is initially enabled so that empty title uses source/computation
+            self.assertEqual("Untitled", data_item.title)
+            self.assertTrue(data_item.dynamic_title_enabled)
+            # update the dynamic title and check
+            data_item.set_dynamic_title_by_id("_slug_test")
+            self.assertEqual("nome", data_item.title)
+            self.assertTrue(data_item.dynamic_title_enabled)
+            # set the title and check
+            data_item.title = "title"
+            self.assertEqual("title", data_item.title)
+            self.assertFalse(data_item.dynamic_title_enabled)
+            # clear the title and ensure dynamic title is used again
+            data_item.title = str()
+            self.assertEqual("nome", data_item.title)
+            self.assertTrue(data_item.dynamic_title_enabled)
 
     # modify property/item/relationship on data source, display, region, etc.
     # copy or snapshot

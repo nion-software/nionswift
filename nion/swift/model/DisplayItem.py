@@ -29,6 +29,7 @@ from nion.swift.model import Cache
 from nion.swift.model import Changes
 from nion.swift.model import ColorMaps
 from nion.swift.model import DataItem
+from nion.swift.model import DynamicString
 from nion.swift.model import Graphics
 from nion.swift.model import Model
 from nion.swift.model import Persistence
@@ -2176,6 +2177,8 @@ class DisplayItem(Persistence.PersistentObject):
         self.define_relationship("display_layers", typing.cast(Persistence._PersistentObjectFactoryFn, display_layer_factory), insert=self.__insert_display_layer, remove=self.__remove_display_layer, hidden=True)
         self.define_relationship("display_data_channels", display_data_channel_factory, insert=self.__insert_display_data_channel, remove=self.__remove_display_data_channel, hidden=True)
 
+        self.__data_items = list[typing.Optional[DataItem.DataItem]]()
+
         self.__display_layer_changed_event_listeners: typing.List[Event.EventListener] = list()
 
         self.__display_data_channel_property_changed_event_listeners: typing.List[Event.EventListener] = list()
@@ -2199,10 +2202,33 @@ class DisplayItem(Persistence.PersistentObject):
         self.__outstanding_condition = threading.Condition()
         self.__outstanding_thread_count = 0
 
-        self.__inherited_title: typing.Optional[str] = None
-        self.__inherited_title_listener: typing.Optional[Event.EventListener] = None
-        self.__computation_title: typing.Optional[str] = None
-        self.__computation_source_count = 0
+        # configure the title logic
+
+        # the specified title is the title property that is set on the display item. it may override other derived titles.
+        self.__specified_title_stream = Stream.ValueStream[str]()
+
+        def combine_only_one(*vs: typing.Optional[str]) -> str:
+            return (vs[0] or str()) if len(vs) == 1 else str()
+
+        # the data item title is the title of the data item that this display item is displaying, but only if there is
+        # exactly one data item.
+        self.__single_data_item_title_stream = Stream.CombineLatestStream(list[Stream.ValueStream[str]](), combine_only_one)
+        self.__single_data_item_placeholder_title_stream = Stream.CombineLatestStream(list[Stream.ValueStream[str]](), combine_only_one)
+
+        def combine_display_title(specified_title: typing.Optional[str], data_item_title: typing.Optional[str]) -> str:
+            if specified_title:
+                return specified_title
+            if data_item_title:
+                return data_item_title
+            return _("Multiple Data Items")
+
+        self.displayed_title_stream = Stream.CombineLatestStream([self.__specified_title_stream, self.__single_data_item_title_stream], combine_display_title)
+
+        def displayed_titled_changed(display_item: DisplayItem, displayed_title: typing.Optional[str]) -> None:
+            if not display_item._is_reading:
+                self.notify_property_changed("displayed_title")
+
+        self.__displayed_title_stream_action = Stream.ValueStreamAction(self.displayed_title_stream, ReferenceCounting.weak_partial(displayed_titled_changed, self))
 
         self.__graphic_changed_listeners: typing.List[Event.EventListener] = list()
         self.__display_item_change_count = 0
@@ -2232,10 +2258,14 @@ class DisplayItem(Persistence.PersistentObject):
 
     def close(self) -> None:
         # wait for outstanding threads to finish
-        self.__display_data_delta_stream = typing.cast(typing.Any, None)
         with self.__outstanding_condition:
             while self.__outstanding_thread_count:
                 self.__outstanding_condition.wait()
+        self.__single_data_item_title_stream = typing.cast(typing.Any, None)
+        self.__single_data_item_placeholder_title_stream = typing.cast(typing.Any, None)
+        self.displayed_title_stream = typing.cast(typing.Any, None)
+        self.__displayed_title_stream_action = typing.cast(typing.Any, None)
+        self.__display_data_delta_stream = typing.cast(typing.Any, None)
         self.__graphic_selection_changed_event_listener.close()
         self.__graphic_selection_changed_event_listener = typing.cast(typing.Any, None)
         for display_data_channel in copy.copy(self.display_data_channels):
@@ -2350,7 +2380,10 @@ class DisplayItem(Persistence.PersistentObject):
     # override from storage to watch for changes to this library item. notify observers.
     def notify_property_changed(self, key: str) -> None:
         super().notify_property_changed(key)
-        self._notify_display_item_content_changed()
+        # this is a hack right now to not notify content changes when only the displayed title changes.
+        # in addition to be more efficient, this avoids a close bug appearing in various tests.
+        if key not in ("displayed_title",):
+            self._notify_display_item_content_changed()
 
     def __display_type_changed(self, name: str, value: str) -> None:
         self.__property_changed(name, value)
@@ -2380,8 +2413,8 @@ class DisplayItem(Persistence.PersistentObject):
     def __property_changed(self, name: str, value: typing.Any) -> None:
         self.notify_property_changed(name)
         if name == "title":
+            self.__specified_title_stream.value = value
             self.notify_property_changed("displayed_title")
-            self.notify_property_changed("specified_title")
         if name == "calibration_style_id":
             self.display_property_changed_event.fire("calibration_style_id")
         if name == "intensity_calibration_style_id":
@@ -2399,7 +2432,7 @@ class DisplayItem(Persistence.PersistentObject):
 
     def snapshot(self) -> DisplayItem:
         """Return a new library item which is a copy of this one with any dynamic behavior made static."""
-        display_item = self.__class__()
+        display_item = DisplayItem()
         display_item.display_type = self.display_type
         # metadata
         display_item._set_persistent_property_value("title", self._get_persistent_property_value("title"))
@@ -2732,13 +2765,19 @@ class DisplayItem(Persistence.PersistentObject):
         self.notify_property_changed("displayed_title")
 
     def __display_channel_property_changed(self, display_data_channel: DisplayDataChannel, name: str) -> None:
+        data_item = display_data_channel.data_item
+        if name == "data_item":
+            index = self.display_data_channels.index(display_data_channel)
+            self.__data_items[index] = data_item
+            self.__single_data_item_title_stream.replace_stream(index, data_item.title_stream if data_item else Stream.ValueStream[str]())
+            self.__single_data_item_placeholder_title_stream.replace_stream(index, data_item.placeholder_title_stream if data_item else Stream.ValueStream[str]())
         # during shutdown, the project persistent context will get cleared before the display item is closed. this
         # triggers the data item to become unregistered which triggers the display data channel to fire a data item
         # changed. this is a check for that condition, which hopefully doesn't occur in other situations. this is
         # difficult to test since threading is involved. to test manually, ensure that thumbnails are not recomputed
         # during shutdown by using print statements. consequently, ensure that thumbnails are not recomputed during
         # startup.
-        if name != "data_item" or display_data_channel.data_item:  # shutting down?
+        if name != "data_item" or data_item:  # shutting down?
             self.display_changed_event.fire()
 
     @property
@@ -2769,24 +2808,8 @@ class DisplayItem(Persistence.PersistentObject):
         self.notify_property_changed("caption")
         self.notify_property_changed("description")
         self.notify_property_changed("session_id")
-        self.notify_property_changed("displayed_title")
-        self.notify_property_changed("specified_title")
 
     def source_display_items_changed(self, source_display_items: typing.Sequence[DisplayItem], is_loading: bool) -> None:
-        inherited_title: typing.Optional[str] = None
-        if self.__inherited_title_listener:
-            self.__inherited_title_listener.close()
-            self.__inherited_title_listener = None
-        if source_display_items:
-            source_display_item = source_display_items[0]
-            inherited_title = source_display_item.displayed_title
-
-            def inherited_title_changed(display_item: DisplayItem, source_display_item: DisplayItem, key: str) -> None:
-                if key == "displayed_title":
-                    display_item.__update_inherited_title(source_display_item.displayed_title, self.__computation_title, self.__computation_source_count, is_loading)
-
-            self.__inherited_title_listener = source_display_item.property_changed_event.listen(ReferenceCounting.weak_partial(inherited_title_changed, self, source_display_item))
-        self.__update_inherited_title(inherited_title, self.__computation_title, len(source_display_items), is_loading)
         # the line below is a hack to resend the display data delta. this is required because of an architectural
         # problem: the display layer may not initially have a correct display_data_channel until the whole project is
         # read. the display_data_channel will only return the correct value once the data items are read; and that
@@ -2796,21 +2819,6 @@ class DisplayItem(Persistence.PersistentObject):
         # way to do this in the future, perhaps directly pointing to the display data channel rather than requiring
         # the index. future work.
         self.__display_data_delta_stream.reset()
-
-    def computation_title_changed(self, computation_title: typing.Optional[str]) -> None:
-        self.__update_inherited_title(self.__inherited_title, computation_title, self.__computation_source_count, False)
-
-    def __update_inherited_title(self, inherited_title: typing.Optional[str], computation_title: typing.Optional[str], computation_source_count: int, is_loading: bool) -> None:
-        old_displayed_title = self.displayed_title
-        self.__inherited_title = inherited_title
-        self.__computation_title = computation_title
-        self.__computation_source_count = computation_source_count
-        displayed_title = self.displayed_title
-        if displayed_title != old_displayed_title and not is_loading:
-            self.notify_property_changed("displayed_title")
-            self.notify_property_changed("specified_title")
-            if data_item := self.data_item:
-                data_item._set_persistent_property_value("title", displayed_title)
 
     def __get_used_str_value(self, key: str, default_value: str) -> str:
         if self._get_persistent_property_value(key) is not None:
@@ -2837,46 +2845,22 @@ class DisplayItem(Persistence.PersistentObject):
 
     @property
     def displayed_title(self) -> str:
-        if self.title:
-            return self.title
-        inherited_title = self.__inherited_title or DataItem.UNTITLED_STR
-        if self.__computation_title:
-            inherited_title = inherited_title + " (" + self.__computation_title + ")"
-        if self.__computation_source_count > 1:
-            more_str = _("More")
-            inherited_title = inherited_title + f" (+{self.__computation_source_count - 1} {more_str})"
-        return inherited_title
+        return self.displayed_title_stream.value or DataItem.UNTITLED_STR
 
     @property
     def placeholder_title(self) -> str:
-        # return the title that would be used if no title were set.
-        inherited_title = self.__inherited_title or DataItem.UNTITLED_STR
-        if self.__computation_title:
-            inherited_title = inherited_title + " (" + self.__computation_title + ")"
-        if self.__computation_source_count > 1:
-            more_str = _("More")
-            inherited_title = inherited_title + f" (+{self.__computation_source_count - 1} {more_str})"
-        return inherited_title
+        return self.__single_data_item_placeholder_title_stream.value or DataItem.UNTITLED_STR
 
     @property
     def title(self) -> str:
-        return self.__get_used_str_value("title", str())
+        if self._get_persistent_property_value("title") is not None:
+            return typing.cast(str, self._get_persistent_property_value("title"))
+        if title_str := self.__single_data_item_title_stream.value:
+            return title_str
+        return str()
 
     @title.setter
     def title(self, value: str) -> None:
-        self.__set_cascaded_value("title", str(value) if value is not None else str())
-
-    @property
-    def specified_title(self) -> str:
-        # return the title that was explicitly set, or empty string if no title was explicitly set.
-        if self._get_persistent_property_value("title") is not None:
-            return typing.cast(str, self._get_persistent_property_value("title"))
-        if self.data_item and self.data_item.title:
-            return self.data_item.title
-        return str()
-
-    @specified_title.setter
-    def specified_title(self, value: str) -> None:
         self.__set_cascaded_value("title", str(value) if value is not None else str())
 
     @property
@@ -2918,10 +2902,17 @@ class DisplayItem(Persistence.PersistentObject):
         self.__display_data_channel_data_item_description_changed_event_listeners.insert(before_index, display_data_channel.data_item_description_changed_event.listen(self._description_changed))
         self.__display_data_channel_data_item_proxy_changed_event_listeners.insert(before_index, display_data_channel.data_item_proxy_changed_event.listen(self.__update_displays))
         self.notify_insert_item("display_data_channels", display_data_channel, before_index)
+        data_item = display_data_channel.data_item
+        self.__data_items.insert(before_index, data_item)
+        self.__single_data_item_title_stream.insert_stream(before_index, data_item.title_stream if data_item else Stream.ValueStream[str]())
+        self.__single_data_item_placeholder_title_stream.insert_stream(before_index, data_item.placeholder_title_stream if data_item else Stream.ValueStream[str]())
 
     def __remove_display_data_channel(self, name: str, index: int, display_data_channel: DisplayDataChannel) -> None:
         display_data_channel.decrement_display_ref_count(self._display_ref_count)
         self.__disconnect_display_data_channel(display_data_channel, index)
+        self.__data_items.pop(index)
+        self.__single_data_item_title_stream.remove_stream(index)
+        self.__single_data_item_placeholder_title_stream.remove_stream(index)
 
     def __disconnect_display_data_channel(self, display_data_channel: DisplayDataChannel, index: int) -> None:
         self.__display_data_channel_property_changed_event_listeners[index].close()

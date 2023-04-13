@@ -1212,7 +1212,7 @@ class TestDocumentControllerClass(unittest.TestCase):
             display_panel.set_display_panel_display_item(display_item1)
             document_controller.add_display_data_channel_to_or_create_composite(display_item1, display_item2, display_panel)
             display_item = document_model.display_items[-1]
-            self.assertEqual("one (+1 More)", display_item.displayed_title)
+            self.assertEqual("Multiple Data Items", display_item.displayed_title)
 
 
 if __name__ == '__main__':

@@ -27,7 +27,7 @@ TOOL_TIP_STR = _("Use empty field for automatic title.")
 
 class InfoModel:
     def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem) -> None:
-        self.title_model = Model.PropertyModel[str](display_item.specified_title)
+        self.title_model = Model.PropertyModel[str](display_item.title)
         self.title_placeholder_model = Model.PropertyModel[str](display_item.placeholder_title)
         self.caption_model = Model.PropertyModel[str](display_item.caption)
 

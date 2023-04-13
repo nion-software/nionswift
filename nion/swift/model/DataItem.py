@@ -4,7 +4,6 @@ from __future__ import annotations
 import abc
 import contextlib
 import copy
-import dataclasses
 import datetime
 import gettext
 import operator
@@ -25,11 +24,14 @@ from nion.data import Calibration
 from nion.data import DataAndMetadata
 from nion.data import Image
 from nion.swift.model import ApplicationData
+from nion.swift.model import DynamicString
 from nion.swift.model import Metadata
 from nion.swift.model import Persistence
 from nion.swift.model import Utility
 from nion.utils import DateTime
 from nion.utils import Event
+from nion.utils import Stream
+from nion.utils import ReferenceCounting
 
 if typing.TYPE_CHECKING:
     from nion.swift.model import DisplayItem
@@ -194,8 +196,8 @@ class DataItem(Persistence.PersistentObject):
         dimensional_shape = Image.dimensional_shape_from_shape_and_dtype(data_shape, data_dtype)
         collection_dimension_count = (2 if len(dimensional_shape) == 3 else 0) if dimensional_shape is not None else None
         datum_dimension_count = len(dimensional_shape) - collection_dimension_count if dimensional_shape is not None and collection_dimension_count is not None else None
-        self.define_property("data_shape", data_shape, hidden=True, recordable=False, is_equal_fn=operator.eq)
-        self.define_property("data_dtype", data_dtype, hidden=True, recordable=False, converter=DtypeToStringConverter(), is_equal_fn=operator.eq)
+        self.define_property("data_shape", data_shape, hidden=True, recordable=False, is_equal_fn=operator.eq, changed=self.__property_changed)
+        self.define_property("data_dtype", data_dtype, hidden=True, recordable=False, converter=DtypeToStringConverter(), changed=self.__property_changed, is_equal_fn=operator.eq)
         self.define_property("is_sequence", False, hidden=True, recordable=False, changed=self.__data_description_changed)
         self.define_property("collection_dimension_count", collection_dimension_count, hidden=True, recordable=False, changed=self.__data_description_changed, value_type=int)
         self.define_property("datum_dimension_count", datum_dimension_count, hidden=True, recordable=False, changed=self.__data_description_changed, value_type=int)
@@ -206,7 +208,8 @@ class DataItem(Persistence.PersistentObject):
         self.define_property("timezone_offset", Utility.TimezoneMinutesToStringConverter().convert(Utility.local_utcoffset_minutes()), hidden=True, changed=self.__timezone_property_changed, recordable=False, value_type=str)
         self.define_property("metadata", dict(), hidden=True, changed=self.__metadata_property_changed, is_equal_fn=Utility.deep_compare_items)
         self.define_property("title", str(), changed=self.__property_changed, hidden=True)
-        self.define_property("is_auto_title", True, changed=self.__property_changed, hidden=True)
+        self.define_property("dynamic_title", hidden=True)
+        self.define_property("dynamic_title_enabled", True, changed=self.__property_changed, hidden=True)
         self.define_property("caption", changed=self.__property_changed, hidden=True, value_type=str)
         self.define_property("description", changed=self.__property_changed, hidden=True, value_type=str)
         self.define_property("source_specifier", changed=self.__source_specifier_changed, key="source_uuid", hidden=True)
@@ -247,7 +250,6 @@ class DataItem(Persistence.PersistentObject):
         self.__pending_xdata: typing.Optional[DataAndMetadata.DataAndMetadata] = None
         self.__pending_queue: typing.List[typing.Tuple[DataAndMetadata.DataAndMetadata, typing.Sequence[slice], typing.Sequence[slice], DataAndMetadata.DataMetadata]] = list()
         self.__content_changed = False
-        # Python 3.9+: parameterized set, weakref
         self.__display_data_channel_refs = set()  # type: ignore  # display data channels referencing this data item
         if data is not None:
             data_and_metadata = DataAndMetadata.DataAndMetadata.from_data(data, timezone=self.timezone, timezone_offset=self.timezone_offset)
@@ -256,8 +258,65 @@ class DataItem(Persistence.PersistentObject):
                 self.__set_data_and_metadata_direct(data_and_metadata)
             finally:
                 self.decrement_data_ref_count()
+        self.__dynamic_title: typing.Optional[DynamicString.DynamicString] = None
+        self.__dynamic_title_persistence_action: typing.Optional[Stream.ValueStreamAction[Persistence.PersistentDictType]] = None
+        self.__specified_title_stream = Stream.ValueStream[str]()
+        self.__source_title_stream = Stream.FollowStream[str]()
+        self.__computation_title_stream = Stream.ValueStream[str]()
+        self.__dynamic_title_stream = Stream.FollowStream[str]()
+        self.__dynamic_title_enabled_stream = Stream.ValueStream[bool](True)
+
+        def combine_display_title(
+                specified_title: typing.Optional[str],
+                source_title: typing.Optional[str],
+                computation_title: typing.Optional[str],
+                dynamic_title: typing.Optional[str],
+                dynamic_title_enabled: typing.Optional[bool]
+        ) -> str:
+            if dynamic_title_enabled:
+                if dynamic_title:
+                    return dynamic_title
+            if dynamic_title_enabled or not specified_title:
+                if source_title and computation_title:
+                    return f"{source_title} ({computation_title})"
+            if specified_title:
+                return specified_title
+            return UNTITLED_STR
+
+        self.__title_stream = Stream.CombineLatestStream([self.__specified_title_stream, self.__source_title_stream, self.__computation_title_stream, self.__dynamic_title_stream, self.__dynamic_title_enabled_stream], combine_display_title)
+
+        def update_dynamic_title(data_item: DataItem, dynamic_title_str: typing.Optional[str]) -> None:
+            if not data_item._is_reading:
+                data_item._set_persistent_property_value("title", dynamic_title_str)
+
+        self.__title_stream_action = Stream.ValueStreamAction(self.__title_stream, ReferenceCounting.weak_partial(update_dynamic_title, self))
+
+        def combine_placeholder_title(
+                source_title: typing.Optional[str],
+                computation_title: typing.Optional[str],
+                dynamic_title: typing.Optional[str],
+        ) -> str:
+            if dynamic_title:
+                return dynamic_title
+            if source_title and computation_title:
+                return f"{source_title} ({computation_title})"
+            return str()
+
+        self.__placeholder_title_stream = Stream.CombineLatestStream([self.__source_title_stream, self.__computation_title_stream, self.__dynamic_title_stream], combine_placeholder_title)
+
 
     def close(self) -> None:
+        self.__title_stream = typing.cast(typing.Any, None)
+        self.__dynamic_title = None
+        self.__dynamic_title_persistence_action = None
+        self.__specified_title_stream = typing.cast(typing.Any, None)
+        self.__source_title_stream = typing.cast(typing.Any, None)
+        self.__computation_title_stream = typing.cast(typing.Any, None)
+        self.__dynamic_title_stream = typing.cast(typing.Any, None)
+        self.__dynamic_title_enabled_stream = typing.cast(typing.Any, None)
+        self.__title_stream = typing.cast(typing.Any, None)
+        self.__title_stream_action = typing.cast(typing.Any, None)
+        self.__placeholder_title_stream = typing.cast(typing.Any, None)
         self.__data = None
         super().close()
 
@@ -278,7 +337,7 @@ class DataItem(Persistence.PersistentObject):
             data_item_copy.timezone_offset = self.timezone_offset
             data_item_copy.metadata = self.metadata
             data_item_copy.title = self.title
-            data_item_copy.is_auto_title = self.is_auto_title
+            data_item_copy.dynamic_title_enabled = self.dynamic_title_enabled
             data_item_copy.caption = self.caption
             data_item_copy.description = self.description
             data_item_copy.session_id = self.session_id
@@ -286,6 +345,8 @@ class DataItem(Persistence.PersistentObject):
             data_item_copy.category = self.category
             # data and metadata
             data_item_copy.set_data_and_metadata(copy.deepcopy(self.data_and_metadata), self.data_modified)
+            # copy this last and avoid making an extra unnecessary copy
+            data_item_copy.__set_dynamic_title(copy.deepcopy(self.__dynamic_title) if self.__dynamic_title else None)
             memo[id(self)] = data_item_copy
             return data_item_copy
         except Exception:
@@ -312,21 +373,34 @@ class DataItem(Persistence.PersistentObject):
         self._set_persistent_property_value("created", value)
 
     @ property
-    def is_auto_title(self) -> bool:
-        return typing.cast(bool, self._get_persistent_property_value("is_auto_title"))
+    def dynamic_title_enabled(self) -> bool:
+        return typing.cast(bool, self._get_persistent_property_value("dynamic_title_enabled"))
 
-    @is_auto_title.setter
-    def is_auto_title(self, value: bool) -> None:
-        self._set_persistent_property_value("is_auto_title", value)
+    @dynamic_title_enabled.setter
+    def dynamic_title_enabled(self, value: bool) -> None:
+        self._set_persistent_property_value("dynamic_title_enabled", value)
+        if self.dynamic_title_enabled:
+            self.__set_dynamic_title(self.__dynamic_title)
 
     @property
     def title(self) -> str:
-        return typing.cast(str, self._get_persistent_property_value("title")) if not self.is_auto_title else str()
+        return self.__title_stream.value or str()
 
     @title.setter
-    def title(self, value: str) -> None:
-        self.is_auto_title = not value
-        self._set_persistent_property_value("title", value)
+    def title(self, value: typing.Optional[str]) -> None:
+        if value:
+            self._set_persistent_property_value("dynamic_title_enabled", False)
+            self._set_persistent_property_value("title", value)
+        else:
+            self._set_persistent_property_value("dynamic_title_enabled", True)
+
+    @property
+    def title_stream(self) -> Stream.AbstractStream[str]:
+        return self.__title_stream
+
+    @property
+    def placeholder_title_stream(self) -> Stream.AbstractStream[str]:
+        return self.__placeholder_title_stream
 
     @property
     def caption(self) -> typing.Optional[str]:
@@ -471,6 +545,15 @@ class DataItem(Persistence.PersistentObject):
     def __source_specifier_changed(self, name: str, d: Persistence._SpecifierType) -> None:
         self.__source_reference.item_specifier = Persistence.read_persistent_specifier(d)
 
+    def source_data_items_changed(self, source_data_items: typing.List[DataItem]) -> None:
+        if len(source_data_items) == 1:
+            self.__source_title_stream.stream = source_data_items[0].title_stream
+        else:
+            self.__source_title_stream.stream = None
+
+    def computation_title_changed(self, computation_title: typing.Optional[str]) -> None:
+        self.__computation_title_stream.value = computation_title
+
     def persistent_object_context_changed(self) -> None:
         # handle case where persistent object context is set on an item that is already under transaction.
         # this can occur during acquisition. any other cases?
@@ -491,8 +574,6 @@ class DataItem(Persistence.PersistentObject):
         # block; then make sure that no change notifications actually occur. this makes
         # sure things like cached values are preserved after reading.
         with self.data_item_changes():
-            if not "is_auto_title" in properties:
-                properties["is_auto_title"] = False
             super().read_from_dict(properties)
             data_shape = self._get_persistent_property_value("data_shape", None)
             data_dtype = DtypeToStringConverter().convert_back(self._get_persistent_property_value("data_dtype", None))
@@ -545,7 +626,42 @@ class DataItem(Persistence.PersistentObject):
             if self.created is None:  # invalid timestamp -- set property to now but don't trigger change
                 self._get_persistent_property("created").value = DateTime.utcnow()
             self.__content_changed = False
+        dynamic_title: typing.Optional[DynamicString.DynamicString] = None
+        dynamic_title_d = self._get_persistent_property("dynamic_title").value
+        if dynamic_title_d is not None:
+            dynamic_title = DynamicString.make_dynamic_string(dynamic_title_d)
+        if dynamic_title:
+            self.__set_dynamic_title(dynamic_title)
         self.__pending_write = False
+
+    def __set_dynamic_title(self, dynamic_title: typing.Optional[DynamicString.DynamicString]) -> None:
+        self.__dynamic_title = dynamic_title
+        if self.__dynamic_title:
+            self.__dynamic_title.connect_item(self)
+            self.__dynamic_title_persistence_action = Stream.ValueStreamAction(self.__dynamic_title.persistence_stream, ReferenceCounting.weak_partial(DataItem.__write_dynamic_title, self))
+            self.__dynamic_title_stream.stream = self.__dynamic_title.string_stream
+            self.__write_dynamic_title(self.__dynamic_title.persistence_stream.value)
+        else:
+            self.__dynamic_title_persistence_action = None
+            self.__dynamic_title_stream.stream = None
+
+    def __write_dynamic_title(self, dynamic_title_d: typing.Optional[Persistence.PersistentDictType]) -> None:
+        if not self._is_reading:
+            self._set_persistent_property_value("dynamic_title", dynamic_title_d)
+
+    @property
+    def dynamic_title(self) -> typing.Optional[DynamicString.DynamicString]:
+        return self.__dynamic_title
+
+    @dynamic_title.setter
+    def dynamic_title(self, value: DynamicString.DynamicString) -> None:
+        self.__set_dynamic_title(value)
+        self._set_persistent_property_value("dynamic_title_enabled", True)
+
+    def set_dynamic_title_by_id(self, dynamic_title_id: str) -> None:
+        dynamic_string = DynamicString.make_dynamic_string({"type": dynamic_title_id})
+        if dynamic_string:
+            self.dynamic_title = dynamic_string
 
     @property
     def properties(self) -> typing.Optional[Persistence.PersistentDictType]:
@@ -614,6 +730,7 @@ class DataItem(Persistence.PersistentObject):
 
     def __description_property_changed(self, name: str, value: typing.Any) -> None:
         self.__property_changed(name, value)
+        self.notify_property_changed("date_for_sorting_local")
         self.__notify_description_changed()
 
     def __notify_description_changed(self) -> None:
@@ -634,8 +751,13 @@ class DataItem(Persistence.PersistentObject):
     def __metadata_property_changed(self, name: str, value: typing.Any) -> None:
         self.__change_changed = True
         self.__property_changed(name, value)
+        self.notify_property_changed("date_for_sorting_local")
 
     def __property_changed(self, name: str, value: typing.Any) -> None:
+        if name == "title":
+            self.__specified_title_stream.value = value
+        if name == "dynamic_title_enabled":
+            self.__dynamic_title_enabled_stream.value = value
         self.notify_property_changed(name)
         if name in ("title", "caption", "description"):
             self.__notify_description_changed()
@@ -670,10 +792,14 @@ class DataItem(Persistence.PersistentObject):
         return self.created
 
     @property
-    def date_for_sorting_local_as_string(self) -> str:
+    def date_for_sorting_local(self) -> datetime.datetime:
         date_utc = self.date_for_sorting
         tz_minutes = Utility.local_utcoffset_minutes(date_utc)
-        date_local = date_utc + datetime.timedelta(minutes=tz_minutes)
+        return date_utc + datetime.timedelta(minutes=tz_minutes)
+
+    @property
+    def date_for_sorting_local_as_string(self) -> str:
+        date_local = self.date_for_sorting_local
         return date_local.strftime("%c")
 
     @property
@@ -1295,3 +1421,12 @@ def new_data_item(data_and_metadata_in: typing.Optional[DataAndMetadata._DataAnd
     data_item = DataItem(large_format=len(data_and_metadata.dimensional_shape) > 2 if data_and_metadata else False)
     data_item.set_xdata(data_and_metadata)
     return data_item
+
+"""
+Architectural Decision Records.
+
+ADR 2024-04-27. The data item will separately keep track of whether dynamic title updating is enabled rather than
+have it be dependent on the existence of the dynamic string object itself. This allows the user to enable or disable
+the dynamic title without having to remember its previous state. This may be important for custom acquisition dynamic
+strings or computed data item titling.
+"""

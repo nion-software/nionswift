@@ -2,6 +2,7 @@
 import contextlib
 import copy
 import datetime
+import functools
 import gc
 import json
 import logging
@@ -30,6 +31,7 @@ from nion.swift.model import Connection
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
+from nion.swift.model import DynamicString
 from nion.swift.model import FileStorageSystem
 from nion.swift.model import Graphics
 from nion.swift.model import Persistence
@@ -39,6 +41,7 @@ from nion.swift.test import TestContext
 from nion.ui import TestUI
 from nion.utils import DateTime
 from nion.utils import Geometry
+from nion.utils import Registry
 
 
 Facade.initialize()
@@ -4345,6 +4348,88 @@ class TestStorageClass(unittest.TestCase):
                 document_controller.periodic()
                 project_storage_system = typing.cast(FileStorageSystem.MemoryProjectStorageSystem, document_model._project.project_storage_system)
                 self.assertEqual(0, project_storage_system._write_count)
+
+    def test_reloading_display_item_with_updated_dynamic_title_updates_title_but_does_not_write_to_document_file(self):
+        # requirement: dynamic_titles
+        with create_memory_profile_context() as profile_context:
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            document_model = document_controller.document_model
+            with contextlib.closing(document_controller):
+                data_item = DataItem.DataItem(numpy.zeros((8,)))
+                data_item.dynamic_title = DynamicString._TestDynamicString()
+                document_model.append_data_item(data_item)
+                self.assertEqual("green", data_item.title)
+            DynamicString._TestDynamicString.value = "red"
+            try:
+                profile_context.reload()
+                document_controller = profile_context.create_document_controller(auto_close=False)
+                document_model = document_controller.document_model
+                with contextlib.closing(document_controller):
+                    data_item = document_model.data_items[0]
+                    self.assertEqual("red", data_item.title)
+                    project_storage_system = typing.cast(FileStorageSystem.MemoryProjectStorageSystem, document_model._project.project_storage_system)
+                    self.assertEqual(0, project_storage_system._write_count)
+            finally:
+                DynamicString._TestDynamicString.value = "green"
+
+    def test_reloading_display_item_with_updated_dynamic_title_only_updates_if_enabled(self):
+        # requirement: dynamic_titles
+        with create_memory_profile_context() as profile_context:
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            document_model = document_controller.document_model
+            with contextlib.closing(document_controller):
+                data_item = DataItem.DataItem(numpy.zeros((8,)))
+                data_item.dynamic_title = DynamicString._TestDynamicString()
+                data_item.dynamic_title_enabled = False
+                document_model.append_data_item(data_item)
+                self.assertEqual("green", data_item.title)
+            DynamicString._TestDynamicString.value = "red"
+            try:
+                profile_context.reload()
+                document_controller = profile_context.create_document_controller(auto_close=False)
+                document_model = document_controller.document_model
+                with contextlib.closing(document_controller):
+                    data_item = document_model.data_items[0]
+                    self.assertEqual("green", data_item.title)
+                    project_storage_system = typing.cast(FileStorageSystem.MemoryProjectStorageSystem, document_model._project.project_storage_system)
+                    self.assertEqual(0, project_storage_system._write_count)
+            finally:
+                DynamicString._TestDynamicString.value = "green"
+
+    def test_reloading_display_item_with_missing_dynamic_title_factory_has_uses_last_title(self):
+        # requirement: dynamic_titles
+        with create_memory_profile_context() as profile_context:
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            document_model = document_controller.document_model
+            with contextlib.closing(document_controller):
+                data_item = DataItem.DataItem(numpy.zeros((8,)))
+                data_item.dynamic_title = DynamicString._TestDynamicString()
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                self.assertEqual("green", data_item.title)
+                self.assertEqual("green", display_item.displayed_title)
+            # now block the dynamic string from loading and try again, make sure it reloads sensibly
+            DynamicString._blocked_dynamic_string_factory = "_test"
+            try:
+                profile_context.reload()
+                document_controller = profile_context.create_document_controller(auto_close=False)
+                document_model = document_controller.document_model
+                with contextlib.closing(document_controller):
+                    data_item = document_model.data_items[0]
+                    display_item = document_model.get_display_item_for_data_item(data_item)
+                    self.assertEqual("green", data_item.title)
+                    self.assertEqual("green", display_item.displayed_title)
+            finally:
+                DynamicString._blocked_dynamic_string_factory = None
+            # now unblocked, try again
+            profile_context.reload()
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            document_model = document_controller.document_model
+            with contextlib.closing(document_controller):
+                data_item = document_model.data_items[0]
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                self.assertEqual("green", data_item.title)
+                self.assertEqual("green", display_item.displayed_title)
 
     def test_renamed_project_index_and_data_folder_loads(self) -> None:
         # create a project, rename it, add a new project reference, reload, ensure data items loaded.
