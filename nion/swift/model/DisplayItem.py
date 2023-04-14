@@ -1332,6 +1332,9 @@ class DisplayItem(Persistence.PersistentObject):
         self.__outstanding_condition = threading.Condition()
         self.__outstanding_thread_count = 0
 
+        self.__inherited_title: typing.Optional[str] = None
+        self.__inherited_title_listener: typing.Optional[Event.EventListener] = None
+
         # the most recent data to be displayed. should have immediate data available.
         self.__is_composite_data = False
         self.__dimensional_calibrations: typing.Optional[DataAndMetadata.CalibrationListType] = None
@@ -1900,6 +1903,29 @@ class DisplayItem(Persistence.PersistentObject):
         self.notify_property_changed("session_id")
         self.notify_property_changed("displayed_title")
 
+    def source_display_items_changed(self, source_display_items: typing.Sequence[DisplayItem]) -> None:
+        inherited_title: typing.Optional[str] = None
+        if self.__inherited_title_listener:
+            self.__inherited_title_listener.close()
+            self.__inherited_title_listener = None
+        if source_display_items:
+            source_display_item = source_display_items[0]
+            inherited_title = source_display_item.title
+
+            def inherited_title_changed(display_item: DisplayItem, source_display_item: DisplayItem, key: str) -> None:
+                if key == "title":
+                    display_item.__update_inherited_title(source_display_item.title)
+
+            self.__inherited_title_listener = source_display_item.property_changed_event.listen(ReferenceCounting.weak_partial(inherited_title_changed, self, source_display_item))
+        self.__update_inherited_title(inherited_title)
+
+    def __update_inherited_title(self, inherited_title: typing.Optional[str]) -> None:
+        if self.__inherited_title != inherited_title:
+            old_displayed_title = self.displayed_title
+            self.__inherited_title = inherited_title
+            if self.displayed_title != old_displayed_title:
+                self.notify_property_changed("displayed_title")
+
     def __get_used_str_value(self, key: str, default_value: str) -> str:
         if self._get_persistent_property_value(key) is not None:
             return typing.cast(str, self._get_persistent_property_value(key))
@@ -1921,11 +1947,13 @@ class DisplayItem(Persistence.PersistentObject):
 
     @property
     def displayed_title(self) -> str:
-        return self.title
+        if self.title:
+            return self.title
+        return self.__inherited_title or DataItem.UNTITLED_STR
 
     @property
     def title(self) -> str:
-        return self.__get_used_str_value("title", DataItem.UNTITLED_STR)
+        return self.__get_used_str_value("title", str())
 
     @title.setter
     def title(self, value: str) -> None:
