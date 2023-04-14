@@ -1177,6 +1177,24 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertEqual(2, len(document_controller._get_n_data_sources(2)))
             self.assertEqual(3, len(document_controller._get_n_data_sources(3)))
 
+    def test_composite_of_two_computed_data_items_has_sensible_composite_title(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            document_model.append_data_item(DataItem.new_data_item(numpy.zeros((8, 8))))
+            document_model.append_data_item(DataItem.new_data_item(numpy.zeros((8, 8))))
+            document_model.data_items[0].title = "one"
+            document_model.data_items[1].title = "two"
+            data_item1 = document_model.get_line_profile_new(document_model.get_display_item_for_data_item(document_model.data_items[0]), document_model.data_items[0])
+            data_item2 = document_model.get_line_profile_new(document_model.get_display_item_for_data_item(document_model.data_items[1]), document_model.data_items[1])
+            display_item1 = document_model.get_display_item_for_data_item(data_item1)
+            display_item2 = document_model.get_display_item_for_data_item(data_item2)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item1)
+            document_controller.add_display_data_channel_to_or_create_composite(display_item1, display_item2, display_panel)
+            display_item = document_model.display_items[-1]
+            self.assertEqual("one (+1 More)", display_item.displayed_title)
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

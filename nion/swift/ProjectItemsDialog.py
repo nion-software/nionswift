@@ -215,9 +215,9 @@ class ProjectItemsDialog(Declarative.WindowHandler):
 
         items = (
             EntityBrowser.EntityBrowserEntry(context, _("Data Items"), document_controller.document_model, "data_items",
-                                             DataModel.DataItem, _("Data Item"), operator.attrgetter("title")),
+                                             DataModel.DataItem, _("Data Item"), lambda x: typing.cast(str, x.title) if x.title else _("Auto")),
             EntityBrowser.EntityBrowserEntry(context, _("Display Items"), document_controller.document_model, "display_items",
-                                             DataModel.DisplayItem, _("Display Item"), operator.attrgetter("title")),
+                                             DataModel.DisplayItem, _("Display Item"), operator.attrgetter("displayed_title")),
             EntityBrowser.EntityBrowserEntry(context, _("Data Structures"), document_controller.document_model, "data_structures",
                                              None, _("Data Structure"), operator.attrgetter("structure_type")),
             EntityBrowser.EntityBrowserEntry(context, _("Computations"), document_controller.document_model, "computations",

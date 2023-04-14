@@ -2197,7 +2197,6 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(xdata1[1], snapshot_display_item.display_data_channels[0].data_item.xdata))
             self.assertTrue(numpy.array_equal(xdata2[3], snapshot_display_item.display_data_channels[1].data_item.xdata))
 
-
     def test_new_display_makes_another_display_item(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
@@ -2443,6 +2442,43 @@ class TestDocumentModelClass(unittest.TestCase):
                 document_model.computations[-1].variables[1].value = "none"
                 document_model.recompute_all()
                 self.assertEqual((4, 4, 4, 4), processed_data_item.data_shape)
+
+    def test_processing_produces_sensible_inherited_titles(self):
+        with create_memory_profile_context() as profile_context:
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                data_item = DataItem.DataItem(numpy.zeros((2,2)))
+                data_item.title = "test"
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                data_item2 = document_model.get_invert_new(display_item, display_item.data_item)
+                display_item2 = document_model.get_display_item_for_data_item(data_item2)
+                data_item3 = document_model.get_invert_new(display_item2, display_item2.data_item)
+                display_item3 = document_model.get_display_item_for_data_item(data_item3)
+                document_model.recompute_all()
+                self.assertFalse(data_item2.title)
+                self.assertEqual("test (Negate)", display_item2.displayed_title)
+                self.assertFalse(data_item3.title)
+                self.assertEqual("test (Negate) (Negate)", display_item3.displayed_title)
+
+    def test_copy_like_processing_produces_sensible_titles(self):
+        with create_memory_profile_context() as profile_context:
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                data_item = DataItem.DataItem(numpy.zeros((2,2)))
+                data_item.title = "test"
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                display_item_snapshot = document_model.get_display_item_snapshot_new(display_item)
+                display_snapshot = document_model.get_display_snapshot_new(display_item)
+                data_item_copy = document_model.copy_data_item(data_item)
+                display_copy = document_model.get_display_item_for_data_item(data_item_copy)
+                self.assertEqual("test (Snapshot)", display_item_snapshot.data_item.title)
+                self.assertEqual("test (Snapshot)", display_item_snapshot.displayed_title)
+                self.assertEqual("test (Display Snapshot)", display_snapshot.data_item.title)
+                self.assertEqual("test (Display Snapshot)", display_snapshot.displayed_title)
+                self.assertEqual("test (Copy)", display_copy.data_item.title)
+                self.assertEqual("test (Copy)", display_copy.displayed_title)
 
     # solve problem of where to create new elements (same library), generally shouldn't create data items for now?
     # way to configure display for new data items?

@@ -475,14 +475,17 @@ class TestDisplayItemClass(unittest.TestCase):
                 document_model.append_data_item(data_item)
                 display_item = document_model.get_display_item_for_data_item(data_item)
                 data_item2 = document_model.get_invert_new(display_item, display_item.data_item)
-                data_item2.title = None
                 display_item2 = document_model.get_display_item_for_data_item(data_item2)
+                data_item3 = document_model.get_invert_new(display_item2, display_item2.data_item)
+                display_item3 = document_model.get_display_item_for_data_item(data_item3)
                 document_model.recompute_all()
                 self.assertEqual("red", display_item.displayed_title)
-                self.assertEqual("red", display_item2.displayed_title)
+                self.assertEqual("red (Negate)", display_item2.displayed_title)
+                self.assertEqual("red (Negate) (Negate)", display_item3.displayed_title)
                 data_item.title = "green"
                 self.assertEqual("green", display_item.displayed_title)
-                self.assertEqual("green", display_item2.displayed_title)
+                self.assertEqual("green (Negate)", display_item2.displayed_title)
+                self.assertEqual("green (Negate) (Negate)", display_item3.displayed_title)
 
     # test_transaction_does_not_cascade_to_data_item_refs
     # test_increment_data_ref_counts_cascades_to_data_item_refs

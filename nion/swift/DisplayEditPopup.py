@@ -31,6 +31,7 @@ def pose_title_edit_popup(document_controller: DocumentController.DocumentContro
             self.__is_rejected = False
             self.__title = display_item.title
             self.__caption = display_item.caption
+            self.__title_placeholder = display_item.displayed_title
 
         def init_handler(self) -> None:
             if self.title_edit:
@@ -51,6 +52,10 @@ def pose_title_edit_popup(document_controller: DocumentController.DocumentContro
         def title(self, value: str) -> None:
             self.__title = value
             self.property_changed_event.fire("title")
+
+        @property
+        def title_placeholder(self) -> str:
+            return self.__title_placeholder
 
         @property
         def caption(self) -> str:
@@ -98,19 +103,19 @@ def pose_title_edit_popup(document_controller: DocumentController.DocumentContro
 
     ui_handler = Handler()
 
-    ui = Declarative.DeclarativeUI()
+    u = Declarative.DeclarativeUI()
 
-    title_edit = ui.create_line_edit(name="title_edit", text="title", placeholder_text=_("Title"), on_return_pressed="accept", on_escape_pressed="reject", width=320)
+    title_edit = u.create_line_edit(name="title_edit", text="title", placeholder_text="@binding(title_placeholder)", on_return_pressed="accept", on_escape_pressed="reject", width=320)
 
-    caption_edit = ui.create_text_edit(name="caption_edit", text="caption", on_escape_pressed="reject", height=100, width=320)
+    caption_edit = u.create_text_edit(name="caption_edit", text="caption", on_escape_pressed="reject", height=100, width=320)
 
-    title_row = ui.create_row(ui.create_label(text=_("Title")), title_edit, spacing=8, margin=8)
+    title_row = u.create_row(u.create_label(text=_("Title"), tool_tip=_("Use empty field for automatic title.")), title_edit, spacing=8, margin=8)
 
-    caption_row = ui.create_row(ui.create_label(text=_("Caption")), caption_edit, spacing=8, margin=8)
+    caption_row = u.create_row(u.create_label(text=_("Caption")), caption_edit, spacing=8, margin=8)
 
-    button_row = ui.create_row(ui.create_stretch(), ui.create_push_button(text=_("Cancel"), on_clicked="handle_cancel"), ui.create_push_button(text=_("Done"), on_clicked="handle_done"), spacing=8, margin=8)
+    button_row = u.create_row(u.create_stretch(), u.create_push_button(text=_("Cancel"), on_clicked="handle_cancel"), u.create_push_button(text=_("Done"), on_clicked="handle_done"), spacing=8, margin=8)
 
-    column = ui.create_column(title_row, caption_row, button_row, margin=4)
+    column = u.create_column(title_row, caption_row, button_row, margin=4)
 
     popup = Dialog.PopupWindow(document_controller, column, ui_handler)
 

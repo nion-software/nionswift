@@ -558,6 +558,7 @@ class InfoInspectorSection(InspectorSection):
         self.info_section_title_row.add(self.ui.create_label_widget(_("Title"), properties={"width": 60}))
         self.info_title_label = self.ui.create_line_edit_widget()
         self.info_title_label.bind_text(ChangeDisplayItemPropertyBinding(document_controller, display_item, "title"))
+        self.info_title_label.bind_placeholder_text(Binding.PropertyBinding(display_item, "displayed_title"))
         self.info_section_title_row.add(self.info_title_label)
         self.info_section_title_row.add_spacing(8)
         # caption

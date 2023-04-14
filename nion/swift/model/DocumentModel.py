@@ -895,6 +895,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             computation_copy.source = None
             computation_copy._clear_referenced_object("target")
             self.set_data_item_computation(data_item_copy, computation_copy)
+        data_item_copy.category = data_item.category
+        display_item = self.get_display_item_for_data_item(data_item_copy)
+        assert display_item
+        data_item_copy.title = display_item.displayed_title + " (" + _("Copy") + ")"
         return data_item_copy
 
     def __handle_data_item_inserted(self, data_item: DataItem.DataItem) -> None:
@@ -1368,7 +1372,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             self.__computation_queue.append(computation)
         self.dispatch_task(self.__recompute)
 
-    def __establish_computation_dependencies(self, old_inputs: typing.Set[Persistence.PersistentObject], new_inputs: typing.Set[Persistence.PersistentObject], old_outputs: typing.Set[Persistence.PersistentObject], new_outputs: typing.Set[Persistence.PersistentObject]) -> None:
+    def __establish_computation_dependencies(self, computation_title: str, old_inputs: typing.Set[Persistence.PersistentObject], new_inputs: typing.Set[Persistence.PersistentObject], old_outputs: typing.Set[Persistence.PersistentObject], new_outputs: typing.Set[Persistence.PersistentObject]) -> None:
         # establish dependencies between input and output items.
         with self.__dependency_tree_lock:
             removed_inputs = old_inputs - new_inputs
@@ -1397,12 +1401,18 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             for output in removed_outputs:
                 for input in old_inputs:
                     self.__remove_dependency(input, output)
+                if isinstance(output, DataItem.DataItem):
+                    for display_item in self.get_display_items_for_data_item(output):
+                        display_item.computation_title_changed(None)
             for input in added_inputs:
                 for output in new_outputs:
                     self.__add_dependency(input, output)
             for output in added_outputs:
                 for input in same_inputs:
                     self.__add_dependency(input, output)
+                if isinstance(output, DataItem.DataItem):
+                    for display_item in self.get_display_items_for_data_item(output):
+                        display_item.computation_title_changed(computation_title)
         if removed_inputs or added_inputs or removed_outputs or added_outputs:
             self.__transaction_manager._rebuild_transactions()
 
@@ -1910,7 +1920,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             for i in range(len(display_item.display_layers)):
                 data_index = display_item.display_data_channels.index(display_item.get_display_layer_display_data_channel(i))
                 display_item_copy.add_display_layer_for_display_data_channel(display_item_copy.display_data_channels[data_index], **display_item.get_display_layer_properties(i))
-            display_item_copy.title = _("Snapshot of ") + display_item.title
+            display_item_copy.title = display_item.displayed_title + " (" + _("Snapshot") + ")"
         except Exception:
             display_item_copy.close()
             raise
@@ -1949,7 +1959,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         for i in range(len(display_item.display_layers)):
             data_index = display_item.display_data_channels.index(display_item.get_display_layer_display_data_channel(i))
             display_item_copy.add_display_layer_for_display_data_channel(display_item_copy.display_data_channels[data_index], **display_item.get_display_layer_properties(i))
-        display_item_copy.title = _("Display Snapshot of ") + display_item.title
+        display_item_copy.title = display_item.displayed_title + " (" + _("Display Snapshot") + ")"
         self.append_display_item(display_item_copy)
         return display_item_copy
 
@@ -2145,7 +2155,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         # will handle the change (and trigger a new computation).
         input_items = set(computation.input_items)
         output_items = set(computation.output_items)
-        self.__establish_computation_dependencies(computation._inputs, input_items, computation._outputs, output_items)
+        self.__establish_computation_dependencies(computation.label or _("Processed"), computation._inputs, input_items, computation._outputs, output_items)
         computation._inputs = input_items
         computation._outputs = output_items
 
@@ -2369,8 +2379,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
         data_item0 = inputs[0][1]
         new_data_item = DataItem.new_data_item()
-        prefix = "{} of ".format(processing_description["title"])
-        new_data_item.title = prefix + (data_item0.title if data_item0 else gettext.gettext("Untitled"))
+        new_data_item.title = str()  # use inherited title for processed data.
         new_data_item.category = data_item0.category if data_item0 else "persistent"
 
         self.append_data_item(new_data_item)

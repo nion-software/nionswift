@@ -1040,7 +1040,6 @@ class DocumentController(Window.Window):
                     display_layer.stroke_color = display_layer_color_str
                     display_layer_properties = display_layer.get_display_layer_properties()
                 new_display_item.append_display_data_channel_for_data_item(data_item, display_layer_properties)
-                new_display_item.title = target_display_item.title + _(" (Composite)")
                 command = DocumentController.InsertDisplayItemCommand(self, new_display_item, display_panel)
                 command.perform()
                 self.push_undo_command(command)
@@ -2058,8 +2057,6 @@ class DocumentController(Window.Window):
     def _perform_duplicate(self, data_item: DataItem.DataItem) -> None:
         def process() -> DataItem.DataItem:
             new_data_item = self.document_model.copy_data_item(data_item)
-            new_data_item.title = _("Clone of ") + data_item.title
-            new_data_item.category = data_item.category
             display_item = self.document_model.get_display_item_for_data_item(new_data_item)
             assert display_item
             self.show_display_item(display_item, source_data_item=data_item)
@@ -2220,7 +2217,7 @@ class DocumentController(Window.Window):
                     new_map[variable_name] = Symbolic.make_item(display_item.data_item)
             map = new_map
         data_item = DataItem.DataItem()
-        data_item.title = _("Computation on ") + data_item.title
+        data_item.title = _("Computation")
         computation = self.document_model.create_computation(expression)
         names = Symbolic.Computation.parse_names(expression)
         for variable_name, input_item in map.items():
@@ -2699,7 +2696,8 @@ class DeleteItemAction(Window.Action):
         data_item = context.data_item
         display_item = context.display_item
         if data_item and len(context.model.get_display_items_for_data_item(data_item)) == 1:
-            return _("Delete Data Item") + f" \"{data_item.title}\""
+            displayed_title = display_item.displayed_title if display_item else data_item.title
+            return _("Delete Data Item") + f" \"{displayed_title}\""
         elif display_item:
             return _("Delete Display Item") + f" \"{display_item.displayed_title}\""
         elif context.display_items:

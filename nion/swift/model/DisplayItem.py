@@ -1334,6 +1334,8 @@ class DisplayItem(Persistence.PersistentObject):
 
         self.__inherited_title: typing.Optional[str] = None
         self.__inherited_title_listener: typing.Optional[Event.EventListener] = None
+        self.__computation_title: typing.Optional[str] = None
+        self.__computation_source_count = 0
 
         # the most recent data to be displayed. should have immediate data available.
         self.__is_composite_data = False
@@ -1910,21 +1912,25 @@ class DisplayItem(Persistence.PersistentObject):
             self.__inherited_title_listener = None
         if source_display_items:
             source_display_item = source_display_items[0]
-            inherited_title = source_display_item.title
+            inherited_title = source_display_item.displayed_title
 
             def inherited_title_changed(display_item: DisplayItem, source_display_item: DisplayItem, key: str) -> None:
-                if key == "title":
-                    display_item.__update_inherited_title(source_display_item.title)
+                if key == "displayed_title":
+                    display_item.__update_inherited_title(source_display_item.displayed_title, self.__computation_title, self.__computation_source_count)
 
             self.__inherited_title_listener = source_display_item.property_changed_event.listen(ReferenceCounting.weak_partial(inherited_title_changed, self, source_display_item))
-        self.__update_inherited_title(inherited_title)
+        self.__update_inherited_title(inherited_title, self.__computation_title, len(source_display_items))
 
-    def __update_inherited_title(self, inherited_title: typing.Optional[str]) -> None:
-        if self.__inherited_title != inherited_title:
-            old_displayed_title = self.displayed_title
-            self.__inherited_title = inherited_title
-            if self.displayed_title != old_displayed_title:
-                self.notify_property_changed("displayed_title")
+    def computation_title_changed(self, computation_title: typing.Optional[str]) -> None:
+        self.__update_inherited_title(self.__inherited_title, computation_title, self.__computation_source_count)
+
+    def __update_inherited_title(self, inherited_title: typing.Optional[str], computation_title: typing.Optional[str], computation_source_count: int) -> None:
+        old_displayed_title = self.displayed_title
+        self.__inherited_title = inherited_title
+        self.__computation_title = computation_title
+        self.__computation_source_count = computation_source_count
+        if self.displayed_title != old_displayed_title:
+            self.notify_property_changed("displayed_title")
 
     def __get_used_str_value(self, key: str, default_value: str) -> str:
         if self._get_persistent_property_value(key) is not None:
@@ -1949,7 +1955,13 @@ class DisplayItem(Persistence.PersistentObject):
     def displayed_title(self) -> str:
         if self.title:
             return self.title
-        return self.__inherited_title or DataItem.UNTITLED_STR
+        inherited_title = self.__inherited_title or DataItem.UNTITLED_STR
+        if self.__computation_title:
+            inherited_title = inherited_title + " (" + self.__computation_title + ")"
+        if self.__computation_source_count > 1:
+            more_str = _("More")
+            inherited_title = inherited_title + f" (+{self.__computation_source_count - 1} {more_str})"
+        return inherited_title
 
     @property
     def title(self) -> str:

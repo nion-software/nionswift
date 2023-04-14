@@ -2855,6 +2855,30 @@ class TestDisplayPanelClass(unittest.TestCase):
             self.assertAlmostEqual(data_item1.intensity_calibration.convert_from_calibrated_value(26.0) * 1.2, axes.uncalibrated_data_max)
             self.assertAlmostEqual(data_item1.intensity_calibration.convert_from_calibrated_value(0.0) * 1.2, axes.uncalibrated_data_min)
 
+    def test_display_tracker_updates_when_inherited_title_updates(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((8,)))
+            data_item.title = "red"
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            data_item2 = document_model.get_invert_new(display_item, display_item.data_item)
+            data_item2.title = None
+            display_item2 = document_model.get_display_item_for_data_item(data_item2)
+            document_model.recompute_all()
+            self.assertEqual("red", display_item.displayed_title)
+            self.assertEqual("red (Negate)", display_item2.displayed_title)
+            display_panel = document_controller.selected_display_panel
+            display_tracker = DisplayPanel.DisplayTracker(display_item2, DisplayPanel.DisplayPanelUISettings(document_controller.ui), display_panel, document_controller.event_loop, False)
+            title_changed = False
+            def handle_title_changed(title: str) -> None:
+                nonlocal title_changed
+                title_changed = True
+            display_tracker.on_title_changed = handle_title_changed
+            data_item.title = "green"
+            self.assertTrue(title_changed)
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
