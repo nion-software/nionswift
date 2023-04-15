@@ -29,9 +29,9 @@ def pose_title_edit_popup(document_controller: DocumentController.DocumentContro
             self.title_edit: typing.Optional[UserInterface.LineEditWidget] = None
             self.caption_edit: typing.Optional[UserInterface.TextEditWidget] = None
             self.__is_rejected = False
-            self.__title = display_item.title
+            self.__title = display_item.specified_title
             self.__caption = display_item.caption
-            self.__title_placeholder = display_item.displayed_title
+            self.__title_placeholder = display_item.placeholder_title
 
         def init_handler(self) -> None:
             if self.title_edit:

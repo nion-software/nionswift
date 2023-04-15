@@ -1501,6 +1501,7 @@ class DisplayItem(Persistence.PersistentObject):
         self.notify_property_changed(name)
         if name == "title":
             self.notify_property_changed("displayed_title")
+            self.notify_property_changed("specified_title")
         if name == "calibration_style_id":
             self.display_property_changed_event.fire("calibration_style_id")
 
@@ -1904,6 +1905,7 @@ class DisplayItem(Persistence.PersistentObject):
         self.notify_property_changed("description")
         self.notify_property_changed("session_id")
         self.notify_property_changed("displayed_title")
+        self.notify_property_changed("specified_title")
 
     def source_display_items_changed(self, source_display_items: typing.Sequence[DisplayItem]) -> None:
         inherited_title: typing.Optional[str] = None
@@ -1931,6 +1933,7 @@ class DisplayItem(Persistence.PersistentObject):
         self.__computation_source_count = computation_source_count
         if self.displayed_title != old_displayed_title:
             self.notify_property_changed("displayed_title")
+            self.notify_property_changed("specified_title")
 
     def __get_used_str_value(self, key: str, default_value: str) -> str:
         if self._get_persistent_property_value(key) is not None:
@@ -1964,11 +1967,35 @@ class DisplayItem(Persistence.PersistentObject):
         return inherited_title
 
     @property
+    def placeholder_title(self) -> str:
+        # return the title that would be used if no title were set.
+        inherited_title = self.__inherited_title or DataItem.UNTITLED_STR
+        if self.__computation_title:
+            inherited_title = inherited_title + " (" + self.__computation_title + ")"
+        if self.__computation_source_count > 1:
+            more_str = _("More")
+            inherited_title = inherited_title + f" (+{self.__computation_source_count - 1} {more_str})"
+        return inherited_title
+
+    @property
     def title(self) -> str:
         return self.__get_used_str_value("title", str())
 
     @title.setter
     def title(self, value: str) -> None:
+        self.__set_cascaded_value("title", str(value) if value is not None else str())
+
+    @property
+    def specified_title(self) -> str:
+        # return the title that was explicitly set, or empty string if no title was explicitly set.
+        if self._get_persistent_property_value("title") is not None:
+            return typing.cast(str, self._get_persistent_property_value("title"))
+        if self.data_item and self.data_item.title:
+            return self.data_item.title
+        return str()
+
+    @specified_title.setter
+    def specified_title(self, value: str) -> None:
         self.__set_cascaded_value("title", str(value) if value is not None else str())
 
     @property
