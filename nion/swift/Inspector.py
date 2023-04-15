@@ -554,11 +554,15 @@ class InfoInspectorSection(InspectorSection):
         ui = document_controller.ui
         self.widget_id = "info_inspector_section"
         # title
+        TOOL_TIP_STR = _("Use empty field for automatic title.")
         self.info_section_title_row = self.ui.create_row_widget()
-        self.info_section_title_row.add(self.ui.create_label_widget(_("Title"), properties={"width": 60}))
+        title_label_widget = self.ui.create_label_widget(_("Title"), properties={"width": 60})
+        title_label_widget.tool_tip = TOOL_TIP_STR
+        self.info_section_title_row.add(title_label_widget)
         self.info_title_label = self.ui.create_line_edit_widget()
         self.info_title_label.bind_text(ChangeDisplayItemPropertyBinding(document_controller, display_item, "title"))
         self.info_title_label.bind_placeholder_text(Binding.PropertyBinding(display_item, "displayed_title"))
+        self.info_title_label.tool_tip = TOOL_TIP_STR
         self.info_section_title_row.add(self.info_title_label)
         self.info_section_title_row.add_spacing(8)
         # caption

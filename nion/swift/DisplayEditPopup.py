@@ -101,15 +101,17 @@ def pose_title_edit_popup(document_controller: DocumentController.DocumentContro
                     document_controller.push_undo_command(command)
             super().close()
 
+    TOOL_TIP_STR = _("Use empty field for automatic title.")
+
     ui_handler = Handler()
 
     u = Declarative.DeclarativeUI()
 
-    title_edit = u.create_line_edit(name="title_edit", text="title", placeholder_text="@binding(title_placeholder)", on_return_pressed="accept", on_escape_pressed="reject", width=320)
+    title_edit = u.create_line_edit(name="title_edit", text="title", placeholder_text="@binding(title_placeholder)", tool_tip=TOOL_TIP_STR, on_return_pressed="accept", on_escape_pressed="reject", width=320)
 
     caption_edit = u.create_text_edit(name="caption_edit", text="caption", on_escape_pressed="reject", height=100, width=320)
 
-    title_row = u.create_row(u.create_label(text=_("Title"), tool_tip=_("Use empty field for automatic title.")), title_edit, spacing=8, margin=8)
+    title_row = u.create_row(u.create_label(text=_("Title"), tool_tip=TOOL_TIP_STR), title_edit, spacing=8, margin=8)
 
     caption_row = u.create_row(u.create_label(text=_("Caption")), caption_edit, spacing=8, margin=8)
 
