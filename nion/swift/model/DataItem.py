@@ -855,9 +855,6 @@ class DataItem(Persistence.PersistentObject):
         assert value is None or datetime.datetime.strptime(value, "%Y%m%d-%H%M%S")
         return typing.cast(typing.Optional[datetime.datetime], value)
 
-    def ensure_data_source(self) -> None:
-        pass
-
     @property
     def data(self) -> typing.Optional[_ImageDataType]:
         return self.__get_data()
@@ -1006,7 +1003,7 @@ class DataItem(Persistence.PersistentObject):
     @property
     def metadata(self) -> DataAndMetadata.MetadataType:
         data_metadata = self.__data_metadata
-        return copy.deepcopy(dict(data_metadata.metadata)) if data_metadata else self.__metadata
+        return copy.deepcopy(dict(data_metadata.metadata) if data_metadata else self.__metadata)
 
     @metadata.setter
     def metadata(self, metadata: DataAndMetadata.MetadataType) -> None:
@@ -1130,7 +1127,7 @@ class DataItem(Persistence.PersistentObject):
                 data_shape_and_dtype = data_shape, data_dtype
                 timezone = Utility.get_local_timezone()
                 timezone_offset = Utility.TimezoneMinutesToStringConverter().convert(Utility.local_utcoffset_minutes())
-                data_metadata = DataAndMetadata.DataMetadata(data_shape_and_dtype=data_shape_and_dtype, data_descriptor=data_descriptor, timezone=timezone, timezone_offset=timezone_offset)
+                data_metadata = DataAndMetadata.DataMetadata(data_shape_and_dtype=data_shape_and_dtype, data_descriptor=data_descriptor, metadata=self.metadata, timezone=timezone, timezone_offset=timezone_offset)
                 self.__set_data_metadata_direct(data_metadata, data_modified)
                 self.__load_data()
                 self.__data_and_metadata_unloadable = True

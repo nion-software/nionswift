@@ -1460,6 +1460,17 @@ class TestDataItemClass(unittest.TestCase):
             # verify
             self.assertTrue(numpy.array_equal(data_item2.xdata.data, numpy.ones((8, 8))))
 
+    def test_reserving_data_keeps_metadata(self):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            data_item = DataItem.DataItem()
+            data_item.metadata = {"abc": 33}
+            data_item.session_metadata = {"def": 55}
+            document_model.append_data_item(data_item)
+            data_item.reserve_data(data_shape=(2, 2), data_dtype=numpy.dtype(numpy.float32), data_descriptor=DataAndMetadata.DataDescriptor(False, 0, 2))
+            self.assertEqual(33, data_item.metadata.get("abc"))
+            self.assertEqual(55, data_item.session_metadata.get("def"))
+
     # modify property/item/relationship on data source, display, region, etc.
     # copy or snapshot
 
