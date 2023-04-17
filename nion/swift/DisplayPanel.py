@@ -2273,6 +2273,9 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
     def __update_title(self) -> None:
         if self.__display_item:
             displayed_title = self.__display_item.displayed_title
+            if self.__display_item.is_live:
+                live = _("Live")
+                displayed_title = f"{displayed_title} ({live})"
             r_var = DocumentModel.MappedItemManager().get_item_r_var(self.__display_item)
             if r_var:
                 displayed_title = f"{displayed_title} ({r_var})"

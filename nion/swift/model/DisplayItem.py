@@ -1811,7 +1811,7 @@ class DisplayItem(Persistence.PersistentObject):
         # if the change count is now zero, it means that we're ready to notify listeners.
         if change_count == 0:
             self.__write_delay_data_changed = True
-            self.__item_changed()
+            self.item_changed_event.fire()
             self.__update_displays()  # this ensures that the display will validate
 
     def increment_display_ref_count(self, amount: int = 1) -> None:
@@ -1842,6 +1842,7 @@ class DisplayItem(Persistence.PersistentObject):
         # this event is only triggered when the data item changed live state; everything else goes through
         # the data changed messages.
         self.item_changed_event.fire()
+        self.notify_property_changed("displayed_title")
 
     def __display_channel_property_changed(self, name: str) -> None:
         self.display_changed_event.fire()
