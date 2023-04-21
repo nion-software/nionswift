@@ -42,6 +42,7 @@ from nion.swift.model import Utility
 from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import Observable
+from nion.utils import ReferenceCounting
 
 if typing.TYPE_CHECKING:
     from nion.swift.model import Project
@@ -2145,11 +2146,14 @@ class Computation(Persistence.PersistentObject):
             self.__error_stack_trace = value
             self.notify_property_changed("error_stack_trace")
 
-    def update_status(self, error_text: typing.Optional[str], elapsed_time: typing.Optional[float]) -> None:
+    def update_status(self, error_text: typing.Optional[str], error_stack_trace: typing.Optional[str], elapsed_time: typing.Optional[float]) -> None:
         self.__elapsed_time = elapsed_time
         self.__last_timestamp = datetime.datetime.utcnow()
         if self.error_text != error_text:
             self.error_text = error_text
+        error_stack_trace = error_stack_trace or str()
+        if self.error_stack_trace != error_stack_trace:
+            self.error_stack_trace = error_stack_trace
         self.notify_property_changed("status")
 
     @property
@@ -2588,7 +2592,7 @@ class Computation(Persistence.PersistentObject):
 class ComputationExecutor:
 
     def __init__(self, computation: Computation) -> None:
-        self.__computation = computation
+        self.__computation: typing.Optional[Computation] = computation
         self.error_text: typing.Optional[str] = None
         self.error_stack_trace = str()
         self.__last_execution_time: float = 0.0
@@ -2598,13 +2602,24 @@ class ComputationExecutor:
         self.__activity.state = "computing"
         Activity.append_activity(self.__activity)
 
+        def computation_deleted(computation_executor: ComputationExecutor) -> None:
+            computation_executor.__computation = None
+
+        # handle case where computation gets deleted during execute and execute has an error.
+        self.__about_to_close_event_listener = self.__computation.about_to_close_event.listen(ReferenceCounting.weak_partial(computation_deleted, self))
+
     def close(self) -> None:
+        self.__about_to_close_event_listener = typing.cast(typing.Any, None)
         if self.__activity:
             Activity.activity_finished(self.__activity)
             self.__activity = None
 
+    def mark_initial_computation_complete(self) -> None:
+        if self.__computation:
+            self.__computation.is_initial_computation_complete.set()
+
     @property
-    def computation(self) -> Computation:
+    def computation(self) -> typing.Optional[Computation]:
         return self.__computation
 
     def _execute(self, **kwargs: typing.Any) -> None: raise NotImplementedError()
@@ -2629,13 +2644,8 @@ class ComputationExecutor:
                 if self.__activity:
                     Activity.activity_finished(self.__activity)
                     self.__activity = None
-        self.__computation.update_status(self.error_text, self.__last_execution_time)
-
-        if self.__computation.error_text != self.error_text:
-            self.__computation.error_text = self.error_text
-
-        if self.__computation.error_stack_trace != self.error_stack_trace:
-            self.__computation.error_stack_trace = self.error_stack_trace
+        if self.__computation:
+            self.__computation.update_status(self.error_text, self.error_stack_trace, self.__last_execution_time)
 
     def abort(self) -> None:
         self.__aborted = True

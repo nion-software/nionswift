@@ -4,6 +4,7 @@ import copy
 import logging
 import random
 import threading
+import time
 import unittest
 import uuid
 
@@ -1610,6 +1611,45 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.append_computation(computation1)
             document_model.recompute_all()
             self.assertTrue(computation1.is_initial_computation_complete.wait(0.01))
+
+    class ComputeExecDelayedError:
+        def __init__(self, started_event: threading.Event, continue_event: threading.Event, computation, **kwargs):
+            self.computation = computation
+            self.started_event = started_event
+            self.continue_event = continue_event
+
+        def execute(self, src_xdata):
+            self.started_event.set()
+            self.continue_event.wait(5)
+            raise RuntimeError()
+
+        def commit(self):
+            pass
+
+    def test_computation_removed_during_execute_is_handled(self):
+        started_event = threading.Event()
+        continue_event = threading.Event()
+        import functools
+        Symbolic.register_computation_type("compute_delayed_error", functools.partial(self.ComputeExecDelayedError, started_event, continue_event))
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((2, 2)))
+            document_model.append_data_item(data_item)
+            computation1 = document_model.create_computation()
+            computation1.create_input_item("src_xdata", Symbolic.make_item(data_item, type="xdata"))
+            computation1.processing_id = "compute_delayed_error"
+            document_model.append_computation(computation1)
+            document_model.start_dispatcher()
+            started_event.wait(5)
+            # computation will be in execute now
+            document_model.remove_computation(computation1)
+            # now let the computation finish
+            continue_event.set()
+            # give it a chance to fully complete with a pending error.
+            time.sleep(0.05)
+            document_model.recompute_all()
+            document_controller.periodic()
 
     def test_removing_computation_unbinds(self):
         Symbolic.register_computation_type("compute_error", self.ComputeExecError)

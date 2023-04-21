@@ -1633,7 +1633,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 pending_computation_executor.commit()
             finally:
                 self.__current_computation_executor = None
-                pending_computation_executor.computation.is_initial_computation_complete.set()
+                pending_computation_executor.mark_initial_computation_complete()
                 pending_computation_executor.close()
         self.dispatch_task(self.__recompute)
 
