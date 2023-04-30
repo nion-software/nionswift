@@ -637,8 +637,8 @@ class DataItem(Persistence.PersistentObject):
     def __timezone_property_changed(self, name: str, value: typing.Optional[str]) -> None:
         timezone = self.timezone
         if self.__data_metadata and timezone is not None:
-            self.__data_metadata.timezone = timezone
-            self.__data_metadata.timezone_offset = self.timezone_offset or str()
+            self.__data_metadata._set_timezone(timezone)
+            self.__data_metadata._set_timezone_offset(self.timezone_offset)
         self.notify_property_changed(name)
 
     # call this when the listeners need to be updated (via data_item_content_changed).
@@ -972,7 +972,7 @@ class DataItem(Persistence.PersistentObject):
     @data_modified.setter
     def data_modified(self, value: datetime.datetime) -> None:
         if self.__data_metadata:
-            self.__data_metadata.timestamp = value
+            self.__data_metadata._set_timestamp(value)
             self._set_persistent_property_value("data_modified", value)
             self.__metadata_property_changed("data_modified", value)
 
@@ -984,7 +984,7 @@ class DataItem(Persistence.PersistentObject):
     @timezone.setter
     def timezone(self, value: str) -> None:
         if self.__data_metadata:
-            self.__data_metadata.timezone = value
+            self.__data_metadata._set_timezone(value)
             self._set_persistent_property_value("timezone", value)
             self.__timezone_property_changed("timezone", value)
 
@@ -996,7 +996,7 @@ class DataItem(Persistence.PersistentObject):
     @timezone_offset.setter
     def timezone_offset(self, value: str) -> None:
         if self.__data_metadata:
-            self.__data_metadata.timezone_offset = value
+            self.__data_metadata._set_timezone_offset(value)
             self._set_persistent_property_value("timezone_offset", value)
             self.__timezone_property_changed("timezone_offset", value)
 
@@ -1051,7 +1051,7 @@ class DataItem(Persistence.PersistentObject):
         assert self.__data_ref_count > 0
         # set the data modified directly
         data_modified = data_modified if data_modified else self.utcnow()
-        data_metadata.timestamp = data_modified
+        data_metadata._set_timestamp(data_modified)
         # save the data_metadata. this must go before setting the persistent properties below because
         # of how the recorder works (grabs the attribute from data item).
         self.__data_metadata = copy.deepcopy(data_metadata)

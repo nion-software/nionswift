@@ -4162,7 +4162,9 @@ class TestStorageClass(unittest.TestCase):
                 # update
                 data_and_metadata = DataAndMetadata.new_data_and_metadata(numpy.ones((1, 4)), metadata={"abc": 44})
                 data_metadata = copy.deepcopy(data_item.data_and_metadata.data_metadata)
-                data_metadata.metadata["abc"] = "ABC"
+                metadata_copy = dict(data_metadata.metadata)
+                metadata_copy["abc"] = "ABC"
+                data_metadata._set_metadata(metadata_copy)
                 document_model.update_data_item_partial(data_item, data_metadata, data_and_metadata, [slice(0, 1), slice(None)], [slice(0, 1), slice(None)])
                 document_model.update_data_item_partial(data_item, data_metadata, data_and_metadata, [slice(0, 1), slice(None)], [slice(1, 2), slice(None)])
                 document_model.perform_data_item_updates()

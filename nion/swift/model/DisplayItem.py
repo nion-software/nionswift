@@ -373,7 +373,7 @@ class DisplayValues:
                                                                                      self.__slice_width,
                                                                                      flag16=False)
                     if data_and_metadata:
-                        data_and_metadata.data_metadata.timestamp = timestamp
+                        data_and_metadata.data_metadata._set_timestamp(timestamp)
                     self.__element_data_and_metadata = data_and_metadata
             return self.__element_data_and_metadata
 
@@ -387,7 +387,7 @@ class DisplayValues:
                     timestamp = data_and_metadata.timestamp
                     data_and_metadata, modified = Core.function_scalar_data_no_copy(data_and_metadata, self.__complex_display_type)
                     if data_and_metadata:
-                        data_and_metadata.data_metadata.timestamp = timestamp
+                        data_and_metadata.data_metadata._set_timestamp(timestamp)
                     self.__display_data_and_metadata = data_and_metadata
             return self.__display_data_and_metadata
 
