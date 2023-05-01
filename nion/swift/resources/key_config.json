@@ -140,6 +140,9 @@
     "window.edit_computation": {
         "window": "Ctrl+E"
     },
+    "window.open_title_edit": {
+        "window": "Ctrl+T"
+    },
     "window.edit_data_item_script": {
         "window": "Ctrl+Shift+E"
     },

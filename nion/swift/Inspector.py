@@ -1173,6 +1173,7 @@ class SessionInspectorSection(InspectorSection):
             [_("Microscopist"), _("Microscopist Name(s)"), "microscopist"],
             [_("Sample"), _("Sample Description"), "sample"],
             [_("Sample Area"), _("Sample Area Description"), "sample_area"],
+            [_("Label"), _("Brief Label"), "label"],
         ]
 
         widget = self.ui.create_column_widget()

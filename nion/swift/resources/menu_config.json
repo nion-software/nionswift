@@ -226,6 +226,13 @@
             },
             {
                 "type": "item",
+                "action_id": "window.open_title_edit"
+            },
+            {
+                "type": "separator"
+            },
+            {
+                "type": "item",
                 "action_id": "display.copy_display"
             },
             {

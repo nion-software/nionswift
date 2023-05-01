@@ -10,6 +10,7 @@ session_key_map = {
     'stem.session.microscopist': {'paths': ['microscopist'], 'type': 'string'},
     'stem.session.sample': {'paths': ['sample'], 'type': 'string'},
     'stem.session.sample_area': {'paths': ['sample_area'], 'type': 'string'},
+    'stem.session.label': {'paths': ['label'], 'type': 'string'},
     'stem.session.sample_source': {'paths': ['sample_source'], 'type': 'string'},
     'stem.session.sample_formula': {'paths': ['sample_formula'], 'type': 'string'},
 }

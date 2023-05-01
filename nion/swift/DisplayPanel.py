@@ -1652,17 +1652,10 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         self.__header_canvas_item = Panel.HeaderCanvasItem(DisplayPanelUISettings(document_controller.ui), display_close_control=True)
 
         def header_double_clicked(x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
-            display_item = self.display_item
-            if display_item:
-                from nion.swift import DisplayEditPopup
-                size = Geometry.IntSize(width=400, height=40)
-                canvas_bounds = self.__header_canvas_item.canvas_bounds
-                assert canvas_bounds
-                pos = Geometry.IntPoint(x=canvas_bounds.center.x - size.width // 2, y=canvas_bounds.top)
-                global_pos = self.__header_canvas_item.map_to_global(pos)
-                DisplayEditPopup.pose_title_edit_popup(document_controller, display_item, global_pos, size)
-                return True
-            return False
+            action_context = document_controller._get_action_context()
+            action_context.display_panel = self
+            document_controller.perform_action_in_context("window.open_title_edit", action_context)
+            return True
 
         self.__header_canvas_item.on_double_clicked = header_double_clicked
 

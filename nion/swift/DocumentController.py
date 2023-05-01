@@ -2930,6 +2930,33 @@ class OpenRunScriptsAction(Window.Action):
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
+class OpenTitleEditAction(Window.Action):
+    action_id = "window.open_title_edit"
+    action_name = _("Edit Title")
+
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        raise NotImplementedError()
+
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        display_item = typing.cast(DisplayItem.DisplayItem, context.display_item)
+        if window and display_item:
+            from nion.swift import DisplayEditPopup
+            size = Geometry.IntSize(width=400, height=40)
+            display_panel = context.display_panel
+            global_pos: typing.Optional[Geometry.IntPoint] = None
+            if display_panel:
+                header_canvas_item = display_panel.header_canvas_item
+                canvas_bounds = header_canvas_item.canvas_bounds
+                assert canvas_bounds
+                pos = Geometry.IntPoint(x=canvas_bounds.center.x - size.width // 2, y=canvas_bounds.top)
+                global_pos = header_canvas_item.map_to_global(pos)
+            DisplayEditPopup.pose_title_edit_popup(window, display_item, global_pos, size)
+            return Window.ActionResult(Window.ActionStatus.FINISHED)
+        return Window.ActionResult(Window.ActionStatus.PASS)
+
+
 class ToggleFilterAction(Window.Action):
     action_id = "window.toggle_filter"
     action_name = _("Filter")
@@ -2949,6 +2976,7 @@ Window.register_action(OpenConsoleAction())
 Window.register_action(OpenNotificationsAction())
 Window.register_action(OpenProjectDialogAction())
 Window.register_action(OpenRunScriptsAction())
+Window.register_action(OpenTitleEditAction())
 Window.register_action(ProjectItemsDialogAction())
 Window.register_action(ToggleFilterAction())
 
