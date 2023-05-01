@@ -1380,14 +1380,14 @@ class TestDisplayPanelClass(unittest.TestCase):
             self.assertEqual(0, len(document_model.data_items))
 
     def test_display_panel_title_gets_updated_when_data_item_title_is_changed(self):
-        self.assertEqual(self.display_panel.header_canvas_item.title, self.data_item.title)
+        self.assertEqual(self.display_panel.header_canvas_item.title, self.display_item.displayed_title)
         self.data_item.title = "New Title"
-        self.assertEqual(self.display_panel.header_canvas_item.title, self.data_item.title)
+        self.assertEqual(self.display_panel.header_canvas_item.title, self.display_item.displayed_title)
 
     def test_display_panel_title_gets_updated_when_data_item_r_value_is_changed(self):
-        self.assertEqual(self.display_panel.header_canvas_item.title, self.data_item.title)
+        self.assertEqual(self.display_panel.header_canvas_item.title, self.display_item.displayed_title)
         DocumentModel.MappedItemManager().register(self.document_model, self.display_item)
-        self.assertNotEqual(self.display_panel.header_canvas_item.title, self.data_item.title)
+        self.assertNotEqual(self.display_panel.header_canvas_item.title, self.display_item.displayed_title)
 
     def test_all_graphic_types_repaint_on_1d_display(self):
         display_canvas_item = self.setup_line_plot()

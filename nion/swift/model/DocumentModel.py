@@ -2379,7 +2379,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
         data_item0 = inputs[0][1]
         new_data_item = DataItem.new_data_item()
-        new_data_item.title = str()  # use inherited title for processed data.
         new_data_item.category = data_item0.category if data_item0 else "persistent"
 
         self.append_data_item(new_data_item)

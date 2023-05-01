@@ -1932,9 +1932,12 @@ class DisplayItem(Persistence.PersistentObject):
         self.__inherited_title = inherited_title
         self.__computation_title = computation_title
         self.__computation_source_count = computation_source_count
-        if self.displayed_title != old_displayed_title:
+        displayed_title = self.displayed_title
+        if displayed_title != old_displayed_title:
             self.notify_property_changed("displayed_title")
             self.notify_property_changed("specified_title")
+            if data_item := self.data_item:
+                data_item._set_persistent_property_value("title", displayed_title)
 
     def __get_used_str_value(self, key: str, default_value: str) -> str:
         if self._get_persistent_property_value(key) is not None:

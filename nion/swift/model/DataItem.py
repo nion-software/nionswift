@@ -203,7 +203,8 @@ class DataItem(Persistence.PersistentObject):
         self.define_property("timezone", Utility.get_local_timezone(), hidden=True, changed=self.__timezone_property_changed, recordable=False)
         self.define_property("timezone_offset", Utility.TimezoneMinutesToStringConverter().convert(Utility.local_utcoffset_minutes()), hidden=True, changed=self.__timezone_property_changed, recordable=False)
         self.define_property("metadata", dict(), hidden=True, changed=self.__metadata_property_changed)
-        self.define_property("title", UNTITLED_STR, changed=self.__property_changed, hidden=True)
+        self.define_property("title", str(), changed=self.__property_changed, hidden=True)
+        self.define_property("is_auto_title", True, changed=self.__property_changed, hidden=True)
         self.define_property("caption", changed=self.__property_changed, hidden=True)
         self.define_property("description", changed=self.__property_changed, hidden=True)
         self.define_property("source_specifier", changed=self.__source_specifier_changed, key="source_uuid", hidden=True)
@@ -280,6 +281,7 @@ class DataItem(Persistence.PersistentObject):
             data_item_copy.timezone_offset = self.timezone_offset
             data_item_copy.metadata = self.metadata
             data_item_copy.title = self.title
+            data_item_copy.is_auto_title = self.is_auto_title
             data_item_copy.caption = self.caption
             data_item_copy.description = self.description
             data_item_copy.session_id = self.session_id
@@ -312,12 +314,21 @@ class DataItem(Persistence.PersistentObject):
     def created(self, value: datetime.datetime) -> None:
         self._set_persistent_property_value("created", value)
 
+    @ property
+    def is_auto_title(self) -> bool:
+        return typing.cast(bool, self._get_persistent_property_value("is_auto_title"))
+
+    @is_auto_title.setter
+    def is_auto_title(self, value: bool) -> None:
+        self._set_persistent_property_value("is_auto_title", value)
+
     @property
     def title(self) -> str:
-        return typing.cast(str, self._get_persistent_property_value("title"))
+        return typing.cast(str, self._get_persistent_property_value("title")) if not self.is_auto_title else str()
 
     @title.setter
     def title(self, value: str) -> None:
+        self.is_auto_title = not value
         self._set_persistent_property_value("title", value)
 
     @property
@@ -483,6 +494,8 @@ class DataItem(Persistence.PersistentObject):
         # block; then make sure that no change notifications actually occur. this makes
         # sure things like cached values are preserved after reading.
         with self.data_item_changes():
+            if not "is_auto_title" in properties:
+                properties["is_auto_title"] = False
             super().read_from_dict(properties)
             data_shape = self._get_persistent_property_value("data_shape", None)
             data_dtype = DtypeToStringConverter().convert_back(self._get_persistent_property_value("data_dtype", None))
