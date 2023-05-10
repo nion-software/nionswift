@@ -1044,9 +1044,9 @@ class WorkspaceManager(metaclass=Utility.Singleton):
             cls = tuple[0]
             try:
                 properties = properties if properties else {}
-                panel = cls(document_controller, panel_id, properties)
+                panel: Panel.Panel = cls(document_controller, panel_id, properties)
                 panel.create_dock_widget(title, positions, position)
-                return typing.cast(Panel.Panel, panel)
+                return panel
             except Exception as e:
                 import traceback
                 print("Exception creating panel '" + panel_id + "': " + str(e))
