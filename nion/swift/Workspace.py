@@ -4,6 +4,7 @@ from __future__ import annotations
 import copy
 import functools
 import gettext
+import json
 import random
 import string
 import threading
@@ -274,15 +275,15 @@ class Workspace:
             dock_panel.periodic()
 
     def restore_geometry_state(self) -> typing.Tuple[str, str]:
-        geometry = self.ui.get_persistent_string("Workspace/%s/Geometry" % self.workspace_id)
-        state = self.ui.get_persistent_string("Workspace/%s/State" % self.workspace_id)
+        geometry = self.ui.get_persistent_string(f"Workspace/{self.workspace_id}/Geometry")
+        state = self.ui.get_persistent_string(f"Workspace/{self.workspace_id}/State")
         return geometry, state
 
     def save_geometry_state(self, geometry: str, state: str) -> None:
         # ugh. this has the side effect of saving the layout when the geometry state is saved.
         self.__sync_layout()
-        self.ui.set_persistent_string("Workspace/%s/Geometry" % self.workspace_id, geometry)
-        self.ui.set_persistent_string("Workspace/%s/State" % self.workspace_id, state)
+        self.ui.set_persistent_string(f"Workspace/{self.workspace_id}/Geometry", geometry)
+        self.ui.set_persistent_string(f"Workspace/{self.workspace_id}/State", state)
 
     @property
     def document_controller(self) -> DocumentController.DocumentController:
@@ -313,9 +314,17 @@ class Workspace:
         # get the document controller
         document_controller = self.document_controller
 
+        # load the custom panels
+        custom_panels_str = self.ui.get_persistent_string(f"Workspace/{self.workspace_id}/CustomPanels", "{}")
+        try:
+            custom_panels_dict = json.loads(custom_panels_str)
+        except Exception as e:
+            custom_panels_dict = dict()
+        Panel.PanelManager().load(custom_panels_dict)
+
         # add registered panels
-        for panel_id in self.workspace_manager.panel_ids:
-            title, positions, position, properties = self.workspace_manager.get_panel_info(panel_id)
+        for panel_id in Panel.PanelManager().panel_ids:
+            title, positions, position, properties = Panel.PanelManager().get_panel_info(panel_id)
             if position != "central":
                 dock_panel = self.create_panel(document_controller, panel_id, title, positions, position, properties)
                 if dock_panel:  # could have failed to create due to exception
@@ -328,9 +337,9 @@ class Workspace:
                      positions: typing.Sequence[str], position: str,
                      properties: typing.Optional[Persistence.PersistentDictType]) -> typing.Optional[Panel.Panel]:
         try:
-            panel = self.workspace_manager.create_panel_content(document_controller, panel_id, title, positions, position, properties)
-            assert panel is not None, "panel is None [%s]" % panel_id
-            assert panel.widget is not None, "panel widget is None [%s]" % panel_id
+            panel = Panel.PanelManager().create_panel_content(document_controller, panel_id, title, positions, position, properties)
+            assert panel is not None, f"panel is None [{panel_id}]"
+            assert panel.widget is not None, f"panel widget is None [{panel_id}]"
             self.dock_panels.append(panel)
             return panel
         except Exception as e:
@@ -1024,35 +1033,13 @@ class WorkspaceManager(metaclass=Utility.Singleton):
         The WorkspaceManager object keeps a list of workspaces and a list of panel
         types. It also creates workspace objects.
         """
-    def __init__(self) -> None:
-        self.__panel_tuples: typing.Dict[str, typing.Tuple[typing.Type[typing.Any], str, str, typing.List[str], str, typing.Optional[Persistence.PersistentDictType]]] = dict()
-
     def register_panel(self, panel_class: typing.Type[typing.Any], panel_id: str, name: str,
                        positions: typing.Sequence[str], position: str,
                        properties: typing.Optional[Persistence.PersistentDictType] = None) -> None:
-        panel_tuple = panel_class, panel_id, name, list(positions), position, properties
-        self.__panel_tuples[panel_id] = panel_tuple
+        Panel.PanelManager().register_panel(panel_class, panel_id, name, positions, position, properties)
 
     def unregister_panel(self, panel_id: str) -> None:
-        del self.__panel_tuples[panel_id]
-
-    def create_panel_content(self, document_controller: DocumentController.DocumentController, panel_id: str,
-                             title: str, positions: typing.Sequence[str], position: str,
-                             properties: typing.Optional[Persistence.PersistentDictType]) -> typing.Optional[Panel.Panel]:
-        if panel_id in self.__panel_tuples:
-            tuple = self.__panel_tuples[panel_id]
-            cls = tuple[0]
-            try:
-                properties = properties if properties else {}
-                panel: Panel.Panel = cls(document_controller, panel_id, properties)
-                panel.create_dock_widget(title, positions, position)
-                return panel
-            except Exception as e:
-                import traceback
-                print("Exception creating panel '" + panel_id + "': " + str(e))
-                traceback.print_exc()
-                traceback.print_stack()
-        return None
+        Panel.PanelManager().unregister_panel(panel_id)
 
     def register_filter_panel(self, filter_panel_class: typing.Optional[typing.Callable[[DocumentController.DocumentController], FilterPanel.FilterPanel]]) -> None:
         self.__filter_panel_class = filter_panel_class
@@ -1060,12 +1047,3 @@ class WorkspaceManager(metaclass=Utility.Singleton):
     def create_filter_panel(self, document_controller: DocumentController.DocumentController) -> FilterPanel.FilterPanel:
         assert self.__filter_panel_class
         return self.__filter_panel_class(document_controller)
-
-    def get_panel_info(self, panel_id: str) -> typing.Tuple[str, typing.Sequence[str], str, typing.Optional[Persistence.PersistentDictType]]:
-        assert panel_id in self.__panel_tuples
-        tuple = self.__panel_tuples[panel_id]
-        return tuple[2], tuple[3], tuple[4], tuple[5]
-
-    @property
-    def panel_ids(self) -> typing.List[str]:
-        return list(self.__panel_tuples.keys())

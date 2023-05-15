@@ -2,6 +2,8 @@ from __future__ import annotations
 
 # standard libraries
 import collections
+import dataclasses
+import functools
 import gettext
 import logging
 import sys
@@ -13,10 +15,13 @@ import weakref
 # None
 
 # local libraries
+from nion.swift.model import Utility
 from nion.ui import Application
 from nion.ui import CanvasItem
+from nion.ui import Declarative
 from nion.ui import UserInterface
 from nion.utils import Geometry
+from nion.utils import Registry
 
 if typing.TYPE_CHECKING:
     from nion.swift import DocumentController
@@ -439,3 +444,129 @@ class HeaderCanvasItem(CanvasItem.CanvasItemComposition):
                 drawing_context.text_baseline = 'bottom'
                 drawing_context.fill_style = '#000'
                 drawing_context.fill_text(self.title, canvas_size.width // 2, canvas_size.height - self.__text_offset)
+
+
+class PanelSectionFactory(typing.Protocol):
+    COMPONENT_TYPE: str = "panel_section"
+
+    panel_section_ids: typing.Set[str]
+
+    def make_panel_section(self, panel_section_id: str, d: Persistence.PersistentDictType, document_controller: DocumentController.DocumentController, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
+        ...
+
+
+class SectionPanelSection(Declarative.Handler):
+    def __init__(self, panel_section_handler: Declarative.HandlerLike) -> None:
+        super().__init__()
+        self.panel_section_handler = panel_section_handler
+        self.is_expanded = True
+        panel_section_title = getattr(panel_section_handler, "title")
+        u = Declarative.DeclarativeUI()
+        self.ui_view = u.create_section(u.create_component_instance(identifier="panel_section_handler"), title=panel_section_title, expanded=f"@binding(is_expanded)")
+
+    def create_handler(self, component_id: str, container: typing.Any = None, item: typing.Any = None, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
+        return self.panel_section_handler
+
+
+class SectionPanelHandler(Declarative.Handler):
+    def __init__(self, panel_section_handlers: typing.Sequence[Declarative.HandlerLike], properties: Persistence.PersistentDictType) -> None:
+        super().__init__()
+        self.panel_section_handlers = list(panel_section_handlers)
+        u = Declarative.DeclarativeUI()
+        self.ui_view = u.create_column(u.create_column(items="panel_section_handlers", item_component_id="section"), u.create_stretch(), **properties)
+
+    def create_handler(self, component_id: str, container: typing.Any = None, item: typing.Any = None, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
+        return SectionPanelSection(item)
+
+
+class SectionPanel(Panel):
+    def __init__(self, panel_d: Persistence.PersistentDictType, document_controller: DocumentController.DocumentController, panel_id: str, properties: Persistence.PersistentDictType) -> None:
+        super().__init__(document_controller, panel_id, "section-panel")
+        panel_section_handlers: typing.List[Declarative.HandlerLike] = list()
+        for panel_section_d in panel_d.get("panel_sections", list()):
+            panel_section_id = panel_section_d.get("panel_section_id", str())
+            for panel_section_factory in typing.cast(typing.Set[PanelSectionFactory], Registry.get_components_by_type(PanelSectionFactory.COMPONENT_TYPE)):
+                panel_section_handler = panel_section_factory.make_panel_section(panel_section_id, panel_section_d, document_controller)
+                if panel_section_handler:
+                    panel_section_handlers.append(panel_section_handler)
+                    break
+        assert panel_section_handlers
+        self.widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop, SectionPanelHandler(panel_section_handlers, properties))
+
+
+PanelCreateFn = typing.Callable[["DocumentController.DocumentController", str, typing.Optional["Persistence.PersistentDictType"]], Panel]
+
+
+@dataclasses.dataclass
+class PanelTuple:
+    panel_create_fn: PanelCreateFn
+    panel_id: str
+    name: str
+    positions: typing.List[str]
+    position: str
+    properties: typing.Optional[Persistence.PersistentDictType]
+
+
+class PanelManager(metaclass=Utility.Singleton):
+    def __init__(self) -> None:
+        self.__panel_tuples: typing.Dict[str, PanelTuple] = dict()
+
+    def register_panel(self, panel_class: PanelCreateFn, panel_id: str, name: str,
+                       positions: typing.Sequence[str], position: str,
+                       properties: typing.Optional[Persistence.PersistentDictType] = None) -> None:
+        self.__panel_tuples[panel_id] = PanelTuple(panel_class, panel_id, name, list(positions), position, properties)
+
+    def unregister_panel(self, panel_id: str) -> None:
+        del self.__panel_tuples[panel_id]
+
+    def create_panel_content(self, document_controller: DocumentController.DocumentController, panel_id: str,
+                             title: str, positions: typing.Sequence[str], position: str,
+                             properties: typing.Optional[Persistence.PersistentDictType]) -> typing.Optional[Panel]:
+        if panel_id in self.__panel_tuples:
+            panel_tuple = self.__panel_tuples[panel_id]
+            try:
+                properties = properties if properties else {}
+                panel: Panel = panel_tuple.panel_create_fn(document_controller, panel_id, properties)
+                panel.create_dock_widget(title, positions, position)
+                return panel
+            except Exception as e:
+                import traceback
+                print("Exception creating panel '" + panel_id + "': " + str(e))
+                traceback.print_exc()
+                traceback.print_stack()
+        return None
+
+    def get_panel_info(self, panel_id: str) -> typing.Tuple[str, typing.Sequence[str], str, typing.Optional[Persistence.PersistentDictType]]:
+        panel_tuple = self.__panel_tuples[panel_id]
+        return panel_tuple.name, panel_tuple.positions, panel_tuple.position, panel_tuple.properties
+
+    @property
+    def panel_ids(self) -> typing.List[str]:
+        return list(self.__panel_tuples.keys())
+
+    def load(self, d: typing.Sequence[Persistence.PersistentDictType]) -> None:
+        for panel_d in d:
+            if panel_d.get("version", 0) == 1:
+                section_panel_id = panel_d["panel_id"]
+                section_panel_title = panel_d["title"]
+                is_panel_valid = False
+                for panel_section_d in panel_d.get("panel_sections", list()):
+                    panel_section_id = panel_section_d.get("panel_section_id", str())
+                    if self.is_panel_section_valid(panel_section_id):
+                        is_panel_valid = True
+                        break
+                if is_panel_valid:
+                    def create_panel(panel_d: Persistence.PersistentDictType,
+                                     document_controller: DocumentController.DocumentController, panel_id: str,
+                                     properties: Persistence.PersistentDictType) -> Panel:
+                        return SectionPanel(panel_d, document_controller, panel_id, properties)
+
+                    self.register_panel(typing.cast(PanelCreateFn, functools.partial(create_panel, panel_d)),
+                                        section_panel_id, section_panel_title, ["left", "right"], "right",
+                                        {"min_width": 320})
+
+    def is_panel_section_valid(self, panel_section_id: str) -> bool:
+        for panel_section_factory in typing.cast(typing.Set[PanelSectionFactory], Registry.get_components_by_type(PanelSectionFactory.COMPONENT_TYPE)):
+            if panel_section_id in panel_section_factory.panel_section_ids:
+                return True
+        return False
