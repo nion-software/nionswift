@@ -2942,6 +2942,9 @@ class DocumentWindow(metaclass=SharedInstance):
         """
         return DataGroup(self.__document_controller.document_model.get_or_create_data_group(title))
 
+    def run_interactive_script(self, *, script_path: str) -> None:
+        self.__document_controller.execute_action("window.open_run_scripts", parameters={"script_path": script_path})
+
 
 class Application(metaclass=SharedInstance):
 

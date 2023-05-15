@@ -837,10 +837,6 @@ class DocumentController(Window.Window):
             preferences_dialog = PreferencesDialog.PreferencesDialog(self.ui, self.app)
             preferences_dialog.show()
 
-    def new_interactive_script_dialog(self) -> None:
-        interactive_dialog = ScriptsDialog.RunScriptDialog(self)
-        interactive_dialog.show()
-
     def new_console_dialog(self) -> None:
         console_dialog = ConsoleDialog.ConsoleDialog(self)
         console_dialog.show()
@@ -2921,12 +2917,14 @@ class OpenRunScriptsAction(Window.Action):
     action_id = "window.open_run_scripts"
     action_name = _("Scripts...")
 
+    # this performs a UI action, but use execute anyway since it has no parameters
+    # and is useful to call from a script.
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
-        raise NotImplementedError()
-
-    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         window = typing.cast(DocumentController, context.window)
-        window.new_interactive_script_dialog()
+        interactive_dialog = ScriptsDialog.RunScriptDialog(window)
+        interactive_dialog.show()
+        if script_path := context.parameters.get("script_path", str()):
+            interactive_dialog.run_script(script_path)
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
