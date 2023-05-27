@@ -187,9 +187,10 @@ class TestDisplayClass(unittest.TestCase):
                     self.display_range = calculated_display_values.display_range
                     self.data_range = calculated_display_values.data_range
             o = Observer()
-            listener = display_data_channel.add_calculated_display_values_listener(o.next_calculated_display_values)
+            listener = display_data_channel.calculated_display_values_available_event.listen(o.next_calculated_display_values)
             # wait for initial display values to update.
             with contextlib.closing(listener):
+                o.next_calculated_display_values()
                 display_item.data_item.set_data(irow // 2 + 4)
                 self.assertEqual(o.data_range, (4, 11))
                 self.assertEqual(o.display_range, (4, 11))
@@ -210,7 +211,8 @@ class TestDisplayClass(unittest.TestCase):
                 def next_calculated_display_values(self):
                     self.count += 1
             o = Observer()
-            with contextlib.closing(display_data_channel.add_calculated_display_values_listener(o.next_calculated_display_values)):
+            with contextlib.closing(display_data_channel.calculated_display_values_available_event.listen(o.next_calculated_display_values)):
+                o.next_calculated_display_values()
                 display_data_channel.get_calculated_display_values()
                 self.assertEqual(1, o.count)  # 1 will be sent when adding the listener
                 with display_item.display_item_changes():
@@ -668,8 +670,9 @@ class TestDisplayClass(unittest.TestCase):
                 pass
 
             display_data_channel = display_item.display_data_channels[0]
-            listener = display_data_channel.add_calculated_display_values_listener(next_calculated_display_values)
+            listener = display_data_channel.calculated_display_values_available_event.listen(next_calculated_display_values)
             with contextlib.closing(listener):
+                next_calculated_display_values()
                 display_data = display_data_channel.get_calculated_display_values(True).display_data_and_metadata.data
                 # now run the test
                 display_data_channel.collection_index = 2, 2  # should trigger the thread

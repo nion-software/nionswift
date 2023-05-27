@@ -895,7 +895,7 @@ class DisplayTracker:
         def display_data_channel_inserted(key: str, value: typing.Any, before_index: int) -> None:
             if key == "display_data_channels":
                 display_data_channel = typing.cast(DisplayItem.DisplayDataChannel, value)
-                self.__next_calculated_display_values_listeners.insert(before_index, display_data_channel.add_calculated_display_values_listener(display_values_changed))
+                self.__next_calculated_display_values_listeners.insert(before_index, display_data_channel.calculated_display_values_available_event.listen(display_values_changed))
                 display_values_changed()
             if key == "display_layers":
                 display_layer = typing.cast(DisplayItem.DisplayLayer, value)

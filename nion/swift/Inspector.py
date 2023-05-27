@@ -1137,7 +1137,9 @@ class ImageDataInspectorSection(InspectorSection):
             if calculated_display_values:
                 self.__data_range_model.value = calculated_display_values.data_range
 
-        self.__next_calculated_display_values_listener = display_data_channel.add_calculated_display_values_listener(handle_next_calculated_display_values)
+        self.__next_calculated_display_values_listener = display_data_channel.calculated_display_values_available_event.listen(handle_next_calculated_display_values)
+
+        handle_next_calculated_display_values()
 
         # add unbinders
         self._unbinder.add([display_item, display_data_channel], [self.info_datetime_label.unbind_text, self.info_format_label.unbind_text, self.display_limits_range_low.unbind_text, self.display_limits_range_high.unbind_text, self.display_limits_limit_low.unbind_text, self.display_limits_limit_high.unbind_text])
