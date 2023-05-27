@@ -1088,7 +1088,7 @@ class DisplayDataChannelTransientsStream(Stream.AbstractStream[T], typing.Generi
             # there are two listeners - the first when new display properties have triggered new display values.
             # the second whenever actual new display values arrive. this ensures the display gets updated after
             # the user changes it. could use some rethinking.
-            self.__next_calculated_display_values_listener = display_data_channel.add_calculated_display_values_listener(weak_partial(DisplayDataChannelTransientsStream.__display_values_changed, self, display_data_channel))
+            self.__next_calculated_display_values_listener = display_data_channel.calculated_display_values_available_event.listen(weak_partial(DisplayDataChannelTransientsStream.__display_values_changed, self, display_data_channel))
             self.__display_values_changed_listener = display_data_channel.display_values_changed_event.listen(weak_partial(DisplayDataChannelTransientsStream.__display_values_changed, self, display_data_channel))
             self.__display_values_changed(display_data_channel)
         else:

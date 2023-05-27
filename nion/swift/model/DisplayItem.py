@@ -576,7 +576,11 @@ class DisplayDataChannel(Persistence.PersistentObject):
         self.display_values_changed_event = Event.Event()
         self.display_data_will_change_event = Event.Event()
         self.data_item_proxy_changed_event = Event.Event()
-        self.__calculated_display_values_available_event = Event.Event()
+
+        # this event is fired when the display values have changed. the display values object represents the ability
+        # to calculate display values. callers can retrieve the current display values object using the
+        # get_calculated_display_values method.
+        self.calculated_display_values_available_event = Event.Event()
 
         self.data_item_will_change_event = Event.Event()
         self.data_item_did_change_event = Event.Event()
@@ -1128,7 +1132,7 @@ class DisplayDataChannel(Persistence.PersistentObject):
         if property_name in ("sequence_index", "collection_index", "slice_center", "slice_width", "complex_display_type", "display_limits", "brightness", "contrast", "adjustments", "color_map_data"):
             self.display_data_will_change_event.fire()
             self.__current_display_values = None
-            self.__send_next_calculated_display_values()
+            self.calculated_display_values_available_event.fire()
 
     def save_properties(self) -> typing.Tuple[typing.Any, ...]:
         return (
@@ -1159,17 +1163,7 @@ class DisplayDataChannel(Persistence.PersistentObject):
     def update_display_data(self) -> None:
         if self.__data_item != self.__current_data_item or (self.__data_item and self.__data_item.modified_count != self.__current_data_item_modified_count):
             self.__current_display_values = None
-            self.__send_next_calculated_display_values()
-
-    def add_calculated_display_values_listener(self, callback: typing.Callable[[], None], send: bool = True) -> Event.EventListener:
-        listener = self.__calculated_display_values_available_event.listen(callback)
-        if send:
-            self.__send_next_calculated_display_values()
-        return listener
-
-    def __send_next_calculated_display_values(self) -> None:
-        """Fire event to signal new display values are available."""
-        self.__calculated_display_values_available_event.fire()
+            self.calculated_display_values_available_event.fire()
 
     def get_calculated_display_values(self, immediate: bool=False) -> typing.Optional[DisplayValues]:
         """Return the display values.

@@ -1415,7 +1415,7 @@ class BoundDisplayDataChannelBase(BoundItemBase):
 
         self.__item_reference = container.create_item_reference(item_specifier=Persistence.read_persistent_specifier(specifier.reference_uuid if specifier else None))
         self.__graphic_reference = container.create_item_reference(item_specifier=Persistence.read_persistent_specifier(secondary_specifier.reference_uuid if secondary_specifier else None))
-        self.__display_values_changed_event_listener = None
+        self.__display_values_changed_event_listener: typing.Optional[Event.EventListener] = None
 
         def maintain_data_source() -> None:
             if self.__display_values_changed_event_listener:
@@ -1423,7 +1423,7 @@ class BoundDisplayDataChannelBase(BoundItemBase):
                 self.__display_values_changed_event_listener = None
             display_data_channel = self._display_data_channel
             if display_data_channel:
-                self.__display_values_changed_event_listener = display_data_channel.add_calculated_display_values_listener(self.changed_event.fire, send=False)
+                self.__display_values_changed_event_listener = display_data_channel.calculated_display_values_available_event.listen(self.changed_event.fire)
             self.valid = self.__display_values_changed_event_listener is not None
             self._update_base_items(self._get_base_items())
 
@@ -1646,7 +1646,7 @@ class BoundFilterLikeData(BoundItemBase):
                 self.__display_item_item_removed_event_listener = None
             display_data_channel = self._display_data_channel
             if display_data_channel:
-                self.__display_values_changed_event_listener = display_data_channel.add_calculated_display_values_listener(self.changed_event.fire, send=False)
+                self.__display_values_changed_event_listener = display_data_channel.calculated_display_values_available_event.listen(self.changed_event.fire)
                 display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], display_data_channel.container)
                 if display_item:
                     def maintain(name: str, value: typing.Any, index: int) -> None:
