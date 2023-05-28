@@ -779,14 +779,15 @@ class HistogramPanel(Panel.Panel):
 
         display_item_stream = TargetDisplayItemStream(document_controller)
         display_data_channel_stream = StreamPropertyStream[DisplayItem.DisplayDataChannel](typing.cast(Stream.AbstractStream[Observable.Observable], display_item_stream), "display_data_channel")
-        display_data_and_metadata_stream = DisplayDataChannelTransientsStream[DataAndMetadata.DataAndMetadata](display_data_channel_stream, "display_data_and_metadata", cmp=compare_data)
-        region_stream = TargetRegionStream(display_item_stream)
-        display_range_stream = DisplayDataChannelTransientsStream[typing.Tuple[float, float]](display_data_channel_stream, "display_range")
-        display_data_range_stream = DisplayDataChannelTransientsStream[typing.Tuple[float, float]](display_data_channel_stream, "data_range")
+        display_values_stream = DisplayDataChannelDisplayValuesStream(display_data_channel_stream)
+        display_data_and_metadata_stream = DisplayValuesValueStream[DataAndMetadata.DataAndMetadata](display_values_stream, "display_data_and_metadata", cmp=compare_data)
+        display_range_stream = DisplayValuesValueStream[typing.Tuple[float, float]](display_values_stream, "display_range")
+        display_data_range_stream = DisplayValuesValueStream[typing.Tuple[float, float]](display_values_stream, "data_range")
         displayed_intensity_calibration_stream = StreamPropertyStream[Calibration.Calibration](typing.cast(Stream.AbstractStream[Observable.Observable], display_item_stream), "displayed_intensity_calibration")
 
         self._histogram_processor = HistogramProcessor(document_controller.event_loop)
 
+        region_stream = TargetRegionStream(display_item_stream)
         self.__setters = [
             PropertySetter(display_data_and_metadata_stream, self._histogram_processor, "display_data_and_metadata"),
             PropertySetter(region_stream, self._histogram_processor, "region"),
@@ -1034,22 +1035,15 @@ class StreamPropertyStream(ConcatStream[T], typing.Generic[T]):
         super().__init__(stream, fn)
 
 
-class DisplayDataChannelTransientsStream(Stream.AbstractStream[T], typing.Generic[T]):
-    # TODO: add a display_data_changed to Display class and use it here
-
-    def __init__(self, display_data_channel_stream: Stream.AbstractStream[DisplayItem.DisplayDataChannel], property_name: str, cmp: typing.Optional[typing.Callable[[typing.Optional[T], typing.Optional[T]], bool]] = None) -> None:
+class DisplayDataChannelDisplayValuesStream(Stream.ValueStream[DisplayItem.DisplayValues]):
+    def __init__(self, display_data_channel_stream: Stream.AbstractStream[DisplayItem.DisplayDataChannel]) -> None:
         super().__init__()
-        # outgoing messages
-        self.value_stream = Event.Event()
         # initialize
-        self.__property_name = property_name
-        self.__value: typing.Optional[T] = None
         self.__display_values_changed_listener: typing.Optional[Event.EventListener] = None
         self.__next_calculated_display_values_listener: typing.Optional[Event.EventListener] = None
-        self.__cmp: typing.Callable[[typing.Optional[T], typing.Optional[T]], bool] = cmp if cmp else typing.cast(typing.Callable[[typing.Optional[T], typing.Optional[T]], bool], operator.eq)
         # listen for display changes
         self.__display_data_channel_stream = display_data_channel_stream.add_ref()
-        self.__display_data_channel_stream_listener = display_data_channel_stream.value_stream.listen(weak_partial(DisplayDataChannelTransientsStream.__display_data_channel_changed, self))
+        self.__display_data_channel_stream_listener = display_data_channel_stream.value_stream.listen(weak_partial(DisplayDataChannelDisplayValuesStream.__display_data_channel_changed, self))
         self.__display_data_channel_changed(display_data_channel_stream.value)
 
     def about_to_delete(self) -> None:
@@ -1059,23 +1053,14 @@ class DisplayDataChannelTransientsStream(Stream.AbstractStream[T], typing.Generi
         if self.__display_values_changed_listener:
             self.__display_values_changed_listener.close()
             self.__display_values_changed_listener = None
-        self.__value = None
         self.__display_data_channel_stream_listener.close()
         self.__display_data_channel_stream_listener = typing.cast(typing.Any, None)
         self.__display_data_channel_stream.remove_ref()
         self.__display_data_channel_stream = typing.cast(typing.Any, None)
         super().about_to_delete()
 
-    @property
-    def value(self) -> typing.Optional[T]:
-        return self.__value
-
     def __display_values_changed(self, display_data_channel: DisplayItem.DisplayDataChannel) -> None:
-        display_values = display_data_channel.get_calculated_display_values(True)
-        new_value = getattr(display_values, self.__property_name) if display_values else None
-        if not self.__cmp(new_value, self.__value):
-            self.__value = new_value
-            self.value_stream.fire(self.__value)
+        self.send_value(display_data_channel.get_calculated_display_values(True))
 
     def __display_data_channel_changed(self, display_data_channel: typing.Optional[DisplayItem.DisplayDataChannel]) -> None:
         if self.__next_calculated_display_values_listener:
@@ -1088,12 +1073,33 @@ class DisplayDataChannelTransientsStream(Stream.AbstractStream[T], typing.Generi
             # there are two listeners - the first when new display properties have triggered new display values.
             # the second whenever actual new display values arrive. this ensures the display gets updated after
             # the user changes it. could use some rethinking.
-            self.__next_calculated_display_values_listener = display_data_channel.calculated_display_values_available_event.listen(weak_partial(DisplayDataChannelTransientsStream.__display_values_changed, self, display_data_channel))
-            self.__display_values_changed_listener = display_data_channel.display_values_changed_event.listen(weak_partial(DisplayDataChannelTransientsStream.__display_values_changed, self, display_data_channel))
+            self.__next_calculated_display_values_listener = display_data_channel.calculated_display_values_available_event.listen(weak_partial(DisplayDataChannelDisplayValuesStream.__display_values_changed, self, display_data_channel))
+            self.__display_values_changed_listener = display_data_channel.display_values_changed_event.listen(weak_partial(DisplayDataChannelDisplayValuesStream.__display_values_changed, self, display_data_channel))
             self.__display_values_changed(display_data_channel)
         else:
-            self.__value = None
-            self.value_stream.fire(None)
+            self.send_value(None)
+
+
+class DisplayValuesValueStream(Stream.ValueStream[T]):
+    def __init__(self, display_value_stream: Stream.AbstractStream[DisplayItem.DisplayValues], property_name: str, cmp: typing.Optional[typing.Callable[[typing.Optional[T], typing.Optional[T]], bool]] = None) -> None:
+        super().__init__()
+        self.__property_name = property_name
+        self.__cmp: typing.Callable[[typing.Optional[T], typing.Optional[T]], bool] = cmp if cmp else typing.cast(typing.Callable[[typing.Optional[T], typing.Optional[T]], bool], operator.eq)
+        # listen for display changes
+        self.__display_value_stream = display_value_stream
+        self.__display_value_stream_listener = display_value_stream.value_stream.listen(weak_partial(DisplayValuesValueStream.__display_values_changed, self))
+        self.__display_values_changed(display_value_stream.value)
+
+    def about_to_delete(self) -> None:
+        self.__display_value_stream_listener.close()
+        self.__display_value_stream_listener = typing.cast(typing.Any, None)
+        self.__display_value_stream = typing.cast(typing.Any, None)
+        super().about_to_delete()
+
+    def __display_values_changed(self, display_values: typing.Optional[DisplayItem.DisplayValues]) -> None:
+        new_value = getattr(display_values, self.__property_name) if display_values else None
+        if not self.__cmp(new_value, self.value):
+            self.send_value(new_value)
 
 
 class StreamValueFuncModel(Model.PropertyModel[OT], typing.Generic[T, OT]):
