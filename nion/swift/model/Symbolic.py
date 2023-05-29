@@ -1256,10 +1256,7 @@ class MonitoredDataSource(DataSource):
         self.__graphic = graphic
         self.__changed_event = changed_event  # not public since it is passed in
         self.__data_item = display_data_channel.data_item
-        # display_data_channel = self.__display_item.get_display_data_channel_for_data_item(self.__data_item) if self.__display_item else None
-        # self.__data_item_changed_event_listener = None
-        self.__data_item_changed_event_listener = self.__data_item.data_item_changed_event.listen(self.__changed_event.fire) if self.__data_item else None
-        self.__display_values_event_listener = display_data_channel.display_data_will_change_event.listen(self.__changed_event.fire)
+        self.__display_values_event_listener = display_data_channel.calculated_display_values_available_event.listen(self.__changed_event.fire)
         self.__property_changed_listener: typing.Optional[Event.EventListener] = None
 
         def property_changed(key: str) -> None:
@@ -1317,9 +1314,6 @@ class MonitoredDataSource(DataSource):
         if self.__property_changed_listener:
             self.__property_changed_listener.close()
             self.__property_changed_listener = None
-        if self.__data_item_changed_event_listener:
-            self.__data_item_changed_event_listener.close()
-            self.__data_item_changed_event_listener = None
         if self.__display_values_event_listener:
             self.__display_values_event_listener.close()
             self.__display_values_event_listener = typing.cast(typing.Any, None)

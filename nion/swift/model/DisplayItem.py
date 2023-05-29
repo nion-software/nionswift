@@ -574,7 +574,6 @@ class DisplayDataChannel(Persistence.PersistentObject):
         self.modified_state = 0
 
         self.display_values_changed_event = Event.Event()
-        self.display_data_will_change_event = Event.Event()
         self.data_item_proxy_changed_event = Event.Event()
 
         # this event is fired when the display values have changed. the display values object represents the ability
@@ -1130,7 +1129,6 @@ class DisplayDataChannel(Persistence.PersistentObject):
         # when one of the defined properties changes, this gets called
         self.notify_property_changed(property_name)
         if property_name in ("sequence_index", "collection_index", "slice_center", "slice_width", "complex_display_type", "display_limits", "brightness", "contrast", "adjustments", "color_map_data"):
-            self.display_data_will_change_event.fire()
             self.__current_display_values = None
             self.calculated_display_values_available_event.fire()
 
