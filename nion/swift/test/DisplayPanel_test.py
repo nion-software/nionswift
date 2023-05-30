@@ -80,6 +80,7 @@ class TestDisplayPanelClass(unittest.TestCase):
     def setUp(self):
         TestContext.begin_leaks()
         self.test_context = TestContext.create_memory_context()
+        self.test_context.__enter__()
         self.document_controller = self.test_context.create_document_controller_with_application()
         self.document_model = self.document_controller.document_model
         self.display_panel = self.document_controller.selected_display_panel
@@ -91,6 +92,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.display_panel.root_container.layout_immediate(Geometry.IntSize(1000 + header_height, 1000))
 
     def tearDown(self):
+        self.test_context.__exit__(None, None, None)
         self.test_context.close()
         TestContext.end_leaks(self)
 

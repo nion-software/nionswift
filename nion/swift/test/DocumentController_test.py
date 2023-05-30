@@ -609,7 +609,7 @@ class TestDocumentControllerClass(unittest.TestCase):
             for data_item in document_model.data_items:
                 display_item = document_model.get_display_item_for_data_item(data_item)
                 display_data_channel = display_item.display_data_channels[0]
-                display_data_channel.display_limits = display_data_channel.get_calculated_display_values(True).data_range
+                display_data_channel.display_limits = display_data_channel.get_latest_computed_display_values().data_range
                 self.assertEqual(len(display_data_channel.display_limits), 2)
 
     def test_context_menu_succeeds_with_no_display_item(self):
