@@ -2871,13 +2871,14 @@ class TestDisplayPanelClass(unittest.TestCase):
             self.assertEqual("red (Negate)", display_item2.displayed_title)
             display_panel = document_controller.selected_display_panel
             display_tracker = DisplayPanel.DisplayTracker(display_item2, DisplayPanel.DisplayPanelUISettings(document_controller.ui), display_panel, document_controller.event_loop, False)
-            title_changed = False
-            def handle_title_changed(title: str) -> None:
-                nonlocal title_changed
-                title_changed = True
-            display_tracker.on_title_changed = handle_title_changed
-            data_item.title = "green"
-            self.assertTrue(title_changed)
+            with contextlib.closing(display_tracker):
+                title_changed = False
+                def handle_title_changed(title: str) -> None:
+                    nonlocal title_changed
+                    title_changed = True
+                display_tracker.on_title_changed = handle_title_changed
+                data_item.title = "green"
+                self.assertTrue(title_changed)
 
 
 if __name__ == '__main__':
