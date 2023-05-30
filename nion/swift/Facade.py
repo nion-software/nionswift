@@ -1055,7 +1055,7 @@ class DataItem(metaclass=SharedInstance):
         Scriptable: Yes
         """
         display_data_channel = self.__display_item.display_data_channel if self.__display_item else None
-        display_values = display_data_channel.get_calculated_display_values() if display_data_channel else None
+        display_values = display_data_channel.get_latest_computed_display_values() if display_data_channel else None
         return display_values.display_data_and_metadata if display_values else None
 
     @property

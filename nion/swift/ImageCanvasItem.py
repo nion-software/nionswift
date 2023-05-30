@@ -1181,7 +1181,6 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                 if display_data and display_data.data_dtype == numpy.float32:
                     display_range = display_values.transformed_display_range
                     color_map_data = display_values.color_map_data
-                    display_values.finalize()
                     color_map_rgba: typing.Optional[DrawingContext.RGBA32Type]
                     if color_map_data is not None:
                         color_map_rgba = numpy.empty(color_map_data.shape[:-1] + (4,), numpy.uint8)
@@ -1193,7 +1192,6 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                     self.__bitmap_canvas_item.set_data(display_data.data, display_range, color_map_rgba, trigger_update=False)
                 else:
                     data_rgba = display_values.display_rgba
-                    display_values.finalize()
                     self.__bitmap_canvas_item.set_rgba_bitmap_data(data_rgba, trigger_update=False)
                 self.__timestamp_canvas_item.timestamp = display_values.display_rgba_timestamp if self.__display_latency else None
 

@@ -536,13 +536,13 @@ class TestDataItemClass(unittest.TestCase):
             xx, yy = numpy.meshgrid(numpy.linspace(0,1,256), numpy.linspace(0,1,256))
             with display_item.data_item.data_ref() as data_ref:
                 data_ref.data = 50 * (xx + yy) + 25
-                data_range = display_item.display_data_channels[0].get_calculated_display_values(True).data_range
+                data_range = display_item.display_data_channels[0].get_latest_computed_display_values().data_range
                 self.assertEqual(data_range, (25, 125))
                 # now test complex
                 data_ref.data = numpy.zeros((8, 8), numpy.complex64)
                 xx, yy = numpy.meshgrid(numpy.linspace(0,1,256), numpy.linspace(0,1,256))
                 data_ref.data = (2 + xx * 10) + 1j * (3 + yy * 10)
-            data_range = display_item.display_data_channels[0].get_calculated_display_values(True).data_range
+            data_range = display_item.display_data_channels[0].get_latest_computed_display_values().data_range
             data_min = math.log(math.sqrt(2*2 + 3*3))
             data_max = math.log(math.sqrt(12*12 + 13*13))
             self.assertEqual(int(data_min*1e6), int(data_range[0]*1e6))
@@ -554,11 +554,11 @@ class TestDataItemClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            self.assertEqual(display_item.display_data_channels[0].get_calculated_display_values(True).data_range, (0, 0))
+            self.assertEqual(display_item.display_data_channels[0].get_latest_computed_display_values().data_range, (0, 0))
             with data_item.data_ref() as data_ref:
                 data_ref.data[:] = 1
                 data_ref.data_updated()
-            self.assertEqual(display_item.display_data_channels[0].get_calculated_display_values(True).data_range, (1, 1))
+            self.assertEqual(display_item.display_data_channels[0].get_latest_computed_display_values().data_range, (1, 1))
 
     def test_data_descriptor_is_correct_after_data_ref_data_updated(self):
         with TestContext.create_memory_context() as test_context:
@@ -580,17 +580,16 @@ class TestDataItemClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_item.display_data_channels[0].auto_display_limits()
             self.assertEqual(type(0), type(display_item.display_data_channels[0].display_limits[0]))
-            self.assertEqual(type(0), type(display_item.display_data_channels[0].get_calculated_display_values(True).data_range[0]))
+            self.assertEqual(type(0), type(display_item.display_data_channels[0].get_latest_computed_display_values().data_range[0]))
 
     def test_auto_display_limits_on_rgb(self):
         with TestContext.create_memory_context() as test_context:
-            with TestContext.create_memory_context() as test_context:
-                document_model = test_context.create_document_model()
-                data_item = DataItem.DataItem(numpy.zeros((8, 8, 3), numpy.uint8))
-                document_model.append_data_item(data_item)
-                display_item = document_model.get_display_item_for_data_item(data_item)
-                display_item.display_data_channels[0].auto_display_limits()
-                self.assertEqual(Utility.clean_dict(display_item.properties), display_item.properties)
+            document_model = test_context.create_document_model()
+            data_item = DataItem.DataItem(numpy.zeros((8, 8, 3), numpy.uint8))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item.display_data_channels[0].auto_display_limits()
+            self.assertEqual(Utility.clean_dict(display_item.properties), display_item.properties)
 
     def test_removing_dependent_data_item_with_graphic(self):
         with TestContext.create_memory_context() as test_context:

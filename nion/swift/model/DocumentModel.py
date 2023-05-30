@@ -1938,7 +1938,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         for display_data_channel in display_item_copy.display_data_channels:
             display_item_copy.remove_display_data_channel(display_data_channel).close()
         for display_data_channel in display_item.display_data_channels:
-            display_values = display_data_channel.get_calculated_display_values(True)
+            display_values = display_data_channel.get_latest_computed_display_values()
             assert display_values
             data_item_copy = DataItem.new_data_item(display_values.element_data_and_metadata)
             display_data_channel_copy = DisplayItem.DisplayDataChannel(data_item=data_item_copy)

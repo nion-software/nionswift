@@ -863,8 +863,7 @@ class DisplayTracker:
             # this notification is for the rgba values only
             # thread safe
             with self.__closing_lock:
-                display_values_list = [display_data_channel.get_calculated_display_values() for display_data_channel in display_item.display_data_channels]
-                self.__display_canvas_item.update_display_values(display_values_list)
+                self.__display_canvas_item.update_display_values(self.__display_values_list)
             display_changed()
             # if the display data channel shapes change, update the graphics, but use the display channel to determine the shape; otherwise
             # the graphics update will use the shape from the last update. this design needs work.
@@ -887,15 +886,36 @@ class DisplayTracker:
             if property in ("y_min", "y_max", "y_style", "left_channel", "right_channel", "image_zoom", "image_position", "image_canvas_mode"):
                 display_changed()
 
-        self.__next_calculated_display_values_listeners: typing.List[Event.EventListener] = list()
+        # subscribe to display values for each display data channel and keep track of the latest computed display values.
+        # the index_refs is used to keep the ordering of the display values in sync with the display data channels.
+        self.__display_values_lock = threading.RLock()
+        self.__display_values_subscriptions: typing.List[DisplayItem.DisplayValuesSubscription] = list()
+        self.__display_values_list: typing.List[typing.Optional[DisplayItem.DisplayValues]] = list()
+        self.__display_values_index_refs: typing.List[uuid.UUID] = list()
 
         def display_layer_property_changed(name: str) -> None:
             display_values_changed()
 
+        # handle the display data channel associated with the uuid getting new display values by updating the display values list.
+        def handle_display_values(uuid_: uuid.UUID, display_values: DisplayItem.DisplayValues) -> None:
+            with self.__closing_lock:
+                with self.__display_values_lock:
+                    index = self.__display_values_index_refs.index(uuid_)
+                    self.__display_values_list[index] = display_values
+                display_values_changed()
+
         def display_data_channel_inserted(key: str, value: typing.Any, before_index: int) -> None:
             if key == "display_data_channels":
                 display_data_channel = typing.cast(DisplayItem.DisplayDataChannel, value)
-                self.__next_calculated_display_values_listeners.insert(before_index, display_data_channel.calculated_display_values_available_event.listen(display_values_changed))
+                # the uuid is associated with a given display data channel and is used to look-up the index of the
+                # display values in the list when handling updated display values.
+                uuid_ = uuid.uuid4()
+                # get the latest computed display values as initial values in the list. keep this out of the lock.
+                display_values = display_data_channel.get_latest_computed_display_values()
+                with self.__display_values_lock:
+                    self.__display_values_subscriptions.insert(before_index, display_data_channel.subscribe_to_latest_computed_display_values(functools.partial(handle_display_values, uuid_)))
+                    self.__display_values_list.insert(before_index, display_values)
+                    self.__display_values_index_refs.insert(before_index, uuid_)
                 display_values_changed()
             if key == "display_layers":
                 display_layer = typing.cast(DisplayItem.DisplayLayer, value)
@@ -904,8 +924,10 @@ class DisplayTracker:
 
         def display_data_channel_removed(key: str, value: typing.Any, index: int) -> None:
             if key == "display_data_channels":
-                self.__next_calculated_display_values_listeners[index].close()
-                del self.__next_calculated_display_values_listeners[index]
+                with self.__display_values_lock:
+                    self.__display_values_subscriptions.pop(index)
+                    self.__display_values_list.pop(index)
+                    self.__display_values_index_refs.pop(index)
                 display_values_changed()
             if key == "display_layers":
                 self.__display_layer_property_changed_listeners.pop(index).close()
@@ -960,26 +982,28 @@ class DisplayTracker:
             self.__display_data_channel_property_changed_listener = typing.cast(typing.Any, None)
             self.__display_graphics_changed_event_listener.close()
             self.__display_graphics_changed_event_listener = typing.cast(typing.Any, None)
-            for next_calculated_display_values_listener in self.__next_calculated_display_values_listeners:
-                next_calculated_display_values_listener.close()
-            self.__next_calculated_display_values_listeners = list()
+            self.__display_values_stream_listener = typing.cast(typing.Any, None)
+            self.__display_values_tuple_stream = typing.cast(typing.Any, None)
+            self.__display_values_subscriptions = typing.cast(typing.Any, None)
+            self.__display_values_list = typing.cast(typing.Any, None)
+            self.__display_values_index_refs = typing.cast(typing.Any, None)
             for display_layer_property_changed_listener in self.__display_layer_property_changed_listeners:
                 display_layer_property_changed_listener.close()
             self.__item_inserted_listener.close()
             self.__item_inserted_listener = typing.cast(typing.Any, None)
             self.__item_removed_listener.close()
             self.__item_removed_listener = typing.cast(typing.Any, None)
-        self.__display_type_changed_event_listener.close()
-        self.__display_type_changed_event_listener = typing.cast(typing.Any, None)
-        self.__display_type_monitor.close()
-        self.__display_type_monitor = typing.cast(typing.Any, None)
-        # decrement the ref count on the old item to release it from memory if no longer used.
-        self.__display_item.decrement_display_ref_count()
-        self.__display_about_to_be_removed_event_listener.close()
-        self.__display_about_to_be_removed_event_listener = typing.cast(typing.Any, None)
-        self.__display_property_changed_event_listener.close()
-        self.__display_property_changed_event_listener = typing.cast(typing.Any, None)
-        self.__display_canvas_item = typing.cast(typing.Any, None)
+            self.__display_type_changed_event_listener.close()
+            self.__display_type_changed_event_listener = typing.cast(typing.Any, None)
+            self.__display_type_monitor.close()
+            self.__display_type_monitor = typing.cast(typing.Any, None)
+            # decrement the ref count on the old item to release it from memory if no longer used.
+            self.__display_item.decrement_display_ref_count()
+            self.__display_about_to_be_removed_event_listener.close()
+            self.__display_about_to_be_removed_event_listener = typing.cast(typing.Any, None)
+            self.__display_property_changed_event_listener.close()
+            self.__display_property_changed_event_listener = typing.cast(typing.Any, None)
+            self.__display_canvas_item = typing.cast(typing.Any, None)
 
     @property
     def display_canvas_item(self) -> DisplayCanvasItem.DisplayCanvasItem:
@@ -2635,19 +2659,13 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         # and it will be locked out until the pick computation is complete, resulting
         # in stuttering. this async solution avoids this specific case.
 
-        # Python 3.9+: weakref typing
-        async def update_cursor(document_controller_ref: typing.Any, display_item_ref: typing.Any) -> None:
+        def update_cursor_(document_controller: typing.Optional[DocumentController.DocumentController], position_text: str, value_text: str) -> None:
             self.__cursor_task = None
-            position_text, value_text = str(), str()
-            display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], display_item_ref())
-            if pos is not None and display_item:
-                position_text, value_text = await display_item.get_value_and_position_text_async(pos)
             position_and_value_text = []
             if position_text:
                 position_and_value_text.append(_("Position: ") + position_text)
             if value_text:
                 position_and_value_text.append(_("Value: ") + value_text)
-            document_controller = typing.cast(typing.Optional["DocumentController.DocumentController"], document_controller_ref())
             if document_controller:
                 if len(position_text) == 0:
                     document_controller.cursor_changed(None)
@@ -2655,7 +2673,24 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
                     document_controller.cursor_changed(position_and_value_text)
 
         if not self.__cursor_task:
-            self.__cursor_task = asyncio.get_event_loop_policy().get_event_loop().create_task(update_cursor(weakref.ref(self.__document_controller), weakref.ref(self.__display_item)))
+            if threading.current_thread() == threading.main_thread():
+
+                # Python 3.9+: weakref typing
+                async def update_cursor(document_controller_ref: typing.Any, display_item_ref: typing.Any) -> None:
+                    document_controller = typing.cast(typing.Optional["DocumentController.DocumentController"], document_controller_ref())
+                    display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], display_item_ref())
+                    position_text, value_text = str(), str()
+                    if pos is not None and display_item:
+                        position_text, value_text = await display_item.get_value_and_position_text_async(pos)
+                    update_cursor_(document_controller, position_text, value_text)
+
+                self.__cursor_task = asyncio.get_event_loop_policy().get_event_loop().create_task(update_cursor(weakref.ref(self.__document_controller), weakref.ref(self.__display_item)))
+            else:
+                display_item = self.__display_item
+                position_text, value_text = str(), str()
+                if pos is not None and display_item:
+                    position_text, value_text = display_item.get_value_and_position_text(pos)
+                update_cursor_(self.__document_controller, position_text, value_text)
 
     def drag_graphics(self, graphics: typing.Sequence[Graphics.Graphic]) -> None:
         display_item = self.display_item
@@ -2756,7 +2791,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         assert self.__display_item
         display_data_channel = self.__display_item.display_data_channel
         assert display_data_channel
-        display_values = display_data_channel.get_calculated_display_values()
+        display_values = display_data_channel.get_latest_computed_display_values()
         assert display_values
         element_data_and_metadata = display_values.element_data_and_metadata
         assert element_data_and_metadata
@@ -2796,7 +2831,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         assert self.__display_item
         display_data_channel = self.__display_item.display_data_channel
         assert display_data_channel
-        display_values = display_data_channel.get_calculated_display_values()
+        display_values = display_data_channel.get_latest_computed_display_values()
         assert display_values
         element_data_and_metadata = display_values.element_data_and_metadata
         assert element_data_and_metadata
@@ -2935,7 +2970,7 @@ class DisplayPanelManager(metaclass=Utility.Singleton):
 def preview(ui_settings: UISettings.UISettings, display_item: DisplayItem.DisplayItem, width: int, height: int) -> typing.Tuple[DrawingContext.DrawingContext, Geometry.IntSize]:
     drawing_context = DrawingContext.DrawingContext()
     shape = Geometry.IntSize()
-    display_values_list = [display_data_channel.get_calculated_display_values() for display_data_channel in display_item.display_data_channels]
+    display_values_list = [display_data_channel.get_latest_computed_display_values() for display_data_channel in display_item.display_data_channels]
     display_canvas_item = create_display_canvas_item(display_item, ui_settings, None, None, draw_background=False)
     if display_canvas_item:
         with contextlib.closing(display_canvas_item):

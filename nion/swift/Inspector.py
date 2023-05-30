@@ -45,6 +45,7 @@ from nion.utils import Model
 from nion.utils import Observable
 from nion.utils import ReferenceCounting
 from nion.utils import Registry
+from nion.utils import Stream
 from nion.utils import Validator
 
 if typing.TYPE_CHECKING:
@@ -1132,14 +1133,13 @@ class ImageDataInspectorSection(InspectorSection):
 
         self.finish_widget_content()
 
-        def handle_next_calculated_display_values() -> None:
-            calculated_display_values = display_data_channel.get_calculated_display_values(True)
-            if calculated_display_values:
-                self.__data_range_model.value = calculated_display_values.data_range
+        def handle_display_values(display_values: typing.Optional[DisplayItem.DisplayValues]) -> None:
+            if display_values:
+                self.__data_range_model.value = display_values.data_range
 
-        self.__next_calculated_display_values_listener = display_data_channel.calculated_display_values_available_event.listen(handle_next_calculated_display_values)
+        self.__display_values_subscription = display_data_channel.subscribe_to_latest_computed_display_values(handle_display_values)
 
-        handle_next_calculated_display_values()
+        handle_display_values(display_data_channel.get_latest_computed_display_values())
 
         # add unbinders
         self._unbinder.add([display_item, display_data_channel], [self.info_datetime_label.unbind_text, self.info_format_label.unbind_text, self.display_limits_range_low.unbind_text, self.display_limits_range_high.unbind_text, self.display_limits_limit_low.unbind_text, self.display_limits_limit_high.unbind_text])
@@ -1154,8 +1154,7 @@ class ImageDataInspectorSection(InspectorSection):
             self.__complex_display_type_changed_listener = None
         self.__adjustment_changed_listener.close()
         self.__adjustment_changed_listener = typing.cast(typing.Any, None)
-        self.__next_calculated_display_values_listener.close()
-        self.__next_calculated_display_values_listener = typing.cast(typing.Any, None)
+        self.__display_values_subscription = typing.cast(typing.Any, None)
         self.__data_range_model.close()
         self.__data_range_model = typing.cast(typing.Any, None)
         super().close()

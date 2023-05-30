@@ -279,12 +279,12 @@ class TestStorageClass(unittest.TestCase):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
                 display_item = document_model.get_display_item_for_data_item(data_item)
-                data_range = display_item.display_data_channels[0].get_calculated_display_values(True).data_range
+                data_range = display_item.display_data_channels[0].get_latest_computed_display_values().data_range
             document_model = profile_context.create_document_model(auto_close=False)
             with document_model.ref():
                 read_data_item = document_model.data_items[0]
                 read_display_item = document_model.get_display_item_for_data_item(read_data_item)
-                self.assertEqual(read_display_item.display_data_channels[0].get_calculated_display_values(True).data_range, data_range)
+                self.assertEqual(read_display_item.display_data_channels[0].get_latest_computed_display_values().data_range, data_range)
 
     def test_thumbnail_does_not_get_invalidated_upon_reading(self):
         # tests caching on display
@@ -337,12 +337,12 @@ class TestStorageClass(unittest.TestCase):
                 data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
                 document_model.append_data_item(data_item)
                 display_item = document_model.get_display_item_for_data_item(document_model.data_items[0])
-                self.assertIsNotNone(display_item.display_data_channels[0].get_calculated_display_values(True).data_range)
+                self.assertIsNotNone(display_item.display_data_channels[0].get_latest_computed_display_values().data_range)
             # read it back
             document_model = profile_context.create_document_model(auto_close=False)
             with document_model.ref():
                 display_item = document_model.get_display_item_for_data_item(document_model.data_items[0])
-                self.assertIsNotNone(display_item.display_data_channels[0].get_calculated_display_values(True).data_range)
+                self.assertIsNotNone(display_item.display_data_channels[0].get_latest_computed_display_values().data_range)
 
     @unittest.expectedFailure
     def test_reload_data_item_does_not_recalculate_display_data_range(self):
@@ -359,7 +359,7 @@ class TestStorageClass(unittest.TestCase):
             document_model = profile_context.create_document_model(auto_close=False)
             with document_model.ref():
                 display_item = document_model.get_display_item_for_data_item(document_model.data_items[0])
-                self.assertEqual(display_item.display_data_channels[0].get_calculated_display_values(True).data_range, data_range)
+                self.assertEqual(display_item.display_data_channels[0].get_latest_computed_display_values().data_range, data_range)
 
     def test_reload_data_item_does_not_load_actual_data(self):
         # reloading data from disk should not have to load the data, otherwise bad performance ensues
@@ -408,7 +408,7 @@ class TestStorageClass(unittest.TestCase):
                 display_data_channel = display_item.display_data_channels[0]
                 display_data_channel.slice_center = 5
                 display_data_channel.slice_width = 1
-                self.assertEqual(display_data_channel.get_calculated_display_values(True).data_range, (0, 0))
+                self.assertEqual(display_data_channel.get_latest_computed_display_values().data_range, (0, 0))
             # make the slice_center be out of bounds
             profile_context.project_properties["display_items"][0]["display_data_channels"][0]["slice_center"] = 20
             # read it back
@@ -419,7 +419,7 @@ class TestStorageClass(unittest.TestCase):
                 self.assertEqual(display_data_channel.slice_center, 7)
                 self.assertEqual(display_data_channel.slice_width, 1)
                 self.assertIsNotNone(document_model.data_items[0].data)
-                self.assertEqual(display_data_channel.get_calculated_display_values(True).data_range, (1, 1))
+                self.assertEqual(display_data_channel.get_latest_computed_display_values().data_range, (1, 1))
 
     def test_save_load_document_to_files(self):
         with create_temp_profile_context() as profile_context:
@@ -3559,13 +3559,13 @@ class TestStorageClass(unittest.TestCase):
                 document_model.append_data_item(data_item)
                 display_item = document_model.get_display_item_for_data_item(data_item)
                 display_data_channel = display_item.display_data_channels[0]
-                display_data_channel.get_calculated_display_values(True).data_range  # trigger storage
+                display_data_channel.get_latest_computed_display_values().data_range  # trigger storage
                 cached_data_range = storage_cache.cache[display_item.uuid]["data_range"]
                 self.assertEqual(cached_data_range, (1, 1))
-                self.assertEqual(display_data_channel.get_calculated_display_values(True).data_range, (1, 1))
+                self.assertEqual(display_data_channel.get_latest_computed_display_values().data_range, (1, 1))
                 with document_model.data_item_transaction(data_item):
                     data_item.set_data(numpy.zeros((16, 16), numpy.uint32))
-                    self.assertEqual(display_data_channel.get_calculated_display_values(True).data_range, (0, 0))
+                    self.assertEqual(display_data_channel.get_latest_computed_display_values().data_range, (0, 0))
                     self.assertEqual(cached_data_range, storage_cache.cache[display_item.uuid]["data_range"])
                     self.assertEqual(cached_data_range, (1, 1))
                 self.assertEqual(storage_cache.cache[display_item.uuid]["data_range"], (0, 0))

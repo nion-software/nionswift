@@ -51,6 +51,7 @@ def end_leaks(test_case: unittest.TestCase) -> None:
     test_case.assertEqual(0, ReferenceCounting.ReferenceCounted.count)
     test_case.assertEqual(0, DisplayItem.DisplayValues._count)
     test_case.assertEqual(0, Changes.UndeleteLog.count)
+    test_case.assertEqual(0, DisplayItem.DisplayDataChannel._force_sync)
     # the next assert is very aggressive, particularly difficult to satisfy with async/threading (histogram).
     # test_case.assertEqual(0, DataItem.DataItem._data_count)
 
@@ -192,9 +193,11 @@ class MemoryProfileContext:
         return app
 
     def __enter__(self):
+        DisplayItem.DisplayDataChannel._force_sync += 1
         return self
 
     def __exit__(self, type_, value, traceback):
+        DisplayItem.DisplayDataChannel._force_sync -= 1
         self.close()
 
     def close(self) -> None:

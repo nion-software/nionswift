@@ -571,7 +571,7 @@ class StandardImportExportHandler(ImportExportHandler):
     def write_display_item(self, display_item: DisplayItem.DisplayItem, path: pathlib.Path, extension: str) -> None:
         display_data_channel = display_item.display_data_channel
         assert display_data_channel
-        display_values = display_data_channel.get_calculated_display_values()
+        display_values = display_data_channel.get_latest_computed_display_values()
         assert display_values
         data = display_values.display_rgba  # export the display rather than the data for these types
         assert data is not None
@@ -619,7 +619,7 @@ def build_table(display_item: DisplayItem.DisplayItem) -> typing.Tuple[typing.Li
         for index in range(len(display_item.display_layers)):
             display_data_channel = display_item.get_display_layer_display_data_channel(index)
             assert display_data_channel
-            display_values = display_data_channel.get_calculated_display_values(True)
+            display_values = display_data_channel.get_latest_computed_display_values()
             assert display_values
             xdata = display_values.display_data_and_metadata
             assert xdata
@@ -635,7 +635,7 @@ def build_table(display_item: DisplayItem.DisplayItem) -> typing.Tuple[typing.Li
         for index in range(len(display_item.display_layers)):
             display_data_channel = display_item.get_display_layer_display_data_channel(index)
             assert display_data_channel
-            display_values = display_data_channel.get_calculated_display_values(True)
+            display_values = display_data_channel.get_latest_computed_display_values()
             assert display_values
             xdata = display_values.display_data_and_metadata
             assert xdata

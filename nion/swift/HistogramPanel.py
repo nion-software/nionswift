@@ -1039,44 +1039,29 @@ class DisplayDataChannelDisplayValuesStream(Stream.ValueStream[DisplayItem.Displ
     def __init__(self, display_data_channel_stream: Stream.AbstractStream[DisplayItem.DisplayDataChannel]) -> None:
         super().__init__()
         # initialize
-        self.__display_values_changed_listener: typing.Optional[Event.EventListener] = None
-        self.__next_calculated_display_values_listener: typing.Optional[Event.EventListener] = None
+        self.__display_values_subscription: typing.Optional[DisplayItem.DisplayValuesSubscription] = None
         # listen for display changes
         self.__display_data_channel_stream = display_data_channel_stream.add_ref()
         self.__display_data_channel_stream_listener = display_data_channel_stream.value_stream.listen(weak_partial(DisplayDataChannelDisplayValuesStream.__display_data_channel_changed, self))
         self.__display_data_channel_changed(display_data_channel_stream.value)
 
     def about_to_delete(self) -> None:
-        if self.__next_calculated_display_values_listener:
-            self.__next_calculated_display_values_listener.close()
-            self.__next_calculated_display_values_listener = None
-        if self.__display_values_changed_listener:
-            self.__display_values_changed_listener.close()
-            self.__display_values_changed_listener = None
+        self.__display_values_subscription = None
         self.__display_data_channel_stream_listener.close()
         self.__display_data_channel_stream_listener = typing.cast(typing.Any, None)
         self.__display_data_channel_stream.remove_ref()
         self.__display_data_channel_stream = typing.cast(typing.Any, None)
         super().about_to_delete()
 
-    def __display_values_changed(self, display_data_channel: DisplayItem.DisplayDataChannel) -> None:
-        self.send_value(display_data_channel.get_calculated_display_values(True))
+    def __display_values_changed(self, display_values: typing.Optional[DisplayItem.DisplayValues]) -> None:
+        self.send_value(display_values)
 
     def __display_data_channel_changed(self, display_data_channel: typing.Optional[DisplayItem.DisplayDataChannel]) -> None:
-        if self.__next_calculated_display_values_listener:
-            self.__next_calculated_display_values_listener.close()
-            self.__next_calculated_display_values_listener = None
-        if self.__display_values_changed_listener:
-            self.__display_values_changed_listener.close()
-            self.__display_values_changed_listener = None
         if display_data_channel:
-            # there are two listeners - the first when new display properties have triggered new display values.
-            # the second whenever actual new display values arrive. this ensures the display gets updated after
-            # the user changes it. could use some rethinking.
-            self.__next_calculated_display_values_listener = display_data_channel.calculated_display_values_available_event.listen(weak_partial(DisplayDataChannelDisplayValuesStream.__display_values_changed, self, display_data_channel))
-            self.__display_values_changed_listener = display_data_channel.display_values_changed_event.listen(weak_partial(DisplayDataChannelDisplayValuesStream.__display_values_changed, self, display_data_channel))
-            self.__display_values_changed(display_data_channel)
+            self.__display_values_subscription = display_data_channel.subscribe_to_latest_computed_display_values(weak_partial(DisplayDataChannelDisplayValuesStream.__display_values_changed, self))
+            self.__display_values_changed(display_data_channel.get_latest_computed_display_values())
         else:
+            self.__display_values_subscription = None
             self.send_value(None)
 
 

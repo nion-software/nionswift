@@ -43,6 +43,7 @@ from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import Observable
 from nion.utils import ReferenceCounting
+from nion.utils import Stream
 
 if typing.TYPE_CHECKING:
     from nion.swift.model import Project
@@ -1071,6 +1072,10 @@ class DataSource:
         return self.__display_data_channel
 
     @property
+    def _display_values(self) -> typing.Optional[DisplayItem.DisplayValues]:
+        return self.__display_data_channel.get_latest_display_values()
+
+    @property
     def display_item(self) -> typing.Optional[DisplayItem.DisplayItem]:
         return self.__display_item
 
@@ -1101,7 +1106,7 @@ class DataSource:
             if self.__xdata is not None:
                 return Core.function_convert_to_scalar(self.__xdata, display_data_channel.complex_display_type)
             else:
-                display_values = display_data_channel.get_calculated_display_values()
+                display_values = self._display_values
                 if display_values:
                     return display_values.element_data_and_metadata
         return None
@@ -1113,7 +1118,7 @@ class DataSource:
             if self.__xdata is not None:
                 return Core.function_convert_to_scalar(self.__xdata, display_data_channel.complex_display_type)
             else:
-                display_values = display_data_channel.get_calculated_display_values()
+                display_values = self._display_values
                 if display_values:
                     return display_values.display_data_and_metadata
         return None
@@ -1125,7 +1130,7 @@ class DataSource:
             if self.__xdata is not None:
                 return self.xdata
             else:
-                display_values = display_data_channel.get_calculated_display_values()
+                display_values = self._display_values
                 if display_values:
                     display_rgba = display_values.display_rgba
                     return DataAndMetadata.new_data_and_metadata(Image.get_byte_view(display_rgba)) if display_rgba is not None else None
@@ -1142,7 +1147,7 @@ class DataSource:
                 else:
                     return None
             else:
-                display_values = display_data_channel.get_calculated_display_values()
+                display_values = self._display_values
                 if display_values:
                     return display_values.normalized_data_and_metadata
         return None
@@ -1154,7 +1159,7 @@ class DataSource:
             if self.__xdata is not None:
                 return self.normalized_xdata
             else:
-                display_values = display_data_channel.get_calculated_display_values()
+                display_values = self._display_values
                 if display_values:
                     return display_values.adjusted_data_and_metadata
         return None
@@ -1166,7 +1171,7 @@ class DataSource:
             if self.__xdata is not None:
                 return self.normalized_xdata
             else:
-                display_values = display_data_channel.get_calculated_display_values()
+                display_values = self._display_values
                 if display_values:
                     return display_values.transformed_data_and_metadata
         return None
@@ -1256,7 +1261,11 @@ class MonitoredDataSource(DataSource):
         self.__graphic = graphic
         self.__changed_event = changed_event  # not public since it is passed in
         self.__data_item = display_data_channel.data_item
-        self.__display_values_event_listener = display_data_channel.calculated_display_values_available_event.listen(self.__changed_event.fire)
+
+        def handle_display_values(display_values: typing.Optional[DisplayItem.DisplayValues]) -> None:
+            self.__changed_event.fire()
+
+        self.__display_values_subscription = display_data_channel.subscribe_to_latest_display_values(handle_display_values)
         self.__property_changed_listener: typing.Optional[Event.EventListener] = None
 
         def property_changed(key: str) -> None:
@@ -1314,9 +1323,7 @@ class MonitoredDataSource(DataSource):
         if self.__property_changed_listener:
             self.__property_changed_listener.close()
             self.__property_changed_listener = None
-        if self.__display_values_event_listener:
-            self.__display_values_event_listener.close()
-            self.__display_values_event_listener = typing.cast(typing.Any, None)
+        self.__display_values_subscription = typing.cast(typing.Any, None)
         self.__display_item = None
         self.__graphic = typing.cast(typing.Any, None)
         self.__changed_event = typing.cast(typing.Any, None)
@@ -1409,16 +1416,17 @@ class BoundDisplayDataChannelBase(BoundItemBase):
 
         self.__item_reference = container.create_item_reference(item_specifier=Persistence.read_persistent_specifier(specifier.reference_uuid if specifier else None))
         self.__graphic_reference = container.create_item_reference(item_specifier=Persistence.read_persistent_specifier(secondary_specifier.reference_uuid if secondary_specifier else None))
-        self.__display_values_changed_event_listener: typing.Optional[Event.EventListener] = None
+        self.__display_values_subscription: typing.Optional[DisplayItem.DisplayValuesSubscription] = None
+
+        def handle_display_values(display_values: typing.Optional[DisplayItem.DisplayValues]) -> None:
+            self.changed_event.fire()
 
         def maintain_data_source() -> None:
-            if self.__display_values_changed_event_listener:
-                self.__display_values_changed_event_listener.close()
-                self.__display_values_changed_event_listener = None
+            self.__display_values_subscription = None
             display_data_channel = self._display_data_channel
             if display_data_channel:
-                self.__display_values_changed_event_listener = display_data_channel.calculated_display_values_available_event.listen(self.changed_event.fire)
-            self.valid = self.__display_values_changed_event_listener is not None
+                self.__display_values_subscription = display_data_channel.subscribe_to_latest_display_values(handle_display_values)
+            self.valid = self.__display_values_subscription is not None
             self._update_base_items(self._get_base_items())
 
         def item_registered(item: Persistence.PersistentObject) -> None:
@@ -1436,9 +1444,7 @@ class BoundDisplayDataChannelBase(BoundItemBase):
         maintain_data_source()
 
     def close(self) -> None:
-        if self.__display_values_changed_event_listener:
-            self.__display_values_changed_event_listener.close()
-            self.__display_values_changed_event_listener = None
+        self.__display_values_subscription = None
         self.__item_reference.on_item_registered = None
         self.__item_reference.on_item_unregistered = None
         self.__graphic_reference.on_item_registered = None
@@ -1459,6 +1465,10 @@ class BoundDisplayDataChannelBase(BoundItemBase):
     @property
     def _display_data_channel(self) -> typing.Optional[DisplayItem.DisplayDataChannel]:
         return typing.cast(typing.Optional[DisplayItem.DisplayDataChannel], self.__item_reference.item)
+
+    @property
+    def _display_values(self) -> typing.Optional[DisplayItem.DisplayValues]:
+        return self._display_data_channel.get_latest_display_values() if self._display_data_channel else None
 
     @property
     def _graphic(self) -> typing.Optional[Graphics.Graphic]:
@@ -1584,7 +1594,7 @@ class BoundDisplayData(BoundDisplayDataChannelBase):
 
     @property
     def value(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
-        display_values = self._display_data_channel.get_calculated_display_values() if self._display_data_channel else None
+        display_values = self._display_values if self._display_data_channel else None
         return display_values.display_data_and_metadata if display_values else None
 
 
@@ -1607,7 +1617,7 @@ class BoundCroppedDisplayData(BoundDisplayDataChannelBase):
 
     @property
     def value(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
-        display_values = self._display_data_channel.get_calculated_display_values() if self._display_data_channel else None
+        display_values = self._display_values if self._display_data_channel else None
         xdata = display_values.display_data_and_metadata if display_values else None
         graphic = self._graphic
         if xdata and graphic:
@@ -1624,14 +1634,15 @@ class BoundFilterLikeData(BoundItemBase):
         super().__init__(specifier)
 
         self.__item_reference = container.create_item_reference(item_specifier=Persistence.read_persistent_specifier(specifier.reference_uuid if specifier else None))
-        self.__display_values_changed_event_listener: typing.Optional[Event.EventListener] = None
+        self.__display_values_subscription: typing.Optional[DisplayItem.DisplayValuesSubscription] = None
         self.__display_item_item_inserted_event_listener: typing.Optional[Event.EventListener] = None
         self.__display_item_item_removed_event_listener: typing.Optional[Event.EventListener] = None
 
+        def handle_display_values(display_values: typing.Optional[DisplayItem.DisplayValues]) -> None:
+            self.changed_event.fire()
+
         def maintain_data_source() -> None:
-            if self.__display_values_changed_event_listener:
-                self.__display_values_changed_event_listener.close()
-                self.__display_values_changed_event_listener = None
+            self.__display_values_subscription = None
             if self.__display_item_item_inserted_event_listener:
                 self.__display_item_item_inserted_event_listener.close()
                 self.__display_item_item_inserted_event_listener = None
@@ -1640,7 +1651,7 @@ class BoundFilterLikeData(BoundItemBase):
                 self.__display_item_item_removed_event_listener = None
             display_data_channel = self._display_data_channel
             if display_data_channel:
-                self.__display_values_changed_event_listener = display_data_channel.calculated_display_values_available_event.listen(self.changed_event.fire)
+                self.__display_values_subscription = display_data_channel.subscribe_to_latest_display_values(handle_display_values)
                 display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], display_data_channel.container)
                 if display_item:
                     def maintain(name: str, value: typing.Any, index: int) -> None:
@@ -1649,7 +1660,7 @@ class BoundFilterLikeData(BoundItemBase):
 
                     self.__display_item_item_inserted_event_listener = display_item.item_inserted_event.listen(maintain)
                     self.__display_item_item_removed_event_listener = display_item.item_removed_event.listen(maintain)
-            self.valid = self.__display_values_changed_event_listener is not None
+            self.valid = self.__display_values_subscription is not None
             self._update_base_items(self._get_base_items())
 
         def item_registered(item: Persistence.PersistentObject) -> None:
@@ -1664,9 +1675,7 @@ class BoundFilterLikeData(BoundItemBase):
         maintain_data_source()
 
     def close(self) -> None:
-        if self.__display_values_changed_event_listener:
-            self.__display_values_changed_event_listener.close()
-            self.__display_values_changed_event_listener = None
+        self.__display_values_subscription = None
         if self.__display_item_item_inserted_event_listener:
             self.__display_item_item_inserted_event_listener.close()
             self.__display_item_item_inserted_event_listener = None
@@ -1695,6 +1704,10 @@ class BoundFilterLikeData(BoundItemBase):
     def _display_data_channel(self) -> typing.Optional[DisplayItem.DisplayDataChannel]:
         return typing.cast(typing.Optional[DisplayItem.DisplayDataChannel], self.__item_reference.item if self.__item_reference else None)
 
+    @property
+    def _display_values(self) -> typing.Optional[DisplayItem.DisplayValues]:
+        return self._display_data_channel.get_latest_display_values() if self._display_data_channel else None
+
 
 class BoundFilterData(BoundFilterLikeData):
 
@@ -1706,7 +1719,7 @@ class BoundFilterData(BoundFilterLikeData):
             # no display item is a special case for cascade removing graphics from computations. ugh.
             # see test_new_computation_becomes_unresolved_when_xdata_input_is_removed_from_document.
             if display_item:
-                display_values = display_data_channel.get_calculated_display_values()
+                display_values = self._display_values
                 if display_values:
                     display_data_and_metadata = display_values.display_data_and_metadata
                     if display_data_and_metadata:
