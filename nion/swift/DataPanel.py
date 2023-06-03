@@ -199,12 +199,33 @@ class ItemExplorerCanvasItemLike(typing.Protocol):
     def make_selection_visible(self) -> None: ...
 
 
+class ThreadHelper:
+    def __init__(self, event_loop: asyncio.AbstractEventLoop) -> None:
+        self.__event_loop = event_loop
+        self.__pending_calls: typing.Dict[str, asyncio.Handle] = dict()
+
+    def close(self) -> None:
+        for handle in self.__pending_calls.values():
+            handle.cancel()
+        self.__pending_calls = dict()
+
+    def call_on_main_thread(self, key: str, func: typing.Callable[[], None]) -> None:
+        if threading.current_thread() != threading.main_thread():
+            handle = self.__pending_calls.pop(key, None)
+            if handle:
+                handle.cancel()
+            self.__pending_calls[key] = self.__event_loop.call_soon_threadsafe(func)
+        else:
+            func()
+
+
 class ItemExplorerController:
     def __init__(self, event_loop: asyncio.AbstractEventLoop, ui: UserInterface.UserInterface,
                  canvas_item: CanvasItem.AbstractCanvasItem,
                  display_item_adapters_model: ListModel.MappedListModel, selection: Selection.IndexedSelection,
                  direction: GridCanvasItem.Direction = GridCanvasItem.Direction.Row, wrap: bool = True) -> None:
         self.__event_loop = event_loop
+        self.__thread_helper = ThreadHelper(event_loop)
         self.__pending_tasks: typing.List[asyncio.Task[None]] = list()
         self.ui = ui
         self.__selection = selection
@@ -271,6 +292,8 @@ class ItemExplorerController:
 
     def close(self) -> None:
         assert not self.__closed
+        self.__thread_helper.close()
+        self.__thread_helper = typing.cast(typing.Any, None)
         for pending_task in self.__pending_tasks:
             pending_task.cancel()
         self.__pending_tasks = typing.cast(typing.Any, None)
@@ -373,9 +396,12 @@ class ItemExplorerController:
         return self.__display_item_adapters[index]
 
     def __display_item_adapter_needs_update(self) -> None:
-        with self.__changed_display_item_adapters_mutex:
-            self.__changed_display_item_adapters = True
-            self.__pending_tasks.append(self.__event_loop.create_task(self.__update_display_item_adapters()))
+        def display_item_adapter_needs_update() -> None:
+            with self.__changed_display_item_adapters_mutex:
+                self.__changed_display_item_adapters = True
+                self.__pending_tasks.append(self.__event_loop.create_task(self.__update_display_item_adapters()))
+
+        self.__thread_helper.call_on_main_thread("display_item_adapter_needs_update", display_item_adapter_needs_update)
 
     async def __update_display_item_adapters(self) -> None:
         # handle the 'changed' stuff. a call to this function is scheduled
