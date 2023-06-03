@@ -110,6 +110,55 @@ class PeriodicListener:
 
         self.call = void
 
+
+class PeriodicMonitor:
+    def __init__(self, ui: UserInterface.UserInterface, slow_duration: float = 0.02) -> None:
+        self.__ui = ui
+        self.__slow_duration = slow_duration
+        self.__start_event = threading.Event()
+        self.__end_event = threading.Event()
+        self.__cancel = False
+        self.__monitor_thread: typing.Optional[threading.Thread] = None
+
+    def start(self) -> None:
+        self.__monitor_thread = threading.Thread(target=self.run)
+        self.__monitor_thread.start()
+
+    def close(self) -> None:
+        self.__cancel = True
+        if self.__monitor_thread:
+            self.__monitor_thread.join(1.0)
+            self.__monitor_thread = None
+
+    def enter(self) -> None:
+        self.__start_event.set()
+
+    def exit(self) -> None:
+        self.__end_event.set()
+
+    def run(self) -> None:
+        while not self.__cancel:
+            while not self.__cancel:
+                self.__start_event.wait(0.1)
+                if self.__start_event.is_set():
+                    break
+            if not self.__cancel:
+                self.__start_event.clear()
+                self.__end_event.clear()
+                self.__end_event.wait(self.__slow_duration)
+            if not self.__cancel and not self.__end_event.is_set():
+                import sys, datetime, traceback
+                print(f"WRITE HANG {self.__ui.get_data_location()}")
+                with open(os.path.join(self.__ui.get_data_location(), "hang.txt"), 'a') as f:
+                    f.write("--------------------------------------\n")
+                    f.write("HANG " + str(datetime.datetime.now()) + "\n")
+                    f.write("--------------------------------------\n")
+                    for thread_id, stack in sys._current_frames().items():
+                        if thread_id == threading.main_thread().ident:
+                            traceback.print_stack(stack, file=f)
+                            f.write("\n")
+
+
 _PeriodicListenerWeakRef = typing.Callable[[], typing.Optional[PeriodicListener]]
 
 
@@ -121,6 +170,13 @@ class DocumentController(Window.Window):
                  workspace_id: typing.Optional[str] = None, app: typing.Optional[Application.Application] = None,
                  project_reference: typing.Optional[Profile.ProjectReference] = None) -> None:
         super().__init__(ui, app)
+
+        self.__periodic_monitor = PeriodicMonitor(ui)
+        # self.__periodic_monitor.start()
+
+        # self.event_loop.set_debug(True)  # Enable debug
+        # self.event_loop.slow_callback_duration = 0.010  # 10 ms
+
         self.__project_reference = project_reference
         self.__class__.count += 1
 
@@ -231,6 +287,8 @@ class DocumentController(Window.Window):
         """
         assert self.__closed == False
         self.__closed = True
+        self.__periodic_monitor.close()
+        self.__periodic_monitor = typing.cast(typing.Any, None)
         self._finish_periodic()  # required to finish periodic operations during tests
         # dialogs
         self._close_dialogs()
@@ -363,26 +421,30 @@ class DocumentController(Window.Window):
         return listener
 
     def periodic(self) -> None:
-        with self.__weak_periodic_listeners_mutex:
-            periodic_listeners = copy.copy(self.__weak_periodic_listeners)
-        current_time = time.time()
-        for weak_periodic_listener in periodic_listeners:
-            periodic_listener = weak_periodic_listener()
-            if periodic_listener and current_time >= periodic_listener.next_scheduled_time:
-                try:
-                    periodic_listener.call()
-                except Exception as e:
-                    import traceback
-                    logging.debug("Event Error: %s", e)
-                    traceback.print_exc()
-                    traceback.print_stack()
-                periodic_listener.next_scheduled_time = current_time + periodic_listener.interval
-        super().periodic()
-        self.document_model.perform_data_item_updates()
-        if self.workspace_controller:
-            self.workspace_controller.periodic()
-        if self.__last_activity is not None and time.time() - self.__last_activity > 60 * 60:
-            pass  # self.app.choose_library()
+        self.__periodic_monitor.enter()
+        try:
+            with self.__weak_periodic_listeners_mutex:
+                periodic_listeners = copy.copy(self.__weak_periodic_listeners)
+            current_time = time.time()
+            for weak_periodic_listener in periodic_listeners:
+                periodic_listener = weak_periodic_listener()
+                if periodic_listener and current_time >= periodic_listener.next_scheduled_time:
+                    try:
+                        periodic_listener.call()
+                    except Exception as e:
+                        import traceback
+                        logging.debug("Event Error: %s", e)
+                        traceback.print_exc()
+                        traceback.print_stack()
+                    periodic_listener.next_scheduled_time = current_time + periodic_listener.interval
+            super().periodic()
+            self.document_model.perform_data_item_updates()
+            if self.workspace_controller:
+                self.workspace_controller.periodic()
+            if self.__last_activity is not None and time.time() - self.__last_activity > 60 * 60:
+                pass  # self.app.choose_library()
+        finally:
+            self.__periodic_monitor.exit()
 
     @property
     def _undo_stack(self) -> Undo.UndoStack:
