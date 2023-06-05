@@ -396,22 +396,7 @@ class ItemExplorerController:
         return self.__display_item_adapters[index]
 
     def __display_item_adapter_needs_update(self) -> None:
-        def display_item_adapter_needs_update() -> None:
-            with self.__changed_display_item_adapters_mutex:
-                self.__changed_display_item_adapters = True
-                self.__pending_tasks.append(self.__event_loop.create_task(self.__update_display_item_adapters()))
-
-        self.__thread_helper.call_on_main_thread("display_item_adapter_needs_update", display_item_adapter_needs_update)
-
-    async def __update_display_item_adapters(self) -> None:
-        # handle the 'changed' stuff. a call to this function is scheduled
-        # whenever __changed_display_item_adapters changes.
-        with self.__changed_display_item_adapters_mutex:
-            changed_display_item_adapters = self.__changed_display_item_adapters
-            self.__changed_display_item_adapters = False
-        if changed_display_item_adapters:
-            self.__list_canvas_item.update()
-        self.__pending_tasks.pop(0)
+        self.__thread_helper.call_on_main_thread("list_canvas_item.update", self.__list_canvas_item.update)
 
     # call this method to insert a display item
     # not thread safe
