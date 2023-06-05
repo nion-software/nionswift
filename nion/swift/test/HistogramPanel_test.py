@@ -1,6 +1,5 @@
 # standard libraries
 import contextlib
-import time
 import unittest
 
 # third party libraries
@@ -238,24 +237,25 @@ class TestHistogramPanelClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             histogram_processor = HistogramPanel.HistogramProcessor(document_controller.event_loop)
-            display_data_channel = display_item.display_data_channel
-            display_values = display_data_channel.get_latest_computed_display_values()
-            histogram_processor.display_data_and_metadata = display_values.display_data_and_metadata
-            histogram_processor.display_range = display_values.display_range
-            histogram_processor.display_data_range = display_values.data_range
-            histogram_processor.displayed_intensity_calibration = display_item.displayed_intensity_calibration
-            had_histogram = False
-            had_statistics = False
-            def property_changed(key: str) -> None:
-                nonlocal had_histogram, had_statistics
-                if key == "histogram_widget_data":
-                    had_histogram = True
-                if key == "statistics":
-                    had_statistics = True
-            with contextlib.closing(histogram_processor.property_changed_event.listen(property_changed)):
-                while not had_histogram or not had_statistics:
-                    document_controller.periodic()
-            display_values = None
+            with contextlib.closing(histogram_processor):
+                display_data_channel = display_item.display_data_channel
+                display_values = display_data_channel.get_latest_computed_display_values()
+                histogram_processor.display_data_and_metadata = display_values.display_data_and_metadata
+                histogram_processor.display_range = display_values.display_range
+                histogram_processor.display_data_range = display_values.data_range
+                histogram_processor.displayed_intensity_calibration = display_item.displayed_intensity_calibration
+                had_histogram = False
+                had_statistics = False
+                def property_changed(key: str) -> None:
+                    nonlocal had_histogram, had_statistics
+                    if key == "histogram_widget_data":
+                        had_histogram = True
+                    if key == "statistics":
+                        had_statistics = True
+                with contextlib.closing(histogram_processor.property_changed_event.listen(property_changed)):
+                    while not had_histogram or not had_statistics:
+                        document_controller.periodic()
+                display_values = None
 
 
 if __name__ == '__main__':

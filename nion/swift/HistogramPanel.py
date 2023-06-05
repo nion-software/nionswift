@@ -601,7 +601,6 @@ class HistogramProcessor(Observable.Observable):
         event_loop = event_loop or asyncio.get_running_loop()
         assert event_loop
         self.__lock = threading.RLock()
-        self.__event = asyncio.Event()
         # these fields are used for inputs.
         self.__display_data_and_metadata: typing.Optional[DataAndMetadata.DataAndMetadata] = None
         self.__region: typing.Optional[Graphics.Graphic] = None
@@ -616,34 +615,49 @@ class HistogramProcessor(Observable.Observable):
         self.__histogram_widget_data = HistogramWidgetData()
         self.__statistics: _StatisticsTable = dict()
 
-        # Python 3.9: use ReferenceType[FuncStreamValueModel] for model_ref
-        async def loop(processor_ref: typing.Any, event: asyncio.Event) -> None:
-            assert event_loop
-            while True:
-                await event.wait()
-                event.clear()
+        self.__event_loop = event_loop
+        self.__cancel = threading.Event()
+        self.__event = threading.Event()
+        self.__handle_lock = threading.RLock()
+        self.__handle: typing.Optional[asyncio.Handle] = None
+        self.__thread = threading.Thread(target=self.__run)
+        self.__thread.start()
 
-                await asyncio.sleep(0.25)  # gather changes for 250ms
+    def close(self) -> None:
+        with self.__handle_lock:
+            if self.__handle:
+                self.__handle.cancel()
+        self.__cancel.set()
+        self.__event.set()
+        self.__thread.join(1.0)
+        self._thread = None
 
-                processor = processor_ref()
-                if processor:
-                    old_histogram_widget_data = processor.__histogram_widget_data
-                    old_statistics = processor.__statistics
+    def __run(self) -> None:
+        while not self.__cancel.is_set():
+            if self.__event.wait(0.05):  # frequency to check for cancel
+                self.__event.clear()
+                if self.__cancel.wait(0.25):  # frequency to wait between updates
+                    break
+                old_histogram_widget_data = self.__histogram_widget_data
+                old_statistics = self.__statistics
+                self.__evaluate()
+                notify_data = old_histogram_widget_data != self.__histogram_widget_data
+                notify_statistics = old_statistics != self.__statistics
 
-                    await event_loop.run_in_executor(None, processor.__evaluate)
+                def notify() -> None:
+                    if notify_data:
+                        self.notify_property_changed("histogram_widget_data")
+                    if notify_statistics:
+                        self.notify_property_changed("statistics")
+                    with self.__handle_lock:
+                        self.__handle = None
 
-                    if old_histogram_widget_data != processor.__histogram_widget_data:
-                        processor.notify_property_changed("histogram_widget_data")
-                    if old_statistics != processor.__statistics:
-                        processor.notify_property_changed("statistics")
-                    processor = None  # don't keep this reference while in the next iteration of the loop
-
-        self.__task = event_loop.create_task(loop(weakref.ref(self), self.__event))
-
-        def finalize(task: asyncio.Task[None]) -> None:
-            task.cancel()
-
-        weakref.finalize(self, finalize, self.__task)
+                if notify_data or notify_statistics:
+                    with self.__handle_lock:
+                        if self.__handle:
+                            self.__handle.cancel()
+                            self.__handle = None
+                        self.__handle = self.__event_loop.call_soon_threadsafe(notify)
 
     # inputs
 
@@ -839,6 +853,7 @@ class HistogramPanel(Panel.Panel):
         self._statistics_widget = typing.cast(typing.Any, None)
         self.__histogram_widget_data_model = typing.cast(typing.Any, None)
         self.__color_map_data_model = typing.cast(typing.Any, None)
+        self._histogram_processor.close()
         self._histogram_processor = typing.cast(typing.Any, None)
         self.__setters = typing.cast(typing.Any, None)
         super().close()
@@ -1085,51 +1100,3 @@ class DisplayValuesValueStream(Stream.ValueStream[T]):
         new_value = getattr(display_values, self.__property_name) if display_values else None
         if not self.__cmp(new_value, self.value):
             self.send_value(new_value)
-
-
-class StreamValueFuncModel(Model.PropertyModel[OT], typing.Generic[T, OT]):
-    """Converts a stream to a property model."""
-
-    def __init__(self, value_stream: Stream.AbstractStream[typing.Any], event_loop: asyncio.AbstractEventLoop, fn: typing.Callable[[T], OT], value: typing.Optional[OT] = None, cmp: typing.Optional[Model.EqualityOperator] = None) -> None:
-        super().__init__(value=value, cmp=cmp)
-        self.__value_stream = value_stream
-        self.__event_loop = event_loop
-        self.__pending_task = Stream.StreamTask(None, event_loop)
-        self.__event = asyncio.Event()
-        self.__evaluating = [False]
-        self.__value: T = typing.cast(typing.Any, None)
-
-        # Python 3.9: use ReferenceType[FuncStreamValueModel] for model_ref
-        async def update_value(event: asyncio.Event, evaluating: typing.List[bool], model_ref: typing.Any) -> None:
-            while True:
-                await event.wait()
-                evaluating[0] = True
-                event.clear()
-                value = None
-
-                def eval() -> None:
-                    nonlocal value
-                    try:
-                        value = fn(self.__value)
-                    except Exception as e:
-                        pass
-
-                await event_loop.run_in_executor(None, eval)
-                model = model_ref()
-                if model:
-                    model.value = value
-                    model = None  # immediately release value for gc
-                evaluating[0] = event.is_set()
-
-        self.__pending_task.create_task(update_value(self.__event, self.__evaluating, weakref.ref(self)))
-        self.__stream_listener = value_stream.value_stream.listen(weak_partial(StreamValueFuncModel.__handle_value, self))
-        self.__handle_value(value_stream.value)
-
-        def finalize(pending_task: Stream.StreamTask) -> None:
-            pending_task.clear()
-
-        weakref.finalize(self, finalize, self.__pending_task)
-
-    def __handle_value(self, value: typing.Any) -> None:
-        self.__value = value
-        self.__event.set()
