@@ -148,15 +148,15 @@ class PeriodicMonitor:
                 self.__end_event.wait(self.__slow_duration)
             if not self.__cancel and not self.__end_event.is_set():
                 import sys, datetime, traceback
-                print(f"WRITE HANG {self.__ui.get_data_location()}")
-                with open(os.path.join(self.__ui.get_data_location(), "hang.txt"), 'a') as f:
-                    f.write("--------------------------------------\n")
-                    f.write("HANG " + str(datetime.datetime.now()) + "\n")
-                    f.write("--------------------------------------\n")
-                    for thread_id, stack in sys._current_frames().items():
-                        if thread_id == threading.main_thread().ident:
-                            traceback.print_stack(stack, file=f)
-                            f.write("\n")
+                stack = sys._current_frames().get(threading.main_thread().ident or 0)
+                if stack:
+                    print(f"WRITE HANG {self.__ui.get_data_location()}")
+                    with open(os.path.join(self.__ui.get_data_location(), "hang.txt"), 'a') as f:
+                        f.write("--------------------------------------\n")
+                        f.write("HANG " + str(datetime.datetime.now()) + "\n")
+                        f.write("--------------------------------------\n")
+                        traceback.print_stack(stack, file=f)
+                        f.write("\n")
 
 
 _PeriodicListenerWeakRef = typing.Callable[[], typing.Optional[PeriodicListener]]
@@ -171,7 +171,7 @@ class DocumentController(Window.Window):
                  project_reference: typing.Optional[Profile.ProjectReference] = None) -> None:
         super().__init__(ui, app)
 
-        self.__periodic_monitor = PeriodicMonitor(ui)
+        self.__periodic_monitor = PeriodicMonitor(ui, 0.010)  # 10 ms
         # self.__periodic_monitor.start()
 
         # self.event_loop.set_debug(True)  # Enable debug
