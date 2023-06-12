@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 # standard libraries
+import asyncio
+import concurrent.futures
 import gettext
 import json
+import threading
+import time
 import typing
 import weakref
 
@@ -12,6 +16,7 @@ import weakref
 # local libraries
 from nion.swift import Panel
 from nion.ui import CanvasItem
+from nion.ui import DrawingContext
 from nion.ui import TreeCanvasItem
 from nion.utils import Event
 from nion.utils import Geometry
@@ -162,6 +167,114 @@ class MetadataEditorTreeDelegate(TreeCanvasItem.TreeCanvasItemDelegate):
         return items
 
 
+class ThreadedCanvasItem(CanvasItem.CanvasItemComposition):
+    _executor = concurrent.futures.ThreadPoolExecutor()
+
+    def __init__(self, get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics], delegate: TreeCanvasItem.TreeCanvasItemDelegate, content_size_changed_fn: typing.Optional[typing.Callable[[Geometry.IntSize], None]] = None) -> None:
+        super().__init__()
+        self.__get_font_metrics_fn = get_font_metrics_fn
+        self.__delegate = delegate
+        self.__metadata_editor_canvas_item: typing.Optional[TreeCanvasItem.TreeCanvasItem] = None
+        self.__thread_lock = threading.Lock()
+        self.__thread_future: typing.Optional[concurrent.futures.Future[None]] = None
+        self.__closing = False
+        self.__pending = False
+        self.on_content_size_changed = content_size_changed_fn
+
+        self.__draw(DrawingContext.DrawingContext())
+
+        self.wants_mouse_events = True
+
+    def close(self) -> None:
+        # wait for display values threads to finish. first notify the thread that we are closing, then wait for it
+        # to complete by getting the future and waiting for it to complete. then clear the streams to release any
+        # resources (display values).
+        self.__closing = True
+        with self.__thread_lock:
+            thread_future = self.__thread_future
+        if thread_future:
+            thread_future.result()
+        super().close()
+
+    def __draw_thread(self) -> None:
+        while not self.__closing:
+            with self.__thread_lock:
+                pending = self.__pending
+                self.__pending = False
+            if pending:
+                time.sleep(0.05)
+                drawing_context = DrawingContext.DrawingContext()
+                if not self.__closing:  # cleaner closing behavior, but not perfect.
+                    self.__draw(drawing_context)
+            with self.__thread_lock:
+                if not self.__pending:
+                    self.__thread_future = None
+                    break
+
+    def __draw(self, drawing_context: DrawingContext.DrawingContext) -> None:
+        canvas_bounds = self.canvas_bounds
+        if canvas_bounds:
+            # start = time.perf_counter_ns()
+
+            metadata_editor_canvas_item = TreeCanvasItem.TreeCanvasItem(self.__get_font_metrics_fn, self.__delegate)
+            metadata_editor_canvas_item.on_reconstruct = self._trigger
+
+            # modifying the composition is safe until it is added to this composition.
+            canvas_item_composition = CanvasItem.CanvasItemComposition()
+            canvas_item_composition.wants_mouse_events = True
+            canvas_item_composition.layout = CanvasItem.CanvasItemColumnLayout()
+            canvas_item_composition.add_canvas_item(metadata_editor_canvas_item)
+            canvas_item_composition.add_stretch()
+            metadata_editor_canvas_item.reconstruct()
+            self.__metadata_editor_canvas_item = metadata_editor_canvas_item
+
+            canvas_item_composition.update_layout(self.canvas_origin, canvas_bounds.size)
+            canvas_item_composition.repaint_immediate(drawing_context, canvas_bounds.size)
+
+            canvas_item_composition._set_owner_thread(threading.main_thread())
+
+            self.replace_canvas_items([canvas_item_composition])
+
+            if callable(self.on_content_size_changed):
+                if metadata_editor_canvas_item.canvas_size:
+                    self.on_content_size_changed(metadata_editor_canvas_item.canvas_size)
+
+            # end = time.perf_counter_ns()
+            # print(f"reconstruct {(end - start) / 1000}us")
+
+    def _trigger(self) -> None:
+        with self.__thread_lock:
+            self.__pending = True
+            if not self.__thread_future:
+                self.__thread_future = ThreadedCanvasItem._executor.submit(self.__draw_thread)
+
+    # def _repaint_template(self, drawing_context: DrawingContext.DrawingContext, immediate: bool) -> None:
+    #     start = time.perf_counter_ns()
+    #     super()._repaint_template(drawing_context, immediate)
+    #     end = time.perf_counter_ns()
+    #     print(f"repaint {(end - start) / 1000}us")
+
+
+class ThreadHelper:
+    def __init__(self, event_loop: asyncio.AbstractEventLoop) -> None:
+        self.__event_loop = event_loop
+        self.__pending_calls: typing.Dict[str, asyncio.Handle] = dict()
+
+    def close(self) -> None:
+        for handle in self.__pending_calls.values():
+            handle.cancel()
+        self.__pending_calls = dict()
+
+    def call_on_main_thread(self, key: str, func: typing.Callable[[], None]) -> None:
+        if threading.current_thread() != threading.main_thread():
+            handle = self.__pending_calls.pop(key, None)
+            if handle:
+                handle.cancel()
+            self.__pending_calls[key] = self.__event_loop.call_soon_threadsafe(func)
+        else:
+            func()
+
+
 class MetadataPanel(Panel.Panel):
     """Provide a panel to edit metadata."""
 
@@ -171,48 +284,67 @@ class MetadataPanel(Panel.Panel):
         ui = self.ui
 
         self.__metadata_model = MetadataModel(document_controller)
+        self.__thread_helper = ThreadHelper(document_controller.event_loop)
 
         delegate = MetadataEditorTreeDelegate(dict())
 
-        metadata_editor_widget = ui.create_canvas_widget()
-        metadata_editor_canvas_item = TreeCanvasItem.TreeCanvasItem(ui.get_font_metrics, delegate)
-        metadata_editor_widget.canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
-        metadata_editor_widget.canvas_item.add_canvas_item(metadata_editor_canvas_item)
-        metadata_editor_widget.canvas_item.add_stretch()
+        def content_size_changed(content_size: Geometry.IntSize) -> None:
+            def _content_height_changed() -> None:
+                # start = time.perf_counter_ns()
+
+                # the code below will do the upstream part of the line below. we can't use the line below
+                # because it will lay out the children again.
+                # metadata_editor_canvas_item.update_layout(Geometry.IntPoint(), content_size)
+
+                # leave the canvas origin alone so the scroll bars are at the same place
+                # metadata_editor_canvas_item._set_canvas_origin(Geometry.IntPoint())
+
+                # set the content size and send it on up so the scroll area sees it.
+                metadata_editor_canvas_item._set_canvas_size(content_size)
+                if callable(metadata_editor_canvas_item.on_layout_updated):
+                    metadata_editor_canvas_item.on_layout_updated(metadata_editor_canvas_item.canvas_origin, metadata_editor_canvas_item.canvas_size, False)
+
+                # end = time.perf_counter_ns()
+                # print(f"height change {(end - start) / 1000}us")
+            self.__thread_helper.call_on_main_thread("_content_height_changed", _content_height_changed)
+
+        metadata_editor_canvas_item = ThreadedCanvasItem(ui.get_font_metrics, delegate, content_size_changed)
+
         self.__metadata_editor_canvas_item = metadata_editor_canvas_item
 
-        column = self.ui.create_column_widget()
-        column.add_spacing(6)
+        scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(metadata_editor_canvas_item)
+        # scroll_area_canvas_item.auto_resize_contents = True
+        scroll_group_canvas_item = CanvasItem.CanvasItemComposition()
+        vertical_scroll_bar_canvas_item = CanvasItem.ScrollBarCanvasItem(scroll_area_canvas_item)
+        horizontal_scroll_bar_canvas_item = CanvasItem.ScrollBarCanvasItem(scroll_area_canvas_item, CanvasItem.Orientation.Horizontal)
+        scroll_group_canvas_item.layout = CanvasItem.CanvasItemGridLayout(Geometry.IntSize(width=2, height=2))
+        scroll_group_canvas_item.add_canvas_item(scroll_area_canvas_item, Geometry.IntPoint(x=0, y=0))
+        scroll_group_canvas_item.add_canvas_item(vertical_scroll_bar_canvas_item, Geometry.IntPoint(x=1, y=0))
+        scroll_group_canvas_item.add_canvas_item(horizontal_scroll_bar_canvas_item, Geometry.IntPoint(x=0, y=1))
+
+        metadata_editor_widget = ui.create_canvas_widget()
+        metadata_editor_widget.canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
+        metadata_editor_widget.canvas_item.add_canvas_item(scroll_group_canvas_item)
+
+        column = self.ui.create_column_widget(properties={"size-policy-horizontal": "expanding", "size-policy-vertical": "expanding"})
         column.add(metadata_editor_widget)
-        column.add_spacing(6)
-
-        scroll_area = self.ui.create_scroll_area_widget()
-        scroll_area.set_scrollbar_policies("needed", "needed")
-        scroll_area.content = column
-
-        def content_height_changed(content_height: int) -> None:
-            desired_height = content_height + 12
-            metadata_editor_canvas_item.update_sizing(metadata_editor_canvas_item.sizing.with_fixed_height(desired_height))
-            metadata_editor_widget.canvas_item.update_layout(Geometry.IntPoint(), scroll_area.size)
-            if metadata_editor_canvas_item._has_layout:
-                column.size = Geometry.IntSize(height=desired_height, width=column.size.width)
-
-        metadata_editor_canvas_item.on_content_height_changed = content_height_changed
 
         def metadata_changed(metadata: DataAndMetadata.MetadataType) -> None:
             delegate.metadata = metadata
 
             def reconstruct_metadata() -> None:
                 if self.__metadata_editor_canvas_item:  # use this instead of local variable to handle close properly
-                    self.__metadata_editor_canvas_item.reconstruct()
+                    self.__metadata_editor_canvas_item._trigger()
 
             self.document_controller.queue_task(reconstruct_metadata)
 
         self.__metadata_changed_event_listener = self.__metadata_model.metadata_changed_event.listen(metadata_changed)
 
-        self.widget = scroll_area
+        self.widget = column
 
     def close(self) -> None:
+        self.__thread_helper.close()
+        self.__thread_helper = typing.cast(typing.Any, None)
         self.__metadata_editor_canvas_item = typing.cast(typing.Any, None)
         self.__metadata_changed_event_listener.close()
         self.__metadata_changed_event_listener = typing.cast(typing.Any, None)
@@ -222,7 +354,7 @@ class MetadataPanel(Panel.Panel):
 
     @property
     def _metadata_editor_canvas_item_for_testing(self) -> TreeCanvasItem.TreeCanvasItem:
-        return self.__metadata_editor_canvas_item
+        return typing.cast(TreeCanvasItem.TreeCanvasItem, self.__metadata_editor_canvas_item.canvas_items[0].canvas_items[0])
 
     @property
     def _metadata_model_for_testing(self) -> MetadataModel:
