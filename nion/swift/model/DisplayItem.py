@@ -1289,19 +1289,6 @@ class DisplayDataChannel(Persistence.PersistentObject):
         """Reset display limits so that they are auto calculated whenever the data changes."""
         self.display_limits = None
 
-    def auto_display_limits(self) -> None:
-        """Calculate best display limits and set them."""
-        display_values = self.get_latest_computed_display_values()
-        display_data_and_metadata = display_values.display_data_and_metadata if display_values else None
-        data = display_data_and_metadata.data if display_data_and_metadata else None
-        if data is not None:
-            # The old algorithm was a problem during EELS where the signal data
-            # is a small percentage of the overall data and was falling outside
-            # the included range. This is the new simplified algorithm. Future
-            # feature may allow user to select more complex algorithms.
-            mn, mx = numpy.array(numpy.nanmin(data)).item(), numpy.array(numpy.nanmax(data)).item()
-            self.display_limits = mn, mx
-
 
 def display_data_channel_factory(lookup_id: typing.Callable[[str], str]) -> DisplayDataChannel:
     return DisplayDataChannel()

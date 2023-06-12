@@ -572,25 +572,6 @@ class TestDataItemClass(unittest.TestCase):
                 data_ref.data_updated()
             self.assertEqual(data_descriptor, data_item.xdata.data_descriptor)
 
-    def test_bool_data_has_int_display_range_and_limits(self):
-        with TestContext.create_memory_context() as test_context:
-            document_model = test_context.create_document_model()
-            data_item = DataItem.DataItem(numpy.zeros((8, 8), bool))
-            document_model.append_data_item(data_item)
-            display_item = document_model.get_display_item_for_data_item(data_item)
-            display_item.display_data_channels[0].auto_display_limits()
-            self.assertEqual(type(0), type(display_item.display_data_channels[0].display_limits[0]))
-            self.assertEqual(type(0), type(display_item.display_data_channels[0].get_latest_computed_display_values().data_range[0]))
-
-    def test_auto_display_limits_on_rgb(self):
-        with TestContext.create_memory_context() as test_context:
-            document_model = test_context.create_document_model()
-            data_item = DataItem.DataItem(numpy.zeros((8, 8, 3), numpy.uint8))
-            document_model.append_data_item(data_item)
-            display_item = document_model.get_display_item_for_data_item(data_item)
-            display_item.display_data_channels[0].auto_display_limits()
-            self.assertEqual(Utility.clean_dict(display_item.properties), display_item.properties)
-
     def test_removing_dependent_data_item_with_graphic(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
