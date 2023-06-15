@@ -179,6 +179,7 @@ class ThreadedCanvasItem(CanvasItem.CanvasItemComposition):
         self.__thread_future: typing.Optional[concurrent.futures.Future[None]] = None
         self.__closing = False
         self.__pending = False
+        self.__visible = False
         self.on_content_size_changed = content_size_changed_fn
 
         self.__draw(DrawingContext.DrawingContext())
@@ -207,7 +208,7 @@ class ThreadedCanvasItem(CanvasItem.CanvasItemComposition):
                 if not self.__closing:  # cleaner closing behavior, but not perfect.
                     self.__draw(drawing_context)
             with self.__thread_lock:
-                if not self.__pending:
+                if not self.__pending or not self.__visible:
                     self.__thread_future = None
                     break
 
@@ -246,8 +247,8 @@ class ThreadedCanvasItem(CanvasItem.CanvasItemComposition):
         with self.__thread_lock:
             self.__pending = True  # pending even if not visible.
             if self.root_container and (canvas_widget := getattr(self.root_container, "canvas_widget", None)):
-                visible = typing.cast(UserInterface.DockWidget, typing.cast(UserInterface.CanvasWidget, canvas_widget).root_container).visible
-                if visible:
+                self.__visible = typing.cast(UserInterface.DockWidget, typing.cast(UserInterface.CanvasWidget, canvas_widget).root_container).visible
+                if self.__visible:
                     # only launch thread if visible and not already running.
                     if not self.__thread_future:
                         self.__thread_future = ThreadedCanvasItem._executor.submit(self.__draw_thread)
