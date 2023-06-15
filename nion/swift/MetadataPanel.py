@@ -17,6 +17,7 @@ import weakref
 from nion.swift import Panel
 from nion.ui import CanvasItem
 from nion.ui import DrawingContext
+from nion.ui import UserInterface
 from nion.ui import TreeCanvasItem
 from nion.utils import Event
 from nion.utils import Geometry
@@ -26,7 +27,6 @@ if typing.TYPE_CHECKING:
     from nion.swift import DocumentController
     from nion.swift.model import DataItem
     from nion.swift.model import DisplayItem
-    from nion.ui import UserInterface
 
 _ = gettext.gettext
 
@@ -244,9 +244,13 @@ class ThreadedCanvasItem(CanvasItem.CanvasItemComposition):
 
     def _trigger(self) -> None:
         with self.__thread_lock:
-            self.__pending = True
-            if not self.__thread_future:
-                self.__thread_future = ThreadedCanvasItem._executor.submit(self.__draw_thread)
+            self.__pending = True  # pending even if not visible.
+            if self.root_container and (canvas_widget := getattr(self.root_container, "canvas_widget", None)):
+                visible = typing.cast(UserInterface.DockWidget, typing.cast(UserInterface.CanvasWidget, canvas_widget).root_container).visible
+                if visible:
+                    # only launch thread if visible and not already running.
+                    if not self.__thread_future:
+                        self.__thread_future = ThreadedCanvasItem._executor.submit(self.__draw_thread)
 
     # def _repaint_template(self, drawing_context: DrawingContext.DrawingContext, immediate: bool) -> None:
     #     start = time.perf_counter_ns()
