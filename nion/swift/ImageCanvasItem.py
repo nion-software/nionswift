@@ -21,6 +21,7 @@ from nion.swift.model import UISettings
 from nion.swift.model import Utility
 from nion.ui import CanvasItem
 from nion.utils import Geometry
+from nion.utils import Process
 from nion.utils import Registry
 from nion.utils import Stream
 
@@ -572,7 +573,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                                 else:
                                     image_canvas_rect = None
                                 if image_canvas_rect != self.__composite_canvas_item.canvas_rect:
-                                    self.__update_layout_handle = self.__event_loop.call_soon_threadsafe(update_layout)
+                                    self.__update_layout_handle = self.__event_loop.call_soon_threadsafe(Process.audited(update_layout, "update_layout"))
                                 else:
                                     # trigger updates
                                     self.__bitmap_canvas_item.update()

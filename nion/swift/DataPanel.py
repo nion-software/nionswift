@@ -27,6 +27,7 @@ from nion.ui import Widgets
 from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import ListModel
+from nion.utils import Process
 
 if typing.TYPE_CHECKING:
     from nion.swift import DocumentController
@@ -214,7 +215,10 @@ class ThreadHelper:
             handle = self.__pending_calls.pop(key, None)
             if handle:
                 handle.cancel()
-            self.__pending_calls[key] = self.__event_loop.call_soon_threadsafe(func)
+            def audited_func() -> None:
+                with Process.audit(f"threadhelper.{key}"):
+                    func()
+            self.__pending_calls[key] = self.__event_loop.call_soon_threadsafe(audited_func)
         else:
             func()
 

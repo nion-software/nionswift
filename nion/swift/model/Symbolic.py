@@ -42,8 +42,8 @@ from nion.swift.model import Utility
 from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import Observable
+from nion.utils import Process
 from nion.utils import ReferenceCounting
-from nion.utils import Stream
 
 if typing.TYPE_CHECKING:
     from nion.swift.model import Project
@@ -2635,9 +2635,10 @@ class ComputationExecutor:
 
     def execute(self, **kwargs: typing.Any) -> None:
         try:
-            start_time = time.perf_counter()
-            self._execute(**kwargs)
-            self.__last_execution_time = time.perf_counter() - start_time
+            with Process.audit(f"execute.{self.__computation.processing_id if self.__computation else 'unknown'}"):
+                start_time = time.perf_counter()
+                self._execute(**kwargs)
+                self.__last_execution_time = time.perf_counter() - start_time
         except Exception as e:
             self.__last_execution_time = 0.0
             self.error_stack_trace = "".join(traceback.format_exception(*sys.exc_info()))

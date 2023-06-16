@@ -32,6 +32,7 @@ from nion.ui import Declarative
 from nion.utils import Geometry
 from nion.utils import Model
 from nion.utils import ListModel
+from nion.utils import Process
 from nion.utils import Registry
 
 if typing.TYPE_CHECKING:
@@ -185,11 +186,12 @@ def notification_dismissed(notification: Notification.Notification) -> None:
 
 def append_notification(notification: Notification.Notification) -> None:
     async def append_notification_async(notification: Notification.Notification) -> None:
-        open_notification_dialog()
-        _notification_dismiss_listeners.append(notification.dismiss_event.listen(functools.partial(notification_dismissed, notification)))
-        notifications = notification_dialog.notifications if notification_dialog else None
-        if notifications:
-            notifications.append_item(notification)
+        with Process.audit("append_notification"):
+            open_notification_dialog()
+            _notification_dismiss_listeners.append(notification.dismiss_event.listen(functools.partial(notification_dismissed, notification)))
+            notifications = notification_dialog.notifications if notification_dialog else None
+            if notifications:
+                notifications.append_item(notification)
 
     if _app and _app.event_loop:
         _app.event_loop.create_task(append_notification_async(notification))

@@ -27,6 +27,7 @@ from nion.swift.model import Utility
 from nion.swift.model import WorkspaceLayout
 from nion.ui import CanvasItem
 from nion.ui import UserInterface
+from nion.utils import Process
 
 if typing.TYPE_CHECKING:
     from nion.swift import DocumentController
@@ -272,7 +273,8 @@ class Workspace:
 
     def periodic(self) -> None:
         for dock_panel in self.dock_panels:
-            dock_panel.periodic()
+            with Process.audit(f"dock_panel.{dock_panel.panel_id}"):
+                dock_panel.periodic()
 
     def restore_geometry_state(self) -> typing.Tuple[str, str]:
         geometry = self.ui.get_persistent_string(f"Workspace/{self.workspace_id}/Geometry")

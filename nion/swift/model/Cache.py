@@ -12,14 +12,14 @@ import queue
 import sqlite3
 import sys
 import threading
+import typing
+import uuid
 
 # third party libraries
 # None
 
 # local libraries
-# None
-import typing
-import uuid
+from nion.utils import Process
 
 
 class CacheLike(typing.Protocol):
@@ -420,10 +420,11 @@ class DbStorageCache(CacheLike):
                 try:
                     # logging.debug("EXECUTE %s", action_name)
                     # start = time.time()
-                    if result is not None:
-                        result.append(item())
-                    else:
-                        item()
+                    with Process.audit(f"cache.{action_name}"):
+                        if result is not None:
+                            result.append(item())
+                        else:
+                            item()
                     # elapsed = time.time() - start
                     # logging.debug("ELAPSED %s", elapsed)
                 except Exception as e:

@@ -21,6 +21,7 @@ from nion.ui import UserInterface
 from nion.ui import TreeCanvasItem
 from nion.utils import Event
 from nion.utils import Geometry
+from nion.utils import Process
 
 if typing.TYPE_CHECKING:
     from nion.data import DataAndMetadata
@@ -206,7 +207,8 @@ class ThreadedCanvasItem(CanvasItem.CanvasItemComposition):
                 time.sleep(0.05)
                 drawing_context = DrawingContext.DrawingContext()
                 if not self.__closing:  # cleaner closing behavior, but not perfect.
-                    self.__draw(drawing_context)
+                    with Process.audit("draw_thread"):
+                        self.__draw(drawing_context)
             with self.__thread_lock:
                 if not self.__pending or not self.__visible:
                     self.__thread_future = None
@@ -275,7 +277,10 @@ class ThreadHelper:
             handle = self.__pending_calls.pop(key, None)
             if handle:
                 handle.cancel()
-            self.__pending_calls[key] = self.__event_loop.call_soon_threadsafe(func)
+            def audited_func() -> None:
+                with Process.audit(f"threadhelper.{key}"):
+                    func()
+            self.__pending_calls[key] = self.__event_loop.call_soon_threadsafe(audited_func)
         else:
             func()
 

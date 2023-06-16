@@ -15,6 +15,7 @@ from nion.swift.model import Activity
 from nion.ui import Declarative
 from nion.utils import Model
 from nion.utils import ListModel
+from nion.utils import Process
 from nion.utils import Registry
 
 if typing.TYPE_CHECKING:
@@ -58,13 +59,14 @@ class ActivityController(Declarative.Handler):
         async def maintain_activities() -> None:
             while True:
                 await asyncio.sleep(0.2)
-                with self.__pending_activities_lock:
-                    for activity in self.__pending_append_activities:
-                        activities.append_item(activity)
-                    for activity in reversed(self.__pending_finished_activities):
-                        activities.remove_item(activities.items.index(activity))
-                    self.__pending_append_activities.clear()
-                    self.__pending_finished_activities.clear()
+                with Process.audit("maintain_activities"):
+                    with self.__pending_activities_lock:
+                        for activity in self.__pending_append_activities:
+                            activities.append_item(activity)
+                        for activity in reversed(self.__pending_finished_activities):
+                            activities.remove_item(activities.items.index(activity))
+                        self.__pending_append_activities.clear()
+                        self.__pending_finished_activities.clear()
 
         self.__maintain_task = document_controller.event_loop.create_task(maintain_activities())
 

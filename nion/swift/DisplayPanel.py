@@ -46,6 +46,7 @@ from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import ListModel
 from nion.utils import Model
+from nion.utils import Process
 from nion.utils import Selection
 from nion.utils import Stream
 
@@ -2141,7 +2142,8 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
                 self.__data_item_reference_changed_task = None
 
             async def update_display_item() -> None:
-                self.set_display_item(self.document_controller.document_model.get_any_display_item_for_data_item(data_item_reference.data_item))
+                with Process.audit("update_display_item"):
+                    self.set_display_item(self.document_controller.document_model.get_any_display_item_for_data_item(data_item_reference.data_item))
 
             self.__data_item_reference_changed_task = self.document_controller.event_loop.create_task(update_display_item())
 

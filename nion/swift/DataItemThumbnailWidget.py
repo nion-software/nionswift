@@ -17,6 +17,7 @@ from nion.ui import CanvasItem
 from nion.ui import UserInterface
 from nion.ui import Widgets
 from nion.utils import Geometry
+from nion.utils import Process
 
 if typing.TYPE_CHECKING:
     from nion.swift.model import Persistence
@@ -382,8 +383,9 @@ class DataItemThumbnailSource(AbstractThumbnailSource):
         def update_display_item(display_item: DisplayItem.DisplayItem) -> None:
             if self.__window:
                 async def update_display_item_() -> None:
-                    self.display_item = display_item
-                    self.__update_display_item_task = None
+                    with Process.audit("thumbnail_source.update_display_item"):
+                        self.display_item = display_item
+                        self.__update_display_item_task = None
 
                 self.__update_display_item_task = self.__window.event_loop.create_task(update_display_item_())
 

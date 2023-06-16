@@ -7,7 +7,6 @@ import functools
 import gettext
 import operator
 import threading
-import time
 import typing
 import weakref
 
@@ -30,6 +29,7 @@ from nion.utils import Binding
 from nion.utils import Event
 from nion.utils import Model
 from nion.utils import Observable
+from nion.utils import Process
 from nion.utils import Stream
 
 from nion.utils.ReferenceCounting import weak_partial
@@ -638,26 +638,28 @@ class HistogramProcessor(Observable.Observable):
                 self.__event.clear()
                 if self.__cancel.wait(0.25):  # frequency to wait between updates
                     break
-                old_histogram_widget_data = self.__histogram_widget_data
-                old_statistics = self.__statistics
-                self.__evaluate()
-                notify_data = old_histogram_widget_data != self.__histogram_widget_data
-                notify_statistics = old_statistics != self.__statistics
+                with Process.audit("histogram"):
+                    old_histogram_widget_data = self.__histogram_widget_data
+                    old_statistics = self.__statistics
+                    self.__evaluate()
+                    notify_data = old_histogram_widget_data != self.__histogram_widget_data
+                    notify_statistics = old_statistics != self.__statistics
 
-                def notify() -> None:
-                    if notify_data:
-                        self.notify_property_changed("histogram_widget_data")
-                    if notify_statistics:
-                        self.notify_property_changed("statistics")
-                    with self.__handle_lock:
-                        self.__handle = None
+                    def notify() -> None:
+                        with Process.audit("histogram-notify"):
+                            if notify_data:
+                                self.notify_property_changed("histogram_widget_data")
+                            if notify_statistics:
+                                self.notify_property_changed("statistics")
+                            with self.__handle_lock:
+                                self.__handle = None
 
-                if notify_data or notify_statistics:
-                    with self.__handle_lock:
-                        if self.__handle:
-                            self.__handle.cancel()
-                            self.__handle = None
-                        self.__handle = self.__event_loop.call_soon_threadsafe(notify)
+                    if notify_data or notify_statistics:
+                        with self.__handle_lock:
+                            if self.__handle:
+                                self.__handle.cancel()
+                                self.__handle = None
+                            self.__handle = self.__event_loop.call_soon_threadsafe(notify)
 
     # inputs
 

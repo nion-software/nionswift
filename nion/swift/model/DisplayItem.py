@@ -36,6 +36,7 @@ from nion.swift.model import Utility
 from nion.utils import Color
 from nion.utils import Event
 from nion.utils import Geometry
+from nion.utils import Process
 from nion.utils import ReferenceCounting
 from nion.utils import Registry
 from nion.utils import Stream
@@ -1231,8 +1232,9 @@ class DisplayDataChannel(Persistence.PersistentObject):
                         self.__has_pending_display_values = False
                 if display_values:
                     try:
-                        # getattr(display_values, "display_rgba")  # too slow and not needed in most cases.
-                        getattr(display_values, "adjusted_data_and_metadata")
+                        with Process.audit("compute_display_values"):
+                            # getattr(display_values, "display_rgba")  # too slow and not needed in most cases.
+                            getattr(display_values, "adjusted_data_and_metadata")
                     except Exception as e:
                         pass
                     self.__computed_display_values_stream.send_value(display_values)

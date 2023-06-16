@@ -17,7 +17,6 @@ import weakref
 
 # local libraries
 from nion.data import DataAndMetadata
-from nion.swift.model import Cache
 from nion.swift.model import Changes
 from nion.swift.model import Connection
 from nion.swift.model import Connector
@@ -34,6 +33,7 @@ from nion.swift.model import Symbolic
 from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import Observable
+from nion.utils import Process
 from nion.utils import ReferenceCounting
 from nion.utils import Registry
 from nion.utils import ThreadPool
@@ -783,7 +783,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             if self.__call_soon_queue:
                 fn = self.__call_soon_queue.pop(0)
         if fn:
-            fn()
+            with Process.audit(f"commit.{fn}"):
+                fn()
 
     def perform_all_call_soon(self) -> None:
         # call all functions in the call soon queue

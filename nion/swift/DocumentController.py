@@ -65,6 +65,7 @@ from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import ListModel
 from nion.utils import Observable
+from nion.utils import Process
 from nion.utils import Registry
 from nion.utils import Selection
 
@@ -112,10 +113,23 @@ class PeriodicListener:
 
 
 class PeriodicMonitor:
+    """Periodic monitor.
+
+    Notes about auditing:
+    - thread.start
+    - call_soon_threadsafe
+    - call_on_main_thread
+    - event_loop.call_soon
+    - event_loop.run_in_executor
+    - async def or event_loop.create_task
+    - executor.submit
+    """
+
     def __init__(self, ui: UserInterface.UserInterface, slow_duration: float = 0.02) -> None:
         self.__ui = ui
         self.__slow_duration = slow_duration
         self.__start_event = threading.Event()
+        self.__start_event_time = 0.0
         self.__end_event = threading.Event()
         self.__cancel = False
         self.__monitor_thread: typing.Optional[threading.Thread] = None
@@ -131,9 +145,15 @@ class PeriodicMonitor:
             self.__monitor_thread = None
 
     def enter(self) -> None:
+        Process._audit.clear()
+        self.__start_event_time = time.perf_counter()
         self.__start_event.set()
 
     def exit(self) -> None:
+        duration = time.perf_counter() - self.__start_event_time
+        if Process._audit_enabled and (duration > self.__slow_duration):
+            Process._audit.report()
+            print(f"SLOW {int(duration*1000)}ms")
         self.__end_event.set()
 
     def run(self) -> None:
@@ -173,6 +193,7 @@ class DocumentController(Window.Window):
 
         self.__periodic_monitor = PeriodicMonitor(ui, 0.010)  # 10 ms
         # self.__periodic_monitor.start()
+        # Process._audit_enabled = True
 
         # self.event_loop.set_debug(True)  # Enable debug
         # self.event_loop.slow_callback_duration = 0.010  # 10 ms
@@ -430,7 +451,8 @@ class DocumentController(Window.Window):
                 periodic_listener = weak_periodic_listener()
                 if periodic_listener and current_time >= periodic_listener.next_scheduled_time:
                     try:
-                        periodic_listener.call()
+                        with Process.audit(f"periodic_listener.{periodic_listener}"):
+                            periodic_listener.call()
                     except Exception as e:
                         import traceback
                         logging.debug("Event Error: %s", e)
@@ -438,9 +460,11 @@ class DocumentController(Window.Window):
                         traceback.print_stack()
                     periodic_listener.next_scheduled_time = current_time + periodic_listener.interval
             super().periodic()
-            self.document_model.perform_data_item_updates()
+            with Process.audit("perform_data_item_updates"):
+                self.document_model.perform_data_item_updates()
             if self.workspace_controller:
-                self.workspace_controller.periodic()
+                with Process.audit("workspace_controller"):
+                    self.workspace_controller.periodic()
             if self.__last_activity is not None and time.time() - self.__last_activity > 60 * 60:
                 pass  # self.app.choose_library()
         finally:
