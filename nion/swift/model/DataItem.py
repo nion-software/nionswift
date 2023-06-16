@@ -6,6 +6,7 @@ import contextlib
 import copy
 import datetime
 import gettext
+import operator
 import pathlib
 import threading
 import types
@@ -192,13 +193,13 @@ class DataItem(Persistence.PersistentObject):
         dimensional_shape = Image.dimensional_shape_from_shape_and_dtype(data_shape, data_dtype)
         collection_dimension_count = (2 if len(dimensional_shape) == 3 else 0) if dimensional_shape is not None else None
         datum_dimension_count = len(dimensional_shape) - collection_dimension_count if dimensional_shape is not None and collection_dimension_count is not None else None
-        self.define_property("data_shape", data_shape, hidden=True, recordable=False)
-        self.define_property("data_dtype", data_dtype, hidden=True, recordable=False, converter=DtypeToStringConverter())
+        self.define_property("data_shape", data_shape, hidden=True, recordable=False, is_equal_fn=operator.eq)
+        self.define_property("data_dtype", data_dtype, hidden=True, recordable=False, converter=DtypeToStringConverter(), is_equal_fn=operator.eq)
         self.define_property("is_sequence", False, hidden=True, recordable=False, changed=self.__data_description_changed)
         self.define_property("collection_dimension_count", collection_dimension_count, hidden=True, recordable=False, changed=self.__data_description_changed, value_type=int)
         self.define_property("datum_dimension_count", datum_dimension_count, hidden=True, recordable=False, changed=self.__data_description_changed, value_type=int)
-        self.define_property("intensity_calibration", Calibration.Calibration(), hidden=True, make=Calibration.Calibration, changed=self.__metadata_property_changed)
-        self.define_property("dimensional_calibrations", CalibrationList(), hidden=True, make=CalibrationList, changed=self.__dimensional_calibrations_changed)
+        self.define_property("intensity_calibration", Calibration.Calibration(), hidden=True, make=Calibration.Calibration, changed=self.__metadata_property_changed, is_equal_fn=operator.eq)
+        self.define_property("dimensional_calibrations", CalibrationList(), hidden=True, make=CalibrationList, changed=self.__dimensional_calibrations_changed, is_equal_fn=operator.eq)
         self.define_property("data_modified", hidden=True, recordable=False, converter=DatetimeToStringConverter(), changed=self.__metadata_property_changed, value_type=datetime.datetime)
         self.define_property("timezone", Utility.get_local_timezone(), hidden=True, changed=self.__timezone_property_changed, recordable=False, value_type=str)
         self.define_property("timezone_offset", Utility.TimezoneMinutesToStringConverter().convert(Utility.local_utcoffset_minutes()), hidden=True, changed=self.__timezone_property_changed, recordable=False, value_type=str)

@@ -63,7 +63,8 @@ class PersistentProperty:
                  changed: typing.Optional[_PropertyChangedFn] = None, key: typing.Optional[str] = None,
                  reader: typing.Optional[_PropertyReadFn] = None,
                  writer: typing.Optional[_PropertyWriterFn] = None,
-                 value_type: typing.Optional[typing.Type[typing.Any]] = None) -> None:
+                 value_type: typing.Optional[typing.Type[typing.Any]] = None,
+                 is_equal_fn: typing.Optional[typing.Callable[[typing.Any, typing.Any], bool]] = None) -> None:
         super().__init__()
         self.name = name
         self.key = key if key else name
@@ -97,7 +98,7 @@ class PersistentProperty:
         }
 
         value_type = value_type or type(value)
-        self.is_equal = is_equal_map.get(value_type, is_equal)
+        self.is_equal = is_equal_fn if is_equal_fn else is_equal_map.get(value_type, is_equal)
 
     def close(self) -> None:
         self.make = None
@@ -836,7 +837,8 @@ class PersistentObject(Observable.Observable):
                         changed: typing.Optional[_PropertyChangedFn] = None, key: typing.Optional[str] = None,
                         reader: typing.Optional[_PropertyReadFn] = None,
                         writer: typing.Optional[_PropertyWriterFn] = None,
-                        value_type: typing.Optional[typing.Type[typing.Any]] = None) -> None:
+                        value_type: typing.Optional[typing.Type[typing.Any]] = None,
+                        is_equal_fn: typing.Optional[typing.Callable[[typing.Any, typing.Any], bool]] = None) -> None:
         """ key is what is stored on disk; name is what is used when accessing the property from code. """
         assert hidden
         if read_only:
@@ -844,7 +846,7 @@ class PersistentObject(Observable.Observable):
         if copy_on_read:
             self.__properties[name] = PersistentPropertySpecial(name, value, make, read_only, hidden, recordable, validate, converter, changed, key, reader, writer)
         else:
-            self.__properties[name] = PersistentProperty(name, value, make, read_only, hidden, recordable, validate, converter, changed, key, reader, writer, value_type)
+            self.__properties[name] = PersistentProperty(name, value, make, read_only, hidden, recordable, validate, converter, changed, key, reader, writer, value_type, is_equal_fn)
 
     def define_item(self, name: str, factory: _PersistentObjectFactoryFn,
                     changed: typing.Optional[typing.Callable[[str, typing.Any, typing.Any], None]] = None,
