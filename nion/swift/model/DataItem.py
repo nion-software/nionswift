@@ -230,7 +230,6 @@ class DataItem(Persistence.PersistentObject):
         self.__source_reference = self.create_item_reference()
         self.description_changed_event = Event.Event()
         self.item_changed_event = Event.Event()
-        self.metadata_changed_event = Event.Event()  # see Metadata Note above
         self.data_item_changed_event = Event.Event()  # anything has changed
         self.data_changed_event = Event.Event()  # data has changed
         self.will_change_event = Event.Event()
@@ -627,20 +626,16 @@ class DataItem(Persistence.PersistentObject):
         self.description_changed_event.fire()
 
     def __data_description_changed(self, name: str, value: int) -> None:
+        self.__change_changed = True
         self.__property_changed(name, value)
-        self.__metadata_changed()
 
     def __dimensional_calibrations_changed(self, name: str, value: typing.Any) -> None:
+        self.__change_changed = True
         self.__property_changed(name, list(value.list))  # don't send out the CalibrationList object
-        self.__metadata_changed()
 
     def __metadata_property_changed(self, name: str, value: typing.Any) -> None:
-        self.__property_changed(name, value)
-        self.__metadata_changed()
-
-    def __metadata_changed(self) -> None:
         self.__change_changed = True
-        self.metadata_changed_event.fire()
+        self.__property_changed(name, value)
 
     def __property_changed(self, name: str, value: typing.Any) -> None:
         self.notify_property_changed(name)

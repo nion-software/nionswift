@@ -57,8 +57,7 @@ class MetadataModel:
 
         self.__display_item_changed_event_listener = document_controller.focused_display_item_changed_event.listen(display_item_changed)
         self.__set_data_item(None)
-        self.__metadata_changed_event_listener: typing.Optional[Event.EventListener] = None
-        self.__metadata: typing.Optional[DataAndMetadata.MetadataType] = None
+        self.__property_changed_event_listener: typing.Optional[Event.EventListener] = None
         self.metadata_changed_event = Event.Event()
 
     def close(self) -> None:
@@ -73,45 +72,35 @@ class MetadataModel:
     def document_controller(self) -> typing.Optional[DocumentController.DocumentController]:
         return self.__weak_document_controller()
 
-    @property
-    def metadata(self) -> typing.Optional[DataAndMetadata.MetadataType]:
-        return self.__metadata
-
     def __metadata_changed(self, data_item: typing.Optional[DataItem.DataItem]) -> None:
-        metadata = data_item.metadata if data_item else dict()
-        assert isinstance(metadata, dict)
-        if self.__metadata != metadata:
-            self.__metadata = metadata if metadata is not None else dict()
-            self.metadata_changed_event.fire(self.__metadata)
+        self.metadata_changed_event.fire(data_item)
 
     # not thread safe
     def __set_data_item(self, data_item: typing.Optional[DataItem.DataItem]) -> None:
         if self.__data_item != data_item:
-            if self.__metadata_changed_event_listener:
-                self.__metadata_changed_event_listener.close()
-                self.__metadata_changed_event_listener = None
+            if self.__property_changed_event_listener:
+                self.__property_changed_event_listener.close()
+                self.__property_changed_event_listener = None
             self.__data_item = data_item
             # update the expression text
             if data_item:
-                def metadata_changed() -> None:
-                    self.__metadata_changed(data_item)
-                self.__metadata_changed_event_listener = data_item.metadata_changed_event.listen(metadata_changed)
+                def property_changed(property_name: str) -> None:
+                    if property_name == "metadata":
+                        self.__metadata_changed(data_item)
+                self.__property_changed_event_listener = data_item.property_changed_event.listen(property_changed)
             self.__metadata_changed(data_item)
 
 
-class MetadataEditorTreeDelegate(TreeCanvasItem.TreeCanvasItemDelegate):
-    def __init__(self, metadata: DataAndMetadata.MetadataType) -> None:
-        self.__metadata = metadata
-        self.__expanded_value_paths: typing.Set[str] = set()
-
+class MetadataSource(typing.Protocol):
     @property
     def metadata(self) -> DataAndMetadata.MetadataType:
-        return self.__metadata
+        raise NotImplementedError()
 
-    @metadata.setter
-    def metadata(self, value: DataAndMetadata.MetadataType) -> None:
-        assert isinstance(value, dict)
-        self.__metadata = value
+
+class MetadataEditorTreeDelegate(TreeCanvasItem.TreeCanvasItemDelegate):
+    def __init__(self) -> None:
+        self.metadata_source: typing.Optional[MetadataSource] = None
+        self.__expanded_value_paths: typing.Set[str] = set()
 
     def __is_expanded(self, value_path: TreeCanvasItem._ValuePath) -> bool:
         return json.dumps(value_path) in self.__expanded_value_paths
@@ -163,7 +152,8 @@ class MetadataEditorTreeDelegate(TreeCanvasItem.TreeCanvasItemDelegate):
                 value_path = tuple(path) + (key,)
                 visit_value(value_path, value)
 
-        visit_dict(self.__metadata, tuple())
+        if self.metadata_source:
+            visit_dict(self.metadata_source.metadata, tuple())
 
         return items
 
@@ -296,7 +286,7 @@ class MetadataPanel(Panel.Panel):
         self.__metadata_model = MetadataModel(document_controller)
         self.__thread_helper = ThreadHelper(document_controller.event_loop)
 
-        delegate = MetadataEditorTreeDelegate(dict())
+        delegate = MetadataEditorTreeDelegate()
 
         def content_size_changed(content_size: Geometry.IntSize) -> None:
             def _content_height_changed() -> None:
@@ -339,8 +329,8 @@ class MetadataPanel(Panel.Panel):
         column = self.ui.create_column_widget(properties={"size-policy-horizontal": "expanding", "size-policy-vertical": "expanding"})
         column.add(metadata_editor_widget)
 
-        def metadata_changed(metadata: DataAndMetadata.MetadataType) -> None:
-            delegate.metadata = metadata
+        def metadata_source_changed(metadata_source: MetadataSource) -> None:
+            delegate.metadata_source = metadata_source
 
             def reconstruct_metadata() -> None:
                 if self.__metadata_editor_canvas_item:  # use this instead of local variable to handle close properly
@@ -348,7 +338,7 @@ class MetadataPanel(Panel.Panel):
 
             self.document_controller.queue_task(reconstruct_metadata)
 
-        self.__metadata_changed_event_listener = self.__metadata_model.metadata_changed_event.listen(metadata_changed)
+        self.__metadata_changed_event_listener = self.__metadata_model.metadata_changed_event.listen(metadata_source_changed)
 
         self.widget = column
 
