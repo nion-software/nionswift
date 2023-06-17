@@ -860,9 +860,12 @@ class DataItem(Persistence.PersistentObject):
     def session_data(self, value: DataAndMetadata.MetadataType) -> None:
         self.session_metadata = value
 
-    def __validate_session_id(self, value: typing.Any) -> typing.Optional[datetime.datetime]:
-        assert value is None or datetime.datetime.strptime(value, "%Y%m%d-%H%M%S")
-        return typing.cast(typing.Optional[datetime.datetime], value)
+    def __validate_session_id(self, value: typing.Any) -> typing.Optional[str]:
+        if value is not None:
+            assert isinstance(value, str)
+            assert (value[8] == '-' and all(c.isdigit() for c in value[:8] + value[9:]))
+            return value
+        return value  # use two returns to satisfy mypy
 
     @property
     def data(self) -> typing.Optional[_ImageDataType]:
