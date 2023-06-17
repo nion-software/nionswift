@@ -2662,17 +2662,18 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         # in stuttering. this async solution avoids this specific case.
 
         def update_cursor_(document_controller: typing.Optional[DocumentController.DocumentController], position_text: str, value_text: str) -> None:
-            self.__cursor_task = None
-            position_and_value_text = []
-            if position_text:
-                position_and_value_text.append(_("Position: ") + position_text)
-            if value_text:
-                position_and_value_text.append(_("Value: ") + value_text)
-            if document_controller:
-                if len(position_text) == 0:
-                    document_controller.cursor_changed(None)
-                else:
-                    document_controller.cursor_changed(position_and_value_text)
+            with Process.audit("update_cursor"):
+                self.__cursor_task = None
+                position_and_value_text = []
+                if position_text:
+                    position_and_value_text.append(_("Position: ") + position_text)
+                if value_text:
+                    position_and_value_text.append(_("Value: ") + value_text)
+                if document_controller:
+                    if len(position_text) == 0:
+                        document_controller.cursor_changed(None)
+                    else:
+                        document_controller.cursor_changed(position_and_value_text)
 
         if not self.__cursor_task:
             if threading.current_thread() == threading.main_thread():

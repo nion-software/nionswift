@@ -2470,7 +2470,8 @@ class DisplayItem(Persistence.PersistentObject):
     async def get_value_and_position_text_async(self, pos: typing.Optional[typing.Tuple[int, ...]]) -> typing.Tuple[str, str]:
         def get_cursor_value(display_item: DisplayItem) -> typing.Tuple[str, str]:
             try:
-                return display_item.get_value_and_position_text(pos)
+                with Process.audit("get_value_and_position_text"):
+                    return display_item.get_value_and_position_text(pos)
             except Exception as e:
                 import traceback
                 traceback.print_exc()
