@@ -203,7 +203,7 @@ class DataItem(Persistence.PersistentObject):
         self.define_property("data_modified", hidden=True, recordable=False, converter=DatetimeToStringConverter(), changed=self.__metadata_property_changed, value_type=datetime.datetime)
         self.define_property("timezone", Utility.get_local_timezone(), hidden=True, changed=self.__timezone_property_changed, recordable=False, value_type=str)
         self.define_property("timezone_offset", Utility.TimezoneMinutesToStringConverter().convert(Utility.local_utcoffset_minutes()), hidden=True, changed=self.__timezone_property_changed, recordable=False, value_type=str)
-        self.define_property("metadata", dict(), hidden=True, changed=self.__metadata_property_changed)
+        self.define_property("metadata", dict(), hidden=True, changed=self.__metadata_property_changed, is_equal_fn=Utility.deep_compare_items)
         self.define_property("title", str(), changed=self.__property_changed, hidden=True)
         self.define_property("is_auto_title", True, changed=self.__property_changed, hidden=True)
         self.define_property("caption", changed=self.__property_changed, hidden=True, value_type=str)

@@ -224,6 +224,32 @@ def clean_item_no_list(i: DirtyValue) -> CleanValue:
         return None
 
 
+def deep_compare_items(item1: CleanValue, item2: CleanValue) -> bool:
+    """Deep compare dict/list/value. Return True if equal."""
+    item1_type = type(item1)
+    if item1_type != type(item2):
+        return False
+    if item1_type in (dict,):
+        item1_dict = typing.cast(typing.Dict[str, CleanValue], item1)
+        item2_dict = typing.cast(typing.Dict[str, CleanValue], item2)
+        if item1_dict.keys() != item2_dict.keys():
+            return False
+        for key in item1_dict.keys():
+            if not deep_compare_items(item1_dict[key], item2_dict[key]):
+                return False
+        return True
+    elif item1_type in (list, tuple):
+        item1_list = typing.cast(typing.List[CleanValue], item1)
+        item2_list = typing.cast(typing.List[CleanValue], item2)
+        if len(item1_list) != len(item2_list):
+            return False
+        for child_item1, child_item2 in zip(item1_list, item2_list):
+            if not deep_compare_items(child_item1, child_item2):
+                return False
+        return True
+    return item1 == item2
+
+
 def parse_version(version: str, count: int = 3, max_count: typing.Optional[int] = None) -> typing.List[int]:
     max_count = max_count if max_count is not None else count
     version_components = [int(version_component) for version_component in version.split(".")]
