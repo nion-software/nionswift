@@ -119,10 +119,7 @@ class PersistentProperty:
             value = copy.deepcopy(value)
         did_change = not self.is_equal(self.value, value)
         self.value = value
-        # ideally, the changed method would not be called if the value did not change; but there are
-        # places in the code that assume that it will be called in any case where a property is set.
-        # TODO: do not call changed if value does not change
-        if self.changed:
+        if did_change and callable(self.changed):
             self.changed(self.name, value)
         return did_change
 

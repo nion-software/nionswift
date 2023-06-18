@@ -995,6 +995,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         if update_session:
             display_item.session_id = self.session_id
         self._project.append_display_item(display_item)
+        # force display update
+        with display_item.display_item_changes():
+            pass
 
     def insert_display_item(self, before_index: int, display_item: DisplayItem.DisplayItem, *, update_session: bool = True) -> None:
         uuid_order = save_item_order(typing.cast(typing.List[Persistence.PersistentObject], self.__display_items))  # cast required for mypy bug?

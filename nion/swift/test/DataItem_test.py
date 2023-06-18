@@ -773,7 +773,7 @@ class TestDataItemClass(unittest.TestCase):
                 display_item.graphics[0].bounds = ((0.2,0.3), (0.8,0.7))
                 graphics_changed_ref[0] = False
                 display_item.graphics[0].bounds = ((0.2,0.3), (0.8,0.7))
-                self.assertTrue(graphics_changed_ref[0])
+                self.assertFalse(graphics_changed_ref[0])
 
     def test_snapshot_should_copy_raw_metadata(self):
         data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
