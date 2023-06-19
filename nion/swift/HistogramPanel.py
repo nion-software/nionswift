@@ -528,11 +528,11 @@ def calculate_histogram_widget_data(display_data_and_metadata: typing.Optional[D
     display_data = display_data_and_metadata.data if display_data_and_metadata else None
     display_data_and_metadata = None  # release ref for gc. needed for tests, because this may occur on a thread.
     if display_data is not None:
-        total_pixels = numpy.product(display_data.shape, dtype=numpy.uint64)
+        total_pixels = numpy.prod(display_data.shape, dtype=numpy.uint64)
         if not subsample and subsample_fraction:
             subsample = min(max(total_pixels * subsample_fraction, subsample_min), total_pixels)
         if subsample:
-            data_sample = numpy.random.choice(display_data.reshape(numpy.product(display_data.shape, dtype=numpy.uint64)), subsample)
+            data_sample = numpy.random.choice(display_data.reshape(numpy.prod(display_data.shape, dtype=numpy.uint64)), subsample)
         else:
             data_sample = numpy.copy(display_data)
         if display_range is None or data_sample is None:

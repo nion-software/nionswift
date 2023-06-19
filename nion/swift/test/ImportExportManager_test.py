@@ -376,7 +376,7 @@ class TestImportExportManagerClass(unittest.TestCase):
 
     def test_data_item_with_numpy_bool_to_data_element_produces_json_compatible_dict(self):
         data_item = DataItem.DataItem(numpy.zeros((16, 16)))
-        data_item.large_format = numpy.product((2,3,4), dtype=numpy.int64) > 10  # produces a numpy.bool_
+        data_item.large_format = numpy.prod((2,3,4), dtype=numpy.int64) > 10  # produces a numpy.bool_
         with contextlib.closing(data_item):
             data_element = ImportExportManager.create_data_element_from_data_item(data_item, include_data=False)
             json.dumps(data_element)

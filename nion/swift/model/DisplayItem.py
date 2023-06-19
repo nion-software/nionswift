@@ -434,7 +434,7 @@ class DisplayValues:
                     if Image.is_shape_and_dtype_rgb_type(data_shape, data_dtype):
                         self.__data_sample = None
                     elif Image.is_shape_and_dtype_complex_type(data_shape, data_dtype):
-                        self.__data_sample = numpy.sort(numpy.random.choice(display_data.reshape(numpy.product(display_data.shape, dtype=numpy.uint64)), 200))
+                        self.__data_sample = numpy.sort(numpy.random.choice(display_data.reshape(numpy.prod(display_data.shape, dtype=numpy.uint64)), 200))
                     else:
                         self.__data_sample = None
                 else:
