@@ -22,7 +22,7 @@ requirements:
     - pip
     - setuptools
   run:
-    - python >=3.8,<3.12
+    - python >=3.9
     - nionutils >=0.4.5,<0.5.0
     - niondata >=0.15.3,<0.16.0
     - nionui >=0.6.10,<0.7.0

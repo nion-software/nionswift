@@ -17,7 +17,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        python-version: ["3.8", "3.9", "3.10"]
+        python-version: ["3.9", "3.10", "3.11"]
 
     steps:
     - uses: actions/checkout@v2
@@ -47,25 +47,25 @@ jobs:
         python -m unittest discover -s nion/swift -p '*_test.py'
     - name: Upload Artifacts
       uses: actions/upload-artifact@v2
-      if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.8'
+      if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.9'
       with:
         name: distribution
         path: dist
     - name: Publish package to PyPI
       uses: pypa/gh-action-pypi-publish@release/v1
-      if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags') && matrix.os == 'ubuntu-latest' && matrix.python-version == '3.8'
+      if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags') && matrix.os == 'ubuntu-latest' && matrix.python-version == '3.9'
       with:
         skip_existing: true
         user: __token__
         password: ${{ secrets.pypi_password }}
     - name: Set up Miniconda for conda-build
-      if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags') && matrix.os == 'ubuntu-latest' && matrix.python-version == '3.8'
+      if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags') && matrix.os == 'ubuntu-latest' && matrix.python-version == '3.9'
       uses: conda-incubator/setup-miniconda@v2
       with:
         auto-update-conda: true
         python-version: '3.10'
     - name: Build/publish anaconda package
-      if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags') && matrix.os == 'ubuntu-latest' && matrix.python-version == '3.8'
+      if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags') && matrix.os == 'ubuntu-latest' && matrix.python-version == '3.9'
       shell: bash -l {0}
       run: |
         # make a directory to avoid name conflicts with the channel. argh.
