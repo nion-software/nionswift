@@ -3780,7 +3780,7 @@ class LineProfileGraphicAction(Window.Action):
             graphic = context.selected_graphics[0]
             if isinstance(graphic, Graphics.LineProfileGraphic):
                 new_width = max(graphic.width + self.__delta, 1.0)
-                command = DisplayPanel.ChangeGraphicsCommand(context.model, display_item, [graphic], title=_("Change Line Profile Width"), command_id="change_line_profile_width", is_mergeable=True, **{"width": new_width})
+                command = DisplayPanel.ChangeGraphicsCommand(context.model, display_item, [graphic], title=_("Change Line Profile Width"), command_id="change_line_profile_width", is_mergeable=True, width=new_width)
                 command.perform()
                 window.push_undo_command(command)
         return Window.ActionResult(Window.ActionStatus.FINISHED)

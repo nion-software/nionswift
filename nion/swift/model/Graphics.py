@@ -850,6 +850,9 @@ class Graphic(Persistence.PersistentObject):
     def label_position(self, mapping: CoordinateMappingLike, font_metrics: UISettings.FontMetrics, padding: float) -> typing.Optional[Geometry.FloatPoint]:
         return None
 
+    def reset_position(self) -> None:
+        pass
+
     def test_label(self, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, test_point: Geometry.FloatPoint) -> bool:
         if self.label:
             padding = self.label_padding
@@ -920,6 +923,9 @@ class RectangleTypeGraphic(Graphic):
     @rotation.setter
     def rotation(self, value: float) -> None:
         self._set_persistent_property_value("rotation", value)
+
+    def reset_position(self) -> None:
+        self.center = Geometry.FloatPoint(0.5, 0.5)
 
     def mime_data_dict(self) -> Persistence.PersistentDictType:
         d = super().mime_data_dict()
@@ -1366,6 +1372,10 @@ class LineTypeGraphic(Graphic):
     def end_y(self, value: float) -> None:
         self.end = Geometry.FloatPoint(y=value, x=self.end.x)
 
+    def reset_position(self) -> None:
+        offset = -(self.end + self.start) / 2 + Geometry.FloatPoint(0.5, 0.5)
+        self.vector = self.start + offset, self.end + offset
+
     # dependent properties
     def __vector_changed(self, name: str, value: typing.Any) -> None:
         self._property_changed(name, value)
@@ -1630,6 +1640,9 @@ class PointTypeGraphic(Graphic):
     def position(self, value: Geometry.FloatPointTuple) -> None:
         self._set_persistent_property_value("position", tuple(value))
 
+    def reset_position(self) -> None:
+        self.position = Geometry.FloatPoint(0.5, 0.5)
+
     def mime_data_dict(self) -> Persistence.PersistentDictType:
         d = super().mime_data_dict()
         d["position"] = self.position.as_tuple()
@@ -1771,6 +1784,10 @@ class IntervalGraphic(Graphic):
     def interval(self, value: typing.Tuple[float, float]) -> None:
         self._set_persistent_property_value("interval", value)
 
+    def reset_position(self) -> None:
+        offset = -(self.interval[0] + self.interval[1]) / 2 + 0.5
+        self.interval = self.interval[0] + offset, self.interval[1] + offset
+
     def mime_data_dict(self) -> Persistence.PersistentDictType:
         d = super().mime_data_dict()
         d["interval"] = self.interval
@@ -1875,6 +1892,9 @@ class ChannelGraphic(Graphic):
     @position.setter
     def position(self, value: float) -> None:
         self._set_persistent_property_value("position", value)
+
+    def reset_position(self) -> None:
+        self.position = 0.5
 
     def mime_data_dict(self) -> Persistence.PersistentDictType:
         d = super().mime_data_dict()

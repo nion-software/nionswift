@@ -33,6 +33,7 @@ from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.swift.model import Schema
 from nion.swift.model import Symbolic
+from nion.ui import CanvasItem
 from nion.ui import Declarative
 from nion.ui import UserInterface
 from nion.ui import Widgets
@@ -3048,34 +3049,88 @@ class GraphicsInspectorSection(InspectorSection):
         graphic_widget.add(title_row)
         graphic_widget.add_spacing(4)
         self._unbinder.add([graphic], [label_line_edit.unbind_text])
+        section_widget: typing.Optional[InspectorSectionWidget] = None
         # create the graphic specific widget
         if isinstance(graphic, Graphics.PointGraphic):
             graphic_type_label.text = _("Point")
-            graphic_widget.add(make_point_type_inspector(self.__document_controller, self.__display_item, graphic))
+            section_widget = make_point_type_inspector(self.__document_controller, self.__display_item, graphic)
+            graphic_widget.add(section_widget)
         elif isinstance(graphic, Graphics.LineProfileGraphic):
             graphic_type_label.text = _("Line Profile")
-            graphic_widget.add(make_line_profile_inspector(self.__document_controller, self.__display_item, graphic))
+            section_widget = make_line_profile_inspector(self.__document_controller, self.__display_item, graphic)
+            graphic_widget.add(section_widget)
         elif isinstance(graphic, Graphics.LineGraphic):
             graphic_type_label.text = _("Line")
-            graphic_widget.add(make_line_type_inspector(self.__document_controller, self.__display_item, graphic))
+            section_widget = make_line_type_inspector(self.__document_controller, self.__display_item, graphic)
+            graphic_widget.add(section_widget)
         elif isinstance(graphic, Graphics.RectangleGraphic):
             graphic_type_label.text = _("Rectangle")
-            graphic_widget.add(make_rectangle_type_inspector(self.__document_controller, self.__display_item, graphic, graphic_type_label.text, rotation=True))
+            section_widget = make_rectangle_type_inspector(self.__document_controller, self.__display_item, graphic, graphic_type_label.text, rotation=True)
+            graphic_widget.add(section_widget)
         elif isinstance(graphic, Graphics.EllipseGraphic):
             graphic_type_label.text = _("Ellipse")
-            graphic_widget.add(make_rectangle_type_inspector(self.__document_controller, self.__display_item, graphic, graphic_type_label.text, rotation=True))
+            section_widget = make_rectangle_type_inspector(self.__document_controller, self.__display_item, graphic, graphic_type_label.text, rotation=True)
+            graphic_widget.add(section_widget)
         elif isinstance(graphic, Graphics.IntervalGraphic):
             graphic_type_label.text = _("Interval")
-            graphic_widget.add(make_interval_type_inspector(self.__document_controller, self.__display_item, graphic))
+            section_widget = make_interval_type_inspector(self.__document_controller, self.__display_item, graphic)
+            graphic_widget.add(section_widget)
         elif isinstance(graphic, Graphics.SpotGraphic):
             graphic_type_label.text = _("Spot")
-            graphic_widget.add(make_spot_inspector(self.__document_controller, self.__display_item, graphic, graphic_type_label.text))
+            section_widget = make_spot_inspector(self.__document_controller, self.__display_item, graphic, graphic_type_label.text)
+            graphic_widget.add(section_widget)
         elif isinstance(graphic, Graphics.WedgeGraphic):
             graphic_type_label.text = _("Wedge")
-            graphic_widget.add(make_wedge_inspector(self.__document_controller, self.__display_item, graphic))
+            section_widget = make_wedge_inspector(self.__document_controller, self.__display_item, graphic)
+            graphic_widget.add(section_widget)
         elif isinstance(graphic, Graphics.RingGraphic):
             graphic_type_label.text = _("Annular Ring")
-            graphic_widget.add(make_ring_inspector(self.__document_controller, self.__display_item, graphic))
+            section_widget = make_ring_inspector(self.__document_controller, self.__display_item, graphic)
+            graphic_widget.add(section_widget)
+
+        # locked row
+        if section_widget:
+            graphic_type_str = graphic_type_label.text or "graphic"
+            lock_position_check_box = self.ui.create_check_box_widget(_("Position"))
+            lock_shape_check_box = self.ui.create_check_box_widget(_("Shape"))
+            lock_position_model = GraphicPropertyCommandModel(self.__document_controller, self.__display_item, graphic, "is_position_locked", title=_("Change {} Position Locked").format(graphic_type_str), command_id="change_" + graphic_type_str + "_position_locked")
+            lock_shape_model = GraphicPropertyCommandModel(self.__document_controller, self.__display_item, graphic, "is_shape_locked", title=_("Change {} Shape Locked").format(graphic_type_str), command_id="change_" + graphic_type_str + "_shape_locked")
+            lock_position_check_box.bind_checked(Binding.PropertyBinding(lock_position_model, "value"))
+            lock_shape_check_box.bind_checked(Binding.PropertyBinding(lock_shape_model, "value"))
+            self._unbinder.add([graphic], [lock_position_check_box.unbind_checked, lock_shape_check_box.unbind_checked])
+            section_widget.add_closeable(lock_position_model)
+            section_widget.add_closeable(lock_shape_model)
+            locked_row = self.ui.create_row_widget()
+            locked_row.add(self.ui.create_label_widget(_("Lock"), properties={"width": 60}))
+            locked_row.add(lock_position_check_box)
+            locked_row.add_spacing(12)
+            locked_row.add(lock_shape_check_box)
+            locked_row.add_stretch()
+
+            def move_to_center_clicked() -> None:
+                def reset_position(graphic: Graphics.Graphic) -> None:
+                    graphic.reset_position()
+
+                command = DisplayPanel.ChangeGraphicsCommand(self.__document_controller.document_model,
+                                                             self.__display_item, [graphic],
+                                                             title=_("Move Graphic to Center"),
+                                                             command_id="move_graphic_to_center", is_mergeable=True,
+                                                             modify_fn=reset_position)
+                command.perform()
+                self.__document_controller.push_undo_command(command)
+
+            canvas_item = CanvasItem.TextButtonCanvasItem("\N{BULLSEYE}")
+            canvas_item.text_font = "normal 13px serif"
+            canvas_item.size_to_content(self.ui.get_font_metrics)
+            canvas_item.on_button_clicked = move_to_center_clicked
+            move_to_center_widget = self.ui.create_canvas_widget(properties={"height": canvas_item.sizing.preferred_height, "width": canvas_item.sizing.preferred_width})
+            move_to_center_widget.canvas_item.add_canvas_item(canvas_item)
+            move_to_center_widget.tool_tip = _("Move to Center")
+            locked_row.add(move_to_center_widget)
+            locked_row.add_spacing(8)
+
+            graphic_widget.add(locked_row)
+
         column = self.ui.create_column_widget()
         column.add_spacing(4)
         column.add(graphic_widget)

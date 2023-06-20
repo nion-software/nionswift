@@ -1519,12 +1519,13 @@ class ChangeDisplayCommand(Undo.UndoableCommand):
 
 class ChangeGraphicsCommand(Undo.UndoableCommand):
 
-    def __init__(self, document_model: DocumentModel.DocumentModel, display_item: DisplayItem.DisplayItem, graphics: typing.Sequence[Graphics.Graphic], *, title: typing.Optional[str] = None, command_id: typing.Optional[str] = None, is_mergeable: bool=False, **kwargs: typing.Any) -> None:
+    def __init__(self, document_model: DocumentModel.DocumentModel, display_item: DisplayItem.DisplayItem, graphics: typing.Sequence[Graphics.Graphic], *, title: typing.Optional[str] = None, command_id: typing.Optional[str] = None, is_mergeable: bool=False, modify_fn: typing.Optional[typing.Callable[[Graphics.Graphic], None]] = None, **kwargs: typing.Any) -> None:
         super().__init__(title if title else _("Change Graphics"), command_id=command_id, is_mergeable=is_mergeable)
         self.__document_model = document_model
         self.__display_item_proxy = display_item.create_proxy()
         self.__graphic_indexes = [display_item.graphics.index(graphic) for graphic in graphics]
         self.__graphic_properties = [graphic.write_to_dict() for graphic in graphics]
+        self.__modify_fn = modify_fn
         self.__value_dict = kwargs
         self.initialize()
 
@@ -1540,9 +1541,11 @@ class ChangeGraphicsCommand(Undo.UndoableCommand):
         display_item = self.__display_item_proxy.item
         if display_item:
             graphics = [display_item.graphics[index] for index in self.__graphic_indexes]
-            for key, value in self.__value_dict.items():
-                for graphic in graphics:
+            for graphic in graphics:
+                for key, value in self.__value_dict.items():
                     setattr(graphic, key, value)
+                if callable(self.__modify_fn):
+                    self.__modify_fn(graphic)
 
     def _get_modified_state(self) -> typing.Any:
         display_item = self.__display_item_proxy.item
