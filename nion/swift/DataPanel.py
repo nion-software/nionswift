@@ -16,6 +16,7 @@ from nion.data import Image
 from nion.swift import MimeTypes
 from nion.swift import Panel
 from nion.swift import Thumbnails
+from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
 from nion.swift.model import Persistence
@@ -627,7 +628,24 @@ class DataPanel(Panel.Panel):
         self.__view_button_group.current_index = 0
         self.__view_button_group.on_current_index_changed = lambda index: setattr(self.data_view_widget, "current_index", index)
 
+        self.__filter_description = ui.create_label_widget(_("All Items"))
+
+        status_row = ui.create_row_widget()
+        status_row.add_spacing(8)
+        status_row.add(self.__filter_description)
+        status_row.add_stretch()
+
+        divider_widget = ui.create_canvas_widget(properties={"height": 2})
+        divider_widget.canvas_item.add_canvas_item(CanvasItem.DividerCanvasItem(orientation="horizontal"))
+
+        self.__status_section = ui.create_column_widget()
+        self.__status_section.add_spacing(4)
+        self.__status_section.add(status_row)
+        self.__status_section.add_spacing(2)
+        self.__status_section.add(divider_widget)
+
         widget = ui.create_column_widget(properties=properties)
+        widget.add(self.__status_section)
         widget.add(self.data_view_widget)
         widget.add_spacing(6)
         widget.add(search_widget)
@@ -637,6 +655,30 @@ class DataPanel(Panel.Panel):
 
         self._data_list_widget = data_list_widget
         self._data_grid_widget = data_grid_widget
+
+        def filter_changed(data_group: typing.Optional[DataGroup.DataGroup], filter_id: typing.Optional[str]) -> None:
+            if data_group:
+                self.__status_section.visible = True
+                self.__filter_description.text = _("Group") + ": " + data_group.title
+            else:
+                if filter_id == "latest-session":
+                    self.__status_section.visible = True
+                    self.__filter_description.text = _("Latest Session Items")
+                elif filter_id == "temporary":
+                    self.__status_section.visible = True
+                    self.__filter_description.text = _("Live Items")
+                elif filter_id == "persistent":
+                    self.__status_section.visible = True
+                    self.__filter_description.text = _("Persistent Items")
+                else:
+                    self.__status_section.visible = False
+                    self.__filter_description.text = _("All Items")
+
+        self.__filter_changed_event_listener = document_controller.filter_changed_event.listen(filter_changed)
+
+        data_group, filter_id = document_controller.get_data_group_and_filter_id()
+        filter_changed(data_group, filter_id)
+
 
     def close(self) -> None:
         # close the widget to stop repainting the widgets before closing the controllers.
@@ -653,6 +695,9 @@ class DataPanel(Panel.Panel):
         self.__view_button_group = typing.cast(CanvasItem.RadioButtonGroup, None)
         self.__selection_changed_event_listener.close()
         self.__selection_changed_event_listener = typing.cast(Event.EventListener, None)
+        # listeners
+        self.__filter_changed_event_listener.close()
+        self.__filter_changed_event_listener = typing.cast(typing.Any, None)
 
     def __notify_focus_changed(self) -> None:
         # this is called when the keyboard focus for the data panel is changed.
