@@ -957,15 +957,15 @@ class PersistentObject(Observable.Observable):
                     return item_dict.get(name, default)
 
                 item = factory(lookup_id)
-                if item is None:
-                    logging.debug("Unable to read %s", key)
-                assert item is not None
-                # read the item from the dict
-                item.begin_reading()
-                item.read_from_dict(item_dict)
-                self.__set_item(key, item)
-                if self.persistent_storage:
-                    self.persistent_storage.load_component_item(self, key, item)
+                if item:
+                    # read the item from the dict
+                    item.begin_reading()
+                    item.read_from_dict(item_dict)
+                    self.__set_item(key, item)
+                    if self.persistent_storage:
+                        self.persistent_storage.load_component_item(self, key, item)
+                else:
+                    logging.warning(f"Unable to read item {key} {item_dict}")
         for key in self.__relationships.keys():
             storage_key = self.__relationships[key].storage_key
             for item_dict in properties.get(storage_key, list()):
@@ -978,13 +978,15 @@ class PersistentObject(Observable.Observable):
                     return item_dict.get(name, default)
 
                 item = factory(lookup_id)
-                assert item is not None, f"Unable to read relationship {key} {item_dict}"
-                # read the item from the dict
-                item.begin_reading()
-                item.read_from_dict(item_dict)
-                # insert it into the relationship dict
-                before_index = len(self.__relationships[key].values)
-                self.load_item(key, before_index, item)
+                if item:
+                    # read the item from the dict
+                    item.begin_reading()
+                    item.read_from_dict(item_dict)
+                    # insert it into the relationship dict
+                    before_index = len(self.__relationships[key].values)
+                    self.load_item(key, before_index, item)
+                else:
+                    logging.warning(f"Unable to read relationship {key} {item_dict}")
 
     def finish_reading(self) -> None:
         for key in self.__items.keys():
