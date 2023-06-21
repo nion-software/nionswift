@@ -1,6 +1,7 @@
+# type: ignore
+
 import importlib
 import os
-import pkg_resources
 import sys
 import typing
 
@@ -63,10 +64,12 @@ def bootstrap_main(args: typing.Any) -> typing.Tuple[typing.Any, typing.Optional
 def main() -> None:
 
     # first, attempt to launch using nionswift-tool
-    if pkg_resources.Environment()["nionswift-tool"]:
+    try:
         from nion.nionswift_tool import command
         command.launch(sys.argv)
         return
+    except ImportError:
+        pass
 
     success = False
 
