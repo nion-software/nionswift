@@ -487,7 +487,9 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         # if we're still good to go, convert the intensity min/max to min/max of uncalibrated data of the primary data.
         # the primary data is used to fix the axes of everything - so everything ultimately gets converted to its coordinates.
         if not math.isinf(intensity_calibrated_min) and not math.isinf(intensity_calibrated_max):
-            x_padding = (right - left) * 0.5
+            x_padding = (right - left) * 0.5 if intervals else 0.0
+            # if left/right is 0/1, don't pad the display. this is a special case to handle the full range.
+            # it functions the same as if the user double-clicks the horizontal axis.
             display_left_channel = numpy.ceil((left - x_padding) * data_length)
             display_right_channel = numpy.floor((right + x_padding) * data_length)
 

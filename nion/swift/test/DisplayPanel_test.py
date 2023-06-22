@@ -2650,7 +2650,7 @@ class TestDisplayPanelClass(unittest.TestCase):
                 # ensure the interval is outside the regular fractional coordinate range
                 interval_graphic.start = interval[0]
                 interval_graphic.end = interval[1]
-                padding = abs(interval[1] - interval[0]) * .5
+                padding = abs(interval[1] - interval[0]) * 0.5
                 document_model.get_display_item_for_data_item(data_item).add_graphic(interval_graphic)
                 display_item = document_model.get_display_item_for_data_item(data_item)
                 display_item.graphic_selection.set(0)
@@ -2729,8 +2729,8 @@ class TestDisplayPanelClass(unittest.TestCase):
             line_plot_canvas_item.handle_auto_display()
             display_panel.display_canvas_item.prepare_display()  # force layout
             axes = line_plot_canvas_item._axes
-            self.assertAlmostEqual(axes.drawn_left_channel, ceil(0 - 12 * 0.5))
-            self.assertAlmostEqual(axes.drawn_right_channel, floor(12 * 1.5))
+            self.assertAlmostEqual(axes.drawn_left_channel, 0.0)  # no interval selected, so no padding
+            self.assertAlmostEqual(axes.drawn_right_channel, 12.0)
             self.assertAlmostEqual(data_item1.intensity_calibration.convert_from_calibrated_value(96.0) * 1.2, axes.uncalibrated_data_max)
             self.assertAlmostEqual(data_item1.intensity_calibration.convert_from_calibrated_value(-80.0) * 1.2, axes.uncalibrated_data_min)
 
