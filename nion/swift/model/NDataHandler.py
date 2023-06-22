@@ -164,7 +164,7 @@ def write_zip_fp(fp: typing.BinaryIO, data: typing.Optional[_NDArray], propertie
         offset_data = fp.tell()
         def write_data(fp: typing.BinaryIO) -> int:
             numpy_start_pos = fp.tell()
-            numpy.save(fp, data)  # type: ignore
+            numpy.save(fp, data)
             numpy_end_pos = fp.tell()
             fp.seek(numpy_start_pos)
             assert data is not None
