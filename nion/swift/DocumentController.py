@@ -3490,6 +3490,37 @@ class DisplayCopyAction(Window.Action):
         return context.display_item is not None
 
 
+class DisplayPanelCenterGraphicsAction(Window.Action):
+    action_id = "display_panel.center_graphics"
+    action_name = _("Move Graphic to Center")
+
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        display_item = window.selected_display_item
+        if display_item:
+            if display_item.graphic_selection.has_selection:
+                graphics = [display_item.graphics[index] for index in display_item.graphic_selection.indexes]
+                if graphics:
+                    def reset_position(graphic: Graphics.Graphic) -> None:
+                        graphic.reset_position()
+
+                    command = DisplayPanel.ChangeGraphicsCommand(window.document_model,
+                                                                 display_item, graphics,
+                                                                 title=DisplayPanelCenterGraphicsAction.action_name,
+                                                                 command_id="move_graphic_to_center", is_mergeable=True,
+                                                                 modify_fn=reset_position)
+                    command.perform()
+                    window.push_undo_command(command)
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        display_item = window.selected_display_item
+        return display_item is not None and display_item.graphic_selection.has_selection
+
+
 class DisplayPanelClearAction(Window.Action):
     action_id = "display_panel.clear"
     action_name = _("Clear Display Panel Contents")
@@ -3749,6 +3780,7 @@ class DisplayToggleLatencyAction(Window.Action):
 
 
 Window.register_action(DisplayCopyAction())
+Window.register_action(DisplayPanelCenterGraphicsAction())
 Window.register_action(DisplayPanelClearAction())
 Window.register_action(DisplayPanelCloseAction())
 Window.register_action(DisplayPanelCycleAction())

@@ -3108,16 +3108,8 @@ class GraphicsInspectorSection(InspectorSection):
             locked_row.add_stretch()
 
             def move_to_center_clicked() -> None:
-                def reset_position(graphic: Graphics.Graphic) -> None:
-                    graphic.reset_position()
-
-                command = DisplayPanel.ChangeGraphicsCommand(self.__document_controller.document_model,
-                                                             self.__display_item, [graphic],
-                                                             title=_("Move Graphic to Center"),
-                                                             command_id="move_graphic_to_center", is_mergeable=True,
-                                                             modify_fn=reset_position)
-                command.perform()
-                self.__document_controller.push_undo_command(command)
+                action_context = self.__document_controller._get_action_context()
+                self.__document_controller.perform_action_in_context("display_panel.center_graphics", action_context)
 
             canvas_item = CanvasItem.TextButtonCanvasItem("\N{BULLSEYE}")
             canvas_item.text_font = "normal 13px serif"
