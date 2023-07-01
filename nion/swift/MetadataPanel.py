@@ -211,6 +211,10 @@ class ThreadedCanvasItem(CanvasItem.CanvasItemComposition):
 
             metadata_editor_canvas_item = TreeCanvasItem.TreeCanvasItem(self.__get_font_metrics_fn, self.__delegate)
             metadata_editor_canvas_item.on_reconstruct = self._trigger
+            metadata_editor_canvas_item.reconstruct()
+            # calculate the new preferred size of the metadata editor.
+            metadata_editor_canvas_item.size_to_content()
+            metadata_editor_canvas_item_size = Geometry.FloatSize(w=metadata_editor_canvas_item.sizing.preferred_width, h=metadata_editor_canvas_item.sizing.preferred_height).to_int_size()
 
             # modifying the composition is safe until it is added to this composition.
             canvas_item_composition = CanvasItem.CanvasItemComposition()
@@ -218,11 +222,12 @@ class ThreadedCanvasItem(CanvasItem.CanvasItemComposition):
             canvas_item_composition.layout = CanvasItem.CanvasItemColumnLayout()
             canvas_item_composition.add_canvas_item(metadata_editor_canvas_item)
             canvas_item_composition.add_stretch()
-            metadata_editor_canvas_item.reconstruct()
             self.__metadata_editor_canvas_item = metadata_editor_canvas_item
 
-            canvas_item_composition.update_layout(self.canvas_origin, canvas_bounds.size)
-            canvas_item_composition.repaint_immediate(drawing_context, canvas_bounds.size)
+            # the canvas_bounds at this point does not represent the size of the reconstructed metadata editor.
+            # so use the explicit size of the metadata editor to lay out the new composition.
+            canvas_item_composition.update_layout(self.canvas_origin, metadata_editor_canvas_item_size)
+            canvas_item_composition.repaint_immediate(drawing_context, metadata_editor_canvas_item_size)
 
             canvas_item_composition._set_owner_thread(threading.main_thread())
 
