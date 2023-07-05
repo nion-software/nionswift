@@ -4309,7 +4309,7 @@ class DeclarativeDataSourceChooserConstructor:
                 if on_delete_method and callable(getattr(handler, on_delete_method, None)):
                     getattr(handler, on_delete_method)()
 
-            widget = DataItemThumbnailWidget.ThumbnailWidget(ui, thumbnail_source, properties=properties, is_expanding=True)
+            widget = DataItemThumbnailWidget.ThumbnailWidget(ui, thumbnail_source, properties=properties)
             widget.on_drag = widget.drag
             widget.on_drop_mime_data = drop_mime_data
             widget.on_delete = data_item_delete

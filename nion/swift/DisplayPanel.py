@@ -1667,7 +1667,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         self.__identifier: str = d.get("identifier", "".join([random.choice(string.ascii_uppercase) for _ in range(2)])) or str()
         self.ui = document_controller.ui
 
-        self.on_contents_changed = None  # useful for writing changes to disk quickly
+        self.on_contents_changed: typing.Optional[typing.Callable[[], None]] = None  # useful for writing changes to disk quickly
 
         self.__playback_controller = PlaybackController(document_controller.event_loop)
 
@@ -1770,8 +1770,6 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         self.__display_tracker: typing.Optional[DisplayTracker] = None
         self.__data_item_reference_changed_event_listener: typing.Optional[Event.EventListener] = None
         self.__data_item_reference_changed_task: typing.Optional[asyncio.Task[None]] = None
-
-        document_model = self.__document_controller.document_model
 
         # the display panel controller is an object which adds and controls additional UI on top of this display.
         self.__display_panel_controller: typing.Optional[DisplayPanelControllerLike] = None

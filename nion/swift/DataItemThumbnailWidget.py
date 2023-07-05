@@ -207,18 +207,6 @@ class ThumbnailCanvasItem(CanvasItem.CanvasItemComposition):
         super().close()
 
 
-class SquareCanvasItemLayout(CanvasItem.CanvasItemLayout):
-    def layout(self, canvas_origin: Geometry.IntPoint, canvas_size: Geometry.IntSize,
-               canvas_items: typing.Sequence[CanvasItem.AbstractCanvasItem], *, immediate: bool = False) -> None:
-        r = Geometry.IntRect(origin=canvas_origin, size=canvas_size)
-        if canvas_size.width > canvas_size.height:
-            r = Geometry.fit_to_size(r, Geometry.IntSize(w=canvas_size.height, h=canvas_size.height)).to_int_rect()
-            super().layout(canvas_origin, r.size, canvas_items, immediate=immediate)
-        else:
-            r = Geometry.fit_to_size(r, Geometry.IntSize(w=canvas_size.width, h=canvas_size.width)).to_int_rect()
-            super().layout(canvas_origin, r.size, canvas_items, immediate=immediate)
-
-
 class ThumbnailWidget(Widgets.CompositeWidgetBase):
 
     # when this widget is placed within a container, it will have no intrinsic size unless size is passed as a
@@ -230,20 +218,23 @@ class ThumbnailWidget(Widgets.CompositeWidgetBase):
 
     def __init__(self, ui: UserInterface.UserInterface, thumbnail_source: AbstractThumbnailSource,
                  size: typing.Optional[Geometry.IntSize] = None,
-                 properties: typing.Optional[Persistence.PersistentDictType] = None,
-                 is_expanding: bool = False) -> None:
-        content_widget = ui.create_column_widget(properties={"size-policy-horizontal": "expanding",
-                                                     "size-policy-vertical": "expanding"} if is_expanding else None)
+                 properties: typing.Optional[Persistence.PersistentDictType] = None) -> None:
+        content_widget = ui.create_column_widget()
         super().__init__(content_widget)
-        if not is_expanding:
-            size = size or Geometry.IntSize(width=80, height=80)
+        size = size or Geometry.IntSize(width=80, height=80)
         thumbnail_canvas_item = ThumbnailCanvasItem(ui, thumbnail_source, size)
+        thumbnail_canvas_item.update_sizing(thumbnail_canvas_item.sizing.with_preferred_aspect_ratio(1.0))
         properties = properties or ({"height": size.height, "width": size.width} if size else dict())
         bitmap_canvas_widget = ui.create_canvas_widget(properties=properties)
-        thumbnail_square = CanvasItem.CanvasItemComposition()
-        thumbnail_square.layout = SquareCanvasItemLayout()
-        thumbnail_square.add_canvas_item(thumbnail_canvas_item)
-        bitmap_canvas_widget.canvas_item.add_canvas_item(thumbnail_square)
+        thumbnail_square_row = CanvasItem.CanvasItemComposition()
+        thumbnail_square_row.layout = CanvasItem.CanvasItemRowLayout()
+        thumbnail_square_row.add_canvas_item(thumbnail_canvas_item)
+        thumbnail_square_row.add_stretch()
+        thumbnail_square_column = CanvasItem.CanvasItemComposition()
+        thumbnail_square_column.layout = CanvasItem.CanvasItemColumnLayout()
+        thumbnail_square_column.add_canvas_item(thumbnail_square_row)
+        thumbnail_square_column.add_stretch()
+        bitmap_canvas_widget.canvas_item.add_canvas_item(thumbnail_square_column)
         content_widget.add(bitmap_canvas_widget)
         self.on_drop_mime_data: typing.Optional[typing.Callable[[UserInterface.MimeData, int, int], str]] = None
         self.on_drag: typing.Optional[typing.Callable[[UserInterface.MimeData, typing.Optional[_ImageDataType], int, int], None]] = None
