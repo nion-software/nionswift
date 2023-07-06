@@ -329,6 +329,126 @@ def calculate_origin_and_size(canvas_size: Geometry.IntSize, data_shape: DataAnd
         return Geometry.FloatRect(image_canvas_origin_f, image_canvas_size_f).to_int_rect()
 
 
+class ImageScrollAreaCanvasItem(CanvasItem.AbstractCanvasItem):
+    """Legacy scroll area canvas item."""
+
+    def __init__(self, content: typing.Optional[CanvasItem.AbstractCanvasItem] = None) -> None:
+        super().__init__()
+        self.__content: typing.Optional[CanvasItem.AbstractCanvasItem] = None
+        if content:
+            self.content = content
+
+    def close(self) -> None:
+        content = self.__content
+        self.__content = None
+        if content:
+            content.close()
+        super().close()
+
+    @property
+    def content(self) -> typing.Optional[CanvasItem.AbstractCanvasItem]:
+        """ Return the content of the scroll area. """
+        return self.__content
+
+    @content.setter
+    def content(self, content: CanvasItem.AbstractCanvasItem) -> None:
+        """ Set the content of the scroll area. """
+        # remove the old content
+        if self.__content:
+            self.__content.container = None
+            self.__content.on_layout_updated = None
+        # add the new content
+        self.__content = content
+        content.container = typing.cast(CanvasItem.CanvasItemComposition, self)  # argh
+        self.update()
+
+    @property
+    def visible_rect(self) -> Geometry.IntRect:
+        content = self.__content
+        if content:
+            content_canvas_origin = content.canvas_origin
+            canvas_size = self.canvas_size
+            if content_canvas_origin and canvas_size:
+                return Geometry.IntRect(origin=-content_canvas_origin, size=canvas_size)
+        return Geometry.IntRect(origin=Geometry.IntPoint(), size=Geometry.IntSize())
+
+    def update_layout(self, canvas_origin: typing.Optional[Geometry.IntPoint],
+                      canvas_size: typing.Optional[Geometry.IntSize], *, immediate: bool = False) -> None:
+        """Override from abstract canvas item.
+
+        After setting the canvas origin and canvas size, like the abstract canvas item,
+        update the layout of the content if it has no assigned layout yet. Whether it has
+        an assigned layout is determined by whether the canvas origin and canvas size are
+        None or not.
+        """
+        self._set_canvas_origin(canvas_origin)
+        self._set_canvas_size(canvas_size)
+        content = self.__content
+        if content:
+            canvas_origin = content.canvas_origin
+            canvas_size = content.canvas_size
+            if canvas_origin is None or canvas_size is None:
+                # if content has no assigned layout, update its layout relative to this object.
+                # it will get a 0,0 origin but the same size as this scroll area.
+                content.update_layout(Geometry.IntPoint(), self.canvas_size, immediate=immediate)
+            # NOTE: super is never called for this implementation
+            # call on_layout_updated, just like the super implementation.
+            if callable(self.on_layout_updated):
+                self.on_layout_updated(self.canvas_origin, self.canvas_size, immediate)
+
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
+        super()._repaint(drawing_context)
+        with drawing_context.saver():
+            canvas_origin = self.canvas_origin
+            canvas_size = self.canvas_size
+            if canvas_origin and canvas_size:
+                drawing_context.clip_rect(canvas_origin.x, canvas_origin.y, canvas_size.width, canvas_size.height)
+                content = self.__content
+                if content:
+                    content_canvas_origin = content.canvas_origin
+                    if content_canvas_origin:
+                        drawing_context.translate(content_canvas_origin.x, content_canvas_origin.y)
+                        visible_rect = Geometry.IntRect(origin=-content_canvas_origin, size=canvas_size)
+                        content._repaint_visible(drawing_context, visible_rect)
+
+    def canvas_items_at_point(self, x: int, y: int) -> typing.List[CanvasItem.AbstractCanvasItem]:
+        canvas_items: typing.List[CanvasItem.AbstractCanvasItem] = []
+        point = Geometry.IntPoint(x=x, y=y)
+        content = self.__content
+        if content and content.canvas_rect and content.canvas_rect.contains_point(point):
+            content_canvas_origin = content.canvas_origin
+            if content_canvas_origin:
+                canvas_point = point - content_canvas_origin
+                canvas_items.extend(content.canvas_items_at_point(canvas_point.x, canvas_point.y))
+        canvas_items.extend(super().canvas_items_at_point(x, y))
+        return canvas_items
+
+    def wheel_changed(self, x: int, y: int, dx: int, dy: int, is_horizontal: bool) -> bool:
+        canvas_origin = self.canvas_origin
+        if canvas_origin:
+            x -= canvas_origin.x
+            y -= canvas_origin.y
+
+            content = self.__content
+
+            if content:
+                # give the content a chance to handle the wheel changed itself.
+                if content.wheel_changed(x, y, dx, dy, is_horizontal):
+                    return True
+
+                # if the content didn't handle the wheel changed, then scroll the content here.
+                dx = dx if is_horizontal else 0
+                dy = dy if not is_horizontal else 0
+                canvas_rect = content.canvas_rect
+                if canvas_rect:
+                    new_canvas_origin = canvas_rect.origin + Geometry.IntPoint(x=dx, y=dy)
+                    content.update_layout(new_canvas_origin, canvas_rect.size)
+                    content.update()
+                return True
+
+        return False
+
+
 class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
     """A canvas item to paint an image.
 
@@ -389,8 +509,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.__composite_canvas_item.add_canvas_item(self.__bitmap_canvas_item)
         self.__composite_canvas_item.add_canvas_item(self.__graphics_canvas_item)
         # and put the composition into a scroll area
-        self.scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(self.__composite_canvas_item)
-        self.scroll_area_canvas_item._constrain_position = False  # temporary until scroll bars are implemented
+        self.scroll_area_canvas_item = ImageScrollAreaCanvasItem(self.__composite_canvas_item)
 
         def layout_updated(canvas_origin: typing.Optional[Geometry.IntPoint], canvas_size: typing.Optional[Geometry.IntSize], immediate: bool = False) -> None:
             # when the scroll area layout is updated, also update the overlay items since they have no way to

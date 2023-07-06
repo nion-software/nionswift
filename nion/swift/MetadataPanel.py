@@ -318,7 +318,6 @@ class MetadataPanel(Panel.Panel):
         self.__metadata_editor_canvas_item = metadata_editor_canvas_item
 
         scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(metadata_editor_canvas_item)
-        # scroll_area_canvas_item.auto_resize_contents = True
         scroll_group_canvas_item = CanvasItem.CanvasItemComposition()
         vertical_scroll_bar_canvas_item = CanvasItem.ScrollBarCanvasItem(scroll_area_canvas_item)
         horizontal_scroll_bar_canvas_item = CanvasItem.ScrollBarCanvasItem(scroll_area_canvas_item, CanvasItem.Orientation.Horizontal)
