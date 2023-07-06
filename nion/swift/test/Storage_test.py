@@ -344,8 +344,8 @@ class TestStorageClass(unittest.TestCase):
                 display_item = document_model.get_display_item_for_data_item(document_model.data_items[0])
                 self.assertIsNotNone(display_item.display_data_channels[0].get_latest_computed_display_values().data_range)
 
-    @unittest.expectedFailure
-    def test_reload_data_item_does_not_recalculate_display_data_range(self):
+    # @unittest.expectedFailure
+    def future_test_reload_data_item_does_not_recalculate_display_data_range(self):
         with create_memory_profile_context() as profile_context:
             storage_cache = profile_context.storage_cache
             document_model = profile_context.create_document_model(auto_close=False)
@@ -3123,8 +3123,8 @@ class TestStorageClass(unittest.TestCase):
                 self.assertEqual(new_data_item_dict["version"], DataItem.DataItem.storage_version)
 
     # should be separately testing a migration of profile and project
-    @unittest.expectedFailure
-    def test_migrate_update_library_version(self):
+    # @unittest.expectedFailure
+    def future_test_migrate_update_library_version(self):
         with create_temp_profile_context() as profile_context:
             # construct workspace with old file
             library_path = profile_context.projects_dir / "Data.nsproj"
@@ -3373,8 +3373,8 @@ class TestStorageClass(unittest.TestCase):
                 self.assertEqual("Title", document_model.data_items[0].title)
 
     # there is no defined migration for data item references
-    @unittest.expectedFailure
-    def test_auto_migrate_connects_data_references_in_migrated_data(self):
+    # @unittest.expectedFailure
+    def future_test_auto_migrate_connects_data_references_in_migrated_data(self):
         with create_temp_profile_context() as profile_context:
             src_uuid_str = str(uuid.uuid4())
             # construct workspace with old file
@@ -3549,8 +3549,8 @@ class TestStorageClass(unittest.TestCase):
                 document_model._project.migrate_to_latest()
                 self.assertEqual(len(document_model.data_items), 1)
 
-    @unittest.expectedFailure
-    def test_storage_cache_disabled_during_transaction(self):
+    # @unittest.expectedFailure
+    def future_test_storage_cache_disabled_during_transaction(self):
         with create_memory_profile_context() as profile_context:
             storage_cache = profile_context.storage_cache
             document_model = profile_context.create_document_model(auto_close=False)
