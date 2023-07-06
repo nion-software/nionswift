@@ -1100,6 +1100,29 @@ class TestProcessingClass(unittest.TestCase):
             self.assertIsNotNone(line_profile_data_item.xdata)
             self.assertEqual((5, ), line_profile_data_item.xdata.data_shape)
 
+    def test_windows(self):
+        with TestContext.create_memory_context() as test_context:
+            data_and_metadata_list = [
+                DataAndMetadata.new_data_and_metadata(numpy.zeros((16, 16)), data_descriptor=DataAndMetadata.DataDescriptor(False, 0, 2)),
+                DataAndMetadata.new_data_and_metadata(numpy.zeros((4, 16, 16)), data_descriptor=DataAndMetadata.DataDescriptor(True, 0, 2)),
+                DataAndMetadata.new_data_and_metadata(numpy.zeros((4, 3, 16, 16)), data_descriptor=DataAndMetadata.DataDescriptor(False, 2, 2)),
+                DataAndMetadata.new_data_and_metadata(numpy.zeros((17, 23)), data_descriptor=DataAndMetadata.DataDescriptor(False, 0, 2)),
+                DataAndMetadata.new_data_and_metadata(numpy.zeros((4, 17, 23)), data_descriptor=DataAndMetadata.DataDescriptor(True, 0, 2)),
+                DataAndMetadata.new_data_and_metadata(numpy.zeros((4, 3, 17, 23)), data_descriptor=DataAndMetadata.DataDescriptor(False, 2, 2)),
+                DataAndMetadata.new_data_and_metadata(numpy.zeros((23, 17)), data_descriptor=DataAndMetadata.DataDescriptor(False, 0, 2)),
+                DataAndMetadata.new_data_and_metadata(numpy.zeros((4, 23, 17)), data_descriptor=DataAndMetadata.DataDescriptor(True, 0, 2)),
+                DataAndMetadata.new_data_and_metadata(numpy.zeros((4, 3, 23, 17)), data_descriptor=DataAndMetadata.DataDescriptor(False, 2, 2)),
+            ]
+            document_model = test_context.create_document_model()
+            for data_and_metadata in data_and_metadata_list:
+                for window_type in ("gaussian_window", "hamming_window", "hann_window"):
+                    data_item = DataItem.new_data_item(data_and_metadata)
+                    document_model.append_data_item(data_item)
+                    display_item = document_model.get_display_item_for_data_item(data_item)
+                    document_model.get_processing_new(window_type, display_item, display_item.data_item)
+                    document_model.recompute_all()
+                    self.assertFalse(document_model.computations[-1].error_text)
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
