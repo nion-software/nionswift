@@ -249,6 +249,7 @@ class ScaleMarkerCanvasItem(CanvasItem.AbstractCanvasItem):
         new_sizing._set_fixed_width(width)
         new_sizing._set_fixed_height(height)
         self.update_sizing(new_sizing)
+        self.update()
 
     def set_data_info(self, dimensional_calibration: Calibration.Calibration, info_items: typing.Sequence[str]) -> None:
         needs_update = False
