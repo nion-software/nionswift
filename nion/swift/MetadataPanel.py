@@ -295,8 +295,6 @@ class MetadataPanel(Panel.Panel):
 
         def content_size_changed(content_size: Geometry.IntSize) -> None:
             def _content_height_changed() -> None:
-                # start = time.perf_counter_ns()
-
                 # the code below will do the upstream part of the line below. we can't use the line below
                 # because it will lay out the children again.
                 # metadata_editor_canvas_item.update_layout(Geometry.IntPoint(), content_size)
@@ -306,11 +304,6 @@ class MetadataPanel(Panel.Panel):
 
                 # set the content size and send it on up so the scroll area sees it.
                 metadata_editor_canvas_item._set_canvas_size(content_size)
-                if callable(metadata_editor_canvas_item.on_layout_updated):
-                    metadata_editor_canvas_item.on_layout_updated(metadata_editor_canvas_item.canvas_origin, metadata_editor_canvas_item.canvas_size, False)
-
-                # end = time.perf_counter_ns()
-                # print(f"height change {(end - start) / 1000}us")
             self.__thread_helper.call_on_main_thread("_content_height_changed", _content_height_changed)
 
         metadata_editor_canvas_item = ThreadedCanvasItem(ui.get_font_metrics, delegate, content_size_changed)
