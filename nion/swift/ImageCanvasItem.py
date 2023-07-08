@@ -329,93 +329,88 @@ def calculate_origin_and_size(canvas_size: Geometry.IntSize, data_shape: DataAnd
         return Geometry.FloatRect(image_canvas_origin_f, image_canvas_size_f).to_int_rect()
 
 
-class ImageScrollAreaCanvasItem(CanvasItem.AbstractCanvasItem):
-    """Legacy scroll area canvas item."""
-
-    def __init__(self, content: typing.Optional[CanvasItem.AbstractCanvasItem] = None) -> None:
+class ImageAreaCanvasItemLayout(CanvasItem.CanvasItemLayout):
+    def __init__(self) -> None:
         super().__init__()
-        self.__content: typing.Optional[CanvasItem.AbstractCanvasItem] = None
-        if content:
-            self.content = content
+        self._data_shape: typing.Optional[DataAndMetadata.Shape2dType] = None
+        self._image_zoom = 1.0
+        self._image_position = Geometry.FloatPoint(0.5, 0.5)
+        self._image_canvas_mode = "fit"
 
-    def close(self) -> None:
-        content = self.__content
-        self.__content = None
+    def layout(self, canvas_origin: Geometry.IntPoint, canvas_size: Geometry.IntSize, canvas_items: typing.Sequence[CanvasItem.LayoutItem], *, immediate: bool = False) -> None:
+        content = canvas_items[0] if canvas_items else None
         if content:
-            content.close()
-        super().close()
+            if not content._has_layout:
+                # if the content has not layout yet, always update it.
+                self.update_canvas_item_layout(canvas_origin, canvas_size, content, immediate=immediate)
+            if canvas_size:
+                widget_mapping = ImageCanvasItemMapping.make(self._data_shape, Geometry.IntRect(canvas_origin, canvas_size), list())
+                if widget_mapping:
+                    image_canvas_rect = calculate_origin_and_size(canvas_size, widget_mapping.data_shape, self._image_canvas_mode, self._image_zoom, self._image_position)
+                    content.update_layout(image_canvas_rect.origin, image_canvas_rect.size, immediate=immediate)
+
+
+class ImageAreaCompositeCanvasItem(CanvasItem.CanvasItemComposition):
+    """A composite canvas item that will hold the bitmap and graphics canvas item.
+
+    Also handles the screen pixel per image pixel stream, used for the scale marker.
+    """
+
+    def __init__(self, image_canvas_item: ImageCanvasItem) -> None:
+        super().__init__()
+        self.__image_canvas_item = image_canvas_item
+        self.__data_shape: typing.Optional[DataAndMetadata.Shape2dType] = None
+        self.__lock = threading.RLock()
+        self.screen_pixel_per_image_pixel_stream = Stream.ValueStream(0.0)
+
+    def _set_canvas_size(self, canvas_size: typing.Optional[Geometry.IntSizeTuple]) -> None:
+        super()._set_canvas_size(canvas_size)
+        self.__update_screen_pixel_per_image()
 
     @property
-    def content(self) -> typing.Optional[CanvasItem.AbstractCanvasItem]:
-        """ Return the content of the scroll area. """
-        return self.__content
+    def _data_shape(self) -> typing.Optional[DataAndMetadata.Shape2dType]:
+        return self.__data_shape
 
-    @content.setter
-    def content(self, content: CanvasItem.AbstractCanvasItem) -> None:
-        """ Set the content of the scroll area. """
-        # remove the old content
-        if self.__content:
-            self.__content.container = None
-            self.__content.on_layout_updated = None
-        # add the new content
-        self.__content = content
-        content.container = typing.cast(CanvasItem.CanvasItemComposition, self)  # argh
-        self.update()
+    @_data_shape.setter
+    def _data_shape(self, value: typing.Optional[DataAndMetadata.Shape2dType]) -> None:
+        self.__data_shape = value
+        self.__update_screen_pixel_per_image()
 
-    @property
-    def visible_rect(self) -> Geometry.IntRect:
-        content = self.__content
-        if content:
-            content_canvas_origin = content.canvas_origin
-            canvas_size = self.canvas_size
-            if content_canvas_origin and canvas_size:
-                return Geometry.IntRect(origin=-content_canvas_origin, size=canvas_size)
-        return Geometry.IntRect(origin=Geometry.IntPoint(), size=Geometry.IntSize())
+    def __update_screen_pixel_per_image(self) -> None:
+        screen_pixel_per_image_pixel = 0.0
+        widget_mapping = ImageCanvasItemMapping.make(self._data_shape, self.canvas_rect, list())
+        if widget_mapping:
+            data_shape = widget_mapping.data_shape
+            screen_pixel_per_image_pixel = widget_mapping.map_size_image_norm_to_widget(Geometry.FloatSize(1, 1)).height / data_shape[0]
+        # until threading is cleaned up, this is a hack to avoid setting the value from two different threads at once.
+        with self.__lock:
+            self.screen_pixel_per_image_pixel_stream.value = screen_pixel_per_image_pixel
 
-    def update_layout(self, canvas_origin: typing.Optional[Geometry.IntPoint],
-                      canvas_size: typing.Optional[Geometry.IntSize], *, immediate: bool = False) -> None:
-        """Override from abstract canvas item.
 
-        After setting the canvas origin and canvas size, like the abstract canvas item,
-        update the layout of the content if it has no assigned layout yet. Whether it has
-        an assigned layout is determined by whether the canvas origin and canvas size are
-        None or not.
-        """
-        self._set_canvas_origin(canvas_origin)
-        self._set_canvas_size(canvas_size)
-        content = self.__content
-        if content:
-            canvas_origin = content.canvas_origin
-            canvas_size = content.canvas_size
-            if canvas_origin is None or canvas_size is None:
-                # if content has no assigned layout, update its layout relative to this object.
-                # it will get a 0,0 origin but the same size as this scroll area.
-                content.update_layout(Geometry.IntPoint(), self.canvas_size, immediate=immediate)
-            # NOTE: super is never called for this implementation
-            # call on_layout_updated, just like the super implementation.
-            if callable(self.on_layout_updated):
-                self.on_layout_updated(self.canvas_origin, self.canvas_size, immediate)
+class ImageAreaCanvasItem(CanvasItem.CanvasItemComposition):
+    def __init__(self, content: CanvasItem.AbstractCanvasItem) -> None:
+        super().__init__()
+        self.add_canvas_item(content)
 
-    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
-        super()._repaint(drawing_context)
+    def _repaint_children(self, drawing_context: DrawingContext.DrawingContext, *, immediate: bool = False) -> None:
+        # paint the children with the content origin and a clip rect.
         with drawing_context.saver():
             canvas_origin = self.canvas_origin
             canvas_size = self.canvas_size
             if canvas_origin and canvas_size:
                 drawing_context.clip_rect(canvas_origin.x, canvas_origin.y, canvas_size.width, canvas_size.height)
-                content = self.__content
-                if content:
-                    content_canvas_origin = content.canvas_origin
-                    if content_canvas_origin:
-                        drawing_context.translate(content_canvas_origin.x, content_canvas_origin.y)
-                        visible_rect = Geometry.IntRect(origin=-content_canvas_origin, size=canvas_size)
-                        content._repaint_visible(drawing_context, visible_rect)
+                content = self.canvas_items[0]
+                content_canvas_origin = content.canvas_origin
+                if content_canvas_origin:
+                    drawing_context.translate(content_canvas_origin.x, content_canvas_origin.y)
+                    visible_rect = Geometry.IntRect(origin=-content_canvas_origin, size=canvas_size)
+                    content._repaint_visible(drawing_context, visible_rect)
 
     def canvas_items_at_point(self, x: int, y: int) -> typing.List[CanvasItem.AbstractCanvasItem]:
         canvas_items: typing.List[CanvasItem.AbstractCanvasItem] = []
         point = Geometry.IntPoint(x=x, y=y)
-        content = self.__content
-        if content and content.canvas_rect and content.canvas_rect.contains_point(point):
+        content = self.canvas_items[0]
+        if content.canvas_rect and content.canvas_rect.contains_point(point):
             content_canvas_origin = content.canvas_origin
             if content_canvas_origin:
                 canvas_point = point - content_canvas_origin
@@ -428,24 +423,19 @@ class ImageScrollAreaCanvasItem(CanvasItem.AbstractCanvasItem):
         if canvas_origin:
             x -= canvas_origin.x
             y -= canvas_origin.y
-
-            content = self.__content
-
-            if content:
-                # give the content a chance to handle the wheel changed itself.
-                if content.wheel_changed(x, y, dx, dy, is_horizontal):
-                    return True
-
-                # if the content didn't handle the wheel changed, then scroll the content here.
-                dx = dx if is_horizontal else 0
-                dy = dy if not is_horizontal else 0
-                canvas_rect = content.canvas_rect
-                if canvas_rect:
-                    new_canvas_origin = canvas_rect.origin + Geometry.IntPoint(x=dx, y=dy)
-                    content.update_layout(new_canvas_origin, canvas_rect.size)
-                    content.update()
+            content = self.canvas_items[0]
+            # give the content a chance to handle the wheel changed itself.
+            if content.wheel_changed(x, y, dx, dy, is_horizontal):
                 return True
-
+            # if the content didn't handle the wheel changed, then scroll the content here.
+            dx = dx if is_horizontal else 0
+            dy = dy if not is_horizontal else 0
+            canvas_rect = content.canvas_rect
+            if canvas_rect:
+                new_canvas_origin = canvas_rect.origin + Geometry.IntPoint(x=dx, y=dy)
+                content.update_layout(new_canvas_origin, canvas_rect.size)
+                content.update()
+            return True
         return False
 
 
@@ -505,23 +495,15 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.__bitmap_canvas_item = CanvasItem.BitmapCanvasItem(background_color="#888" if draw_background else "transparent")
         self.__graphics_canvas_item = GraphicsCanvasItem(ui_settings)
         # put the zoom-able items into a composition
-        self.__composite_canvas_item = CanvasItem.CanvasItemComposition()
+        self.__composite_canvas_item = ImageAreaCompositeCanvasItem(self)
         self.__composite_canvas_item.add_canvas_item(self.__bitmap_canvas_item)
         self.__composite_canvas_item.add_canvas_item(self.__graphics_canvas_item)
         # and put the composition into a scroll area
-        self.scroll_area_canvas_item = ImageScrollAreaCanvasItem(self.__composite_canvas_item)
-
-        def layout_updated(canvas_origin: typing.Optional[Geometry.IntPoint], canvas_size: typing.Optional[Geometry.IntSize], immediate: bool = False) -> None:
-            # when the scroll area layout is updated, also update the overlay items since they have no way to
-            # be sized otherwise. will be called on render thread.
-            if canvas_size:
-                self.__update_overlay_canvas_item(canvas_size, immediate=immediate)
-
-        self.scroll_area_canvas_item.on_layout_updated = layout_updated
+        self.__scroll_area_layout = ImageAreaCanvasItemLayout()
+        self.scroll_area_canvas_item = ImageAreaCanvasItem(self.__composite_canvas_item)
+        self.scroll_area_canvas_item.layout = self.__scroll_area_layout
         # info overlay (scale marker, etc.)
-        self.__screen_pixel_per_image_pixel_stream_lock = threading.RLock()
-        self.__screen_pixel_per_image_pixel_stream = Stream.ValueStream(0.0).add_ref()
-        self.__scale_marker_canvas_item = ScaleMarkerCanvasItem(self.__screen_pixel_per_image_pixel_stream, ui_settings.get_font_metrics)
+        self.__scale_marker_canvas_item = ScaleMarkerCanvasItem(self.__composite_canvas_item.screen_pixel_per_image_pixel_stream, ui_settings.get_font_metrics)
         info_overlay_row = CanvasItem.CanvasItemComposition()
         info_overlay_row.layout = CanvasItem.CanvasItemRowLayout()
         info_overlay_row.add_spacing(12)
@@ -566,8 +548,6 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.__display_latency = False
 
     def close(self) -> None:
-        self.__screen_pixel_per_image_pixel_stream.remove_ref()
-        self.__screen_pixel_per_image_pixel_stream = typing.cast(typing.Any, None)
         if self.__undo_command:
             self.__undo_command.close()
             self.__undo_command = None
@@ -648,10 +628,13 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                 if self.__image_zoom != image_zoom or self.__image_position != image_position or self.__image_canvas_mode != image_canvas_mode:
                     if image_zoom is not None:
                         self.__image_zoom = image_zoom
+                        self.__scroll_area_layout._image_zoom = self.__image_zoom
                     if image_position is not None:
                         self.__image_position = image_position
+                        self.__scroll_area_layout._image_position = self.__image_position
                     if image_canvas_mode is not None:
                         self.__image_canvas_mode = image_canvas_mode
+                        self.__scroll_area_layout._image_canvas_mode = self.__image_canvas_mode
 
                 # if the data changes, update the display.
                 if data_shape is not None and len(data_shape) == 2 and ((display_properties != self.__last_display_properties) or (display_calibration_info != self.__last_display_calibration_info) or (self.__display_values_dirty)):
@@ -659,6 +642,8 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                     self.__last_display_properties = copy.deepcopy(display_properties)
                     self.__last_display_calibration_info = copy.deepcopy(display_calibration_info)
                     self.__data_shape = data_shape[0], data_shape[1]
+                    self.__scroll_area_layout._data_shape = self.__data_shape
+                    self.__composite_canvas_item._data_shape = self.__data_shape
                     self.__coordinate_system = display_calibration_info.datum_calibrations
                     if self.__display_frame_rate_id:
                         if frame_index != self.__display_frame_rate_last_index:
@@ -671,7 +656,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                     def update_layout() -> None:
                         # layout. this makes sure that the info overlay gets updated too.
                         # called on the main thread.
-                        self.__update_image_canvas_size()
+                        self.scroll_area_canvas_item._needs_layout(self.scroll_area_canvas_item)
                         # trigger updates
                         self.update()
                         self.__composite_canvas_item.update()
@@ -705,7 +690,6 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
                 # setting the bitmap on the bitmap_canvas_item is delayed until paint, so that it happens on a thread, since it may be time consuming
                 self.__scale_marker_canvas_item.set_data_info(dimensional_calibration, info_items)
-                self.__update_scale_stream()
 
     def update_graphics_coordinate_system(self, graphics: typing.Sequence[Graphics.Graphic], graphic_selection: DisplayItem.GraphicSelection, display_calibration_info: DisplayItem.DisplayCalibrationInfo) -> None:
         self.__graphics = list(graphics)
@@ -744,40 +728,13 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             new_image_norm_center_1 = max(min(new_image_norm_center[1], 1.0), 0.0)
             # save the new image norm center
             self.__image_position = Geometry.FloatPoint(new_image_norm_center_0, new_image_norm_center_1)
+            self.__scroll_area_layout._image_position = self.__image_position
             delegate.update_display_properties({"image_position": list(self.__image_position), "image_canvas_mode": "custom"})
             # and update the image canvas accordingly
             self.__image_canvas_mode = "custom"
-            self.__update_image_canvas_size()
+            self.__scroll_area_layout._image_canvas_mode = self.__image_canvas_mode
+            self.scroll_area_canvas_item._needs_layout(self.scroll_area_canvas_item)
             self.__composite_canvas_item.update()
-
-    # may be called on main thread or a render thread.
-    def __update_scale_stream(self) -> None:
-        screen_pixel_per_image_pixel = 0.0
-        scroll_area_canvas_size = self.scroll_area_canvas_item.canvas_size
-        widget_mapping = ImageCanvasItemMapping.make(self.__data_shape, self.__composite_canvas_item.canvas_rect, list())
-        if scroll_area_canvas_size is not None and widget_mapping:
-            data_shape = widget_mapping.data_shape
-            image_canvas_rect = calculate_origin_and_size(scroll_area_canvas_size, data_shape, self.__image_canvas_mode, self.__image_zoom, self.__image_position)
-            widget_mapping = ImageCanvasItemMapping(data_shape, image_canvas_rect, list())
-            screen_pixel_per_image_pixel = widget_mapping.map_size_image_norm_to_widget(Geometry.FloatSize(1, 1)).height / data_shape[0]
-        # until threading is cleaned up, this is a hack to avoid setting the value from two different threads at once.
-        with self.__screen_pixel_per_image_pixel_stream_lock:
-            self.__screen_pixel_per_image_pixel_stream.value = screen_pixel_per_image_pixel
-
-    # update the image canvas origin and size. may be called on main thread or a render thread.
-    def __update_overlay_canvas_item(self, scroll_area_canvas_size: Geometry.IntSize, immediate: bool = False) -> None:
-        widget_mapping = ImageCanvasItemMapping.make(self.__data_shape, self.__composite_canvas_item.canvas_rect, list())
-        if widget_mapping:
-            image_canvas_rect = calculate_origin_and_size(scroll_area_canvas_size, widget_mapping.data_shape, self.__image_canvas_mode, self.__image_zoom, self.__image_position)
-            self.__composite_canvas_item.update_layout(image_canvas_rect.origin, image_canvas_rect.size, immediate=immediate)
-        self.__update_scale_stream()
-
-    def __update_image_canvas_size(self) -> None:
-        # called on the main thread.
-        assert threading.current_thread() == threading.main_thread()
-        scroll_area_canvas_size = self.scroll_area_canvas_item.canvas_size
-        if scroll_area_canvas_size:
-            self.__update_overlay_canvas_item(scroll_area_canvas_size)
 
     def mouse_clicked(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         if super().mouse_clicked(x, y, modifiers):

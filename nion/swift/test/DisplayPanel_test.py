@@ -174,6 +174,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.display_panel.display_canvas_item.simulate_click((0, 0))
         self.display_panel.display_canvas_item.move_left()  # 10 pixels left
         self.display_panel.display_canvas_item.move_left()  # 10 pixels left
+        self.display_panel.display_canvas_item.refresh_layout_immediate()
         self.display_panel.display_canvas_item.simulate_click((200, 200))
         self.assertEqual(len(self.display_item.graphic_selection.indexes), 0)
         self.display_panel.display_canvas_item.simulate_click((220, 200))
@@ -413,6 +414,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.display_panel.display_canvas_item.layout_immediate(Geometry.IntSize(height=480, width=640))
         self.display_panel.display_canvas_item.move_left()  # 10 pixels left
         self.display_panel.display_canvas_item.move_left()  # 10 pixels left
+        self.display_panel.display_canvas_item.refresh_layout_immediate()
         self.assertIsNotNone(self.display_panel.display_canvas_item.map_widget_to_image(Geometry.IntPoint(240, 320)))
         self.assertClosePoint(self.display_panel.display_canvas_item.map_widget_to_image(Geometry.IntPoint(240, 300)), (5, 5))
         self.assertClosePoint(self.display_panel.display_canvas_item.map_widget_to_image(Geometry.IntPoint(0, 60)), (0.0, 0.0))
@@ -1077,8 +1079,8 @@ class TestDisplayPanelClass(unittest.TestCase):
         modifiers = CanvasItem.KeyboardModifiers()
         self.display_panel.root_container.canvas_widget.simulate_mouse_click(100, 100, modifiers)
         self.display_panel.root_container.canvas_widget.on_key_pressed(TestUI.Key(None, "up", modifiers))
-        # self.display_panel.display_canvas_item.key_pressed(TestUI.Key(None, "up", modifiers))  # direct dispatch, should work
-        self.assertEqual(self.display_panel.display_canvas_item.scroll_area_canvas_item.content.canvas_rect, ((-10, 0), (1000, 1000)))
+        self.display_panel.display_canvas_item.scroll_area_canvas_item.refresh_layout_immediate()
+        self.assertEqual(self.display_panel.display_canvas_item.scroll_area_canvas_item.canvas_items[0].canvas_rect, ((-10, 0), (1000, 1000)))
 
     def test_drop_on_overlay_middle_triggers_replace_data_item_in_panel_action(self):
         width, height = 640, 480
@@ -1535,7 +1537,6 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_panel.root_container.layout_immediate(Geometry.IntSize(240, 240))
             document_controller.periodic()
             self.assertIsInstance(display_panel.display_canvas_item, ImageCanvasItem.ImageCanvasItem)
-            display = document_model.get_display_item_for_data_item(data_item)
             update_count = display_panel.display_canvas_item._update_count
             document_controller.periodic()
             self.assertEqual(update_count, display_panel.display_canvas_item._update_count)
@@ -1549,8 +1550,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel.set_display_panel_display_item(display_item)
-            display_panel.root_container.layout_immediate(Geometry.IntSize(240, 240))
-            document_controller.periodic()
+            display_panel.root_container.repaint_immediate(DrawingContext.DrawingContext(), Geometry.IntSize(240, 640))
             self.assertIsInstance(display_panel.display_canvas_item, ImageCanvasItem.ImageCanvasItem)
             update_count = display_panel.display_canvas_item._update_count
             data_item.set_xdata(DataAndMetadata.new_data_and_metadata(numpy.random.randn(8, 8)))
@@ -1584,8 +1584,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_data_channel = display_item.display_data_channels[0]
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_display_item(display_item)
-            display_panel.root_container.layout_immediate(Geometry.IntSize(240, 640))
-            document_controller.periodic()
+            display_panel.root_container.repaint_immediate(DrawingContext.DrawingContext(), Geometry.IntSize(240, 640))
             self.assertIsInstance(display_panel.display_canvas_item, ImageCanvasItem.ImageCanvasItem)
             update_count = display_panel.display_canvas_item._update_count
             display_data_channel.color_map_id = "hsv"
