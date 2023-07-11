@@ -950,13 +950,13 @@ class LineGraphHorizontalAxisLabelCanvasItem(CanvasItem.AbstractCanvasItem):
     def size_to_content(self) -> None:
         """ Size the canvas item to the proper height. """
         new_sizing = self.copy_sizing()
-        new_sizing._minimum_height = 0
-        new_sizing._maximum_height = 0
+        new_sizing = new_sizing.with_minimum_height(0)
+        new_sizing = new_sizing.with_maximum_height(0)
         axes = self.__axes
         if axes:
             if axes.x_calibration and axes.x_calibration.units:
-                new_sizing._minimum_height = self.font_size + 4
-                new_sizing._maximum_height = self.font_size + 4
+                new_sizing = new_sizing.with_minimum_height(self.font_size + 4)
+                new_sizing = new_sizing.with_maximum_height(self.font_size + 4)
         self.update_sizing(new_sizing)
 
     def set_axes(self, axes: typing.Optional[LineGraphAxes]) -> None:
@@ -1084,8 +1084,8 @@ class LineGraphVerticalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
         """ Size the canvas item to the proper width, the maximum of any label. """
         new_sizing = self.copy_sizing()
 
-        new_sizing._minimum_width = 0
-        new_sizing._maximum_width = 0
+        new_sizing = new_sizing.with_minimum_width(0)
+        new_sizing = new_sizing.with_maximum_width(0)
 
         axes = self.__axes
         if axes:
@@ -1094,8 +1094,8 @@ class LineGraphVerticalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
             y_range = axes.calibrated_value_max - axes.calibrated_value_min
             max_width = max(max_width, calculate_scientific_notation_drawing_width(ui_settings, self.__fonts, axes.y_ticker.value_label(axes.calibrated_value_max + y_range * 5)))
             max_width = max(max_width, calculate_scientific_notation_drawing_width(ui_settings, self.__fonts, axes.y_ticker.value_label(axes.calibrated_value_min - y_range * 5)))
-            new_sizing._minimum_width = max_width
-            new_sizing._maximum_width = max_width
+            new_sizing = new_sizing.with_minimum_width(max_width)
+            new_sizing = new_sizing.with_maximum_width(max_width)
 
         self.update_sizing(new_sizing)
 
@@ -1159,13 +1159,13 @@ class LineGraphVerticalAxisLabelCanvasItem(CanvasItem.AbstractCanvasItem):
     def size_to_content(self) -> None:
         """ Size the canvas item to the proper width. """
         new_sizing = self.copy_sizing()
-        new_sizing._minimum_width = 0
-        new_sizing._maximum_width = 0
+        new_sizing = new_sizing.with_minimum_width(0)
+        new_sizing = new_sizing.with_maximum_width(0)
         axes = self.__axes
         if axes:
             if axes.y_calibration and axes.y_calibration.units:
-                new_sizing._minimum_width = self.font_size + 4
-                new_sizing._maximum_width = self.font_size + 4
+                new_sizing = new_sizing.with_minimum_width(self.font_size + 4)
+                new_sizing = new_sizing.with_maximum_width(self.font_size + 4)
         self.update_sizing(new_sizing)
 
     def set_axes(self, axes: typing.Optional[LineGraphAxes]) -> None:

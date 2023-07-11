@@ -246,8 +246,8 @@ class ScaleMarkerCanvasItem(CanvasItem.AbstractCanvasItem):
                 height = height + 4 + fm1.height + fm2.height
                 width = 20 + max(scale_marker_width, fm1.width, fm2.width)
         new_sizing = self.copy_sizing()
-        new_sizing._set_fixed_width(width)
-        new_sizing._set_fixed_height(height)
+        new_sizing = new_sizing.with_fixed_width(width)
+        new_sizing = new_sizing.with_fixed_height(height)
         self.update_sizing(new_sizing)
         self.update()
 
