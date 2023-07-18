@@ -47,7 +47,7 @@ class ProcessingComputation:
         # let the processing component do the processing and store result in the xdata field.
         # TODO: handle multiple sources (broadcasting)
         is_mapped = self.processing_component.is_scalar or kwargs.get("mapping", "none") != "none"
-        if is_mapped and len(self.processing_component.sources) == 1 and kwargs[self.processing_component.sources[0]["name"]].xdata.is_collection:
+        if is_mapped and len(self.processing_component.sources) == 1 and kwargs[self.processing_component.sources[0]["name"]].xdata.is_navigable:
             src_name = self.processing_component.sources[0]["name"]
             data_source = typing.cast("Facade.DataSource", kwargs[src_name])
             xdata = data_source.xdata
