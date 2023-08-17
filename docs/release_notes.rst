@@ -12,6 +12,39 @@ in bug fix releases, we choose to include them for evaluation and feedback. If y
 or have feedback about these types of new features, please contact us or file issues at
 https://github.com/nion-software/nionswift/issues.
 
+Version 16.9.0 (2023-08-17)
+---------------------------
+* Internal changes for stability and performance.
+* Add Python 3.11 support. Drop 3.8.
+* `#971 <https://github.com/nion-software/nionswift/issues/971>`_ Apply mapped operations to all navigable data instead of just collections.
+* `#968 <https://github.com/nion-software/nionswift/issues/968>`_ Fix issue where scale marker could be temporarily incorrect.
+* `#970 <https://github.com/nion-software/nionswift/issues/970>`_ Fix issue with GaussianWindow on non-square data.
+* `#939 <https://github.com/nion-software/nionswift/issues/939>`_ View to interval on line plot handles special case of no-interval same as double clicking axis.
+* `#105 <https://github.com/nion-software/nionswift/issues/105>`_ Add graphic position/shape lock and move to center button to inspector.
+* `#959 <https://github.com/nion-software/nionswift/issues/959>`_ Data panel displays collection filter if used.
+* Improve performance, eliminate flickering in metadata panel and activity panel.
+* `#544 <https://github.com/nion-software/nionswift/issues/544>`_ Improve display pipeline performance.
+* `#954 <https://github.com/nion-software/nionswift/issues/954>`_ Add session edit tab to title edit pop-up dialog. Also add action, menu item, key overload (Ctrl+T).
+* `#916 <https://github.com/nion-software/nionswift/issues/916>`_ Changed process title format to put processing operation after base title stem.
+* `#900 <https://github.com/nion-software/nionswift/issues/900>`_ Implement dynamic titles for processed data items. Changing base title updates dependents.
+* `#944 <https://github.com/nion-software/nionswift/issues/944>`_ Fix line plot drawing when plot has drawn segments separated by nans.
+* `#952 <https://github.com/nion-software/nionswift/issues/952>`_ Order project lists by load-ability then date.
+* `#951 <https://github.com/nion-software/nionswift/issues/951>`_ Show missing projects as 'missing' rather than 'unreadbable' in projects lists.
+* `#950 <https://github.com/nion-software/nionswift/issues/950>`_ Include last-used date in projects lists.
+* `#949 <https://github.com/nion-software/nionswift/issues/949>`_ Make choose project dialog resizable.
+* `#946 <https://github.com/nion-software/nionswift/issues/946>`_ Ensure computations with multiple results reload properly.
+* `#930 <https://github.com/nion-software/nionswift/issues/930>`_ Fix error when activity panel would grow too large during dragging graphics.
+* Add project items dialog for debugging.
+* Improve error handling when computation with error is deleted during execute phase.
+* Show ' (Live)' suffix when data is live or dependent on live data.
+* Add ability to launch interactive script from API ('window.run_interactive_script').
+* Add minor project cleanup/maintenance at startup.
+* Fix several numpy warnings.
+* Add support for run-script docstring (help text) in Run Script dialog.
+* Improve functionality of recent project list when missing projects.
+* Add 1d rebin computation.
+* Update Facade HardwareSource to match new capabilities in instrumentation-kit.
+
 Version 0.16.8 (2022-12-06)
 ---------------------------
 * `#904 <https://github.com/nion-software/nionswift/issues/904>`_ Session data is once again persistent between restarts.

@@ -20,9 +20,9 @@ jobs:
         python-version: ["3.9", "3.10", "3.11"]
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
     - name: Display Python version
@@ -36,7 +36,6 @@ jobs:
       run: |
         pip install -r test-requirements.txt
         python -m pip install mypy
-        python -m pip install flake8
         mypy --version
     - name: Type Checking
       run: |
@@ -46,7 +45,7 @@ jobs:
       run: |
         python -m unittest discover -s nion/swift -p '*_test.py'
     - name: Upload Artifacts
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.9'
       with:
         name: distribution
@@ -55,7 +54,7 @@ jobs:
       uses: pypa/gh-action-pypi-publish@release/v1
       if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags') && matrix.os == 'ubuntu-latest' && matrix.python-version == '3.9'
       with:
-        skip_existing: true
+        skip-existing: true
         user: __token__
         password: ${{ secrets.pypi_password }}
     - name: Set up Miniconda for conda-build
@@ -74,5 +73,5 @@ jobs:
         conda update -n base --all -y
         conda update --all -y
         conda install conda-build anaconda-client -y
-        conda build -c nion --skip-existing --user nion --token ${{ secrets.anaconda_token }} ..
+        conda-build -q -c nion --skip-existing --user nion --token ${{ secrets.anaconda_token }} ..
         popd
