@@ -27,6 +27,26 @@ class FrameParametersLike(typing.Protocol):
     def as_dict(self) -> FrameParametersDictType: ...
 
 
+class RecordTaskLike(typing.Protocol):
+
+    @property
+    def is_started(self) -> bool:
+        raise NotImplementedError()
+
+    @property
+    def is_finished(self) -> bool:
+        raise NotImplementedError()
+
+    def wait_started(self, *, timeout: typing.Optional[float] = None) -> None:
+        raise NotImplementedError()
+
+    def wait_finished(self, *, timeout: typing.Optional[float] = None) -> None:
+        raise NotImplementedError()
+
+    def grab_xdatas(self, *, timeout: typing.Optional[float] = None) -> typing.Sequence[typing.Optional[DataAndMetadata.DataAndMetadata]]:
+        raise NotImplementedError()
+
+
 class HardwareSourceLike(typing.Protocol):
     @property
     def hardware_source_id(self) -> str: raise NotImplementedError()
@@ -51,7 +71,7 @@ class HardwareSourceLike(typing.Protocol):
     def start_playing(self) -> None: ...
     def abort_playing(self) -> None: ...
     def stop_playing(self) -> None: ...
-    def start_recording(self) -> None: ...
+    def start_recording(self) -> RecordTaskLike: ...
     def abort_recording(self) -> None: ...
     def get_next_xdatas_to_finish(self, timeout: typing.Optional[float] = None) -> typing.Sequence[typing.Optional[DataAndMetadata.DataAndMetadata]]: ...
     def get_next_xdatas_to_start(self, timeout: typing.Optional[float] = None) -> typing.Sequence[typing.Optional[DataAndMetadata.DataAndMetadata]]: ...

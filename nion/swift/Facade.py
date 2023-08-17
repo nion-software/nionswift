@@ -1758,9 +1758,10 @@ class RecordTask:
         self.__recording_started = threading.Event()
 
         def record_thread() -> None:
-            self.__hardware_source.start_recording()
+            recording_task = self.__hardware_source.start_recording()
+            recording_task.wait_started(timeout=30.0)
             self.__recording_started.set()
-            self.__data_and_metadata_list = list(self.__hardware_source.get_next_xdatas_to_finish())
+            self.__data_and_metadata_list = list(recording_task.grab_xdatas(timeout=30.0))
 
         self.__thread = threading.Thread(target=record_thread)
         self.__thread.start()
@@ -1944,13 +1945,13 @@ class HardwareSource(metaclass=SharedInstance):
     def is_playing(self) -> bool:
         return self.__hardware_source.is_playing
 
-    def start_recording(self, frame_parameters: typing.Optional[HardwareSourceModule.FrameParametersDictType] = None, channels_enabled: typing.Optional[typing.Sequence[bool]] = None) -> None:
+    def start_recording(self, frame_parameters: typing.Optional[HardwareSourceModule.FrameParametersDictType] = None, channels_enabled: typing.Optional[typing.Sequence[bool]] = None) -> HardwareSourceModule.RecordTaskLike:
         if frame_parameters is not None:
             self.__hardware_source.set_record_frame_parameters(self.__hardware_source.get_frame_parameters_from_dict(frame_parameters))
         if channels_enabled is not None:
             for channel_index, channel_enabled in enumerate(channels_enabled):
                 self.__hardware_source.set_channel_enabled(channel_index, channel_enabled)
-        self.__hardware_source.start_recording()
+        return self.__hardware_source.start_recording()
 
     def abort_recording(self) -> None:
         self.__hardware_source.abort_recording()
