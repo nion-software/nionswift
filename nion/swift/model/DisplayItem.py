@@ -1966,7 +1966,7 @@ class DisplayItem(Persistence.PersistentObject):
         self.notify_property_changed("displayed_title")
         self.notify_property_changed("specified_title")
 
-    def source_display_items_changed(self, source_display_items: typing.Sequence[DisplayItem]) -> None:
+    def source_display_items_changed(self, source_display_items: typing.Sequence[DisplayItem], is_loading: bool) -> None:
         inherited_title: typing.Optional[str] = None
         if self.__inherited_title_listener:
             self.__inherited_title_listener.close()
@@ -1977,21 +1977,21 @@ class DisplayItem(Persistence.PersistentObject):
 
             def inherited_title_changed(display_item: DisplayItem, source_display_item: DisplayItem, key: str) -> None:
                 if key == "displayed_title":
-                    display_item.__update_inherited_title(source_display_item.displayed_title, self.__computation_title, self.__computation_source_count)
+                    display_item.__update_inherited_title(source_display_item.displayed_title, self.__computation_title, self.__computation_source_count, is_loading)
 
             self.__inherited_title_listener = source_display_item.property_changed_event.listen(ReferenceCounting.weak_partial(inherited_title_changed, self, source_display_item))
-        self.__update_inherited_title(inherited_title, self.__computation_title, len(source_display_items))
+        self.__update_inherited_title(inherited_title, self.__computation_title, len(source_display_items), is_loading)
 
     def computation_title_changed(self, computation_title: typing.Optional[str]) -> None:
-        self.__update_inherited_title(self.__inherited_title, computation_title, self.__computation_source_count)
+        self.__update_inherited_title(self.__inherited_title, computation_title, self.__computation_source_count, False)
 
-    def __update_inherited_title(self, inherited_title: typing.Optional[str], computation_title: typing.Optional[str], computation_source_count: int) -> None:
+    def __update_inherited_title(self, inherited_title: typing.Optional[str], computation_title: typing.Optional[str], computation_source_count: int, is_loading: bool) -> None:
         old_displayed_title = self.displayed_title
         self.__inherited_title = inherited_title
         self.__computation_title = computation_title
         self.__computation_source_count = computation_source_count
         displayed_title = self.displayed_title
-        if displayed_title != old_displayed_title:
+        if displayed_title != old_displayed_title and not is_loading:
             self.notify_property_changed("displayed_title")
             self.notify_property_changed("specified_title")
             if data_item := self.data_item:

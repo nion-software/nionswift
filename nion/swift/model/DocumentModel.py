@@ -583,6 +583,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.__computation_thread_pool = ThreadPool.ThreadPool()
 
         self.__project = project
+        self.__is_loading = False
 
         self.uuid = self._project.uuid
 
@@ -1030,14 +1031,14 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 source_display_items = self.get_source_display_items(display_item) if display_item else list()
                 dependent_display_items = self.get_dependent_display_items(display_item) if display_item else list()
                 self.related_items_changed.fire(display_item, source_display_items, dependent_display_items)
-                display_item.source_display_items_changed(source_display_items)
+                display_item.source_display_items_changed(source_display_items, self.__is_loading)
 
         self.__display_item_item_inserted_listeners[display_item] = display_item.item_inserted_event.listen(functools.partial(item_changed, display_item))
         self.__display_item_item_removed_listeners[display_item] = display_item.item_removed_event.listen(functools.partial(item_changed, display_item))
         # send notifications
         self.notify_insert_item("display_items", display_item, before_index)
         # update source items
-        display_item.source_display_items_changed(self.get_source_display_items(display_item))
+        display_item.source_display_items_changed(self.get_source_display_items(display_item), self.__is_loading)
 
     def __handle_display_item_removed(self, display_item: DisplayItem.DisplayItem) -> None:
         # remove it from the persistent_storage
@@ -1050,12 +1051,13 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.__display_item_item_removed_listeners.pop(display_item).close()
 
     def __start_project_read(self) -> None:
-        pass
+        self.__is_loading = True
 
     def __finish_project_read(self) -> None:
         for display_item in self.__display_items:
-            display_item.source_display_items_changed(self.get_source_display_items(display_item))
+            display_item.source_display_items_changed(self.get_source_display_items(display_item), self.__is_loading)
         self.project_loaded_event.fire()
+        self.__is_loading = False
 
     def insert_model_item(self, container: Persistence.PersistentContainerType, name: str, before_index: int, item: Persistence.PersistentObject) -> None:
         container.insert_item(name, before_index, item)
@@ -1340,7 +1342,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         if isinstance(source_item, DataItem.DataItem) and isinstance(target_item, DataItem.DataItem):
             for display_item in self.get_display_items_for_data_item(target_item):
                 source_display_items = self.get_source_display_items(display_item) if display_item else list()
-                display_item.source_display_items_changed(source_display_items)
+                display_item.source_display_items_changed(source_display_items, self.__is_loading)
 
     def __add_dependency(self, source_item: Persistence.PersistentObject, target_item: Persistence.PersistentObject) -> None:
         # print(f"add dependency {source_item} {target_item}")
@@ -1362,7 +1364,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         if isinstance(source_item, DataItem.DataItem) and isinstance(target_item, DataItem.DataItem):
             for display_item in self.get_display_items_for_data_item(target_item):
                 source_display_items = self.get_source_display_items(display_item) if display_item else list()
-                display_item.source_display_items_changed(source_display_items)
+                display_item.source_display_items_changed(source_display_items, self.__is_loading)
 
     def __computation_needs_update(self, computation: Symbolic.Computation) -> None:
         # When the computation for a data item is set or mutated, this function will be called.
