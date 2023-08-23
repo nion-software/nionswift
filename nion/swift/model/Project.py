@@ -4,6 +4,7 @@ from __future__ import annotations
 import functools
 import logging
 import pathlib
+import time
 import typing
 import uuid
 import weakref
@@ -63,6 +64,7 @@ class Project(Persistence.PersistentObject):
         self.handle_finish_read: typing.Optional[typing.Callable[[], None]] = None
 
         self.__has_been_read = False
+        self.__project_load_start_time = 0.0
 
         self._raw_properties: typing.Optional[PersistentDictType] = None
         self.__reader_errors: typing.Sequence[Persistence.ReaderError] = list()
@@ -252,6 +254,7 @@ class Project(Persistence.PersistentObject):
         self.notify_remove_item("data_groups", data_group, index)
 
     def prepare_read_project(self) -> None:
+        self.__project_load_start_time = time.time()
         logging.getLogger("loader").info(f"Loading project {self.__storage_system.get_identifier()}")
         self._raw_properties, self.__reader_errors = self.__storage_system.read_project_properties()  # combines library and data item properties
         self.uuid = uuid.UUID(self._raw_properties.get("uuid", str(uuid.uuid4())))
@@ -351,6 +354,8 @@ class Project(Persistence.PersistentObject):
                 self.__has_been_read = True
         if callable(self.handle_finish_read):
             self.handle_finish_read()
+        elapsed_s = int(time.time() - self.__project_load_start_time)
+        logging.getLogger("loader").info(f"Loaded project {elapsed_s}s (data items: {len(self.data_items)}, display items: {len(self.display_items)}, data structures: {len(self.data_structures)}, computations: {len(self.computations)}, connections: {len(self.connections)}, data groups: {len(self.data_groups)}, workspaces: {len(self.workspaces)})")
 
     def __property_changed(self, name: str, value: typing.Any) -> None:
         self.notify_property_changed(name)
