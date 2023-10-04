@@ -93,7 +93,7 @@ class DataAndCalibration:
         else:
             dimensional_calibrations = None
         metadata = d.get("metadata", {})
-        timestamp = datetime.datetime(*map(int, re.split('[^\d]', d.get("timestamp")))) if "timestamp" in d else None
+        timestamp = datetime.datetime(*map(int, re.split(r'[^\d]', d.get("timestamp")))) if "timestamp" in d else None
         return DataAndCalibration(lambda: data, data_shape_and_dtype, intensity_calibration, dimensional_calibrations, metadata, timestamp)
 
     @property

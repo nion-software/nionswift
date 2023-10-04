@@ -236,7 +236,7 @@ def load_plug_ins(document_location: str, data_location: str, root_dir: typing.O
                 if not "identifier" in manifest:
                     logging.info("Invalid manifest (missing 'identifier'): %s", manifest_path)
                     manifest_valid = False
-                if "identifier" in manifest and not re.match("[_\-a-zA-Z][_\-a-zA-Z0-9.]*$", manifest["identifier"]):
+                if "identifier" in manifest and not re.match(r"[_\-a-zA-Z][_\-a-zA-Z0-9.]*$", manifest["identifier"]):
                     logging.info("Invalid manifest (invalid 'identifier': '%s'): %s", manifest["identifier"], manifest_path)
                     manifest_valid = False
                 if not "version" in manifest:

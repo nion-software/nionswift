@@ -940,7 +940,7 @@ class PersistentObject(Observable.Observable):
         if "uuid" in properties:
             self.uuid = uuid.UUID(properties["uuid"])
         if "modified" in properties:
-            self.__modified = datetime.datetime(*list(map(int, re.split('[^\d]', properties["modified"]))))  # type: ignore
+            self.__modified = datetime.datetime(*list(map(int, re.split(r'[^\d]', properties["modified"]))))  # type: ignore
         # iterate the defined properties
         for key in self.__properties.keys():
             property = self.__properties[key]

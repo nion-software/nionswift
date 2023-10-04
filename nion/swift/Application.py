@@ -644,7 +644,7 @@ class Application(UIApplication.BaseApplication):
             if path_str.endswith("site-packages"):
                 site_packages_path = pathlib.Path(path_str)
                 for package in sorted(path.stem for path in site_packages_path.glob("*dist-info")):
-                    m = re.match("(.*)-(\\d+\\.\\d+.*\\d*)", package)
+                    m = re.match(r"(.*)-(\d+\.\d+.*\d*)", package)
                     g = m.groups() if m else list()
                     if len(g) >= 2:
                         package_name = g[0]
