@@ -673,7 +673,7 @@ class ProjectStorageSystem(PersistentStorageSystem):
 
         def data_item_created(data_item_properties: PersistentDictType) -> str:
             # created is a utc timestamp
-            earliest_datetime = datetime.datetime.utcfromtimestamp(0).isoformat()
+            earliest_datetime = datetime.datetime.fromtimestamp(0, tz=datetime.timezone.utc).isoformat()
             return data_item_properties.get("created", earliest_datetime)
 
         data_items_copy = sorted(properties_copy.get("data_items", list()), key=data_item_created)
@@ -1217,7 +1217,7 @@ class MemoryProjectStorageSystem(ProjectStorageSystem):
 
         def data_item_created(data_item_properties: typing.Tuple[str, PersistentDictType]) -> str:
             # created is a utc timestamp
-            earliest_datetime = datetime.datetime.utcfromtimestamp(0).isoformat()
+            earliest_datetime = datetime.datetime.fromtimestamp(0, tz=datetime.timezone.utc).isoformat()
             return data_item_properties[1].get("created", earliest_datetime)
 
         data_properties_map = {k: v for k, v in sorted(data_properties_map.items(), key=data_item_created)}

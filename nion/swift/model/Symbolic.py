@@ -39,6 +39,7 @@ from nion.swift.model import Persistence
 from nion.swift.model import PlugInManager
 from nion.swift.model import Schema
 from nion.swift.model import Utility
+from nion.utils import DateTime
 from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import Observable
@@ -2155,7 +2156,7 @@ class Computation(Persistence.PersistentObject):
 
     def update_status(self, error_text: typing.Optional[str], error_stack_trace: typing.Optional[str], elapsed_time: typing.Optional[float]) -> None:
         self.__elapsed_time = elapsed_time
-        self.__last_timestamp = datetime.datetime.utcnow()
+        self.__last_timestamp = DateTime.utcnow()
         if self.error_text != error_text:
             self.error_text = error_text
         error_stack_trace = error_stack_trace or str()
@@ -2685,7 +2686,7 @@ class ScriptExpressionComputationExecutor(ComputationExecutor):
         @xdata.setter
         def xdata(self, value: typing.Optional[DataAndMetadata._DataAndMetadataLike]) -> None:
             self.__xdata = DataAndMetadata.promote_ndarray(value) if value is not None else None
-            self.data_modified = DataItem.DataItem.utcnow()
+            self.data_modified = DateTime.utcnow()
 
         @property
         def data(self) -> DataAndMetadata._ImageDataType:

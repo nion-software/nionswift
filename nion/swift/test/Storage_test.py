@@ -4073,7 +4073,7 @@ class TestStorageClass(unittest.TestCase):
             with document_model.ref():
                 # for corrupt/missing created dates, a new one matching todays date should be assigned
                 self.assertIsNotNone(document_model.data_items[0].created)
-                self.assertEqual(document_model.data_items[0].created.date(), datetime.datetime.utcnow().date())
+                self.assertEqual(document_model.data_items[0].created.date(), DateTime.utcnow().date())
 
     def test_loading_library_with_two_copies_of_same_uuid_ignores_second_copy(self):
         with create_temp_profile_context() as profile_context:
