@@ -62,18 +62,11 @@ def get_datetime_item_from_utc_datetime(datetime_utc: datetime.datetime, tz_minu
 
 
 local_utcoffset_override: typing.Optional[typing.List[int]] = None  # for testing
-try:
-    import pytz.reference
-    def local_utcoffset_minutes(datetime_local: typing.Optional[datetime.datetime] = None) -> int:
-        if local_utcoffset_override is not None:
-            return local_utcoffset_override[0]
-        datetime_local = datetime_local if datetime_local else datetime.datetime.now()
-        return int(pytz.reference.LocalTimezone().utcoffset(datetime_local).total_seconds() // 60)
-except ImportError:
-    def local_utcoffset_minutes(datetime_local: typing.Optional[datetime.datetime] = None) -> int:
-        if local_utcoffset_override is not None:
-            return local_utcoffset_override[0]
-        return int(round((datetime.datetime.now() - DateTime.utcnow()).total_seconds())) // 60
+def local_utcoffset_minutes(datetime_local: typing.Optional[datetime.datetime] = None) -> int:
+    if local_utcoffset_override is not None:
+        return local_utcoffset_override[0]
+    now = datetime.datetime.now()
+    return int((now - now.astimezone(tz=datetime.timezone.utc).replace(tzinfo=None)).total_seconds() / 60)
 
 
 class TimezoneMinutesToStringConverter:
