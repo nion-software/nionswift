@@ -169,8 +169,8 @@ class ExportDialog(Dialog.OkCancelDialog):
                             components.append(str(self.prefix_edit_widget.text))
                         if self.options.get("title", False):
                             title = unicodedata.normalize('NFKC', data_item.title)
-                            title = re.sub('[^\w\s-]', '', title, flags=re.U).strip()
-                            title = re.sub('[-\s]+', '-', title, flags=re.U)
+                            title = re.sub(r'[^\w\s-]', '', title, flags=re.U).strip()
+                            title = re.sub(r'[-\s]+', '-', title, flags=re.U)
                             components.append(title)
                         if self.options.get("date", False):
                             components.append(data_item.created_local.isoformat().replace(':', ''))
