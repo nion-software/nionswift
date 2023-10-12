@@ -3882,7 +3882,7 @@ class ComputationInspectorContext(EntityBrowser.Context):
 
     @property
     def do_references(self) -> bool:
-        return self.values.get("do_references", False)
+        return typing.cast(bool, self.values.get("do_references", False))
 
 
 class VariableWidget(Widgets.CompositeWidgetBase):

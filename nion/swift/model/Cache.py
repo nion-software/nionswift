@@ -178,7 +178,7 @@ class SuspendableCache(CacheLike):
     def is_cached_value_dirty(self, target: typing.Any, key: str) -> bool:
         # check the temporary cache first
         with self.__cache_mutex:
-            _, object_dirty_dict = self.__cache_dirty.get(id(target), (target, dict()))
+            _, object_dirty_dict = self.__cache_dirty.get(id(target), typing.cast(typing.Tuple[typing.Any, typing.Dict[str, bool]], (target, dict())))
             if key in object_dirty_dict:
                 return object_dirty_dict[key]
         # not there, go to the db cache

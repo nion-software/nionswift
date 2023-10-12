@@ -48,6 +48,8 @@ _PropertyWriterFn = typing.Callable[["PersistentProperty", PersistentDictType, t
 _PropertyConverterType = Converter.ConverterLike[typing.Any, typing.Any]  # Utility.CleanValue?
 _PersistentObjectFactoryFn = typing.Callable[[typing.Callable[[str], str]], typing.Optional["PersistentObject"]]
 
+_IsEqualType = typing.Callable[[typing.Any, typing.Any], bool]
+
 class PersistentProperty:
 
     """
@@ -89,7 +91,7 @@ class PersistentProperty:
         def is_equal(value1: typing.Any, value2: typing.Any) -> bool:
             return get_comparable_string(value1) == get_comparable_string(value2)
 
-        is_equal_map = {
+        is_equal_map: typing.Mapping[typing.Any, _IsEqualType] = {
             float: operator.eq,
             str: operator.eq,
             int: operator.eq,
@@ -954,7 +956,7 @@ class PersistentObject(Observable.Observable):
                 # to minimize the interface to the factory methods, just pass a closure
                 # which looks up by name.
                 def lookup_id(name: str, default: typing.Optional[str] = None) -> str:
-                    return item_dict.get(name, default)
+                    return typing.cast(str, item_dict.get(name, default))
 
                 item = factory(lookup_id)
                 if item:
@@ -975,7 +977,7 @@ class PersistentObject(Observable.Observable):
                 # to minimize the interface to the factory methods, just pass a closure
                 # which looks up by name.
                 def lookup_id(name: str, default: typing.Optional[str] = None) -> str:
-                    return item_dict.get(name, default)
+                    return typing.cast(str, item_dict.get(name, default))
 
                 item = factory(lookup_id)
                 if item:
