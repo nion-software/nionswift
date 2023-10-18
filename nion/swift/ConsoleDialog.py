@@ -4,9 +4,11 @@ from __future__ import annotations
 import code
 import contextlib
 import copy
+import dataclasses
 import gettext
 import importlib
 import io
+import logging
 import re
 import sys
 import types
@@ -19,6 +21,7 @@ from nion.swift.model import Persistence
 from nion.ui import Dialog
 from nion.ui import UserInterface
 from nion.ui import Widgets
+from nion.utils import Registry
 
 # hack to work with conda/python3.10 until they fix readline
 rlcompleter: typing.Optional[types.ModuleType]
@@ -144,9 +147,15 @@ class ConsoleWidgetStateController:
 
 class ConsoleWidget(Widgets.CompositeWidgetBase):
 
-    def __init__(self, ui: UserInterface.UserInterface, locals: typing.Optional[typing.Dict[str, typing.Any]] = None, properties: typing.Optional[Persistence.PersistentDictType] = None) -> None:
+    def __init__(self,
+                 ui: UserInterface.UserInterface,
+                 logger: logging.Logger,
+                 locals: typing.Optional[typing.Dict[str, typing.Any]] = None,
+                 properties: typing.Optional[Persistence.PersistentDictType] = None) -> None:
         content_widget = ui.create_column_widget()
         super().__init__(content_widget)
+
+        self.__logger = logger
 
         self.prompt = ">>> "
         self.continuation_prompt = "... "
@@ -180,20 +189,39 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
 
         stdout = StdoutCatcher(self.__text_edit_widget)
 
+        class LoggingHandler(logging.Handler):
+
+            def __init__(self, console_widget: ConsoleWidget) -> None:
+                super().__init__()
+                self.__console_widget = console_widget
+                self._prompted = False
+
+            def emit(self, record: logging.LogRecord) -> None:
+                if record.levelno >= logging.INFO:
+                    color = None if self._prompted else "grey"
+                    self.__console_widget.append_line(str(record.getMessage()).rstrip(), color=color)
+
+        self.__logging_handler = LoggingHandler(self)
+        self.__logger.addHandler(self.__logging_handler)
+
         locals = locals if locals is not None else dict()
         locals.update({'__name__': None, '__console__': None, '__doc__': None, '_stdout': stdout})
 
         self.__state_controller = ConsoleWidgetStateController(locals)
 
-        self.__text_edit_widget.append_text(self.prompt)
-        self.__text_edit_widget.move_cursor_position("end")
-        self.__last_cursor_position: typing.Optional[UserInterface.CursorPosition] = copy.deepcopy(self.__cursor_position)
+        self.__last_cursor_position: typing.Optional[UserInterface.CursorPosition] = None
 
         content_widget.add(self.__text_edit_widget)
 
     def close(self) -> None:
         super().close()
         self.__text_edit_widget = typing.cast(typing.Any, None)
+
+    def show_prompt(self) -> None:
+        self.__logging_handler._prompted = True
+        self.__text_edit_widget.append_text(self.prompt)
+        self.__text_edit_widget.move_cursor_position("end")
+        self.__last_cursor_position = copy.deepcopy(self.__cursor_position)
 
     def activate(self) -> None:
         self.__text_edit_widget.focused = True
@@ -208,12 +236,17 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
             self.__text_edit_widget.insert_text(l)
             result, error_code = self.__state_controller.interpret_command(l)
             if len(result) > 0:
-                self.__text_edit_widget.set_text_color("red" if error_code else "green")
+                self.__text_edit_widget.set_text_color("red" if error_code else "aquamarine")
                 self.__text_edit_widget.append_text(result[:-1])
                 self.__text_edit_widget.set_text_color("white")
             self.__text_edit_widget.append_text(self.current_prompt)
             self.__text_edit_widget.move_cursor_position("end")
             self.__last_cursor_position = copy.deepcopy(self.__cursor_position)
+
+    def append_line(self, line: str, *, color: typing.Optional[str] = None) -> None:
+        self.__text_edit_widget.set_text_color(color if color else "aquamarine")
+        self.__text_edit_widget.append_text(line)
+        self.__text_edit_widget.set_text_color("white")
 
     def interpret_lines(self, lines: typing.Sequence[str]) -> None:
         for l in lines:
@@ -223,7 +256,7 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
         command = self.__get_partial_command()
         result, error_code = self.__state_controller.interpret_command(command)
         if len(result) > 0:
-            self.__text_edit_widget.set_text_color("red" if error_code else "green")
+            self.__text_edit_widget.set_text_color("red" if error_code else "aquamarine")
             self.__text_edit_widget.append_text(result[:-1])
         self.__text_edit_widget.set_text_color("white")
         self.__text_edit_widget.append_text(self.current_prompt)
@@ -327,18 +360,24 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
 
 class ConsoleDialog(Dialog.ActionDialog):
 
+    console_number = 0
+
     def __init__(self, document_controller: DocumentController.DocumentController) -> None:
         super().__init__(document_controller.ui, _("Python Console"), parent_window=document_controller, persistent_id="ConsoleDialog")
 
         self.__document_controller = document_controller
 
-        self.__console_widget = ConsoleWidget(document_controller.ui, properties={"min-height": 180, "min-width": 540})
+        ConsoleDialog.console_number += 1
+        logger = logging.getLogger(f"console-loggers-{ConsoleDialog.console_number}")
+
+        self.__console_widget = ConsoleWidget(document_controller.ui, logger, properties={"min-height": 180, "min-width": 540})
 
         lines = [
             "import logging",
             "import numpy as np",
             "import numpy as numpy",
             "import uuid",
+            "from nion.utils import Registry",
             "from nion.swift.model import PlugInManager",
             "from nion.ui import Declarative",
             "from nion.data import xdata_1_0 as xd",
@@ -349,14 +388,32 @@ class ConsoleDialog(Dialog.ActionDialog):
             "def run_script(*args, **kwargs):",
             "  api.run_script(*args, stdout=_stdout, **kwargs)",
             "",
+            f"logger = logging.getLogger('console-loggers-{ConsoleDialog.console_number}')",
             ]
+
+        logger.info("Console Startup (logger, api, ui, show, etc.)")
 
         variable_to_item_map = DocumentModel.MappedItemManager().item_map
         for variable_name, data_item in variable_to_item_map.items():
             data_item_specifier = data_item.item_specifier
             lines.append(f"{variable_name} = api.library.get_item_by_specifier(api.create_specifier(item_uuid=uuid.UUID('{str(data_item_specifier.item_uuid)}')))")
 
+        @dataclasses.dataclass
+        class ConsoleStartupInfo:
+            console_startup_id: str
+            console_startup_lines: typing.Sequence[str]
+            console_startup_help: typing.Optional[typing.Sequence[str]]
+
+        class ConsoleStartupComponent(typing.Protocol):
+            def get_console_startup_info(self, logger: logging.Logger) -> ConsoleStartupInfo: ...
+
+        for component in Registry.get_components_by_type("console-startup"):
+            console_startup_component = typing.cast(ConsoleStartupComponent, component)
+            lines.extend(console_startup_component.get_console_startup_info(logger).console_startup_lines)
+
         self.__console_widget.interpret_lines(lines)
+
+        self.__console_widget.show_prompt()
 
         self.content.add(self.__console_widget)
 
