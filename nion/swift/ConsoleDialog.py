@@ -48,6 +48,13 @@ class ConsoleWidgetStateController:
         self.__history_point: typing.Optional[int] = None
         self.__command_cache: typing.Tuple[typing.Optional[int], str] = (None, str()) # Meaning of the tuple: (history_point where the command belongs, command)
 
+    def close(self) -> None:
+        # through experimentation, this is how to ensure the locals are
+        # garbage collected upon closing.
+        typing.cast(typing.Dict[str, typing.Any], self.__console.locals).clear()
+        self.__console.locals = typing.cast(typing.Any, None)
+        self.__console = typing.cast(typing.Any, None)
+
     @staticmethod
     def get_common_prefix(l: typing.List[str]) -> str:
         if not l:
@@ -216,6 +223,8 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
     def close(self) -> None:
         super().close()
         self.__text_edit_widget = typing.cast(typing.Any, None)
+        self.__state_controller.close()
+        self.__state_controller = typing.cast(typing.Any, None)
 
     def show_prompt(self) -> None:
         self.__logging_handler._prompted = True
