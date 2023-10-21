@@ -95,7 +95,6 @@ class ActivityController(Declarative.Handler):
 
         u = Declarative.DeclarativeUI()
         self.ui_view = u.create_column(
-            u.create_label(text=_("** Activity Panel is Beta **"), color="darkred", font="bold"),
             u.create_stack(
                 u.create_column(
                     u.create_label(text=_("No activities.")),
