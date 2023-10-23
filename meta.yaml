@@ -2,10 +2,10 @@
 
 package:
   name: 'nionswift'
-  version: '16.9.0'
+  version: '16.9.1'
 
 source:
-  git_rev: 16.9.0
+  git_rev: 16.9.1
   git_url: https://github.com/nion-software/nionswift.git
 
 build:
@@ -23,7 +23,7 @@ requirements:
     - setuptools
   run:
     - python >=3.9
-    - nionutils >=0.4.5,<0.5.0
+    - nionutils >=0.4.5,<5.0.0
     - niondata >=15.6,<16.0
     - nionui >=7.0,<7.1
     - nionswift-io >=15.2,<16.0

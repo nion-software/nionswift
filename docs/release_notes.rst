@@ -12,6 +12,13 @@ in bug fix releases, we choose to include them for evaluation and feedback. If y
 or have feedback about these types of new features, please contact us or file issues at
 https://github.com/nion-software/nionswift/issues.
 
+Version 16.9.1 (2023-10-23)
+----------------------------
+* Minor performance improvement when loading projects.
+* Minor fixes for Python 3.12 and mypy typing compatibility.
+* Add mechanism for packages to run startup code for Console windows.
+* Improve shutdown of Console to garbage collect local variables declared in console.
+
 Version 16.9.0 (2023-08-17)
 ---------------------------
 * Internal changes for stability and performance.
