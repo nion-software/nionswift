@@ -218,7 +218,7 @@ class DataItem(Persistence.PersistentObject):
         self.__data_and_metadata_lock = threading.RLock()
         self.__intensity_calibration: typing.Optional[Calibration.Calibration] = None
         self.__dimensional_calibrations: typing.List[Calibration.Calibration] = list()
-        self.__metadata: DataAndMetadata.MetadataType = dict()
+        self.__metadata: typing.Dict[str, typing.Any] = dict()
         self.__data_ref_count = 0
         self.__data_ref_count_mutex = threading.RLock()
         self.__pending_write = True
@@ -1015,7 +1015,7 @@ class DataItem(Persistence.PersistentObject):
     @property
     def metadata(self) -> DataAndMetadata.MetadataType:
         data_metadata = self.__data_metadata
-        return copy.deepcopy(dict(data_metadata.metadata) if data_metadata else self.__metadata)
+        return dict(data_metadata.metadata) if data_metadata else copy.deepcopy(self.__metadata)
 
     @metadata.setter
     def metadata(self, metadata: DataAndMetadata.MetadataType) -> None:
@@ -1083,7 +1083,7 @@ class DataItem(Persistence.PersistentObject):
         if timezone_offset:
             self._set_persistent_property_value("timezone_offset", timezone_offset)
         # explicitly set metadata into persistent storage to prevent notifications.
-        self.__metadata = data_metadata.metadata
+        self.__metadata = dict(data_metadata.metadata)
         self._set_persistent_property_value("metadata", self.__metadata)
         self._set_persistent_property_value("data_modified", data_modified)
 

@@ -463,9 +463,9 @@ def create_data_element_from_extended_data(xdata: DataAndMetadata.DataAndMetadat
         data_element["is_sequence"] = xdata.is_sequence
     data_element["collection_dimension_count"] = xdata.collection_dimension_count
     data_element["datum_dimension_count"] = xdata.datum_dimension_count
-    data_element["metadata"] = copy.deepcopy(xdata.metadata)
-    # properties is redundant; but here for backwards compatibility
-    data_element["properties"] = copy.deepcopy(xdata.metadata.get("hardware_source", dict()))
+    data_element["metadata"] = xdata.metadata
+    # properties are redundant; but here for backwards compatibility
+    data_element["properties"] = xdata.metadata.get("hardware_source", dict())
     tz_minutes = None
     dst_minutes = None
     timezone = None
