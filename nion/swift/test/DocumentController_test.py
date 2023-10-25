@@ -3,6 +3,7 @@ import contextlib
 import gc
 import logging
 import unittest
+import uuid
 import weakref
 
 # third party libraries
@@ -759,6 +760,24 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertEqual(len(document_controller.selection.indexes), 0)
             self.assertEqual(None, document_controller.selected_display_item)
             self.assertEqual([], document_controller.selected_display_items)
+
+    def test_selected_displays_items_are_correct_after_deleting_secondary_content(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item1 = DataItem.DataItem(numpy.ones((8, 8), numpy.float32))
+            document_model.append_data_item(data_item1)
+            data_item2 = DataItem.DataItem(numpy.ones((8, 8), numpy.float32))
+            document_model.append_data_item(data_item2)
+            workspace_2x1 = document_controller.workspace_controller.new_workspace("2x1", {"type": "splitter", "orientation": "vertical", "splits": [0.5, 0.5], "children": [{"type": "image"}, {"type": "image"}]})
+            document_controller.workspace_controller.change_workspace(workspace_2x1)
+            document_controller.workspace.display_panels[0].set_display_item(document_model.get_display_item_for_data_item(data_item1))
+            document_controller.workspace.display_panels[1].set_display_item(document_model.get_display_item_for_data_item(data_item2))
+            document_controller.selected_display_panel = document_controller.workspace.display_panels[0]
+            document_controller.add_secondary_display_panel(document_controller.workspace.display_panels[1])
+            self.assertEqual(set(document_controller.selected_display_items), set(document_model.display_items))
+            document_controller.delete_display_items(document_controller.selected_display_items)
+            self.assertEqual(0, len(document_controller.selected_display_items))
 
     def test_putting_data_item_in_selected_empty_display_updates_selected_data_item_binding(self):
         with TestContext.create_memory_context() as test_context:

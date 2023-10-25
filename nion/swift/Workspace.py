@@ -27,6 +27,7 @@ from nion.swift.model import Utility
 from nion.swift.model import WorkspaceLayout
 from nion.ui import CanvasItem
 from nion.ui import UserInterface
+from nion.utils import Event
 from nion.utils import Process
 
 if typing.TYPE_CHECKING:
@@ -217,7 +218,9 @@ class Workspace:
         self.workspace_id = workspace_id
 
         self.dock_panels: typing.List[Panel.Panel] = []
-        self.display_panels: typing.List[DisplayPanel.DisplayPanel] = []
+        self.__display_panels: typing.List[DisplayPanel.DisplayPanel] = []
+        self.display_panel_content_changed_event = Event.Event()
+        self.__display_panel_display_items_changed_event_listeners: typing.List[Event.EventListener] = list()
 
         self.__canvas_item = typing.cast(CanvasItem.CanvasItemComposition, None)
 
@@ -255,7 +258,8 @@ class Workspace:
         self.__message_boxes.clear()
         if self.__workspace:
             self.__sync_layout()
-        self.display_panels = []
+        self.__display_panels = list()
+        self.__display_panel_display_items_changed_event_listeners = list()
         self.__canvas_item = typing.cast(CanvasItem.CanvasItemComposition, None)
         self.__workspace = None
         for dock_panel in self.dock_panels:
@@ -264,6 +268,22 @@ class Workspace:
         self.filter_row = typing.cast(typing.Any, None)
         self.image_row = typing.cast(typing.Any, None)
         self.document_controller.detach_widget()
+
+    @property
+    def display_panels(self) -> typing.Sequence[DisplayPanel.DisplayPanel]:
+        return self.__display_panels
+
+    def __insert_display_panel(self, index: int, display_panel: DisplayPanel.DisplayPanel) -> None:
+        self.__display_panels.insert(index, display_panel)
+
+        def handle_display_items_changed() -> None:
+            self.display_panel_content_changed_event.fire(display_panel)
+
+        self.__display_panel_display_items_changed_event_listeners.insert(index, display_panel.display_items_changed_event.listen(handle_display_items_changed))
+
+    def __remove_display_panel_at_index(self, index: int) -> None:
+        self.__display_panel_display_items_changed_event_listeners.pop(index).close()
+        self.__display_panels.pop(index)
 
     @property
     def dock_widgets(self) -> typing.List[UserInterface.DockWidget]:
@@ -352,7 +372,7 @@ class Workspace:
             return None
 
     def display_display_item_in_display_panel(self, display_item: DisplayItem.DisplayItem, display_panel_id: str) -> None:
-        for display_panel in self.display_panels:
+        for display_panel in self.__display_panels:
             if display_panel.display_panel_id == display_panel_id:
                 display_panel.set_display_panel_display_item(display_item)
                 self.__sync_layout()
@@ -398,7 +418,10 @@ class Workspace:
     def reconstruct(self, d: Persistence.PersistentDictType) -> None:
         display_panels: typing.List[DisplayPanel.DisplayPanel] = list()
         selected_display_panel = self._reconstruct(d, self.__canvas_item, self.__canvas_item.canvas_items[0], display_panels)
-        self.display_panels = display_panels
+        while len(self.__display_panels) > 0:
+            self.__remove_display_panel_at_index(0)
+        for display_panel in display_panels:
+            self.__insert_display_panel(len(self.__display_panels), display_panel)
         self.document_controller.selected_display_panel = selected_display_panel
 
     def _reconstruct(self, d: Persistence.PersistentDictType, container: CanvasItem.CanvasItemComposition, canvas_item: CanvasItem.AbstractCanvasItem, display_panels: typing.List[DisplayPanel.DisplayPanel]) -> typing.Optional[DisplayPanel.DisplayPanel]:
@@ -438,13 +461,13 @@ class Workspace:
         return selected_display_panel
 
     def __get_display_panel_by_canvas_item(self, canvas_item: CanvasItem.AbstractCanvasItem) -> typing.Optional[DisplayPanel.DisplayPanel]:
-        for display_panel in self.display_panels:
+        for display_panel in self.__display_panels:
             if display_panel == canvas_item:
                 return display_panel
         return None
 
     def get_display_panel_by_uuid(self, display_panel_uuid: uuid.UUID) -> typing.Optional[DisplayPanel.DisplayPanel]:
-        for display_panel in self.display_panels:
+        for display_panel in self.__display_panels:
             if display_panel.uuid == display_panel_uuid:
                 return display_panel
         return None
@@ -475,7 +498,7 @@ class Workspace:
     def close_display_panels(self, display_panels: typing.Sequence[DisplayPanel.DisplayPanel]) -> None:
         command = ChangeWorkspaceContentsCommand(self, _("Close Display Panel"))
         for display_panel in display_panels:
-            if len(self.display_panels) > 1:
+            if len(self.__display_panels) > 1:
                 self._remove_display_panel(display_panel, None)
         self.document_controller.push_undo_command(command)
 
@@ -539,7 +562,8 @@ class Workspace:
             self.__sync_layout()
             self.__workspace = None
         # remove existing layout and canvas item
-        self.display_panels = []
+        while len(self.__display_panels) > 0:
+            self.__remove_display_panel_at_index(0)
         for child in copy.copy(self.image_row.children):
             self.image_row.remove(child)
         # create new layout and canvas item
@@ -560,7 +584,8 @@ class Workspace:
             # store the new workspace
             if canvas_item:
                 self.__workspace = workspace_layout
-                self.display_panels.extend(display_panels)
+                for display_panel in display_panels:
+                    self.__insert_display_panel(len(self.__display_panels), display_panel)
                 assert self.__canvas_item  # for type checking
                 self.__canvas_item.add_canvas_item(canvas_item)
                 self.image_row.add(canvas_widget)
@@ -577,7 +602,8 @@ class Workspace:
             # store the new workspace
             if canvas_item:
                 self.__workspace = workspace_layout
-                self.display_panels.extend(display_panels)
+                for display_panel in display_panels:
+                    self.__insert_display_panel(len(self.__display_panels), display_panel)
                 assert self.__canvas_item  # for type checking
                 self.__canvas_item.add_canvas_item(canvas_item)
                 self.image_row.add(canvas_widget)
@@ -900,7 +926,7 @@ class Workspace:
             old_split = container.splits[index] if not new_splits else 0.0
             new_index_adj = 1 if region == "right" or region == "bottom" else 0
             new_display_panel = DisplayPanel.DisplayPanel(self.document_controller, dict(), new_uuid)
-            self.display_panels.insert(self.display_panels.index(display_panel) + new_index_adj, new_display_panel)
+            self.__insert_display_panel(self.__display_panels.index(display_panel) + new_index_adj, new_display_panel)
             if display_item:
                 new_display_panel.set_display_panel_display_item(display_item, detect_controller=True)
             elif d is not None:
@@ -947,7 +973,7 @@ class Workspace:
                     else:
                         old_display_panel = typing.cast(DisplayPanel.DisplayPanel, container.canvas_items[1])
                         region_id = "left" if container.orientation == "vertical" else "top"
-                self.display_panels.remove(display_panel)
+                self.__remove_display_panel_at_index(self.__display_panels.index(display_panel))
                 container.remove_canvas_item(display_panel)
                 if len(container.canvas_items) == 1:
                     container.unwrap_canvas_item(container.canvas_items[0])
@@ -971,11 +997,11 @@ class Workspace:
         row_splitter_canvas_item.on_splits_changed = functools.partial(self._splits_did_change, row_splitter_canvas_item)
         display_panel_container.wrap_canvas_item(display_panel, row_splitter_canvas_item)
         new_display_panels.append(display_panel)
-        dest_index = self.display_panels.index(display_panel)
+        dest_index = self.__display_panels.index(display_panel)
         for row in range(h):
             if row > 0:
                 row_display_panel = DisplayPanel.DisplayPanel(self.document_controller, dict())
-                self.display_panels.insert(dest_index + 1, row_display_panel)
+                self.__insert_display_panel(dest_index + 1, row_display_panel)
                 new_display_panels.append(row_display_panel)
                 dest_index += 1
                 row_splitter_canvas_item.insert_canvas_item(row + 1, row_display_panel)
@@ -992,7 +1018,7 @@ class Workspace:
             for column in range(1, w):
                 column_display_panel = DisplayPanel.DisplayPanel(self.document_controller, dict())
                 new_display_panels.append(column_display_panel)
-                self.display_panels.insert(dest_index + 1, column_display_panel)
+                self.__insert_display_panel(dest_index + 1, column_display_panel)
                 dest_index += 1
                 column_splitter_canvas_item.insert_canvas_item(column + 1, column_display_panel)
             column_splitter_canvas_item.splits = [1//w] * w

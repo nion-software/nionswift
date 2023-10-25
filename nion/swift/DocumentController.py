@@ -221,6 +221,7 @@ class DocumentController(Window.Window):
         if project_reference:
             self.window_file_path = project_reference.path
         self.__workspace_controller: typing.Optional[Workspace.Workspace] = None
+        self.__workspace_display_panel_content_changed_event_listener: typing.Optional[Event.EventListener] = None
         self.replaced_display_panel_content_flag = False  # whether to set replaced display panel content
         self.replaced_display_panel_content: typing.Optional[Persistence.PersistentDictType] = None  # used to facilitate display panel functionality to exchange displays
         self.__selected_display_panel: typing.Optional[DisplayPanel.DisplayPanel] = None
@@ -284,6 +285,11 @@ class DocumentController(Window.Window):
             self.__workspace_controller = Workspace.Workspace(self, workspace_id)
             self.__workspace_controller.restore(self.project.workspace_uuid)
 
+            def handle_workspace_display_panel_content_changed_event(display_panel: DisplayPanel.DisplayPanel) -> None:
+                self.__update_selected_display_items()
+
+            self.__workspace_display_panel_content_changed_event_listener = self.__workspace_controller.display_panel_content_changed_event.listen(handle_workspace_display_panel_content_changed_event)
+
         if app:
             for menu_handler in app.menu_handlers:  # use 'handler' to avoid name collision
                 menu_handler(self)
@@ -316,6 +322,9 @@ class DocumentController(Window.Window):
         if self.__workspace_controller:
             self.__workspace_controller.close()
             self.__workspace_controller = None
+        if self.__workspace_display_panel_content_changed_event_listener:
+            self.__workspace_display_panel_content_changed_event_listener.close()
+            self.__workspace_display_panel_content_changed_event_listener = None
         self.__undo_stack.close()
         self.__undo_stack = typing.cast(typing.Any, None)
         self.__selection_changed_listener.close()
@@ -740,11 +749,6 @@ class DocumentController(Window.Window):
             # tell the workspace the selected image panel changed so that it can update the focus/selected rings
             self.__update_display_panels()
             self.__update_selected_display_items()
-        self.__selection_changed_listener.close()
-        if self.selected_display_panel:
-            self.__selection_changed_listener = self.selected_display_panel.display_items_changed_event.listen(self.__update_selected_display_items)
-        else:
-            self.__selection_changed_listener = self.selection.changed_event.listen(self.__update_selected_display_items)
 
     @property
     def secondary_display_panels(self) -> typing.Sequence[DisplayPanel.DisplayPanel]:
