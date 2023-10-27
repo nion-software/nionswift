@@ -29,7 +29,11 @@ Nion Swift is open source. You can find the source code on
 
 Installation/Upgrading
 ----------------------
-To install Nion Swift, you will need to install a Python environment and then install Python packages required for Nion
+The quickest and easiest way to get Nion Swift running is to download a pre-built version that includes everything needed to run the basic application.
+
+* `Download for macOS, Linux, or Windows <https://nion.com/swift/downloads>`_.
+
+To install Nion Swift from Python source code, you will need to install a Python environment and then install Python packages required for Nion
 Swift.
 
 For specific installation details and download links, follow link below. Instructions to install additional packages to
@@ -37,6 +41,11 @@ extend Nion Swift are also covered.
 
 * :ref:`installation`
 * :ref:`upgrading`
+
+Release Notes
+-------------
+To see a list of changes for each version of Nion Swift, follow the link below.
+
 * :ref:`release-notes`
 
 Using Nion Swift
