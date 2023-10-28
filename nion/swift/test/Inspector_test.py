@@ -331,6 +331,41 @@ class TestInspectorClass(unittest.TestCase):
             self.assertAlmostEqual(line_region.end[0], -0.25, 3)
             self.assertAlmostEqual(line_region.end[1], 0.5, 3)
 
+    def test_graphics_inspector_uses_non_calibrated_units_for_non_uniformly_calibrated_data(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((100, 100), numpy.uint32))
+            data_item.set_dimensional_calibration(0, Calibration.Calibration(offset=5.1, scale=1.2, units="mm"))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            line_region = Graphics.LineGraphic()
+            display_item.add_graphic(line_region)
+            display_item.calibration_style_id = "calibrated"
+            # find the inspector panel
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            document_controller.periodic()  # needed to build the inspector
+            inspector_panel = document_controller.find_dock_panel("inspector-panel")
+            # check the length inspector
+            line_region.start = (0, 0)
+            line_region.end = (0.4, 0.3)
+            document_controller.periodic()  # needed to update the inspector
+            length_widget = inspector_panel.widget.find_widget_by_id("length")
+            self.assertEqual("50", length_widget.text)
+            length_widget.editing_finished("100")
+            self.assertAlmostEqual(Geometry.FloatPoint(), line_region.start)
+            self.assertAlmostEqual(Geometry.FloatPoint(0.8, 0.6), line_region.end)
+            # check the angle inspector
+            line_region.start = (0, 0)
+            line_region.end = (0.5, math.cos(math.radians(30)))
+            document_controller.periodic()  # needed to update the inspector
+            angle_widget = inspector_panel.widget.find_widget_by_id("angle")
+            self.assertEqual(-30.0, Converter.FloatToStringConverter().convert_back(angle_widget.text))
+            angle_widget.editing_finished("-60")
+            self.assertAlmostEqual(Geometry.FloatPoint(), line_region.start)
+            self.assertAlmostEqual(Geometry.FloatPoint(math.cos(math.radians(30)), 0.5), line_region.end)
+
     def test_line_profile_inspector_display_calibrated_width_units(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()

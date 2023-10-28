@@ -2250,16 +2250,23 @@ class RadianToDegreeStringConverter(Converter.ConverterLike[float, str]):
 
 
 class CalibratedValueFloatToStringConverter(Converter.ConverterLike[float, str]):
+    """Converter object to convert from calibrated value to string and back.
+
+    If uniform is true, the converter will fall back to uncalibrated value if the calibrations have
+    different units.
     """
-        Converter object to convert from calibrated value to string and back.
-    """
-    def __init__(self, display_item: DisplayItem.DisplayItem, index: int) -> None:
+    def __init__(self, display_item: DisplayItem.DisplayItem, index: int, uniform: bool = False) -> None:
         self.__display_item = display_item
         self.__index = index
+        self.__uniform = uniform
 
     def __get_calibration(self) -> Calibration.Calibration:
         index = self.__index
         calibrations = self.__display_item.displayed_datum_calibrations
+        if self.__uniform:
+            unit_set = list(calibration.units if calibration.units else '' for calibration in calibrations)
+            if len(unit_set) > 1:
+                return Calibration.Calibration()
         dimension_count = len(calibrations)
         if index < 0:
             index = dimension_count + index
@@ -2267,6 +2274,9 @@ class CalibratedValueFloatToStringConverter(Converter.ConverterLike[float, str])
             return calibrations[index]
         else:
             return Calibration.Calibration()
+
+    def get_units(self) -> str:
+        return self.__get_calibration().units
 
     def __get_data_size(self) -> int:
         index = self.__index
@@ -2315,14 +2325,19 @@ class CalibratedSizeFloatToStringConverter(Converter.ConverterLike[float, str]):
         Converter object to convert from calibrated size to string and back.
         """
 
-    def __init__(self, display_item: DisplayItem.DisplayItem, index: int, factor: float = 1.0) -> None:
+    def __init__(self, display_item: DisplayItem.DisplayItem, index: int, factor: float = 1.0, uniform: bool = False) -> None:
         self.__display_item = display_item
         self.__index = index
         self.__factor = factor
+        self.__uniform = uniform
 
     def __get_calibration(self) -> Calibration.Calibration:
         index = self.__index
         calibrations = self.__display_item.displayed_datum_calibrations
+        if self.__uniform:
+            unit_set = set(calibration.units if calibration.units else '' for calibration in calibrations)
+            if len(unit_set) > 1:
+                return Calibration.Calibration()
         dimension_count = len(calibrations)
         if index < 0:
             index = dimension_count + index
@@ -2422,9 +2437,9 @@ class CalibratedLengthBinding(Binding.Binding):
     def __init__(self, display_item: DisplayItem.DisplayItem, start_binding: Binding.Binding, end_binding: Binding.Binding) -> None:
         super().__init__(None)
         self.__display_item = display_item
-        self.__x_converter = CalibratedValueFloatToStringConverter(display_item, 1)
-        self.__y_converter = CalibratedValueFloatToStringConverter(display_item, 0)
-        self.__size_converter = CalibratedSizeFloatToStringConverter(display_item, 0)
+        self.__x_converter = CalibratedValueFloatToStringConverter(display_item, 1, uniform=True)
+        self.__y_converter = CalibratedValueFloatToStringConverter(display_item, 0, uniform=True)
+        self.__size_converter = CalibratedSizeFloatToStringConverter(display_item, 0, uniform=True)
         self.__start_binding = start_binding
         self.__end_binding = end_binding
         self.__start_binding.target_setter = ReferenceCounting.weak_partial(CalibratedLengthBinding.__update_target, self)
@@ -2465,9 +2480,9 @@ class CalibratedAngleBinding(Binding.Binding):
     def __init__(self, display_item: DisplayItem.DisplayItem, start_binding: Binding.Binding, end_binding: Binding.Binding) -> None:
         super().__init__(None)
         self.__display_item = display_item
-        self.__x_converter = CalibratedValueFloatToStringConverter(display_item, 1)
-        self.__y_converter = CalibratedValueFloatToStringConverter(display_item, 0)
-        self.__size_converter = CalibratedSizeFloatToStringConverter(display_item, 0)
+        self.__x_converter = CalibratedValueFloatToStringConverter(display_item, 1, uniform=True)
+        self.__y_converter = CalibratedValueFloatToStringConverter(display_item, 0, uniform=True)
+        self.__size_converter = CalibratedSizeFloatToStringConverter(display_item, 0, uniform=True)
         self.__start_binding = start_binding
         self.__end_binding = end_binding
         self.__start_binding.target_setter = ReferenceCounting.weak_partial(CalibratedAngleBinding.__update_target, self)
