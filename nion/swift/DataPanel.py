@@ -377,7 +377,7 @@ class ItemExplorerController:
         mime_data = None
         thumbnail_data = None
         display_item_adapters = self.selected_display_item_adapters
-        if len(display_item_adapters) == 1:
+        if len(display_item_adapters) <= 1 and 0 <= index < len(self.__display_item_adapters):
             mime_data, thumbnail_data = self.__display_item_adapters[index].drag_started(self.ui, x, y, modifiers)
         elif len(display_item_adapters) > 1:
             mime_data = self.ui.create_mime_data()
