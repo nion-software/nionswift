@@ -1945,7 +1945,7 @@ def make_complex_display_type_chooser(document_controller: DocumentController.Do
     ui = document_controller.ui
     display_type_row = ui.create_row_widget()
     display_type_options = [(_("Log Absolute"), "log-absolute")] if include_log_abs else list()
-    display_type_options.extend([(_("Absolute"), "absolute"), (_("Real"), "real"), (_("Imaginary"), "imaginary")])
+    display_type_options.extend([(_("Absolute"), "absolute"), (_("Phase"), "phase"), (_("Real"), "real"), (_("Imaginary"), "imaginary")])
     display_type_reverse_map = {p[1]: i for i, p in enumerate(display_type_options)}
     display_type_chooser = ui.create_combo_box_widget(items=display_type_options, item_getter=operator.itemgetter(0))
 
