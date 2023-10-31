@@ -337,10 +337,8 @@ class ProcessorBase(ProcessorLike):
     def execute(self) -> None:
         with self.__lock:
             if self.__dirty:
-                for connection in self.__connections:
-                    self.set_parameter(connection.target_key or connection.source_key, connection.source.get_result(connection.source_key))
-                self.__dirty = False
                 self._execute()
+                self.__dirty = False
 
     def set_parameter(self, key: str, value: typing.Any) -> None:
         with self.__lock:
@@ -349,31 +347,34 @@ class ProcessorBase(ProcessorLike):
 
     def _get_parameter(self, key: str) -> typing.Any:
         with self.__lock:
+            for connection in self.__connections:
+                if key == (connection.target_key or connection.source_key):
+                    self.__parameters[key] = connection.source.get_result(connection.source_key)
             return self.__parameters.get(key, None)
 
     def _get_string(self, key: str) -> str:
         with self.__lock:
-            return typing.cast(str, self.__parameters[key])
+            return typing.cast(str, self._get_parameter(key))
 
     def _get_optional_string(self, key: str) -> typing.Optional[str]:
         with self.__lock:
-            return typing.cast(typing.Optional[str], self.__parameters[key])
+            return typing.cast(typing.Optional[str], self._get_parameter(key))
 
     def _get_int(self, key: str) -> int:
         with self.__lock:
-            return typing.cast(int, self.__parameters[key])
+            return typing.cast(int, self._get_parameter(key))
 
     def _get_optional_int(self, key: str) -> typing.Optional[int]:
         with self.__lock:
-            return typing.cast(typing.Optional[int], self.__parameters[key])
+            return typing.cast(typing.Optional[int], self._get_parameter(key))
 
     def _get_float(self, key: str) -> float:
         with self.__lock:
-            return typing.cast(float, self.__parameters[key])
+            return typing.cast(float, self._get_parameter(key))
 
     def _get_optional_float(self, key: str) -> typing.Optional[float]:
         with self.__lock:
-            return typing.cast(typing.Optional[float], self.__parameters[key])
+            return typing.cast(typing.Optional[float], self._get_parameter(key))
 
     def get_result(self, key: str) -> typing.Any:
         with self.__lock:
@@ -560,12 +561,13 @@ class AdjustedDataProcessor(ProcessorBase):
         super().__init__(normalized_data=normalized_data, display_data=display_data, display_range=display_range, adjustments=adjustments)
 
     def _execute(self) -> None:
-        normalized_data_and_metadata = self._get_data_and_metadata_like("normalized_data")
         display_data_and_metadata = self._get_data_and_metadata_like("display_data")
         display_range = typing.cast(typing.Optional[typing.Tuple[float, float]], self._get_parameter("display_range"))
         adjustments = typing.cast(typing.Optional[typing.Sequence[Persistence.PersistentDictType]], self._get_parameter("adjustments"))
         adjusted_data_and_metadata: typing.Optional[DataAndMetadata.DataAndMetadata] = display_data_and_metadata
         if adjustments:
+            # only request normalized data and metadata if required
+            normalized_data_and_metadata = self._get_data_and_metadata_like("normalized_data")
             adjusted_data_and_metadata = normalized_data_and_metadata
             for adjustment_d in adjustments:
                 adjustment = adjustment_factory(adjustment_d)
