@@ -2748,8 +2748,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 display_item.add_graphic(graphic)
         return self.__make_computation("filter", [(display_item, display_data_item, crop_region)])
 
-    def get_processing_new(self, processing_id: str, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
-        return self.__make_computation(processing_id, [(display_item, data_item, crop_region)])
+    def get_processing_new(self, processing_id: str, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None, parameters: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> typing.Optional[DataItem.DataItem]:
+        return self.__make_computation(processing_id, [(display_item, data_item, crop_region)], None, parameters)
 
     def get_sequence_measure_shifts_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
         return self.__make_computation("sequence-register", [(display_item, data_item, crop_region)])

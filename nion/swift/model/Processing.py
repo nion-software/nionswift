@@ -83,7 +83,14 @@ class ProcessingComputation:
                     if self.__data is not None:
                         self.__data[index] = index_scalar.value
         elif not self.processing_component.is_scalar:
-            self.__xdata = self.processing_component.process(**kwargs)
+            src_name = self.processing_component.sources[0]["name"]
+            data_source = typing.cast("Facade.DataSource", kwargs[src_name])
+            xdata = data_source.element_xdata
+            assert xdata
+            element_data_source = Symbolic.DataSource(data_source._display_data_channel, data_source.graphic._graphic if data_source.graphic else None, xdata)
+            new_kwargs = dict(kwargs)
+            new_kwargs["src"] = element_data_source
+            self.__xdata = self.processing_component.process(**new_kwargs)
 
     def commit(self) -> None:
         # store the xdata into the target. this is guaranteed to run on the main thread.

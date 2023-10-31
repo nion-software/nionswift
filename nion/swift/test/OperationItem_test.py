@@ -1116,11 +1116,21 @@ class TestProcessingClass(unittest.TestCase):
             document_model = test_context.create_document_model()
             for data_and_metadata in data_and_metadata_list:
                 for window_type in ("gaussian_window", "hamming_window", "hann_window"):
+                    # test the mapped version
+                    data_item = DataItem.new_data_item(data_and_metadata)
+                    document_model.append_data_item(data_item)
+                    display_item = document_model.get_display_item_for_data_item(data_item)
+                    document_model.get_processing_new(window_type, display_item, display_item.data_item, None, {"mapping": "mapped"})
+                    document_model.recompute_all()
+                    self.assertEqual(data_and_metadata.data_shape, document_model.data_items[-1].data_shape)
+                    self.assertFalse(document_model.computations[-1].error_text)
+                    # test the non-mapped version
                     data_item = DataItem.new_data_item(data_and_metadata)
                     document_model.append_data_item(data_item)
                     display_item = document_model.get_display_item_for_data_item(data_item)
                     document_model.get_processing_new(window_type, display_item, display_item.data_item)
                     document_model.recompute_all()
+                    self.assertEqual(data_and_metadata.datum_dimension_shape, document_model.data_items[-1].data_shape)
                     self.assertFalse(document_model.computations[-1].error_text)
 
 

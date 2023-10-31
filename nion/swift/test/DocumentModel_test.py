@@ -2441,7 +2441,7 @@ class TestDocumentModelClass(unittest.TestCase):
                 self.assertEqual((4, 4, 4, 4), processed_data_item.data_shape)
                 document_model.computations[-1].variables[1].value = "none"
                 document_model.recompute_all()
-                self.assertEqual((4, 4, 4, 4), processed_data_item.data_shape)
+                self.assertEqual((4, 4), processed_data_item.data_shape)
 
     def test_processing_produces_sensible_inherited_titles(self):
         with create_memory_profile_context() as profile_context:
