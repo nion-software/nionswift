@@ -16,6 +16,7 @@ import weakref
 
 import numpy.typing
 
+from nion.data import DataAndMetadata
 from nion.data import Image
 from nion.swift import DataItemThumbnailWidget
 from nion.swift import DataPanel
@@ -24,7 +25,6 @@ from nion.swift import DisplayScriptCanvasItem
 from nion.swift import ImageCanvasItem
 from nion.swift import LinePlotCanvasItem
 from nion.swift import MimeTypes
-from nion.swift import NotificationDialog
 from nion.swift import Panel
 from nion.swift import Thumbnails
 from nion.swift import Undo
@@ -47,6 +47,7 @@ from nion.utils import Geometry
 from nion.utils import ListModel
 from nion.utils import Model
 from nion.utils import Process
+from nion.utils import ReferenceCounting
 from nion.utils import Selection
 from nion.utils import Stream
 
@@ -470,7 +471,10 @@ class DisplayDataChannelValueStream(Stream.ValueStream[DisplayItem.DisplayDataCh
         self.__display_item_item_inserted_listener: typing.Optional[Event.EventListener] = None
         self.__display_item_item_removed_listener: typing.Optional[Event.EventListener] = None
         self.__stream_listener = self.__stream.value_stream.listen(self.__update_display_item)
-        self.__display_item: typing.Optional[DisplayItem.DisplayItem] = self.__stream.value
+        self.__display_item: typing.Optional[DisplayItem.DisplayItem] = None
+        # display item is initialized to none and updated with update display item, which does a check
+        # to see if the display changed. if it did, then the display item listeners are updated.
+        self.__update_display_item(self.__stream.value)
 
     def about_to_delete(self) -> None:
         if self.__display_item_item_inserted_listener:
@@ -507,6 +511,27 @@ class DisplayDataChannelValueStream(Stream.ValueStream[DisplayItem.DisplayDataCh
             self.value = self.__display_item.display_data_channel
 
 
+class DisplayDataChannelDataDescriptorStream(Stream.ValueStream[DataAndMetadata.DataDescriptor]):
+    def __init__(self, display_data_channel_stream: Stream.AbstractStream[DisplayItem.DisplayDataChannel]) -> None:
+        super().__init__()
+        self.__display_data_channel_stream = display_data_channel_stream
+        self.__display_data_channel_stream_listener = self.__display_data_channel_stream.value_stream.listen(ReferenceCounting.weak_partial(DisplayDataChannelDataDescriptorStream.__update_display_data_channel, self))
+        self.__data_item_listener: typing.Optional[Event.EventListener] = None
+        self.__update_display_data_channel(self.__display_data_channel_stream.value)
+
+    def __update_display_data_channel(self, display_data_channel: typing.Optional[DisplayItem.DisplayDataChannel]) -> None:
+        if display_data_channel and (data_item := display_data_channel.data_item):
+            self.__data_item_listener = data_item.property_changed_event.listen(ReferenceCounting.weak_partial(DisplayDataChannelDataDescriptorStream.__handle_data_item_property_changed, self, data_item))
+            self.value = data_item.data_metadata.data_descriptor if data_item.data_metadata else None
+        else:
+            self.__data_item_listener = None
+            self.value = None
+
+    def __handle_data_item_property_changed(self, data_item: DataItem.DataItem, property_name: str) -> None:
+        if property_name in ("collection_dimension_count", "is_sequence", "data_modified"):
+            self.value = data_item.data_metadata.data_descriptor if data_item.data_metadata else None
+
+
 class IndexValueAdapter(typing.Protocol):
     def get_index_value_stream(self, display_data_channel_value_stream: Stream.AbstractStream[DisplayItem.DisplayDataChannel]) -> Stream.AbstractStream[float]: ...
     def get_index_value(self, display_data_channel: DisplayItem.DisplayDataChannel) -> float: ...
@@ -521,9 +546,32 @@ class CollectionIndexAdapter(IndexValueAdapter):
         self.__collection_index = collection_index
 
     def get_index_value_stream(self, display_data_channel_value_stream: Stream.AbstractStream[DisplayItem.DisplayDataChannel]) -> Stream.AbstractStream[float]:
-        display_data_channel_value_stream = Stream.OptionalStream(display_data_channel_value_stream, lambda x: x is not None and self.__collection_index < x.collection_rank and x.datum_rank == 2)
-        # mypy bug: typing on next line doesn't recognize OptionalStream[DisplayDataChannel] as a AbstractStream[Observable]
-        return Stream.MapStream(Stream.PropertyChangedEventStream(display_data_channel_value_stream, "collection_index"), lambda x: x[self.__collection_index] if x is not None else None)  # type: ignore
+        # given a display data channel stream, return a stream of the collection index values
+        # an additional complexity is that if the underlying data changes, output stream needs to be updated
+        # to accomplish this, we combine the display data channel stream with a stream of the data descriptor
+        # to give a stream of tuples of (data_descriptor, display_data_channel) which we use to filter the stream
+        # and then map the tuple back down to the display_data_channel from which we extract the sequence index.
+
+        data_descriptor_value_stream = DisplayDataChannelDataDescriptorStream(display_data_channel_value_stream)
+        combined_value_stream = Stream.CombineLatestStream[typing.Any, typing.Any]([data_descriptor_value_stream, display_data_channel_value_stream])
+
+        def filter_combined_stream(tuple_value: typing.Optional[typing.Tuple[typing.Optional[DataAndMetadata.DataDescriptor], typing.Optional[DisplayItem.DisplayDataChannel]]]) -> bool:
+            if tuple_value is not None:
+                data_descriptor, display_data_channel = tuple_value
+                return data_descriptor is not None and display_data_channel is not None and self.__collection_index < display_data_channel.collection_rank and display_data_channel.datum_rank == 2
+            return False
+
+        optional_display_data_channel_value_stream = Stream.OptionalStream(combined_value_stream, filter_combined_stream)
+
+        def select_display_data_channel_from_tuple(tuple_value: typing.Optional[typing.Tuple[typing.Optional[DataAndMetadata.DataDescriptor], typing.Optional[DisplayItem.DisplayDataChannel]]]) -> typing.Optional[DisplayItem.DisplayDataChannel]:
+            return tuple_value[1] if tuple_value is not None else None
+
+        filtered_display_data_channel_value_stream = Stream.MapStream(optional_display_data_channel_value_stream, select_display_data_channel_from_tuple)
+
+        def select_collection_index(collection_index: typing.Optional[typing.Tuple[int, ...]]) -> typing.Optional[int]:
+            return collection_index[self.__collection_index] if collection_index is not None else None
+
+        return Stream.MapStream(Stream.PropertyChangedEventStream(filtered_display_data_channel_value_stream, "collection_index"), select_collection_index)
 
     def get_index_value(self, display_data_channel: DisplayItem.DisplayDataChannel) -> float:
         index = self.__collection_index + (1 if display_data_channel.is_sequence else 0)
@@ -568,12 +616,32 @@ class SequenceIndexAdapter(IndexValueAdapter):
         self.__document_controller = document_controller
 
     def get_index_value_stream(self, display_data_channel_value_stream: Stream.AbstractStream[DisplayItem.DisplayDataChannel]) -> Stream.AbstractStream[float]:
-        display_data_channel_value_stream = Stream.OptionalStream(display_data_channel_value_stream, lambda x: x is not None and x.is_sequence)
-        return Stream.PropertyChangedEventStream(display_data_channel_value_stream, "sequence_index")
+        # given a display data channel stream, return a stream of the sequence index value
+        # an additional complexity is that if the underlying data changes, output stream needs to be updated
+        # to accomplish this, we combine the display data channel stream with a stream of the data descriptor
+        # to give a stream of tuples of (data_descriptor, display_data_channel) which we use to filter the stream
+        # and then map the tuple back down to the display_data_channel from which we extract the sequence index.
+
+        data_descriptor_value_stream = DisplayDataChannelDataDescriptorStream(display_data_channel_value_stream)
+        combined_value_stream = Stream.CombineLatestStream[typing.Any, typing.Any]([data_descriptor_value_stream, display_data_channel_value_stream])
+
+        def filter_combined_stream(tuple_value: typing.Optional[typing.Tuple[typing.Optional[DataAndMetadata.DataDescriptor], typing.Optional[DisplayItem.DisplayDataChannel]]]) -> bool:
+            if tuple_value is not None:
+                data_descriptor, display_data_channel = tuple_value
+                return data_descriptor is not None and display_data_channel is not None and display_data_channel.is_sequence
+            return False
+
+        optional_display_data_channel_value_stream = Stream.OptionalStream(combined_value_stream, filter_combined_stream)
+
+        def select_display_data_channel_from_tuple(tuple_value: typing.Optional[typing.Tuple[typing.Optional[DataAndMetadata.DataDescriptor], typing.Optional[DisplayItem.DisplayDataChannel]]]) -> typing.Optional[DisplayItem.DisplayDataChannel]:
+            return tuple_value[1] if tuple_value is not None else None
+
+        filtered_display_data_channel_value_stream = Stream.MapStream(optional_display_data_channel_value_stream, select_display_data_channel_from_tuple)
+        return Stream.PropertyChangedEventStream(filtered_display_data_channel_value_stream, "sequence_index")
 
     def get_index_value(self, display_data_channel: DisplayItem.DisplayDataChannel) -> float:
         sequence_length = display_data_channel.dimensional_shape[0] if display_data_channel.dimensional_shape is not None else 0
-        return display_data_channel.sequence_index / (sequence_length - 1)
+        return display_data_channel.sequence_index / (sequence_length - 1) if sequence_length > 1 else 0.0
 
     def get_index_str(self, display_data_channel: DisplayItem.DisplayDataChannel) -> str:
         return str(display_data_channel.sequence_index)
@@ -636,6 +704,7 @@ class IndexValueSliderCanvasItem(CanvasItem.CanvasItemComposition):
         self.__stream_action = Stream.ValueStreamAction[typing.Tuple[DisplayItem.DisplayItem, DisplayItem.DisplayDataChannel, int]](combined_stream, self.__index_changed)
         self.__play_button_handler = play_button_handler
         self.__play_button_model = play_button_model
+        self.__index_changed(combined_stream.value)
 
     def close(self) -> None:
         self.__stream_action.close()
@@ -647,7 +716,7 @@ class IndexValueSliderCanvasItem(CanvasItem.CanvasItemComposition):
         self.__display_item_value_stream = typing.cast(typing.Any, None)
         super().close()
 
-    def __index_changed(self, args: typing.Optional[typing.Tuple[DisplayItem.DisplayItem, DisplayItem.DisplayDataChannel, int]]) -> None:
+    def __index_changed(self, args: typing.Optional[typing.Tuple[DisplayItem.DisplayItem, DisplayItem.DisplayDataChannel, typing.Optional[int]]]) -> None:
         display_item, display_data_channel, index_value = args if args else (None, None, 0)
         if display_data_channel and index_value is not None:
             if not self.__slider_row.canvas_items:

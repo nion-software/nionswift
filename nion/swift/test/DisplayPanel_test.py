@@ -2881,6 +2881,113 @@ class TestDisplayPanelClass(unittest.TestCase):
                 data_item.title = "green"
                 self.assertTrue(title_changed)
 
+    def test_index_sliders_update_when_data_created_later(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem()
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            display_panel.display_canvas_item.layout_immediate(Geometry.IntSize(height=480, width=640))
+            data_item.set_data_and_metadata(DataAndMetadata.new_data_and_metadata(numpy.zeros((8, 8)), data_descriptor=DataAndMetadata.DataDescriptor(False, 0, 2)))
+            document_controller.periodic()
+            sequence_slider_row = display_panel.display_canvas_item.canvas_items[2].canvas_items[-3].canvas_items[1]
+            c0_slider_row = display_panel.display_canvas_item.canvas_items[2].canvas_items[-2].canvas_items[1]
+            c1_slider_row = display_panel.display_canvas_item.canvas_items[2].canvas_items[-1].canvas_items[1]
+            self.assertEqual(0, len(sequence_slider_row.canvas_items))
+            self.assertEqual(0, len(c0_slider_row.canvas_items))
+            self.assertEqual(0, len(c1_slider_row.canvas_items))
+            data_item.set_data_and_metadata(DataAndMetadata.new_data_and_metadata(numpy.zeros((8, 8, 8)), data_descriptor=DataAndMetadata.DataDescriptor(True, 0, 2)))
+            document_controller.periodic()
+            self.assertNotEqual(0, len(sequence_slider_row.canvas_items))
+            self.assertEqual(0, len(c0_slider_row.canvas_items))
+            self.assertEqual(0, len(c1_slider_row.canvas_items))
+
+    def test_index_sliders_update_when_data_changed(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((8, 8)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            display_panel.display_canvas_item.layout_immediate(Geometry.IntSize(height=480, width=640))
+            sequence_slider_row = display_panel.display_canvas_item.canvas_items[2].canvas_items[-3].canvas_items[1]
+            c0_slider_row = display_panel.display_canvas_item.canvas_items[2].canvas_items[-2].canvas_items[1]
+            c1_slider_row = display_panel.display_canvas_item.canvas_items[2].canvas_items[-1].canvas_items[1]
+            self.assertEqual(0, len(sequence_slider_row.canvas_items))
+            self.assertEqual(0, len(c0_slider_row.canvas_items))
+            self.assertEqual(0, len(c1_slider_row.canvas_items))
+            data_item.set_data_and_metadata(DataAndMetadata.new_data_and_metadata(numpy.zeros((8, 8, 8)), data_descriptor=DataAndMetadata.DataDescriptor(True, 0, 2)))
+            document_controller.periodic()
+            self.assertNotEqual(0, len(sequence_slider_row.canvas_items))
+            self.assertEqual(0, len(c0_slider_row.canvas_items))
+            self.assertEqual(0, len(c1_slider_row.canvas_items))
+            data_item.set_data_and_metadata(DataAndMetadata.new_data_and_metadata(numpy.zeros((4, 4, 4, 4)), data_descriptor=DataAndMetadata.DataDescriptor(False, 2, 2)))
+            document_controller.periodic()
+            self.assertEqual(0, len(sequence_slider_row.canvas_items))
+            self.assertNotEqual(0, len(c0_slider_row.canvas_items))
+            self.assertNotEqual(0, len(c1_slider_row.canvas_items))
+            data_item.set_data_and_metadata(DataAndMetadata.new_data_and_metadata(numpy.zeros((2, 4, 4, 4, 4)), data_descriptor=DataAndMetadata.DataDescriptor(True, 2, 2)))
+            document_controller.periodic()
+            self.assertNotEqual(0, len(sequence_slider_row.canvas_items))
+            self.assertNotEqual(0, len(c0_slider_row.canvas_items))
+            self.assertNotEqual(0, len(c1_slider_row.canvas_items))
+            data_item.set_data_and_metadata(DataAndMetadata.new_data_and_metadata(numpy.zeros((8, 8)), data_descriptor=DataAndMetadata.DataDescriptor(False, 0, 2)))
+            document_controller.periodic()
+            self.assertEqual(0, len(sequence_slider_row.canvas_items))
+            self.assertEqual(0, len(c0_slider_row.canvas_items))
+            self.assertEqual(0, len(c1_slider_row.canvas_items))
+
+    def test_index_sliders_update_when_indexes_changed(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((8, 8)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            display_panel.display_canvas_item.layout_immediate(Geometry.IntSize(height=480, width=640))
+            sequence_slider_row = display_panel.display_canvas_item.canvas_items[2].canvas_items[-3].canvas_items[1]
+            c0_slider_row = display_panel.display_canvas_item.canvas_items[2].canvas_items[-2].canvas_items[1]
+            c1_slider_row = display_panel.display_canvas_item.canvas_items[2].canvas_items[-1].canvas_items[1]
+            data_item.set_data_and_metadata(DataAndMetadata.new_data_and_metadata(numpy.zeros((2, 4, 4, 4, 4)), data_descriptor=DataAndMetadata.DataDescriptor(True, 2, 2)))
+            document_controller.periodic()
+            self.assertEqual(0.0, sequence_slider_row.canvas_items[3].value)
+            self.assertEqual(0.0, c0_slider_row.canvas_items[1].value)
+            self.assertEqual(0.0, c1_slider_row.canvas_items[1].value)
+            display_item.display_data_channel.sequence_index = 1
+            self.assertEqual(1.0, sequence_slider_row.canvas_items[3].value)
+            self.assertEqual(0.0, c0_slider_row.canvas_items[1].value)
+            self.assertEqual(0.0, c1_slider_row.canvas_items[1].value)
+            display_item.display_data_channel.collection_index = (2, 3)
+            self.assertEqual(1.0, sequence_slider_row.canvas_items[3].value)
+            self.assertAlmostEqual(2.0/3.0, c0_slider_row.canvas_items[1].value)
+            self.assertEqual(1.0, c1_slider_row.canvas_items[1].value)
+
+    def test_index_sliders_update_when_data_created_with_display(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem()
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            display_panel.display_canvas_item.layout_immediate(Geometry.IntSize(height=480, width=640))
+            data_item.set_data_and_metadata(DataAndMetadata.new_data_and_metadata(numpy.zeros((1, 8, 8)), data_descriptor=DataAndMetadata.DataDescriptor(True, 0, 2)))
+            document_controller.periodic()
+            sequence_slider_row = display_panel.display_canvas_item.canvas_items[2].canvas_items[-3].canvas_items[1]
+            c0_slider_row = display_panel.display_canvas_item.canvas_items[2].canvas_items[-2].canvas_items[1]
+            c1_slider_row = display_panel.display_canvas_item.canvas_items[2].canvas_items[-1].canvas_items[1]
+            self.assertNotEqual(0, len(sequence_slider_row.canvas_items))
+            self.assertEqual(0, len(c0_slider_row.canvas_items))
+            self.assertEqual(0, len(c1_slider_row.canvas_items))
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
