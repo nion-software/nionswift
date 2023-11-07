@@ -740,7 +740,8 @@ class IndexValueSliderCanvasItem(CanvasItem.CanvasItemComposition):
                     self.__slider_row.add_spacing(0)
                 self.__slider_row.add_canvas_item(self.__slider_canvas_item)
                 self.__slider_row.add_canvas_item(self.__slider_text)
-                self.__slider_value_action = Stream.ValueStreamAction(self.__slider_canvas_item.value_change_stream, functools.partial(self.__index_value_adapter.apply_index_value_change, display_data_channel))
+            # display_data_channel may have changed, so do this every time
+            self.__slider_value_action = Stream.ValueStreamAction(self.__slider_canvas_item.value_change_stream, functools.partial(self.__index_value_adapter.apply_index_value_change, display_data_channel))
             self.__slider_text.text = self.__index_value_adapter.get_index_str(display_data_channel)
             self.__slider_text.size_to_content(self.__get_font_metrics_fn)
             self.__slider_canvas_item.value = self.__index_value_adapter.get_index_value(display_data_channel)

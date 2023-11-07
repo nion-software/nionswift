@@ -2988,6 +2988,56 @@ class TestDisplayPanelClass(unittest.TestCase):
             self.assertEqual(0, len(c0_slider_row.canvas_items))
             self.assertEqual(0, len(c1_slider_row.canvas_items))
 
+    def test_index_sequence_slider_works_after_dropping_onto_empty_display_panel(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.DataItem()
+            data_item.set_data_and_metadata(DataAndMetadata.new_data_and_metadata(numpy.zeros((8, 8, 8)), data_descriptor=DataAndMetadata.DataDescriptor(True, 0, 2)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item.display_data_channel.sequence_index = 1
+            display_panel.set_display_panel_display_item(display_item)
+            display_panel.display_canvas_item.layout_immediate(Geometry.IntSize(height=480, width=640))
+            sequence_slider_row = display_panel.display_canvas_item.canvas_items[2].canvas_items[-3].canvas_items[1]
+            self.assertNotEqual(0, len(sequence_slider_row.canvas_items))
+            self.assertAlmostEqual(1.0/7.0, sequence_slider_row.canvas_items[3].value)
+            sequence_slider_row.canvas_items[3].value_change_stream.begin()
+            sequence_slider_row.canvas_items[3].value = 2.0/7.0
+            sequence_slider_row.canvas_items[3].value_change_stream.end()
+            document_controller.periodic()
+            self.assertEqual(2, display_item.display_data_channel.sequence_index)
+
+    def test_index_sequence_slider_works_after_dropping_onto_existing_display_panel(self):
+        with TestContext.create_memory_context() as test_context:
+            # this tests handling of invalid intermediate combined tuples in slider apparatus
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            # drop a basic image
+            data_item = DataItem.DataItem(numpy.zeros((4,4)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            display_panel.display_canvas_item.layout_immediate(Geometry.IntSize(height=480, width=640))
+            # drop a sequence
+            data_item = DataItem.DataItem()
+            data_item.set_data_and_metadata(DataAndMetadata.new_data_and_metadata(numpy.zeros((8, 8, 8)), data_descriptor=DataAndMetadata.DataDescriptor(True, 0, 2)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item.display_data_channel.sequence_index = 1
+            display_panel.set_display_panel_display_item(display_item)
+            document_controller.periodic()
+            sequence_slider_row = display_panel.display_canvas_item.canvas_items[2].canvas_items[-3].canvas_items[1]
+            self.assertNotEqual(0, len(sequence_slider_row.canvas_items))
+            self.assertAlmostEqual(1.0/7.0, sequence_slider_row.canvas_items[3].value)
+            sequence_slider_row.canvas_items[3].value_change_stream.begin()
+            sequence_slider_row.canvas_items[3].value = 2.0/7.0
+            sequence_slider_row.canvas_items[3].value_change_stream.end()
+            document_controller.periodic()
+            self.assertEqual(2, display_item.display_data_channel.sequence_index)
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
