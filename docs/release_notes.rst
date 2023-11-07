@@ -36,7 +36,7 @@ Version 16.9.0 (2023-08-17)
 * `#900 <https://github.com/nion-software/nionswift/issues/900>`_ Implement dynamic titles for processed data items. Changing base title updates dependents.
 * `#944 <https://github.com/nion-software/nionswift/issues/944>`_ Fix line plot drawing when plot has drawn segments separated by nans.
 * `#952 <https://github.com/nion-software/nionswift/issues/952>`_ Order project lists by load-ability then date.
-* `#951 <https://github.com/nion-software/nionswift/issues/951>`_ Show missing projects as 'missing' rather than 'unreadbable' in projects lists.
+* `#951 <https://github.com/nion-software/nionswift/issues/951>`_ Show missing projects as 'missing' rather than 'unreadable' in projects lists.
 * `#950 <https://github.com/nion-software/nionswift/issues/950>`_ Include last-used date in projects lists.
 * `#949 <https://github.com/nion-software/nionswift/issues/949>`_ Make choose project dialog resizable.
 * `#946 <https://github.com/nion-software/nionswift/issues/946>`_ Ensure computations with multiple results reload properly.
