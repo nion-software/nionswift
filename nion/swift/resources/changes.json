@@ -1,0 +1,61 @@
+[
+  {
+    "version": "Unreleased",
+    "notes": [
+      {
+        "summary": "Expand About Box to include release notes and recent changes."
+      },
+      {
+        "summary": "Performance improvements to avoid metadata copying."
+      },
+      {
+        "issues": ["https://github.com/nion-software/nionswift/issues/700"],
+        "summary": "Commands work after deleting multiple display items."
+      },
+      {
+        "issues": ["https://github.com/nion-software/nionswift/issues/980"],
+        "summary": "Fall back to uncalibrated coordinates for angle/length if units don't match on datum dimensions."
+      },
+      {
+        "issues": ["https://github.com/nion-software/nionswift/issues/979"],
+        "summary": "Data panel dragging works on first click now."
+      },
+      {
+        "issues": ["https://github.com/nion-software/nionswift/issues/981"],
+        "authors": [
+          {
+            "github": "luc-j-bourhis",
+            "name": "Luc J. Bourhis"
+          }
+        ],
+        "summary": "Add the option to display the phase of a complex array."
+      },
+      {
+        "issues": ["https://github.com/nion-software/nionswift/issues/985"],
+        "summary": "Mapped/unmapped processing (when available) now works in unmapped case."
+      },
+      {
+        "issues": ["https://github.com/nion-software/nionswift/issues/759", "https://github.com/nion-software/nionswift/issues/987"],
+        "summary": "Fix several cases where index sliders were incorrect."
+      }
+    ]
+  },
+  {
+    "version": "16.9.1",
+    "release_date": "2023-10-23",
+    "notes": [
+      {
+        "summary": "Minor performance improvement when loading projects."
+      },
+      {
+        "summary": "Minor fixes for Python 3.12 and mypy typing compatibility."
+      },
+      {
+        "summary": "Add mechanism for packages to run startup code for Console windows."
+      },
+      {
+        "summary": "Improve shutdown of Console to garbage collect local variables declared in console."
+      }
+    ]
+  }
+]

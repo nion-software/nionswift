@@ -14,7 +14,9 @@ import pkgutil
 import re
 import sys
 import typing
+import urllib.parse
 import uuid
+import webbrowser
 
 # third party libraries
 # None
@@ -87,6 +89,99 @@ class PersistenceHandler(UserInterface.PersistenceHandler):
             ApplicationData.set_data(application_data)
             return True
         return False
+
+
+class AboutDialog(Dialog.OkCancelDialog):
+    def __init__(self, ui: UserInterface.UserInterface, parent_window: UIWindow.Window, version_str: str):
+        super().__init__(ui, include_cancel=False, parent_window=parent_window)
+
+        class Handler(Declarative.Handler):
+            def __init__(self) -> None:
+                super().__init__()
+
+                logo_png = pkgutil.get_data(__name__, "resources/Logo3.png")
+                assert logo_png is not None
+
+                self.icon = CanvasItem.load_rgba_data_from_bytes(logo_png)
+
+                changes_json_data = pkgutil.get_data(__name__, "resources/changes.json")
+                assert changes_json_data is not None
+                changes_data: typing.Sequence[typing.Mapping[str, typing.Any]] = json.loads(changes_json_data)
+
+                u = Declarative.DeclarativeUI()
+
+                base_prefix_label = [u.create_spacing(13), u.create_label(text=sys.base_prefix)] if sys.base_prefix else [u.create_spacing(0)]
+
+                package_names = []
+                package_versions = []
+
+                for __, package_name, package_version in Application.get_nion_swift_version_info():
+                    package_names.append(u.create_label(text=package_name))
+                    package_versions.append(u.create_label(text=package_version))
+
+                self.markdown = str()
+
+                for version_d in changes_data:
+                    changes_version_str = version_d["version"]
+                    release_date_str = version_d.get("release_date")
+                    self.markdown += "\n" + "### " + changes_version_str + (f" ({release_date_str})" if release_date_str else "") + "\n"
+                    for notes_d in version_d.get("notes", list()):
+                        summary_line = notes_d["summary"]
+                        issue_thunks = list()
+                        for issue_url in notes_d.get("issues", list()):
+                            numbers = re.findall(r"\d+", issue_url)
+                            if numbers:
+                                issue_number = numbers[-1]
+                                issue_thunks.append(f"[#{issue_number}]({issue_url})")
+                        if issue_thunks:
+                            summary_line += " (" + ", ".join(issue_thunks) + ")"
+                        author_thunks = list()
+                        for author_d in notes_d.get("authors", list()):
+                            author = author_d.get("github")
+                            if author:
+                                author_thunks.append(f"[{author}](https://github.com/{author})")
+                        if author_thunks:
+                            summary_line += " by " + ", ".join(author_thunks)
+                        self.markdown += "* " + summary_line + "\n"
+
+                packages_scroll_area = u.create_scroll_area(u.create_row(u.create_column(*package_names), u.create_spacing(8),
+                                                         u.create_column(*package_versions), u.create_stretch(),
+                                                         spacing=8))
+                icon_column = u.create_column(u.create_image(image="icon", width=72, height=72), u.create_stretch(), margin=4, spacing=8)
+                main_content_column = u.create_column(u.create_label(text=f"Nion Swift {version_str}"),
+                                                      u.create_label(text="© 2012-2023 Nion Company. All Rights Reserved."),
+                                                      u.create_spacing(13),
+                                                      u.create_label(text=f"Python {sys.version}", word_wrap=True),
+                                                      *base_prefix_label, packages_scroll_area, u.create_stretch(),
+                                                      margin_top=4,
+                                                      margin_bottom=4,
+                                                      spacing=8)
+                recent_changes_content_column = u.create_column(u.create_scroll_area(u.create_column(
+                    u.create_text_browser(markdown="@binding(markdown)", on_anchor_clicked="handle_anchor_clicked", size_policy_vertical="expanding"))))
+                main_tabs = u.create_tabs(
+                    u.create_tab(label=_("About"), content=main_content_column),
+                    u.create_tab(label=_("Recent Changes"), content=recent_changes_content_column),
+                    style="minimal"
+                )
+                self.ui_view = u.create_column(
+                    u.create_row(
+                        icon_column,
+                        main_tabs,
+                        spacing=8,
+                        margin=6
+                    ),
+                    min_width=640,
+                    min_height=300
+                )
+
+            def handle_anchor_clicked(self, widget: Declarative.UIWidget, anchor: str) -> bool:
+                o = urllib.parse.urlparse(anchor)
+                if o.scheme in ("http", "https"):
+                    webbrowser.open(anchor)
+                    return True
+                return False
+
+        self.content.add(Declarative.DeclarativeWidget(ui, self.event_loop or asyncio.get_event_loop(), Handler()))
 
 
 # facilitate bootstrapping the application
@@ -654,56 +749,6 @@ class Application(UIApplication.BaseApplication):
         return info
 
     def show_about_box(self, parent_window: UIWindow.Window) -> None:
-        class AboutDialog(Dialog.OkCancelDialog):
-            def __init__(self, ui: UserInterface.UserInterface, parent_window: UIWindow.Window, version_str: str):
-                super().__init__(ui, include_cancel=False, parent_window=parent_window)
-                row = self.ui.create_row_widget()
-                logo_column = self.ui.create_column_widget()
-                logo_button = self.ui.create_push_button_widget()
-                logo_png = pkgutil.get_data(__name__, "resources/Logo3.png")
-                assert logo_png is not None
-                logo_button.icon = CanvasItem.load_rgba_data_from_bytes(logo_png)
-                logo_column.add_spacing(26)
-                logo_column.add(logo_button)
-                logo_column.add_stretch()
-                column = self.ui.create_column_widget()
-
-                def make_label_row(label: str) -> UserInterface.BoxWidget:
-                    row_one = self.ui.create_row_widget()
-                    row_one.add_spacing(13)
-                    row_one.add(self.ui.create_label_widget(label))
-                    row_one.add_spacing(13)
-                    row_one.add_stretch()
-                    return row_one
-
-                column.add_spacing(26)
-                column.add(make_label_row(f"Nion Swift {version_str}"))
-                column.add(make_label_row("Copyright 2012-2022 Nion Company. All Rights Reserved."))
-                column.add_spacing(13)
-                column.add(make_label_row(f"Python {sys.version}"))
-                if sys.base_prefix:
-                    column.add_spacing(13)
-                    column.add(make_label_row(sys.base_prefix))
-                package_name_column = self.ui.create_column_widget()
-                package_version_column = self.ui.create_column_widget()
-                for _, package_name, package_version in Application.get_nion_swift_version_info():
-                    package_name_column.add(self.ui.create_label_widget(package_name))
-                    package_version_column.add(self.ui.create_label_widget(package_version))
-                version_columns = self.ui.create_row_widget()
-                version_columns.add_spacing(13)
-                version_columns.add(package_name_column)
-                version_columns.add_spacing(8)
-                version_columns.add(package_version_column)
-                version_columns.add_spacing(13)
-                version_columns.add_stretch()
-                column.add_spacing(13)
-                column.add(version_columns)
-                column.add_spacing(13)
-                column.add_stretch()
-                row.add(logo_column)
-                row.add(column)
-                self.content.add(row)
-
         about_dialog = AboutDialog(self.ui, parent_window, self.version_str)
         about_dialog.show()
 
