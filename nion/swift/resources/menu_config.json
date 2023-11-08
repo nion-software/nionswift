@@ -481,6 +481,10 @@
                     },
                     {
                         "type": "item",
+                        "action_id": "processing.radial_profile"
+                    },
+                    {
+                        "type": "item",
                         "action_id": "processing.fourier_filter"
                     },
                     {

@@ -4693,6 +4693,19 @@ class ProjectionSumAction(ProcessingAction):
         return self.invoke_processing(context, context.model.get_projection_new)
 
 
+class RadialProfileAction(ProcessingAction):
+    action_id = "processing.radial_profile"
+    action_name = _("Radial Profile")
+
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.execute_processing(context, context.model.get_radial_profile_new)
+
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.invoke_processing(context, context.model.get_radial_profile_new)
+
+
 class RebinAction(ProcessingAction):
     action_id = "processing.rebin"
     action_name = _("Rebin")
@@ -4966,6 +4979,7 @@ Window.register_action(PickAction())
 Window.register_action(PickAverageAction())
 Window.register_action(PickSumAction())
 Window.register_action(ProjectionSumAction())
+Window.register_action(RadialProfileAction())
 Window.register_action(RebinAction())
 Window.register_action(ResampleAction())
 Window.register_action(ResizeAction())
