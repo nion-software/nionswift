@@ -485,6 +485,10 @@
                     },
                     {
                         "type": "item",
+                        "action_id": "processing.power_spectrum"
+                    },
+                    {
+                        "type": "item",
                         "action_id": "processing.fourier_filter"
                     },
                     {

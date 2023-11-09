@@ -4680,6 +4680,19 @@ class PickSumAction(ProcessingAction):
         return self.invoke_processing(context, context.model.get_pick_region_new)
 
 
+class PowerSpectrumAction(ProcessingAction):
+    action_id = "processing.power_spectrum"
+    action_name = _("Power Spectrum")
+
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.execute_processing(context, context.model.get_power_spectrum_new)
+
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.invoke_processing(context, context.model.get_power_spectrum_new)
+
+
 class ProjectionSumAction(ProcessingAction):
     action_id = "processing.projection_sum"
     action_name = _("Projection (Sum)")
@@ -4978,6 +4991,7 @@ Window.register_action(NegateAction())
 Window.register_action(PickAction())
 Window.register_action(PickAverageAction())
 Window.register_action(PickSumAction())
+Window.register_action(PowerSpectrumAction())
 Window.register_action(ProjectionSumAction())
 Window.register_action(RadialProfileAction())
 Window.register_action(RebinAction())

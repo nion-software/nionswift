@@ -2573,8 +2573,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             line_profile_in_region = {"name": "line_region", "type": "line", "params": {"label": _("Line Profile")}}
             vs["line-profile"] = {"title": _("Line Profile"), "expression": "xd.line_profile(xd.absolute({src}.element_xdata) if {src}.element_xdata.is_data_complex_type else {src}.element_xdata, line_region.vector, line_region.line_width)",
                 "sources": [{"name": "src", "label": _("Source"), "regions": [line_profile_in_region]}]}
-            vs["radial-profile"] = {"title": _("Radial Profile"), "expression": "xd.radial_profile({src}.display_xdata)",
-                "sources": [{"name": "src", "label": _("Source"), "requirements": [requirement_2d]}]}
+            vs["radial-profile"] = {"title": _("Radial Profile"), "expression": "xd.radial_profile({src}.cropped_display_xdata)",
+                "sources": [{"name": "src", "label": _("Source"), "croppable": True, "requirements": [requirement_2d]}]}
+            vs["power-spectrum"] = {"title": _("Power Spectrum"), "expression": "xd.radial_profile(xd.power(xd.absolute(xd.fft({src}.cropped_display_xdata)), 2))",
+                "sources": [{"name": "src", "label": _("Source"), "croppable": True, "requirements": [requirement_2d]}]}
             vs["filter"] = {"title": _("Filter"), "expression": "xd.real(xd.ifft({src}.filtered_xdata))",
                 "sources": [{"name": "src", "label": _("Source"), "requirements": [requirement_2d]}]}
             vs["sequence-register"] = {"title": _("Shifts"), "expression": "xd.sequence_squeeze_measurement(xd.sequence_measure_relative_translation({src}.xdata, {src}.xdata[numpy.unravel_index(0, {src}.xdata.navigation_dimension_shape)], 100))",
@@ -2737,6 +2739,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
     def get_radial_profile_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
         return self.__make_computation("radial-profile", [(display_item, data_item, crop_region)])
+
+    def get_power_spectrum_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
+        return self.__make_computation("power-spectrum", [(display_item, data_item, crop_region)])
 
     def get_fourier_filter_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
         display_data_item = display_item.data_item
