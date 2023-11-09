@@ -2264,7 +2264,7 @@ class CalibratedValueFloatToStringConverter(Converter.ConverterLike[float, str])
         index = self.__index
         calibrations = self.__display_item.displayed_datum_calibrations
         if self.__uniform:
-            unit_set = list(calibration.units if calibration.units else '' for calibration in calibrations)
+            unit_set = set(calibration.units if calibration.units else '' for calibration in calibrations)
             if len(unit_set) > 1:
                 return Calibration.Calibration()
         dimension_count = len(calibrations)
