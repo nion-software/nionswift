@@ -152,6 +152,10 @@ class DisplayItemAdapter:
     def project_str(self) -> str:
         return self.__display_item.project_str if self.__display_item else str()
 
+    @property
+    def tool_tip(self) -> str:
+        return self.__display_item.tool_tip_str if self.__display_item else str()
+
     def drag_started(self, ui: UserInterface.UserInterface, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> typing.Tuple[typing.Optional[UserInterface.MimeData], typing.Optional[_NDArray]]:
         if self.__display_item:
             mime_data = self.ui.create_mime_data()
@@ -474,6 +478,12 @@ class GridCanvasItemDelegate(GridCanvasItem.GridCanvasItemDelegate):
     @items.setter
     def items(self, value: typing.Sequence[DisplayItemAdapter]) -> None:
         raise NotImplementedError()
+
+    def item_tool_tip(self, index: int) -> typing.Optional[str]:
+        items = self.items
+        if 0 <= index < len(items):
+            return items[index].tool_tip
+        return None
 
     def paint_item(self, drawing_context: DrawingContext.DrawingContext, display_item_adapter: DisplayItemAdapter, rect: Geometry.IntRect, is_selected: bool) -> None:
         display_item_adapter.draw_grid_item(drawing_context, rect)

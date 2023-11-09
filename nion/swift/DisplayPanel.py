@@ -1757,6 +1757,13 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
 
         self.__header_canvas_item.on_double_clicked = header_double_clicked
 
+        def handle_header_tool_tip() -> typing.Optional[str]:
+            if display_item := self.display_item:
+                return display_item.tool_tip_str
+            return None
+
+        self.__header_canvas_item.on_tool_tip = handle_header_tool_tip
+
         self.__footer_canvas_item = CanvasItem.CanvasItemComposition()
         self.__footer_canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
         self.__footer_canvas_item.update_sizing(self.__footer_canvas_item.sizing.with_collapsible(True))

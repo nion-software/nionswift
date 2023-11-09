@@ -244,6 +244,7 @@ class HeaderCanvasItem(CanvasItem.CanvasItemComposition):
         self.on_close_clicked: typing.Optional[typing.Callable[[], None]] = None
         self.on_context_menu_clicked: typing.Optional[typing.Callable[[int, int, int, int], bool]] = None
         self.on_double_clicked: typing.Optional[typing.Callable[[int, int, UserInterface.KeyboardModifiers], bool]] = None
+        self.on_tool_tip: typing.Optional[typing.Callable[[], typing.Optional[str]]] = None
         self.__mouse_pressed_position: typing.Optional[Geometry.IntPoint] = None
 
     def close(self) -> None:
@@ -326,6 +327,15 @@ class HeaderCanvasItem(CanvasItem.CanvasItemComposition):
     def reset_header_colors(self) -> None:
         self.__set_default_style()
         self.update()
+
+    def mouse_entered(self) -> bool:
+        if callable(self.on_tool_tip):
+            self.tool_tip = self.on_tool_tip()
+        return super().mouse_entered()
+
+    def mouse_exited(self) -> bool:
+        self.tool_tip = None
+        return super().mouse_exited()
 
     def mouse_pressed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         self.__mouse_pressed_position = Geometry.IntPoint(y=y, x=x)

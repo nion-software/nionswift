@@ -2348,6 +2348,12 @@ class DisplayItem(Persistence.PersistentObject):
     def session_id(self, value: typing.Optional[str]) -> None:
         self.__set_cascaded_value("session_id", str(value) if value is not None else str())
 
+    @property
+    def tool_tip_str(self) -> str:
+        lines = [self.displayed_title, self.size_and_data_format_as_string, self.date_for_sorting_local_as_string, self.status_str, self.project_str]
+        lines = [line for line in lines if line]
+        return "\n".join(lines)
+
     def __insert_display_data_channel(self, name: str, before_index: int, display_data_channel: DisplayDataChannel) -> None:
         display_data_channel.increment_display_ref_count(self._display_ref_count)
         self.__display_data_channel_property_changed_event_listeners.insert(before_index, display_data_channel.property_changed_event.listen(self.__display_channel_property_changed))

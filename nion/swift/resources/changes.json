@@ -3,6 +3,13 @@
     "version": "Unreleased",
     "notes": [
       {
+        "issues": ["https://github.com/nion-software/nionswift/issues/5"],
+        "summary": "Hovering over items in grid browser shows info about the item."
+      },
+      {
+        "summary": "Hovering over title bar shows info about the displayed item."
+      },
+      {
         "issues": ["https://github.com/nion-software/nionswift/issues/989"],
         "summary": "Add a power spectrum menu item to Fourier processing sub-menu."
       },
