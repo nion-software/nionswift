@@ -248,8 +248,10 @@ class Specifier(Schema.Entity):
             self._set_field_value("reference", reference)
 
     def __eq__(self, other: typing.Any) -> bool:
-        if other and isinstance(other, self.__class__):
-            return self.write() == other.write()
+        # written like this to work around regression in mypy 1.7
+        if other:
+            if isinstance(other, self.__class__):
+                return self.write() == other.write()
         return False
 
     def __hash__(self) -> typing.Any:
