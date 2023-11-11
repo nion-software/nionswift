@@ -4004,6 +4004,30 @@ class RasterDisplayNudgeSliceAction(Window.Action):
         return context.display_panel is not None and context.display_panel.display_canvas_item is not None
 
 
+class RasterDisplaySetDisplayLimitsAction(Window.Action):
+    action_id = "raster_display.set_display_limits"
+    action_name = _("Set Display Limits")
+
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        display_item = context.display_item
+        display_data_channel = display_item.display_data_channel if display_item else None
+        if display_data_channel:
+            display_limits = context.parameters["display_limits"]
+            command = DisplayPanel.ChangeDisplayDataChannelCommand(context.model,
+                                                                   display_data_channel,
+                                                                   display_limits=display_limits,
+                                                                   title=_("Change Display Limits"))
+            command.perform()
+            window.push_undo_command(command)
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return context.display_panel is not None
+
+
 Window.register_action(LineProfileGraphicAction("line_profile.expand", _("Expand Line Profile Width"), 1.0))
 Window.register_action(LineProfileGraphicAction("line_profile.contract", _("Contract Line Profile Width"), -1.0))
 Window.register_action(RasterDisplayFitToViewAction())
@@ -4031,6 +4055,7 @@ Window.register_action(RasterDisplayMoveAction("raster_display.move_up", _("Move
 Window.register_action(RasterDisplayMoveAction("raster_display.move_down", _("Move Display Down"), Geometry.FloatSize(width=0, height=-100)))
 Window.register_action(RasterDisplayNudgeSliceAction("raster_display.nudge_slice_left", _("Nudge Slice Left"), -1))
 Window.register_action(RasterDisplayNudgeSliceAction("raster_display.nudge_slice_right", _("Nudge Slice Right"), 1))
+Window.register_action(RasterDisplaySetDisplayLimitsAction())
 
 
 class LinePlotDisplayAutoDisplayAction(Window.Action):
