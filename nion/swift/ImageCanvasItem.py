@@ -439,6 +439,50 @@ class ImageAreaCanvasItem(CanvasItem.CanvasItemComposition):
         return False
 
 
+class HandMouseHandler:
+    def __init__(self, image_canvas_item: ImageCanvasItem, event_loop: asyncio.AbstractEventLoop) -> None:
+        self.__image_canvas_item = image_canvas_item
+        self.__mouse_value_stream = Stream.ValueStream[
+            typing.Tuple[Geometry.IntPoint, "UserInterface.KeyboardModifiers"]]()
+        self.__mouse_value_change_stream = Stream.ValueChangeStream(self.__mouse_value_stream)
+        self.__undo_command: typing.Optional[Undo.UndoableCommand] = None
+        self.__last_drag_pos: typing.Optional[Geometry.IntPoint] = None
+        self.__reactor = Stream.ValueChangeStreamReactor[typing.Tuple[Geometry.IntPoint, "UserInterface.KeyboardModifiers"]](
+            self.__mouse_value_change_stream,
+            self.hand_reactor,
+            event_loop)
+
+    def mouse_pressed(self, mouse_pos: Geometry.IntPoint, modifiers: UserInterface.KeyboardModifiers) -> None:
+        self.__mouse_value_stream.value = mouse_pos, modifiers
+        self.__last_drag_pos = mouse_pos
+        self.__mouse_value_change_stream.begin()
+        if self.__image_canvas_item.delegate:
+            self.__image_canvas_item.delegate.begin_mouse_tracking()
+
+    def mouse_position_changed(self, mouse_pos: Geometry.IntPoint, modifiers: UserInterface.KeyboardModifiers) -> None:
+        self.__mouse_value_stream.value = (mouse_pos, modifiers)
+
+    def mouse_released(self, mouse_pos: Geometry.IntPoint, modifiers: UserInterface.KeyboardModifiers) -> None:
+        self.__mouse_value_stream.value = mouse_pos, modifiers
+        self.__mouse_value_change_stream.end()
+        if self.__image_canvas_item.delegate:
+            self.__image_canvas_item.delegate.end_mouse_tracking(self.__undo_command)
+
+    async def hand_reactor(self, r: Stream.ValueChangeStreamReactorInterface[typing.Tuple[Geometry.IntPoint, UserInterface.KeyboardModifiers]]) -> None:
+        while True:
+            value_change = await r.next_value_change()
+            if value_change.is_end:
+                break
+            assert self.__last_drag_pos
+            if value_change.value is not None:
+                mouse_pos, modifiers = value_change.value
+                if not self.__undo_command and self.__image_canvas_item.delegate:
+                    self.__undo_command = self.__image_canvas_item.delegate.create_change_display_command()
+                delta = mouse_pos - self.__last_drag_pos
+                self.__image_canvas_item._update_image_canvas_position(-delta.as_size().to_float_size())
+                self.__last_drag_pos = mouse_pos
+
+
 class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
     """A canvas item to paint an image.
 
@@ -537,10 +581,9 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.__graphic_drag_item: typing.Optional[Graphics.Graphic] = None
         self.__graphic_part_data: typing.Dict[int, Graphics.DragPartData] = dict()
         self.__graphic_drag_indexes: typing.Set[int] = set()
-        self.__last_drag_pos: typing.Optional[Geometry.FloatPoint] = None
         self.__last_mouse: typing.Optional[Geometry.IntPoint] = None
-        self.__is_dragging = False
         self.__mouse_in = False
+        self.__mouse_handler: typing.Optional[HandMouseHandler] = None
 
         # frame rate and latency
         self.__display_frame_rate_id: typing.Optional[str] = None
@@ -712,7 +755,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         return True
 
     # update the image canvas position by the widget delta amount. called on main thread.
-    def __update_image_canvas_position(self, widget_delta: Geometry.FloatSize) -> None:
+    def _update_image_canvas_position(self, widget_delta: Geometry.FloatSize) -> None:
         # create a widget mapping to get from image norm to widget coordinates and back
         delegate = self.delegate
         widget_mapping = ImageCanvasItemMapping.make(self.__data_shape, self.__composite_canvas_item.canvas_bounds, list())
@@ -761,7 +804,13 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         if delegate.image_mouse_pressed(image_position, modifiers):
             return True
         self.__undo_command = None
-        delegate.begin_mouse_tracking()
+        if delegate.tool_mode == "hand":
+            assert not self.__mouse_handler
+            assert self.__event_loop
+            self.__mouse_handler = HandMouseHandler(self, self.__event_loop)
+            self.__mouse_handler.mouse_pressed(Geometry.IntPoint(y=y, x=x), modifiers)
+        else:
+            delegate.begin_mouse_tracking()
         # figure out clicked graphic
         self.__graphic_drag_items = list()
         self.__graphic_drag_item = None
@@ -999,9 +1048,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                 self.__graphic_drag_items.append(graphic)
                 self.__graphic_part_data[list(selection_indexes)[0]] = graphic.begin_drag()
                 self.__undo_command = delegate.create_insert_graphics_command([graphic])
-        elif delegate.tool_mode == "hand":
-            self.__last_drag_pos = mouse_pos
-            self.__is_dragging = True
+
         return True
 
     def mouse_released(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
@@ -1032,14 +1079,17 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                     delegate.remove_index_from_selection(graphic_index)
                 else:
                     delegate.add_index_to_selection(graphic_index)
-        delegate.end_mouse_tracking(self.__undo_command)
+        if self.__mouse_handler:
+            self.__mouse_handler.mouse_released(Geometry.IntPoint(y, x), modifiers)
+            self.__mouse_handler = None
+        else:
+            # mouse handler will do this part
+            delegate.end_mouse_tracking(self.__undo_command)
         self.__undo_command = None
         self.__graphic_drag_items = list()
         self.__graphic_drag_item = None
         self.__graphic_part_data = dict()
         self.__graphic_drag_indexes = set()
-        self.__last_drag_pos = None
-        self.__is_dragging = False
         if delegate.tool_mode != "hand":
             delegate.tool_mode = "pointer"
         return True
@@ -1112,13 +1162,8 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             delegate.adjust_graphics(widget_mapping, self.__graphic_drag_items, self.__graphic_drag_part,
                                      self.__graphic_part_data, self.__graphic_drag_start_pos, mouse_pos, modifiers)
             self.__graphic_drag_changed = True
-        elif self.__is_dragging:
-            assert self.__last_drag_pos
-            if not self.__undo_command:
-                self.__undo_command = delegate.create_change_display_command()
-            delta = mouse_pos - self.__last_drag_pos
-            self.__update_image_canvas_position(-delta.as_size())
-            self.__last_drag_pos = mouse_pos
+        if self.__mouse_handler:
+            self.__mouse_handler.mouse_position_changed(Geometry.IntPoint(y, x), modifiers)
         return True
 
     def wheel_changed(self, x: int, y: int, dx: int, dy: int, is_horizontal: bool) -> bool:
@@ -1127,13 +1172,13 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             dx = dx if is_horizontal else 0
             dy = dy if not is_horizontal else 0
             command = delegate.create_change_display_command(command_id="image_position", is_mergeable=True)
-            self.__update_image_canvas_position(Geometry.FloatSize(-dy, -dx))
+            self._update_image_canvas_position(Geometry.FloatSize(-dy, -dx))
             delegate.push_undo_command(command)
             return True
         return False
 
     def pan_gesture(self, dx: int, dy: int) -> bool:
-        self.__update_image_canvas_position(Geometry.FloatSize(dy, dx))
+        self._update_image_canvas_position(Geometry.FloatSize(dy, dx))
         return True
 
     def context_menu_event(self, x: int, y: int, gx: int, gy: int) -> bool:
@@ -1300,7 +1345,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         delegate = self.delegate
         if delegate:
             command = delegate.create_change_display_command(command_id="image_nudge", is_mergeable=True)
-            self.__update_image_canvas_position(delta)
+            self._update_image_canvas_position(delta)
             delegate.push_undo_command(command)
 
     def set_fit_mode(self) -> None:
