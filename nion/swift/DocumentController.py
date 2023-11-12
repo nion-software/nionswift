@@ -60,6 +60,7 @@ from nion.ui import Dialog
 from nion.ui import PreferencesDialog
 from nion.ui import Window
 from nion.ui import UserInterface
+from nion.ui.Window import ActionContext
 from nion.utils import Color
 from nion.utils import Event
 from nion.utils import Geometry
@@ -3897,6 +3898,38 @@ class RasterDisplayTwoViewAction(Window.Action):
         return context.display_item is not None and context.display_item.used_display_type == "image"
 
 
+class RasterDisplaySetImagePositionAction(Window.Action):
+    action_id = "raster_display.set_image_position"
+    action_name = _("Set Image Position")
+
+    def __init__(self) -> None:
+        super().__init__()
+
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        if context.display_panel:
+            image_position = context.parameters["image_position"]
+            command = getattr(context, "_undo_command")
+            setattr(context, "_undo_command", None)
+            self.__undo_command = None
+            if not command:
+                command = context.display_panel.create_change_display_command()
+            context.display_panel.update_display_properties({"image_position": image_position, "image_canvas_mode": "custom"})
+            command.perform()
+            window.push_undo_command(command)
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
+
+    def invoke_prepare(self, context: ActionContext) -> None:
+        context = typing.cast(DocumentController.ActionContext, context)
+        if context.display_panel:
+            setattr(context, "_undo_command", context.display_panel.create_change_display_command())
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return context.display_item is not None and context.display_item.used_display_type == "image"
+
+
 class RasterDisplayZoomOutAction(Window.Action):
     action_id = "raster_display.zoom_out"
     action_name = _("Zoom Out")
@@ -4025,7 +4058,7 @@ class RasterDisplaySetDisplayLimitsAction(Window.Action):
 
     def is_enabled(self, context: Window.ActionContext) -> bool:
         context = typing.cast(DocumentController.ActionContext, context)
-        return context.display_panel is not None
+        return context.display_item is not None and context.display_item.used_display_type == "image"
 
 
 Window.register_action(LineProfileGraphicAction("line_profile.expand", _("Expand Line Profile Width"), 1.0))
@@ -4034,6 +4067,7 @@ Window.register_action(RasterDisplayFitToViewAction())
 Window.register_action(RasterDisplayFillViewAction())
 Window.register_action(RasterDisplayOneViewAction())
 Window.register_action(RasterDisplayTwoViewAction())
+Window.register_action(RasterDisplaySetImagePositionAction())
 Window.register_action(RasterDisplayZoomOutAction())
 Window.register_action(RasterDisplayZoomInAction())
 Window.register_action(RasterDisplayAutoDisplayAction())

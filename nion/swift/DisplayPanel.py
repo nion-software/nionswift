@@ -2834,6 +2834,19 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
     def push_undo_command(self, command: Undo.UndoableCommand) -> None:
         self.__document_controller.push_undo_command(command)
 
+    # naming to avoid conflict without older perform_action method above
+    def perform_command_action(self, action_or_action_id: typing.Union[str, Window.Action], action_context: Window.ActionContext, **kwargs: typing.Any) -> None:
+        for key, value in iter(kwargs.items()):
+            action_context.parameters[key] = value
+        self.__document_controller.perform_action_in_context(action_or_action_id, action_context)
+
+    def prepare_command_action(self, action_or_action_id: typing.Union[str, Window.Action], **kwargs: typing.Any) -> typing.Optional[DocumentController.DocumentController.ActionContext]:
+        action_context = self.__document_controller._get_action_context()
+        for key, value in iter(kwargs.items()):
+            action_context.parameters[key] = value
+        self.__document_controller.prepare_action_in_context(action_or_action_id, action_context)
+        return action_context
+
     def create_rectangle(self, pos: Geometry.FloatPoint) -> Graphics.RectangleGraphic:
         assert self.__display_item
         self.__display_item.graphic_selection.clear()
