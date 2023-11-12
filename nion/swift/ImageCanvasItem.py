@@ -30,6 +30,7 @@ if typing.TYPE_CHECKING:
     from nion.swift.model import Persistence
     from nion.ui import DrawingContext
     from nion.ui import UserInterface
+    from nion.ui import Window
 
 
 
@@ -445,8 +446,6 @@ class HandMouseHandler:
         self.__mouse_value_stream = Stream.ValueStream[
             typing.Tuple[Geometry.IntPoint, "UserInterface.KeyboardModifiers"]]()
         self.__mouse_value_change_stream = Stream.ValueChangeStream(self.__mouse_value_stream)
-        self.__undo_command: typing.Optional[Undo.UndoableCommand] = None
-        self.__last_drag_pos: typing.Optional[Geometry.IntPoint] = None
         self.__reactor = Stream.ValueChangeStreamReactor[typing.Tuple[Geometry.IntPoint, "UserInterface.KeyboardModifiers"]](
             self.__mouse_value_change_stream,
             self.hand_reactor,
@@ -454,10 +453,7 @@ class HandMouseHandler:
 
     def mouse_pressed(self, mouse_pos: Geometry.IntPoint, modifiers: UserInterface.KeyboardModifiers) -> None:
         self.__mouse_value_stream.value = mouse_pos, modifiers
-        self.__last_drag_pos = mouse_pos
         self.__mouse_value_change_stream.begin()
-        if self.__image_canvas_item.delegate:
-            self.__image_canvas_item.delegate.begin_mouse_tracking()
 
     def mouse_position_changed(self, mouse_pos: Geometry.IntPoint, modifiers: UserInterface.KeyboardModifiers) -> None:
         self.__mouse_value_stream.value = (mouse_pos, modifiers)
@@ -465,22 +461,31 @@ class HandMouseHandler:
     def mouse_released(self, mouse_pos: Geometry.IntPoint, modifiers: UserInterface.KeyboardModifiers) -> None:
         self.__mouse_value_stream.value = mouse_pos, modifiers
         self.__mouse_value_change_stream.end()
-        if self.__image_canvas_item.delegate:
-            self.__image_canvas_item.delegate.end_mouse_tracking(self.__undo_command)
 
     async def hand_reactor(self, r: Stream.ValueChangeStreamReactorInterface[typing.Tuple[Geometry.IntPoint, UserInterface.KeyboardModifiers]]) -> None:
+        if self.__image_canvas_item.delegate:
+            self.__image_canvas_item.delegate.begin_mouse_tracking()
+        action_context: typing.Optional[Window.ActionContext] = None
+        image_position: typing.Optional[Geometry.FloatPoint] = None
+        last_drag_pos: typing.Optional[Geometry.IntPoint] = None
         while True:
             value_change = await r.next_value_change()
             if value_change.is_end:
                 break
-            assert self.__last_drag_pos
             if value_change.value is not None:
                 mouse_pos, modifiers = value_change.value
-                if not self.__undo_command and self.__image_canvas_item.delegate:
-                    self.__undo_command = self.__image_canvas_item.delegate.create_change_display_command()
-                delta = mouse_pos - self.__last_drag_pos
-                self.__image_canvas_item._update_image_canvas_position(-delta.as_size().to_float_size())
-                self.__last_drag_pos = mouse_pos
+                if value_change.is_begin:
+                    last_drag_pos = mouse_pos
+                assert last_drag_pos
+                if not action_context and self.__image_canvas_item.delegate:
+                    action_context = self.__image_canvas_item.delegate.prepare_command_action("raster_display.set_image_position")
+                delta = mouse_pos - last_drag_pos
+                image_position = self.__image_canvas_item._update_image_canvas_position(-delta.as_size().to_float_size())
+                last_drag_pos = mouse_pos
+        if self.__image_canvas_item.delegate:
+            self.__image_canvas_item.delegate.end_mouse_tracking(None)
+            if action_context and image_position:
+                self.__image_canvas_item.delegate.perform_command_action("raster_display.set_image_position", action_context, image_position=image_position)
 
 
 class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
@@ -754,9 +759,24 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                 delegate.update_display_data_channel_properties({"display_limits": (mn, mx)})
         return True
 
-    # update the image canvas position by the widget delta amount. called on main thread.
-    def _update_image_canvas_position(self, widget_delta: Geometry.FloatSize) -> None:
+    def _set_image_canvas_position(self, image_position: Geometry.FloatPoint) -> None:
         # create a widget mapping to get from image norm to widget coordinates and back
+        delegate = self.delegate
+        widget_mapping = ImageCanvasItemMapping.make(self.__data_shape, self.__composite_canvas_item.canvas_bounds, list())
+        if delegate and widget_mapping:
+            self.__image_position = image_position
+            self.__scroll_area_layout._image_position = self.__image_position
+            delegate.update_display_properties({"image_position": list(self.__image_position), "image_canvas_mode": "custom"})
+            # and update the image canvas accordingly
+            self.__image_canvas_mode = "custom"
+            self.__scroll_area_layout._image_canvas_mode = self.__image_canvas_mode
+            self.scroll_area_canvas_item._needs_layout(self.scroll_area_canvas_item)
+            self.__composite_canvas_item.update()
+
+    # update the image canvas position by the widget delta amount. called on main thread.
+    def _update_image_canvas_position(self, widget_delta: Geometry.FloatSize) -> Geometry.FloatPoint:
+        # create a widget mapping to get from image norm to widget coordinates and back
+        new_image_canvas_position = Geometry.FloatPoint()
         delegate = self.delegate
         widget_mapping = ImageCanvasItemMapping.make(self.__data_shape, self.__composite_canvas_item.canvas_bounds, list())
         if delegate and widget_mapping:
@@ -770,14 +790,9 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             new_image_norm_center_0 = max(min(new_image_norm_center[0], 1.0), 0.0)
             new_image_norm_center_1 = max(min(new_image_norm_center[1], 1.0), 0.0)
             # save the new image norm center
-            self.__image_position = Geometry.FloatPoint(new_image_norm_center_0, new_image_norm_center_1)
-            self.__scroll_area_layout._image_position = self.__image_position
-            delegate.update_display_properties({"image_position": list(self.__image_position), "image_canvas_mode": "custom"})
-            # and update the image canvas accordingly
-            self.__image_canvas_mode = "custom"
-            self.__scroll_area_layout._image_canvas_mode = self.__image_canvas_mode
-            self.scroll_area_canvas_item._needs_layout(self.scroll_area_canvas_item)
-            self.__composite_canvas_item.update()
+            new_image_canvas_position = Geometry.FloatPoint(new_image_norm_center_0, new_image_norm_center_1)
+            self._set_image_canvas_position(new_image_canvas_position)
+        return new_image_canvas_position
 
     def mouse_clicked(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         if super().mouse_clicked(x, y, modifiers):

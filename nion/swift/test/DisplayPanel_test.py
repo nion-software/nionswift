@@ -3038,6 +3038,42 @@ class TestDisplayPanelClass(unittest.TestCase):
             document_controller.periodic()
             self.assertEqual(2, display_item.display_data_channel.sequence_index)
 
+    def test_hand_tool_undo(self):
+        # testing during the development of the mouse handler and the undo/redo system with actions
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.DataItem(numpy.zeros((10, 10)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel.set_display_panel_display_item(display_item)
+            header_height = display_panel.header_canvas_item.header_height
+            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
+            # run test
+            display_panel.perform_action("set_fit_mode")
+            self.assertEqual((0.5, 0.5), tuple(display_item.display_properties["image_position"]))
+            document_controller.tool_mode = "hand"
+            display_panel.display_canvas_item.simulate_drag((100,100), (200,200))
+            document_controller.periodic()
+            self.assertEqual((0.4, 0.4), tuple(display_item.display_properties["image_position"]))
+            # undo check assumptions
+            document_controller.handle_undo()
+            self.assertEqual((0.5, 0.5), tuple(display_item.display_properties["image_position"]))
+            # redo check assumptions
+            document_controller.handle_redo()
+            self.assertEqual((0.4, 0.4), tuple(display_item.display_properties["image_position"]))
+            # move again
+            display_panel.display_canvas_item.simulate_drag((100,100), (200,200))
+            document_controller.periodic()
+            self.assertEqual((0.3, 0.3), tuple(display_item.display_properties["image_position"]))
+            # undo check assumptions
+            document_controller.handle_undo()
+            self.assertEqual((0.4, 0.4), tuple(display_item.display_properties["image_position"]))
+            # undo again check assumptions
+            document_controller.handle_undo()
+            self.assertEqual((0.5, 0.5), tuple(display_item.display_properties["image_position"]))
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
