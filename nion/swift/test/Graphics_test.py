@@ -130,6 +130,7 @@ class TestGraphicsClass(unittest.TestCase):
                 document_controller.tool_mode = tool_mode
                 self.assertEqual(0, len(display_item.graphics))
                 display_panel.display_canvas_item.simulate_drag((500, 500), (600, 600))
+                document_controller.periodic()
                 self.assertEqual(1, len(display_item.graphics))
                 graphic = display_item.graphics[0]
                 self.assertIsInstance(graphic, graphic_type)
