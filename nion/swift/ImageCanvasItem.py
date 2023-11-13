@@ -440,16 +440,16 @@ class ImageAreaCanvasItem(CanvasItem.CanvasItemComposition):
         return False
 
 
-class HandMouseHandler:
+MousePositionAndModifiers = typing.Tuple[Geometry.IntPoint, "UserInterface.KeyboardModifiers"]
+MouseHandlerReactorFn = typing.Callable[[Stream.ValueChangeStreamReactorInterface[MousePositionAndModifiers]], typing.Coroutine[typing.Any, typing.Any, typing.Any]]
+
+
+class MouseHandler:
     def __init__(self, image_canvas_item: ImageCanvasItem, event_loop: asyncio.AbstractEventLoop) -> None:
         self.__image_canvas_item = image_canvas_item
-        self.__mouse_value_stream = Stream.ValueStream[
-            typing.Tuple[Geometry.IntPoint, "UserInterface.KeyboardModifiers"]]()
+        self.__mouse_value_stream = Stream.ValueStream[MousePositionAndModifiers]()
         self.__mouse_value_change_stream = Stream.ValueChangeStream(self.__mouse_value_stream)
-        self.__reactor = Stream.ValueChangeStreamReactor[typing.Tuple[Geometry.IntPoint, "UserInterface.KeyboardModifiers"]](
-            self.__mouse_value_change_stream,
-            self.hand_reactor,
-            event_loop)
+        self.__reactor = Stream.ValueChangeStreamReactor[MousePositionAndModifiers](self.__mouse_value_change_stream, self.reactor_loop, event_loop)
 
     def mouse_pressed(self, mouse_pos: Geometry.IntPoint, modifiers: UserInterface.KeyboardModifiers) -> None:
         self.__mouse_value_stream.value = mouse_pos, modifiers
@@ -462,30 +462,151 @@ class HandMouseHandler:
         self.__mouse_value_stream.value = mouse_pos, modifiers
         self.__mouse_value_change_stream.end()
 
-    async def hand_reactor(self, r: Stream.ValueChangeStreamReactorInterface[typing.Tuple[Geometry.IntPoint, UserInterface.KeyboardModifiers]]) -> None:
-        if self.__image_canvas_item.delegate:
-            self.__image_canvas_item.delegate.begin_mouse_tracking()
-        action_context: typing.Optional[Window.ActionContext] = None
+    async def reactor_loop(self, r: Stream.ValueChangeStreamReactorInterface[MousePositionAndModifiers]) -> None:
+        await self._reactor_loop(r, self.__image_canvas_item)
+
+    async def _reactor_loop(self, r: Stream.ValueChangeStreamReactorInterface[MousePositionAndModifiers], image_canvas_item: ImageCanvasItem) -> None:
+        return
+
+
+class HandMouseHandler(MouseHandler):
+
+    async def _reactor_loop(self, r: Stream.ValueChangeStreamReactorInterface[MousePositionAndModifiers], image_canvas_item: ImageCanvasItem) -> None:
+        delegate = image_canvas_item.delegate
+        assert delegate
+
+        delegate.begin_mouse_tracking()
+
+        # get the beginning mouse position
+        value_change = await r.next_value_change()
+        value_change_value = value_change.value
+        assert value_change.is_begin
+        assert value_change_value is not None
+
         image_position: typing.Optional[Geometry.FloatPoint] = None
-        last_drag_pos: typing.Optional[Geometry.IntPoint] = None
+
+        # preliminary setup for the tracking loop.
+        mouse_pos, modifiers = value_change_value
+        last_drag_pos = mouse_pos
+
+        action_context = delegate.prepare_command_action("raster_display.set_image_position")
+        assert action_context
+
+        # mouse tracking loop. wait for values and update the image position.
         while True:
             value_change = await r.next_value_change()
             if value_change.is_end:
                 break
             if value_change.value is not None:
                 mouse_pos, modifiers = value_change.value
-                if value_change.is_begin:
-                    last_drag_pos = mouse_pos
                 assert last_drag_pos
-                if not action_context and self.__image_canvas_item.delegate:
-                    action_context = self.__image_canvas_item.delegate.prepare_command_action("raster_display.set_image_position")
                 delta = mouse_pos - last_drag_pos
-                image_position = self.__image_canvas_item._update_image_canvas_position(-delta.as_size().to_float_size())
+                image_position = image_canvas_item._update_image_canvas_position(-delta.as_size().to_float_size())
                 last_drag_pos = mouse_pos
-        if self.__image_canvas_item.delegate:
-            self.__image_canvas_item.delegate.end_mouse_tracking(None)
-            if action_context and image_position:
-                self.__image_canvas_item.delegate.perform_command_action("raster_display.set_image_position", action_context, image_position=image_position)
+
+        delegate.end_mouse_tracking(None)
+
+        # if the image position was set, it means the user moved the image. perform the action. otherwise
+        # cancel it so the action can release resources (e.g., undo command).
+        if image_position:
+            delegate.perform_command_action("raster_display.set_image_position", action_context, image_position=image_position)
+        else:
+            delegate.cancel_command_action("raster_display.set_image_position", action_context)
+
+
+class CreateLineGraphicMouseHandler(MouseHandler):
+
+    async def _reactor_loop(self, r: Stream.ValueChangeStreamReactorInterface[MousePositionAndModifiers], image_canvas_item: ImageCanvasItem) -> None:
+        delegate = image_canvas_item.delegate
+        assert delegate
+
+        delegate.begin_mouse_tracking()
+
+        # get the beginning mouse position
+        value_change = await r.next_value_change()
+        value_change_value = value_change.value
+        assert value_change.is_begin
+        assert value_change_value is not None
+
+        # preliminary setup for the tracking loop.
+        mouse_pos_, modifiers = value_change_value
+        mouse_pos = Geometry.FloatPoint(x=mouse_pos_.x, y=mouse_pos_.y)
+        widget_mapping = image_canvas_item.mouse_mapping
+        assert widget_mapping
+        pos = widget_mapping.map_point_widget_to_image_norm(mouse_pos)
+        start_drag_pos = mouse_pos
+
+        # create the graphic and assign a drag part
+        graphic = delegate.create_line(pos)
+        graphic_drag_part = "end"
+
+        # prepare for undo. move this to the command architecture somehow?
+        command = delegate.create_insert_graphics_command([graphic])
+
+        action_context = delegate.prepare_command_action("raster_display.add_graphic")
+        assert action_context
+
+        delegate.add_index_to_selection(image_canvas_item.graphic_index(graphic))
+        # setup drag
+        selection_indexes = image_canvas_item.graphic_selection.indexes
+        assert len(selection_indexes) == 1
+        graphic_drag_item_was_selected = True
+        # keep track of general drag information
+        graphic_drag_start_pos = start_drag_pos
+        graphic_drag_changed = False
+        # keep track of info for the specific item that was clicked
+        # keep track of drag information for each item in the set
+        graphic_drag_indexes = selection_indexes
+        graphic_drag_items: typing.List[Graphics.Graphic] = list()
+        graphic_drag_items.append(graphic)
+        graphic_part_data: typing.Dict[int, Graphics.DragPartData] = dict()
+        graphic_part_data[list(selection_indexes)[0]] = graphic.begin_drag()
+
+        # mouse tracking loop. wait for values and update the graphics.
+        while True:
+            value_change = await r.next_value_change()
+            if value_change.is_end:
+                break
+            if value_change.value is not None:
+                mouse_pos_, modifiers = value_change.value
+                mouse_pos = Geometry.FloatPoint(x=mouse_pos_.x, y=mouse_pos_.y)
+                force_drag = modifiers.only_option
+                if force_drag and graphic_drag_part == "all":
+                    if Geometry.distance(mouse_pos, graphic_drag_start_pos) <= 2:
+                        delegate.drag_graphics(graphic_drag_items)
+                        continue
+                delegate.adjust_graphics(widget_mapping, graphic_drag_items, graphic_drag_part, graphic_part_data, graphic_drag_start_pos, mouse_pos, modifiers)
+                graphic_drag_changed = True
+
+        graphics = list(image_canvas_item.graphics)
+        for index in graphic_drag_indexes:
+            graphic_ = graphics[index]
+            graphic_.end_drag(graphic_part_data[index])
+        if graphic_drag_items and not graphic_drag_changed:
+            graphic_index = graphics.index(graphic)
+            # user didn't move graphic
+            if not modifiers.control:
+                # user clicked on a single graphic
+                delegate.set_selection(graphic_index)
+            else:
+                # user control clicked. toggle selection
+                # if control is down and item is already selected, toggle selection of item
+                if graphic_drag_item_was_selected:
+                    delegate.remove_index_from_selection(graphic_index)
+                else:
+                    delegate.add_index_to_selection(graphic_index)
+
+        delegate.end_mouse_tracking(None)
+
+        # if the user did something, perform the action. otherwise cancel it so the action can release resources (
+        # e.g., undo command).
+        if graphic_drag_changed:
+            setattr(action_context, "_graphic", graphic)
+            setattr(action_context, "_undo_command", command)
+            delegate.perform_command_action("raster_display.add_graphic", action_context)
+        else:
+            command.close()
+            delegate.cancel_command_action("raster_display.add_graphic", action_context)
 
 
 class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
@@ -588,7 +709,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.__graphic_drag_indexes: typing.Set[int] = set()
         self.__last_mouse: typing.Optional[Geometry.IntPoint] = None
         self.__mouse_in = False
-        self.__mouse_handler: typing.Optional[HandMouseHandler] = None
+        self.__mouse_handler: typing.Optional[MouseHandler] = None
 
         # frame rate and latency
         self.__display_frame_rate_id: typing.Optional[str] = None
@@ -759,6 +880,17 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                 delegate.update_display_data_channel_properties({"display_limits": (mn, mx)})
         return True
 
+    @property
+    def graphics(self) -> typing.Sequence[Graphics.Graphic]:
+        return self.__graphics
+
+    def graphic_index(self, graphic: Graphics.Graphic) -> int:
+        return self.__graphics.index(graphic)
+
+    @property
+    def graphic_selection(self) -> DisplayItem.GraphicSelection:
+        return self.__graphic_selection
+
     def _set_image_canvas_position(self, image_position: Geometry.FloatPoint) -> None:
         # create a widget mapping to get from image norm to widget coordinates and back
         delegate = self.delegate
@@ -823,6 +955,11 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             assert not self.__mouse_handler
             assert self.__event_loop
             self.__mouse_handler = HandMouseHandler(self, self.__event_loop)
+            self.__mouse_handler.mouse_pressed(Geometry.IntPoint(y=y, x=x), modifiers)
+        if delegate.tool_mode == "line":
+            assert not self.__mouse_handler
+            assert self.__event_loop
+            self.__mouse_handler = CreateLineGraphicMouseHandler(self, self.__event_loop)
             self.__mouse_handler.mouse_pressed(Geometry.IntPoint(y=y, x=x), modifiers)
         else:
             delegate.begin_mouse_tracking()
@@ -890,7 +1027,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                     self.__graphic_part_data[index] = graphic.begin_drag()
             if not self.__graphic_drag_items and not modifiers.control:
                 delegate.clear_selection()
-        elif delegate.tool_mode == "line":
+        elif delegate.tool_mode == "line__":
             graphic = delegate.create_line(pos)
             delegate.add_index_to_selection(self.__graphics.index(graphic))
             if graphic:

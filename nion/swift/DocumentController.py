@@ -3830,6 +3830,61 @@ class LineProfileGraphicAction(Window.Action):
         return len(graphic_type_set) == 1 and list(graphic_type_set)[0] == "line-profile"
 
 
+class RasterDisplayCreateGraphicAction(Window.Action):
+    action_id = "raster_display.add_graphic"
+    action_name = _("Create Graphic")
+
+    graphics_table = {
+        "line": (_("Line Graphic"), Graphics.LineGraphic),
+        "rectangle": (_("Rectangle Graphic"), Graphics.RectangleGraphic),
+        "ellipse": (_("Ellipse Graphic"), Graphics.EllipseGraphic),
+        "point": (_("Point Graphic"), Graphics.PointGraphic),
+        "line-profile": (_("Line Profile Graphic"), Graphics.LineProfileGraphic),
+        "spot": (_("Spot Graphic"), Graphics.SpotGraphic),
+        "wedge": (_("Wedge Graphic"), Graphics.WedgeGraphic),
+        "ring": (_("Ring Graphic"), Graphics.RingGraphic),
+        "lattice": (_("Lattice Graphic"), Graphics.LatticeGraphic),
+    }
+
+    def __init__(self) -> None:
+        super().__init__()
+
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        if context.display_panel:
+            graphic = getattr(context, "_graphic")
+            setattr(context, "_graphic", None)
+            assert graphic  # TODO: make this work using parameters
+            command = getattr(context, "_undo_command")
+            setattr(context, "_undo_command", None)
+            if not command:
+                command = context.display_panel.create_insert_graphics_command([graphic])
+            for key, value in context.parameters.get("graphic_properties", dict[str, typing.Any]()).items():
+                setattr(graphic, key, value)
+            command.perform()
+            window.push_undo_command(command)
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
+
+    # def invoke_prepare(self, context: ActionContext) -> None:
+    #     context = typing.cast(DocumentController.ActionContext, context)
+    #     if context.display_panel:
+    #         setattr(context, "_undo_command", context.display_panel.create_insert_graphics_command())
+
+    # def cancel_prepare(self, context: ActionContext) -> None:
+    #     command = getattr(context, "_undo_command")
+    #     setattr(context, "_undo_command", None)
+    #     if command:
+    #         command.close()
+
+    def get_action_name(self, context: ActionContext) -> str:
+        return _("Create") + " " + self.graphics_table[context.parameters["graphic_type"]][0]
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return context.display_item is not None and context.display_item.used_display_type == "image"
+
+
 class RasterDisplayFillViewAction(Window.Action):
     action_id = "raster_display.fill_view"
     action_name = _("Fill View")
@@ -3912,7 +3967,6 @@ class RasterDisplaySetImagePositionAction(Window.Action):
             image_position = context.parameters["image_position"]
             command = getattr(context, "_undo_command")
             setattr(context, "_undo_command", None)
-            self.__undo_command = None
             if not command:
                 command = context.display_panel.create_change_display_command()
             context.display_panel.update_display_properties({"image_position": image_position, "image_canvas_mode": "custom"})
@@ -3924,6 +3978,12 @@ class RasterDisplaySetImagePositionAction(Window.Action):
         context = typing.cast(DocumentController.ActionContext, context)
         if context.display_panel:
             setattr(context, "_undo_command", context.display_panel.create_change_display_command())
+
+    def cancel_prepare(self, context: ActionContext) -> None:
+        command = getattr(context, "_undo_command")
+        setattr(context, "_undo_command", None)
+        if command:
+            command.close()
 
     def is_enabled(self, context: Window.ActionContext) -> bool:
         context = typing.cast(DocumentController.ActionContext, context)
@@ -4063,6 +4123,7 @@ class RasterDisplaySetDisplayLimitsAction(Window.Action):
 
 Window.register_action(LineProfileGraphicAction("line_profile.expand", _("Expand Line Profile Width"), 1.0))
 Window.register_action(LineProfileGraphicAction("line_profile.contract", _("Contract Line Profile Width"), -1.0))
+Window.register_action(RasterDisplayCreateGraphicAction())
 Window.register_action(RasterDisplayFitToViewAction())
 Window.register_action(RasterDisplayFillViewAction())
 Window.register_action(RasterDisplayOneViewAction())

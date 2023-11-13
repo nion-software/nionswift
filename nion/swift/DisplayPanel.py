@@ -2847,6 +2847,9 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         self.__document_controller.prepare_action_in_context(action_or_action_id, action_context)
         return action_context
 
+    def cancel_command_action(self, action_or_action_id: typing.Union[str, Window.Action], action_context: Window.ActionContext) -> None:
+        self.__document_controller.cancel_action_in_context(action_or_action_id, action_context)
+
     def create_rectangle(self, pos: Geometry.FloatPoint) -> Graphics.RectangleGraphic:
         assert self.__display_item
         self.__display_item.graphic_selection.clear()

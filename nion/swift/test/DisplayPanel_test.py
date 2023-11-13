@@ -1184,16 +1184,35 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertAlmostEqual(region.bounds[1][0], 0.30)
         self.assertAlmostEqual(region.bounds[1][1], 0.15)
 
-    def test_dragging_to_add_line_makes_desired_line(self):
-        self.document_controller.tool_mode = "line"
-        self.display_panel.display_canvas_item.simulate_drag((100,125), (200,250))
-        self.assertEqual(len(self.display_item.graphics), 1)
-        region = self.display_item.graphics[0]
-        self.assertEqual(region.type, "line-graphic")
-        self.assertAlmostEqual(region.start[0], 0.1)
-        self.assertAlmostEqual(region.start[1], 0.125)
-        self.assertAlmostEqual(region.end[0], 0.2)
-        self.assertAlmostEqual(region.end[1], 0.25)
+    def test_dragging_to_add_line_makes_desired_line_and_is_undoable(self):
+        with TestContext.create_memory_context() as test_context:
+            # set up the layout
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            display_panel = document_controller.workspace_controller.display_panels[0]
+            document_controller.tool_mode = "line"
+            data_item = DataItem.DataItem(numpy.zeros((10, 10)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel.set_display_panel_display_item(display_item)
+            root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+            header_height = self.display_panel.header_canvas_item.header_height
+            root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=1000, height=1000 + header_height), immediate=True)
+            # drag to make line
+            display_panel.display_canvas_item.simulate_drag((100,125), (200,250))
+            document_controller.periodic()
+            self.assertEqual(1, len(display_item.graphics))
+            region = display_item.graphics[0]
+            self.assertEqual("line-graphic", region.type)
+            self.assertAlmostEqual(0.1, region.start[0])
+            self.assertAlmostEqual(0.125, region.start[1])
+            self.assertAlmostEqual(0.2, region.end[0])
+            self.assertAlmostEqual(0.25, region.end[1])
+            # check undo/redo
+            document_controller.handle_undo()
+            self.assertEqual(0, len(display_item.graphics))
+            document_controller.handle_redo()
+            self.assertEqual(1, len(display_item.graphics))
 
     def test_dragging_to_add_line_profile_makes_desired_line_profile(self):
         with TestContext.create_memory_context() as test_context:
