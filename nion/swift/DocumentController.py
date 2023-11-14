@@ -2761,6 +2761,184 @@ class DocumentController(Window.Window):
                                                 used_data_items)
 
 
+class GraphicFactoryBase:
+    def create_graphic_in_display_item(self, window: DocumentController, display_item: DisplayItem.DisplayItem, graphic_properties: typing.Mapping[str, typing.Any]) -> Graphics.Graphic:
+        graphic = self.create_graphic(graphic_properties)
+        display_item.graphic_selection.clear()
+        display_item.add_graphic(graphic)
+        display_item.graphic_selection.set(display_item.graphics.index(graphic))
+        return graphic
+
+    def get_graphic_properties_from_position(self, display_item: DisplayItem.DisplayItem, pos: Geometry.FloatPoint) -> typing.Mapping[str, typing.Any]:
+        raise NotImplementedError()
+
+    def create_graphic(self, graphic_properties: typing.Mapping[str, typing.Any]) -> Graphics.Graphic:
+        raise NotImplementedError()
+
+    def _get_calibrated_origin_image_norm(self, display_item :DisplayItem.DisplayItem) -> Geometry.FloatPoint:
+        display_data_channel = display_item.display_data_channel
+        assert display_data_channel
+        display_values = display_data_channel.get_latest_computed_display_values()
+        assert display_values
+        element_data_and_metadata = display_values.element_data_and_metadata
+        assert element_data_and_metadata
+        data_shape = element_data_and_metadata.datum_dimension_shape
+        mapping = ImageCanvasItem.ImageCanvasItemMapping.make(data_shape, Geometry.IntRect.unit_rect(), element_data_and_metadata.datum_dimensional_calibrations)
+        assert mapping
+        calibrated_origin_image_norm = mapping.calibrated_origin_image_norm
+        assert calibrated_origin_image_norm
+        return calibrated_origin_image_norm
+
+
+class LineGraphicFactory(GraphicFactoryBase):
+    def get_graphic_properties_from_position(self, display_item: DisplayItem.DisplayItem, pos: Geometry.FloatPoint) -> typing.Mapping[str, typing.Any]:
+        return {
+            "start": pos.as_tuple(),
+            "end": pos.as_tuple()
+        }
+
+    def create_graphic(self, graphic_properties: typing.Mapping[str, typing.Any]) -> Graphics.LineGraphic:
+        graphic = Graphics.LineGraphic()
+        graphic.start = graphic_properties.get("start", (0.2, 0.2))
+        graphic.end = graphic_properties.get("end", (0.8, 0.8))
+        return graphic
+
+
+class RectangleGraphicFactory(GraphicFactoryBase):
+    def get_graphic_properties_from_position(self, display_item: DisplayItem.DisplayItem, pos: Geometry.FloatPoint) -> typing.Mapping[str, typing.Any]:
+        return {
+            "bounds": (pos.as_tuple(), (0.0, 0.0)),
+        }
+
+    def create_graphic(self, graphic_properties: typing.Mapping[str, typing.Any]) -> Graphics.RectangleGraphic:
+        graphic = Graphics.RectangleGraphic()
+        graphic.bounds = graphic_properties.get("bounds", ((0.25, 0.25), (0.5, 0.5)))
+        return graphic
+
+
+class EllipseGraphicFactory(GraphicFactoryBase):
+    def get_graphic_properties_from_position(self, display_item: DisplayItem.DisplayItem, pos: Geometry.FloatPoint) -> typing.Mapping[str, typing.Any]:
+        return {
+            "bounds": (pos.as_tuple(), (0.0, 0.0)),
+        }
+
+    def create_graphic(self, graphic_properties: typing.Mapping[str, typing.Any]) -> Graphics.EllipseGraphic:
+        graphic = Graphics.EllipseGraphic()
+        graphic.bounds = graphic_properties.get("bounds", ((0.25, 0.25), (0.5, 0.5)))
+        return graphic
+
+
+class PointGraphicFactory(GraphicFactoryBase):
+    def get_graphic_properties_from_position(self, display_item: DisplayItem.DisplayItem, pos: Geometry.FloatPoint) -> typing.Mapping[str, typing.Any]:
+        return {
+            "position": pos.as_tuple(),
+        }
+
+    def create_graphic(self, graphic_properties: typing.Mapping[str, typing.Any]) -> Graphics.PointGraphic:
+        graphic = Graphics.PointGraphic()
+        graphic.position = graphic_properties.get("position", (0.5, 0.5))
+        return graphic
+
+
+class LineProfileGraphicFactory(GraphicFactoryBase):
+    def get_graphic_properties_from_position(self, display_item: DisplayItem.DisplayItem, pos: Geometry.FloatPoint) -> typing.Mapping[str, typing.Any]:
+        return {
+            "start": pos.as_tuple(),
+            "end": pos.as_tuple()
+        }
+
+    def create_graphic_in_display_item(self, window: DocumentController, display_item: DisplayItem.DisplayItem, graphic_properties: typing.Mapping[str, typing.Any]) -> Graphics.Graphic:
+        graphic = super().create_graphic_in_display_item(window, display_item, graphic_properties)
+        data_item = display_item.data_item
+        assert data_item
+        document_model = window.document_model
+        line_profile_data_item = document_model.get_line_profile_new(display_item, data_item, None, graphic)
+        assert line_profile_data_item
+        line_profile_display_item = document_model.get_display_item_for_data_item(line_profile_data_item)
+        assert line_profile_display_item
+        window.show_display_item(line_profile_display_item)
+        return graphic
+
+    def create_graphic(self, graphic_properties: typing.Mapping[str, typing.Any]) -> Graphics.LineProfileGraphic:
+        graphic = Graphics.LineProfileGraphic()
+        graphic.start = graphic_properties.get("start", (0.2, 0.2))
+        graphic.end = graphic_properties.get("end", (0.8, 0.8))
+        graphic.width = graphic_properties.get("width", 1.0)
+        return graphic
+
+
+class SpotGraphicFactory(GraphicFactoryBase):
+    def get_graphic_properties_from_position(self, display_item: DisplayItem.DisplayItem, pos: Geometry.FloatPoint) -> typing.Mapping[str, typing.Any]:
+        return {
+            "bounds": Geometry.FloatRect.from_center_and_size(pos - self._get_calibrated_origin_image_norm(display_item), Geometry.FloatSize()).as_tuple()
+        }
+
+    def create_graphic(self, graphic_properties: typing.Mapping[str, typing.Any]) -> Graphics.SpotGraphic:
+        graphic = Graphics.SpotGraphic()
+        graphic.bounds = graphic_properties.get("bounds", ((0.25, 0.25), (0.25, 0.25)))
+        return graphic
+
+
+class WedgeGraphicFactory(GraphicFactoryBase):
+    def get_graphic_properties_from_position(self, display_item: DisplayItem.DisplayItem, pos: Geometry.FloatPoint) -> typing.Mapping[str, typing.Any]:
+        angle = math.pi - math.atan2(0.5 - pos.y, 0.5 - pos.x)
+        return {
+            "end_angle": angle,
+            "start_angle": angle + math.pi
+        }
+
+    def create_graphic(self, graphic_properties: typing.Mapping[str, typing.Any]) -> Graphics.WedgeGraphic:
+        graphic = Graphics.WedgeGraphic()
+        graphic.start_angle = graphic_properties.get("start_angle", 0)
+        graphic.end_angle = graphic_properties.get("end_angle", (3 / 4) * math.pi)
+        return graphic
+
+
+class RingGraphicFactory(GraphicFactoryBase):
+    def get_graphic_properties_from_position(self, display_item: DisplayItem.DisplayItem, pos: Geometry.FloatPoint) -> typing.Mapping[str, typing.Any]:
+        radius = math.sqrt((pos.y - 0.5) ** 2 + (pos.x - 0.5) ** 2)
+        return {
+            "radius_1": radius,
+        }
+
+
+    def create_graphic(self, graphic_properties: typing.Mapping[str, typing.Any]) -> Graphics.RingGraphic:
+        graphic = Graphics.RingGraphic()
+        graphic.radius_1 = graphic_properties.get("radius_1", 0.15)
+        graphic.radius_2 = graphic_properties.get("radius_2", 0.25)
+        return graphic
+
+
+class LatticeGraphicFactory(GraphicFactoryBase):
+    def get_graphic_properties_from_position(self, display_item: DisplayItem.DisplayItem, pos: Geometry.FloatPoint) -> typing.Mapping[str, typing.Any]:
+        u_pos = pos - self._get_calibrated_origin_image_norm(display_item)
+        v_pos = Geometry.FloatPoint(-u_pos.x, -u_pos.y)  # rotated 90
+        return {
+            "u_pos": u_pos.as_tuple(),
+            "v_pos": v_pos.as_tuple(),
+            "radius": 0.1
+        }
+
+    def create_graphic(self, graphic_properties: typing.Mapping[str, typing.Any]) -> Graphics.LatticeGraphic:
+        graphic = Graphics.LatticeGraphic()
+        graphic.u_pos = graphic_properties.get("u_pos", (0.0, 0.25))
+        graphic.v_pos = graphic_properties.get("v_pos", (-0.25, 0.0))
+        return graphic
+
+
+graphic_factory_table: typing.Mapping[str, GraphicFactoryBase] = {
+    "line-graphic": LineGraphicFactory(),
+    "rectangle-graphic": RectangleGraphicFactory(),
+    "ellipse-graphic": EllipseGraphicFactory(),
+    "point-graphic": PointGraphicFactory(),
+    "line-profile-graphic": LineProfileGraphicFactory(),
+    "spot-graphic": SpotGraphicFactory(),
+    "wedge-graphic": WedgeGraphicFactory(),
+    "ring-graphic": RingGraphicFactory(),
+    "lattice-graphic": LatticeGraphicFactory(),
+}
+
+
 class DeleteItemAction(Window.Action):
     action_id = "item.delete"
     action_name = _("Delete Item")
@@ -3834,51 +4012,54 @@ class RasterDisplayCreateGraphicAction(Window.Action):
     action_id = "raster_display.add_graphic"
     action_name = _("Create Graphic")
 
-    graphics_table = {
-        "line": (_("Line Graphic"), Graphics.LineGraphic),
-        "rectangle": (_("Rectangle Graphic"), Graphics.RectangleGraphic),
-        "ellipse": (_("Ellipse Graphic"), Graphics.EllipseGraphic),
-        "point": (_("Point Graphic"), Graphics.PointGraphic),
-        "line-profile": (_("Line Profile Graphic"), Graphics.LineProfileGraphic),
-        "spot": (_("Spot Graphic"), Graphics.SpotGraphic),
-        "wedge": (_("Wedge Graphic"), Graphics.WedgeGraphic),
-        "ring": (_("Ring Graphic"), Graphics.RingGraphic),
-        "lattice": (_("Lattice Graphic"), Graphics.LatticeGraphic),
-    }
-
     def __init__(self) -> None:
         super().__init__()
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
         window = typing.cast(DocumentController, context.window)
-        if context.display_panel:
-            graphic = getattr(context, "_graphic")
-            setattr(context, "_graphic", None)
-            assert graphic  # TODO: make this work using parameters
-            command = getattr(context, "_undo_command")
-            setattr(context, "_undo_command", None)
-            if not command:
-                command = context.display_panel.create_insert_graphics_command([graphic])
-            for key, value in context.parameters.get("graphic_properties", dict[str, typing.Any]()).items():
-                setattr(graphic, key, value)
+        display_item = context.display_item
+        if context.display_panel and display_item:
+            graphic_type = context.parameters["graphic_type"]
+            graphic_properties = context.parameters.get("graphic_properties", dict[str, typing.Any]())
+            graphic = graphic_factory_table[graphic_type].create_graphic_in_display_item(window, display_item, graphic_properties)
+            command = context.display_panel.create_insert_graphics_command([graphic])
             command.perform()
             window.push_undo_command(command)
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
-    # def invoke_prepare(self, context: ActionContext) -> None:
-    #     context = typing.cast(DocumentController.ActionContext, context)
-    #     if context.display_panel:
-    #         setattr(context, "_undo_command", context.display_panel.create_insert_graphics_command())
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        if context.display_panel:
+            graphic = getattr(context, "_graphic")
+            setattr(context, "_graphic", None)
+            assert graphic
+            command = getattr(context, "_undo_command")
+            setattr(context, "_undo_command", None)
+            assert command
+            # for key, value in context.parameters.get("graphic_properties", dict[str, typing.Any]()).items():
+            #     setattr(graphic, key, value)
+            command.perform()
+            window.push_undo_command(command)
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
 
-    # def cancel_prepare(self, context: ActionContext) -> None:
-    #     command = getattr(context, "_undo_command")
-    #     setattr(context, "_undo_command", None)
-    #     if command:
-    #         command.close()
+    def invoke_prepare(self, context: ActionContext) -> None:
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        display_item = context.display_item
+        if context.display_panel and display_item:
+            graphic_type = context.parameters["graphic_type"]
+            graphic_properties = context.parameters.get("graphic_properties", dict[str, typing.Any]())
+            graphic = graphic_factory_table[graphic_type].create_graphic_in_display_item(window, display_item, graphic_properties)
+            setattr(context, "_graphic", graphic)
+            setattr(context, "_undo_command", context.display_panel.create_insert_graphics_command([graphic]))
 
-    def get_action_name(self, context: ActionContext) -> str:
-        return _("Create") + " " + self.graphics_table[context.parameters["graphic_type"]][0]
+    def cancel_prepare(self, context: ActionContext) -> None:
+        command = getattr(context, "_undo_command")
+        setattr(context, "_undo_command", None)
+        if command:
+            command.close()
 
     def is_enabled(self, context: Window.ActionContext) -> bool:
         context = typing.cast(DocumentController.ActionContext, context)
@@ -3965,10 +4146,20 @@ class RasterDisplaySetImagePositionAction(Window.Action):
         window = typing.cast(DocumentController, context.window)
         if context.display_panel:
             image_position = context.parameters["image_position"]
+            command = context.display_panel.create_change_display_command()
+            context.display_panel.update_display_properties({"image_position": image_position, "image_canvas_mode": "custom"})
+            command.perform()
+            window.push_undo_command(command)
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
+
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        if context.display_panel:
+            image_position = context.parameters["image_position"]
             command = getattr(context, "_undo_command")
             setattr(context, "_undo_command", None)
-            if not command:
-                command = context.display_panel.create_change_display_command()
+            assert command
             context.display_panel.update_display_properties({"image_position": image_position, "image_canvas_mode": "custom"})
             command.perform()
             window.push_undo_command(command)
