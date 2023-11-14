@@ -647,6 +647,7 @@ class Graphic(Persistence.PersistentObject):
         self.label_font = "normal 11px serif"
         self.__source_reference = self.create_item_reference()
         self._default_stroke_color = "#F80"
+        self._default_drag_part = "all"
 
     @property
     def source_specifier(self) -> typing.Optional[Persistence._SpecifierType]:
@@ -907,6 +908,7 @@ class RectangleTypeGraphic(Graphic):
         self.title = title
         self.define_property("bounds", ((0.0, 0.0), (1.0, 1.0)), validate=self.__validate_bounds, changed=self.__bounds_changed, hidden=True)
         self.define_property("rotation", 0.0, changed=self._property_changed, hidden=True)
+        self._default_drag_part = "bottom-right"
 
     @property
     def bounds(self) -> Geometry.FloatRect:
@@ -1244,6 +1246,7 @@ class LineTypeGraphic(Graphic):
         self.define_property("vector", ((0.0, 0.0), (1.0, 1.0)), changed=self.__vector_changed, reader=read_vector, writer=write_vector, validate=lambda value: (tuple(value[0]), tuple(value[1])), hidden=True)
         self.define_property("start_arrow_enabled", False, changed=self._property_changed, validate=lambda value: bool(value), hidden=True)
         self.define_property("end_arrow_enabled", False, changed=self._property_changed, validate=lambda value: bool(value), hidden=True)
+        self._default_drag_part = "end"
 
     @property
     def vector(self) -> typing.Tuple[Geometry.FloatPoint, Geometry.FloatPoint]:
@@ -1775,6 +1778,7 @@ class IntervalGraphic(Graphic):
 
         # interval is stored in image normalized coordinates
         self.define_property("interval", (0.0, 1.0), changed=self.__interval_changed, reader=read_interval, writer=write_interval, validate=validate_interval, hidden=True)
+        self._default_drag_part = "end"
 
     @property
     def interval(self) -> typing.Tuple[float, float]:
@@ -1884,6 +1888,7 @@ class ChannelGraphic(Graphic):
         self.title = _("Channel")
         # channel is stored in image normalized coordinates
         self.define_property("position", 0.5, changed=self._property_changed, validate=lambda value: float(value), hidden=True)
+        self._default_drag_part = "position"
 
     @property
     def position(self) -> float:
@@ -1944,6 +1949,7 @@ class SpotGraphic(Graphic):
         self.title = _("Spot")
         self.define_property("bounds", ((0.0, 0.0), (1.0, 1.0)), validate=self.__validate_bounds, changed=self.__bounds_changed, hidden=True)
         self.define_property("rotation", 0.0, changed=self._property_changed, hidden=True)
+        self._default_drag_part = "bottom-right"
 
     @property
     def bounds(self) -> Geometry.FloatRect:
@@ -2159,6 +2165,7 @@ class WedgeGraphic(Graphic):
         self.__first_drag = True
         self.__inverted_drag = False
         self.define_property("angle_interval", (0.0, math.pi), validate=validate_angles, changed=self._property_changed, hidden=True)
+        self._default_drag_part = "start-angle"
 
     @property
     def angle_interval(self) -> typing.Tuple[float, float]:
@@ -2392,6 +2399,7 @@ class RingGraphic(Graphic):
         self.define_property("radius_1", 0.2, validate=validate_angles, changed=self._property_changed, hidden=True)
         self.define_property("radius_2", 0.2, validate=validate_angles, changed=self._property_changed, hidden=True)
         self.define_property("mode", "band-pass", changed=self._property_changed, hidden=True)
+        self._default_drag_part = "radius_1"
 
     @property
     def radius_1(self) -> float:
@@ -2609,6 +2617,7 @@ class LatticeGraphic(Graphic):
         self.define_property("u_pos", (0.0, 0.25), validate=lambda value: tuple(value), changed=self._property_changed, hidden=True)
         self.define_property("v_pos", (-0.25, 0.0), validate=lambda value: tuple(value), changed=self._property_changed, hidden=True)
         self.define_property("radius", 0.1, changed=self._property_changed, hidden=True)
+        self._default_drag_part = "u-all"
 
     @property
     def u_pos(self) -> Geometry.FloatSize:

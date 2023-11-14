@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 import abc
+import types
 import typing
 
 from nion.swift import Undo
@@ -10,6 +13,27 @@ from nion.ui import CanvasItem
 from nion.ui import UserInterface
 from nion.ui import Window
 from nion.utils import Geometry
+
+
+class InteractiveTask:
+    def __init__(self) -> None:
+        pass
+
+    def __enter__(self) -> InteractiveTask:
+        return self
+
+    def __exit__(self, exception_type: typing.Optional[typing.Type[BaseException]], value: typing.Optional[BaseException], traceback: typing.Optional[types.TracebackType]) -> typing.Optional[bool]:
+        self.close()
+        return None
+
+    def close(self) -> None:
+        self._close()
+
+    def commit(self) -> None:
+        self._commit()
+
+    def _close(self) -> None: ...
+    def _commit(self) -> None: ...
 
 
 class DisplayCanvasItemDelegate(typing.Protocol):
@@ -32,9 +56,8 @@ class DisplayCanvasItemDelegate(typing.Protocol):
     def create_insert_graphics_command(self, graphics: typing.Sequence[Graphics.Graphic]) -> Undo.UndoableCommand: ...
     def create_move_display_layer_command(self, display_item: DisplayItem.DisplayItem, src_index: int, target_index: int) -> Undo.UndoableCommand: ...
     def push_undo_command(self, command: Undo.UndoableCommand) -> None: ...
-    def prepare_command_action(self, action_or_action_id: typing.Union[str, Window.Action], **kwargs: typing.Any) -> typing.Optional[Window.ActionContext]: ...
-    def perform_command_action(self, action_or_action_id: typing.Union[str, Window.Action], action_context: Window.ActionContext, **kwargs: typing.Any) -> None: ...
-    def cancel_command_action(self, action_or_action_id: typing.Union[str, Window.Action], action_context: Window.ActionContext) -> None: ...
+    def create_change_display_properties_task(self) -> InteractiveTask: ...
+    def create_create_graphic_task(self, graphic_type: str, start_position: Geometry.FloatPoint) -> InteractiveTask: ...
     def add_index_to_selection(self, index: int) -> None: ...
     def remove_index_from_selection(self, index: int) -> None: ...
     def set_selection(self, index: int) -> None: ...

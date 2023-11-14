@@ -1741,6 +1741,68 @@ class PlaybackController:
         self.__display_data_channel = value
 
 
+class ChangeDisplayPropertiesInteractiveTask(DisplayCanvasItem.InteractiveTask):
+    def __init__(self, display_panel: DisplayPanel) -> None:
+        super().__init__()
+        self.__display_panel = display_panel
+        display_item = display_panel.display_item
+        assert display_item
+        self.__display_item = display_item
+        self.__display_properties = copy.copy(display_item.display_properties)
+        self.__undo_command: typing.Optional[Undo.UndoableCommand] = self.__display_panel.create_change_display_command()
+        self.__display_panel.begin_mouse_tracking()
+
+    def _close(self) -> None:
+        self.__display_panel.end_mouse_tracking(None)
+        if self.__undo_command:
+            self.__undo_command.close()
+            self.__undo_command = None
+
+    def _commit(self) -> None:
+        keys = set(self.__display_properties.keys()).union(set(self.__display_item.display_properties.keys()))
+        changed_properties = dict[str, typing.Any]()
+        for key in keys:
+            if self.__display_properties.get(key) != self.__display_item.display_properties.get(key):
+                changed_properties[key] = self.__display_item.display_properties.get(key)
+        self.__display_panel.update_display_properties(changed_properties)
+        undo_command = self.__undo_command
+        self.__undo_command = None
+        assert undo_command
+        undo_command.perform()
+        self.__display_panel.document_controller.push_undo_command(undo_command)
+
+
+class CreateGraphicInteractiveTask(DisplayCanvasItem.InteractiveTask):
+    def __init__(self, display_panel: DisplayPanel, graphic_type: str, start_position: Geometry.FloatPoint) -> None:
+        super().__init__()
+        self.__display_panel = display_panel
+        display_item = display_panel.display_item
+        assert display_item
+        self.__display_item = display_item
+        self.__graphic_type = graphic_type
+        self.__graphic_properties = dict[str, typing.Any]()
+        self.__display_panel.begin_mouse_tracking()
+        from nion.swift import DocumentController  # avoid circular reference. needs rethinking.
+        graphic_factory = DocumentController.graphic_factory_table[graphic_type]
+        graphic_properties = graphic_factory.get_graphic_properties_from_position(self.__display_item, start_position)
+        graphic = graphic_factory.create_graphic_in_display_item(display_panel.document_controller, display_item, graphic_properties)
+        self.__undo_command: typing.Optional[Undo.UndoableCommand] = display_panel.create_insert_graphics_command([graphic])
+        self._graphic = graphic
+
+    def _close(self) -> None:
+        self.__display_panel.end_mouse_tracking(None)
+        if self.__undo_command:
+            self.__undo_command.close()
+            self.__undo_command = None
+
+    def _commit(self) -> None:
+        undo_command = self.__undo_command
+        self.__undo_command = None
+        assert undo_command
+        undo_command.perform()
+        self.__display_panel.document_controller.push_undo_command(undo_command)
+
+
 class DisplayPanel(CanvasItem.LayerCanvasItem):
     """A canvas item to display a library item. Allows library item to be changed."""
 
@@ -2834,21 +2896,11 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
     def push_undo_command(self, command: Undo.UndoableCommand) -> None:
         self.__document_controller.push_undo_command(command)
 
-    # naming to avoid conflict without older perform_action method above
-    def perform_command_action(self, action_or_action_id: typing.Union[str, Window.Action], action_context: Window.ActionContext, **kwargs: typing.Any) -> None:
-        for key, value in iter(kwargs.items()):
-            action_context.parameters[key] = value
-        self.__document_controller.perform_action_in_context(action_or_action_id, action_context)
+    def create_change_display_properties_task(self) -> DisplayCanvasItem.InteractiveTask:
+        return ChangeDisplayPropertiesInteractiveTask(self)
 
-    def prepare_command_action(self, action_or_action_id: typing.Union[str, Window.Action], **kwargs: typing.Any) -> typing.Optional[DocumentController.DocumentController.ActionContext]:
-        action_context = self.__document_controller._get_action_context()
-        for key, value in iter(kwargs.items()):
-            action_context.parameters[key] = value
-        self.__document_controller.prepare_action_in_context(action_or_action_id, action_context)
-        return action_context
-
-    def cancel_command_action(self, action_or_action_id: typing.Union[str, Window.Action], action_context: Window.ActionContext) -> None:
-        self.__document_controller.cancel_action_in_context(action_or_action_id, action_context)
+    def create_create_graphic_task(self, graphic_type: str, start_position: Geometry.FloatPoint) -> DisplayCanvasItem.InteractiveTask:
+        return CreateGraphicInteractiveTask(self, graphic_type, start_position)
 
     def create_rectangle(self, pos: Geometry.FloatPoint) -> Graphics.RectangleGraphic:
         assert self.__display_item
