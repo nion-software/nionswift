@@ -536,15 +536,17 @@ class CreateLineGraphicMouseHandler(MouseHandler):
         pos = widget_mapping.map_point_widget_to_image_norm(mouse_pos)
         start_drag_pos = mouse_pos
 
-        # create the graphic and assign a drag part
-        graphic = delegate.create_line(pos)
-        graphic_drag_part = "end"
+        graphic_properties = {
+            "start": pos.as_tuple(),
+            "end": pos.as_tuple()
+        }
 
-        # prepare for undo. move this to the command architecture somehow?
-        command = delegate.create_insert_graphics_command([graphic])
-
-        action_context = delegate.prepare_command_action("raster_display.add_graphic")
+        action_context = delegate.prepare_command_action("raster_display.add_graphic", graphic_type="line-graphic", graphic_properties=graphic_properties)
         assert action_context
+
+        # create the graphic and assign a drag part
+        graphic = getattr(action_context, "_graphic")
+        graphic_drag_part = "end"
 
         delegate.add_index_to_selection(image_canvas_item.graphic_index(graphic))
         # setup drag
@@ -601,11 +603,8 @@ class CreateLineGraphicMouseHandler(MouseHandler):
         # if the user did something, perform the action. otherwise cancel it so the action can release resources (
         # e.g., undo command).
         if graphic_drag_changed:
-            setattr(action_context, "_graphic", graphic)
-            setattr(action_context, "_undo_command", command)
             delegate.perform_command_action("raster_display.add_graphic", action_context)
         else:
-            command.close()
             delegate.cancel_command_action("raster_display.add_graphic", action_context)
 
 
