@@ -505,7 +505,10 @@ class HandMouseHandler(MouseHandler):
                 change_display_properties_task.commit()
 
 
-class CreateLineGraphicMouseHandler(MouseHandler):
+class CreateGraphicMouseHandler(MouseHandler):
+    def __init__(self, image_canvas_item: ImageCanvasItem, event_loop: asyncio.AbstractEventLoop, graphic_type: str) -> None:
+        super().__init__(image_canvas_item, event_loop)
+        self.graphic_type = graphic_type
 
     async def _reactor_loop(self, r: Stream.ValueChangeStreamReactorInterface[MousePositionAndModifiers], image_canvas_item: ImageCanvasItem) -> None:
         delegate = image_canvas_item.delegate
@@ -525,7 +528,7 @@ class CreateLineGraphicMouseHandler(MouseHandler):
         pos = widget_mapping.map_point_widget_to_image_norm(mouse_pos)
         start_drag_pos = mouse_pos
 
-        with delegate.create_create_graphic_task("line-graphic", pos) as create_create_graphic_task:
+        with delegate.create_create_graphic_task(self.graphic_type, pos) as create_create_graphic_task:
             # create the graphic and assign a drag part
             graphic = getattr(create_create_graphic_task, "_graphic")
             graphic_drag_part = graphic._default_drag_part
@@ -932,10 +935,21 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             assert self.__event_loop
             self.__mouse_handler = HandMouseHandler(self, self.__event_loop)
             self.__mouse_handler.mouse_pressed(Geometry.IntPoint(y=y, x=x), modifiers)
-        if delegate.tool_mode == "line":
+        graphic_type_map = {
+            "line": "line-graphic",
+            "rectangle": "rectangle-graphic",
+            "ellipse": "ellipse-graphic",
+            "point": "point-graphic",
+            "line-profile": "line-profile-graphic",
+            "spot": "spot-graphic",
+            "wedge": "wedge-graphic",
+            "ring": "ring-graphic",
+            "lattice": "lattice-graphic",
+        }
+        if delegate.tool_mode in graphic_type_map.keys():
             assert not self.__mouse_handler
             assert self.__event_loop
-            self.__mouse_handler = CreateLineGraphicMouseHandler(self, self.__event_loop)
+            self.__mouse_handler = CreateGraphicMouseHandler(self, self.__event_loop, graphic_type_map[delegate.tool_mode])
             self.__mouse_handler.mouse_pressed(Geometry.IntPoint(y=y, x=x), modifiers)
         else:
             delegate.begin_mouse_tracking()
@@ -1003,179 +1017,6 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                     self.__graphic_part_data[index] = graphic.begin_drag()
             if not self.__graphic_drag_items and not modifiers.control:
                 delegate.clear_selection()
-        elif delegate.tool_mode == "line__":
-            graphic = delegate.create_line(pos)
-            delegate.add_index_to_selection(self.__graphics.index(graphic))
-            if graphic:
-                # setup drag
-                selection_indexes = self.__graphic_selection.indexes
-                assert len(selection_indexes) == 1
-                self.graphic_drag_item_was_selected = True
-                # keep track of general drag information
-                self.__graphic_drag_start_pos = start_drag_pos
-                self.__graphic_drag_changed = False
-                # keep track of info for the specific item that was clicked
-                self.__graphic_drag_item = graphic
-                self.__graphic_drag_part = "end"
-                # keep track of drag information for each item in the set
-                self.__graphic_drag_indexes = selection_indexes
-                self.__graphic_drag_items.append(graphic)
-                self.__graphic_part_data[list(selection_indexes)[0]] = graphic.begin_drag()
-                self.__undo_command = delegate.create_insert_graphics_command([graphic])
-        elif delegate.tool_mode == "rectangle":
-            graphic = delegate.create_rectangle(pos)
-            delegate.add_index_to_selection(self.__graphics.index(graphic))
-            if graphic:
-                # setup drag
-                selection_indexes = self.__graphic_selection.indexes
-                assert len(selection_indexes) == 1
-                self.graphic_drag_item_was_selected = True
-                # keep track of general drag information
-                self.__graphic_drag_start_pos = start_drag_pos
-                self.__graphic_drag_changed = False
-                # keep track of info for the specific item that was clicked
-                self.__graphic_drag_item = graphic
-                self.__graphic_drag_part = "bottom-right"
-                # keep track of drag information for each item in the set
-                self.__graphic_drag_indexes = selection_indexes
-                self.__graphic_drag_items.append(graphic)
-                self.__graphic_part_data[list(selection_indexes)[0]] = graphic.begin_drag()
-                self.__undo_command = delegate.create_insert_graphics_command([graphic])
-        elif delegate.tool_mode == "ellipse":
-            graphic = delegate.create_ellipse(pos)
-            delegate.add_index_to_selection(self.__graphics.index(graphic))
-            if graphic:
-                # setup drag
-                selection_indexes = self.__graphic_selection.indexes
-                assert len(selection_indexes) == 1
-                self.graphic_drag_item_was_selected = True
-                # keep track of general drag information
-                self.__graphic_drag_start_pos = start_drag_pos
-                self.__graphic_drag_changed = False
-                # keep track of info for the specific item that was clicked
-                self.__graphic_drag_item = graphic
-                self.__graphic_drag_part = "bottom-right"
-                # keep track of drag information for each item in the set
-                self.__graphic_drag_indexes = selection_indexes
-                self.__graphic_drag_items.append(graphic)
-                self.__graphic_part_data[list(selection_indexes)[0]] = graphic.begin_drag()
-                self.__undo_command = delegate.create_insert_graphics_command([graphic])
-        elif delegate.tool_mode == "point":
-            graphic = delegate.create_point(pos)
-            delegate.add_index_to_selection(self.__graphics.index(graphic))
-            if graphic:
-                # setup drag
-                selection_indexes = self.__graphic_selection.indexes
-                assert len(selection_indexes) == 1
-                self.graphic_drag_item_was_selected = True
-                # keep track of general drag information
-                self.__graphic_drag_start_pos = start_drag_pos
-                self.__graphic_drag_changed = False
-                # keep track of info for the specific item that was clicked
-                self.__graphic_drag_item = graphic
-                self.__graphic_drag_part = "all"
-                # keep track of drag information for each item in the set
-                self.__graphic_drag_indexes = selection_indexes
-                self.__graphic_drag_items.append(graphic)
-                self.__graphic_part_data[list(selection_indexes)[0]] = graphic.begin_drag()
-                self.__undo_command = delegate.create_insert_graphics_command([graphic])
-        elif delegate.tool_mode == "line-profile":
-            graphic = delegate.create_line_profile(pos)
-            delegate.add_index_to_selection(self.__graphics.index(graphic))
-            if graphic:
-                # setup drag
-                selection_indexes = self.__graphic_selection.indexes
-                assert len(selection_indexes) == 1
-                self.graphic_drag_item_was_selected = True
-                # keep track of general drag information
-                self.__graphic_drag_start_pos = start_drag_pos
-                self.__graphic_drag_changed = False
-                # keep track of info for the specific item that was clicked
-                self.__graphic_drag_item = graphic
-                self.__graphic_drag_part = "end"
-                # keep track of drag information for each item in the set
-                self.__graphic_drag_indexes = selection_indexes
-                self.__graphic_drag_items.append(graphic)
-                self.__graphic_part_data[list(selection_indexes)[0]] = graphic.begin_drag()
-                self.__undo_command = delegate.create_insert_graphics_command([graphic])
-        elif delegate.tool_mode == "spot":
-            graphic = delegate.create_spot(pos)
-            delegate.add_index_to_selection(self.__graphics.index(graphic))
-            if graphic:
-                # setup drag
-                selection_indexes = self.__graphic_selection.indexes
-                assert len(selection_indexes) == 1
-                self.graphic_drag_item_was_selected = True
-                # keep track of general drag information
-                self.__graphic_drag_start_pos = start_drag_pos
-                self.__graphic_drag_changed = False
-                # keep track of info for the specific item that was clicked
-                self.__graphic_drag_item = graphic
-                self.__graphic_drag_part = "bottom-right"
-                # keep track of drag information for each item in the set
-                self.__graphic_drag_indexes = selection_indexes
-                self.__graphic_drag_items.append(graphic)
-                self.__graphic_part_data[list(selection_indexes)[0]] = graphic.begin_drag()
-                self.__undo_command = delegate.create_insert_graphics_command([graphic])
-        elif delegate.tool_mode == "wedge":
-            mouse_angle = math.pi - math.atan2(0.5 - pos[0], 0.5 - pos[1])
-            graphic = delegate.create_wedge(mouse_angle)
-            delegate.add_index_to_selection(self.__graphics.index(graphic))
-            if graphic:
-                # setup drag
-                selection_indexes = self.__graphic_selection.indexes
-                assert len(selection_indexes) == 1
-                self.graphic_drag_item_was_selected = True
-                # keep track of general drag information
-                self.__graphic_drag_start_pos = start_drag_pos
-                self.__graphic_drag_changed = False
-                # keep track of info for the specific item that was clicked
-                self.__graphic_drag_item = graphic
-                self.__graphic_drag_part = "start-angle"
-                # keep track of drag information for each item in the set
-                self.__graphic_drag_indexes = selection_indexes
-                self.__graphic_drag_items.append(graphic)
-                self.__graphic_part_data[list(selection_indexes)[0]] = graphic.begin_drag()
-                self.__undo_command = delegate.create_insert_graphics_command([graphic])
-        elif delegate.tool_mode == "ring":
-            radius = math.sqrt((pos[0] - 0.5) ** 2 + (pos[1] - 0.5) ** 2)
-            graphic = delegate.create_ring(radius)
-            delegate.add_index_to_selection(self.__graphics.index(graphic))
-            if graphic:
-                # setup drag
-                selection_indexes = self.__graphic_selection.indexes
-                assert len(selection_indexes) == 1
-                self.graphic_drag_item_was_selected = True
-                # keep track of general drag information
-                self.__graphic_drag_start_pos = start_drag_pos
-                self.__graphic_drag_changed = False
-                # keep track of info for the specific item that was clicked
-                self.__graphic_drag_item = graphic
-                self.__graphic_drag_part = "radius_1"
-                # keep track of drag information for each item in the set
-                self.__graphic_drag_indexes = selection_indexes
-                self.__graphic_drag_items.append(graphic)
-                self.__graphic_part_data[list(selection_indexes)[0]] = graphic.begin_drag()
-                self.__undo_command = delegate.create_insert_graphics_command([graphic])
-        elif delegate.tool_mode == "lattice":
-            graphic = delegate.create_lattice(pos.as_size())
-            delegate.add_index_to_selection(self.__graphics.index(graphic))
-            if graphic:
-                # setup drag
-                selection_indexes = self.__graphic_selection.indexes
-                assert len(selection_indexes) == 1
-                self.graphic_drag_item_was_selected = True
-                # keep track of general drag information
-                self.__graphic_drag_start_pos = start_drag_pos
-                self.__graphic_drag_changed = False
-                # keep track of info for the specific item that was clicked
-                self.__graphic_drag_item = graphic
-                self.__graphic_drag_part = "u-all"
-                # keep track of drag information for each item in the set
-                self.__graphic_drag_indexes = selection_indexes
-                self.__graphic_drag_items.append(graphic)
-                self.__graphic_part_data[list(selection_indexes)[0]] = graphic.begin_drag()
-                self.__undo_command = delegate.create_insert_graphics_command([graphic])
 
         return True
 

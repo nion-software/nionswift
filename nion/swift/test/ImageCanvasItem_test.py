@@ -42,6 +42,7 @@ class TestImageCanvasItemClass(unittest.TestCase):
             # run test
             document_controller.tool_mode = "line-profile"
             display_panel.display_canvas_item.simulate_drag((20,25), (65,85))
+            document_controller.periodic()
             self.assertEqual(display_item.graphics[0].vector, ((0.2, 0.25), (0.65, 0.85)))
 
     def test_mapping_widget_to_image_on_3d_spectrum_image_uses_collection_dimensions(self):
@@ -60,6 +61,7 @@ class TestImageCanvasItemClass(unittest.TestCase):
             # run test
             document_controller.tool_mode = "line-profile"
             display_panel.display_canvas_item.simulate_drag((20,25), (65,85))
+            document_controller.periodic()
             self.assertEqual(display_item.graphics[0].vector, ((0.2, 0.25), (0.65, 0.85)))
 
     def test_dimension_used_for_scale_marker_on_2d_data_stack_is_correct(self):
