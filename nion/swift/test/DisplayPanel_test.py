@@ -225,17 +225,20 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertEqual(len(self.display_item.graphic_selection.indexes), 2)
         # drag by (0.1, 0.2)
         self.display_panel.display_canvas_item.simulate_drag((500,500), (600,700))
+        self.document_controller.periodic()
         self.assertCloseRectangle(self.display_item.graphics[1].bounds, ((0.35, 0.45), (0.5, 0.5)))
         self.assertClosePoint(self.display_item.graphics[0].start, (0.3, 0.4))
         self.assertClosePoint(self.display_item.graphics[0].end, (0.9, 1.0))
         # drag on endpoint (0.3, 0.4) make sure it drags all
         self.display_panel.display_canvas_item.simulate_drag((300,400), (200,200))
+        self.document_controller.periodic()
         self.assertClosePoint(self.display_item.graphics[0].start, (0.2, 0.2))
         self.assertClosePoint(self.display_item.graphics[0].end, (0.8, 0.8))
         self.assertCloseRectangle(self.display_item.graphics[1].bounds, ((0.25, 0.25), (0.5, 0.5)))
         # now select just the line, drag middle of circle. should only drag circle.
         self.display_item.graphic_selection.set(0)
         self.display_panel.display_canvas_item.simulate_drag((700,500), (800,500))
+        self.document_controller.periodic()
         self.assertClosePoint(self.display_item.graphics[0].start, (0.2, 0.2))
         self.assertClosePoint(self.display_item.graphics[0].end, (0.8, 0.8))
         self.assertCloseRectangle(self.display_item.graphics[1].bounds, ((0.35, 0.25), (0.5, 0.5)))
@@ -249,54 +252,74 @@ class TestDisplayPanelClass(unittest.TestCase):
         # select it
         self.display_item.graphic_selection.set(0)
         self.display_panel.display_canvas_item.simulate_drag((200,200), (300,400))
+        self.document_controller.periodic()
         self.assertClosePoint(self.display_item.graphics[0].start, (0.3, 0.4))
         self.assertClosePoint(self.display_item.graphics[0].end, (0.8, 0.8))
         # shift drag a part, should not deselect and should align horizontally
         self.display_panel.display_canvas_item.simulate_drag((300,400), (350,700), CanvasItem.KeyboardModifiers(shift=True))
+        self.document_controller.periodic()
         self.assertEqual(len(self.display_item.graphic_selection.indexes), 1)
         self.assertClosePoint(self.display_item.graphics[0].start, (0.35, 0.8))
         # shift drag start to top left quadrant. check both y-maj and x-maj.
         self.display_panel.display_canvas_item.simulate_drag((350,800), (370,340), CanvasItem.KeyboardModifiers(shift=True))
+        self.document_controller.periodic()
         self.assertClosePoint(self.display_item.graphics[0].start, (0.34, 0.34))
         self.display_panel.display_canvas_item.simulate_drag((340,340), (240,270), CanvasItem.KeyboardModifiers(shift=True))
+        self.document_controller.periodic()
         self.assertClosePoint(self.display_item.graphics[0].start, (0.24, 0.24))
         # shift drag start to bottom left quadrant. check both y-maj and x-maj.
         self.display_panel.display_canvas_item.simulate_drag((240,240), (370,1140), CanvasItem.KeyboardModifiers(shift=True))
+        self.document_controller.periodic()
         self.assertClosePoint(self.display_item.graphics[0].start, (0.37, 1.23))
         self.display_panel.display_canvas_item.simulate_drag((370,1230), (370,1350), CanvasItem.KeyboardModifiers(shift=True))
+        self.document_controller.periodic()
         self.assertClosePoint(self.display_item.graphics[0].start, (0.25, 1.35))
         # shift drag start to bottom right quadrant. check both y-maj and x-maj.
         self.display_panel.display_canvas_item.simulate_drag((250,1350), (1230,1175), CanvasItem.KeyboardModifiers(shift=True))
+        self.document_controller.periodic()
         self.assertClosePoint(self.display_item.graphics[0].start, (1.23, 1.23))
         self.display_panel.display_canvas_item.simulate_drag((1230,1230), (1150,1210), CanvasItem.KeyboardModifiers(shift=True))
+        self.document_controller.periodic()
         self.assertClosePoint(self.display_item.graphics[0].start, (1.21, 1.21))
         # shift drag start to top right quadrant. check both y-maj and x-maj.
         self.display_panel.display_canvas_item.simulate_drag((1210,1210), (1230,310), CanvasItem.KeyboardModifiers(shift=True))
+        self.document_controller.periodic()
         self.assertClosePoint(self.display_item.graphics[0].start, (1.29, 0.31))
         self.display_panel.display_canvas_item.simulate_drag((1290,310), (1110,420), CanvasItem.KeyboardModifiers(shift=True))
+        self.document_controller.periodic()
         self.assertClosePoint(self.display_item.graphics[0].start, (1.18, 0.42))
         # now reverse start/end and run the same test
         self.display_panel.display_canvas_item.simulate_drag((800,800), (200,200))
+        self.document_controller.periodic()
         self.display_panel.display_canvas_item.simulate_drag((1180,420), (800,800))
+        self.document_controller.periodic()
         # shift drag start to top left quadrant. check both y-maj and x-maj.
         self.display_panel.display_canvas_item.simulate_drag((200,200), (370,340), CanvasItem.KeyboardModifiers(shift=True))
+        self.document_controller.periodic()
         self.assertClosePoint(self.display_item.graphics[0].end, (0.34, 0.34))
         self.display_panel.display_canvas_item.simulate_drag((340,340), (240,270), CanvasItem.KeyboardModifiers(shift=True))
+        self.document_controller.periodic()
         self.assertClosePoint(self.display_item.graphics[0].end, (0.24, 0.24))
         # shift drag start to bottom left quadrant. check both y-maj and x-maj.
         self.display_panel.display_canvas_item.simulate_drag((240,240), (370,1140), CanvasItem.KeyboardModifiers(shift=True))
+        self.document_controller.periodic()
         self.assertClosePoint(self.display_item.graphics[0].end, (0.37, 1.23))
         self.display_panel.display_canvas_item.simulate_drag((370,1230), (370,1350), CanvasItem.KeyboardModifiers(shift=True))
+        self.document_controller.periodic()
         self.assertClosePoint(self.display_item.graphics[0].end, (0.25, 1.35))
         # shift drag start to bottom right quadrant. check both y-maj and x-maj.
         self.display_panel.display_canvas_item.simulate_drag((250,1350), (1230,1175), CanvasItem.KeyboardModifiers(shift=True))
+        self.document_controller.periodic()
         self.assertClosePoint(self.display_item.graphics[0].end, (1.23, 1.23))
         self.display_panel.display_canvas_item.simulate_drag((1230,1230), (1150,1210), CanvasItem.KeyboardModifiers(shift=True))
+        self.document_controller.periodic()
         self.assertClosePoint(self.display_item.graphics[0].end, (1.21, 1.21))
         # shift drag start to top right quadrant. check both y-maj and x-maj.
         self.display_panel.display_canvas_item.simulate_drag((1210,1210), (1230,310), CanvasItem.KeyboardModifiers(shift=True))
+        self.document_controller.periodic()
         self.assertClosePoint(self.display_item.graphics[0].end, (1.29, 0.31))
         self.display_panel.display_canvas_item.simulate_drag((1290,310), (1110,420), CanvasItem.KeyboardModifiers(shift=True))
+        self.document_controller.periodic()
         self.assertClosePoint(self.display_item.graphics[0].end, (1.18, 0.42))
 
     def test_nudge_line(self):
@@ -385,6 +408,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         # select it
         self.display_item.graphic_selection.set(0)
         self.display_panel.display_canvas_item.simulate_drag((500,500), (300,400))
+        self.document_controller.periodic()
         self.assertClosePoint(self.display_item.graphics[0].position, (0.3, 0.4))
 
     def test_click_on_point_selects_it(self):
@@ -448,10 +472,12 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.display_item.graphic_selection.set(0)
         # drag top left corner
         self.display_panel.display_canvas_item.simulate_drag((250,250), (300,250))
+        self.document_controller.periodic()
         self.assertClosePoint(self.display_item.graphics[0].bounds[0], (0.30, 0.25))
         self.assertClosePoint(self.display_item.graphics[0].bounds[1], (0.45, 0.5))
         # drag with shift key
         self.display_panel.display_canvas_item.simulate_drag((300,250), (350,250), CanvasItem.KeyboardModifiers(shift=True))
+        self.document_controller.periodic()
         self.assertClosePoint(self.display_item.graphics[0].bounds[0], (0.25, 0.25))
         self.assertClosePoint(self.display_item.graphics[0].bounds[1], (0.5, 0.5))
 
@@ -472,10 +498,12 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.display_item.graphic_selection.set(0)
         # drag top left corner
         self.display_panel.display_canvas_item.simulate_drag((500,250), (800,250))
+        self.document_controller.periodic()
         self.assertClosePoint(self.display_panel.display_canvas_item.map_image_norm_to_image(self.display_item.graphics[0].bounds.origin), (8, 2.5))
         self.assertClosePoint(self.display_panel.display_canvas_item.map_image_norm_to_image(self.display_item.graphics[0].bounds.size.as_point()), (7, 5))
         # drag with shift key
         self.display_panel.display_canvas_item.simulate_drag((800,250), (900,250), CanvasItem.KeyboardModifiers(shift=True))
+        self.document_controller.periodic()
         self.assertClosePoint(self.display_panel.display_canvas_item.map_image_norm_to_image(self.display_item.graphics[0].bounds.origin), (9, 1.5))
         self.assertClosePoint(self.display_panel.display_canvas_item.map_image_norm_to_image(self.display_item.graphics[0].bounds.size.as_point()), (6, 6))
 
@@ -496,10 +524,12 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.display_item.graphic_selection.set(0)
         # drag top left corner
         self.display_panel.display_canvas_item.simulate_drag((500,250), (800,250), CanvasItem.KeyboardModifiers(alt=False))
+        self.document_controller.periodic()
         self.assertClosePoint(self.display_panel.display_canvas_item.map_image_norm_to_image(self.display_item.graphics[0].bounds.origin), (8, 2.5))
         self.assertClosePoint(self.display_panel.display_canvas_item.map_image_norm_to_image(self.display_item.graphics[0].bounds.size.as_point()), (4, 5))
         # drag with shift key
         self.display_panel.display_canvas_item.simulate_drag((800,250), (900,250), CanvasItem.KeyboardModifiers(shift=True, alt=False))
+        self.document_controller.periodic()
         self.assertClosePoint(self.display_panel.display_canvas_item.map_image_norm_to_image(self.display_item.graphics[0].bounds.origin), (9, 4))
         self.assertClosePoint(self.display_panel.display_canvas_item.map_image_norm_to_image(self.display_item.graphics[0].bounds.size.as_point()), (2, 2))
 
@@ -1156,6 +1186,7 @@ class TestDisplayPanelClass(unittest.TestCase):
     def test_dragging_to_add_point_makes_desired_point(self):
         self.document_controller.tool_mode = "point"
         self.display_panel.display_canvas_item.simulate_drag((100,125), (200,250))
+        self.document_controller.periodic()
         self.assertEqual(len(self.display_item.graphics), 1)
         region = self.display_item.graphics[0]
         self.assertEqual(region.type, "point-graphic")
@@ -1165,6 +1196,7 @@ class TestDisplayPanelClass(unittest.TestCase):
     def test_dragging_to_add_rectangle_makes_desired_rectangle(self):
         self.document_controller.tool_mode = "rectangle"
         self.display_panel.display_canvas_item.simulate_drag((100,125), (250,200))
+        self.document_controller.periodic()
         self.assertEqual(len(self.display_item.graphics), 1)
         region = self.display_item.graphics[0]
         self.assertEqual(region.type, "rect-graphic")
@@ -1176,6 +1208,7 @@ class TestDisplayPanelClass(unittest.TestCase):
     def test_dragging_to_add_ellipse_makes_desired_ellipse(self):
         self.document_controller.tool_mode = "ellipse"
         self.display_panel.display_canvas_item.simulate_drag((100,125), (250,200))
+        self.document_controller.periodic()
         self.assertEqual(len(self.display_item.graphics), 1)
         region = self.display_item.graphics[0]
         self.assertEqual(region.type, "ellipse-graphic")
@@ -1230,6 +1263,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=1000, height=1000 + header_height), immediate=True)
             # drag for the line profile
             display_panel.display_canvas_item.simulate_drag((100,125), (200,250))
+            self.document_controller.periodic()
             # check results
             self.assertEqual(len(display_item.graphics), 1)
             region = display_item.graphics[0]
@@ -1259,6 +1293,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             modifiers = CanvasItem.KeyboardModifiers()
             display_panel.display_canvas_item.mouse_pressed(100, 100, modifiers)
             display_panel.display_canvas_item.mouse_position_changed(125, 125, modifiers)
+            document_controller.periodic()
             self.assertTrue(data_item.in_transaction_state)
             self.assertTrue(display_item.in_transaction_state)
             line_plot_data_item = document_model.data_items[-1]
@@ -1266,6 +1301,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             self.assertTrue(line_plot_data_item.in_transaction_state)
             self.assertTrue(line_plot_display_item.in_transaction_state)
             display_panel.display_canvas_item.mouse_released(200, 200, modifiers)
+            document_controller.periodic()
             self.assertFalse(data_item.in_transaction_state)
             self.assertFalse(display_item.in_transaction_state)
             self.assertFalse(line_plot_data_item.in_transaction_state)
@@ -1292,6 +1328,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             document_controller.set_filter("none")
             document_controller.tool_mode = "line-profile"
             display_panel.display_canvas_item.simulate_drag((100,125), (200,250))
+            self.document_controller.periodic()
             self.assertEqual(len(display_item.graphics), 1)
             region = display_item.graphics[0]
             self.assertEqual(region.type, "line-profile-graphic")
