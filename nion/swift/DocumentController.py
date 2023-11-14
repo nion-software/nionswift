@@ -2775,7 +2775,7 @@ class GraphicFactoryBase:
     def create_graphic(self, graphic_properties: typing.Mapping[str, typing.Any]) -> Graphics.Graphic:
         raise NotImplementedError()
 
-    def _get_calibrated_origin_image_norm(self, display_item :DisplayItem.DisplayItem) -> Geometry.FloatPoint:
+    def _get_calibrated_origin_image_norm(self, display_item: DisplayItem.DisplayItem) -> Geometry.FloatPoint:
         display_data_channel = display_item.display_data_channel
         assert display_data_channel
         display_values = display_data_channel.get_latest_computed_display_values()
@@ -4028,39 +4028,6 @@ class RasterDisplayCreateGraphicAction(Window.Action):
             window.push_undo_command(command)
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
-    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        context = typing.cast(DocumentController.ActionContext, context)
-        window = typing.cast(DocumentController, context.window)
-        if context.display_panel:
-            graphic = getattr(context, "_graphic")
-            setattr(context, "_graphic", None)
-            assert graphic
-            command = getattr(context, "_undo_command")
-            setattr(context, "_undo_command", None)
-            assert command
-            # for key, value in context.parameters.get("graphic_properties", dict[str, typing.Any]()).items():
-            #     setattr(graphic, key, value)
-            command.perform()
-            window.push_undo_command(command)
-        return Window.ActionResult(Window.ActionStatus.FINISHED)
-
-    def invoke_prepare(self, context: ActionContext) -> None:
-        context = typing.cast(DocumentController.ActionContext, context)
-        window = typing.cast(DocumentController, context.window)
-        display_item = context.display_item
-        if context.display_panel and display_item:
-            graphic_type = context.parameters["graphic_type"]
-            graphic_properties = context.parameters.get("graphic_properties", dict[str, typing.Any]())
-            graphic = graphic_factory_table[graphic_type].create_graphic_in_display_item(window, display_item, graphic_properties)
-            setattr(context, "_graphic", graphic)
-            setattr(context, "_undo_command", context.display_panel.create_insert_graphics_command([graphic]))
-
-    def cancel_prepare(self, context: ActionContext) -> None:
-        command = getattr(context, "_undo_command")
-        setattr(context, "_undo_command", None)
-        if command:
-            command.close()
-
     def is_enabled(self, context: Window.ActionContext) -> bool:
         context = typing.cast(DocumentController.ActionContext, context)
         return context.display_item is not None and context.display_item.used_display_type == "image"
@@ -4134,9 +4101,9 @@ class RasterDisplayTwoViewAction(Window.Action):
         return context.display_item is not None and context.display_item.used_display_type == "image"
 
 
-class RasterDisplaySetImagePositionAction(Window.Action):
-    action_id = "raster_display.set_image_position"
-    action_name = _("Set Image Position")
+class RasterDisplaySetDisplayPropertiesAction(Window.Action):
+    action_id = "raster_display.set_display_properties"
+    action_name = _("Set Display Properties")
 
     def __init__(self) -> None:
         super().__init__()
@@ -4145,36 +4112,12 @@ class RasterDisplaySetImagePositionAction(Window.Action):
         context = typing.cast(DocumentController.ActionContext, context)
         window = typing.cast(DocumentController, context.window)
         if context.display_panel:
-            image_position = context.parameters["image_position"]
+            display_properties = context.parameters["display_properties"]
             command = context.display_panel.create_change_display_command()
-            context.display_panel.update_display_properties({"image_position": image_position, "image_canvas_mode": "custom"})
+            context.display_panel.update_display_properties(display_properties)
             command.perform()
             window.push_undo_command(command)
         return Window.ActionResult(Window.ActionStatus.FINISHED)
-
-    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        context = typing.cast(DocumentController.ActionContext, context)
-        window = typing.cast(DocumentController, context.window)
-        if context.display_panel:
-            image_position = context.parameters["image_position"]
-            command = getattr(context, "_undo_command")
-            setattr(context, "_undo_command", None)
-            assert command
-            context.display_panel.update_display_properties({"image_position": image_position, "image_canvas_mode": "custom"})
-            command.perform()
-            window.push_undo_command(command)
-        return Window.ActionResult(Window.ActionStatus.FINISHED)
-
-    def invoke_prepare(self, context: ActionContext) -> None:
-        context = typing.cast(DocumentController.ActionContext, context)
-        if context.display_panel:
-            setattr(context, "_undo_command", context.display_panel.create_change_display_command())
-
-    def cancel_prepare(self, context: ActionContext) -> None:
-        command = getattr(context, "_undo_command")
-        setattr(context, "_undo_command", None)
-        if command:
-            command.close()
 
     def is_enabled(self, context: Window.ActionContext) -> bool:
         context = typing.cast(DocumentController.ActionContext, context)
@@ -4319,7 +4262,7 @@ Window.register_action(RasterDisplayFitToViewAction())
 Window.register_action(RasterDisplayFillViewAction())
 Window.register_action(RasterDisplayOneViewAction())
 Window.register_action(RasterDisplayTwoViewAction())
-Window.register_action(RasterDisplaySetImagePositionAction())
+Window.register_action(RasterDisplaySetDisplayPropertiesAction())
 Window.register_action(RasterDisplayZoomOutAction())
 Window.register_action(RasterDisplayZoomInAction())
 Window.register_action(RasterDisplayAutoDisplayAction())
