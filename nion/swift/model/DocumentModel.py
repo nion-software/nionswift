@@ -2575,7 +2575,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 "sources": [{"name": "src", "label": _("Source"), "regions": [line_profile_in_region]}]}
             vs["radial-profile"] = {"title": _("Radial Profile"), "expression": "xd.radial_profile({src}.cropped_display_xdata)",
                 "sources": [{"name": "src", "label": _("Source"), "croppable": True, "requirements": [requirement_2d]}]}
-            vs["power-spectrum"] = {"title": _("Power Spectrum"), "expression": "xd.radial_profile(xd.power(xd.absolute(xd.fft({src}.cropped_display_xdata)), 2))",
+            vs["power-spectrum"] = {"title": _("Radial Power Spectrum"), "expression": "xd.radial_profile(xd.power(xd.absolute(xd.fft({src}.cropped_display_xdata)), 2))",
                 "sources": [{"name": "src", "label": _("Source"), "croppable": True, "requirements": [requirement_2d]}]}
             vs["filter"] = {"title": _("Filter"), "expression": "xd.real(xd.ifft({src}.filtered_xdata))",
                 "sources": [{"name": "src", "label": _("Source"), "requirements": [requirement_2d]}]}

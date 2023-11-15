@@ -15,7 +15,7 @@
       },
       {
         "issues": ["https://github.com/nion-software/nionswift/issues/989"],
-        "summary": "Add a power spectrum menu item to Fourier processing sub-menu."
+        "summary": "Add a Radial Power Spectrum menu item to Fourier processing sub-menu."
       },
       {
         "issues": ["https://github.com/nion-software/nionswift/issues/988"],

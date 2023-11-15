@@ -4936,7 +4936,7 @@ class PickSumAction(ProcessingAction):
 
 class PowerSpectrumAction(ProcessingAction):
     action_id = "processing.power_spectrum"
-    action_name = _("Power Spectrum")
+    action_name = _("Radial Power Spectrum")
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
