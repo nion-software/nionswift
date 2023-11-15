@@ -831,14 +831,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.__graphics: typing.List[Graphics.Graphic] = list()
         self.__graphic_selection: DisplayItem.GraphicSelection = DisplayItem.GraphicSelection()
 
-        # used for tracking undo
-        self.__undo_command: typing.Optional[Undo.UndoableCommand] = None
-
         # used for dragging graphic items
-        self.__graphic_drag_items: typing.List[Graphics.Graphic] = list()
-        self.__graphic_drag_item: typing.Optional[Graphics.Graphic] = None
-        self.__graphic_part_data: typing.Dict[int, Graphics.DragPartData] = dict()
-        self.__graphic_drag_indexes: typing.Set[int] = set()
         self.__last_mouse: typing.Optional[Geometry.IntPoint] = None
         self.__mouse_in = False
         self.__mouse_handler: typing.Optional[MouseHandler] = None
@@ -849,9 +842,6 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.__display_latency = False
 
     def close(self) -> None:
-        if self.__undo_command:
-            self.__undo_command.close()
-            self.__undo_command = None
         with self.__closing_lock:
             with self.__update_layout_handle_lock:
                 update_layout_handle = self.__update_layout_handle
@@ -1082,11 +1072,8 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             return False
         mouse_pos = Geometry.FloatPoint(y, x)
         image_position = widget_mapping.map_point_widget_to_image(mouse_pos)
-        pos = widget_mapping.map_point_widget_to_image_norm(mouse_pos)
-        start_drag_pos = mouse_pos
         if delegate.image_mouse_pressed(image_position, modifiers):
             return True
-        self.__undo_command = None
         if delegate.tool_mode == "pointer":
             assert not self.__mouse_handler
             assert self.__event_loop
@@ -1102,73 +1089,6 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             assert self.__event_loop
             self.__mouse_handler = CreateGraphicMouseHandler(self, self.__event_loop, graphic_type_map[delegate.tool_mode])
             self.__mouse_handler.mouse_pressed(Geometry.IntPoint(y=y, x=x), modifiers)
-        else:
-            delegate.begin_mouse_tracking()
-        # figure out clicked graphic
-        self.__graphic_drag_items = list()
-        self.__graphic_drag_item = None
-        self.graphic_drag_item_was_selected = False
-        self.__graphic_part_data = dict()
-        self.__graphic_drag_indexes = set()
-        if delegate.tool_mode == "pointer__":
-            graphics = self.__graphics
-            selection_indexes = self.__graphic_selection.indexes
-            multiple_items_selected = len(selection_indexes) > 1
-            part_specs: typing.List[typing.Tuple[int, Graphics.Graphic, bool, str]] = list()
-            part_spec: typing.Optional[typing.Tuple[int, Graphics.Graphic, bool, str]] = None
-            specific_part_spec: typing.Optional[typing.Tuple[int, Graphics.Graphic, bool, str]] = None
-            # the graphics are drawn in order, which means the graphics with the higher index are "on top" of the
-            # graphics with the lower index. but priority should also be given to selected graphics. so sort the
-            # graphics according to whether they are selected or not (selected ones go later), then by their index.
-            for graphic_index, graphic in sorted(enumerate(graphics), key=lambda ig: (ig[0] in selection_indexes, ig[0])):
-                if isinstance(graphic, (Graphics.PointTypeGraphic, Graphics.LineTypeGraphic, Graphics.RectangleTypeGraphic, Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
-                    already_selected = graphic_index in selection_indexes
-                    move_only = not already_selected or multiple_items_selected
-                    try:
-                        part, specific = graphic.test(widget_mapping, self.__ui_settings, start_drag_pos, move_only)
-                    except Exception as e:
-                        import traceback
-                        logging.debug("Graphic Test Error: %s", e)
-                        traceback.print_exc()
-                        traceback.print_stack()
-                        continue
-                    if part:
-                        part_spec = graphic_index, graphic, already_selected, "all" if move_only and not part.startswith("inverted") else part
-                        part_specs.append(part_spec)
-                        if specific:
-                            specific_part_spec = part_spec
-            # import logging
-            # logging.debug(specific_part_spec)
-            # logging.debug(part_specs)
-            part_spec = specific_part_spec if specific_part_spec is not None else part_specs[-1] if len(part_specs) > 0 else None
-            if part_spec is not None:
-                graphic_index, graphic, already_selected, part = part_spec
-                part = part if specific_part_spec is not None else part_spec[-1]
-                # select item and prepare for drag
-                self.graphic_drag_item_was_selected = already_selected
-                if not self.graphic_drag_item_was_selected:
-                    if modifiers.control:
-                        delegate.add_index_to_selection(graphic_index)
-                        selection_indexes.add(graphic_index)
-                    elif not already_selected:
-                        delegate.set_selection(graphic_index)
-                        selection_indexes.clear()
-                        selection_indexes.add(graphic_index)
-                # keep track of general drag information
-                self.__graphic_drag_start_pos = start_drag_pos
-                self.__graphic_drag_changed = False
-                # keep track of info for the specific item that was clicked
-                self.__graphic_drag_item = graphics[graphic_index]
-                self.__graphic_drag_part = part
-                # keep track of drag information for each item in the set
-                self.__graphic_drag_indexes = selection_indexes
-                for index in self.__graphic_drag_indexes:
-                    graphic = graphics[index]
-                    self.__graphic_drag_items.append(graphic)
-                    self.__graphic_part_data[index] = graphic.begin_drag()
-            if not self.__graphic_drag_items and not modifiers.control:
-                delegate.clear_selection()
-
         return True
 
     def mouse_released(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
@@ -1183,33 +1103,9 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         if delegate.image_mouse_released(image_position, modifiers):
             return True
         graphics = self.__graphics
-        for index in self.__graphic_drag_indexes:
-            graphic = graphics[index]
-            graphic.end_drag(self.__graphic_part_data[index])
-        if self.__graphic_drag_items and not self.__graphic_drag_changed:
-            graphic_index = graphics.index(self.__graphic_drag_item) if self.__graphic_drag_item else 0
-            # user didn't move graphic
-            if not modifiers.control:
-                # user clicked on a single graphic
-                delegate.set_selection(graphic_index)
-            else:
-                # user control clicked. toggle selection
-                # if control is down and item is already selected, toggle selection of item
-                if self.graphic_drag_item_was_selected:
-                    delegate.remove_index_from_selection(graphic_index)
-                else:
-                    delegate.add_index_to_selection(graphic_index)
         if self.__mouse_handler:
             self.__mouse_handler.mouse_released(Geometry.IntPoint(y, x), modifiers)
             self.__mouse_handler = None
-        else:
-            # mouse handler will do this part
-            delegate.end_mouse_tracking(self.__undo_command)
-        self.__undo_command = None
-        self.__graphic_drag_items = list()
-        self.__graphic_drag_item = None
-        self.__graphic_part_data = dict()
-        self.__graphic_drag_indexes = set()
         if delegate.tool_mode != "hand":
             delegate.tool_mode = "pointer"
         return True
@@ -1263,18 +1159,6 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         # x,y already have transform applied
         self.__last_mouse = mouse_pos.to_int_point()
         self.__update_cursor_info()
-        if self.__graphic_drag_items:
-            if not self.__undo_command:
-                self.__undo_command = delegate.create_change_graphics_command()
-            force_drag = modifiers.only_option
-            if force_drag and self.__graphic_drag_part == "all":
-                if Geometry.distance(mouse_pos, self.__graphic_drag_start_pos) <= 2:
-                    delegate.drag_graphics(self.__graphic_drag_items)
-                    return True
-            widget_mapping = self.__get_mouse_mapping()
-            delegate.adjust_graphics(widget_mapping, self.__graphic_drag_items, self.__graphic_drag_part,
-                                     self.__graphic_part_data, self.__graphic_drag_start_pos, mouse_pos, modifiers)
-            self.__graphic_drag_changed = True
         if self.__mouse_handler:
             self.__mouse_handler.mouse_position_changed(Geometry.IntPoint(y, x), modifiers)
         return True
