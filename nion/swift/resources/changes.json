@@ -3,6 +3,10 @@
     "version": "Unreleased",
     "notes": [
       {
+        "issues": ["https://github.com/nion-software/nionswift/issues/992"],
+        "summary": "Add scroll bar to activity panel to prevent it growing beyond its available height."
+      },
+      {
         "issues": ["https://github.com/nion-software/nionswift/issues/5"],
         "summary": "Hovering over items in grid browser shows info about the item."
       },

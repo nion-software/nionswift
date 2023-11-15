@@ -94,21 +94,23 @@ class ActivityController(Declarative.Handler):
         self.__activity_removed_listener = self.activities.item_removed_event.listen(activity_changed)
 
         u = Declarative.DeclarativeUI()
-        self.ui_view = u.create_column(
-            u.create_stack(
-                u.create_column(
-                    u.create_label(text=_("No activities.")),
-                    u.create_stretch(),
+        self.ui_view = u.create_scroll_area(
+            u.create_column(
+                u.create_stack(
+                    u.create_column(
+                        u.create_label(text=_("No activities.")),
+                        u.create_stretch(),
+                    ),
+                    u.create_column(
+                        u.create_column(items="activities.items", item_component_id="activity", spacing=6),
+                        u.create_stretch(),
+                    ),
+                    current_index="@binding(stack_index.value)"
                 ),
-                u.create_column(
-                    u.create_column(items="activities.items", item_component_id="activity", spacing=6),
-                    u.create_stretch(),
-                ),
-                current_index="@binding(stack_index.value)"
-            ),
-            u.create_stretch(),
-            spacing=8,
-            margin=8
+                u.create_stretch(),
+                spacing=8,
+                margin=8
+            )
         )
 
     def close(self) -> None:
@@ -149,7 +151,7 @@ class ActivityPanel(Panel.Panel):
             Activity.append_activity(drink)
 
             await asyncio.sleep(3.0)
-            eat = XActivity("Eat")
+            eat = Activity.Activity("eat", "Eat")
             Activity.append_activity(eat)
 
             await asyncio.sleep(3.0)
