@@ -1641,6 +1641,7 @@ class PointTypeGraphic(Graphic):
 
     @position.setter
     def position(self, value: Geometry.FloatPointTuple) -> None:
+        assert value is not None
         self._set_persistent_property_value("position", tuple(value))
 
     def reset_position(self) -> None:

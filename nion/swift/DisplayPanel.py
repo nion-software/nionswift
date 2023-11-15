@@ -1741,6 +1741,30 @@ class PlaybackController:
         self.__display_data_channel = value
 
 
+class ChangeGraphicsInteractiveTask(DisplayCanvasItem.InteractiveTask):
+    def __init__(self, display_panel: DisplayPanel) -> None:
+        super().__init__()
+        self.__display_panel = display_panel
+        display_item = display_panel.display_item
+        assert display_item
+        self.__display_item = display_item
+        self.__undo_command: typing.Optional[Undo.UndoableCommand] = self.__display_panel.create_change_graphics_command()
+        self.__display_panel.begin_mouse_tracking()
+
+    def _close(self) -> None:
+        self.__display_panel.end_mouse_tracking(None)
+        if self.__undo_command:
+            self.__undo_command.close()
+            self.__undo_command = None
+
+    def _commit(self) -> None:
+        undo_command = self.__undo_command
+        self.__undo_command = None
+        assert undo_command
+        undo_command.perform()
+        self.__display_panel.document_controller.push_undo_command(undo_command)
+
+
 class ChangeDisplayPropertiesInteractiveTask(DisplayCanvasItem.InteractiveTask):
     def __init__(self, display_panel: DisplayPanel) -> None:
         super().__init__()
@@ -2898,6 +2922,9 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
 
     def create_change_display_properties_task(self) -> DisplayCanvasItem.InteractiveTask:
         return ChangeDisplayPropertiesInteractiveTask(self)
+
+    def create_change_graphics_task(self) -> DisplayCanvasItem.InteractiveTask:
+        return ChangeGraphicsInteractiveTask(self)
 
     def create_create_graphic_task(self, graphic_type: str, start_position: Geometry.FloatPoint) -> DisplayCanvasItem.InteractiveTask:
         return CreateGraphicInteractiveTask(self, graphic_type, start_position)

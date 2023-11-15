@@ -165,19 +165,24 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.document_controller.add_line_graphic()
         # click outside so nothing is selected
         self.display_panel.display_canvas_item.simulate_click((0, 0))
+        self.document_controller.periodic()
         self.assertEqual(len(self.display_item.graphic_selection.indexes), 0)
         # select the line
         self.display_panel.display_canvas_item.simulate_click((200, 200))
+        self.document_controller.periodic()
         self.assertEqual(len(self.display_item.graphic_selection.indexes), 1)
         self.assertTrue(0 in self.display_item.graphic_selection.indexes)
         # now shift the view and try again
         self.display_panel.display_canvas_item.simulate_click((0, 0))
+        self.document_controller.periodic()
         self.display_panel.display_canvas_item.move_left()  # 10 pixels left
         self.display_panel.display_canvas_item.move_left()  # 10 pixels left
         self.display_panel.display_canvas_item.refresh_layout_immediate()
         self.display_panel.display_canvas_item.simulate_click((200, 200))
+        self.document_controller.periodic()
         self.assertEqual(len(self.display_item.graphic_selection.indexes), 0)
         self.display_panel.display_canvas_item.simulate_click((220, 200))
+        self.document_controller.periodic()
         self.assertEqual(len(self.display_item.graphic_selection.indexes), 1)
         self.assertTrue(0 in self.display_item.graphic_selection.indexes)
 
@@ -187,21 +192,26 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.document_controller.add_ellipse_graphic()
         # click outside so nothing is selected
         self.display_panel.display_canvas_item.simulate_click((0, 0))
+        self.document_controller.periodic()
         self.assertEqual(len(self.display_item.graphic_selection.indexes), 0)
         # select the ellipse
         self.display_panel.display_canvas_item.simulate_click((725, 500))
+        self.document_controller.periodic()
         self.assertEqual(len(self.display_item.graphic_selection.indexes), 1)
         self.assertTrue(1 in self.display_item.graphic_selection.indexes)
         # select the line
         self.display_panel.display_canvas_item.simulate_click((200, 200))
+        self.document_controller.periodic()
         self.assertEqual(len(self.display_item.graphic_selection.indexes), 1)
         self.assertTrue(0 in self.display_item.graphic_selection.indexes)
         # add the ellipse to the selection. click inside the right side.
         self.display_panel.display_canvas_item.simulate_click((725, 500), CanvasItem.KeyboardModifiers(control=True))
+        self.document_controller.periodic()
         self.assertEqual(len(self.display_item.graphic_selection.indexes), 2)
         self.assertTrue(0 in self.display_item.graphic_selection.indexes)
         # remove the ellipse from the selection. click inside the right side.
         self.display_panel.display_canvas_item.simulate_click((725, 500), CanvasItem.KeyboardModifiers(control=True))
+        self.document_controller.periodic()
         self.assertEqual(len(self.display_item.graphic_selection.indexes), 1)
         self.assertTrue(0 in self.display_item.graphic_selection.indexes)
 
@@ -418,8 +428,10 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertClosePoint(self.display_item.graphics[0].position, (0.5, 0.5))
         # select it
         self.display_panel.display_canvas_item.simulate_click((100,100))
+        self.document_controller.periodic()
         self.assertFalse(self.display_item.graphic_selection.indexes)
         self.display_panel.display_canvas_item.simulate_click((500,500))
+        self.document_controller.periodic()
         self.assertEqual(len(self.display_item.graphic_selection.indexes), 1)
         self.assertTrue(0 in self.display_item.graphic_selection.indexes)
 
@@ -951,6 +963,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         line_plot_canvas_item.mouse_position_changed(plot_left+96, v, CanvasItem.KeyboardModifiers())
         line_plot_canvas_item.mouse_position_changed(plot_left+196, v, CanvasItem.KeyboardModifiers())
         line_plot_canvas_item.mouse_released(plot_left+116, 190, CanvasItem.KeyboardModifiers())
+        self.document_controller.periodic()
         channel_per_pixel = 1024.0/10 / plot_width
         self.assertEqual(self.display_item.get_display_property("left_channel"), int(0 - channel_per_pixel * 100))
         self.assertEqual(self.display_item.get_display_property("right_channel"), int(int(1024/10.0) - channel_per_pixel * 100))
@@ -971,6 +984,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         # do the click
         line_plot_canvas_item.mouse_pressed(plot_left+plot_width * 0.35, 100, CanvasItem.KeyboardModifiers())
         line_plot_canvas_item.mouse_released(plot_left+plot_width * 0.35, 100, CanvasItem.KeyboardModifiers())
+        self.document_controller.periodic()
         # make sure results are correct
         self.assertEqual(len(line_plot_display_item.graphic_selection.indexes), 1)
 
@@ -990,11 +1004,13 @@ class TestDisplayPanelClass(unittest.TestCase):
         # do the first click to select
         line_plot_canvas_item.mouse_pressed(plot_left+plot_width * 0.35, 100, CanvasItem.KeyboardModifiers())
         line_plot_canvas_item.mouse_released(plot_left+plot_width * 0.35, 100, CanvasItem.KeyboardModifiers())
+        self.document_controller.periodic()
         # make sure results are correct
         self.assertEqual(len(line_plot_display_item.graphic_selection.indexes), 1)
         # do the second click to deselect
         line_plot_canvas_item.mouse_pressed(plot_left+plot_width * 0.1, 100, CanvasItem.KeyboardModifiers())
         line_plot_canvas_item.mouse_released(plot_left+plot_width * 0.1, 100, CanvasItem.KeyboardModifiers())
+        self.document_controller.periodic()
         # make sure results are correct
         self.assertEqual(len(line_plot_display_item.graphic_selection.indexes), 0)
 
@@ -1013,9 +1029,11 @@ class TestDisplayPanelClass(unittest.TestCase):
         modifiers = CanvasItem.KeyboardModifiers()
         line_plot_canvas_item.mouse_pressed(plot_left + plot_width * 0.35, 100, modifiers)
         line_plot_canvas_item.mouse_released(plot_left + plot_width * 0.35, 100, modifiers)
+        self.document_controller.periodic()
         line_plot_canvas_item.mouse_pressed(plot_left + plot_width * 0.4, 100, modifiers)
         line_plot_canvas_item.mouse_position_changed(plot_left + plot_width * 0.5, 100, modifiers)
         line_plot_canvas_item.mouse_released(plot_left + plot_width * 0.5, 100, modifiers)
+        self.document_controller.periodic()
         # make sure results are correct
         line_plot_canvas_item.root_container.refresh_layout_immediate()
         self.assertAlmostEqual(line_plot_display_item.graphics[0].start, 0.3)
@@ -1036,9 +1054,11 @@ class TestDisplayPanelClass(unittest.TestCase):
         modifiers = CanvasItem.KeyboardModifiers()
         line_plot_canvas_item.mouse_pressed(plot_left + plot_width * 0.35, 100, modifiers)
         line_plot_canvas_item.mouse_released(plot_left + plot_width * 0.35, 100, modifiers)
+        self.document_controller.periodic()
         line_plot_canvas_item.mouse_pressed(plot_left + plot_width * 0.4, 100, modifiers)
         line_plot_canvas_item.mouse_position_changed(plot_left + plot_width * 0.2, 100, modifiers)
         line_plot_canvas_item.mouse_released(plot_left + plot_width * 0.2, 100, modifiers)
+        self.document_controller.periodic()
         # make sure results are correct
         self.assertAlmostEqual(line_plot_display_item.graphics[0].start, 0.2, 2)  # pixel accuracy, approx. 1/500
         self.assertAlmostEqual(line_plot_display_item.graphics[0].end, 0.3, 2)  # pixel accuracy, approx. 1/500
@@ -1059,6 +1079,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         line_plot_canvas_item.mouse_pressed(plot_left + plot_width * 0.4, 100, modifiers)
         line_plot_canvas_item.mouse_position_changed(plot_left + plot_width * 0.3, 100, modifiers)
         line_plot_canvas_item.mouse_released(plot_left + plot_width * 0.3, 100, modifiers)
+        self.document_controller.periodic()
         # make sure results are correct
         self.assertAlmostEqual(line_plot_display_item.graphics[0].start, 0.1, 2)  # pixel accuracy, approx. 1/500
         self.assertAlmostEqual(line_plot_display_item.graphics[0].end, 0.9, 2)  # pixel accuracy, approx. 1/500
@@ -1079,6 +1100,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         line_plot_canvas_item.mouse_position_changed(plot_left + plot_width * 0.40, 100, modifiers)
         line_plot_canvas_item.mouse_position_changed(plot_left + plot_width * 0.50, 100, modifiers)
         line_plot_canvas_item.mouse_released(plot_left + plot_width * 0.50, 100, modifiers)
+        self.document_controller.periodic()
         # make sure results are correct
         self.assertEqual(len(line_plot_display_item.graphics), 1)
         self.assertTrue(isinstance(line_plot_display_item.graphics[0], Graphics.IntervalGraphic))
@@ -1488,6 +1510,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.document_controller.add_interval_graphic()
         display_canvas_item.mouse_pressed(100, 100, CanvasItem.KeyboardModifiers())
         display_canvas_item.mouse_released(100, 100, CanvasItem.KeyboardModifiers())
+        self.document_controller.periodic()
 
     def test_all_graphic_types_hit_test_on_2d_display(self):
         self.document_controller.add_point_graphic()
@@ -1498,6 +1521,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.display_panel.display_canvas_item.prepare_display()  # force layout
         self.display_panel.display_canvas_item.mouse_pressed(10, 10, CanvasItem.KeyboardModifiers())
         self.display_panel.display_canvas_item.mouse_released(10, 10, CanvasItem.KeyboardModifiers())
+        self.document_controller.periodic()
 
     def test_all_graphic_types_hit_test_on_3d_display(self):
         display_canvas_item = self.setup_3d_data()
@@ -1508,6 +1532,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.document_controller.add_interval_graphic()
         display_canvas_item.mouse_pressed(10, 10, CanvasItem.KeyboardModifiers())
         display_canvas_item.mouse_released(10, 10, CanvasItem.KeyboardModifiers())
+        self.document_controller.periodic()
 
     def test_display_graphics_update_after_changing_display_type(self):
         with TestContext.create_memory_context() as test_context:
