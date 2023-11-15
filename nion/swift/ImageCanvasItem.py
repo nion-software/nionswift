@@ -450,6 +450,7 @@ class MouseHandler:
         self.__mouse_value_stream = Stream.ValueStream[MousePositionAndModifiers]()
         self.__mouse_value_change_stream = Stream.ValueChangeStream(self.__mouse_value_stream)
         self.__reactor = Stream.ValueChangeStreamReactor[MousePositionAndModifiers](self.__mouse_value_change_stream, self.reactor_loop, event_loop)
+        self.cursor_shape = "arrow"
 
     def mouse_pressed(self, mouse_pos: Geometry.IntPoint, modifiers: UserInterface.KeyboardModifiers) -> None:
         self.__mouse_value_stream.value = mouse_pos, modifiers
@@ -469,7 +470,144 @@ class MouseHandler:
         return
 
 
+class PointerMouseHandler(MouseHandler):
+    def __init__(self, image_canvas_item: ImageCanvasItem, event_loop: asyncio.AbstractEventLoop) -> None:
+        super().__init__(image_canvas_item, event_loop)
+        self.cursor_shape = "arrow"
+
+    async def _reactor_loop(self, r: Stream.ValueChangeStreamReactorInterface[MousePositionAndModifiers], image_canvas_item: ImageCanvasItem) -> None:
+        delegate = image_canvas_item.delegate
+        assert delegate
+
+        # get the beginning mouse position
+        value_change = await r.next_value_change()
+        value_change_value = value_change.value
+        assert value_change.is_begin
+        assert value_change_value is not None
+
+        # preliminary setup for the tracking loop.
+        mouse_pos_, modifiers = value_change_value
+        mouse_pos = Geometry.FloatPoint(x=mouse_pos_.x, y=mouse_pos_.y)
+        widget_mapping = image_canvas_item.mouse_mapping
+        assert widget_mapping
+        start_drag_pos = mouse_pos
+
+        graphic_drag_items: typing.List[Graphics.Graphic] = list()
+        graphic_drag_item: typing.Optional[Graphics.Graphic] = None
+        graphic_drag_item_was_selected = False
+        graphic_part_data: typing.Dict[int, Graphics.DragPartData] = dict()
+        graphic_drag_indexes = set()
+
+        graphics = image_canvas_item.graphics
+        selection_indexes = image_canvas_item.graphic_selection.indexes
+        multiple_items_selected = len(selection_indexes) > 1
+        part_specs: typing.List[typing.Tuple[int, Graphics.Graphic, bool, str]] = list()
+        part_spec: typing.Optional[typing.Tuple[int, Graphics.Graphic, bool, str]]
+        specific_part_spec: typing.Optional[typing.Tuple[int, Graphics.Graphic, bool, str]] = None
+        # the graphics are drawn in order, which means the graphics with the higher index are "on top" of the
+        # graphics with the lower index. but priority should also be given to selected graphics. so sort the
+        # graphics according to whether they are selected or not (selected ones go later), then by their index.
+        for graphic_index, graphic in sorted(enumerate(graphics), key=lambda ig: (ig[0] in selection_indexes, ig[0])):
+            if isinstance(graphic, (Graphics.PointTypeGraphic, Graphics.LineTypeGraphic, Graphics.RectangleTypeGraphic, Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
+                already_selected = graphic_index in selection_indexes
+                move_only = not already_selected or multiple_items_selected
+                try:
+                    part, specific = graphic.test(widget_mapping, image_canvas_item.ui_settings, start_drag_pos, move_only)
+                except Exception as e:
+                    import traceback
+                    logging.debug("Graphic Test Error: %s", e)
+                    traceback.print_exc()
+                    traceback.print_stack()
+                    continue
+                if part:
+                    part_spec = graphic_index, graphic, already_selected, "all" if move_only and not part.startswith("inverted") else part
+                    part_specs.append(part_spec)
+                    if specific:
+                        specific_part_spec = part_spec
+        part_spec = specific_part_spec if specific_part_spec is not None else part_specs[-1] if len(part_specs) > 0 else None
+        if part_spec is not None:
+            graphic_index, graphic, already_selected, part = part_spec
+            part = part if specific_part_spec is not None else part_spec[-1]
+            # select item and prepare for drag
+            graphic_drag_item_was_selected = already_selected
+            if not graphic_drag_item_was_selected:
+                if modifiers.control:
+                    delegate.add_index_to_selection(graphic_index)
+                    selection_indexes.add(graphic_index)
+                elif not already_selected:
+                    delegate.set_selection(graphic_index)
+                    selection_indexes.clear()
+                    selection_indexes.add(graphic_index)
+            # keep track of general drag information
+            graphic_drag_start_pos = start_drag_pos
+            graphic_drag_changed = False
+            # keep track of info for the specific item that was clicked
+            graphic_drag_item = graphics[graphic_index]
+            graphic_drag_part = part
+            # keep track of drag information for each item in the set
+            graphic_drag_indexes = selection_indexes
+            for index in graphic_drag_indexes:
+                graphic = graphics[index]
+                graphic_drag_items.append(graphic)
+                graphic_part_data[index] = graphic.begin_drag()
+        if not graphic_drag_items and not modifiers.control:
+            delegate.clear_selection()
+
+        def get_pointer_tool_shape(mouse_pos: Geometry.FloatPoint) -> str:
+            for graphic in graphics:
+                if isinstance(graphic, (Graphics.RectangleTypeGraphic, Graphics.SpotGraphic)):
+                    part, specific = graphic.test(image_canvas_item.mouse_mapping, image_canvas_item.ui_settings, mouse_pos, False)
+                    if part and part.endswith("rotate"):
+                        return "cross"
+            return "arrow"
+
+        with delegate.create_change_graphics_task() as change_graphics_task:
+            while True:
+                value_change = await r.next_value_change()
+                if value_change.is_end:
+                    break
+                if value_change.value is not None:
+                    mouse_pos_, modifiers = value_change.value
+                    mouse_pos = Geometry.FloatPoint(x=mouse_pos_.x, y=mouse_pos_.y)
+
+                    if graphic_drag_items:
+                        graphic_drag_changed = True
+                        force_drag = modifiers.only_option
+                        if force_drag and graphic_drag_part == "all":
+                            if Geometry.distance(mouse_pos, graphic_drag_start_pos) <= 2:
+                                delegate.drag_graphics(graphic_drag_items)
+                                continue
+                        delegate.adjust_graphics(widget_mapping, graphic_drag_items, graphic_drag_part, graphic_part_data, graphic_drag_start_pos, mouse_pos, modifiers)
+
+                    self.cursor_shape = get_pointer_tool_shape(mouse_pos)
+
+            graphics = list(image_canvas_item.graphics)
+            for index in graphic_drag_indexes:
+                graphic_ = graphics[index]
+                graphic_.end_drag(graphic_part_data[index])
+            if graphic_drag_items and not graphic_drag_changed:
+                graphic_index = graphics.index(graphic_drag_item) if graphic_drag_item else 0
+                # user didn't move graphic
+                if not modifiers.control:
+                    # user clicked on a single graphic
+                    delegate.set_selection(graphic_index)
+                else:
+                    # user control clicked. toggle selection
+                    # if control is down and item is already selected, toggle selection of item
+                    if graphic_drag_item_was_selected:
+                        delegate.remove_index_from_selection(graphic_index)
+                    else:
+                        delegate.add_index_to_selection(graphic_index)
+
+            # if graphic_drag_changed, it means the user moved the image. perform the task.
+            if graphic_drag_changed:
+                change_graphics_task.commit()
+
+
 class HandMouseHandler(MouseHandler):
+    def __init__(self, image_canvas_item: ImageCanvasItem, event_loop: asyncio.AbstractEventLoop) -> None:
+        super().__init__(image_canvas_item, event_loop)
+        self.cursor_shape = "hand"
 
     async def _reactor_loop(self, r: Stream.ValueChangeStreamReactorInterface[MousePositionAndModifiers], image_canvas_item: ImageCanvasItem) -> None:
         delegate = image_canvas_item.delegate
@@ -569,6 +707,7 @@ class CreateGraphicMouseHandler(MouseHandler):
             for index in graphic_drag_indexes:
                 graphic_ = graphics[index]
                 graphic_.end_drag(graphic_part_data[index])
+
             if graphic_drag_items and not graphic_drag_changed:
                 graphic_index = graphics.index(graphic)
                 # user didn't move graphic
@@ -586,6 +725,20 @@ class CreateGraphicMouseHandler(MouseHandler):
             # if graphic_drag_changed, it means the user moved the image. perform the task.
             if graphic_drag_changed:
                 create_create_graphic_task.commit()
+
+
+# map the tool mode to the graphic type
+graphic_type_map = {
+    "line": "line-graphic",
+    "rectangle": "rectangle-graphic",
+    "ellipse": "ellipse-graphic",
+    "point": "point-graphic",
+    "line-profile": "line-profile-graphic",
+    "spot": "spot-graphic",
+    "wedge": "wedge-graphic",
+    "ring": "ring-graphic",
+    "lattice": "lattice-graphic",
+}
 
 
 class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
@@ -870,6 +1023,10 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
     def graphic_selection(self) -> DisplayItem.GraphicSelection:
         return self.__graphic_selection
 
+    @property
+    def ui_settings(self) -> UISettings.UISettings:
+        return self.__ui_settings
+
     def _set_image_canvas_position(self, image_position: Geometry.FloatPoint) -> None:
         # create a widget mapping to get from image norm to widget coordinates and back
         delegate = self.delegate
@@ -930,23 +1087,17 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         if delegate.image_mouse_pressed(image_position, modifiers):
             return True
         self.__undo_command = None
-        if delegate.tool_mode == "hand":
+        if delegate.tool_mode == "pointer":
+            assert not self.__mouse_handler
+            assert self.__event_loop
+            self.__mouse_handler = PointerMouseHandler(self, self.__event_loop)
+            self.__mouse_handler.mouse_pressed(Geometry.IntPoint(y=y, x=x), modifiers)
+        elif delegate.tool_mode == "hand":
             assert not self.__mouse_handler
             assert self.__event_loop
             self.__mouse_handler = HandMouseHandler(self, self.__event_loop)
             self.__mouse_handler.mouse_pressed(Geometry.IntPoint(y=y, x=x), modifiers)
-        graphic_type_map = {
-            "line": "line-graphic",
-            "rectangle": "rectangle-graphic",
-            "ellipse": "ellipse-graphic",
-            "point": "point-graphic",
-            "line-profile": "line-profile-graphic",
-            "spot": "spot-graphic",
-            "wedge": "wedge-graphic",
-            "ring": "ring-graphic",
-            "lattice": "lattice-graphic",
-        }
-        if delegate.tool_mode in graphic_type_map.keys():
+        elif delegate.tool_mode in graphic_type_map.keys():
             assert not self.__mouse_handler
             assert self.__event_loop
             self.__mouse_handler = CreateGraphicMouseHandler(self, self.__event_loop, graphic_type_map[delegate.tool_mode])
@@ -959,7 +1110,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.graphic_drag_item_was_selected = False
         self.__graphic_part_data = dict()
         self.__graphic_drag_indexes = set()
-        if delegate.tool_mode == "pointer":
+        if delegate.tool_mode == "pointer__":
             graphics = self.__graphics
             selection_indexes = self.__graphic_selection.indexes
             multiple_items_selected = len(selection_indexes) > 1
@@ -1090,14 +1241,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         if delegate.image_mouse_position_changed(image_position, modifiers):
             return True
         if delegate.tool_mode == "pointer":
-            def get_pointer_tool_shape() -> str:
-                for graphic in self.__graphics:
-                    if isinstance(graphic, (Graphics.RectangleTypeGraphic, Graphics.SpotGraphic)):
-                        part, specific = graphic.test(self.__get_mouse_mapping(), self.__ui_settings, Geometry.FloatPoint(x=x, y=y), False)
-                        if part and part.endswith("rotate"):
-                            return "cross"
-                return "arrow"
-            self.cursor_shape = get_pointer_tool_shape()
+            self.cursor_shape = self.__mouse_handler.cursor_shape if self.__mouse_handler else "arrow"
         elif delegate.tool_mode == "line":
             self.cursor_shape = "cross"
         elif delegate.tool_mode == "rectangle":
