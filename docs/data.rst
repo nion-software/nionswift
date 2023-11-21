@@ -1,68 +1,112 @@
 .. include:: defs.rst
+.. _data:
+
+****************
+Data and Display
+****************
+When using data in Nion Swift, there is an important distinction between the different types of items: data items, and display items.
+
 .. _data-items:
 
-Data and Displays
-=================
-|AppName| operates on data arrays, which include 2D images and 1D spectra, which are generally called *Data Items*.
+Data Items
+==========
+Data items are pieces of data that contain all values and numerical information for a certain file or instance of live data. Data items store data similar to the way files that you would have on your computer store information.
 
-Data items represent data arrays with anywhere from one to five dimensions. The data array associated with a data item can be 1D or 2D data and then organized into 1D or 2D collections or 1D sequences. A data item can store scalar, complex, or RGB data. The scalar data can be integer or real.
+All data items in a project can be found in the data panel. Use the :ref:`collections panel` Panel to ensure that the default "All" collection is selected. Check the filter search bar in the Data Panel to make sure no filters are applied.
 
-A data item also stores both formal and informal metadata about the data. The formal metadata includes a title and description; the grouping of dimensions into data, collections, and sequences; dimensional and intensity calibrations; and creation and modification timestamps including time zone information. The informal metadata includes a freeform Python dict that is JSON compatible.
-
-A data item is displayed in one or more *Display Items*.
+.. _display-items:
 
 Display Items
--------------
-Display items represent a view on one or more data items. A display item tracks things like how to translate the data in a 2D image data item to an image in the user interface. It also tracks how to reduce more complex data structures to either a 2D or 1D representation.
+=============
+Display items are created when a data item is dragged into an empty display panel. Display items are somewhat separate from data items but still use them as a base. A display item shows the values of the data item as an image or line plot, but then allows you to add graphics, change colors, and more.
 
-Display items are distinct from data items so that you can have multiple views on a particular data item and also so that you can display multiple data items in the same display.
+Display items will change the look of the associated data item but not the actual values of the data. It is possible to have the same data item displayed in multiple display panels. Doing this will not allow for different modifications on the same data item, it will only display the same modifications in all of the associated display panels.
 
-Display items include their own title and description. If these are empty, the title and description of the first data item is used instead.
+.. _selections:
 
-Display panels show individual display items and also allow you to browse available display items. The data panel shows the list of display items available in the project. See :ref:`display-panels` and :ref:`user-interface` for more information.
+Selections
+==========
+Click on any data item, display panel, or graphic to select it. You can select more than one item of the same kind using [ctrl + click] on Windows or [cmd + click] on macOS. 
+
+Selecting more than one display panel will display with a solid blue rectangle around the primary selection and with dashed lines around the secondary selections. If a computation or function can only use one input, the primary selection will be used. For computations using multiple inputs, secondary selections may be used as well.
+
+Selecting multiple data items will allow you to move them at the same time. However, multiple data items cannot be dragged into the same display panel.
+
+Selecting multiple graphics in the same display panel will allow you to move them at the same time. The inspector panel will display options for all of the selected graphics.
+
+.. _reducing-data:
 
 Reducing Data for Display
--------------------------
-A data item can possibly represent more data than it can display at once. In addition, there may be multiple ways of viewing the data. The process of data reduction reduces all data items to either a 2D image or a 1D plot suitable for display.
+=========================
+It is possible for a data item in the application to be complex (have more than one value at a given coordinate). In order to display a data item like this, the complex values must be reduced to scalar values. There are two ways to do this:
 
-For example, a 2D spatial collection of 1D energy spectra (2D x 1D) cannot be displayed without reducing it. There are two obvious ways to reduce the data: either reduce to 1D by choosing a particular x, y coordinate from the collection dimensions; or reduce to 2D by choosing a particular energy at each x, y coordinate.
+* Display the data item as a 1D line plot by choosing one x,y coordinate and reading the values at that point.
+
+* Display the data item as a 2D image by choosing one intensity value at each coordinate.
+
+To decide which method for data reduction to use, make sure that the data item in question is selected. Then, using the :ref:`image display panel` or :ref:`line plot inspector section` subsection in the Inspector Panel, choose the desired display method from the Display Type drop-down.
+
+.. _calibrations:
 
 Calibrations
-------------
-A data item keeps track of a dimensional calibration for each dimension of the data. In addition, it tracks an intensity calibration for each value in the data.
+============
+Each data item stores a dimensional calibration for each dimension it contains. It also stores an intensity calibration for the values in the data. You can edit calibrations in the :ref:`calibrations inspector section` subsection of the inspector panel.
 
-Calibrations have the form:
-
-`x' = x * scale + offset`
-
-They also have units.
-
-A calibration is empty when scale is one, offset is zero, and units are empty.
+.. _metadata:
 
 Metadata
---------
-In addition to the description of the dimension groups and the calibrations, a data item has freeform metadata.
+========
+Data items store metadata for various markers and identifiers (when a data item was created, session info, etc.) Keywords in metadata can be used to search for data items in the data panel search bar. Metadata can also be used as a variable in Python scripts. Use the :ref:`metadata panel` panel to view metadata.
 
-The freeform metadata can be viewed in the Metadata Panel or accessed from scripts. See :ref:`user-interface`.
+.. _coordinate-systems:
 
 Coordinate Systems
-------------------
-To be consistent with scripting and Python NumPy coordinates, all coordinate systems increase towards the right and down and indices are ordered such that the slowest changing index in memory is first.
+==================
+Coordinate systems are how the points on an image or a line plot are named. Each point will be given a coordinate of its x (horizontal) value, and its y (vertical) value. They are displayed in the (x,y) format. The various coordinate systems determine where the origin (0,0) is and how the data is split up.
 
-The pixel coordinate system displays pixels and can be displayed with the origin at the top-left or the origin at the center.
+Image Coordinate Systems
+------------------------
+**Calibrated** - Ranges with the changed values in the :ref:`calibrations inspector section` subsection of the inspector panel.
 
-The relative coordinate system displays fractional coordinates and can be displayed with the origin at the top-left and a range of 0.0 to 1.0 or with the origin at the center a range of -1.0 to 1.0.
+**Pixels (Top Left)** - The top left of the image is (0,0) and the bottom right is the maximum height and width of the image.
 
-The calibrated coordinate system displays calibrated coordinates. The origin is determined by the calibration offset.
+**Pixels (Center)** - The middle of the image is (0,0) with the image being split into four quadrants.
 
-Collections
------------
-Images and plots (2D and 1D) data can be arranged into collections with one or two dimensions. These are often expressed as 1D x 1D (spectra along a line), 2D x 1D (a spectrum image), 1D x 2D (images along a line), or 2D x 2D (4D STEM).
+* Top left (-,-)
+* Bottom left (-,+)
+* Bottom right (+,+)
+* Top right (+,-)
 
-Sequences
----------
-In addition to collections, 1D or 2D data or 1D or 2D collections of 1D or 2D data can be arranged into sequences. A sequence is roughly equivalent to a 1D collection.
+**Fractional (Top Left)** - The top left of the image is (0,0) and the bottom right is (1,1). Values in between will be displayed as decimal fractions like (0.5,0.5).
 
-As an example, a sequence of 2D images would be a movie.
+**Fractional (Center)** - The middle of the image is (0,0) with the image being split into four quadrants. Values in between will be listed as decimal fractions like (0.5,0.5).
 
-But more complex arrangements are possible. It is possible to have a sequence of 2D collections of 2D images, resulting in 5D data: e.g., a recording of 4D STEM images.
+* Top left (-1,-1)
+* Bottom left (-1,+1)
+* Bottom right (+1,+1)
+* Top right (+1,-1)
+
+Line Plot Coordinate systems
+----------------------------
+Changing the coordinate system for a line plot will only change the values on the x axis. The y axis and values will remain the same.
+
+**Calibrated** - Ranges with the changed values in the :ref:`calibrations inspector section` subsection of the inspector panel.
+
+**Pixels (Top Left)** - The x axis increases to the right from 0 to the maximum value of the data.
+
+**Pixels (Center)** - The middle of the x axis is 0 with negative x values to the left and positive x values to the right.
+
+**Fractional (Top Left)** - The x axis increases to the right from 0 to 1. X values in between will be displayed as a decimal fraction like 0.5.
+
+**Fractional (Center)** - The middle of the x axis is 0 with negative 1 to the far left and positive 1 to the far right. X values in between will be displayed as a decimal fraction like 0.5.
+
+.. _sequencing:
+
+Sequencing
+==========
+Sometimes a data item can have multiple 'instances' of data in sequence. For example, data gathered from a microscope over time might contain multiple images. This is similar to how a movie is just a series of images in sequence. 
+
+Nion Swift can work with differently-dimensional data. Multi-dimensional data items are referred to as “collections” if they contain 1 or 2 dimensions and as “sequences” if they contain 3 or more dimensions. 
+
+The term "Collection" here is not to be confused with the :ref:`collections panel` Panel which serves the function of organizing data items into separate folders. The terms "collection" and "sequence" are not typical in reference to this. More common terms are "navigation" and "signal."
+
