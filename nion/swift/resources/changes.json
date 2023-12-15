@@ -3,6 +3,10 @@
     "version": "Unreleased",
     "notes": [
       {
+        "issues": ["https://github.com/nion-software/nionswift/issues/995"],
+        "summary": "Fix crash when screen properties change. Also respond better to DPI changes."
+      },
+      {
         "issues": ["https://github.com/nion-software/nionswift/issues/992"],
         "summary": "Add scroll bar to activity panel to prevent it growing beyond its available height."
       },

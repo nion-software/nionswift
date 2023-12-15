@@ -78,6 +78,7 @@ class Panel:
         self.dock_widget.on_size_changed = self.size_changed
         self.dock_widget.on_focus_changed = self.focus_changed
         self.dock_widget.on_ui_activity = self.document_controller._register_ui_activity
+        self.dock_widget.on_physical_dpi_changed = self.__physical_dpi_changed
 
     @property
     def document_controller(self) -> DocumentController.DocumentController:
@@ -116,6 +117,10 @@ class Panel:
     def focus_changed(self, focused: bool) -> None:
         if focused:
             self.document_controller.request_refocus()
+
+    def __physical_dpi_changed(self, physical_dpi: float) -> None:
+        if self.dock_widget and self.dock_widget.widget:
+            self.dock_widget.widget.redraw()
 
     def __str__(self) -> str:
         return self.display_name
