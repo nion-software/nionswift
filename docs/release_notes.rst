@@ -12,7 +12,7 @@ them for evaluation and feedback. If you encounter an issue or have feedback abo
 please contact us or `file issues
 <https://github.com/nion-software/nionswift/issues>`_.
 
-Version 16.9.2 (2024-01-03)
+Version 16.10.0 (2024-01-03)
 ----------------------------
 * Fix crash when screen properties change. Also respond better to DPI changes. (`#995 <https://github.com/nion-software/nionswift/issues/995>`_)
 * Add scroll bar to activity panel to prevent it growing beyond its available height. (`#992 <https://github.com/nion-software/nionswift/issues/992>`_)
