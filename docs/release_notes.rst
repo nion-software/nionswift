@@ -5,12 +5,29 @@
 Release Notes
 =============
 
-Note: In order to release bug fixes in a timely manner, we try to publish Nion Swift releases on
-a regular basis. Sometimes, though, as a consequence, bug fix releases will also include new features
-that are only partial steps towards their final form. Instead of disabling these new partial features
-in bug fix releases, we choose to include them for evaluation and feedback. If you encounter an issue
-or have feedback about these types of new features, please contact us or file issues at
-https://github.com/nion-software/nionswift/issues.
+Note: In order to release bug fixes in a timely manner, we try to publish Nion Swift releases on a regular basis.
+Sometimes, though, as a consequence, bug fix releases will also include new features that are only partial steps
+towards their final form. Instead of disabling these new partial features in bug fix releases, we choose to include
+them for evaluation and feedback. If you encounter an issue or have feedback about these types of new features,
+please contact us or `file issues
+<https://github.com/nion-software/nionswift/issues>`_.
+
+Version 16.9.2 (2024-01-03)
+----------------------------
+* Fix crash when screen properties change. Also respond better to DPI changes. (`#995 <https://github.com/nion-software/nionswift/issues/995>`_)
+* Add scroll bar to activity panel to prevent it growing beyond its available height. (`#992 <https://github.com/nion-software/nionswift/issues/992>`_)
+* Hovering over items in grid browser shows info about the item. (`#5 <https://github.com/nion-software/nionswift/issues/5>`_)
+* Hovering over title bar shows info about the displayed item.
+* Add a Radial Power Spectrum menu item to Fourier processing sub-menu. (`#989 <https://github.com/nion-software/nionswift/issues/989>`_)
+* Add a radial profile menu item to Fourier processing sub-menu. (`#988 <https://github.com/nion-software/nionswift/issues/988>`_)
+* Expand About Box to include release notes and recent changes.
+* Performance improvements to avoid metadata copying.
+* Commands work after deleting multiple display items. (`#700 <https://github.com/nion-software/nionswift/issues/700>`_)
+* Fall back to uncalibrated coordinates for angle/length if units don't match on datum dimensions. (`#980 <https://github.com/nion-software/nionswift/issues/980>`_)
+* Data panel dragging works on first click now. (`#979 <https://github.com/nion-software/nionswift/issues/979>`_)
+* Add the option to display the phase of a complex array. (`#981 <https://github.com/nion-software/nionswift/issues/981>`_) by `luc-j-bourhis <https://github.com/luc-j-bourhis>`_
+* Mapped/unmapped processing (when available) now works in unmapped case. (`#985 <https://github.com/nion-software/nionswift/issues/985>`_)
+* Fix several cases where index sliders were incorrect. (`#759 <https://github.com/nion-software/nionswift/issues/759>`_, `#987 <https://github.com/nion-software/nionswift/issues/987>`_)
 
 Version 16.9.1 (2023-10-23)
 ----------------------------
