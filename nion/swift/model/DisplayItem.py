@@ -214,7 +214,9 @@ class CalibrationStyleNative(CalibrationStyle):
     is_calibrated = True
 
     def get_dimensional_calibrations(self, dimensional_shape: DataAndMetadata.ShapeType, dimensional_calibrations: DataAndMetadata.CalibrationListType) -> DataAndMetadata.CalibrationListType:
-        return dimensional_calibrations
+        if all(calibration.is_valid for calibration in dimensional_calibrations):
+            return dimensional_calibrations
+        return [Calibration.Calibration() for _ in dimensional_shape]
 
 
 class CalibrationStylePixelsTopLeft(CalibrationStyle):
@@ -2209,8 +2211,12 @@ class DisplayItem(Persistence.PersistentObject):
                             mn = min(mn, v)
                             mx = max(mx, v)
                     intensity_calibration = xdata0.intensity_calibration
-                    scales = mn, mx
-                    dimensional_shape = (int(mx - mn), )
+                    if math.isfinite(mn) and math.isfinite(mx):
+                        scales = mn, mx
+                        dimensional_shape = (int(mx - mn), )
+                    else:
+                        scales = 0, xdata0.dimensional_shape[-1]
+                        dimensional_shape = xdata0.dimensional_shape
         self.__dimensional_calibrations = dimensional_calibrations
         self.__intensity_calibration = intensity_calibration
         self.__scales = scales
@@ -2766,6 +2772,7 @@ class DisplayItem(Persistence.PersistentObject):
 class DisplayCalibrationInfo:
 
     def __init__(self, display_item: DisplayItem, display_data_shape: typing.Optional[DataAndMetadata.ShapeType] = None) -> None:
+        assert all(calibration.is_valid for calibration in display_item.displayed_dimensional_calibrations)
         self.display_data_shape = display_data_shape if display_data_shape is not None else display_item.display_data_shape
         self.displayed_dimensional_scales = display_item.displayed_dimensional_scales
         self.displayed_dimensional_calibrations = copy.deepcopy(display_item.displayed_dimensional_calibrations)

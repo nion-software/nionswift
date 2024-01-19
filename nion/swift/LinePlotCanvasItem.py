@@ -338,6 +338,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             displayed_dimensional_calibrations = display_calibration_info.displayed_dimensional_calibrations
             self.__data_scale = displayed_dimensional_scales[-1] if len(displayed_dimensional_scales) > 0 else 1.0
             self.__displayed_dimensional_calibration = displayed_dimensional_calibrations[-1] if len(displayed_dimensional_calibrations) > 0 else Calibration.Calibration(scale=displayed_dimensional_scales[-1])
+            assert self.__displayed_dimensional_calibration.is_valid
             self.__intensity_calibration = display_calibration_info.displayed_intensity_calibration
             self.__calibration_style = display_calibration_info.calibration_style
             self.__y_min = display_properties.get("y_min")

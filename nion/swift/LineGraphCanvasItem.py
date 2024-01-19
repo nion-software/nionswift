@@ -150,6 +150,8 @@ class LineGraphAxes:
                  data_right: int, x_calibration: typing.Optional[Calibration.Calibration],
                  y_calibration: typing.Optional[Calibration.Calibration], data_style: typing.Optional[str],
                  y_ticker: Geometry.Ticker) -> None:
+        assert x_calibration is None or x_calibration.is_valid
+        assert y_calibration is None or y_calibration.is_valid
         # these items are considered to be input items
         self.data_scale = data_scale
         self.__uncalibrated_left_channel = data_left

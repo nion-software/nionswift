@@ -1,6 +1,7 @@
 # standard libraries
 import contextlib
 import copy
+import math
 import typing
 import unittest
 
@@ -9,6 +10,7 @@ import numpy
 
 # local libraries
 from nion.data import Calibration
+from nion.data import DataAndMetadata
 from nion.swift import Application
 from nion.swift import Facade
 from nion.swift.model import DataItem
@@ -486,6 +488,12 @@ class TestDisplayItemClass(unittest.TestCase):
                 self.assertEqual("green", display_item.displayed_title)
                 self.assertEqual("green (Negate)", display_item2.displayed_title)
                 self.assertEqual("green (Negate) (Negate)", display_item3.displayed_title)
+
+    def test_display_item_handles_invalid_calibration(self):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(numpy.zeros((8,)), dimensional_calibrations=[Calibration.Calibration(0.0, -math.inf, "x")]))
+            document_model.append_data_item(data_item)
 
     # test_transaction_does_not_cascade_to_data_item_refs
     # test_increment_data_ref_counts_cascades_to_data_item_refs

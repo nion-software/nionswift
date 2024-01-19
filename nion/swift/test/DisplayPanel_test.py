@@ -1,7 +1,7 @@
 # standard libraries
 import contextlib
 import logging
-from math import ceil, floor
+import math
 import typing
 import unittest
 import uuid
@@ -3154,6 +3154,26 @@ class TestDisplayPanelClass(unittest.TestCase):
             # undo again check assumptions
             document_controller.handle_undo()
             self.assertEqual((0.5, 0.5), tuple(display_item.display_properties["image_position"]))
+
+    def test_raster_display_handles_invalid_calibration(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(numpy.zeros((8,8)), dimensional_calibrations=[Calibration.Calibration(0.0, -math.inf, "x"), Calibration.Calibration(0.0, -math.inf, "x")]))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            DisplayPanel.preview(DisplayPanel.DisplayPanelUISettings(document_controller.ui), display_item, 512, 512)
+
+    def test_line_plot_display_handles_invalid_calibration(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(numpy.zeros((8,)), dimensional_calibrations=[Calibration.Calibration(0.0, -math.inf, "x")]))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            DisplayPanel.preview(DisplayPanel.DisplayPanelUISettings(document_controller.ui), display_item, 512, 128)
 
 
 if __name__ == '__main__':
