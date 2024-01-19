@@ -1,6 +1,16 @@
 [
   {
-    "version": "Unreleased",
+    "version": "UNRELEASED",
+    "notes": [
+      {
+        "issues": ["https://github.com/nion-software/nionswift/issues/998"],
+        "summary": "Fix issues with line plot when dimensional calibrations are invalid. Fall back to pixel calibration."
+      }
+    ]
+  },
+  {
+    "version": "16.10.0",
+    "release_date": "2024-01-03",
     "notes": [
       {
         "issues": ["https://github.com/nion-software/nionswift/issues/995"],
