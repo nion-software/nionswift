@@ -218,7 +218,9 @@ class DocumentController(Window.Window):
         # to determine when to close it.
         self.document_model = document_model
         self.document_model.add_ref()
-        self.title = _("Nion Swift")
+        app_version = getattr(app, "version_str", "")
+        self.__base_title = _("Nion Swift") + ((" " + app_version) if app else "")
+        self.title = self.__base_title
         if project_reference:
             self.window_file_path = project_reference.path
         self.__workspace_controller: typing.Optional[Workspace.Workspace] = None
@@ -506,7 +508,7 @@ class DocumentController(Window.Window):
         return self.__workspace_controller
 
     def _workspace_changed(self, workspace: WorkspaceLayout.WorkspaceLayout) ->  None:
-        title = _("Nion Swift")
+        title = self.__base_title
         project_title = self.__project_reference.title if self.__project_reference else None
         if project_title:
             title += " - " + project_title
