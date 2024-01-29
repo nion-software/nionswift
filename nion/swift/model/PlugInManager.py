@@ -12,6 +12,7 @@ import os
 import pkgutil
 import re
 import sys
+import time
 import traceback
 import types
 import typing
@@ -25,6 +26,8 @@ _ModuleInfoType = typing.Any
 
 __modules: typing.List[types.ModuleType] = list()
 __test_suites: typing.List[unittest.suite.TestSuite] = list()
+
+logger = logging.getLogger("loader_progress")
 
 
 class RequirementsException(Exception):
@@ -89,21 +92,32 @@ def load_plug_in(module_path: str, module_name: str) -> typing.Optional[types.Mo
                     extensions.append(cls(APIBroker()))
         plugin_loaded_str = "Plug-in '" + module_name + "' loaded (" + module_path + ")."
         list_of_tests_str = " Tests: " + ",".join(tests) if len(tests) > 0 else ""
-        logging.info(plugin_loaded_str + list_of_tests_str)
+        logger.info(plugin_loaded_str + list_of_tests_str)
         return module
     except RequirementsException as e:
-        logging.info("Plug-in '" + module_name + "' NOT loaded. %s (" + module_path + ")", e.reason)
+        logger.info("Plug-in '" + module_name + "' NOT loaded. %s (" + module_path + ")", e.reason)
     except Exception as e:
-        logging.info("Plug-in '" + module_name + "' NOT loaded (" + module_path + ").")
-        logging.info(traceback.format_exc())
-        logging.info("--------")
+        logger.info("Plug-in '" + module_name + "' NOT loaded (" + module_path + ").")
+        logger.info(traceback.format_exc())
+        logger.info("--------")
     return None
 
 
-class ModuleAdapter:
+class _AdapterProtocol(typing.Protocol):
+    module_name: str
+    module_path: str
+    loaded_module: typing.Optional[types.ModuleType]
+    manifest_path: str
+    manifest: PersistentDictType
+
+    def load(self) -> None: ...
+
+
+class ModuleAdapter(_AdapterProtocol):
     def __init__(self, package_name: str, module_info: _ModuleInfoType) -> None:
         self.module_name = package_name + "." + module_info.name
         self.module_path = package_name
+        self.loaded_module: typing.Optional[types.ModuleType] = None
         self.manifest_path = "N/A"
         self.manifest: PersistentDictType = dict()
         path = getattr(module_info.module_finder, 'path', None)
@@ -114,41 +128,42 @@ class ModuleAdapter:
                     with open(self.manifest_path) as f:
                         self.manifest.update(json.load(f))
                 except Exception as e:
-                    logging.info("Cannot read manifest file from %s", self.manifest_path)
-                    logging.info(e)
+                    logger.info("Cannot read manifest file from %s", self.manifest_path)
+                    logger.info(e)
         get_data = getattr(module_info.module_finder, 'get_data', None)
         if get_data:
             try:
                 json_data = get_data(os.path.join(package_name, module_info.name, "manifest.json"))
                 self.manifest.update(json.loads(json_data))
             except Exception as e:
-                logging.info("Cannot read manifest file from %s", module_info.module_finder.archive)
-                logging.info(e)
+                logger.info("Cannot read manifest file from %s", module_info.module_finder.archive)
+                logger.info(e)
         self.manifest.setdefault("name", self.module_name)
         self.manifest.setdefault("identifier", self.module_name)
         self.manifest.setdefault("version", "0.0.0")
 
-    def load(self) -> typing.Optional[types.ModuleType]:
-        return load_plug_in(self.module_path, self.module_name)
+    def load(self) -> None:
+        self.loaded_module = load_plug_in(self.module_path, self.module_name)
 
 
-class PlugInAdapter:
+class PlugInAdapter(_AdapterProtocol):
     def __init__(self, directory: str, relative_path: str) -> None:
         plugin_dir = os.path.join(directory, relative_path)
         self.manifest_path = os.path.join(plugin_dir, "manifest.json")
         self.module_name = relative_path
         self.module_path = directory
+        self.loaded_module: typing.Optional[types.ModuleType] = None
         self.manifest: PersistentDictType = dict()
         if os.path.exists(self.manifest_path):
             try:
                 with open(self.manifest_path) as f:
                     self.manifest = json.load(f)
             except Exception as e:
-                logging.info("Cannot read manifest file from %s", self.manifest_path)
-                logging.info(e)
+                logger.info("Cannot read manifest file from %s", self.manifest_path)
+                logger.info(e)
 
-    def load(self) -> typing.Optional[types.ModuleType]:
-        return load_plug_in(self.module_path, self.module_name)
+    def load(self) -> None:
+        self.loaded_module = load_plug_in(self.module_path, self.module_name)
 
 
 class ApplicationLike(typing.Protocol):
@@ -173,7 +188,7 @@ def load_plug_ins(document_location: str, data_location: str, root_dir: typing.O
         # create directories here if they don't exist
         plugins_dir = os.path.abspath(os.path.join(data_location, "PlugIns"))
         if not os.path.exists(plugins_dir):
-            logging.info("Creating plug-ins directory %s", plugins_dir)
+            logger.info("Creating plug-ins directory %s", plugins_dir)
             os.makedirs(plugins_dir)
 
     # search the Nion/Swift subdirectory of the default document location too,
@@ -194,7 +209,7 @@ def load_plug_ins(document_location: str, data_location: str, root_dir: typing.O
         plugins_dir = os.path.abspath(os.path.join(subdirectory, "PlugIns"))
 
         if os.path.exists(plugins_dir) and not plugins_dir in seen_plugin_dirs:
-            logging.info("Loading plug-ins from %s", plugins_dir)
+            logger.info("Loading plug-ins from %s", plugins_dir)
 
             # add the PlugIns directory to the system import path.
             sys.path.append(plugins_dir)
@@ -206,12 +221,12 @@ def load_plug_ins(document_location: str, data_location: str, root_dir: typing.O
             # mark plugins_dir as 'seen' to avoid search it twice.
             seen_plugin_dirs.append(plugins_dir)
         else:
-            logging.info("NOT Loading plug-ins from %s (missing)", plugins_dir)
+            logger.info("NOT Loading plug-ins from %s (missing)", plugins_dir)
 
     version_map: PersistentDictType = dict()
     module_exists_map: typing.Dict[str, bool] = dict()
 
-    plugin_adapters: typing.List[typing.Union[ModuleAdapter, PlugInAdapter]] = list()
+    plugin_adapters = list[_AdapterProtocol]()
 
     import nionswift_plugin
     for module_info in pkgutil.iter_modules(getattr(nionswift_plugin, "__path__")):
@@ -220,30 +235,32 @@ def load_plug_ins(document_location: str, data_location: str, root_dir: typing.O
     for directory, relative_path in plugin_dirs:
         plugin_adapters.append(PlugInAdapter(directory, relative_path))
 
+    ordered_module_adapters = list[_AdapterProtocol]()
+
     progress = True
     while progress:
         progress = False
         plugin_adapters_copy = copy.deepcopy(plugin_adapters)
-        plugin_adapters = list()
+        plugin_adapters = list[_AdapterProtocol]()
         for plugin_adapter in plugin_adapters_copy:
             manifest_path = plugin_adapter.manifest_path
             manifest = plugin_adapter.manifest
             if manifest:
                 manifest_valid = True
                 if not "name" in manifest:
-                    logging.info("Invalid manifest (missing 'name'): %s", manifest_path)
+                    logger.info("Invalid manifest (missing 'name'): %s", manifest_path)
                     manifest_valid = False
                 if not "identifier" in manifest:
-                    logging.info("Invalid manifest (missing 'identifier'): %s", manifest_path)
+                    logger.info("Invalid manifest (missing 'identifier'): %s", manifest_path)
                     manifest_valid = False
                 if "identifier" in manifest and not re.match(r"[_\-a-zA-Z][_\-a-zA-Z0-9.]*$", manifest["identifier"]):
-                    logging.info("Invalid manifest (invalid 'identifier': '%s'): %s", manifest["identifier"], manifest_path)
+                    logger.info("Invalid manifest (invalid 'identifier': '%s'): %s", manifest["identifier"], manifest_path)
                     manifest_valid = False
                 if not "version" in manifest:
-                    logging.info("Invalid manifest (missing 'version'): %s", manifest_path)
+                    logger.info("Invalid manifest (missing 'version'): %s", manifest_path)
                     manifest_valid = False
                 if "requires" in manifest and not isinstance(manifest["requires"], list):
-                    logging.info("Invalid manifest ('requires' not a list): %s", manifest_path)
+                    logger.info("Invalid manifest ('requires' not a list): %s", manifest_path)
                     manifest_valid = False
                 if not manifest_valid:
                     continue
@@ -254,27 +271,27 @@ def load_plug_ins(document_location: str, data_location: str, root_dir: typing.O
                         module_exists = importlib.util.find_spec(module) is not None
                         module_exists_map[module] = module_exists
                     if not module_exists:
-                        logging.info("Plug-in '" + plugin_adapter.module_name + "' NOT loaded (" + plugin_adapter.module_path + ").")
-                        logging.info("Cannot satisfy requirement (%s): %s", module, manifest_path)
+                        logger.info("Plug-in '" + plugin_adapter.module_name + "' NOT loaded (" + plugin_adapter.module_path + ").")
+                        logger.info("Cannot satisfy requirement (%s): %s", module, manifest_path)
                         manifest_valid = False
                         break
                 for requirement in manifest.get("requires", list()):
                     # TODO: see https://packaging.pypa.io/en/latest/
                     requirement_components = requirement.split()
                     if len(requirement_components) != 3 or requirement_components[1] != "~=":
-                        logging.info("Invalid manifest (requirement '%s' invalid): %s", requirement, manifest_path)
+                        logger.info("Invalid manifest (requirement '%s' invalid): %s", requirement, manifest_path)
                         manifest_valid = False
                         break
                     identifier, operator, version_specifier = requirement_components[0], requirement_components[1], requirement_components[2]
                     if identifier in version_map:
                         if Utility.compare_versions("~" + version_specifier, version_map[identifier]) != 0:
-                            logging.info("Plug-in '" + plugin_adapter.module_name + "' NOT loaded (" + plugin_adapter.module_path + ").")
-                            logging.info("Cannot satisfy requirement (%s): %s", requirement, manifest_path)
+                            logger.info("Plug-in '" + plugin_adapter.module_name + "' NOT loaded (" + plugin_adapter.module_path + ").")
+                            logger.info("Cannot satisfy requirement (%s): %s", requirement, manifest_path)
                             manifest_valid = False
                             break
                     else:
                         # requirements not loaded yet; add back to plugin_adapters, but don't mark progress since nothing was loaded.
-                        logging.info("Plug-in '" + plugin_adapter.module_name + "' delayed (%s) (" + plugin_adapter.module_path + ").", requirement)
+                        logger.info("Plug-in '" + plugin_adapter.module_name + "' delayed (%s) (" + plugin_adapter.module_path + ").", requirement)
                         plugin_adapters.append(plugin_adapter)
                         manifest_valid = False
                         break
@@ -287,14 +304,28 @@ def load_plug_ins(document_location: str, data_location: str, root_dir: typing.O
             #   otherwise defer until next round
             #   stop if no plug-ins loaded in the round
             #   count on the user to have correct dependencies
-            module = plugin_adapter.load()
-            if module:
-                __modules.append(module)
+            plugin_adapter.load()
+            if plugin_adapter.loaded_module:
+                ordered_module_adapters.append(plugin_adapter)
+                __modules.append(plugin_adapter.loaded_module)
             progress = True
     for plugin_adapter in plugin_adapters:
-        logging.info("Plug-in '" + plugin_adapter.module_name + "' NOT loaded (requirements) (" + plugin_adapter.module_path + ").")
+        logger.info("Plug-in '" + plugin_adapter.module_name + "' NOT loaded (requirements) (" + plugin_adapter.module_path + ").")
 
-    notify_modules("run")
+    for plugin_adapter in ordered_module_adapters:
+        module = plugin_adapter.loaded_module
+        assert module
+        for member in inspect.getmembers(module):
+            if inspect.isfunction(member[1]) and member[0] == "run":
+                try:
+                    start_time = time.time()
+                    member[1]()
+                    elapsed_s = int(time.time() - start_time)
+                    logger.info(f"Plug-in '{plugin_adapter.module_name}' initialized ({elapsed_s}s)")
+                except Exception as e:
+                    logger.info("Plug-in '" + str(module) + "' exception during 'run'.")
+                    logger.info(traceback.format_exc())
+                    logger.info("--------")
 
 def unload_plug_ins() -> None:
     global extensions
@@ -305,17 +336,6 @@ def unload_plug_ins() -> None:
             logging.info(traceback.format_exc())
 
     extensions = []
-
-def notify_modules(method_name: str, *args: typing.Any, **kwargs: typing.Any) -> None:
-    for module in __modules:
-        for member in inspect.getmembers(module):
-            if inspect.isfunction(member[1]) and member[0] == method_name:
-                try:
-                    member[1](*args, **kwargs)
-                except Exception as e:
-                    logging.info("Plug-in '" + str(module) + "' exception during '" + method_name + "'.")
-                    logging.info(traceback.format_exc())
-                    logging.info("--------")
 
 
 def append_test_suites(suites: typing.Sequence[unittest.suite.TestSuite]) -> None:
