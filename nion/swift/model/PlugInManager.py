@@ -63,6 +63,7 @@ extensions: typing.List[typing.Any] = list()
 
 def load_plug_in(module_path: str, module_name: str) -> typing.Optional[types.ModuleType]:
     try:
+        start_time = time.time()
         # First load the module.
         module = importlib.import_module(module_name)
         # Now scan through the module and look for extensions and tests.
@@ -90,7 +91,8 @@ def load_plug_in(module_path: str, module_name: str) -> typing.Optional[types.Mo
                 extension_id = getattr(cls, "extension_id", None)
                 if extension_id:
                     extensions.append(cls(APIBroker()))
-        plugin_loaded_str = "Plug-in '" + module_name + "' loaded (" + module_path + ")."
+        elapsed_s = int(time.time() - start_time)
+        plugin_loaded_str = f"Plug-in '{module_name}' loaded ({module_path}) ({elapsed_s}s)."
         list_of_tests_str = " Tests: " + ",".join(tests) if len(tests) > 0 else ""
         logger.info(plugin_loaded_str + list_of_tests_str)
         return module
