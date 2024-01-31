@@ -197,8 +197,8 @@ def calculate_display_range(display_limits: DisplayLimitsType,
 
 
 class CalibrationStyle:
-    label: typing.Optional[str] = None
-    calibration_style_id: typing.Optional[str] = None
+    label: str
+    calibration_style_id: str
     is_calibrated: bool = False
 
     def get_dimensional_calibrations(self, dimensional_shape: DataAndMetadata.ShapeType, dimensional_calibrations: DataAndMetadata.CalibrationListType) -> DataAndMetadata.CalibrationListType:

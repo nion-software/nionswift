@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 # standard libraries
+import asyncio
 import collections
 import copy
 import functools
@@ -42,11 +43,11 @@ from nion.utils import Binding
 from nion.utils import Converter
 from nion.utils import Event
 from nion.utils import Geometry
+from nion.utils import ListModel
 from nion.utils import Model
 from nion.utils import Observable
 from nion.utils import ReferenceCounting
 from nion.utils import Registry
-from nion.utils import Stream
 from nion.utils import Validator
 
 if typing.TYPE_CHECKING:
@@ -1334,77 +1335,6 @@ class ChangeDimensionalCalibrationsCommand(Undo.UndoableCommand):
         return isinstance(command, self.__class__) and bool(self.command_id) and self.command_id == command.command_id and self.__data_item_uuid == command.__data_item_uuid
 
 
-class CalibrationToObservable(Observable.Observable):
-    """Provides observable calibration object.
-
-    Clients can get/set/observer offset, scale, and unit properties.
-
-    The function setter will take a calibration argument. A typical function setter might be
-    data_source.set_dimensional_calibration(0, calibration).
-    """
-
-    def __init__(self, calibration: Calibration.Calibration, setter_fn: typing.Callable[[Calibration.Calibration], None]) -> None:
-        super().__init__()
-        self.__calibration = calibration
-        self.__cached_value = Calibration.Calibration()
-        self.__setter_fn = setter_fn
-
-        def update_calibration(calibration: Calibration.Calibration) -> None:
-            if self.__cached_value is not None:
-                if calibration.offset != self.__cached_value.offset:
-                    self.notify_property_changed("offset")
-                if calibration.scale != self.__cached_value.scale:
-                    self.notify_property_changed("scale")
-                if calibration.units != self.__cached_value.units:
-                    self.notify_property_changed("units")
-            self.__cached_value = calibration
-
-        update_calibration(calibration)
-
-    def close(self) -> None:
-        self.__cached_value = typing.cast(typing.Any, None)
-        self.__setter_fn = typing.cast(typing.Any, None)
-
-    def copy_from(self, calibration: Calibration.Calibration) -> None:
-        self.__cached_value = calibration
-        self.notify_property_changed("offset")
-        self.notify_property_changed("scale")
-        self.notify_property_changed("units")
-
-    @property
-    def offset(self) -> float:
-        return self.__cached_value.offset
-
-    @offset.setter
-    def offset(self, value: float) -> None:
-        calibration = self.__cached_value
-        calibration.offset = value
-        self.__setter_fn(calibration)
-        self.notify_property_changed("offset")
-
-    @property
-    def scale(self) -> float:
-        return self.__cached_value.scale
-
-    @scale.setter
-    def scale(self, value: float) -> None:
-        calibration = self.__cached_value
-        calibration.scale = value
-        self.__setter_fn(calibration)
-        self.notify_property_changed("scale")
-
-    @property
-    def units(self) -> str:
-        return self.__cached_value.units
-
-    @units.setter
-    def units(self, value: str) -> None:
-        calibration = self.__cached_value
-        calibration.units = value
-        self.__setter_fn(calibration)
-        self.notify_property_changed("units")
-
-
 class InspectorSectionWidget(Widgets.CompositeWidgetBase):
     def __init__(self, ui: UserInterface.UserInterface) -> None:
         self.__content_widget = ui.create_column_widget()
@@ -1502,138 +1432,275 @@ def make_calibration_row_widget(ui: UserInterface.UserInterface, data_item: Data
     return widget
 
 
-class CalibrationsInspectorSection(InspectorSection):
-    """Calibration inspector."""
+class BetterFloatToStringConverter(Converter.FloatToStringConverter):
+    def __init__(self, *, pass_none: bool = False) -> None:
+        super().__init__(pass_none=pass_none)
+        self.__pass_none = False
 
+    def convert(self, value: typing.Optional[float]) -> typing.Optional[str]:
+        if value is None:
+            return None if self.__pass_none else str()
+        if math.isfinite(value) and value != 0.0:
+            mag = math.floor(math.log10(abs(value)))
+            if mag < 0:
+                return "{0:0.4g}".format(value)
+            elif mag > 5:
+                return "{0:0.1e}".format(value)
+            else:
+                result = "{0:.4f}".format(value)
+                while result.endswith("0") and not result.endswith(".0"):
+                    result = result[:-1]
+                return result
+        result = "{0:f}".format(value)
+        while result.endswith("0") and not result.endswith(".0"):
+            result = result[:-1]
+        return result
+
+
+class CalibrationModel(Observable.Observable):
+    def __init__(self, axis_name: str, calibration: Calibration.Calibration, setter_fn: typing.Callable[[Calibration.Calibration], None]) -> None:
+        super().__init__()
+        self.__axis_name = axis_name
+        self.__calibration = calibration
+        self.__converter = BetterFloatToStringConverter()
+        self.__setter_fn = setter_fn
+
+    @property
+    def axis_name(self) -> str:
+        return self.__axis_name
+
+    @axis_name.setter
+    def axis_name(self, value: str) -> None:
+        if self.__axis_name != value:
+            self.__axis_name = value
+            self.notify_property_changed("axis_name")
+
+    @property
+    def offset(self) -> float:
+        return self.__calibration.offset
+
+    @offset.setter
+    def offset(self, value: float) -> None:
+        if self.__calibration.offset != value:
+            self.__calibration.offset = value
+            self.__setter_fn(self.__calibration)
+            self.notify_property_changed("offset")
+            self.notify_property_changed("offset_str")
+
+    @property
+    def offset_str(self) -> str:
+        return self.__converter.convert(self.__calibration.offset) or "0.0"
+
+    @offset_str.setter
+    def offset_str(self, value: str) -> None:
+        self.offset = self.__converter.convert_back(value) or 0.0
+
+    @property
+    def scale(self) -> float:
+        return self.__calibration.scale
+
+    @scale.setter
+    def scale(self, value: float) -> None:
+        if self.__calibration.scale != value:
+            self.__calibration.scale = value
+            self.__setter_fn(self.__calibration)
+            self.notify_property_changed("scale")
+            self.notify_property_changed("scale_str")
+
+    @property
+    def scale_str(self) -> str:
+        return self.__converter.convert(self.__calibration.scale) or str()
+
+    @scale_str.setter
+    def scale_str(self, value: str) -> None:
+        self.scale = self.__converter.convert_back(value) or 0.0
+
+    @property
+    def units(self) -> typing.Optional[str]:
+        return self.__calibration.units
+
+    @units.setter
+    def units(self, value: typing.Optional[str]) -> None:
+        if self.__calibration.units != value:
+            self.__calibration.units = value if value else str()
+            self.__setter_fn(self.__calibration)
+            self.notify_property_changed("units")
+
+
+class CalibrationHandler(Declarative.Handler):
+    def __init__(self, calibration_model: CalibrationModel) -> None:
+        super().__init__()
+        self._calibration_model = calibration_model
+        u = Declarative.DeclarativeUI()
+        self.ui_view = u.create_row(
+            u.create_label(text="@binding(_calibration_model.axis_name)", width=60),
+            u.create_line_edit(text="@binding(_calibration_model.offset_str)", width=60),
+            u.create_line_edit(text="@binding(_calibration_model.scale_str)", width=60),
+            u.create_line_edit(text="@binding(_calibration_model.units)", width=60),
+            u.create_stretch(),
+            spacing=12
+        )
+
+
+class CalibrationStyleModel(Observable.Observable):
+    def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem) -> None:
+        super().__init__()
+        self.__document_controller = document_controller
+        self.__display_item = display_item
+        self.__display_item_property_changed_listener = display_item.property_changed_event.listen(ReferenceCounting.weak_partial(CalibrationStyleModel.__handle_display_item_property_changed, self))
+        self.__calibration_styles = list(DisplayItem.get_calibration_styles())
+
+    def __handle_display_item_property_changed(self, name: str) -> None:
+        if name == "calibration_style_id":
+            self.notify_property_changed("calibration_style_id")
+            self.notify_property_changed("index")
+
+    @property
+    def items(self) -> typing.List[str]:
+        return [calibration_style.label for calibration_style in self.__calibration_styles]
+
+    @property
+    def index(self) -> int:
+        calibration_style_id = self.calibration_style_id
+        for i, calibration_style in enumerate(self.__calibration_styles):
+            if calibration_style.calibration_style_id == calibration_style_id:
+                return i
+        return 0
+
+    @index.setter
+    def index(self, value: int) -> None:
+        if value != self.index:
+            value = max(0, min(value, len(self.__calibration_styles) - 1))
+            self.calibration_style_id = self.__calibration_styles[value].calibration_style_id
+
+    @property
+    def calibration_style_id(self) -> str:
+        return self.__display_item.calibration_style_id
+
+    @calibration_style_id.setter
+    def calibration_style_id(self, value: str) -> None:
+        if value != self.calibration_style_id:
+            command = ChangeDisplayItemPropertyCommand(self.__document_controller.document_model, self.__display_item, "calibration_style_id", value)
+            command.perform()
+            self.__document_controller.push_undo_command(command)
+            self.notify_property_changed("calibration_style_id")
+            self.notify_property_changed("index")
+
+
+class CalibrationSectionHandler(Declarative.Handler):
+    def __init__(self, dimensional_calibrations_model: ListModel.ListModel[CalibrationModel], intensity_calibration_model: CalibrationModel, calibration_style_model: CalibrationStyleModel) -> None:
+        super().__init__()
+        self._dimensional_calibrations_model = dimensional_calibrations_model
+        self.__intensity_calibration_model = intensity_calibration_model
+        self._calibration_style_model = calibration_style_model
+        u = Declarative.DeclarativeUI()
+        self.ui_view = u.create_column(
+            u.create_row(
+                u.create_label(width=60),
+                u.create_label(text=_("Offset"), width=60),
+                u.create_label(text=_("Scale"), width=60),
+                u.create_label(text=_("Units"), width=60),
+                u.create_stretch(),
+                spacing=12
+            ),
+            u.create_column(items=f"_dimensional_calibrations_model.items", item_component_id="calibration", spacing=4),
+            u.create_component_instance(identifier="intensity_calibration"),
+            u.create_row(u.create_label(text=_("Display"), width=60), u.create_combo_box(items_ref="@binding(_calibration_style_model.items)", current_index="@binding(_calibration_style_model.index)"), u.create_stretch()),
+            spacing=4
+        )
+
+    def create_handler(self, component_id: str, container: typing.Optional[Symbolic.ComputationVariable] = None, item: typing.Any = None, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
+        if component_id == "calibration" and item:
+            calibration_model = typing.cast(CalibrationModel, item)
+            return CalibrationHandler(calibration_model)
+        if component_id == "intensity_calibration":
+            return CalibrationHandler(self.__intensity_calibration_model)
+        return None
+
+
+class CalibrationsInspectorSection(InspectorSection):
     def __init__(self, document_controller: DocumentController.DocumentController, display_data_channel: DisplayItem.DisplayDataChannel, display_item: DisplayItem.DisplayItem) -> None:
         super().__init__(document_controller.ui, "calibrations", _("Calibrations"))
         self.__document_controller = document_controller
         self.__display_data_channel = display_data_channel
-        self.__display_item = display_item
-        self.__calibration_observables: typing.List[CalibrationToObservable] = list()
-        ui = document_controller.ui
-        header_widget = self.__create_header_widget()
-        header_for_empty_list_widget = self.__create_header_for_empty_list_widget()
-        self.__list_widget = Widgets.TableWidget(ui, lambda item: self.__create_list_item_widget(ui, item), header_widget, header_for_empty_list_widget)
-        self.__list_widget.widget_id = "calibration_list_widget"
-        self.add_widget_to_content(self.__list_widget)
+        self.__event_loop = document_controller.event_loop
+        self.__pending_call: typing.Optional[asyncio.Handle] = None
 
-        data_item = self.__display_data_channel.data_item
-        assert data_item
-
-        # create the intensity row
-        intensity_calibration = (data_item.intensity_calibration if data_item else None) or Calibration.Calibration()
+        self.__calibration_style_model = CalibrationStyleModel(document_controller, display_item)
 
         def change_intensity_calibration(data_item: DataItem.DataItem, intensity_calibration: Calibration.Calibration) -> None:
             command = ChangeIntensityCalibrationCommand(document_controller.document_model, data_item, intensity_calibration)
             command.perform()
             document_controller.push_undo_command(command)
 
-        self.__intensity_calibration_observable = CalibrationToObservable(intensity_calibration, functools.partial(change_intensity_calibration, data_item))
-        intensity_row = make_calibration_row_widget(ui, data_item, self.__intensity_calibration_observable, _("Intensity"))
+        data_item = display_data_channel.data_item
+        assert data_item
 
-        def handle_data_item_changed() -> None:
-            # handle threading specially for tests
-            if threading.current_thread() != threading.main_thread():
-                self.content_widget.add_task("update_calibration_list" + str(id(self)), self.__build_calibration_list)
-            else:
-                self.__build_calibration_list()
+        self.__dimensional_calibrations_model = ListModel.ListModel[CalibrationModel]()
+        self.__intensity_calibration_model = CalibrationModel(str(), Calibration.Calibration(), functools.partial(change_intensity_calibration, data_item))
+        widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop, CalibrationSectionHandler(self.__dimensional_calibrations_model, self.__intensity_calibration_model, self.__calibration_style_model))
 
-        self.__data_item_changed_event_listener = data_item.data_item_changed_event.listen(handle_data_item_changed) if data_item else None
-        self.__build_calibration_list()
+        self.__data_item_changed_event_listener = data_item.data_item_changed_event.listen(ReferenceCounting.weak_partial(CalibrationsInspectorSection.__handle_data_item_changed, self)) if data_item else None
 
-        self.add_widget_to_content(intensity_row)
-        # create the display calibrations check box row
-        self.display_calibrations_row = self.ui.create_row_widget()
-        self.display_calibrations_row.add(self.ui.create_label_widget(_("Display"), properties={"width": 60}))
-        self.display_calibrations_row.add(make_calibration_style_chooser(document_controller, self.__display_item))
-        self.display_calibrations_row.add_stretch()
-        self.add_widget_to_content(self.display_calibrations_row)
-        self.finish_widget_content()
+        self.__handle_data_item_changed()
 
-    def close(self) -> None:
-        if self.__data_item_changed_event_listener:
-            self.__data_item_changed_event_listener.close()
-            self.__data_item_changed_event_listener = None
-        # close the bound calibrations
-        self.__intensity_calibration_observable.close()
-        self.__intensity_calibration_observable = typing.cast(typing.Any, None)
-        for calibration_observable in self.__calibration_observables:
-            calibration_observable.close()
-        self.__calibration_observables = list()
-        super().close()
+        self.add_widget_to_content(widget)
 
-    # not thread safe
+    def __handle_data_item_changed(self) -> None:
+        # handle threading specially for tests
+        if threading.current_thread() != threading.main_thread():
+            if self.__pending_call:
+                self.__pending_call.cancel()
+            self.__pending_call = self.__event_loop.call_soon_threadsafe(ReferenceCounting.weak_partial(CalibrationsInspectorSection.__build_calibration_list, self))
+        else:
+            self.__build_calibration_list()
+
     def __build_calibration_list(self) -> None:
         data_item = self.__display_data_channel.data_item
         dimensional_calibrations = (data_item.dimensional_calibrations if data_item else None) or list()
-        while len(dimensional_calibrations) < self.__list_widget.list_item_count:
-            self.__list_widget.remove_item(len(self.__calibration_observables) - 1)
-            self.__calibration_observables[-1].close()
-            self.__calibration_observables.pop(-1)
-        while len(dimensional_calibrations) > self.__list_widget.list_item_count:
-            index = self.__list_widget.list_item_count
+        while len(dimensional_calibrations) < len(self.__dimensional_calibrations_model.items):
+            self.__dimensional_calibrations_model.remove_item(-1)
+        while len(dimensional_calibrations) > len(self.__dimensional_calibrations_model.items):
+            index = len(self.__dimensional_calibrations_model.items)
 
-            def change_dimensional_calibration(index: int, dimensional_calibration: Calibration.Calibration) -> None:
+            def change_dimensional_calibration(document_controller: DocumentController.DocumentController, index: int, dimensional_calibration: Calibration.Calibration) -> None:
                 if data_item:
                     dimensional_calibrations = list(data_item.dimensional_calibrations)
                     dimensional_calibrations[index] = dimensional_calibration
-                    command = ChangeDimensionalCalibrationsCommand(self.__document_controller.document_model, data_item, dimensional_calibrations)
+                    command = ChangeDimensionalCalibrationsCommand(document_controller.document_model, data_item, dimensional_calibrations)
                     command.perform()
-                    self.__document_controller.push_undo_command(command)
+                    document_controller.push_undo_command(command)
 
-            calibration_observable = CalibrationToObservable(dimensional_calibrations[index], functools.partial(change_dimensional_calibration, index))
-            self.__calibration_observables.append(calibration_observable)
-            self.__list_widget.insert_item(calibration_observable, index)
-        assert len(dimensional_calibrations) == self.__list_widget.list_item_count
-        for index, (dimensional_calibration, calibration_observable) in enumerate(zip(dimensional_calibrations, self.__calibration_observables)):
-            calibration_observable.copy_from(dimensional_calibration)
-            if self.__list_widget.list_item_count == 1:
-                row_label_text = _("Channel")
-            elif self.__list_widget.list_item_count == 2:
-                row_label_text = (_("Y"), _("X"))[index]
+            calibration_model = CalibrationModel(str(), Calibration.Calibration(), functools.partial(change_dimensional_calibration, self.__document_controller, index))
+            self.__dimensional_calibrations_model.append_item(calibration_model)
+        assert len(dimensional_calibrations) == len(self.__dimensional_calibrations_model.items)
+        for index, (dimensional_calibration, calibration_model) in enumerate(zip(dimensional_calibrations, self.__dimensional_calibrations_model.items)):
+            calibration_model.offset = dimensional_calibration.offset
+            calibration_model.scale = dimensional_calibration.scale
+            calibration_model.units = dimensional_calibration.units
+            if len(self.__dimensional_calibrations_model.items) == 1:
+                calibration_model.axis_name = _("Channel")
+            elif len(self.__dimensional_calibrations_model.items) == 2:
+                calibration_model.axis_name = (_("Y"), _("X"))[index]
             else:
-                row_label_text = str(index)
-            label_widget = typing.cast(typing.Optional[UserInterface.LabelWidget], self.__list_widget.list_items[index].find_widget_by_id("label"))
-            assert label_widget
-            label_widget.text = row_label_text
-        self.__intensity_calibration_observable.copy_from((data_item.intensity_calibration if data_item else None) or Calibration.Calibration())
+                calibration_model.axis_name = str(index)
+        intensity_calibration = (data_item.intensity_calibration if data_item else None) or Calibration.Calibration()
+        self.__intensity_calibration_model.axis_name = _("Intensity")
+        self.__intensity_calibration_model.offset = intensity_calibration.offset
+        self.__intensity_calibration_model.scale = intensity_calibration.scale
+        self.__intensity_calibration_model.units = intensity_calibration.units
 
-    # not thread safe
-    def __create_header_widget(self) -> UserInterface.BoxWidget:
-        header_row = self.ui.create_row_widget()
-        axis_header_label = self.ui.create_label_widget("Axis", properties={"width": 60})
-        offset_header_label = self.ui.create_label_widget(_("Offset"), properties={"width": 60})
-        scale_header_label = self.ui.create_label_widget(_("Scale"), properties={"width": 60})
-        units_header_label = self.ui.create_label_widget(_("Units"), properties={"width": 60})
-        header_row.add(axis_header_label)
-        header_row.add_spacing(12)
-        header_row.add(offset_header_label)
-        header_row.add_spacing(12)
-        header_row.add(scale_header_label)
-        header_row.add_spacing(12)
-        header_row.add(units_header_label)
-        header_row.add_stretch()
-        return header_row
+    @property
+    def _dimensional_calibrations_model(self) -> ListModel.ListModel[CalibrationModel]:
+        return self.__dimensional_calibrations_model
 
-    # not thread safe
-    def __create_header_for_empty_list_widget(self) -> UserInterface.BoxWidget:
-        label_widget = self.ui.create_label_widget(_("None"))
-        label_widget.text_font = "italic"
-        header_for_empty_list_row = self.ui.create_row_widget()
-        header_for_empty_list_row.add(label_widget)
-        return header_for_empty_list_row
+    @property
+    def _intensity_calibration_model(self) -> CalibrationModel:
+        return self.__intensity_calibration_model
 
-    # not thread safe.
-    def __create_list_item_widget(self, ui: UserInterface.UserInterface, calibration_observable: CalibrationToObservable) -> UserInterface.BoxWidget:
-        """Called when an item (calibration_observable) is inserted into the list widget. Returns a widget."""
-        column = ui.create_column_widget()
-        column.add_spacing(4)
-        data_item = self.__display_data_channel.data_item
-        if data_item:
-            calibration_row = make_calibration_row_widget(ui, data_item, calibration_observable)
-            column.add(calibration_row)
-        return column
+    @property
+    def _calibration_style_model(self) -> CalibrationStyleModel:
+        return self.__calibration_style_model
 
 
 class ChangeDisplayTypeCommand(Undo.UndoableCommand):

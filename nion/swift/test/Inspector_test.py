@@ -125,20 +125,18 @@ class TestInspectorClass(unittest.TestCase):
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_display_item(display_item)
             document_controller.periodic()  # needed to build the inspector
-            inspector_panel = document_controller.find_dock_panel("inspector-panel")
-            calibration_list_widget = inspector_panel.widget.find_widget_by_id("calibration_list_widget")
-            calibration_row = calibration_list_widget.find_widget_by_id("content_section").children[0]
-            offset_field = calibration_row.find_widget_by_id("offset")
-            scale_field = calibration_row.find_widget_by_id("scale")
-            units_field = calibration_row.find_widget_by_id("units")
-            self.assertEqual(offset_field.text, "5.1000")
-            self.assertEqual(scale_field.text, "1.2000")
-            self.assertEqual(units_field.text, u"mm")
-            data_item.set_dimensional_calibration(0, Calibration.Calibration(offset=1.5, scale=2.1, units="mmm"))
-            document_controller.periodic()  # needed to update the inspector
-            self.assertEqual(offset_field.text, "1.5000")
-            self.assertEqual(scale_field.text, "2.1000")
-            self.assertEqual(units_field.text, u"mmm")
+            calibration_section = Inspector.CalibrationsInspectorSection(document_controller, display_item.display_data_channel, display_item)
+            with contextlib.closing(calibration_section):
+                self.assertEqual(2, len(calibration_section._dimensional_calibrations_model.items))
+                dimensional_calibration_model = calibration_section._dimensional_calibrations_model.items[0]
+                self.assertEqual(dimensional_calibration_model.offset_str, "5.1")
+                self.assertEqual(dimensional_calibration_model.scale_str, "1.2")
+                self.assertEqual(dimensional_calibration_model.units, u"mm")
+                data_item.set_dimensional_calibration(0, Calibration.Calibration(offset=1.5, scale=2.1, units="mmm"))
+                self.assertEqual(dimensional_calibration_model.offset_str, "1.5")
+                self.assertEqual(dimensional_calibration_model.scale_str, "2.1")
+                self.assertEqual(dimensional_calibration_model.units, u"mmm")
+                self.assertEqual("Y", dimensional_calibration_model.axis_name)
 
     def test_calibration_inspector_section_follows_spatial_calibration_change(self):
         with TestContext.create_memory_context() as test_context:
@@ -152,14 +150,14 @@ class TestInspectorClass(unittest.TestCase):
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_display_item(display_item)
             document_controller.periodic()  # needed to build the inspector
-            inspector_panel = document_controller.find_dock_panel("inspector-panel")
-            calibration_list_widget = inspector_panel.widget.find_widget_by_id("calibration_list_widget")
-            calibration_row = calibration_list_widget.find_widget_by_id("content_section").children[0]
-            units_field = calibration_row.find_widget_by_id("units")
-            self.assertEqual(units_field.text, "mm")
-            data_item.set_dimensional_calibration(0, Calibration.Calibration(units="mmm"))
-            document_controller.periodic()  # needed to update the inspector
-            self.assertEqual(units_field.text, "mmm")
+            calibration_section = Inspector.CalibrationsInspectorSection(document_controller, display_item.display_data_channel, display_item)
+            with contextlib.closing(calibration_section):
+                self.assertEqual(2, len(calibration_section._dimensional_calibrations_model.items))
+                dimensional_calibration_model = calibration_section._dimensional_calibrations_model.items[1]
+                self.assertEqual(dimensional_calibration_model.units, u"mm")
+                data_item.set_dimensional_calibration(1, Calibration.Calibration(units="mmm"))
+                self.assertEqual(dimensional_calibration_model.units, u"mmm")
+                self.assertEqual("X", dimensional_calibration_model.axis_name)
 
     def test_calibration_inspector_handles_deleted_data_item(self):
         with TestContext.create_memory_context() as test_context:
@@ -1104,14 +1102,11 @@ class TestInspectorClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((8, )))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            inspector_section = Inspector.CalibrationsInspectorSection(document_controller, display_item.display_data_channels[0], display_item)
-            with contextlib.closing(inspector_section):
-                calibration_list_widget = inspector_section._section_content_for_test.find_widget_by_id("calibration_list_widget")
-                content_section = calibration_list_widget.find_widget_by_id("content_section")
-                self.assertEqual(len(content_section.children), 1)
-                calibration_row = content_section.children[0]
-                label = calibration_row.find_widget_by_id("label")
-                self.assertEqual(label.text, "Channel")
+            calibration_section = Inspector.CalibrationsInspectorSection(document_controller, display_item.display_data_channels[0], display_item)
+            with contextlib.closing(calibration_section):
+                self.assertEqual(1, len(calibration_section._dimensional_calibrations_model.items))
+                dimensional_calibration_model = calibration_section._dimensional_calibrations_model.items[0]
+                self.assertEqual("Channel", dimensional_calibration_model.axis_name)
 
     def test_calibration_inspector_shows_correct_labels_for_2d(self):
         with TestContext.create_memory_context() as test_context:
@@ -1120,13 +1115,11 @@ class TestInspectorClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((8, 8)))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            inspector_section = Inspector.CalibrationsInspectorSection(document_controller, display_item.display_data_channels[0], display_item)
-            with contextlib.closing(inspector_section):
-                calibration_list_widget = inspector_section._section_content_for_test.find_widget_by_id("calibration_list_widget")
-                content_section = calibration_list_widget.find_widget_by_id("content_section")
-                self.assertEqual(len(content_section.children), 2)
-                self.assertEqual(content_section.children[0].find_widget_by_id("label").text, "Y")
-                self.assertEqual(content_section.children[1].find_widget_by_id("label").text, "X")
+            calibration_section = Inspector.CalibrationsInspectorSection(document_controller, display_item.display_data_channel, display_item)
+            with contextlib.closing(calibration_section):
+                self.assertEqual(2, len(calibration_section._dimensional_calibrations_model.items))
+                self.assertEqual("Y", calibration_section._dimensional_calibrations_model.items[0].axis_name)
+                self.assertEqual("X", calibration_section._dimensional_calibrations_model.items[1].axis_name)
 
     def test_calibration_inspector_shows_correct_labels_for_3d(self):
         with TestContext.create_memory_context() as test_context:
@@ -1135,14 +1128,12 @@ class TestInspectorClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((8, 8, 16)))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            inspector_section = Inspector.CalibrationsInspectorSection(document_controller, display_item.display_data_channels[0], display_item)
-            with contextlib.closing(inspector_section):
-                calibration_list_widget = inspector_section._section_content_for_test.find_widget_by_id("calibration_list_widget")
-                content_section = calibration_list_widget.find_widget_by_id("content_section")
-                self.assertEqual(len(content_section.children), 3)
-                self.assertEqual(content_section.children[0].find_widget_by_id("label").text, "0")
-                self.assertEqual(content_section.children[1].find_widget_by_id("label").text, "1")
-                self.assertEqual(content_section.children[2].find_widget_by_id("label").text, "2")
+            calibration_section = Inspector.CalibrationsInspectorSection(document_controller, display_item.display_data_channel, display_item)
+            with contextlib.closing(calibration_section):
+                self.assertEqual(3, len(calibration_section._dimensional_calibrations_model.items))
+                self.assertEqual("0", calibration_section._dimensional_calibrations_model.items[0].axis_name)
+                self.assertEqual("1", calibration_section._dimensional_calibrations_model.items[1].axis_name)
+                self.assertEqual("2", calibration_section._dimensional_calibrations_model.items[2].axis_name)
 
     def test_computation_inspector_updates_when_computation_variable_type_changes(self):
         with TestContext.create_memory_context() as test_context:
