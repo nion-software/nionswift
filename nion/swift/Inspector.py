@@ -1522,19 +1522,33 @@ class CalibrationStyleModel(Observable.Observable):
         self.__document_controller = document_controller
         self.__display_item = display_item
         self.__display_item_property_changed_listener = display_item.property_changed_event.listen(ReferenceCounting.weak_partial(CalibrationStyleModel.__handle_display_item_property_changed, self))
+        self.__display_item_display_property_changed_listener = display_item.display_property_changed_event.listen(ReferenceCounting.weak_partial(CalibrationStyleModel.__handle_display_item_property_changed, self))
         self.__calibration_styles = list(DisplayItem.get_calibration_styles())
 
     def __handle_display_item_property_changed(self, name: str) -> None:
         if name == "calibration_style_id":
             self.notify_property_changed("calibration_style_id")
             self.notify_property_changed("index")
+        if name == "displayed_dimensional_calibrations":
+            self.notify_property_changed("items")
 
     @property
     def items(self) -> typing.List[str]:
-        return [calibration_style.label for calibration_style in self.__calibration_styles]
+        items = list[str]()
+        for calibration_style in self.__calibration_styles:
+            calibration_style_label = calibration_style.label
+            if calibration_style.is_calibrated:
+                calibrations = self.__display_item.get_displayed_dimensional_calibrations_with_calibration_style(calibration_style)
+                units = [c.units or "-" for c in calibrations]
+                if units and all(unit == units[0] for unit in units):
+                    calibration_style_label += " (" + units[0] + ")"
+                else:
+                    calibration_style_label += " (" + "/".join(units) + ")"
+            items.append(calibration_style_label)
+        return items
 
     @property
-    def index(self) -> int:
+    def index(self) -> typing.Optional[int]:
         calibration_style_id = self.calibration_style_id
         for i, calibration_style in enumerate(self.__calibration_styles):
             if calibration_style.calibration_style_id == calibration_style_id:
@@ -1542,7 +1556,8 @@ class CalibrationStyleModel(Observable.Observable):
         return 0
 
     @index.setter
-    def index(self, value: int) -> None:
+    def index(self, value: typing.Optional[int]) -> None:
+        value = value or 0  # startup case
         if value != self.index:
             value = max(0, min(value, len(self.__calibration_styles) - 1))
             self.calibration_style_id = self.__calibration_styles[value].calibration_style_id

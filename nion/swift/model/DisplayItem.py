@@ -2512,14 +2512,17 @@ class DisplayItem(Persistence.PersistentObject):
                 return datum_calibrations
         return [Calibration.Calibration() for c in self.__dimensional_calibrations] if self.__dimensional_calibrations else [Calibration.Calibration()]
 
+    def get_displayed_dimensional_calibrations_with_calibration_style(self, calibration_style: CalibrationStyle) -> typing.Sequence[Calibration.Calibration]:
+        if self.__dimensional_calibrations and self.__dimensional_shape:
+            return calibration_style.get_dimensional_calibrations(self.__dimensional_shape, self.__dimensional_calibrations)
+        return [Calibration.Calibration() for c in self.__dimensional_calibrations] if self.__dimensional_calibrations else [Calibration.Calibration()]
+
     @property
     def displayed_dimensional_calibrations(self) -> typing.Sequence[Calibration.Calibration]:
         """The calibrations for all data dimensions in the displayed calibration style."""
         calibration_style = self.__get_calibration_style_for_id(self.calibration_style_id)
         calibration_style = CalibrationStyleNative() if not calibration_style else calibration_style
-        if self.__dimensional_calibrations and self.__dimensional_shape:
-            return calibration_style.get_dimensional_calibrations(self.__dimensional_shape, self.__dimensional_calibrations)
-        return [Calibration.Calibration() for c in self.__dimensional_calibrations] if self.__dimensional_calibrations else [Calibration.Calibration()]
+        return self.get_displayed_dimensional_calibrations_with_calibration_style(calibration_style)
 
     @property
     def displayed_datum_calibrations(self) -> typing.Sequence[Calibration.Calibration]:
