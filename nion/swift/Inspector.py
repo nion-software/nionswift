@@ -1097,8 +1097,8 @@ class ImageDataInspectorSection(InspectorSection):
         self.display_limits_range_row = ui.create_row_widget()
         self.display_limits_range_low = ui.create_label_widget(properties={"width": 80})
         self.display_limits_range_high = ui.create_label_widget(properties={"width": 80})
-        float_point_2_converter = Converter.FloatToStringConverter(format="{0:#.5g}")
-        float_point_2_none_converter = Converter.FloatToStringConverter(format="{0:#.5g}", pass_none=True)
+        float_point_2_converter = BetterFloatToStringConverter()
+        float_point_2_none_converter = BetterFloatToStringConverter(pass_none=True)
         self.display_limits_range_low.bind_text(Binding.TuplePropertyBinding(self.__data_range_model, "value", 0, converter=float_point_2_converter, fallback=_("N/A")))
         self.display_limits_range_high.bind_text(Binding.TuplePropertyBinding(self.__data_range_model, "value", 1, converter=float_point_2_converter, fallback=_("N/A")))
         self.display_limits_range_row.add(ui.create_label_widget(_("Data Range:"), properties={"width": 120}))
@@ -1400,42 +1400,10 @@ def make_calibration_style_chooser(document_controller: DocumentController.Docum
     return widget
 
 
-def make_calibration_row_widget(ui: UserInterface.UserInterface, data_item: DataItem.DataItem,
-                                calibration_observable: Observable.Observable,
-                                label: typing.Optional[str] = None) -> InspectorSectionWidget:
-    """Called when an item (calibration_observable) is inserted into the list widget. Returns a widget."""
-    widget = InspectorSectionWidget(ui)
-    calibration_row = ui.create_row_widget()
-    row_label = ui.create_label_widget(label, properties={"width": 60})
-    row_label.widget_id = "label"
-    offset_field = ui.create_line_edit_widget(properties={"width": 60})
-    offset_field.widget_id = "offset"
-    scale_field = ui.create_line_edit_widget(properties={"width": 60})
-    scale_field.widget_id = "scale"
-    units_field = ui.create_line_edit_widget(properties={"width": 60})
-    units_field.widget_id = "units"
-    float_point_4_converter = Converter.FloatToStringConverter(format="{0:.4f}")
-    offset_field.bind_text(Binding.PropertyBinding(calibration_observable, "offset", converter=float_point_4_converter))
-    scale_field.bind_text(Binding.PropertyBinding(calibration_observable, "scale", converter=float_point_4_converter))
-    units_field.bind_text(Binding.PropertyBinding(calibration_observable, "units"))
-    # notice the binding of calibration_index below.
-    calibration_row.add(row_label)
-    calibration_row.add_spacing(12)
-    calibration_row.add(offset_field)
-    calibration_row.add_spacing(12)
-    calibration_row.add(scale_field)
-    calibration_row.add_spacing(12)
-    calibration_row.add(units_field)
-    calibration_row.add_stretch()
-    widget.add(calibration_row)
-    widget.add_unbinder([data_item], [offset_field.unbind_text, scale_field.unbind_text, units_field.unbind_text])
-    return widget
-
-
 class BetterFloatToStringConverter(Converter.FloatToStringConverter):
     def __init__(self, *, pass_none: bool = False) -> None:
         super().__init__(pass_none=pass_none)
-        self.__pass_none = False
+        self.__pass_none = pass_none
 
     def convert(self, value: typing.Optional[float]) -> typing.Optional[str]:
         if value is None:
@@ -1445,7 +1413,13 @@ class BetterFloatToStringConverter(Converter.FloatToStringConverter):
             if mag < 0:
                 return "{0:0.4g}".format(value)
             elif mag > 5:
-                return "{0:0.1e}".format(value)
+                result = "{0:0.3e}".format(value)
+                while not ".0e" in result:
+                    last_result = result
+                    result = result.replace("0e", "e")
+                    if last_result == result:
+                        break
+                return result
             else:
                 result = "{0:.4f}".format(value)
                 while result.endswith("0") and not result.endswith(".0"):
@@ -2096,7 +2070,7 @@ class LinePlotDisplayInspectorSection(InspectorSection):
         # display type
         display_type_row, self.__display_type_changed_listener = make_display_type_chooser(document_controller, display_item)
 
-        float_point_2_none_converter = Converter.FloatToStringConverter(format="{0:#.5g}", pass_none=True)
+        float_point_2_none_converter = BetterFloatToStringConverter(pass_none=True)
 
         self.display_limits_limit_row = self.ui.create_row_widget()
         self.display_limits_limit_low = self.ui.create_line_edit_widget(properties={"width": 80})

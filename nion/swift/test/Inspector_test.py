@@ -581,16 +581,16 @@ class TestInspectorClass(unittest.TestCase):
             self.assertEqual(inspector_section.display_limits_limit_high.text, None)
             display_data_channel.display_limits = (1, None)
             document_controller.periodic()  # needed to update the inspector
-            self.assertEqual(inspector_section.display_limits_limit_low.text, "1.0000")
+            self.assertEqual(inspector_section.display_limits_limit_low.text, "1.0")
             self.assertEqual(inspector_section.display_limits_limit_high.text, None)
             display_data_channel.display_limits = (None, 2)
             document_controller.periodic()  # needed to update the inspector
             self.assertEqual(inspector_section.display_limits_limit_low.text, None)
-            self.assertEqual(inspector_section.display_limits_limit_high.text, "2.0000")
+            self.assertEqual(inspector_section.display_limits_limit_high.text, "2.0")
             display_data_channel.display_limits = (1, 2)
             document_controller.periodic()  # needed to update the inspector
-            self.assertEqual(inspector_section.display_limits_limit_low.text, "1.0000")
-            self.assertEqual(inspector_section.display_limits_limit_high.text, "2.0000")
+            self.assertEqual(inspector_section.display_limits_limit_low.text, "1.0")
+            self.assertEqual(inspector_section.display_limits_limit_high.text, "2.0")
 
     def test_image_display_inspector_sets_display_limits_when_text_is_changed(self):
         with TestContext.create_memory_context() as test_context:
