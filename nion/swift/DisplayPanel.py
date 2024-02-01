@@ -972,7 +972,7 @@ class DisplayTracker:
                 self.__display_canvas_item.update_display_properties_and_layers(DisplayItem.DisplayCalibrationInfo(display_item), display_item.display_properties, display_item.display_layers_list)
 
         def display_property_changed(property: str) -> None:
-            if property in ("y_min", "y_max", "y_style", "left_channel", "right_channel", "image_zoom", "image_position", "image_canvas_mode"):
+            if property in ("y_min", "y_max", "y_style", "left_channel", "right_channel", "image_zoom", "image_position", "image_canvas_mode", "displayed_dimensional_calibrations"):
                 display_changed()
 
         # subscribe to display values for each display data channel and keep track of the latest computed display values.
