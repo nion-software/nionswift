@@ -243,6 +243,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.__displayed_dimensional_calibration: typing.Optional[Calibration.Calibration] = None
         self.__intensity_calibration: typing.Optional[Calibration.Calibration] = None
         self.__calibration_style: typing.Optional[DisplayItem.CalibrationStyle] = None
+        self.__intensity_calibration_style: typing.Optional[DisplayItem.IntensityCalibrationStyle] = None
         self.__y_min = None
         self.__y_max = None
         self.__y_style = None
@@ -341,6 +342,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             assert self.__displayed_dimensional_calibration.is_valid
             self.__intensity_calibration = display_calibration_info.displayed_intensity_calibration
             self.__calibration_style = display_calibration_info.calibration_style
+            self.__intensity_calibration_style = display_calibration_info.intensity_calibration_style
             self.__y_min = display_properties.get("y_min")
             self.__y_max = display_properties.get("y_max")
             self.__y_style = display_properties.get("y_style", "linear")
@@ -539,6 +541,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         displayed_dimensional_calibration = self.__displayed_dimensional_calibration or Calibration.Calibration()
         intensity_calibration = self.__intensity_calibration or Calibration.Calibration()
         calibration_style = self.__calibration_style or DisplayItem.CalibrationStyle()
+        intensity_calibration_style = self.__intensity_calibration_style or DisplayItem.IntensityCalibrationStyle()
         y_min = self.__y_min
         y_max = self.__y_max
         y_style = self.__y_style
@@ -552,7 +555,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             for xdata in xdata_list:
                 if xdata:
                     scalar_data = Image.convert_to_grayscale(numpy.array(xdata.data))  # note: ensure scalar_data is numpy.array
-                    scalar_intensity_calibration = calibration_style.get_intensity_calibration(xdata)
+                    scalar_intensity_calibration = intensity_calibration_style.get_intensity_calibration(xdata.intensity_calibration)
                     scalar_dimensional_calibrations = calibration_style.get_dimensional_calibrations(xdata.dimensional_shape, xdata.dimensional_calibrations)
                     if displayed_dimensional_calibration.units == scalar_dimensional_calibrations[-1].units and intensity_calibration.units == scalar_intensity_calibration.units:
                         # the data needs to have an intensity scale matching intensity_calibration. convert the data to use the common scale.

@@ -1194,7 +1194,7 @@ class AppendDisplayDataChannelCommand(Undo.UndoableCommand):
         self.__display_item_proxy = display_item.create_proxy()
         self.__data_item_proxy = data_item.create_proxy()
         self.__display_layer = copy.deepcopy(display_layer)
-        self.__old_properties: typing.Optional[typing.Tuple[Persistence.PersistentDictType, typing.List[Persistence.PersistentDictType], str]] = None
+        self.__old_properties: typing.Optional[DisplayItem.DisplayItemSaveProperties] = None
         self.__display_data_channel_index = 0
         self.__value_dict = kwargs
         self.initialize()

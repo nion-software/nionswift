@@ -346,7 +346,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             display_panel.set_display_panel_display_item(display_item)
             display_panel.layout_immediate((640, 480))
             self.assertTrue(numpy.array_equal(display_panel.display_canvas_item.line_graph_layers_canvas_item.calibrated_xdata.data, numpy.full((8, ), 10)))
-            display_item.calibration_style_id = "pixels-top-left"
+            display_item.intensity_calibration_style_id = "uncalibrated"
             display_panel.layout_immediate((640, 480))
             self.assertTrue(numpy.array_equal(display_panel.display_canvas_item.line_graph_layers_canvas_item.calibrated_xdata.data, numpy.ones((8, ))))
 

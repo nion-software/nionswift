@@ -196,16 +196,19 @@ def calculate_display_range(display_limits: DisplayLimitsType,
     return data_range
 
 
-class CalibrationStyle:
+class CalibrationStyleLike(typing.Protocol):
+    label: str
+    calibration_style_id: str
+    is_calibrated: bool = False
+
+
+class CalibrationStyle(CalibrationStyleLike):
     label: str
     calibration_style_id: str
     is_calibrated: bool = False
 
     def get_dimensional_calibrations(self, dimensional_shape: DataAndMetadata.ShapeType, dimensional_calibrations: DataAndMetadata.CalibrationListType) -> DataAndMetadata.CalibrationListType:
         return list()
-
-    def get_intensity_calibration(self, xdata: DataAndMetadata.DataAndMetadata) -> Calibration.Calibration:
-        return xdata.intensity_calibration if self.is_calibrated else Calibration.Calibration()
 
 
 class CalibrationStyleNative(CalibrationStyle):
@@ -249,6 +252,29 @@ class CalibrationStyleFractionalCenter(CalibrationStyle):
 
     def get_dimensional_calibrations(self, dimensional_shape: DataAndMetadata.ShapeType, dimensional_calibrations: DataAndMetadata.CalibrationListType) -> DataAndMetadata.CalibrationListType:
         return [Calibration.Calibration(scale=2.0/display_dimension, offset=-1.0) for display_dimension in dimensional_shape]
+
+
+class IntensityCalibrationStyle(CalibrationStyleLike):
+    label: str
+    calibration_style_id: str
+    is_calibrated: bool = False
+
+    def get_intensity_calibration(self, calibration: Calibration.Calibration) -> Calibration.Calibration:
+        return calibration
+
+
+class IntensityCalibrationStyleNative(IntensityCalibrationStyle):
+    label = _("Calibrated")
+    calibration_style_id = "calibrated"
+    is_calibrated = True
+
+
+class IntensityCalibrationStyleUncalibrated(IntensityCalibrationStyle):
+    label = _("Uncalibrated")
+    calibration_style_id = "uncalibrated"
+
+    def get_intensity_calibration(self, calibration: Calibration.Calibration) -> Calibration.Calibration:
+        return Calibration.Calibration()
 
 
 class AdjustmentType(typing.Protocol):
@@ -1613,6 +1639,14 @@ def display_layer_factory(lookup_id: typing.Callable[[str], str]) -> DisplayLaye
     return DisplayLayer()
 
 
+@dataclasses.dataclass
+class DisplayItemSaveProperties:
+    display_properties: Persistence.PersistentDictType
+    display_layers_list: typing.List[Persistence.PersistentDictType]
+    calibration_style_id: str
+    intensity_calibration_style_id: str
+
+
 class DisplayItem(Persistence.PersistentObject):
     DEFAULT_COLORS = ("#1E90FF", "#FF0000", "#00FF00", "#0000FF", "#FFFF00", "#00FFFF", "#FF00FF", "#888888", "#880000", "#008800", "#000088", "#CCCCCC", "#888800", "#008888", "#880088", "#964B00")
 
@@ -1628,6 +1662,7 @@ class DisplayItem(Persistence.PersistentObject):
         self.define_property("description", hidden=True, changed=self.__property_changed)
         self.define_property("session_id", hidden=True, changed=self.__property_changed)
         self.define_property("calibration_style_id", "calibrated", hidden=True, changed=self.__property_changed)
+        self.define_property("intensity_calibration_style_id", "calibrated", hidden=True, changed=self.__property_changed)
         self.define_property("display_properties", dict(), hidden=True, copy_on_read=True, changed=self.__display_properties_changed)
         self.define_relationship("graphics", Graphics.factory, insert=self.__insert_graphic, remove=self.__remove_graphic, hidden=True)
         self.define_relationship("display_layers", typing.cast(Persistence._PersistentObjectFactoryFn, display_layer_factory), insert=self.__insert_display_layer, remove=self.__remove_display_layer, hidden=True)
@@ -1714,6 +1749,7 @@ class DisplayItem(Persistence.PersistentObject):
         display_item_copy._set_persistent_property_value("description", self._get_persistent_property_value("description"))
         display_item_copy._set_persistent_property_value("session_id", self._get_persistent_property_value("session_id"))
         display_item_copy._set_persistent_property_value("calibration_style_id", self._get_persistent_property_value("calibration_style_id"))
+        display_item_copy._set_persistent_property_value("intensity_calibration_style_id", self._get_persistent_property_value("intensity_calibration_style_id"))
         display_item_copy._set_persistent_property_value("display_properties", self._get_persistent_property_value("display_properties"))
         display_item_copy.created = self.created
         # display data channels
@@ -1756,6 +1792,14 @@ class DisplayItem(Persistence.PersistentObject):
     @calibration_style_id.setter
     def calibration_style_id(self, value: str) -> None:
         self._set_persistent_property_value("calibration_style_id", value)
+
+    @property
+    def intensity_calibration_style_id(self) -> str:
+        return typing.cast(str, self._get_persistent_property_value("intensity_calibration_style_id"))
+
+    @intensity_calibration_style_id.setter
+    def intensity_calibration_style_id(self, value: str) -> None:
+        self._set_persistent_property_value("intensity_calibration_style_id", value)
 
     @property
     def display_properties(self) -> Persistence.PersistentDictType:
@@ -1828,6 +1872,8 @@ class DisplayItem(Persistence.PersistentObject):
             self.notify_property_changed("specified_title")
         if name == "calibration_style_id":
             self.display_property_changed_event.fire("calibration_style_id")
+        if name == "intensity_calibration_style_id":
+            self.display_property_changed_event.fire("intensity_calibration_style_id")
 
     def __display_properties_changed(self, name: str, value: typing.Any) -> None:
         self.notify_property_changed(name)
@@ -1849,6 +1895,7 @@ class DisplayItem(Persistence.PersistentObject):
         display_item._set_persistent_property_value("description", self._get_persistent_property_value("description"))
         display_item._set_persistent_property_value("session_id", self._get_persistent_property_value("session_id"))
         display_item._set_persistent_property_value("calibration_style_id", self._get_persistent_property_value("calibration_style_id"))
+        display_item._set_persistent_property_value("intensity_calibration_style_id", self._get_persistent_property_value("intensity_calibration_style_id"))
         display_item._set_persistent_property_value("display_properties", self._get_persistent_property_value("display_properties"))
         display_item.created = self.created
         for graphic in self.graphics:
@@ -1944,7 +1991,7 @@ class DisplayItem(Persistence.PersistentObject):
             self.display_property_changed_event.fire(property_name)
             if property_name in ("displayed_dimensional_scales", "displayed_dimensional_calibrations", "displayed_intensity_calibration"):
                 self.graphics_changed_event.fire(self.graphic_selection)
-            if property_name in ("calibration_style_id", ):
+            if property_name in ("calibration_style_id", "intensity_calibration_style_id"):
                 self.display_property_changed_event.fire("displayed_dimensional_scales")
                 self.display_property_changed_event.fire("displayed_dimensional_calibrations")
                 self.display_property_changed_event.fire("displayed_intensity_calibration")
@@ -2100,11 +2147,14 @@ class DisplayItem(Persistence.PersistentObject):
             except Exception as e:
                 import traceback; traceback.print_exc()
 
-    def save_properties(self) -> typing.Tuple[Persistence.PersistentDictType, typing.List[Persistence.PersistentDictType], str]:
-        return self.display_properties, self.display_layers_list, self.calibration_style_id
+    def save_properties(self) -> DisplayItemSaveProperties:
+        return DisplayItemSaveProperties(self.display_properties, self.display_layers_list, self.calibration_style_id, self.intensity_calibration_style_id)
 
-    def restore_properties(self, properties: typing.Tuple[Persistence.PersistentDictType, typing.List[Persistence.PersistentDictType], str]) -> None:
-        self.display_properties, self.display_layers_list, self.calibration_style_id = properties
+    def restore_properties(self, properties: DisplayItemSaveProperties) -> None:
+        self.display_properties = properties.display_properties
+        self.display_layers_list = properties.display_layers_list
+        self.calibration_style_id = properties.calibration_style_id
+        self.intensity_calibration_style_id = properties.intensity_calibration_style_id
 
     class ContextManager:
         def __init__(self, display_item: DisplayItem) -> None:
@@ -2480,7 +2530,11 @@ class DisplayItem(Persistence.PersistentObject):
 
     @property
     def calibration_style(self) -> CalibrationStyle:
-        return next(filter(lambda x: x.calibration_style_id == self.calibration_style_id, get_calibration_styles()), get_default_calibrated_calibration_style())
+        return next(filter(lambda x: x.calibration_style_id == self.calibration_style_id, self.calibration_styles), CalibrationStyleNative())
+
+    @property
+    def intensity_calibration_style(self) -> IntensityCalibrationStyle:
+        return next(filter(lambda x: x.calibration_style_id == self.intensity_calibration_style_id, self.intensity_calibration_styles), IntensityCalibrationStyleNative())
 
     @property
     def display_data_shape(self) -> typing.Optional[DataAndMetadata.ShapeType]:
@@ -2539,18 +2593,45 @@ class DisplayItem(Persistence.PersistentObject):
             return self.displayed_dimensional_calibrations
         return [Calibration.Calibration() for c in self.__dimensional_calibrations] if self.__dimensional_calibrations else [Calibration.Calibration()]
 
-    @property
-    def displayed_intensity_calibration(self) -> Calibration.Calibration:
-        calibration_style = self.__get_calibration_style_for_id(self.calibration_style_id)
-        if self.__intensity_calibration and (not calibration_style or calibration_style.is_calibrated):
-            return self.__intensity_calibration
+    def get_displayed_intensity_calibration_with_calibration_style(self, calibration_style: IntensityCalibrationStyle) -> Calibration.Calibration:
+        if self.__intensity_calibration:
+            return calibration_style.get_intensity_calibration(self.__intensity_calibration)
         return Calibration.Calibration()
 
+    @property
+    def displayed_intensity_calibration(self) -> Calibration.Calibration:
+        calibration_style = self.__get_intensity_calibration_style_for_id(self.intensity_calibration_style_id)
+        calibration_style = IntensityCalibrationStyleUncalibrated() if not calibration_style else calibration_style
+        return self.get_displayed_intensity_calibration_with_calibration_style(calibration_style)
+
     def __get_calibration_style_for_id(self, calibration_style_id: str) -> typing.Optional[CalibrationStyle]:
-        for calibration_style in get_calibration_styles():
+        for calibration_style in self.calibration_styles:
             if calibration_style.calibration_style_id == calibration_style_id:
                 return calibration_style
         return None
+
+    def __get_intensity_calibration_style_for_id(self, calibration_style_id: str) -> typing.Optional[IntensityCalibrationStyle]:
+        for calibration_style in self.intensity_calibration_styles:
+            if calibration_style.calibration_style_id == calibration_style_id:
+                return calibration_style
+        return None
+
+    @property
+    def calibration_styles(self) -> typing.Sequence[CalibrationStyle]:
+        return [
+            CalibrationStyleNative(),
+            CalibrationStylePixelsTopLeft(),
+            CalibrationStylePixelsCenter(),
+            CalibrationStyleFractionalTopLeft(),
+            CalibrationStyleFractionalCenter()
+        ]
+
+    @property
+    def intensity_calibration_styles(self) -> typing.Sequence[IntensityCalibrationStyle]:
+        return [
+            IntensityCalibrationStyleNative(),
+            IntensityCalibrationStyleUncalibrated(),
+        ]
 
     @property
     def size_and_data_format_as_string(self) -> str:
@@ -2781,6 +2862,7 @@ class DisplayCalibrationInfo:
         self.displayed_dimensional_calibrations = copy.deepcopy(display_item.displayed_dimensional_calibrations)
         self.displayed_intensity_calibration = copy.deepcopy(display_item.displayed_intensity_calibration)
         self.calibration_style = display_item.calibration_style
+        self.intensity_calibration_style = display_item.intensity_calibration_style
         self.datum_calibrations = list(display_item.datum_calibrations)
 
     def __ne__(self, other: typing.Any) -> bool:
@@ -2801,20 +2883,9 @@ class DisplayCalibrationInfo:
             return True
         if  type(self.calibration_style) != type(display_calibration_info.calibration_style):
             return True
+        if  type(self.intensity_calibration_style) != type(display_calibration_info.intensity_calibration_style):
+            return True
         return False
-
-
-def get_calibration_styles() -> typing.Sequence[CalibrationStyle]:
-    return [CalibrationStyleNative(), CalibrationStylePixelsTopLeft(), CalibrationStylePixelsCenter(),
-            CalibrationStyleFractionalTopLeft(), CalibrationStyleFractionalCenter()]
-
-
-def get_default_calibrated_calibration_style() -> CalibrationStyle:
-    return CalibrationStyleNative()
-
-
-def get_default_uncalibrated_calibration_style() -> CalibrationStyle:
-    return CalibrationStylePixelsCenter()
 
 
 def sort_by_date_key(display_item: DisplayItem) -> typing.Tuple[typing.Optional[str], datetime.datetime, str]:

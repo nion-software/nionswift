@@ -1372,7 +1372,7 @@ class InspectorSectionWidget(Widgets.CompositeWidgetBase):
 def make_calibration_style_chooser(document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem) -> InspectorSectionWidget:
     ui = document_controller.ui
 
-    calibration_styles = DisplayItem.get_calibration_styles()
+    calibration_styles = display_item.calibration_styles
 
     display_calibration_style_options = [(calibration_style.label, calibration_style.calibration_style_id) for calibration_style in calibration_styles]
 
@@ -1516,20 +1516,81 @@ class CalibrationHandler(Declarative.Handler):
         )
 
 
+class CalibrationStyleModelAdapter(typing.Protocol):
+    def get_calibration_style(self, display_item: DisplayItem.DisplayItem) -> typing.Sequence[DisplayItem.CalibrationStyleLike]: ...
+    def get_calibrated_style_id(self, display_item: DisplayItem.DisplayItem) -> str: ...
+    def get_calibration_styles(self, display_item: DisplayItem.DisplayItem) -> typing.Sequence[DisplayItem.CalibrationStyleLike]: ...
+    def get_calibrations(self, display_item: DisplayItem.DisplayItem, calibration_style: DisplayItem.CalibrationStyleLike) -> typing.Sequence[Calibration.Calibration]: ...
+    def get_calibration_style_id_property_name(self) -> str: ...
+    def get_calibration_styles_property_name(self) -> str: ...
+    def get_display_calibrations_property_name(self) -> str: ...
+
+
+class DimensionalCalibrationStyleModelAdapter(CalibrationStyleModelAdapter):
+    def get_calibration_style(self, display_item: DisplayItem.DisplayItem) -> typing.Sequence[DisplayItem.CalibrationStyleLike]:
+        return display_item.calibration_styles
+
+    def get_calibrated_style_id(self, display_item: DisplayItem.DisplayItem) -> str:
+        return display_item.calibration_style_id
+
+    def get_calibration_styles(self, display_item: DisplayItem.DisplayItem) -> typing.Sequence[DisplayItem.CalibrationStyleLike]:
+        return display_item.calibration_styles
+
+    def get_calibrations(self, display_item: DisplayItem.DisplayItem, calibration_style: DisplayItem.CalibrationStyleLike) -> typing.Sequence[Calibration.Calibration]:
+        return display_item.get_displayed_dimensional_calibrations_with_calibration_style(typing.cast(DisplayItem.CalibrationStyle, calibration_style))
+
+    def get_calibration_style_id_property_name(self) -> str:
+        return "calibration_style_id"
+
+    def get_calibration_styles_property_name(self) -> str:
+        return "calibration_styles"
+
+    def get_display_calibrations_property_name(self) -> str:
+        return "displayed_dimensional_calibrations"
+
+
+class IntensityCalibrationStyleModelAdapter(CalibrationStyleModelAdapter):
+    def get_calibration_style(self, display_item: DisplayItem.DisplayItem) -> typing.Sequence[DisplayItem.CalibrationStyleLike]:
+        return display_item.intensity_calibration_styles
+
+    def get_calibrated_style_id(self, display_item: DisplayItem.DisplayItem) -> str:
+        return display_item.intensity_calibration_style_id
+
+    def get_calibration_styles(self, display_item: DisplayItem.DisplayItem) -> typing.Sequence[DisplayItem.CalibrationStyleLike]:
+        return display_item.intensity_calibration_styles
+
+    def get_calibrations(self, display_item: DisplayItem.DisplayItem, calibration_style: DisplayItem.CalibrationStyleLike) -> typing.Sequence[Calibration.Calibration]:
+        return [display_item.get_displayed_intensity_calibration_with_calibration_style(typing.cast(DisplayItem.IntensityCalibrationStyle, calibration_style))]
+
+    def get_calibration_style_id_property_name(self) -> str:
+        return "intensity_calibration_style_id"
+
+    def get_calibration_styles_property_name(self) -> str:
+        return "intensity_calibration_styles"
+
+    def get_display_calibrations_property_name(self) -> str:
+        return "displayed_intensity_calibration"
+
+
 class CalibrationStyleModel(Observable.Observable):
-    def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem) -> None:
+    def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem, adapter: CalibrationStyleModelAdapter) -> None:
         super().__init__()
         self.__document_controller = document_controller
         self.__display_item = display_item
+        self.__adapter = adapter
         self.__display_item_property_changed_listener = display_item.property_changed_event.listen(ReferenceCounting.weak_partial(CalibrationStyleModel.__handle_display_item_property_changed, self))
         self.__display_item_display_property_changed_listener = display_item.display_property_changed_event.listen(ReferenceCounting.weak_partial(CalibrationStyleModel.__handle_display_item_property_changed, self))
-        self.__calibration_styles = list(DisplayItem.get_calibration_styles())
+        self.__calibration_styles = self.__adapter.get_calibration_style(self.__display_item)
 
     def __handle_display_item_property_changed(self, name: str) -> None:
-        if name == "calibration_style_id":
+        if name == self.__adapter.get_calibration_style_id_property_name():
             self.notify_property_changed("calibration_style_id")
             self.notify_property_changed("index")
-        if name == "displayed_dimensional_calibrations":
+        if name == self.__adapter.get_calibration_styles_property_name():
+            self.__calibration_styles = self.__adapter.get_calibration_style(self.__display_item)
+            self.notify_property_changed("items")
+            self.notify_property_changed("index")
+        if name == self.__adapter.get_display_calibrations_property_name():
             self.notify_property_changed("items")
 
     @property
@@ -1538,7 +1599,7 @@ class CalibrationStyleModel(Observable.Observable):
         for calibration_style in self.__calibration_styles:
             calibration_style_label = calibration_style.label
             if calibration_style.is_calibrated:
-                calibrations = self.__display_item.get_displayed_dimensional_calibrations_with_calibration_style(calibration_style)
+                calibrations = self.__adapter.get_calibrations(self.__display_item, calibration_style)
                 units = [c.units or "-" for c in calibrations]
                 if units and all(unit == units[0] for unit in units):
                     calibration_style_label += " (" + units[0] + ")"
@@ -1564,12 +1625,12 @@ class CalibrationStyleModel(Observable.Observable):
 
     @property
     def calibration_style_id(self) -> str:
-        return self.__display_item.calibration_style_id
+        return self.__adapter.get_calibrated_style_id(self.__display_item)
 
     @calibration_style_id.setter
     def calibration_style_id(self, value: str) -> None:
         if value != self.calibration_style_id:
-            command = ChangeDisplayItemPropertyCommand(self.__document_controller.document_model, self.__display_item, "calibration_style_id", value)
+            command = ChangeDisplayItemPropertyCommand(self.__document_controller.document_model, self.__display_item, self.__adapter.get_calibration_style_id_property_name(), value)
             command.perform()
             self.__document_controller.push_undo_command(command)
             self.notify_property_changed("calibration_style_id")
@@ -1577,11 +1638,12 @@ class CalibrationStyleModel(Observable.Observable):
 
 
 class CalibrationSectionHandler(Declarative.Handler):
-    def __init__(self, dimensional_calibrations_model: ListModel.ListModel[CalibrationModel], intensity_calibration_model: CalibrationModel, calibration_style_model: CalibrationStyleModel) -> None:
+    def __init__(self, dimensional_calibrations_model: ListModel.ListModel[CalibrationModel], intensity_calibration_model: CalibrationModel, calibration_style_model: CalibrationStyleModel, intensity_calibration_style_model: CalibrationStyleModel) -> None:
         super().__init__()
         self._dimensional_calibrations_model = dimensional_calibrations_model
         self.__intensity_calibration_model = intensity_calibration_model
         self._calibration_style_model = calibration_style_model
+        self._intensity_calibration_style_model = intensity_calibration_style_model
         u = Declarative.DeclarativeUI()
         self.ui_view = u.create_column(
             u.create_row(
@@ -1593,8 +1655,9 @@ class CalibrationSectionHandler(Declarative.Handler):
                 spacing=12
             ),
             u.create_column(items=f"_dimensional_calibrations_model.items", item_component_id="calibration", spacing=4),
-            u.create_component_instance(identifier="intensity_calibration"),
             u.create_row(u.create_label(text=_("Display"), width=60), u.create_combo_box(items_ref="@binding(_calibration_style_model.items)", current_index="@binding(_calibration_style_model.index)"), u.create_stretch()),
+            u.create_component_instance(identifier="intensity_calibration"),
+            u.create_row(u.create_label(text=_("Display"), width=60), u.create_combo_box(items_ref="@binding(_intensity_calibration_style_model.items)", current_index="@binding(_intensity_calibration_style_model.index)"), u.create_stretch()),
             spacing=4
         )
 
@@ -1615,7 +1678,8 @@ class CalibrationsInspectorSection(InspectorSection):
         self.__event_loop = document_controller.event_loop
         self.__pending_call: typing.Optional[asyncio.Handle] = None
 
-        self.__calibration_style_model = CalibrationStyleModel(document_controller, display_item)
+        self.__calibration_style_model = CalibrationStyleModel(document_controller, display_item, DimensionalCalibrationStyleModelAdapter())
+        self.__intensity_calibration_style_model = CalibrationStyleModel(document_controller, display_item, IntensityCalibrationStyleModelAdapter())
 
         def change_intensity_calibration(data_item: DataItem.DataItem, intensity_calibration: Calibration.Calibration) -> None:
             command = ChangeIntensityCalibrationCommand(document_controller.document_model, data_item, intensity_calibration)
@@ -1627,7 +1691,7 @@ class CalibrationsInspectorSection(InspectorSection):
 
         self.__dimensional_calibrations_model = ListModel.ListModel[CalibrationModel]()
         self.__intensity_calibration_model = CalibrationModel(str(), Calibration.Calibration(), functools.partial(change_intensity_calibration, data_item))
-        widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop, CalibrationSectionHandler(self.__dimensional_calibrations_model, self.__intensity_calibration_model, self.__calibration_style_model))
+        widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop, CalibrationSectionHandler(self.__dimensional_calibrations_model, self.__intensity_calibration_model, self.__calibration_style_model, self.__intensity_calibration_style_model))
 
         self.__data_item_changed_event_listener = data_item.data_item_changed_event.listen(ReferenceCounting.weak_partial(CalibrationsInspectorSection.__handle_data_item_changed, self)) if data_item else None
 
@@ -1690,6 +1754,10 @@ class CalibrationsInspectorSection(InspectorSection):
     @property
     def _calibration_style_model(self) -> CalibrationStyleModel:
         return self.__calibration_style_model
+
+    @property
+    def _intensity_calibration_style_model(self) -> CalibrationStyleModel:
+        return self.__intensity_calibration_style_model
 
 
 class ChangeDisplayTypeCommand(Undo.UndoableCommand):
