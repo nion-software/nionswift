@@ -1677,20 +1677,27 @@ class CalibrationsInspectorSection(InspectorSection):
         self.__display_data_channel = display_data_channel
         self.__event_loop = document_controller.event_loop
         self.__pending_call: typing.Optional[asyncio.Handle] = None
+        self.__data_item_ref: list[typing.Optional[DataItem.DataItem]] = [None]
 
         self.__calibration_style_model = CalibrationStyleModel(document_controller, display_item, DimensionalCalibrationStyleModelAdapter())
         self.__intensity_calibration_style_model = CalibrationStyleModel(document_controller, display_item, IntensityCalibrationStyleModelAdapter())
 
-        def change_intensity_calibration(data_item: DataItem.DataItem, intensity_calibration: Calibration.Calibration) -> None:
-            command = ChangeIntensityCalibrationCommand(document_controller.document_model, data_item, intensity_calibration)
-            command.perform()
-            document_controller.push_undo_command(command)
+        # the models are updated using a tricky behavior. we update the latest data item, which is stored in
+        # self.__data_item_ref list. use a list so the callback functions don't need a reference to self (which would
+        # delay garbage collection).
+
+        def change_intensity_calibration(data_item_ref: list[typing.Optional[DataItem.DataItem]], intensity_calibration: Calibration.Calibration) -> None:
+            data_item = data_item_ref[0]
+            if data_item:
+                command = ChangeIntensityCalibrationCommand(document_controller.document_model, data_item, intensity_calibration)
+                command.perform()
+                document_controller.push_undo_command(command)
 
         data_item = display_data_channel.data_item
         assert data_item
 
         self.__dimensional_calibrations_model = ListModel.ListModel[CalibrationModel]()
-        self.__intensity_calibration_model = CalibrationModel(str(), Calibration.Calibration(), functools.partial(change_intensity_calibration, data_item))
+        self.__intensity_calibration_model = CalibrationModel(str(), Calibration.Calibration(), functools.partial(change_intensity_calibration, self.__data_item_ref))
         widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop, CalibrationSectionHandler(self.__dimensional_calibrations_model, self.__intensity_calibration_model, self.__calibration_style_model, self.__intensity_calibration_style_model))
 
         self.__data_item_changed_event_listener = data_item.data_item_changed_event.listen(ReferenceCounting.weak_partial(CalibrationsInspectorSection.__handle_data_item_changed, self)) if data_item else None
@@ -1716,7 +1723,12 @@ class CalibrationsInspectorSection(InspectorSection):
         while len(dimensional_calibrations) > len(self.__dimensional_calibrations_model.items):
             index = len(self.__dimensional_calibrations_model.items)
 
-            def change_dimensional_calibration(document_controller: DocumentController.DocumentController, index: int, dimensional_calibration: Calibration.Calibration) -> None:
+            # the models are updated using a tricky behavior. we update the latest data item, which is stored in
+            # self.__data_item_ref list. use a list so the callback functions don't need a reference to self (which would
+            # delay garbage collection).
+
+            def change_dimensional_calibration(document_controller: DocumentController.DocumentController, data_item_ref: list[typing.Optional[DataItem.DataItem]], index: int, dimensional_calibration: Calibration.Calibration) -> None:
+                data_item = data_item_ref[0]
                 if data_item:
                     dimensional_calibrations = list(data_item.dimensional_calibrations)
                     dimensional_calibrations[index] = dimensional_calibration
@@ -1724,7 +1736,7 @@ class CalibrationsInspectorSection(InspectorSection):
                     command.perform()
                     document_controller.push_undo_command(command)
 
-            calibration_model = CalibrationModel(str(), Calibration.Calibration(), functools.partial(change_dimensional_calibration, self.__document_controller, index))
+            calibration_model = CalibrationModel(str(), Calibration.Calibration(), functools.partial(change_dimensional_calibration, self.__document_controller, self.__data_item_ref, index))
             self.__dimensional_calibrations_model.append_item(calibration_model)
         assert len(dimensional_calibrations) == len(self.__dimensional_calibrations_model.items)
         for index, (dimensional_calibration, calibration_model) in enumerate(zip(dimensional_calibrations, self.__dimensional_calibrations_model.items)):

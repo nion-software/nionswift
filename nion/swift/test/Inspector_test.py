@@ -5,13 +5,13 @@ import logging
 import math
 import typing
 import unittest
-import uuid
 
 # third-party imports
 import numpy
 
 # local imports
 from nion.data import Calibration
+from nion.data import DataAndMetadata
 from nion.swift import Application
 from nion.swift import Facade
 from nion.swift import Inspector
@@ -1538,6 +1538,38 @@ class TestInspectorClass(unittest.TestCase):
             display_item.set_display_property("legend_position", "outer-right")
             self.assertEqual("outer-right", display_item.get_display_property("legend_position"))
             display_item.set_display_property("legend_position", "outer-space")  # dummy value
+
+    def test_activating_inspector_should_not_trigger_data_item_change(self) -> None:
+        # this error occurred because the inspector was setting the calibration on the wrong data item
+        # when it changed.
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            display_panel = document_controller.selected_display_panel
+            data_item1 = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(
+                data=numpy.zeros((32, 32)),
+                dimensional_calibrations=[Calibration.Calibration(units="x"), Calibration.Calibration()],
+                intensity_calibration=Calibration.Calibration(units="u"))
+            )
+            data_item2 = DataItem.DataItem(numpy.zeros((32, 32)))
+            document_model.append_data_item(data_item1)
+            document_model.append_data_item(data_item2)
+            last_modified1 = data_item1.modified
+            last_modified2 = data_item2.modified
+            display_item1 = document_model.get_display_item_for_data_item(data_item1)
+            display_item2 = document_model.get_display_item_for_data_item(data_item2)
+            inspector_panel = document_controller.find_dock_panel("inspector-panel")
+            inspector_panel.show()
+            display_panel.set_display_panel_display_item(display_item2)
+            document_controller.periodic()
+            display_panel.set_display_panel_display_item(display_item1)
+            document_controller.periodic()
+            self.assertEqual(last_modified1, data_item1.modified)
+            self.assertEqual(last_modified2, data_item2.modified)
+            display_panel.set_display_panel_display_item(display_item2)
+            document_controller.periodic()
+            self.assertEqual(last_modified1, data_item1.modified)
+            self.assertEqual(last_modified2, data_item2.modified)
 
 
 if __name__ == '__main__':
