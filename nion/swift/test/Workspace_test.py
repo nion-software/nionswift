@@ -1178,6 +1178,42 @@ class TestWorkspaceClass(unittest.TestCase):
             self.assertEqual(document_controller.workspace_controller.display_panels[0].display_item.data_item, data_item2)
             self.assertEqual(document_controller.workspace_controller.display_panels[1].display_item.data_item, data_item1)
 
+    def test_display_panel_selection_updates_properly_with_data_panel_filter(self):
+        # this tests a failure where 2nd processing action would replace the source display item with something else.
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_controller.display_items_model._ttt = "ONE"
+            document_controller.filtered_display_items_model._ttt = "TWO"
+            document_model = document_controller.document_model
+            workspace_2x2 = document_controller.workspace_controller.new_workspace(*get_layout("2x2"))
+            document_controller.workspace_controller.change_workspace(workspace_2x2)
+            root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+            data_item1 = DataItem.DataItem(numpy.zeros((256), numpy.double))
+            data_item2 = DataItem.DataItem(numpy.zeros((256), numpy.double))
+            data_item1.title = "aaa"
+            data_item2.title = "bbb"
+            document_model.append_data_item(data_item1)
+            document_model.append_data_item(data_item2)
+            display_item2 = document_model.get_display_item_for_data_item(data_item2)
+            document_controller.workspace_controller.display_panels[0].set_display_item(display_item2)
+            document_controller.workspace_controller.display_panels[0].request_focus()
+            # error only occurred with filter enabled
+            document_controller.filter_controller.text_filter_changed("bbb")
+            self.assertEqual(2, len(document_model.display_items))
+            document_controller.perform_action(DocumentController.GaussianFilterAction())
+            self.assertEqual(3, len(document_model.display_items))
+            self.assertEqual(document_controller.workspace_controller.display_panels[0].display_item, display_item2)
+            self.assertEqual(document_controller.workspace_controller.display_panels[1].display_item, document_model.display_items[2])
+            document_controller.workspace_controller.display_panels[1].request_focus()
+            self.assertEqual(document_controller.workspace_controller.display_panels[0].display_item, display_item2)
+            self.assertEqual(document_controller.workspace_controller.display_panels[1].display_item, document_model.display_items[2])
+            document_controller.perform_action(DocumentController.FFTAction())
+            self.assertEqual(4, len(document_model.display_items))
+            self.assertEqual(document_controller.workspace_controller.display_panels[0].display_item, display_item2)
+            self.assertEqual(document_controller.workspace_controller.display_panels[1].display_item, document_model.display_items[2])
+            self.assertEqual(document_controller.workspace_controller.display_panels[2].display_item, document_model.display_items[3])
+
     def test_clicking_in_header_selects_and_focuses_display_panel(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
