@@ -3,6 +3,10 @@
     "version": "UNRELEASED",
     "notes": [
       {
+        "issues": ["https://github.com/nion-software/nionswift/issues/1003"],
+        "summary": "Fix issue with data panel spontaneously switching display after processing when using data panel text filter."
+      },
+      {
         "issues": ["https://github.com/nion-software/nionswift/issues/253"],
         "summary": "Improve handling of number precision for inspector calibrations and display limits."
       },
