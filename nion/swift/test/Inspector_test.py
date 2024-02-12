@@ -739,11 +739,10 @@ class TestInspectorClass(unittest.TestCase):
             def property_changed(property_name):
                 if property_name == "display_limits":
                     count[0] += 1
-            property_changed_listener = display_item.display_data_channels[0].property_changed_event.listen(property_changed)
-            document_model.recompute_all()
-            document_model.recompute_all()
-            self.assertEqual(count[0], 0)
-            property_changed_listener.close()
+            with display_item.display_data_channels[0].property_changed_event.listen(property_changed):
+                document_model.recompute_all()
+                document_model.recompute_all()
+                self.assertEqual(count[0], 0)
 
     def test_rectangle_dimensions_show_calibrated_units(self):
         with TestContext.create_memory_context() as test_context:
