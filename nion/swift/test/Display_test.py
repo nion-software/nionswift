@@ -644,7 +644,7 @@ class TestDisplayClass(unittest.TestCase):
             self.assertEqual((8,), display_data_channel.get_latest_computed_display_values().display_data_and_metadata.data_shape)
             self.assertEqual(float, display_data_channel.get_latest_computed_display_values().display_data_and_metadata.data_dtype)
             self.assertEqual((8,), display_data_channel.display_data_shape)
-            self.assertEqual(1, len(display_data_channel.get_datum_calibrations(data_item.dimensional_calibrations)))
+            self.assertEqual(1, len(display_data_channel.datum_calibrations))
 
     def test_sequence_index_validates_when_data_changes(self):
         with TestContext.create_memory_context() as test_context:
