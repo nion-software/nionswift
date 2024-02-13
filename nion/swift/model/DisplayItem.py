@@ -1173,9 +1173,9 @@ class DisplayDataChannel(Persistence.PersistentObject):
         return (data_item is not None) and (functools.reduce(operator.mul, display_data_shape) > 0 if display_data_shape else False)
 
     @property
-    def display_data_shape(self) -> typing.Optional[typing.Tuple[int, ...]]:
+    def display_data_shape(self) -> typing.Optional[DataAndMetadata.ShapeType]:
         if data_item := self.__data_item:
-            return data_item.display_data_shape
+            return DisplayDataShapeCalculator(data_item.data_metadata).shape
         return None
 
     def get_display_position_as_data_position(self, pos: typing.Tuple[int, ...]) -> typing.Tuple[int, ...]:
@@ -1202,7 +1202,7 @@ class DisplayDataChannel(Persistence.PersistentObject):
         return pos
 
     @property
-    def dimensional_shape(self) -> typing.Optional[typing.Tuple[int, ...]]:
+    def dimensional_shape(self) -> typing.Optional[DataAndMetadata.ShapeType]:
         return self.__data_item.dimensional_shape if self.__data_item else None
 
     @property
@@ -1249,8 +1249,9 @@ class DisplayDataChannel(Persistence.PersistentObject):
     @property
     def datum_calibrations(self) -> typing.Optional[typing.Sequence[Calibration.Calibration]]:
         """The calibrations for only datum dimensions."""
-        data_item = self.__data_item
-        return data_item.display_data_calibrations if data_item else None
+        if data_item := self.__data_item:
+            return DisplayDataShapeCalculator(data_item.data_metadata).calibrations
+        return None
 
     def get_data_value(self, pos: DataAndMetadata.ShapeType) -> typing.Any:
         return self.__data_item.get_data_value(pos) if self.__data_item else None
@@ -1693,6 +1694,40 @@ def get_intensity_calibration_style_for_id(calibration_style_id: typing.Optional
     return None
 
 
+class DisplayDataShapeCalculator:
+    """Display data shape calculator.
+
+    Represents a calculation to look at data metadata and determine the dimensions used for display. The shape and
+    calibrations can be accessed as properties.
+
+    This is a heuristic to determine the dimensions used for display, and this class consolidates the algorithm to
+    this location.
+    """
+    def __init__(self, data_metadata: typing.Optional[DataAndMetadata.DataMetadata]) -> None:
+        self.shape: typing.Optional[DataAndMetadata.ShapeType] = None
+        self.calibrations: typing.Optional[typing.Sequence[Calibration.Calibration]] = None
+
+        if data_metadata:
+            dimensional_calibrations = data_metadata.dimensional_calibrations
+            dimensional_shape = data_metadata.dimensional_shape
+            next_dimension = 0
+            if data_metadata.is_sequence:
+                next_dimension += 1
+            if data_metadata.is_collection:
+                collection_dimension_count = data_metadata.collection_dimension_count
+                datum_dimension_count = data_metadata.datum_dimension_count
+                # next dimensions are treated as collection indexes.
+                if collection_dimension_count == 2 and datum_dimension_count == 1:
+                    self.shape = tuple(dimensional_shape[next_dimension:next_dimension + collection_dimension_count])
+                    self.calibrations = dimensional_calibrations[next_dimension:next_dimension + collection_dimension_count]
+                else:  # default, "pick"
+                    self.shape = tuple(dimensional_shape[next_dimension + collection_dimension_count:next_dimension + collection_dimension_count + datum_dimension_count])
+                    self.calibrations = dimensional_calibrations[next_dimension + collection_dimension_count:next_dimension + collection_dimension_count + datum_dimension_count]
+            else:
+                self.shape = tuple(dimensional_shape[next_dimension:])
+                self.calibrations = dimensional_calibrations[next_dimension:]
+
+
 class DisplayItemCoordinates:
     """Display item coordinates.
 
@@ -1813,7 +1848,7 @@ class DisplayItemCoordinates:
     def display_data_shape(self) -> typing.Optional[DataAndMetadata.ShapeType]:
         data_items = self.__data_items_list_model.items
         if len(data_items) == 1:
-            return data_items[0].display_data_shape
+            return DisplayDataShapeCalculator(data_items[0].data_metadata).shape
         return self.dimensional_shape if self.is_composite_data else None
 
     @property
@@ -1837,7 +1872,7 @@ class DisplayItemCoordinates:
     def display_data_calibrations(self) -> typing.Sequence[Calibration.Calibration]:
         """The calibrations for only datum dimensions."""
         data_items = self.__data_items_list_model.items
-        display_data_calibrations = data_items[0].display_data_calibrations if len(data_items) == 1 else None
+        display_data_calibrations = DisplayDataShapeCalculator(data_items[0].data_metadata).calibrations if len(data_items) == 1 else None
         return display_data_calibrations if display_data_calibrations else [Calibration.Calibration()]
 
     @property
