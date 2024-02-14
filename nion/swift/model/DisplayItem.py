@@ -1462,6 +1462,10 @@ class DisplayDataChannel(Persistence.PersistentObject):
 
         return subscription
 
+    def get_display_values_stream(self) -> Stream.ValueStream[DisplayValues]:
+        # returns the latest possibly-not-yet-computed display values.
+        return self.__display_values_stream
+
     def get_latest_display_values(self) -> typing.Optional[DisplayValues]:
         # returns the latest possibly-not-yet-computed display values.
         return self.__display_values_stream.value
@@ -1628,45 +1632,45 @@ class DisplayItemSaveProperties:
     intensity_calibration_style_id: str
 
 
+class DisplayItemDisplayValuesModel(Observable.Observable):
+    """Display item display values model.
 
-class DisplayItemDataItemsModel(Observable.Observable):
-    """Display item data items model.
-
-    Observe the display data channels of the display item, and then observe the data item property of each display
-    data channel to form a list of data items in the display item.
+    Observe the display data channels of the display item, and then observe the display values property of each display
+    data channel to form a list of display values in the display item.
     """
     def __init__(self, display_item: DisplayItem) -> None:
         super().__init__()
         self.__display_item = display_item
-        self.__data_items = list[typing.Optional[DataItem.DataItem]]()
-        self.__item_inserted_listener = display_item.item_inserted_event.listen(ReferenceCounting.weak_partial(DisplayItemDataItemsModel.__item_inserted, self))
-        self.__item_removed_listener = display_item.item_removed_event.listen(ReferenceCounting.weak_partial(DisplayItemDataItemsModel.__item_removed, self))
-        self.__display_data_channel_listeners = list[typing.Optional[Event.EventListener]]()
+        self.__display_values_list = list[typing.Optional[DisplayValues]]()
+        self.__item_inserted_listener = display_item.item_inserted_event.listen(ReferenceCounting.weak_partial(DisplayItemDisplayValuesModel.__item_inserted, self))
+        self.__item_removed_listener = display_item.item_removed_event.listen(ReferenceCounting.weak_partial(DisplayItemDisplayValuesModel.__item_removed, self))
+        self.__display_data_channel_actions = list[typing.Optional[Stream.ValueStreamAction[DisplayValues]]]()
 
     @property
-    def data_items(self) -> typing.Sequence[typing.Optional[DataItem.DataItem]]:
-        return self.__data_items
+    def display_values_list(self) -> typing.Sequence[typing.Optional[DisplayValues]]:
+        return self.__display_values_list
 
     def __item_inserted(self, key: str, item: typing.Any, index: int) -> None:
         if key == "display_data_channels":
             display_data_channel = typing.cast(typing.Optional[DisplayDataChannel], item)
-            self.__data_items.insert(index, display_data_channel.data_item if display_data_channel else None)
-            self.__display_data_channel_listeners.insert(index, display_data_channel.property_changed_event.listen(ReferenceCounting.weak_partial(DisplayItemDataItemsModel.__display_data_channel_data_item_changed, self, display_data_channel)) if display_data_channel else None)
-            self.item_inserted_event.fire("data_items", display_data_channel.data_item if display_data_channel else None, index)
+            display_values_stream = display_data_channel.get_display_values_stream() if display_data_channel else None
+            display_values = display_values_stream.value if display_values_stream else None
+            self.__display_values_list.insert(index, display_values)
+            self.__display_data_channel_actions.insert(index, Stream.ValueStreamAction(display_values_stream, ReferenceCounting.weak_partial(DisplayItemDisplayValuesModel.__display_data_channel_display_values_changed, self, display_data_channel)) if display_values_stream else None)
+            self.item_inserted_event.fire("display_values_list", display_values, index)
 
     def __item_removed(self, key: str, item: typing.Any, index: int) -> None:
         if key == "display_data_channels":
-            display_data_channel = typing.cast(typing.Optional[DisplayDataChannel], item)
-            self.__data_items.pop(index)
-            self.__display_data_channel_listeners.pop(index)
-            self.item_removed_event.fire("data_items", display_data_channel.data_item if display_data_channel else None, index)
+            display_values = self.__display_values_list.pop(index)
+            self.__display_data_channel_actions.pop(index)
+            self.item_removed_event.fire("display_values_list", display_values, index)
 
-    def __display_data_channel_data_item_changed(self, display_data_channel: DisplayDataChannel, key: str) -> None:
-        if key == "data_item":
-            index = self.__display_item.display_data_channels.index(display_data_channel)
-            data_item = display_data_channel.data_item
-            self.item_removed_event.fire("data_items", data_item, index)
-            self.item_inserted_event.fire("data_items", data_item, index)
+    def __display_data_channel_display_values_changed(self, display_data_channel: DisplayDataChannel, display_values: typing.Optional[DisplayValues]) -> None:
+        index = self.__display_item.display_data_channels.index(display_data_channel)
+        old_display_values = self.__display_values_list[index]
+        self.__display_values_list[index] = display_values
+        self.item_removed_event.fire("display_values_list", old_display_values, index)
+        self.item_inserted_event.fire("display_values_list", display_values, index)
 
 
 def get_calibration_style_for_id(calibration_style_id: typing.Optional[str]) -> typing.Optional[CalibrationStyle]:
@@ -1728,19 +1732,19 @@ class DisplayDataShapeCalculator:
                 self.calibrations = dimensional_calibrations[next_dimension:]
 
 
-class DisplayItemCoordinates:
-    """Display item coordinates.
+class DisplayItemDimensionsMetadata:
+    """Display item dimensions metadata.
 
     Observe a data items list model and form the dimensional calibrations, intensity calibration, scales, dimensional
     shape, and is composite data properties of the display item.
     """
 
     def __init__(self,
-                 data_items_list_model: ListModel.ListModel[DataItem.DataItem],
+                 display_values_list_model: ListModel.ListModel[DisplayValues],
                  calibration_style_id_stream: Stream.PropertyChangedEventStream[str],
                  intensity_calibration_style_id_stream: Stream.PropertyChangedEventStream[str],
                  ) -> None:
-        self.__data_items_list_model = data_items_list_model
+        self.__display_values_list_model = display_values_list_model
 
         self.__needs_update = False
 
@@ -1753,12 +1757,12 @@ class DisplayItemCoordinates:
         self.__calibration_style_id_stream = calibration_style_id_stream
         self.__intensity_calibration_style_id_stream = intensity_calibration_style_id_stream
 
-        self.__item_inserted_listener = data_items_list_model.item_inserted_event.listen(ReferenceCounting.weak_partial(DisplayItemCoordinates.__data_item_inserted, self))
-        self.__item_removed_listener = data_items_list_model.item_removed_event.listen(ReferenceCounting.weak_partial(DisplayItemCoordinates.__data_item_removed, self))
-        self.__data_item_changed_listeners = list[typing.Optional[Event.EventListener]]()
+        self.__item_inserted_listener = display_values_list_model.item_inserted_event.listen(ReferenceCounting.weak_partial(DisplayItemDimensionsMetadata.__display_values_inserted, self))
+        self.__item_removed_listener = display_values_list_model.item_removed_event.listen(ReferenceCounting.weak_partial(DisplayItemDimensionsMetadata.__display_values_removed, self))
+        self.__display_values_changed_listeners = list[typing.Optional[Event.EventListener]]()
 
-        for index, data_item in enumerate(data_items_list_model.items):
-            self.__data_item_inserted("items", data_item, index)
+        for index, display_values in enumerate(display_values_list_model.items):
+            self.__display_values_inserted("items", display_values, index)
 
     @property
     def dimensional_calibrations(self) -> typing.Optional[DataAndMetadata.CalibrationListType]:
@@ -1790,21 +1794,19 @@ class DisplayItemCoordinates:
             self.__update()
         return self.__is_composite_data
 
-    def __data_item_inserted(self, key: str, data_item: DataItem.DataItem, index: int) -> None:
+    def __display_values_inserted(self, key: str, display_values: DisplayValues, index: int) -> None:
         assert key == "items"
-        self.__data_item_changed_listeners.insert(index, data_item.data_item_changed_event.listen(ReferenceCounting.weak_partial(DisplayItemCoordinates.__data_item_changed, self)) if data_item else None)
-        self.__data_item_changed()
-
-    def __data_item_removed(self, key: str, data_item: DataItem.DataItem, index: int) -> None:
-        assert key == "items"
-        self.__data_item_changed_listeners.pop(index)
-        self.__data_item_changed()
-
-    def __data_item_changed(self) -> None:
         self.__needs_update = True
 
+    def __display_values_removed(self, key: str, display_values: DisplayValues, index: int) -> None:
+        assert key == "items"
+        self.__needs_update = True
+
+    def __get_xdata_list(self) -> typing.Sequence[typing.Optional[DataAndMetadata.DataAndMetadata]]:
+        return [display_values.data_and_metadata if display_values else None for display_values in self.__display_values_list_model.items]
+
     def __update(self) -> None:
-        xdata_list = [data_item.xdata if data_item else None for data_item in self.__data_items_list_model.items]
+        xdata_list = self.__get_xdata_list()
         dimensional_calibrations: typing.Optional[DataAndMetadata.CalibrationListType] = None
         intensity_calibration: typing.Optional[Calibration.Calibration] = None
         scales = 0.0, 1.0
@@ -1846,9 +1848,9 @@ class DisplayItemCoordinates:
 
     @property
     def display_data_shape(self) -> typing.Optional[DataAndMetadata.ShapeType]:
-        data_items = self.__data_items_list_model.items
-        if len(data_items) == 1:
-            return DisplayDataShapeCalculator(data_items[0].data_metadata).shape
+        xdata_list = self.__get_xdata_list()
+        if len(xdata_list) == 1 and (d := xdata_list[0]):
+            return DisplayDataShapeCalculator(d.data_metadata).shape
         return self.dimensional_shape if self.is_composite_data else None
 
     @property
@@ -1871,8 +1873,10 @@ class DisplayItemCoordinates:
     @property
     def display_data_calibrations(self) -> typing.Sequence[Calibration.Calibration]:
         """The calibrations for only datum dimensions."""
-        data_items = self.__data_items_list_model.items
-        display_data_calibrations = DisplayDataShapeCalculator(data_items[0].data_metadata).calibrations if len(data_items) == 1 else None
+        display_data_calibrations: typing.Optional[typing.Sequence[Calibration.Calibration]] = None
+        xdata_list = self.__get_xdata_list()
+        if len(xdata_list) == 1 and (d := xdata_list[0]):
+            display_data_calibrations = DisplayDataShapeCalculator(d.data_metadata).calibrations
         return display_data_calibrations if display_data_calibrations else [Calibration.Calibration()]
 
     @property
@@ -1880,10 +1884,10 @@ class DisplayItemCoordinates:
         """The calibrations for only datum dimensions, in the displayed calibration style."""
         calibration_style = get_calibration_style_for_id(self.__calibration_style_id_stream.value)
         calibration_style = CalibrationStyleNative() if not calibration_style else calibration_style
-        data_items = self.__data_items_list_model.items
+        xdata_list = self.__get_xdata_list()
         dimensional_shape = self.dimensional_shape
         dimensional_calibrations = self.dimensional_calibrations
-        if dimensional_calibrations and dimensional_shape and len(data_items) == 1:
+        if dimensional_calibrations and dimensional_shape and len(xdata_list) == 1:
             display_data_calibrations = self.display_data_calibrations
             display_data_calibrations = display_data_calibrations if display_data_calibrations else [Calibration.Calibration() for c in dimensional_calibrations]
             datum_calibrations = calibration_style.get_dimensional_calibrations(dimensional_shape, display_data_calibrations)
@@ -1918,12 +1922,12 @@ class DisplayItem(Persistence.PersistentObject):
         self.__display_layer_changed_event_listeners: typing.List[Event.EventListener] = list()
 
         # configure the data items model, which is a list model of the non-none data items of the display data channels.
-        data_items_model = ListModel.FilteredListModel(container=DisplayItemDataItemsModel(self), master_items_key="data_items")
-        data_items_model.filter = ListModel.PredicateFilter(lambda data_item: data_item is not None)
-        self.__data_items_model = typing.cast(ListModel.ListModel[DataItem.DataItem], data_items_model)
+        display_values_list_model = ListModel.FilteredListModel(container=DisplayItemDisplayValuesModel(self), master_items_key="display_values_list")
+        display_values_list_model.filter = ListModel.PredicateFilter(lambda display_values: display_values is not None)
+        self.__display_values_list_model = typing.cast(ListModel.ListModel[DisplayValues], display_values_list_model)
 
-        self.__display_coordinates = DisplayItemCoordinates(
-            self.__data_items_model,
+        self.__dimensions_metadata = DisplayItemDimensionsMetadata(
+            self.__display_values_list_model,
             Stream.PropertyChangedEventStream[str](self, "calibration_style_id"),
             Stream.PropertyChangedEventStream[str](self, "intensity_calibration_style_id"),
         )
@@ -1976,6 +1980,8 @@ class DisplayItem(Persistence.PersistentObject):
 
     def close(self) -> None:
         # wait for outstanding threads to finish
+        self.__dimensions_metadata = typing.cast(typing.Any, None)
+        self.__display_values_list_model = typing.cast(typing.Any, None)
         with self.__outstanding_condition:
             while self.__outstanding_thread_count:
                 self.__outstanding_condition.wait()
@@ -2703,7 +2709,7 @@ class DisplayItem(Persistence.PersistentObject):
 
     @property
     def data_items(self) -> typing.Sequence[DataItem.DataItem]:
-        return self.__data_items_model.items
+        return [display_data_channel.data_item for display_data_channel in self.display_data_channels if display_data_channel.data_item]
 
     @property
     def data_item(self) -> typing.Optional[DataItem.DataItem]:
@@ -2759,7 +2765,7 @@ class DisplayItem(Persistence.PersistentObject):
 
     @property
     def display_data_shape(self) -> typing.Optional[DataAndMetadata.ShapeType]:
-        return self.__display_coordinates.display_data_shape
+        return self.__dimensions_metadata.display_data_shape
 
     @property
     def dimensional_shape(self) -> typing.Optional[DataAndMetadata.ShapeType]:
@@ -2774,7 +2780,7 @@ class DisplayItem(Persistence.PersistentObject):
 
         For displays associated with a composite data item, this must be stored in this class.
         """
-        return self.__display_coordinates.scales
+        return self.__dimensions_metadata.scales
 
     @property
     def datum_calibrations(self) -> typing.Sequence[Calibration.Calibration]:
@@ -2783,12 +2789,12 @@ class DisplayItem(Persistence.PersistentObject):
             datum_calibrations = self.display_data_channel.datum_calibrations
             if datum_calibrations is not None:
                 return datum_calibrations
-        dimensional_calibrations = self.__display_coordinates.dimensional_calibrations
+        dimensional_calibrations = self.__dimensions_metadata.dimensional_calibrations
         return [Calibration.Calibration() for c in dimensional_calibrations] if dimensional_calibrations else [Calibration.Calibration()]
 
     def get_displayed_dimensional_calibrations_with_calibration_style(self, calibration_style: CalibrationStyle) -> typing.Sequence[Calibration.Calibration]:
-        dimensional_shape = self.__display_coordinates.dimensional_shape
-        dimensional_calibrations = self.__display_coordinates.dimensional_calibrations
+        dimensional_shape = self.__dimensions_metadata.dimensional_shape
+        dimensional_calibrations = self.__dimensions_metadata.dimensional_calibrations
         if dimensional_calibrations and dimensional_shape:
             return calibration_style.get_dimensional_calibrations(dimensional_shape, dimensional_calibrations)
         return [Calibration.Calibration() for c in dimensional_calibrations] if dimensional_calibrations else [Calibration.Calibration()]
@@ -2796,22 +2802,22 @@ class DisplayItem(Persistence.PersistentObject):
     @property
     def displayed_dimensional_calibrations(self) -> typing.Sequence[Calibration.Calibration]:
         """The calibrations for all data dimensions in the displayed calibration style."""
-        return self.__display_coordinates.displayed_dimensional_calibrations
+        return self.__dimensions_metadata.displayed_dimensional_calibrations
 
     @property
     def displayed_datum_calibrations(self) -> typing.Sequence[Calibration.Calibration]:
         """The calibrations for only datum dimensions, in the displayed calibration style."""
-        return self.__display_coordinates.displayed_datum_calibrations
+        return self.__dimensions_metadata.displayed_datum_calibrations
 
     def get_displayed_intensity_calibration_with_calibration_style(self, calibration_style: IntensityCalibrationStyle) -> Calibration.Calibration:
-        intensity_calibration = self.__display_coordinates.intensity_calibration
+        intensity_calibration = self.__dimensions_metadata.intensity_calibration
         if intensity_calibration:
             return calibration_style.get_intensity_calibration(intensity_calibration)
         return Calibration.Calibration()
 
     @property
     def displayed_intensity_calibration(self) -> Calibration.Calibration:
-        return self.__display_coordinates.displayed_intensity_calibration
+        return self.__dimensions_metadata.displayed_intensity_calibration
 
     def __get_calibration_style_for_id(self, calibration_style_id: str) -> typing.Optional[CalibrationStyle]:
         for calibration_style in self.calibration_styles:
@@ -2973,7 +2979,7 @@ class DisplayItem(Persistence.PersistentObject):
             intensity_calibration = Calibration.Calibration()
 
         if display_data_channel is None or pos is None:
-            if self.__display_coordinates.is_composite_data and (pos is not None and len(pos) == 1):
+            if self.__dimensions_metadata.is_composite_data and (pos is not None and len(pos) == 1):
                 return u"{0}".format(dimensional_calibrations[-1].convert_to_calibrated_value_str(pos[0])), str()
             return str(), str()
 
