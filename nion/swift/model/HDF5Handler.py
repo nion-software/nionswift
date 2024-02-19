@@ -298,3 +298,12 @@ class HDF5HandlerFactory(StorageHandler.StorageHandlerFactoryLike):
 
     def get_extension(self) -> str:
         return ".h5"
+
+
+"""
+Architectural Decision Records.
+
+ADR 2024-02-19. Do not use Single Writer Multiple Reader (SWMR) mode for HDF5 files. This requires the writing process
+to set the flag and we don't have control of the writers outside of our process. In addition, the docs curently say that
+SWMR is not supported on Windows.
+"""
