@@ -52,10 +52,6 @@ def get_entity_type(entity_id: str) -> typing.Optional[EntityType]:
     return entity_types.get(entity_id)
 
 
-def utcnow() -> datetime.datetime:
-    return DateTime.utcnow()
-
-
 def build_value(type: str, value: typing.Any) -> typing.Any:
     if value is None:
         return None
@@ -958,7 +954,7 @@ class Entity(Observable.Observable):
         for field_name, field_type in self.__field_type_map.items():
             self.__field_dict[field_name] = field_type.create(self.__context)
         self._set_field_value("uuid", uuid.uuid4())
-        self._set_field_value("modified", utcnow())
+        self._set_field_value("modified", DateTime.utcnow())
         if context:
             self._set_entity_context(context)
 
@@ -1080,7 +1076,7 @@ class Entity(Observable.Observable):
             field.set_field_value(self, value)
             self._field_value_changed(name, field.write())
             if name not in ("modified", "uuid"):
-                self._set_modified(utcnow())
+                self._set_modified(DateTime.utcnow())
             self.property_changed_event.fire(name)
         else:
             raise AttributeError()

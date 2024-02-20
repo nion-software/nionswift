@@ -2739,7 +2739,7 @@ class ScriptExpressionComputationExecutor(ComputationExecutor):
         with self.__data_item.data_item_changes(), self.__data_item.data_source_changes():
             # note: use data_modified, but Windows doesn't have high enough time resolution
             # on fast machines, so ensure that any data_modified timestamp is created using
-            # DataItem.utcnow() / Schema.utcnow().
+            # DateTime.utcnow() / Schema.utcnow().
             if data_item_clone_data_modified > self.__data_item_data_modified:
                 self.__data_item.set_xdata(self.__data_item_target.xdata)
         if self.__data_item_created:

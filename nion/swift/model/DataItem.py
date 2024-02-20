@@ -26,8 +26,8 @@ from nion.data import Image
 from nion.swift.model import ApplicationData
 from nion.swift.model import Metadata
 from nion.swift.model import Persistence
-from nion.swift.model import Schema
 from nion.swift.model import Utility
+from nion.utils import DateTime
 from nion.utils import Event
 
 if typing.TYPE_CHECKING:
@@ -187,7 +187,7 @@ class DataItem(Persistence.PersistentObject):
         self.large_format = large_format
         self._document_model: typing.Optional[DocumentModel.DocumentModel] = None  # used only for Facade
         self.define_type("data-item")
-        self.define_property("created", self.utcnow(), hidden=True, converter=DatetimeToStringConverter(), changed=self.__description_property_changed)
+        self.define_property("created", DateTime.utcnow(), hidden=True, converter=DatetimeToStringConverter(), changed=self.__description_property_changed)
         data_shape = data.shape if data is not None else None
         data_dtype = data.dtype if data is not None else None
         dimensional_shape = Image.dimensional_shape_from_shape_and_dtype(data_shape, data_dtype)
@@ -259,10 +259,6 @@ class DataItem(Persistence.PersistentObject):
     def close(self) -> None:
         self.__data = None
         super().close()
-
-    @classmethod
-    def utcnow(cls) -> datetime.datetime:
-        return Schema.utcnow()
 
     def __str__(self) -> str:
         return "{0} {1} ({2}, {3})".format(self.__repr__(), (self.title if self.title else _("Untitled")), str(self.uuid), self.date_for_sorting_local_as_string)
@@ -514,7 +510,7 @@ class DataItem(Persistence.PersistentObject):
                 metadata = self._get_persistent_property_value("metadata")
                 timestamp = self._get_persistent_property_value("data_modified")
                 if timestamp is None:  # invalid timestamp -- set property to now but don't trigger change
-                    timestamp = self.created or self.utcnow()
+                    timestamp = self.created or DateTime.utcnow()
                     self._get_persistent_property("data_modified").value = timestamp
                 is_sequence = self._get_persistent_property_value("is_sequence", False)
                 collection_dimension_count = self._get_persistent_property_value("collection_dimension_count")
@@ -546,7 +542,7 @@ class DataItem(Persistence.PersistentObject):
                 self.__metadata = copy.deepcopy(metadata) if metadata else dict()
             self.__pending_write = False
             if self.created is None:  # invalid timestamp -- set property to now but don't trigger change
-                self._get_persistent_property("created").value = self.utcnow()
+                self._get_persistent_property("created").value = DateTime.utcnow()
             self.__content_changed = False
         self.__pending_write = False
 
@@ -1062,7 +1058,7 @@ class DataItem(Persistence.PersistentObject):
                                    data_modified: typing.Optional[datetime.datetime] = None) -> None:
         assert self.__data_ref_count > 0
         # set the data modified directly
-        data_modified = data_modified if data_modified else self.utcnow()
+        data_modified = data_modified if data_modified else DateTime.utcnow()
         data_metadata._set_timestamp(data_modified)
         # save the data_metadata. this must go before setting the persistent properties below because
         # of how the recorder works (grabs the attribute from data item).

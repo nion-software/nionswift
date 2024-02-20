@@ -35,6 +35,7 @@ from nion.swift.model import Persistence
 from nion.swift.model import Schema
 from nion.swift.model import Utility
 from nion.utils import Color
+from nion.utils import DateTime
 from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import Process
@@ -1655,7 +1656,7 @@ class DisplayItem(Persistence.PersistentObject):
         if item_uuid:
             self.uuid = item_uuid
         self.define_type("display_item")
-        self.define_property("created", DataItem.DataItem.utcnow(), hidden=True, converter=DataItem.DatetimeToStringConverter(), changed=self.__property_changed)
+        self.define_property("created", DateTime.utcnow(), hidden=True, converter=DataItem.DatetimeToStringConverter(), changed=self.__property_changed)
         self.define_property("display_type", hidden=True, changed=self.__display_type_changed)
         self.define_property("title", hidden=True, changed=self.__property_changed)
         self.define_property("caption", hidden=True, changed=self.__property_changed)
@@ -1924,7 +1925,7 @@ class DisplayItem(Persistence.PersistentObject):
     def read_from_dict(self, properties: Persistence.PersistentDictType) -> None:
         super().read_from_dict(properties)
         if self.created is None:  # invalid timestamp -- set property to now but don't trigger change
-            timestamp = DataItem.DataItem.utcnow()
+            timestamp = DateTime.utcnow()
             self._get_persistent_property("created").value = timestamp
 
     @property
