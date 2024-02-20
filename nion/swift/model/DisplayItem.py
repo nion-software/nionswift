@@ -2335,7 +2335,11 @@ class DisplayItem(Persistence.PersistentObject):
 
     @property
     def text_for_filter(self) -> str:
-        return " ".join([self.displayed_title, self.caption, self.description, self.size_and_data_format_as_string])
+        if data_item := self.data_item:
+            session_metadata_str = " ".join([str(v) for v in data_item.session_metadata.values()])
+        else:
+            session_metadata_str = ""
+        return " ".join([self.displayed_title, self.caption, self.description, self.size_and_data_format_as_string, self.date_for_sorting_local_as_string, session_metadata_str])
 
     @property
     def displayed_title(self) -> str:

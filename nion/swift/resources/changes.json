@@ -3,6 +3,10 @@
     "version": "UNRELEASED",
     "notes": [
       {
+        "issues": ["https://github.com/nion-software/nionswift/issues/922", "https://github.com/nion-software/nionswift/issues/327"],
+        "summary": "Make filtering work on modified date text and session metadata text when filtering data items in data panel."
+      },
+      {
         "issues": ["https://github.com/nion-software/nionswift/issues/1003"],
         "summary": "Fix issue with data panel spontaneously switching display after processing when using data panel text filter."
       },
