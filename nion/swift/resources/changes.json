@@ -7,6 +7,10 @@
         "summary": "Fix issue when removing workspace to select next most recent workspace."
       },
       {
+        "issues": ["https://github.com/nion-software/nionswift/issues/1001"],
+        "summary": "Fix issue when splitting display panels with multiple panels selected."
+      },
+      {
         "issues": ["https://github.com/nion-software/nionswift/issues/922", "https://github.com/nion-software/nionswift/issues/327"],
         "summary": "Make filtering work on modified date text and session metadata text when filtering data items in data panel."
       },

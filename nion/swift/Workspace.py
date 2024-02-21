@@ -994,50 +994,54 @@ class Workspace:
         self.__sync_layout()
         return old_display_panel, old_splits, region_id
 
-    def apply_layout(self, display_panel: DisplayPanel.DisplayPanel, w: int, h: int) -> typing.List[DisplayPanel.DisplayPanel]:
-        display_panel_container = display_panel.container
-        assert display_panel_container
+    def apply_layouts(self, primary_display_panel: DisplayPanel.DisplayPanel, display_panels: typing.Sequence[DisplayPanel.DisplayPanel], w: int, h: int) -> typing.List[DisplayPanel.DisplayPanel]:
         assert self.__workspace
         change_workspace_contents_command = ChangeWorkspaceContentsCommand(self, _("Change Workspace Contents"))
 
         new_display_panels = list()
 
-        # insert the rows
-        row_splitter_canvas_item = CanvasItem.SplitterCanvasItem(orientation="horizontal")
-        row_splitter_canvas_item.on_splits_will_change = functools.partial(self._splits_will_change, row_splitter_canvas_item)
-        row_splitter_canvas_item.on_splits_changed = functools.partial(self._splits_did_change, row_splitter_canvas_item)
-        display_panel_container.wrap_canvas_item(display_panel, row_splitter_canvas_item)
-        new_display_panels.append(display_panel)
-        dest_index = self.__display_panels.index(display_panel)
-        for row in range(h):
-            if row > 0:
-                row_display_panel = DisplayPanel.DisplayPanel(self.document_controller, dict())
-                self.__insert_display_panel(dest_index + 1, row_display_panel)
-                new_display_panels.append(row_display_panel)
-                dest_index += 1
-                row_splitter_canvas_item.insert_canvas_item(row + 1, row_display_panel)
-            else:
-                row_display_panel = display_panel
+        for display_panel in display_panels:
+            # find the display panel container
+            display_panel_container = display_panel.container
+            assert display_panel_container
 
-            # insert the columns
-            column_splitter_canvas_item = CanvasItem.SplitterCanvasItem(orientation="vertical")
-            column_splitter_canvas_item.on_splits_will_change = functools.partial(self._splits_will_change, column_splitter_canvas_item)
-            column_splitter_canvas_item.on_splits_changed = functools.partial(self._splits_did_change, column_splitter_canvas_item)
-            row_display_panel_container = row_display_panel.container
-            assert row_display_panel_container
-            row_display_panel_container.wrap_canvas_item(row_display_panel, column_splitter_canvas_item)
-            for column in range(1, w):
-                column_display_panel = DisplayPanel.DisplayPanel(self.document_controller, dict())
-                new_display_panels.append(column_display_panel)
-                self.__insert_display_panel(dest_index + 1, column_display_panel)
-                dest_index += 1
-                column_splitter_canvas_item.insert_canvas_item(column + 1, column_display_panel)
-            column_splitter_canvas_item.splits = [1//w] * w
+            # insert the rows
+            row_splitter_canvas_item = CanvasItem.SplitterCanvasItem(orientation="horizontal")
+            row_splitter_canvas_item.on_splits_will_change = functools.partial(self._splits_will_change, row_splitter_canvas_item)
+            row_splitter_canvas_item.on_splits_changed = functools.partial(self._splits_did_change, row_splitter_canvas_item)
+            display_panel_container.wrap_canvas_item(display_panel, row_splitter_canvas_item)
+            new_display_panels.append(display_panel)
+            dest_index = self.__display_panels.index(display_panel)
+            for row in range(h):
+                if row > 0:
+                    row_display_panel = DisplayPanel.DisplayPanel(self.document_controller, dict())
+                    self.__insert_display_panel(dest_index + 1, row_display_panel)
+                    new_display_panels.append(row_display_panel)
+                    dest_index += 1
+                    row_splitter_canvas_item.insert_canvas_item(row + 1, row_display_panel)
+                else:
+                    row_display_panel = display_panel
 
-        row_splitter_canvas_item.splits = [1//h] * h
+                # insert the columns
+                column_splitter_canvas_item = CanvasItem.SplitterCanvasItem(orientation="vertical")
+                column_splitter_canvas_item.on_splits_will_change = functools.partial(self._splits_will_change, column_splitter_canvas_item)
+                column_splitter_canvas_item.on_splits_changed = functools.partial(self._splits_did_change, column_splitter_canvas_item)
+                row_display_panel_container = row_display_panel.container
+                assert row_display_panel_container
+                row_display_panel_container.wrap_canvas_item(row_display_panel, column_splitter_canvas_item)
+                for column in range(1, w):
+                    column_display_panel = DisplayPanel.DisplayPanel(self.document_controller, dict())
+                    new_display_panels.append(column_display_panel)
+                    self.__insert_display_panel(dest_index + 1, column_display_panel)
+                    dest_index += 1
+                    column_splitter_canvas_item.insert_canvas_item(column + 1, column_display_panel)
+                column_splitter_canvas_item.splits = [1//w] * w
+
+            row_splitter_canvas_item.splits = [1//h] * h
 
         self.__sync_layout()
-        display_panel.request_focus()
+
+        primary_display_panel.request_focus()
 
         self.document_controller.push_undo_command(change_workspace_contents_command)
 

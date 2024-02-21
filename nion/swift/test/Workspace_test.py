@@ -608,6 +608,19 @@ class TestWorkspaceClass(unittest.TestCase):
             # compare against new layout
             self.assertEqual(new_workspace_layout, workspace_controller._workspace_layout)
 
+    def test_workspace_split_multiple_panels(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            workspace_controller = document_controller.workspace_controller
+            self.assertEqual(1, len(workspace_controller.display_panels))
+            document_controller.selected_display_panel = workspace_controller.display_panels[0]
+            document_controller.perform_action("workspace.split_2x2")
+            self.assertEqual(4, len(workspace_controller.display_panels))
+            document_controller.selected_display_panel = workspace_controller.display_panels[0]
+            document_controller.add_secondary_display_panel(workspace_controller.display_panels[1])
+            document_controller.perform_action("workspace.split_vertical")
+            self.assertEqual(6, len(workspace_controller.display_panels))
+
     def test_workspace_change_workspace_to_data_thumbnail_grid_works(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()

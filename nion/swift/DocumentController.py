@@ -2682,6 +2682,7 @@ class DocumentController(Window.Window):
                      focus_widget: typing.Optional[UserInterface.Widget],
                      display_panel: typing.Optional[DisplayPanel.DisplayPanel],
                      display_panels: typing.List[DisplayPanel.DisplayPanel],
+                     selected_display_panel: typing.Optional[DisplayPanel.DisplayPanel],
                      model: DocumentModel.DocumentModel,
                      display_item: typing.Optional[DisplayItem.DisplayItem],
                      display_items: typing.Sequence[DisplayItem.DisplayItem],
@@ -2692,6 +2693,7 @@ class DocumentController(Window.Window):
             super().__init__(application, window, focus_widget)
             self.display_panel = display_panel
             self.display_panels = display_panels
+            self.selected_display_panel = selected_display_panel
             self.model = model
             self.display_item = display_item
             self.display_items = display_items
@@ -2702,6 +2704,7 @@ class DocumentController(Window.Window):
 
     def _get_action_context(self) -> ActionContext:
         focus_widget = self.focus_widget
+        selected_display_panel = self.selected_display_panel
         display_panel = self.selected_display_panel if not self.__secondary_display_panels else None
         display_panels = ([self.__selected_display_panel] if self.__selected_display_panel else list()) + self.__secondary_display_panels
         model = self.document_model
@@ -2716,8 +2719,9 @@ class DocumentController(Window.Window):
                     data_items.append(data_item_1)
         selected_graphics = display_item.selected_graphics if display_item else list()
         return DocumentController.ActionContext(typing.cast("Application.Application", self.app), self, focus_widget,
-                                                display_panel, display_panels, model, display_item, display_items,
-                                                crop_graphic, selected_graphics, data_item, data_items)
+                                                display_panel, display_panels, selected_display_panel, model,
+                                                display_item, display_items, crop_graphic, selected_graphics, data_item,
+                                                data_items)
 
     def _get_action_context_for_display_items(self, display_items: typing.Sequence[DisplayItem.DisplayItem], display_panel: typing.Optional[DisplayPanel.DisplayPanel]) -> ActionContext:
         focus_widget = self.focus_widget
@@ -2726,6 +2730,7 @@ class DocumentController(Window.Window):
         # the one that was context clicked. if multiple display panels are selected and the user context clicks on one
         # of the selected ones, use the selected ones. if multiple display panels are selected and the user context
         # clicks on an unselected one, then there is no display panel selected.
+        selected_display_panel = self.__selected_display_panel
         used_display_panel = None
         used_display_panels: typing.List[DisplayPanel.DisplayPanel] = list()
         if display_panel:
@@ -2756,9 +2761,9 @@ class DocumentController(Window.Window):
                     used_data_items.append(data_item_1)
         selected_graphics = used_display_item.selected_graphics if used_display_item else list()
         return DocumentController.ActionContext(typing.cast("Application.Application", self.app), self, focus_widget,
-                                                used_display_panel, used_display_panels, model, used_display_item,
-                                                used_display_items, crop_graphic, selected_graphics, used_data_item,
-                                                used_data_items)
+                                                used_display_panel, used_display_panels, selected_display_panel, model,
+                                                used_display_item, used_display_items, crop_graphic, selected_graphics,
+                                                used_data_item, used_data_items)
 
 
 class GraphicFactoryBase:
@@ -3483,46 +3488,6 @@ class WorkspaceResetAction(Window.Action):
         raise ValueError("Missing workspace controller")
 
 
-class WorkspaceSplitHorizontalAction(Window.Action):
-    action_id = "workspace.split_horizontal"
-    action_name = _("Split Panel Into Left and Right")
-    action_command_icon_png = pkgutil.get_data(__name__, "resources/workspace_split_vertical.png")
-
-    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
-        context = typing.cast(DocumentController.ActionContext, context)
-        window = typing.cast(DocumentController, context.window)
-        workspace_controller = window.workspace_controller
-        display_panel = context.display_panel
-        if workspace_controller and display_panel:
-            command = workspace_controller.insert_display_panel(display_panel, "right")
-            window.push_undo_command(command)
-        return Window.ActionResult(Window.ActionStatus.FINISHED)
-
-    def is_enabled(self, context: Window.ActionContext) -> bool:
-        context = typing.cast(DocumentController.ActionContext, context)
-        return context.display_panel is not None
-
-
-class WorkspaceSplitVerticalAction(Window.Action):
-    action_id = "workspace.split_vertical"
-    action_name = _("Split Panel Into Top and Bottom")
-    action_command_icon_png = pkgutil.get_data(__name__, "resources/workspace_split_horizontal.png")
-
-    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
-        context = typing.cast(DocumentController.ActionContext, context)
-        window = typing.cast(DocumentController, context.window)
-        workspace_controller = window.workspace_controller
-        display_panel = context.display_panel
-        if workspace_controller and display_panel:
-            command = workspace_controller.insert_display_panel(display_panel, "bottom")
-            window.push_undo_command(command)
-        return Window.ActionResult(Window.ActionStatus.FINISHED)
-
-    def is_enabled(self, context: Window.ActionContext) -> bool:
-        context = typing.cast(DocumentController.ActionContext, context)
-        return context.display_panel is not None
-
-
 class WorkspaceSplitAction(Window.Action):
     action_id = "workspace.split"
     action_name = _("Split Display Panel")
@@ -3535,13 +3500,14 @@ class WorkspaceSplitAction(Window.Action):
         context = typing.cast(DocumentController.ActionContext, context)
         window = typing.cast(DocumentController, context.window)
         workspace_controller = window.workspace_controller
-        display_panel = context.display_panel
-        if workspace_controller and display_panel:
+        display_panels = context.display_panels
+        selected_display_panel = context.selected_display_panel
+        if workspace_controller and display_panels and selected_display_panel:
             h = self.get_int_property(context, "horizontal_count")
             v = self.get_int_property(context, "vertical_count")
             h = max(1, min(8, h))
             v = max(1, min(8, v))
-            display_panels = workspace_controller.apply_layout(display_panel, h, v)
+            display_panels = workspace_controller.apply_layouts(selected_display_panel, display_panels, h, v)
             action_result = Window.ActionResult(Window.ActionStatus.FINISHED)
             action_result.results["display_panels"] = list(display_panels)
             return action_result
@@ -3550,6 +3516,30 @@ class WorkspaceSplitAction(Window.Action):
     def is_enabled(self, context: Window.ActionContext) -> bool:
         context = typing.cast(DocumentController.ActionContext, context)
         return context.display_panel is not None
+
+
+class WorkspaceSplitHorizontalAction(WorkspaceSplitAction):
+    action_id = "workspace.split_horizontal"
+    action_name = _("Split Panel Into Left and Right")
+    action_command_icon_png = pkgutil.get_data(__name__, "resources/workspace_split_vertical.png")
+
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        self.set_int_property(context, "horizontal_count", 2)
+        self.set_int_property(context, "vertical_count", 1)
+        return super().execute(context)
+
+
+class WorkspaceSplitVerticalAction(WorkspaceSplitAction):
+    action_id = "workspace.split_vertical"
+    action_name = _("Split Panel Into Top and Bottom")
+    action_command_icon_png = pkgutil.get_data(__name__, "resources/workspace_split_horizontal.png")
+
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        self.set_int_property(context, "horizontal_count", 1)
+        self.set_int_property(context, "vertical_count", 2)
+        return super().execute(context)
 
 
 class WorkspaceSplit2x2Action(WorkspaceSplitAction):
