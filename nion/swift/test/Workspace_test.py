@@ -1,6 +1,7 @@
 # standard libraries
 import contextlib
 import copy
+import datetime
 import json
 import logging
 import unittest
@@ -16,10 +17,10 @@ from nion.swift import DocumentController
 from nion.swift import MimeTypes
 from nion.swift import Workspace
 from nion.swift.model import DataItem
-from nion.swift.model import DocumentModel
 from nion.swift.test import DocumentController_test, TestContext
 from nion.ui import CanvasItem
 from nion.ui import TestUI
+from nion.utils import DateTime
 from nion.utils import Geometry
 
 
@@ -876,6 +877,33 @@ class TestWorkspaceClass(unittest.TestCase):
             root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             self.assertEqual(new_workspace_layout, workspace_controller._workspace_layout)
             self.assertEqual(2, len(document_controller.project.workspaces))
+
+    def test_remove_workspace_enables_next_most_recent_workspace(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            # create three workspaces
+            workspace_controller = document_controller.workspace_controller
+            workspace1 = workspace_controller._workspace
+            workspace2 = workspace_controller.new_workspace(*get_layout("2x1"))
+            workspace3 = workspace_controller.new_workspace(*get_layout("2x1"))
+            workspace1.name = "1"
+            utcnow = DateTime.utcnow()
+            workspace1._set_modified(utcnow + datetime.timedelta(seconds=2))
+            workspace2.name = "2"
+            workspace2._set_modified(utcnow + datetime.timedelta(seconds=1))
+            workspace3.name = "3"
+            workspace3._set_modified(utcnow + datetime.timedelta(seconds=3))
+            # needs to fail here, sorted order needs to be different from added order
+            self.assertEqual(["3", "1", "2"], [w.name for w in document_controller.project.sorted_workspaces])
+            workspace_controller.change_workspace(workspace3)
+            self.assertEqual(3, len(document_controller.project.workspaces))
+            # perform remove command
+            command = Workspace.RemoveWorkspaceCommand(workspace_controller)
+            command.perform()
+            document_controller.push_undo_command(command)
+            # check things
+            self.assertEqual(2, len(document_controller.project.workspaces))
+            self.assertEqual("1", workspace_controller._workspace.name)
 
     def test_workspace_records_and_reloads_image_panel_contents(self):
         with create_memory_profile_context() as profile_context:

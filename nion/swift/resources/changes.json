@@ -3,6 +3,10 @@
     "version": "UNRELEASED",
     "notes": [
       {
+        "issues": ["https://github.com/nion-software/nionswift/issues/1002"],
+        "summary": "Fix issue when removing workspace to select next most recent workspace."
+      },
+      {
         "issues": ["https://github.com/nion-software/nionswift/issues/922", "https://github.com/nion-software/nionswift/issues/327"],
         "summary": "Make filtering work on modified date text and session metadata text when filtering data items in data panel."
       },

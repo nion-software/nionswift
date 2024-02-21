@@ -3,7 +3,7 @@ from __future__ import annotations
 # standard libraries
 import functools
 import logging
-import pathlib
+import operator
 import time
 import typing
 import uuid
@@ -141,6 +141,10 @@ class Project(Persistence.PersistentObject):
     @property
     def workspaces(self) -> typing.Sequence[WorkspaceLayout.WorkspaceLayout]:
         return typing.cast(typing.Sequence[WorkspaceLayout.WorkspaceLayout], self._get_relationship_values("workspaces"))
+
+    @property
+    def sorted_workspaces(self) -> typing.Sequence[WorkspaceLayout.WorkspaceLayout]:
+        return sorted(self.workspaces, key=operator.attrgetter("modified"), reverse=True)
 
     def open(self) -> None:
         self.__storage_system.reset()  # this makes storage reusable during tests

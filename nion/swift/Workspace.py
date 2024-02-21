@@ -89,6 +89,11 @@ class RemoveWorkspaceCommand(Undo.UndoableCommand):
         self.__old_layout = workspace_controller._workspace.layout
         self.__old_workspace_id = workspace_controller._workspace.workspace_id
         self.__old_workspace_index = workspace_controller._project.workspaces.index(workspace_controller._workspace)
+        sorted_workspaces = workspace_controller._project.sorted_workspaces
+        assert len(sorted_workspaces) > 1
+        current_index = [w.workspace_id for w in sorted_workspaces].index(self.__old_workspace_id)
+        next_index = (current_index + 1) % len(sorted_workspaces)
+        self.__next_workspace_id = sorted_workspaces[next_index].workspace_id
         self.initialize()
 
     def _get_modified_state(self) -> typing.Any:
@@ -100,7 +105,8 @@ class RemoveWorkspaceCommand(Undo.UndoableCommand):
     def perform(self) -> None:
         assert len(self.__workspace_controller._project.workspaces) > 1
         old_workspace = self.__workspace_controller._workspace
-        self.__workspace_controller.change_to_previous_workspace()
+        if self.__next_workspace_id:
+            self.__workspace_controller.change_to_workspace_id(self.__next_workspace_id)
         self.__workspace_controller._project.remove_item("workspaces", old_workspace)
 
     def _undo(self) -> None:
@@ -621,6 +627,11 @@ class Workspace:
         if workspace is None:
             workspace = self.new_workspace()
         self._change_workspace(workspace)
+
+    def change_to_workspace_id(self, workspace_id: str) -> None:
+        workspace = next((workspace for workspace in self._project.workspaces if workspace.workspace_id == workspace_id), None)
+        if workspace:
+            self.change_workspace(workspace)
 
     def change_to_previous_workspace(self) -> None:
         workspace_uuid = self.document_controller.project.workspace_uuid

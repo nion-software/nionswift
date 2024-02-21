@@ -42,7 +42,6 @@ from nion.swift import Workspace
 from nion.swift.model import Changes
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
-from nion.swift.model import DataStructure
 from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
@@ -60,7 +59,6 @@ from nion.ui import Dialog
 from nion.ui import PreferencesDialog
 from nion.ui import Window
 from nion.ui import UserInterface
-from nion.ui.Window import ActionContext
 from nion.utils import Color
 from nion.utils import Event
 from nion.utils import Geometry
@@ -1947,7 +1945,7 @@ class DocumentController(Window.Window):
         for dynamic_view_action in self.__dynamic_view_actions:
             menu.remove_action(dynamic_view_action)
         self.__dynamic_view_actions = []
-        for workspace in sorted(self.project.workspaces, key=operator.attrgetter("modified"), reverse=True):
+        for workspace in self.project.sorted_workspaces:
             def switch_to_workspace(workspace: WorkspaceLayout.WorkspaceLayout) -> None:
                 workspace_controller = self.workspace_controller
                 assert workspace_controller
