@@ -354,6 +354,22 @@
                 "items": [
                     {
                         "type": "item",
+                        "action_id": "processing.flip_horizontal"
+                    },
+                    {
+                        "type": "item",
+                        "action_id": "processing.flip_vertical"
+                    },
+                    {
+                        "type": "item",
+                        "action_id": "processing.rotate_right"
+                    },
+                    {
+                        "type": "item",
+                        "action_id": "processing.rotate_left"
+                    },
+                    {
+                        "type": "item",
                         "action_id": "processing.transform"
                     },
                     {

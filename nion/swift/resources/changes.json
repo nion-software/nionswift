@@ -3,6 +3,10 @@
     "version": "UNRELEASED",
     "notes": [
       {
+        "issues": ["https://github.com/nion-software/nionswift/issues/919"],
+        "summary": "Add menu items for flip horizontal/vertical and rotate right/left."
+      },
+      {
         "issues": ["https://github.com/nion-software/nionswift/issues/1002"],
         "summary": "Fix issue when removing workspace to select next most recent workspace."
       },

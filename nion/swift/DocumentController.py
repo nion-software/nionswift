@@ -3,6 +3,7 @@ from __future__ import annotations
 # standard libraries
 import copy
 import contextlib
+import dataclasses
 import datetime
 import functools
 import gettext
@@ -5158,17 +5159,70 @@ class SubtractAverageAction(ProcessingAction):
         return self.invoke_processing(context, context.model.get_subtract_region_average_new)
 
 
+@dataclasses.dataclass
+class TransformConfig:
+    flip_h: bool = False
+    flip_v: bool = False
+    transpose: bool = False
+
+
 class TransformAction(ProcessingAction):
     action_id = "processing.transform"
     action_name = _("Transpose and Flip")
 
+    # define a general processing function which sets variables for transpose and flip
+    def __processing_fn(self, context: DocumentController.ActionContext, transform_config: TransformConfig, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
+        new_data_item = context.model.get_transpose_flip_new(display_item, data_item, crop_region)
+        if new_data_item:
+            computation = context.model.get_data_item_computation(new_data_item)
+            assert computation
+            computation.set_input_value("do_flip_h", transform_config.flip_h)
+            computation.set_input_value("do_flip_v", transform_config.flip_v)
+            computation.set_input_value("do_transpose", transform_config.transpose)
+        return new_data_item
+
+    def _get_default_transform_config(self) -> TransformConfig:
+        return TransformConfig()
+
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
-        return self.execute_processing(context, context.model.get_transpose_flip_new)
+        return self.execute_processing(context, functools.partial(self.__processing_fn, context, self._get_default_transform_config()))
 
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
-        return self.invoke_processing(context, context.model.get_transpose_flip_new)
+        return self.invoke_processing(context, functools.partial(self.__processing_fn, context, self._get_default_transform_config()))
+
+
+class FlipHorizontalAction(TransformAction):
+    action_id = "processing.flip_horizontal"
+    action_name = _("Flip Horizontal")
+
+    def _get_default_transform_config(self) -> TransformConfig:
+        return TransformConfig(flip_h=True)
+
+
+class FlipVerticalAction(TransformAction):
+    action_id = "processing.flip_vertical"
+    action_name = _("Flip Vertical")
+
+    def _get_default_transform_config(self) -> TransformConfig:
+        return TransformConfig(flip_v=True)
+
+
+class RotateLeftAction(TransformAction):
+    action_id = "processing.rotate_left"
+    action_name = _("Rotate Left")
+
+    def _get_default_transform_config(self) -> TransformConfig:
+        return TransformConfig(flip_v=True, transpose=True)
+
+
+class RotateRightAction(TransformAction):
+    action_id = "processing.rotate_right"
+    action_name = _("Rotate Right")
+
+    def _get_default_transform_config(self) -> TransformConfig:
+        return TransformConfig(flip_h=True, transpose=True)
 
 
 class UniformFilterAction(ProcessingAction):
@@ -5222,6 +5276,8 @@ Window.register_action(ExtractLuminanceAction())
 Window.register_action(ExtractRedAction())
 Window.register_action(FourierFilterAction())
 Window.register_action(FFTAction())
+Window.register_action(FlipHorizontalAction())
+Window.register_action(FlipVerticalAction())
 Window.register_action(GaussianFilterAction())
 Window.register_action(HistogramAction())
 Window.register_action(InverseFFTAction())
@@ -5242,6 +5298,8 @@ Window.register_action(RebinAction())
 Window.register_action(ResampleAction())
 Window.register_action(ResizeAction())
 Window.register_action(RGBAction())
+Window.register_action(RotateLeftAction())
+Window.register_action(RotateRightAction())
 Window.register_action(ScalarAction())
 Window.register_action(SliceSumAction())
 Window.register_action(SequenceAlignFourierAction())
