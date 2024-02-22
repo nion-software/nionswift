@@ -2741,6 +2741,7 @@ class DocumentController(Window.Window):
                     used_display_panels.extend(self.__secondary_display_panels)
             else:
                 used_display_panel = display_panel
+                used_display_panels.append(display_panel)
         # the logic here is if no display panel is passed in or if a single display panel is selected, use the display
         # items that are passed in. otherwise, use the aggregate display items from the selected display panels.
         used_display_item = None
