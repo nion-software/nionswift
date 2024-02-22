@@ -632,6 +632,19 @@ class TestWorkspaceClass(unittest.TestCase):
             action_context = document_controller._get_action_context_for_display_items(document_controller.selected_display_items, workspace_controller.display_panels[0])
             document_controller.perform_action_in_context("workspace.split_vertical", action_context)
 
+    def test_workspace_split_horizontal_does_not_create_extra_splits(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            workspace_controller = document_controller.workspace_controller
+            self.assertEqual(1, len(workspace_controller.display_panels))
+            document_controller.selected_display_panel = workspace_controller.display_panels[0]
+            document_controller.perform_action("workspace.split_horizontal")
+            self.assertEqual(1, len(workspace_controller._canvas_item.canvas_items))
+            self.assertIsInstance(workspace_controller._canvas_item.canvas_items[0], CanvasItem.SplitterCanvasItem)
+            self.assertEqual(2, len(workspace_controller._canvas_item.canvas_items[0].canvas_items))
+            self.assertIsInstance(workspace_controller._canvas_item.canvas_items[0].canvas_items[0], DisplayPanel.DisplayPanel)
+            self.assertIsInstance(workspace_controller._canvas_item.canvas_items[0].canvas_items[1], DisplayPanel.DisplayPanel)
+
     def test_workspace_change_workspace_to_data_thumbnail_grid_works(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
