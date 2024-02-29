@@ -3,6 +3,7 @@ from __future__ import annotations
 # standard libraries
 import asyncio
 import copy
+import dataclasses
 import logging
 import math
 import threading
@@ -26,11 +27,9 @@ from nion.utils import Registry
 from nion.utils import Stream
 
 if typing.TYPE_CHECKING:
-    from nion.swift import Undo
     from nion.swift.model import Persistence
     from nion.ui import DrawingContext
     from nion.ui import UserInterface
-    from nion.ui import Window
 
 
 
@@ -357,9 +356,8 @@ class ImageAreaCompositeCanvasItem(CanvasItem.CanvasItemComposition):
     Also handles the screen pixel per image pixel stream, used for the scale marker.
     """
 
-    def __init__(self, image_canvas_item: ImageCanvasItem) -> None:
+    def __init__(self) -> None:
         super().__init__()
-        self.__image_canvas_item = image_canvas_item
         self.__data_shape: typing.Optional[DataAndMetadata.Shape2dType] = None
         self.__lock = threading.RLock()
         self.screen_pixel_per_image_pixel_stream = Stream.ValueStream(0.0)
@@ -727,6 +725,50 @@ class CreateGraphicMouseHandler(MouseHandler):
                 create_create_graphic_task.commit()
 
 
+def calculate_dimensional_calibration(data_and_metadata: DataAndMetadata.DataMetadata,
+                                      displayed_dimensional_calibrations: typing.Sequence[
+                                          Calibration.Calibration]) -> Calibration.Calibration:
+    if len(displayed_dimensional_calibrations) == 0:
+        dimensional_calibration = Calibration.Calibration()
+    elif len(displayed_dimensional_calibrations) == 1:
+        dimensional_calibration = displayed_dimensional_calibrations[0]
+    else:
+        datum_dimensions = data_and_metadata.datum_dimension_indexes
+        collection_dimensions = data_and_metadata.collection_dimension_indexes
+        if len(datum_dimensions) == 2:
+            if displayed_dimensional_calibrations[-1].units:
+                dimensional_calibration = displayed_dimensional_calibrations[-1]
+            else:
+                dimensional_calibration = data_and_metadata.dimensional_calibrations[datum_dimensions[-1]]
+        elif len(collection_dimensions) > 0:
+            dimensional_calibration = data_and_metadata.dimensional_calibrations[collection_dimensions[-1]]
+        elif len(datum_dimensions) > 0:
+            dimensional_calibration = data_and_metadata.dimensional_calibrations[datum_dimensions[-1]]
+        else:
+            dimensional_calibration = Calibration.Calibration()
+    return dimensional_calibration
+
+
+
+@dataclasses.dataclass
+class FrameInfo:
+    frame_index: int
+    info_items: typing.Sequence[str]
+
+def get_frame_info(data_metadata: DataAndMetadata.DataMetadata) -> FrameInfo:
+    # extracts the dict from metadata. packages can provide components which get called to extract
+    # the metadata and form the info_items and frame_index, if available.
+    # allow registered metadata_display components to populate a dictionary
+    # the image canvas item will look at "frame_index" and "info_items"
+    d: Persistence.PersistentDictType = dict()
+    for component in Registry.get_components_by_type("metadata_display"):
+        component.populate(d, data_metadata.metadata)
+    # pull out the frame_index and info_items keys
+    frame_index = d.get("frame_index", 0)
+    info_items = d.get("info_items", list[str]())
+    return FrameInfo(frame_index, info_items)
+
+
 # map the tool mode to the graphic type
 graphic_type_map = {
     "line": "line-graphic",
@@ -797,7 +839,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.__bitmap_canvas_item = CanvasItem.BitmapCanvasItem(background_color="#888" if draw_background else "transparent")
         self.__graphics_canvas_item = GraphicsCanvasItem(ui_settings)
         # put the zoom-able items into a composition
-        self.__composite_canvas_item = ImageAreaCompositeCanvasItem(self)
+        self.__composite_canvas_item = ImageAreaCompositeCanvasItem()
         self.__composite_canvas_item.add_canvas_item(self.__bitmap_canvas_item)
         self.__composite_canvas_item.add_canvas_item(self.__graphics_canvas_item)
         # and put the composition into a scroll area
@@ -870,42 +912,9 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
     def update_display_properties_and_layers(self, display_calibration_info: DisplayItem.DisplayCalibrationInfo, display_properties: Persistence.PersistentDictType, display_layers: typing.Sequence[Persistence.PersistentDictType]) -> None:
         # threadsafe
         data_and_metadata = self.__display_values.data_and_metadata if self.__display_values else None
-        if data_and_metadata:
-            displayed_dimensional_calibrations = display_calibration_info.displayed_dimensional_calibrations
-            if len(displayed_dimensional_calibrations) == 0:
-                dimensional_calibration = Calibration.Calibration()
-            elif len(displayed_dimensional_calibrations) == 1:
-                dimensional_calibration = displayed_dimensional_calibrations[0]
-            else:
-                if data_and_metadata:
-                    datum_dimensions = data_and_metadata.datum_dimension_indexes
-                    collection_dimensions = data_and_metadata.collection_dimension_indexes
-                    if len(datum_dimensions) == 2:
-                        if displayed_dimensional_calibrations[-1].units:
-                            dimensional_calibration = displayed_dimensional_calibrations[-1]
-                        else:
-                            dimensional_calibration = data_and_metadata.dimensional_calibrations[datum_dimensions[-1]]
-                    elif len(collection_dimensions) > 0:
-                        dimensional_calibration = data_and_metadata.dimensional_calibrations[collection_dimensions[-1]]
-                    elif len(datum_dimensions) > 0:
-                        dimensional_calibration = data_and_metadata.dimensional_calibrations[datum_dimensions[-1]]
-                    else:
-                        dimensional_calibration = Calibration.Calibration()
-                else:
-                    dimensional_calibration = Calibration.Calibration()
-
-            data_shape = display_calibration_info.display_data_shape
-            metadata = data_and_metadata.metadata
-
-            # allow registered metadata_display components to populate a dictionary
-            # the image canvas item will look at "frame_index" and "info_items"
-            d: Persistence.PersistentDictType = dict()
-            for component in Registry.get_components_by_type("metadata_display"):
-                component.populate(d, metadata)
-
-            # pull out the frame_index and info_items keys
-            frame_index = d.get("frame_index", 0)
-            info_items = d.get("info_items", list())
+        data_metadata = data_and_metadata.data_metadata if data_and_metadata else None
+        if data_metadata:
+            frame_info = get_frame_info(data_metadata)
 
             # this method may trigger a layout of its parent scroll area. however, the parent scroll
             # area may already be closed. this is a stop-gap guess at a solution - the basic idea being
@@ -931,6 +940,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                         self.__scroll_area_layout._image_canvas_mode = self.__image_canvas_mode
 
                 # if the data changes, update the display.
+                data_shape = display_calibration_info.display_data_shape
                 if data_shape is not None and len(data_shape) == 2 and ((display_properties != self.__last_display_properties) or (display_calibration_info != self.__last_display_calibration_info) or (self.__display_values_dirty)):
                     self.__display_values_dirty = False
                     self.__last_display_properties = copy.deepcopy(display_properties)
@@ -940,9 +950,9 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                     self.__composite_canvas_item._data_shape = self.__data_shape
                     self.__coordinate_system = display_calibration_info.datum_calibrations
                     if self.__display_frame_rate_id:
-                        if frame_index != self.__display_frame_rate_last_index:
+                        if frame_info.frame_index != self.__display_frame_rate_last_index:
                             Utility.fps_tick("frame_"+self.__display_frame_rate_id)
-                            self.__display_frame_rate_last_index = frame_index
+                            self.__display_frame_rate_last_index = frame_info.frame_index
                         Utility.fps_tick("update_"+self.__display_frame_rate_id)
                     # update the cursor info
                     self.__update_cursor_info()
@@ -983,7 +993,8 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                                         self.__update_layout_handle = None
 
                 # setting the bitmap on the bitmap_canvas_item is delayed until paint, so that it happens on a thread, since it may be time consuming
-                self.__scale_marker_canvas_item.set_data_info(dimensional_calibration, info_items)
+                dimensional_calibration = calculate_dimensional_calibration(data_metadata, display_calibration_info.displayed_dimensional_calibrations)
+                self.__scale_marker_canvas_item.set_data_info(dimensional_calibration, frame_info.info_items)
 
     def update_graphics_coordinate_system(self, graphics: typing.Sequence[Graphics.Graphic], graphic_selection: DisplayItem.GraphicSelection, display_calibration_info: DisplayItem.DisplayCalibrationInfo) -> None:
         self.__graphics = list(graphics)
