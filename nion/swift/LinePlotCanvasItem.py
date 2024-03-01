@@ -124,6 +124,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
         self.___has_valid_drawn_graph_data = False
 
+        self.__xdata_lock = threading.RLock()
         self.__xdata_list: typing.List[typing.Optional[DataAndMetadata.DataAndMetadata]] = list()
         self.__last_xdata_list: typing.List[typing.Optional[DataAndMetadata.DataAndMetadata]] = list()
 
@@ -352,12 +353,14 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             self.__display_layers = display_layers
 
             if len(self.__display_values_list) > 0:
-                self.__xdata_list = [display_values.display_data_and_metadata if display_values else None for display_values in self.__display_values_list]
-                xdata0 = self.__xdata_list[0]
+                with self.__xdata_lock:
+                    self.__xdata_list = [display_values.display_data_and_metadata if display_values else None for display_values in self.__display_values_list]
+                    xdata0 = self.__xdata_list[0]
                 if xdata0:
                     self.__update_frame(xdata0.metadata)
             else:
-                self.__xdata_list = list()
+                with self.__xdata_lock:
+                    self.__xdata_list = list()
 
             # update the cursor info
             self.__update_cursor_info()
@@ -383,9 +386,10 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
     def update(self) -> None:
         if self.__display_frame_rate_id:
-            if len(self.__xdata_list) != len(self.__last_xdata_list) or not all([a is b for a, b in zip(self.__xdata_list, self.__last_xdata_list)]):
-                Utility.fps_tick("update_"+self.__display_frame_rate_id)
-                self.__last_xdata_list = copy.copy(self.__xdata_list)
+            with self.__xdata_lock:
+                if len(self.__xdata_list) != len(self.__last_xdata_list) or not all([a is b for a, b in zip(self.__xdata_list, self.__last_xdata_list)]):
+                    Utility.fps_tick("update_"+self.__display_frame_rate_id)
+                    self.__last_xdata_list = copy.copy(self.__xdata_list)
         super().update()
 
     def update_graphics_coordinate_system(self, graphics: typing.Sequence[Graphics.Graphic],
@@ -463,7 +467,9 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         intensity_calibrated_max = -math.inf
 
         # for each layer, make sure the units match (x-axis and intensity).
-        for layer_xdata in self.__xdata_list:
+        with self.__xdata_lock:
+            xdata_list = list(self.__xdata_list)
+        for layer_xdata in xdata_list:
             if layer_xdata and layer_xdata.dimensional_calibrations[0].units == x_units and layer_xdata.intensity_calibration.units == intensity_units:
                 # calculate left/right for the layer by back converting calibrated left/right using the layer calibration
                 layer_left = int(math.floor(layer_xdata.dimensional_calibrations[0].convert_from_calibrated_value(left_calibrated)))
@@ -522,10 +528,10 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.__view_to_intervals(data_and_metadata, intervals)
 
     def handle_auto_display(self) -> bool:
-        if len(self.__xdata_list) > 0:
-            xdata0 = self.__xdata_list[0]
-            if xdata0:
-                self.__view_to_selected_graphics(xdata0)
+        with self.__xdata_lock:
+            xdata0 = self.__xdata_list[0] if self.__xdata_list else None
+        if xdata0:
+            self.__view_to_selected_graphics(xdata0)
         return True
 
     def prepare_display(self) -> None:
@@ -568,7 +574,8 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             return scalar_xdata_list
 
         data_scale = self.__data_scale
-        xdata_list = self.__xdata_list
+        with self.__xdata_lock:
+            xdata_list = list(self.__xdata_list)
 
         if data_scale is not None:
             # update the line graph data
