@@ -820,9 +820,6 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
         self.wants_mouse_events = True
 
-        self.__update_layout_handle: typing.Optional[asyncio.Handle] = None
-        self.__update_layout_handle_lock = threading.RLock()
-
         self.__closing_lock = threading.RLock()
         self.__closed = False
 
@@ -885,11 +882,6 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
     def close(self) -> None:
         with self.__closing_lock:
-            with self.__update_layout_handle_lock:
-                update_layout_handle = self.__update_layout_handle
-                if update_layout_handle:
-                    update_layout_handle.cancel()
-                    self.__update_layout_handle = None
             self.__closed = True
         self.__display_values = None
         super().close()
@@ -910,7 +902,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.__display_values_dirty = True
 
     def update_display_properties_and_layers(self, display_calibration_info: DisplayItem.DisplayCalibrationInfo, display_properties: Persistence.PersistentDictType, display_layers: typing.Sequence[Persistence.PersistentDictType]) -> None:
-        # threadsafe
+        # thread-safe
         data_and_metadata = self.__display_values.data_and_metadata if self.__display_values else None
         data_metadata = data_and_metadata.data_metadata if data_and_metadata else None
         if data_metadata:
@@ -957,40 +949,23 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                     # update the cursor info
                     self.__update_cursor_info()
 
-                    def update_layout() -> None:
-                        # layout. this makes sure that the info overlay gets updated too.
-                        # called on the main thread.
-                        self.scroll_area_canvas_item._needs_layout(self.scroll_area_canvas_item)
-                        # trigger updates
-                        self.update()
-                        self.__composite_canvas_item.update()
-                        self.__bitmap_canvas_item.update()
-                        with self.__update_layout_handle_lock:
-                            self.__update_layout_handle = None
-
-                    if self.__event_loop:
-                        with self.__update_layout_handle_lock:
-                            update_layout_handle = self.__update_layout_handle
-                            if update_layout_handle:
-                                update_layout_handle.cancel()
-                            scroll_area_canvas_size = self.scroll_area_canvas_item.canvas_size
-                            if scroll_area_canvas_size is not None:
-                                # only update layout if the size/origin will change. it is slow.
-                                image_canvas_rect: typing.Optional[Geometry.IntRect]
-                                if self.__data_shape is not None:
-                                    image_canvas_rect = calculate_origin_and_size(scroll_area_canvas_size, self.__data_shape, self.__image_canvas_mode, self.__image_zoom, self.__image_position)
-                                else:
-                                    image_canvas_rect = None
-                                if image_canvas_rect != self.__composite_canvas_item.canvas_rect:
-                                    self.__update_layout_handle = self.__event_loop.call_soon_threadsafe(Process.audited(update_layout, "update_layout"))
-                                else:
-                                    # trigger updates
-                                    self.__bitmap_canvas_item.update()
-                                    with self.__update_layout_handle_lock:
-                                        update_layout_handle = self.__update_layout_handle
-                                        if update_layout_handle:
-                                            update_layout_handle.cancel()
-                                        self.__update_layout_handle = None
+                    scroll_area_canvas_size = self.scroll_area_canvas_item.canvas_size
+                    if scroll_area_canvas_size is not None:
+                        # only update layout if the size/origin will change. it is slow.
+                        image_canvas_rect: typing.Optional[Geometry.IntRect]
+                        if self.__data_shape is not None:
+                            image_canvas_rect = calculate_origin_and_size(scroll_area_canvas_size, self.__data_shape, self.__image_canvas_mode, self.__image_zoom, self.__image_position)
+                        else:
+                            image_canvas_rect = None
+                        if image_canvas_rect != self.__composite_canvas_item.canvas_rect:
+                            # layout. this makes sure that the info overlay gets updated too.
+                            self.scroll_area_canvas_item.refresh_layout()
+                            # trigger updates
+                            self.__composite_canvas_item.update()
+                            self.__bitmap_canvas_item.update()
+                        else:
+                            # trigger updates
+                            self.__bitmap_canvas_item.update()
 
                 # setting the bitmap on the bitmap_canvas_item is delayed until paint, so that it happens on a thread, since it may be time consuming
                 dimensional_calibration = calculate_dimensional_calibration(data_metadata, display_calibration_info.displayed_dimensional_calibrations)
