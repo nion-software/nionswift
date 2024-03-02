@@ -1011,14 +1011,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         delegate = self.delegate
         widget_mapping = ImageCanvasItemMapping.make(self.__data_shape, self.__composite_canvas_item.canvas_bounds, list())
         if delegate and widget_mapping:
-            self.__image_position = image_position
-            self.__scroll_area_layout._image_position = self.__image_position
-            delegate.update_display_properties({"image_position": list(self.__image_position), "image_canvas_mode": "custom"})
-            # and update the image canvas accordingly
-            self.__image_canvas_mode = "custom"
-            self.__scroll_area_layout._image_canvas_mode = self.__image_canvas_mode
-            self.scroll_area_canvas_item._needs_layout(self.scroll_area_canvas_item)
-            self.__composite_canvas_item.update()
+            delegate.update_display_properties({"image_position": list(image_position), "image_canvas_mode": "custom"})
 
     # update the image canvas position by the widget delta amount. called on main thread.
     def _update_image_canvas_position(self, widget_delta: Geometry.FloatSize) -> Geometry.FloatPoint:
