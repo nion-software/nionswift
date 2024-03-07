@@ -6,6 +6,7 @@ import contextlib
 import copy
 import functools
 import gettext
+import json
 import math
 import random
 import string
@@ -904,6 +905,100 @@ class MissingDataCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                 drawing_context.stroke()
 
 
+class DisplayData:
+    def __init__(self, graphics: typing.Sequence[Graphics.Graphic], graphic_selection: DisplayItem.GraphicSelection,
+                 display_calibration_info: DisplayItem.DisplayCalibrationInfo,
+                 display_values_list: typing.List[typing.Optional[DisplayItem.DisplayValues]],
+                 display_properties: Persistence.PersistentDictType,
+                 display_layers_list: typing.List[Persistence.PersistentDictType]) -> None:
+        self.__graphics = graphics
+        self.__graphic_selection = graphic_selection
+        self.__display_calibration_info = display_calibration_info
+        self.__display_values_list = display_values_list
+        self.__display_properties = display_properties
+        self.__display_layers_list = display_layers_list
+        self._graphics_seed = 0
+        self._graphic_selection_seed = 0
+        self._display_calibration_info_seed = 0
+        self._display_values_list_seed = 0
+        self._display_properties_seed = 0
+        self._display_layers_list_seed = 0
+
+    @classmethod
+    def from_display_item(cls, display_item: DisplayItem.DisplayItem) -> DisplayData:
+        graphics = display_item.graphics
+        graphic_selection = copy.copy(display_item.graphic_selection)
+        display_calibration_info = DisplayItem.DisplayCalibrationInfo(display_item)
+        display_values_list = [display_data_channel.get_latest_computed_display_values() for display_data_channel in display_item.display_data_channels]
+        display_properties = copy.deepcopy(display_item.display_properties)
+        display_layers_list = display_item.display_layers_list
+        return cls(graphics, graphic_selection, display_calibration_info, display_values_list, display_properties, display_layers_list)
+
+    def __copy__(self) -> DisplayData:
+        display_data_copy = DisplayData(self.__graphics, self.__graphic_selection, self.__display_calibration_info, self.__display_values_list, self.__display_properties, self.__display_layers_list)
+        display_data_copy._graphics_seed = self._graphics_seed
+        display_data_copy._graphic_selection_seed = self._graphic_selection_seed
+        display_data_copy._display_calibration_info_seed = self._display_calibration_info_seed
+        display_data_copy._display_values_list_seed = self._display_values_list_seed
+        display_data_copy._display_properties_seed = self._display_properties_seed
+        display_data_copy._display_layers_list_seed = self._display_layers_list_seed
+        return display_data_copy
+
+    @property
+    def graphics(self) -> typing.Sequence[Graphics.Graphic]:
+        return self.__graphics
+
+    @graphics.setter
+    def graphics(self, value: typing.Sequence[Graphics.Graphic]) -> None:
+        self.__graphics = value
+        self._graphics_seed += 1
+
+    @property
+    def graphic_selection(self) -> DisplayItem.GraphicSelection:
+        return self.__graphic_selection
+
+    @graphic_selection.setter
+    def graphic_selection(self, value: DisplayItem.GraphicSelection) -> None:
+        self.__graphic_selection = value
+        self._graphic_selection_seed += 1
+
+    @property
+    def display_calibration_info(self) -> DisplayItem.DisplayCalibrationInfo:
+        return self.__display_calibration_info
+
+    @display_calibration_info.setter
+    def display_calibration_info(self, value: DisplayItem.DisplayCalibrationInfo) -> None:
+        self.__display_calibration_info = value
+        self._display_calibration_info_seed += 1
+
+    @property
+    def display_values_list(self) -> typing.List[typing.Optional[DisplayItem.DisplayValues]]:
+        return self.__display_values_list
+
+    @display_values_list.setter
+    def display_values_list(self, value: typing.List[typing.Optional[DisplayItem.DisplayValues]]) -> None:
+        self.__display_values_list = value
+        self._display_values_list_seed += 1
+
+    @property
+    def display_properties(self) -> Persistence.PersistentDictType:
+        return self.__display_properties
+
+    @display_properties.setter
+    def display_properties(self, value: Persistence.PersistentDictType) -> None:
+        self.__display_properties = value
+        self._display_properties_seed += 1
+
+    @property
+    def display_layers_list(self) -> typing.List[Persistence.PersistentDictType]:
+        return self.__display_layers_list
+
+    @display_layers_list.setter
+    def display_layers_list(self, value: typing.List[Persistence.PersistentDictType]) -> None:
+        self.__display_layers_list = value
+        self._display_layers_list_seed += 1
+
+
 class DisplayTracker:
     """Tracks messages from a display and passes them to associated display canvas item."""
 
@@ -915,7 +1010,8 @@ class DisplayTracker:
         self.__delegate = delegate
         self.__event_loop = event_loop
         self.__draw_background = draw_background
-
+        self.__display_data = DisplayData.from_display_item(display_item)
+        self.__last_display_data: typing.Optional[DisplayData] = None
         self.__closing_lock = threading.RLock()
 
         # callbacks
@@ -942,34 +1038,56 @@ class DisplayTracker:
 
         self.__display_canvas_item = create_display_canvas_item(display_item, ui_settings, delegate, event_loop, draw_background=self.__draw_background)
 
-        display_data_channel_shapes_ref: typing.List[typing.List[typing.Optional[typing.Tuple[int, ...]]]] = [list()]
+        def update_display_data() -> None:
+            with self.__closing_lock:
+                display_canvas_item = self.__display_canvas_item
+                old_display_data = self.__last_display_data
+                new_display_data = self.__display_data
+
+                needs_update_display_values = not old_display_data or old_display_data._display_values_list_seed != new_display_data._display_values_list_seed
+                needs_update_display_properties_and_layers = needs_update_display_values or not old_display_data or old_display_data._display_calibration_info_seed != new_display_data._display_calibration_info_seed or old_display_data._display_properties_seed != new_display_data._display_properties_seed or old_display_data._display_layers_list_seed != new_display_data._display_layers_list_seed
+                needs_update_graphics = not old_display_data or old_display_data._graphics_seed != new_display_data._graphics_seed or old_display_data._graphic_selection_seed != new_display_data._graphic_selection_seed or old_display_data._display_calibration_info_seed != new_display_data._display_calibration_info_seed
+
+                if needs_update_display_values:
+                    display_canvas_item.update_display_values(new_display_data.display_values_list)
+                if needs_update_display_properties_and_layers:
+                    display_canvas_item.update_display_properties_and_layers(new_display_data.display_calibration_info,
+                                                                             new_display_data.display_properties,
+                                                                             new_display_data.display_layers_list)
+                if needs_update_graphics:
+                    display_canvas_item.update_graphics_coordinate_system(new_display_data.graphics,
+                                                                          new_display_data.graphic_selection,
+                                                                          new_display_data.display_calibration_info)
+
+                self.__last_display_data = copy.copy(self.__display_data)
 
         def display_graphics_changed(graphic_selection: DisplayItem.GraphicSelection) -> None:
-            # this message comes from the display when the graphic selection changes
-            self.__display_canvas_item.update_graphics_coordinate_system(display_item.graphics, graphic_selection, DisplayItem.DisplayCalibrationInfo(display_item))
+            # this message comes from the display when a graphic is insert/removed/changed or when the graphic selection changes.
+            with self.__closing_lock:
+                self.__display_data.graphics = display_item.graphics
+                self.__display_data.graphic_selection = copy.copy(display_item.graphic_selection)
+                self.__display_data.display_calibration_info = DisplayItem.DisplayCalibrationInfo(display_item)
+                update_display_data()
 
         def display_values_changed() -> None:
             # this notification is for the rgba values only
             # thread safe
             with self.__closing_lock:
-                self.__display_canvas_item.update_display_values(self.__display_values_list)
-            display_changed()
-            # if the display data channel shapes change, update the graphics, but use the display channel to determine the shape; otherwise
-            # the graphics update will use the shape from the last update. this design needs work.
-            new_display_data_channel_shapes =  [display_data_channel.display_data_shape for display_data_channel in display_item.display_data_channels]
-            if new_display_data_channel_shapes != display_data_channel_shapes_ref[0]:
-                # use display data shape from the new shapes
-                display_data_shape = new_display_data_channel_shapes[0] if len(new_display_data_channel_shapes) > 0 else None
-                with self.__closing_lock:
-                    self.__display_canvas_item.update_graphics_coordinate_system(display_item.graphics, display_item.graphic_selection, DisplayItem.DisplayCalibrationInfo(display_item, display_data_shape))
-                display_data_channel_shapes_ref[0] = new_display_data_channel_shapes
+                self.__display_data.display_values_list = copy.copy(self.__display_values_list)
+                self.__display_data.display_calibration_info = DisplayItem.DisplayCalibrationInfo(display_item)
+                self.__display_data.display_properties = display_item.display_properties
+                self.__display_data.display_layers_list = display_item.display_layers_list
+                update_display_data()
 
         def display_changed() -> None:
             # called when anything in the data item changes, including things like graphics or the data itself.
             # this notification does not cover the rgba data, which is handled in the function below.
             # thread safe
             with self.__closing_lock:
-                self.__display_canvas_item.update_display_properties_and_layers(DisplayItem.DisplayCalibrationInfo(display_item), display_item.display_properties, display_item.display_layers_list)
+                self.__display_data.display_calibration_info = DisplayItem.DisplayCalibrationInfo(display_item)
+                self.__display_data.display_properties = display_item.display_properties
+                self.__display_data.display_layers_list = display_item.display_layers_list
+                update_display_data()
 
         def display_property_changed(property: str) -> None:
             if property in ("y_min", "y_max", "y_style", "left_channel", "right_channel", "image_zoom", "image_position", "image_canvas_mode", "displayed_dimensional_calibrations"):
@@ -1041,9 +1159,7 @@ class DisplayTracker:
 
         # this may throw exceptions (during testing). make sure to close if that happens, ensuring that the
         # layer items (image/line plot) get shut down.
-        display_values_changed()
-        display_changed()
-        display_graphics_changed(display_item.graphic_selection)
+        update_display_data()
 
         def display_type_changed(display_type: typing.Optional[str]) -> None:
             # called when the display type of the data item changes.

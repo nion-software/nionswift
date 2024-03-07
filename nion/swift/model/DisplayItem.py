@@ -2246,6 +2246,7 @@ class DisplayItem(Persistence.PersistentObject):
                 display_properties.pop(property_name, None)
             self.display_properties = display_properties
             self.display_property_changed_event.fire(property_name)
+            # TODO: neither graphics_changed_event.fire is probably not necessary since these will change the display calibration info instead.
             if property_name in ("displayed_dimensional_scales", "displayed_dimensional_calibrations", "displayed_intensity_calibration"):
                 self.graphics_changed_event.fire(self.graphic_selection)
             if property_name in ("calibration_style_id", "intensity_calibration_style_id"):
