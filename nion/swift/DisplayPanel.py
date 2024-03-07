@@ -4,9 +4,9 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import copy
+import dataclasses
 import functools
 import gettext
-import json
 import math
 import random
 import string
@@ -905,6 +905,22 @@ class MissingDataCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                 drawing_context.stroke()
 
 
+@dataclasses.dataclass
+class DisplayDataDelta:
+    graphics: typing.Sequence[Graphics.Graphic]
+    graphic_selection: DisplayItem.GraphicSelection
+    display_calibration_info: DisplayItem.DisplayCalibrationInfo
+    display_values_list: typing.List[typing.Optional[DisplayItem.DisplayValues]]
+    display_properties: Persistence.PersistentDictType
+    display_layers_list: typing.List[Persistence.PersistentDictType]
+    graphics_changed: bool = False
+    graphic_selection_changed: bool = False
+    display_calibration_info_changed: bool = False
+    display_values_list_changed: bool = False
+    display_properties_changed: bool = False
+    display_layers_list_changed: bool = False
+
+
 class DisplayData:
     def __init__(self, graphics: typing.Sequence[Graphics.Graphic], graphic_selection: DisplayItem.GraphicSelection,
                  display_calibration_info: DisplayItem.DisplayCalibrationInfo,
@@ -943,6 +959,22 @@ class DisplayData:
         display_data_copy._display_properties_seed = self._display_properties_seed
         display_data_copy._display_layers_list_seed = self._display_layers_list_seed
         return display_data_copy
+
+    def get_delta(self, display_data: typing.Optional[DisplayData]) -> DisplayDataDelta:
+        display_data_delta = DisplayDataDelta(self.__graphics, self.__graphic_selection, self.__display_calibration_info, self.__display_values_list, self.__display_properties, self.__display_layers_list)
+        if not display_data or self._graphics_seed != display_data._graphics_seed:
+            display_data_delta.graphics_changed = True
+        if not display_data or self._graphic_selection_seed != display_data._graphic_selection_seed:
+            display_data_delta.graphic_selection_changed = True
+        if not display_data or self._display_calibration_info_seed != display_data._display_calibration_info_seed:
+            display_data_delta.display_calibration_info_changed = True
+        if not display_data or self._display_values_list_seed != display_data._display_values_list_seed:
+            display_data_delta.display_values_list_changed = True
+        if not display_data or self._display_properties_seed != display_data._display_properties_seed:
+            display_data_delta.display_properties_changed = True
+        if not display_data or self._display_layers_list_seed != display_data._display_layers_list_seed:
+            display_data_delta.display_layers_list_changed = True
+        return display_data_delta
 
     @property
     def graphics(self) -> typing.Sequence[Graphics.Graphic]:
@@ -1041,25 +1073,21 @@ class DisplayTracker:
         def update_display_data() -> None:
             with self.__closing_lock:
                 display_canvas_item = self.__display_canvas_item
-                old_display_data = self.__last_display_data
-                new_display_data = self.__display_data
 
-                needs_update_display_values = not old_display_data or old_display_data._display_values_list_seed != new_display_data._display_values_list_seed
-                needs_update_display_properties_and_layers = needs_update_display_values or not old_display_data or old_display_data._display_calibration_info_seed != new_display_data._display_calibration_info_seed or old_display_data._display_properties_seed != new_display_data._display_properties_seed or old_display_data._display_layers_list_seed != new_display_data._display_layers_list_seed
-                needs_update_graphics = not old_display_data or old_display_data._graphics_seed != new_display_data._graphics_seed or old_display_data._graphic_selection_seed != new_display_data._graphic_selection_seed or old_display_data._display_calibration_info_seed != new_display_data._display_calibration_info_seed
-
-                if needs_update_display_values:
-                    display_canvas_item.update_display_values(new_display_data.display_values_list)
-                if needs_update_display_properties_and_layers:
-                    display_canvas_item.update_display_properties_and_layers(new_display_data.display_calibration_info,
-                                                                             new_display_data.display_properties,
-                                                                             new_display_data.display_layers_list)
-                if needs_update_graphics:
-                    display_canvas_item.update_graphics_coordinate_system(new_display_data.graphics,
-                                                                          new_display_data.graphic_selection,
-                                                                          new_display_data.display_calibration_info)
+                display_data_delta = self.__display_data.get_delta(self.__last_display_data)
 
                 self.__last_display_data = copy.copy(self.__display_data)
+
+                if display_data_delta.display_values_list_changed:
+                    display_canvas_item.update_display_values(display_data_delta.display_values_list)
+                if display_data_delta.display_values_list_changed or display_data_delta.display_calibration_info_changed or display_data_delta.display_layers_list_changed or display_data_delta.display_properties_changed:
+                    display_canvas_item.update_display_properties_and_layers(display_data_delta.display_calibration_info,
+                                                                             display_data_delta.display_properties,
+                                                                             display_data_delta.display_layers_list)
+                if display_data_delta.graphics_changed or display_data_delta.graphic_selection_changed or display_data_delta.display_calibration_info_changed:
+                    display_canvas_item.update_graphics_coordinate_system(display_data_delta.graphics,
+                                                                          display_data_delta.graphic_selection,
+                                                                          display_data_delta.display_calibration_info)
 
         def display_graphics_changed(graphic_selection: DisplayItem.GraphicSelection) -> None:
             # this message comes from the display when a graphic is insert/removed/changed or when the graphic selection changes.
