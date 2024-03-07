@@ -984,8 +984,9 @@ class DisplayData:
 
     @display_calibration_info.setter
     def display_calibration_info(self, value: DisplayItem.DisplayCalibrationInfo) -> None:
-        self.__display_calibration_info = value
-        self._display_calibration_info_seed += 1
+        if value != self.__display_calibration_info:
+            self.__display_calibration_info = value
+            self._display_calibration_info_seed += 1
 
     @property
     def display_values_list(self) -> typing.List[typing.Optional[DisplayItem.DisplayValues]]:
@@ -1002,8 +1003,9 @@ class DisplayData:
 
     @display_properties.setter
     def display_properties(self, value: Persistence.PersistentDictType) -> None:
-        self.__display_properties = value
-        self._display_properties_seed += 1
+        if value != self.__display_properties:
+            self.__display_properties = value
+            self._display_properties_seed += 1
 
     @property
     def display_layers_list(self) -> typing.List[Persistence.PersistentDictType]:
@@ -1065,7 +1067,6 @@ class DisplayTracker:
             with self.__closing_lock:
                 self.__display_data.graphics = display_item.graphics
                 self.__display_data.graphic_selection = copy.copy(display_item.graphic_selection)
-                self.__display_data.display_calibration_info = DisplayItem.DisplayCalibrationInfo(display_item)
                 update_display_data()
 
         def display_values_changed() -> None:
@@ -1073,9 +1074,6 @@ class DisplayTracker:
             # thread safe
             with self.__closing_lock:
                 self.__display_data.display_values_list = copy.copy(self.__display_values_list)
-                self.__display_data.display_calibration_info = DisplayItem.DisplayCalibrationInfo(display_item)
-                self.__display_data.display_properties = display_item.display_properties
-                self.__display_data.display_layers_list = display_item.display_layers_list
                 update_display_data()
 
         def display_changed() -> None:

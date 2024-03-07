@@ -827,8 +827,8 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.__image_position = Geometry.FloatPoint(0.5, 0.5)
         self.__image_canvas_mode = "fit"
 
-        self.__last_display_calibration_info: typing.Optional[DisplayItem.DisplayCalibrationInfo] = None
-        self.__last_display_properties: typing.Optional[Persistence.PersistentDictType] = None
+        self.__display_calibration_info_dirty = False
+        self.__display_properties_dirty = False
 
         # create the child canvas items
         # the background
@@ -933,10 +933,10 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
                 # if the data changes, update the display.
                 data_shape = display_calibration_info.display_data_shape
-                if data_shape is not None and len(data_shape) == 2 and ((display_properties != self.__last_display_properties) or (display_calibration_info != self.__last_display_calibration_info) or (self.__display_values_dirty)):
+                if data_shape is not None and len(data_shape) == 2 and (self.__display_properties_dirty or self.__display_calibration_info_dirty or self.__display_values_dirty):
                     self.__display_values_dirty = False
-                    self.__last_display_properties = copy.deepcopy(display_properties)
-                    self.__last_display_calibration_info = copy.deepcopy(display_calibration_info)
+                    self.__display_properties_dirty = False
+                    self.__display_calibration_info_dirty = False
                     self.__data_shape = data_shape[0], data_shape[1]
                     self.__scroll_area_layout._data_shape = self.__data_shape
                     self.__composite_canvas_item._data_shape = self.__data_shape
@@ -980,6 +980,8 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         if display_data_delta.display_values_list_changed:
             self.__update_display_values(display_data_delta.display_values_list)
         if display_data_delta.display_values_list_changed or display_data_delta.display_calibration_info_changed or display_data_delta.display_layers_list_changed or display_data_delta.display_properties_changed:
+            self.__display_properties_dirty = self.__display_properties_dirty or display_data_delta.display_properties_changed
+            self.__display_calibration_info_dirty = self.__display_calibration_info_dirty or display_data_delta.display_calibration_info_changed
             self.__update_display_properties_and_layers(display_data_delta.display_calibration_info,
                                                         display_data_delta.display_properties,
                                                         display_data_delta.display_layers_list)
