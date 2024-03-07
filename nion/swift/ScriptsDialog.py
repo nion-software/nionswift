@@ -363,7 +363,7 @@ class RunScriptDialog(Dialog.ActionDialog):
         app = typing.cast(typing.Any, self.document_controller.app)  # trick typing
         self.__profile: typing.Optional[Profile.Profile] = app.profile if app else None
 
-        self.script_filter_pattern = "\\.py$"
+        self.script_filter_pattern = "(?<!__init__)\\.py$"
 
         self.__cancelled = False
 
