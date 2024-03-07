@@ -86,20 +86,17 @@ class DisplayScriptCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
     def add_display_control(self, display_control_canvas_item: CanvasItem.AbstractCanvasItem, role: typing.Optional[str] = None) -> None:
         display_control_canvas_item.close()
 
-    def update_display_values(self, display_values_list: typing.Sequence[typing.Optional[DisplayItem.DisplayValues]]) -> None:
-        display_xdata: typing.Optional[DataAndMetadata.DataAndMetadata] = None
-        if display_values_list:
-            display_values = display_values_list[0]
-            if display_values:
-                display_xdata = display_values.data_and_metadata
-        self.__display_xdata = display_xdata
-
-    def update_display_properties_and_layers(self, display_calibration_info: DisplayItem.DisplayCalibrationInfo, display_properties: Persistence.PersistentDictType, display_layers: typing.Sequence[Persistence.PersistentDictType]) -> None:
-        self.__display_script = display_properties.get("display_script")
-        self.update()
-
-    def update_graphics_coordinate_system(self, graphics: typing.Sequence[Graphics.Graphic], graphic_selection: DisplayItem.GraphicSelection, display_calibration_info: DisplayItem.DisplayCalibrationInfo) -> None:
-        pass
+    def update_display_data_delta(self, display_data_delta: DisplayItem.DisplayDataDelta) -> None:
+        if display_data_delta.display_values_list_changed:
+            display_xdata: typing.Optional[DataAndMetadata.DataAndMetadata] = None
+            if display_data_delta.display_values_list:
+                display_values = display_data_delta.display_values_list[0]
+                if display_values:
+                    display_xdata = display_values.data_and_metadata
+            self.__display_xdata = display_xdata
+        if display_data_delta.display_values_list_changed or display_data_delta.display_calibration_info_changed or display_data_delta.display_layers_list_changed or display_data_delta.display_properties_changed:
+            self.__display_script = display_data_delta.display_properties.get("display_script")
+            self.update()
 
     def handle_auto_display(self) -> bool:
         # enter key has been pressed

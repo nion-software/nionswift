@@ -111,15 +111,4 @@ class DisplayCanvasItem(CanvasItem.CanvasItemComposition):
     @abc.abstractmethod
     def handle_auto_display(self) -> bool: ...
 
-    def update_display_properties_and_layers(self, display_calibration_info: DisplayItem.DisplayCalibrationInfo,
-                                             display_properties: Persistence.PersistentDictType,
-                                             display_layers: typing.Sequence[Persistence.PersistentDictType]) -> None:
-        pass
-
-    def update_display_values(self, display_values_list: typing.Sequence[typing.Optional[DisplayItem.DisplayValues]]) -> None:
-        pass
-
-    def update_graphics_coordinate_system(self, graphics: typing.Sequence[Graphics.Graphic],
-                                          graphic_selection: DisplayItem.GraphicSelection,
-                                          display_calibration_info: DisplayItem.DisplayCalibrationInfo) -> None:
-        pass
+    def update_display_data_delta(self, display_data_delta: DisplayItem.DisplayDataDelta) -> None: ...

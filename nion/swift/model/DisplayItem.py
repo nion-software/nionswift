@@ -3104,6 +3104,22 @@ class DisplayCalibrationInfo:
         return False
 
 
+@dataclasses.dataclass
+class DisplayDataDelta:
+    graphics: typing.Sequence[Graphics.Graphic]
+    graphic_selection: GraphicSelection
+    display_calibration_info: DisplayCalibrationInfo
+    display_values_list: typing.List[typing.Optional[DisplayValues]]
+    display_properties: Persistence.PersistentDictType
+    display_layers_list: typing.List[Persistence.PersistentDictType]
+    graphics_changed: bool = False
+    graphic_selection_changed: bool = False
+    display_calibration_info_changed: bool = False
+    display_values_list_changed: bool = False
+    display_properties_changed: bool = False
+    display_layers_list_changed: bool = False
+
+
 def sort_by_date_key(display_item: DisplayItem) -> typing.Tuple[typing.Optional[str], datetime.datetime, str]:
     """A sort key for display items. The sort by uuid makes it determinate."""
     return display_item.title + str(display_item.uuid) if display_item.is_live else str(), display_item.date_for_sorting, str(display_item.uuid)

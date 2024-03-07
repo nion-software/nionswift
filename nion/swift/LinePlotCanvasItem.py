@@ -310,12 +310,24 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         else:
             self.__display_controls.add_canvas_item(display_control_canvas_item)
 
-    def update_display_values(self, display_values_list: typing.Sequence[typing.Optional[DisplayItem.DisplayValues]]) -> None:
+    def update_display_data_delta(self, display_data_delta: DisplayItem.DisplayDataDelta) -> None:
+        if display_data_delta.display_values_list_changed:
+            self.__update_display_values(display_data_delta.display_values_list)
+        if display_data_delta.display_values_list_changed or display_data_delta.display_calibration_info_changed or display_data_delta.display_layers_list_changed or display_data_delta.display_properties_changed:
+            self.__update_display_properties_and_layers(display_data_delta.display_calibration_info,
+                                                        display_data_delta.display_properties,
+                                                        display_data_delta.display_layers_list)
+        if display_data_delta.graphics_changed or display_data_delta.graphic_selection_changed or display_data_delta.display_calibration_info_changed:
+            self.__update_graphics_coordinate_system(display_data_delta.graphics,
+                                                     display_data_delta.graphic_selection,
+                                                     display_data_delta.display_calibration_info)
+
+    def __update_display_values(self, display_values_list: typing.Sequence[typing.Optional[DisplayItem.DisplayValues]]) -> None:
         self.__display_values_list = list(display_values_list)
 
-    def update_display_properties_and_layers(self, display_calibration_info: DisplayItem.DisplayCalibrationInfo,
-                                             display_properties: Persistence.PersistentDictType,
-                                             display_layers: typing.Sequence[Persistence.PersistentDictType]) -> None:
+    def __update_display_properties_and_layers(self, display_calibration_info: DisplayItem.DisplayCalibrationInfo,
+                                               display_properties: Persistence.PersistentDictType,
+                                               display_layers: typing.Sequence[Persistence.PersistentDictType]) -> None:
         """Update the display values. Called from display panel.
 
         This method saves the display values and data and triggers an update. It should be as fast as possible.
@@ -392,9 +404,9 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                     self.__last_xdata_list = copy.copy(self.__xdata_list)
         super().update()
 
-    def update_graphics_coordinate_system(self, graphics: typing.Sequence[Graphics.Graphic],
-                                          graphic_selection: DisplayItem.GraphicSelection,
-                                          display_calibration_info: DisplayItem.DisplayCalibrationInfo) -> None:
+    def __update_graphics_coordinate_system(self, graphics: typing.Sequence[Graphics.Graphic],
+                                            graphic_selection: DisplayItem.GraphicSelection,
+                                            display_calibration_info: DisplayItem.DisplayCalibrationInfo) -> None:
         dimensional_scales = display_calibration_info.displayed_dimensional_scales
 
         self.__graphics = copy.copy(list(graphics))

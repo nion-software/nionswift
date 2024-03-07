@@ -905,22 +905,6 @@ class MissingDataCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                 drawing_context.stroke()
 
 
-@dataclasses.dataclass
-class DisplayDataDelta:
-    graphics: typing.Sequence[Graphics.Graphic]
-    graphic_selection: DisplayItem.GraphicSelection
-    display_calibration_info: DisplayItem.DisplayCalibrationInfo
-    display_values_list: typing.List[typing.Optional[DisplayItem.DisplayValues]]
-    display_properties: Persistence.PersistentDictType
-    display_layers_list: typing.List[Persistence.PersistentDictType]
-    graphics_changed: bool = False
-    graphic_selection_changed: bool = False
-    display_calibration_info_changed: bool = False
-    display_values_list_changed: bool = False
-    display_properties_changed: bool = False
-    display_layers_list_changed: bool = False
-
-
 class DisplayData:
     def __init__(self, graphics: typing.Sequence[Graphics.Graphic], graphic_selection: DisplayItem.GraphicSelection,
                  display_calibration_info: DisplayItem.DisplayCalibrationInfo,
@@ -960,8 +944,8 @@ class DisplayData:
         display_data_copy._display_layers_list_seed = self._display_layers_list_seed
         return display_data_copy
 
-    def get_delta(self, display_data: typing.Optional[DisplayData]) -> DisplayDataDelta:
-        display_data_delta = DisplayDataDelta(self.__graphics, self.__graphic_selection, self.__display_calibration_info, self.__display_values_list, self.__display_properties, self.__display_layers_list)
+    def get_delta(self, display_data: typing.Optional[DisplayData]) -> DisplayItem.DisplayDataDelta:
+        display_data_delta = DisplayItem.DisplayDataDelta(self.__graphics, self.__graphic_selection, self.__display_calibration_info, self.__display_values_list, self.__display_properties, self.__display_layers_list)
         if not display_data or self._graphics_seed != display_data._graphics_seed:
             display_data_delta.graphics_changed = True
         if not display_data or self._graphic_selection_seed != display_data._graphic_selection_seed:
@@ -1072,22 +1056,9 @@ class DisplayTracker:
 
         def update_display_data() -> None:
             with self.__closing_lock:
-                display_canvas_item = self.__display_canvas_item
-
                 display_data_delta = self.__display_data.get_delta(self.__last_display_data)
-
                 self.__last_display_data = copy.copy(self.__display_data)
-
-                if display_data_delta.display_values_list_changed:
-                    display_canvas_item.update_display_values(display_data_delta.display_values_list)
-                if display_data_delta.display_values_list_changed or display_data_delta.display_calibration_info_changed or display_data_delta.display_layers_list_changed or display_data_delta.display_properties_changed:
-                    display_canvas_item.update_display_properties_and_layers(display_data_delta.display_calibration_info,
-                                                                             display_data_delta.display_properties,
-                                                                             display_data_delta.display_layers_list)
-                if display_data_delta.graphics_changed or display_data_delta.graphic_selection_changed or display_data_delta.display_calibration_info_changed:
-                    display_canvas_item.update_graphics_coordinate_system(display_data_delta.graphics,
-                                                                          display_data_delta.graphic_selection,
-                                                                          display_data_delta.display_calibration_info)
+                self.__display_canvas_item.update_display_data_delta(display_data_delta)
 
         def display_graphics_changed(graphic_selection: DisplayItem.GraphicSelection) -> None:
             # this message comes from the display when a graphic is insert/removed/changed or when the graphic selection changes.
@@ -3311,14 +3282,12 @@ class DisplayPanelManager(metaclass=Utility.Singleton):
 def preview(ui_settings: UISettings.UISettings, display_item: DisplayItem.DisplayItem, width: int, height: int) -> typing.Tuple[DrawingContext.DrawingContext, Geometry.IntSize]:
     drawing_context = DrawingContext.DrawingContext()
     shape = Geometry.IntSize()
-    display_values_list = [display_data_channel.get_latest_computed_display_values() for display_data_channel in display_item.display_data_channels]
     display_canvas_item = create_display_canvas_item(display_item, ui_settings, None, None, draw_background=False)
     if display_canvas_item:
         with contextlib.closing(display_canvas_item):
-            display_calibration_info = DisplayItem.DisplayCalibrationInfo(display_item)
-            display_canvas_item.update_display_values(display_values_list)
-            display_canvas_item.update_display_properties_and_layers(display_calibration_info, display_item.display_properties, display_item.display_layers_list)
-            display_canvas_item.update_graphics_coordinate_system(display_item.graphics, DisplayItem.GraphicSelection(), display_calibration_info)
+            display_data = DisplayData.from_display_item(display_item)
+            display_data_delta = display_data.get_delta(None)
+            display_canvas_item.update_display_data_delta(display_data_delta)
             with drawing_context.saver():
                 frame_width, frame_height = width, int(width / display_canvas_item.default_aspect_ratio)
                 display_canvas_item._prepare_render()
