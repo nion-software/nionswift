@@ -3114,6 +3114,118 @@ class DisplayCalibrationInfo:
         return False
 
 
+class DisplayData:
+    def __init__(self, graphics: typing.Sequence[Graphics.Graphic], graphic_selection: GraphicSelection,
+                 display_calibration_info: DisplayCalibrationInfo,
+                 display_values_list: typing.List[typing.Optional[DisplayValues]],
+                 display_properties: Persistence.PersistentDictType,
+                 display_layers_list: typing.List[Persistence.PersistentDictType]) -> None:
+        self.__graphics = graphics
+        self.__graphic_selection = graphic_selection
+        self.__display_calibration_info = display_calibration_info
+        self.__display_values_list = display_values_list
+        self.__display_properties = display_properties
+        self.__display_layers_list = display_layers_list
+        self._graphics_seed = 0
+        self._graphic_selection_seed = 0
+        self._display_calibration_info_seed = 0
+        self._display_values_list_seed = 0
+        self._display_properties_seed = 0
+        self._display_layers_list_seed = 0
+
+    @classmethod
+    def from_display_item(cls, display_item: DisplayItem) -> DisplayData:
+        graphics = display_item.graphics
+        graphic_selection = copy.copy(display_item.graphic_selection)
+        display_calibration_info = DisplayCalibrationInfo(display_item)
+        display_values_list = [display_data_channel.get_latest_computed_display_values() for display_data_channel in display_item.display_data_channels]
+        display_properties = copy.deepcopy(display_item.display_properties)
+        display_layers_list = display_item.display_layers_list
+        return cls(graphics, graphic_selection, display_calibration_info, display_values_list, display_properties, display_layers_list)
+
+    def __copy__(self) -> DisplayData:
+        display_data_copy = DisplayData(self.__graphics, self.__graphic_selection, self.__display_calibration_info, self.__display_values_list, self.__display_properties, self.__display_layers_list)
+        display_data_copy._graphics_seed = self._graphics_seed
+        display_data_copy._graphic_selection_seed = self._graphic_selection_seed
+        display_data_copy._display_calibration_info_seed = self._display_calibration_info_seed
+        display_data_copy._display_values_list_seed = self._display_values_list_seed
+        display_data_copy._display_properties_seed = self._display_properties_seed
+        display_data_copy._display_layers_list_seed = self._display_layers_list_seed
+        return display_data_copy
+
+    def get_delta(self, display_data: typing.Optional[DisplayData]) -> DisplayDataDelta:
+        display_data_delta = DisplayDataDelta(self.__graphics, self.__graphic_selection, self.__display_calibration_info, self.__display_values_list, self.__display_properties, self.__display_layers_list)
+        if not display_data or self._graphics_seed != display_data._graphics_seed:
+            display_data_delta.graphics_changed = True
+        if not display_data or self._graphic_selection_seed != display_data._graphic_selection_seed:
+            display_data_delta.graphic_selection_changed = True
+        if not display_data or self._display_calibration_info_seed != display_data._display_calibration_info_seed:
+            display_data_delta.display_calibration_info_changed = True
+        if not display_data or self._display_values_list_seed != display_data._display_values_list_seed:
+            display_data_delta.display_values_list_changed = True
+        if not display_data or self._display_properties_seed != display_data._display_properties_seed:
+            display_data_delta.display_properties_changed = True
+        if not display_data or self._display_layers_list_seed != display_data._display_layers_list_seed:
+            display_data_delta.display_layers_list_changed = True
+        return display_data_delta
+
+    @property
+    def graphics(self) -> typing.Sequence[Graphics.Graphic]:
+        return self.__graphics
+
+    @graphics.setter
+    def graphics(self, value: typing.Sequence[Graphics.Graphic]) -> None:
+        self.__graphics = value
+        self._graphics_seed += 1
+
+    @property
+    def graphic_selection(self) -> GraphicSelection:
+        return self.__graphic_selection
+
+    @graphic_selection.setter
+    def graphic_selection(self, value: GraphicSelection) -> None:
+        self.__graphic_selection = value
+        self._graphic_selection_seed += 1
+
+    @property
+    def display_calibration_info(self) -> DisplayCalibrationInfo:
+        return self.__display_calibration_info
+
+    @display_calibration_info.setter
+    def display_calibration_info(self, value: DisplayCalibrationInfo) -> None:
+        if value != self.__display_calibration_info:
+            self.__display_calibration_info = value
+            self._display_calibration_info_seed += 1
+
+    @property
+    def display_values_list(self) -> typing.List[typing.Optional[DisplayValues]]:
+        return self.__display_values_list
+
+    @display_values_list.setter
+    def display_values_list(self, value: typing.List[typing.Optional[DisplayValues]]) -> None:
+        self.__display_values_list = value
+        self._display_values_list_seed += 1
+
+    @property
+    def display_properties(self) -> Persistence.PersistentDictType:
+        return self.__display_properties
+
+    @display_properties.setter
+    def display_properties(self, value: Persistence.PersistentDictType) -> None:
+        if value != self.__display_properties:
+            self.__display_properties = value
+            self._display_properties_seed += 1
+
+    @property
+    def display_layers_list(self) -> typing.List[Persistence.PersistentDictType]:
+        return self.__display_layers_list
+
+    @display_layers_list.setter
+    def display_layers_list(self, value: typing.List[Persistence.PersistentDictType]) -> None:
+        self.__display_layers_list = value
+        self._display_layers_list_seed += 1
+
+
 @dataclasses.dataclass
 class DisplayDataDelta:
     graphics: typing.Sequence[Graphics.Graphic]
