@@ -1658,48 +1658,6 @@ class CollectionModel(Observable.Observable, typing.Generic[T]):
             self.item_removed_event.fire("items", item, index)
 
 
-
-class DisplayItemDisplayValuesModel(Observable.Observable):
-    """Display item display values model.
-
-    Observe the display data channels of the display item, and then observe the display values property of each display
-    data channel to form a list of display values in the display item.
-    """
-    def __init__(self, display_item: DisplayItem) -> None:
-        super().__init__()
-        self.__display_item = display_item
-        self.__display_values_list = list[typing.Optional[DisplayValues]]()
-        self.__item_inserted_listener = display_item.item_inserted_event.listen(ReferenceCounting.weak_partial(DisplayItemDisplayValuesModel.__item_inserted, self))
-        self.__item_removed_listener = display_item.item_removed_event.listen(ReferenceCounting.weak_partial(DisplayItemDisplayValuesModel.__item_removed, self))
-        self.__display_data_channel_actions = list[typing.Optional[Stream.ValueStreamAction[DisplayValues]]]()
-
-    @property
-    def display_values_list(self) -> typing.Sequence[typing.Optional[DisplayValues]]:
-        return self.__display_values_list
-
-    def __item_inserted(self, key: str, item: typing.Any, index: int) -> None:
-        if key == "display_data_channels":
-            display_data_channel = typing.cast(typing.Optional[DisplayDataChannel], item)
-            display_values_stream = display_data_channel.get_display_values_stream() if display_data_channel else None
-            display_values = display_values_stream.value if display_values_stream else None
-            self.__display_values_list.insert(index, display_values)
-            self.__display_data_channel_actions.insert(index, Stream.ValueStreamAction(display_values_stream, ReferenceCounting.weak_partial(DisplayItemDisplayValuesModel.__display_data_channel_display_values_changed, self, display_data_channel)) if display_values_stream else None)
-            self.item_inserted_event.fire("display_values_list", display_values, index)
-
-    def __item_removed(self, key: str, item: typing.Any, index: int) -> None:
-        if key == "display_data_channels":
-            display_values = self.__display_values_list.pop(index)
-            self.__display_data_channel_actions.pop(index)
-            self.item_removed_event.fire("display_values_list", display_values, index)
-
-    def __display_data_channel_display_values_changed(self, display_data_channel: DisplayDataChannel, display_values: typing.Optional[DisplayValues]) -> None:
-        index = self.__display_item.display_data_channels.index(display_data_channel)
-        old_display_values = self.__display_values_list[index]
-        self.__display_values_list[index] = display_values
-        self.item_removed_event.fire("display_values_list", old_display_values, index)
-        self.item_inserted_event.fire("display_values_list", display_values, index)
-
-
 def get_calibration_style_for_id(calibration_style_id: typing.Optional[str]) -> typing.Optional[CalibrationStyle]:
     calibration_styles = [
         CalibrationStyleNative(),
@@ -1768,12 +1726,13 @@ class DisplayItemDimensionsMetadata:
 
     def __init__(self,
                  display_item: DisplayItem,
-                 display_values_list_model: ListModel.ListModel[DisplayValues],
                  calibration_style_id_stream: Stream.PropertyChangedEventStream[str],
                  intensity_calibration_style_id_stream: Stream.PropertyChangedEventStream[str],
                  ) -> None:
         self.__display_item_ref = weakref.ref(display_item)
-        self.__display_values_list_model = display_values_list_model
+
+        self.__display_values_list = list[typing.Optional[DisplayValues]]()
+        self.__display_data_channel_actions = list[typing.Optional[Stream.ValueStreamAction[DisplayValues]]]()
 
         self.__dimensional_calibrations: typing.Optional[DataAndMetadata.CalibrationListType] = None
         self.__intensity_calibration: typing.Optional[Calibration.Calibration] = None
@@ -1787,10 +1746,6 @@ class DisplayItemDimensionsMetadata:
 
         self.__calibration_style_id_stream = calibration_style_id_stream
         self.__intensity_calibration_style_id_stream = intensity_calibration_style_id_stream
-
-        self.__display_values_inserted_listener = display_values_list_model.item_inserted_event.listen(ReferenceCounting.weak_partial(DisplayItemDimensionsMetadata.__display_values_inserted, self))
-        self.__display_values_removed_listener = display_values_list_model.item_removed_event.listen(ReferenceCounting.weak_partial(DisplayItemDimensionsMetadata.__display_values_removed, self))
-        self.__display_values_changed_listeners = list[typing.Optional[Event.EventListener]]()
 
         self.__display_item_item_inserted_listener = display_item.item_inserted_event.listen(ReferenceCounting.weak_partial(DisplayItemDimensionsMetadata.__display_item_item_inserted, self))
         self.__display_item_item_removed_listener = display_item.item_removed_event.listen(ReferenceCounting.weak_partial(DisplayItemDimensionsMetadata.__display_item_item_removed, self))
@@ -1807,8 +1762,8 @@ class DisplayItemDimensionsMetadata:
 
         self.__display_calibration_info = self.__get_display_calibration_info()
 
-        for index, display_values in enumerate(display_values_list_model.items):
-            self.__display_values_inserted("items", display_values, index)
+        for index, display_data_channel in enumerate(display_item.display_data_channels):
+            self.__display_item_item_inserted("display_data_channels", display_data_channel, index)
 
         for index, graphic in enumerate(display_item.graphics):
             self.__display_item_item_inserted("graphics", graphic, index)
@@ -1817,6 +1772,11 @@ class DisplayItemDimensionsMetadata:
             self.__display_item_item_inserted("display_layers", display_layer, index)
 
         self.display_data_delta_stream = Stream.ValueStream[DisplayDataDelta]()
+
+        display_data_delta = self.__make_display_data_delta()
+        display_data_delta.mark_changed()
+
+        self.display_data_delta_stream.value = display_data_delta
 
     @property
     def dimensional_calibrations(self) -> typing.Optional[DataAndMetadata.CalibrationListType]:
@@ -1858,17 +1818,9 @@ class DisplayItemDimensionsMetadata:
         return DisplayDataDelta(self.graphics,
                                 self.graphic_selection,
                                 self.__display_calibration_info,
-                                list(self.__display_values_list_model.items),
+                                list(self.__display_values_list),
                                 self.display_properties,
                                 list(self.display_layers))
-
-    def __display_values_inserted(self, key: str, display_values: DisplayValues, index: int) -> None:
-        assert key == "items"
-        display_data_calibration_info_changed = self.__update()
-        display_data_delta = self.__make_display_data_delta()
-        display_data_delta.display_values_list_changed = True
-        display_data_delta.display_calibration_info_changed = display_data_calibration_info_changed
-        self.display_data_delta_stream.send_value(display_data_delta)
 
     def __display_values_removed(self, key: str, display_values: DisplayValues, index: int) -> None:
         assert key == "items"
@@ -1879,7 +1831,19 @@ class DisplayItemDimensionsMetadata:
         self.display_data_delta_stream.send_value(display_data_delta)
 
     def __display_item_item_inserted(self, key: str, item: typing.Any, index: int) -> None:
-        if key == "graphics":
+        if key == "display_data_channels":
+            display_data_channel = typing.cast(typing.Optional[DisplayDataChannel], item)
+            display_values_stream = display_data_channel.get_display_values_stream() if display_data_channel else None
+            display_values = display_values_stream.value if display_values_stream else None
+            self.__display_values_list.insert(index, display_values)
+            self.__display_data_channel_actions.insert(index, Stream.ValueStreamAction(display_values_stream, ReferenceCounting.weak_partial(DisplayItemDimensionsMetadata.__display_data_channel_display_values_changed, self, display_data_channel)) if display_values_stream else None)
+            # send the update
+            display_data_calibration_info_changed = self.__update()
+            display_data_delta = self.__make_display_data_delta()
+            display_data_delta.display_values_list_changed = True
+            display_data_delta.display_calibration_info_changed = display_data_calibration_info_changed
+            self.display_data_delta_stream.send_value(display_data_delta)
+        elif key == "graphics":
             self.__graphics.insert(index, item)
             self.__graphic_changed_listeners.append(item.property_changed_event.listen(ReferenceCounting.weak_partial(DisplayItemDimensionsMetadata.__graphic_changed, self)))
             display_data_delta = self.__make_display_data_delta()
@@ -1896,7 +1860,16 @@ class DisplayItemDimensionsMetadata:
             self.display_data_delta_stream.send_value(display_data_delta)
 
     def __display_item_item_removed(self, key: str, item: typing.Any, index: int) -> None:
-        if key == "graphics":
+        if key == "display_data_channels":
+            self.__display_values_list.pop(index)
+            self.__display_data_channel_actions.pop(index)
+            # send the update
+            display_data_calibration_info_changed = self.__update()
+            display_data_delta = self.__make_display_data_delta()
+            display_data_delta.display_values_list_changed = True
+            display_data_delta.display_calibration_info_changed = display_data_calibration_info_changed
+            self.display_data_delta_stream.send_value(display_data_delta)
+        elif key == "graphics":
             self.__graphics.pop(index)
             self.__graphic_changed_listeners.pop(index)
             display_data_delta = self.__make_display_data_delta()
@@ -1911,6 +1884,19 @@ class DisplayItemDimensionsMetadata:
             display_data_delta = self.__make_display_data_delta()
             display_data_delta.display_layers_list_changed = True
             self.display_data_delta_stream.send_value(display_data_delta)
+
+    def __display_data_channel_display_values_changed(self, display_data_channel: DisplayDataChannel, display_values: typing.Optional[DisplayValues]) -> None:
+        display_item = self.__display_item_ref()
+        assert display_item
+        index = display_item.display_data_channels.index(display_data_channel)
+        old_display_values = self.__display_values_list[index]
+        self.__display_values_list[index] = display_values
+        # send the update
+        display_data_calibration_info_changed = self.__update()
+        display_data_delta = self.__make_display_data_delta()
+        display_data_delta.display_values_list_changed = True
+        display_data_delta.display_calibration_info_changed = display_data_calibration_info_changed
+        self.display_data_delta_stream.send_value(display_data_delta)
 
     def __graphic_changed(self, name: str) -> None:
         display_data_delta = self.__make_display_data_delta()
@@ -1934,13 +1920,15 @@ class DisplayItemDimensionsMetadata:
         if property_name == "display_properties":
             display_item = self.__display_item_ref()
             assert display_item
-            self.__display_properties = copy.deepcopy(display_item.display_properties)
-            display_data_delta = self.__make_display_data_delta()
-            display_data_delta.display_properties_changed = True
-            self.display_data_delta_stream.send_value(display_data_delta)
+            new_display_properties = display_item.display_properties
+            if new_display_properties != self.__display_properties:
+                self.__display_properties = copy.deepcopy(new_display_properties)
+                display_data_delta = self.__make_display_data_delta()
+                display_data_delta.display_properties_changed = True
+                self.display_data_delta_stream.send_value(display_data_delta)
 
     def __get_xdata_list(self) -> typing.Sequence[typing.Optional[DataAndMetadata.DataAndMetadata]]:
-        return [display_values.data_and_metadata if display_values else None for display_values in self.__display_values_list_model.items]
+        return [display_values.data_and_metadata if display_values else None for display_values in list(self.__display_values_list)]
 
     def __update(self) -> bool:
         xdata_list = self.__get_xdata_list()
@@ -2091,11 +2079,6 @@ class DisplayItem(Persistence.PersistentObject):
 
         self.__display_layer_changed_event_listeners: typing.List[Event.EventListener] = list()
 
-        # configure the data items model, which is a list model of the non-none data items of the display data channels.
-        display_values_list_model = ListModel.FilteredListModel(container=DisplayItemDisplayValuesModel(self), master_items_key="display_values_list")
-        display_values_list_model.filter = ListModel.PredicateFilter(lambda display_values: display_values is not None)
-        self.__display_values_list_model = typing.cast(ListModel.ListModel[DisplayValues], display_values_list_model)
-
         self.__display_data_channel_property_changed_event_listeners: typing.List[Event.EventListener] = list()
         self.__display_data_channel_data_item_will_change_event_listeners: typing.List[Event.EventListener] = list()
         self.__display_data_channel_data_item_did_change_event_listeners: typing.List[Event.EventListener] = list()
@@ -2134,7 +2117,6 @@ class DisplayItem(Persistence.PersistentObject):
 
         self.__dimensions_metadata = DisplayItemDimensionsMetadata(
             self,
-            self.__display_values_list_model,
             Stream.PropertyChangedEventStream[str](self, "calibration_style_id"),
             Stream.PropertyChangedEventStream[str](self, "intensity_calibration_style_id"),
         )
@@ -2152,7 +2134,6 @@ class DisplayItem(Persistence.PersistentObject):
     def close(self) -> None:
         # wait for outstanding threads to finish
         self.__dimensions_metadata = typing.cast(typing.Any, None)
-        self.__display_values_list_model = typing.cast(typing.Any, None)
         with self.__outstanding_condition:
             while self.__outstanding_thread_count:
                 self.__outstanding_condition.wait()
@@ -3420,6 +3401,14 @@ class DisplayDataDelta:
     display_values_list_changed: bool = False
     display_properties_changed: bool = False
     display_layers_list_changed: bool = False
+
+    def mark_changed(self) -> None:
+        self.graphics_changed = True
+        self.graphic_selection_changed = True
+        self.display_calibration_info_changed = True
+        self.display_values_list_changed = True
+        self.display_properties_changed = True
+        self.display_layers_list_changed = True
 
 
 def sort_by_date_key(display_item: DisplayItem) -> typing.Tuple[typing.Optional[str], datetime.datetime, str]:

@@ -944,145 +944,37 @@ class DisplayTracker:
 
         self.__display_canvas_item = create_display_canvas_item(display_item, ui_settings, delegate, event_loop, draw_background=self.__draw_background)
 
-        def update_display_data() -> None:
+        def handle_display_data_delta(display_data_delta: typing.Optional[DisplayItem.DisplayDataDelta]) -> None:
             with self.__closing_lock:
-                display_data_delta = self.__display_data.get_delta(self.__last_display_data)
-                self.__last_display_data = copy.copy(self.__display_data)
+                assert display_data_delta
                 self.__display_canvas_item.update_display_data_delta(display_data_delta)
 
-        def display_graphics_changed(graphic_selection: DisplayItem.GraphicSelection) -> None:
-            # this message comes from the display when a graphic is insert/removed/changed or when the graphic selection changes.
-            with self.__closing_lock:
-                self.__display_data.graphics = display_item.graphics
-                self.__display_data.graphic_selection = copy.copy(display_item.graphic_selection)
-                update_display_data()
-
-        def display_values_changed() -> None:
-            # this notification is for the rgba values only
-            # thread safe
-            with self.__closing_lock:
-                self.__display_data.display_values_list = copy.copy(self.__display_values_list)
-                update_display_data()
-
-        def display_changed() -> None:
-            # called when anything in the data item changes, including things like graphics or the data itself.
-            # this notification does not cover the rgba data, which is handled in the function below.
-            # thread safe
-            with self.__closing_lock:
-                self.__display_data.display_calibration_info = DisplayItem.DisplayCalibrationInfo.from_display_item(display_item)
-                self.__display_data.display_properties = display_item.display_properties
-                self.__display_data.display_layers_list = display_item.display_layers_list
-                update_display_data()
-
-        def display_property_changed(property: str) -> None:
-            if property in ("y_min", "y_max", "y_style", "left_channel", "right_channel", "image_zoom", "image_position", "image_canvas_mode", "displayed_dimensional_calibrations"):
-                display_changed()
-
-        # subscribe to display values for each display data channel and keep track of the latest computed display values.
-        # the index_refs is used to keep the ordering of the display values in sync with the display data channels.
-        self.__display_values_lock = threading.RLock()
-        self.__display_values_subscriptions: typing.List[DisplayItem.DisplayValuesSubscription] = list()
-        self.__display_values_list: typing.List[typing.Optional[DisplayItem.DisplayValues]] = list()
-        self.__display_values_index_refs: typing.List[uuid.UUID] = list()
-
-        def display_layer_property_changed(name: str) -> None:
-            display_values_changed()
-
-        # handle the display data channel associated with the uuid getting new display values by updating the display values list.
-        def handle_display_values(uuid_: uuid.UUID, display_values: DisplayItem.DisplayValues) -> None:
-            with self.__closing_lock:
-                with self.__display_values_lock:
-                    index = self.__display_values_index_refs.index(uuid_)
-                    self.__display_values_list[index] = display_values
-                display_values_changed()
-
-        def display_data_channel_inserted(key: str, value: typing.Any, before_index: int) -> None:
-            if key == "display_data_channels":
-                display_data_channel = typing.cast(DisplayItem.DisplayDataChannel, value)
-                # the uuid is associated with a given display data channel and is used to look-up the index of the
-                # display values in the list when handling updated display values.
-                uuid_ = uuid.uuid4()
-                # get the latest computed display values as initial values in the list. keep this out of the lock.
-                display_values = display_data_channel.get_latest_computed_display_values()
-                with self.__display_values_lock:
-                    self.__display_values_subscriptions.insert(before_index, display_data_channel.subscribe_to_latest_computed_display_values(functools.partial(handle_display_values, uuid_)))
-                    self.__display_values_list.insert(before_index, display_values)
-                    self.__display_values_index_refs.insert(before_index, uuid_)
-                display_values_changed()
-            if key == "display_layers":
-                display_layer = typing.cast(DisplayItem.DisplayLayer, value)
-                self.__display_layer_property_changed_listeners.insert(before_index, display_layer.property_changed_event.listen(display_layer_property_changed))
-                display_values_changed()
-
-        def display_data_channel_removed(key: str, value: typing.Any, index: int) -> None:
-            if key == "display_data_channels":
-                with self.__display_values_lock:
-                    self.__display_values_subscriptions.pop(index)
-                    self.__display_values_list.pop(index)
-                    self.__display_values_index_refs.pop(index)
-                display_values_changed()
-            if key == "display_layers":
-                self.__display_layer_property_changed_listeners.pop(index).close()
-                display_values_changed()
-
-        self.__item_inserted_listener = display_item.item_inserted_event.listen(display_data_channel_inserted)
-        self.__item_removed_listener = display_item.item_removed_event.listen(display_data_channel_removed)
-
-        for index, display_data_channel in enumerate(display_item.display_data_channels):
-            display_data_channel_inserted("display_data_channels", display_data_channel, index)
-
-        self.__display_layer_property_changed_listeners: typing.List[Event.EventListener] = list()
-
-        for index, display_layer in enumerate(display_item.display_layers):
-            display_data_channel_inserted("display_layers", display_layer, index)
-
-        self.__display_values_changed_event_listener = display_item.display_values_changed_event.listen(display_values_changed)
-        self.__display_data_channel_property_changed_listener = display_item.property_changed_event.listen(display_property_changed)
-        self.__display_graphics_changed_event_listener = display_item.graphics_changed_event.listen(display_graphics_changed)
-        self.__display_changed_event_listener = display_item.display_changed_event.listen(display_changed)
-        self.__display_property_changed_listener = display_item.display_property_changed_event.listen(display_property_changed)
-
-        # this may throw exceptions (during testing). make sure to close if that happens, ensuring that the
-        # layer items (image/line plot) get shut down.
-        update_display_data()
+        self.__display_data_delta_stream_action = Stream.ValueStreamAction[DisplayItem.DisplayDataDelta](display_item.display_data_delta_stream, handle_display_data_delta)
 
         def display_type_changed(display_type: typing.Optional[str]) -> None:
             # called when the display type of the data item changes.
+            self.__display_data_delta_stream_action = typing.cast(typing.Any, None)
             old_display_canvas_item = self.__display_canvas_item
             new_display_canvas_item = create_display_canvas_item(display_item, ui_settings, self.__delegate, self.__event_loop, draw_background=self.__draw_background)
             if callable(self.on_replace_display_canvas_item):
                 self.on_replace_display_canvas_item(old_display_canvas_item, new_display_canvas_item)
             self.__display_canvas_item = new_display_canvas_item
-            display_values_changed()
-            display_changed()
-            display_graphics_changed(display_item.graphic_selection)
+            self.__display_data_delta_stream_action = Stream.ValueStreamAction[DisplayItem.DisplayDataDelta](display_item.display_data_delta_stream, handle_display_data_delta)
+            display_data_delta = display_item.display_data_delta_stream.value
+            assert display_data_delta
+            display_data_delta.mark_changed()
+            handle_display_data_delta(display_data_delta)
 
         self.__display_type_monitor = DisplayTypeMonitor(display_item)
         self.__display_type_changed_event_listener =  self.__display_type_monitor.display_type_changed_event.listen(display_type_changed)
 
+        display_data_delta = display_item.display_data_delta_stream.value
+        assert display_data_delta
+        display_data_delta.mark_changed()
+        handle_display_data_delta(display_data_delta)
+
     def close(self) -> None:
         with self.__closing_lock:  # ensures that display pipeline finishes
-            self.__display_changed_event_listener.close()
-            self.__display_changed_event_listener = typing.cast(typing.Any, None)
-            self.__display_property_changed_listener.close()
-            self.__display_property_changed_listener = typing.cast(typing.Any, None)
-            self.__display_values_changed_event_listener.close()
-            self.__display_values_changed_event_listener = typing.cast(typing.Any, None)
-            self.__display_data_channel_property_changed_listener.close()
-            self.__display_data_channel_property_changed_listener = typing.cast(typing.Any, None)
-            self.__display_graphics_changed_event_listener.close()
-            self.__display_graphics_changed_event_listener = typing.cast(typing.Any, None)
-            self.__display_values_stream_listener = typing.cast(typing.Any, None)
-            self.__display_values_tuple_stream = typing.cast(typing.Any, None)
-            self.__display_values_subscriptions = typing.cast(typing.Any, None)
-            self.__display_values_list = typing.cast(typing.Any, None)
-            self.__display_values_index_refs = typing.cast(typing.Any, None)
-            for display_layer_property_changed_listener in self.__display_layer_property_changed_listeners:
-                display_layer_property_changed_listener.close()
-            self.__item_inserted_listener.close()
-            self.__item_inserted_listener = typing.cast(typing.Any, None)
-            self.__item_removed_listener.close()
-            self.__item_removed_listener = typing.cast(typing.Any, None)
             self.__display_type_changed_event_listener.close()
             self.__display_type_changed_event_listener = typing.cast(typing.Any, None)
             self.__display_type_monitor.close()
@@ -1094,6 +986,7 @@ class DisplayTracker:
             self.__display_property_changed_event_listener.close()
             self.__display_property_changed_event_listener = typing.cast(typing.Any, None)
             self.__display_canvas_item = typing.cast(typing.Any, None)
+            self.__display_data_delta_stream_action = typing.cast(typing.Any, None)
 
     @property
     def display_canvas_item(self) -> DisplayCanvasItem.DisplayCanvasItem:
