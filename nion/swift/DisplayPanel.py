@@ -969,7 +969,7 @@ class DisplayTracker:
             # this notification does not cover the rgba data, which is handled in the function below.
             # thread safe
             with self.__closing_lock:
-                self.__display_data.display_calibration_info = DisplayItem.DisplayCalibrationInfo(display_item)
+                self.__display_data.display_calibration_info = DisplayItem.DisplayCalibrationInfo.from_display_item(display_item)
                 self.__display_data.display_properties = display_item.display_properties
                 self.__display_data.display_layers_list = display_item.display_layers_list
                 update_display_data()
