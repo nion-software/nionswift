@@ -1632,6 +1632,33 @@ class DisplayItemSaveProperties:
     intensity_calibration_style_id: str
 
 
+T = typing.TypeVar('T')
+
+class CollectionModel(Observable.Observable, typing.Generic[T]):
+    def __init__(self, container: Observable.Observable, key: str) -> None:
+        super().__init__()
+        self.__container_ref = weakref.ref(container)
+        self.__key = key
+        self.__items = list[T]()
+        self.__item_inserted_listener = container.item_inserted_event.listen(ReferenceCounting.weak_partial(CollectionModel.__item_inserted, self))
+        self.__item_removed_listener = container.item_removed_event.listen(ReferenceCounting.weak_partial(CollectionModel.__item_removed, self))
+
+    @property
+    def items(self) -> typing.Sequence[T]:
+        return self.__items
+
+    def __item_inserted(self, key: str, item: typing.Any, index: int) -> None:
+        if key == self.__key:
+            self.__items.insert(index, item)
+            self.item_inserted_event.fire("items", item, index)
+
+    def __item_removed(self, key: str, item: typing.Any, index: int) -> None:
+        if key == self.__key:
+            self.__items.pop(index)
+            self.item_removed_event.fire("items", item, index)
+
+
+
 class DisplayItemDisplayValuesModel(Observable.Observable):
     """Display item display values model.
 
@@ -1740,10 +1767,12 @@ class DisplayItemDimensionsMetadata:
     """
 
     def __init__(self,
+                 display_item: DisplayItem,
                  display_values_list_model: ListModel.ListModel[DisplayValues],
                  calibration_style_id_stream: Stream.PropertyChangedEventStream[str],
                  intensity_calibration_style_id_stream: Stream.PropertyChangedEventStream[str],
                  ) -> None:
+        self.__display_item_ref = weakref.ref(display_item)
         self.__display_values_list_model = display_values_list_model
 
         self.__needs_update = False
@@ -1753,16 +1782,35 @@ class DisplayItemDimensionsMetadata:
         self.__scales = 0.0, 1.0
         self.__dimensional_shape: typing.Optional[DataAndMetadata.ShapeType] = None
         self.__is_composite_data: bool = False
+        self.__graphics = list[Graphics.Graphic]()
+        self.__graphic_selection = copy.copy(display_item.graphic_selection)
+        self.__display_layers = list[DisplayLayer]()
+        self.__display_properties = copy.deepcopy(display_item.display_properties)
 
         self.__calibration_style_id_stream = calibration_style_id_stream
         self.__intensity_calibration_style_id_stream = intensity_calibration_style_id_stream
 
-        self.__item_inserted_listener = display_values_list_model.item_inserted_event.listen(ReferenceCounting.weak_partial(DisplayItemDimensionsMetadata.__display_values_inserted, self))
-        self.__item_removed_listener = display_values_list_model.item_removed_event.listen(ReferenceCounting.weak_partial(DisplayItemDimensionsMetadata.__display_values_removed, self))
+        self.__display_values_inserted_listener = display_values_list_model.item_inserted_event.listen(ReferenceCounting.weak_partial(DisplayItemDimensionsMetadata.__display_values_inserted, self))
+        self.__display_values_removed_listener = display_values_list_model.item_removed_event.listen(ReferenceCounting.weak_partial(DisplayItemDimensionsMetadata.__display_values_removed, self))
         self.__display_values_changed_listeners = list[typing.Optional[Event.EventListener]]()
+
+        self.__display_item_item_inserted_listener = display_item.item_inserted_event.listen(ReferenceCounting.weak_partial(DisplayItemDimensionsMetadata.__display_item_item_inserted, self))
+        self.__display_item_item_removed_listener = display_item.item_removed_event.listen(ReferenceCounting.weak_partial(DisplayItemDimensionsMetadata.__display_item_item_removed, self))
+        self.__graphic_changed_listeners = list[typing.Optional[Event.EventListener]]()
+        self.__display_layer_changed_listeners = list[typing.Optional[Event.EventListener]]()
+
+        self.__graphic_selection_changed_event_listener = display_item.graphic_selection_changed_event.listen(ReferenceCounting.weak_partial(DisplayItemDimensionsMetadata.__graphic_selection_changed, self))
+
+        self.__display_properties_changed_event_listener = display_item.property_changed_event.listen(ReferenceCounting.weak_partial(DisplayItemDimensionsMetadata.__display_item_properties_changed, self))
 
         for index, display_values in enumerate(display_values_list_model.items):
             self.__display_values_inserted("items", display_values, index)
+
+        for index, graphic in enumerate(display_item.graphics):
+            self.__display_item_item_inserted("graphics", graphic, index)
+
+        for index, display_layer in enumerate(display_item.display_layers):
+            self.__display_item_item_inserted("display_layers", display_layer, index)
 
     @property
     def dimensional_calibrations(self) -> typing.Optional[DataAndMetadata.CalibrationListType]:
@@ -1794,6 +1842,14 @@ class DisplayItemDimensionsMetadata:
             self.__update()
         return self.__is_composite_data
 
+    @property
+    def graphics(self) -> typing.Sequence[Graphics.Graphic]:
+        return self.__graphics
+
+    @property
+    def display_layers(self) -> typing.Sequence[DisplayLayer]:
+        return self.__display_layers
+
     def __display_values_inserted(self, key: str, display_values: DisplayValues, index: int) -> None:
         assert key == "items"
         self.__needs_update = True
@@ -1801,6 +1857,39 @@ class DisplayItemDimensionsMetadata:
     def __display_values_removed(self, key: str, display_values: DisplayValues, index: int) -> None:
         assert key == "items"
         self.__needs_update = True
+
+    def __display_item_item_inserted(self, key: str, item: typing.Any, index: int) -> None:
+        if key == "graphics":
+            self.__graphics.insert(index, item)
+            self.__graphic_changed_listeners.append(item.property_changed_event.listen(ReferenceCounting.weak_partial(DisplayItemDimensionsMetadata.__graphic_changed, self)))
+        elif key == "display_layers":
+            self.__display_layers.insert(index, item)
+            self.__display_layer_changed_listeners.append(item.property_changed_event.listen(ReferenceCounting.weak_partial(DisplayItemDimensionsMetadata.__display_layer_changed, self)))
+
+    def __display_item_item_removed(self, key: str, item: typing.Any, index: int) -> None:
+        if key == "graphics":
+            self.__graphics.pop(index)
+            self.__graphic_changed_listeners.pop(index)
+        elif key == "display_layers":
+            self.__display_layers.pop(index)
+            self.__display_layer_changed_listeners.pop(index)
+
+    def __graphic_changed(self, name: str) -> None:
+        pass
+
+    def __display_layer_changed(self, name: str) -> None:
+        pass
+
+    def __graphic_selection_changed(self, graphic_selection: GraphicSelection) -> None:
+        display_item = self.__display_item_ref()
+        assert display_item
+        self.__graphic_selection = copy.copy(display_item.graphic_selection)
+
+    def __display_item_properties_changed(self, property_name: str) -> None:
+        if property_name == "display_properties":
+            display_item = self.__display_item_ref()
+            assert display_item
+            self.__display_properties = copy.deepcopy(display_item.display_properties)
 
     def __get_xdata_list(self) -> typing.Sequence[typing.Optional[DataAndMetadata.DataAndMetadata]]:
         return [display_values.data_and_metadata if display_values else None for display_values in self.__display_values_list_model.items]
@@ -1941,12 +2030,6 @@ class DisplayItem(Persistence.PersistentObject):
         display_values_list_model.filter = ListModel.PredicateFilter(lambda display_values: display_values is not None)
         self.__display_values_list_model = typing.cast(ListModel.ListModel[DisplayValues], display_values_list_model)
 
-        self.__dimensions_metadata = DisplayItemDimensionsMetadata(
-            self.__display_values_list_model,
-            Stream.PropertyChangedEventStream[str](self, "calibration_style_id"),
-            Stream.PropertyChangedEventStream[str](self, "intensity_calibration_style_id"),
-        )
-
         self.__display_data_channel_property_changed_event_listeners: typing.List[Event.EventListener] = list()
         self.__display_data_channel_data_item_will_change_event_listeners: typing.List[Event.EventListener] = list()
         self.__display_data_channel_data_item_did_change_event_listeners: typing.List[Event.EventListener] = list()
@@ -1982,6 +2065,13 @@ class DisplayItem(Persistence.PersistentObject):
         self.graphics_changed_event = Event.Event()
         self.display_values_changed_event = Event.Event()
         self.item_changed_event = Event.Event()
+
+        self.__dimensions_metadata = DisplayItemDimensionsMetadata(
+            self,
+            self.__display_values_list_model,
+            Stream.PropertyChangedEventStream[str](self, "calibration_style_id"),
+            Stream.PropertyChangedEventStream[str](self, "intensity_calibration_style_id"),
+        )
 
         def graphic_selection_changed() -> None:
             # relay the message
