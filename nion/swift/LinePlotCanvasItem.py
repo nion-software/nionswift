@@ -574,7 +574,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                 if xdata:
                     scalar_data = Image.convert_to_grayscale(numpy.array(xdata.data))  # note: ensure scalar_data is numpy.array
                     scalar_intensity_calibration = intensity_calibration_style.get_intensity_calibration(xdata.intensity_calibration)
-                    scalar_dimensional_calibrations = calibration_style.get_dimensional_calibrations(xdata.dimensional_shape, xdata.dimensional_calibrations)
+                    scalar_dimensional_calibrations = calibration_style.get_dimensional_calibrations(xdata.dimensional_shape, xdata.dimensional_calibrations, xdata.metadata)
                     if displayed_dimensional_calibration.units == scalar_dimensional_calibrations[-1].units and intensity_calibration.units == scalar_intensity_calibration.units:
                         # the data needs to have an intensity scale matching intensity_calibration. convert the data to use the common scale.
                         scale = scalar_intensity_calibration.scale / intensity_calibration.scale

@@ -1372,7 +1372,7 @@ class InspectorSectionWidget(Widgets.CompositeWidgetBase):
 def make_calibration_style_chooser(document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem) -> InspectorSectionWidget:
     ui = document_controller.ui
 
-    calibration_styles = display_item.calibration_styles
+    calibration_styles = DisplayItem.calibration_styles()
 
     display_calibration_style_options = [(calibration_style.label, calibration_style.calibration_style_id) for calibration_style in calibration_styles]
 
@@ -1528,13 +1528,13 @@ class CalibrationStyleModelAdapter(typing.Protocol):
 
 class DimensionalCalibrationStyleModelAdapter(CalibrationStyleModelAdapter):
     def get_calibration_style(self, display_item: DisplayItem.DisplayItem) -> typing.Sequence[DisplayItem.CalibrationStyleLike]:
-        return display_item.calibration_styles
+        return DisplayItem.calibration_styles()
 
     def get_calibrated_style_id(self, display_item: DisplayItem.DisplayItem) -> str:
         return display_item.calibration_style_id
 
     def get_calibration_styles(self, display_item: DisplayItem.DisplayItem) -> typing.Sequence[DisplayItem.CalibrationStyleLike]:
-        return display_item.calibration_styles
+        return DisplayItem.calibration_styles()
 
     def get_calibrations(self, display_item: DisplayItem.DisplayItem, calibration_style: DisplayItem.CalibrationStyleLike) -> typing.Sequence[Calibration.Calibration]:
         return display_item.get_displayed_dimensional_calibrations_with_calibration_style(typing.cast(DisplayItem.CalibrationStyle, calibration_style))
@@ -1551,13 +1551,13 @@ class DimensionalCalibrationStyleModelAdapter(CalibrationStyleModelAdapter):
 
 class IntensityCalibrationStyleModelAdapter(CalibrationStyleModelAdapter):
     def get_calibration_style(self, display_item: DisplayItem.DisplayItem) -> typing.Sequence[DisplayItem.CalibrationStyleLike]:
-        return display_item.intensity_calibration_styles
+        return DisplayItem.intensity_calibration_styles()
 
     def get_calibrated_style_id(self, display_item: DisplayItem.DisplayItem) -> str:
         return display_item.intensity_calibration_style_id
 
     def get_calibration_styles(self, display_item: DisplayItem.DisplayItem) -> typing.Sequence[DisplayItem.CalibrationStyleLike]:
-        return display_item.intensity_calibration_styles
+        return DisplayItem.intensity_calibration_styles()
 
     def get_calibrations(self, display_item: DisplayItem.DisplayItem, calibration_style: DisplayItem.CalibrationStyleLike) -> typing.Sequence[Calibration.Calibration]:
         return [display_item.get_displayed_intensity_calibration_with_calibration_style(typing.cast(DisplayItem.IntensityCalibrationStyle, calibration_style))]

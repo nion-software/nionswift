@@ -210,7 +210,7 @@ class CalibrationStyle(CalibrationStyleLike):
     calibration_style_id: str
     is_calibrated: bool = False
 
-    def get_dimensional_calibrations(self, dimensional_shape: DataAndMetadata.ShapeType, dimensional_calibrations: DataAndMetadata.CalibrationListType) -> DataAndMetadata.CalibrationListType:
+    def get_dimensional_calibrations(self, dimensional_shape: DataAndMetadata.ShapeType, dimensional_calibrations: DataAndMetadata.CalibrationListType, metadata: typing.Optional[DataAndMetadata.MetadataType]) -> DataAndMetadata.CalibrationListType:
         return list()
 
 
@@ -219,9 +219,37 @@ class CalibrationStyleNative(CalibrationStyle):
     calibration_style_id = "calibrated"
     is_calibrated = True
 
-    def get_dimensional_calibrations(self, dimensional_shape: DataAndMetadata.ShapeType, dimensional_calibrations: DataAndMetadata.CalibrationListType) -> DataAndMetadata.CalibrationListType:
+    def get_dimensional_calibrations(self, dimensional_shape: DataAndMetadata.ShapeType, dimensional_calibrations: DataAndMetadata.CalibrationListType, metadata: typing.Optional[DataAndMetadata.MetadataType]) -> DataAndMetadata.CalibrationListType:
         if all(calibration.is_valid for calibration in dimensional_calibrations):
             return dimensional_calibrations
+        return [Calibration.Calibration() for _ in dimensional_shape]
+
+
+class CalibrationStyleTemporal(CalibrationStyle):
+    label = _("Temporal")
+    calibration_style_id = "temporal"
+    is_calibrated = True
+
+    def get_dimensional_calibrations(self, dimensional_shape: DataAndMetadata.ShapeType, dimensional_calibrations: DataAndMetadata.CalibrationListType, metadata: typing.Optional[DataAndMetadata.MetadataType]) -> DataAndMetadata.CalibrationListType:
+        pixel_time_us = metadata.get("hardware_source", dict()).get("pixel_time_us") if metadata else None
+        line_time_us = metadata.get("hardware_source", dict()).get("line_time_us") if metadata else None
+        if pixel_time_us is not None and line_time_us is not None and len(dimensional_shape) == 2:
+            return [Calibration.Calibration(scale=line_time_us, units="µs"), Calibration.Calibration(scale=pixel_time_us, units="µs")]
+        return [Calibration.Calibration() for _ in dimensional_shape]
+
+
+class CalibrationStyleSpatial(CalibrationStyle):
+    label = _("Spatial")
+    calibration_style_id = "spatial"
+    is_calibrated = True
+
+    def get_dimensional_calibrations(self, dimensional_shape: DataAndMetadata.ShapeType, dimensional_calibrations: DataAndMetadata.CalibrationListType, metadata: typing.Optional[DataAndMetadata.MetadataType]) -> DataAndMetadata.CalibrationListType:
+        defocus = metadata.get("instrument", dict()).get("defocus") if metadata else None
+        if defocus and dimensional_calibrations and len(set((dimensional_calibration.scale, dimensional_calibration.units) for dimensional_calibration in dimensional_calibrations)) == 1 and dimensional_calibrations[0].units == "rad":
+            scale = dimensional_calibrations[0].scale
+            image_width_m = abs(defocus) * math.sin(scale * dimensional_shape[1])
+            pixel_size_nm = 1e9 * image_width_m / dimensional_shape[1]
+            return [Calibration.Calibration(scale=pixel_size_nm, units="nm") for _ in dimensional_shape]
         return [Calibration.Calibration() for _ in dimensional_shape]
 
 
@@ -229,7 +257,7 @@ class CalibrationStylePixelsTopLeft(CalibrationStyle):
     label = _("Pixels (Top-Left)")
     calibration_style_id = "pixels-top-left"
 
-    def get_dimensional_calibrations(self, dimensional_shape: DataAndMetadata.ShapeType, dimensional_calibrations: DataAndMetadata.CalibrationListType) -> DataAndMetadata.CalibrationListType:
+    def get_dimensional_calibrations(self, dimensional_shape: DataAndMetadata.ShapeType, dimensional_calibrations: DataAndMetadata.CalibrationListType, metadata: typing.Optional[DataAndMetadata.MetadataType]) -> DataAndMetadata.CalibrationListType:
         return [Calibration.Calibration() for display_dimension in dimensional_shape]
 
 
@@ -237,7 +265,7 @@ class CalibrationStylePixelsCenter(CalibrationStyle):
     label = _("Pixels (Center)")
     calibration_style_id = "pixels-center"
 
-    def get_dimensional_calibrations(self, dimensional_shape: DataAndMetadata.ShapeType, dimensional_calibrations: DataAndMetadata.CalibrationListType) -> DataAndMetadata.CalibrationListType:
+    def get_dimensional_calibrations(self, dimensional_shape: DataAndMetadata.ShapeType, dimensional_calibrations: DataAndMetadata.CalibrationListType, metadata: typing.Optional[DataAndMetadata.MetadataType]) -> DataAndMetadata.CalibrationListType:
         return [Calibration.Calibration(offset=-display_dimension/2) for display_dimension in dimensional_shape]
 
 
@@ -245,7 +273,7 @@ class CalibrationStyleFractionalTopLeft(CalibrationStyle):
     label = _("Fractional (Top Left)")
     calibration_style_id = "relative-top-left"
 
-    def get_dimensional_calibrations(self, dimensional_shape: DataAndMetadata.ShapeType, dimensional_calibrations: DataAndMetadata.CalibrationListType) -> DataAndMetadata.CalibrationListType:
+    def get_dimensional_calibrations(self, dimensional_shape: DataAndMetadata.ShapeType, dimensional_calibrations: DataAndMetadata.CalibrationListType, metadata: typing.Optional[DataAndMetadata.MetadataType]) -> DataAndMetadata.CalibrationListType:
         return [Calibration.Calibration(scale=1.0/display_dimension) for display_dimension in dimensional_shape]
 
 
@@ -253,7 +281,7 @@ class CalibrationStyleFractionalCenter(CalibrationStyle):
     label = _("Fractional (Center)")
     calibration_style_id = "relative-center"
 
-    def get_dimensional_calibrations(self, dimensional_shape: DataAndMetadata.ShapeType, dimensional_calibrations: DataAndMetadata.CalibrationListType) -> DataAndMetadata.CalibrationListType:
+    def get_dimensional_calibrations(self, dimensional_shape: DataAndMetadata.ShapeType, dimensional_calibrations: DataAndMetadata.CalibrationListType, metadata: typing.Optional[DataAndMetadata.MetadataType]) -> DataAndMetadata.CalibrationListType:
         return [Calibration.Calibration(scale=2.0/display_dimension, offset=-1.0) for display_dimension in dimensional_shape]
 
 
@@ -1632,26 +1660,34 @@ class DisplayItemSaveProperties:
     intensity_calibration_style_id: str
 
 
-def get_calibration_style_for_id(calibration_style_id: typing.Optional[str]) -> typing.Optional[CalibrationStyle]:
-    calibration_styles = [
+def calibration_styles() -> typing.Sequence[CalibrationStyle]:
+    return [
         CalibrationStyleNative(),
+        CalibrationStyleTemporal(),
+        CalibrationStyleSpatial(),
         CalibrationStylePixelsTopLeft(),
         CalibrationStylePixelsCenter(),
         CalibrationStyleFractionalTopLeft(),
         CalibrationStyleFractionalCenter()
     ]
-    for calibration_style in calibration_styles:
+
+
+def intensity_calibration_styles() -> typing.Sequence[IntensityCalibrationStyle]:
+    return [
+        IntensityCalibrationStyleNative(),
+        IntensityCalibrationStyleUncalibrated(),
+    ]
+
+
+def get_calibration_style_for_id(calibration_style_id: typing.Optional[str]) -> typing.Optional[CalibrationStyle]:
+    for calibration_style in calibration_styles():
         if calibration_style.calibration_style_id == calibration_style_id:
             return calibration_style
     return None
 
 
 def get_intensity_calibration_style_for_id(calibration_style_id: typing.Optional[str]) -> typing.Optional[IntensityCalibrationStyle]:
-    intensity_calibration_styles = [
-        IntensityCalibrationStyleNative(),
-        IntensityCalibrationStyleUncalibrated(),
-    ]
-    for calibration_style in intensity_calibration_styles:
+    for calibration_style in intensity_calibration_styles():
         if calibration_style.calibration_style_id == calibration_style_id:
             return calibration_style
     return None
@@ -1819,6 +1855,10 @@ class DisplayDataDeltaStream(Stream.ValueStream[DisplayDataDelta]):
         return self.__dimensional_shape
 
     @property
+    def metadata(self) -> typing.Optional[DataAndMetadata.MetadataType]:
+        return self.__metadata
+
+    @property
     def is_composite_data(self) -> bool:
         return self.__is_composite_data
 
@@ -1928,6 +1968,7 @@ class DisplayDataDeltaStream(Stream.ValueStream[DisplayDataDelta]):
         intensity_calibration: typing.Optional[Calibration.Calibration] = None
         scales = 0.0, 1.0
         dimensional_shape: typing.Optional[DataAndMetadata.ShapeType] = None
+        metadata: typing.Optional[DataAndMetadata.MetadataType] = None
         if xdata_list:
             xdata0 = xdata_list[0]
             if xdata0 and len(xdata0.dimensional_calibrations) > 0:
@@ -1957,10 +1998,13 @@ class DisplayDataDeltaStream(Stream.ValueStream[DisplayDataDelta]):
                     else:
                         scales = 0, xdata0.dimensional_shape[-1]
                         dimensional_shape = xdata0.dimensional_shape
+            if xdata0 and len(xdata_list) == 1:
+                metadata = xdata0.metadata
         self.__dimensional_calibrations = dimensional_calibrations
         self.__intensity_calibration = intensity_calibration
         self.__scales = scales
         self.__dimensional_shape = dimensional_shape
+        self.__metadata = metadata
         self.__is_composite_data = len(xdata_list) > 1
         self.__display_layers_list = self.__display_item.display_layers_list
 
@@ -2001,7 +2045,7 @@ class DisplayDataDeltaStream(Stream.ValueStream[DisplayDataDelta]):
     def displayed_dimensional_calibrations(self) -> typing.Sequence[Calibration.Calibration]:
         """The calibrations for all data dimensions in the displayed calibration style."""
         if self.dimensional_calibrations and self.dimensional_shape:
-            return self.calibration_style.get_dimensional_calibrations(self.dimensional_shape, self.dimensional_calibrations)
+            return self.calibration_style.get_dimensional_calibrations(self.dimensional_shape, self.dimensional_calibrations, self.metadata)
         return [Calibration.Calibration() for c in self.dimensional_calibrations] if self.dimensional_calibrations else [Calibration.Calibration()]
 
     @property
@@ -2030,7 +2074,7 @@ class DisplayDataDeltaStream(Stream.ValueStream[DisplayDataDelta]):
         if dimensional_calibrations and dimensional_shape and len(xdata_list) == 1:
             display_data_calibrations = self.display_data_calibrations
             display_data_calibrations = display_data_calibrations if display_data_calibrations else [Calibration.Calibration() for c in dimensional_calibrations]
-            datum_calibrations = calibration_style.get_dimensional_calibrations(dimensional_shape, display_data_calibrations)
+            datum_calibrations = calibration_style.get_dimensional_calibrations(dimensional_shape, display_data_calibrations, self.metadata)
             if datum_calibrations:
                 return datum_calibrations
         if self.is_composite_data:
@@ -2950,7 +2994,10 @@ class DisplayItem(Persistence.PersistentObject):
         dimensional_shape = self.__display_data_delta_stream.dimensional_shape
         dimensional_calibrations = self.__display_data_delta_stream.dimensional_calibrations
         if dimensional_calibrations and dimensional_shape:
-            return calibration_style.get_dimensional_calibrations(dimensional_shape, dimensional_calibrations)
+            display_data_channel = self.display_data_channel
+            data_item = display_data_channel.data_item if display_data_channel else None
+            metadata = data_item.metadata if data_item else None
+            return calibration_style.get_dimensional_calibrations(dimensional_shape, dimensional_calibrations, metadata)
         return [Calibration.Calibration() for c in dimensional_calibrations] if dimensional_calibrations else [Calibration.Calibration()]
 
     @property
@@ -2974,33 +3021,16 @@ class DisplayItem(Persistence.PersistentObject):
         return self.__display_data_delta_stream.displayed_intensity_calibration
 
     def __get_calibration_style_for_id(self, calibration_style_id: str) -> typing.Optional[CalibrationStyle]:
-        for calibration_style in self.calibration_styles:
+        for calibration_style in calibration_styles():
             if calibration_style.calibration_style_id == calibration_style_id:
                 return calibration_style
         return None
 
     def __get_intensity_calibration_style_for_id(self, calibration_style_id: str) -> typing.Optional[IntensityCalibrationStyle]:
-        for calibration_style in self.intensity_calibration_styles:
+        for calibration_style in intensity_calibration_styles():
             if calibration_style.calibration_style_id == calibration_style_id:
                 return calibration_style
         return None
-
-    @property
-    def calibration_styles(self) -> typing.Sequence[CalibrationStyle]:
-        return [
-            CalibrationStyleNative(),
-            CalibrationStylePixelsTopLeft(),
-            CalibrationStylePixelsCenter(),
-            CalibrationStyleFractionalTopLeft(),
-            CalibrationStyleFractionalCenter()
-        ]
-
-    @property
-    def intensity_calibration_styles(self) -> typing.Sequence[IntensityCalibrationStyle]:
-        return [
-            IntensityCalibrationStyleNative(),
-            IntensityCalibrationStyleUncalibrated(),
-        ]
 
     @property
     def size_and_data_format_as_string(self) -> str:
