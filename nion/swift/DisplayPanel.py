@@ -916,8 +916,6 @@ class DisplayTracker:
         self.__delegate = delegate
         self.__event_loop = event_loop
         self.__draw_background = draw_background
-        self.__display_data = DisplayItem.DisplayData.from_display_item(display_item)
-        self.__last_display_data: typing.Optional[DisplayItem.DisplayData] = None
         self.__closing_lock = threading.RLock()
 
         # callbacks
@@ -3064,8 +3062,9 @@ def preview(ui_settings: UISettings.UISettings, display_item: DisplayItem.Displa
     display_canvas_item = create_display_canvas_item(display_item, ui_settings, None, None, draw_background=False)
     if display_canvas_item:
         with contextlib.closing(display_canvas_item):
-            display_data = DisplayItem.DisplayData.from_display_item(display_item)
-            display_data_delta = display_data.get_delta(None)
+            display_data_delta = display_item.display_data_delta_stream.value
+            assert display_data_delta
+            display_data_delta.mark_changed()
             display_canvas_item.update_display_data_delta(display_data_delta)
             with drawing_context.saver():
                 frame_width, frame_height = width, int(width / display_canvas_item.default_aspect_ratio)
