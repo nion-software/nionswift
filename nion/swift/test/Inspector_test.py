@@ -1570,6 +1570,31 @@ class TestInspectorClass(unittest.TestCase):
             self.assertEqual(last_modified1, data_item1.modified)
             self.assertEqual(last_modified2, data_item2.modified)
 
+    def test_editing_calibrations_in_inspector_update_data_item(self) -> None:
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(
+                data=numpy.zeros((32, 32)),
+                dimensional_calibrations=[Calibration.Calibration(units="x"), Calibration.Calibration()],
+                intensity_calibration=Calibration.Calibration(units="u"))
+            )
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            inspector_panel = document_controller.find_dock_panel("inspector-panel")
+            inspector_panel.show()
+            display_panel.set_display_panel_display_item(display_item)
+            document_controller.periodic()
+            calibration_section = Inspector.CalibrationsInspectorSection(document_controller, display_item.display_data_channel, display_item)
+            with contextlib.closing(calibration_section):
+                intensity_calibration_model = calibration_section._intensity_calibration_model
+                intensity_calibration_model.units = "v"
+                self.assertEqual("v", data_item.intensity_calibration.units)
+                dimensional_calibration_model = calibration_section._dimensional_calibrations_model.items[1]
+                dimensional_calibration_model.units = "y"
+                self.assertEqual("y", data_item.dimensional_calibrations[1].units)
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
