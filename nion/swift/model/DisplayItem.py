@@ -38,8 +38,6 @@ from nion.utils import Color
 from nion.utils import DateTime
 from nion.utils import Event
 from nion.utils import Geometry
-from nion.utils import ListModel
-from nion.utils import Observable
 from nion.utils import Process
 from nion.utils import ReferenceCounting
 from nion.utils import Registry
@@ -225,16 +223,21 @@ class CalibrationStyleNative(CalibrationStyle):
         return [Calibration.Calibration() for _ in dimensional_shape]
 
 
+class CalibrationComponent(typing.Protocol):
+    def get_calibrations(self, dimensional_shape: DataAndMetadata.ShapeType, dimensional_calibrations: DataAndMetadata.CalibrationListType, metadata: typing.Optional[DataAndMetadata.MetadataType]) -> typing.Optional[DataAndMetadata.CalibrationListType]: ...
+
+
 class CalibrationStyleTemporal(CalibrationStyle):
     label = _("Temporal")
     calibration_style_id = "temporal"
     is_calibrated = True
 
     def get_dimensional_calibrations(self, dimensional_shape: DataAndMetadata.ShapeType, dimensional_calibrations: DataAndMetadata.CalibrationListType, metadata: typing.Optional[DataAndMetadata.MetadataType]) -> DataAndMetadata.CalibrationListType:
-        pixel_time_us = metadata.get("hardware_source", dict()).get("pixel_time_us") if metadata else None
-        line_time_us = metadata.get("hardware_source", dict()).get("line_time_us") if metadata else None
-        if pixel_time_us is not None and line_time_us is not None and len(dimensional_shape) == 2:
-            return [Calibration.Calibration(scale=line_time_us, units="µs"), Calibration.Calibration(scale=pixel_time_us, units="µs")]
+        for component in Registry.get_components_by_type("calibration-component.temporal"):
+            calibration_component = typing.cast(CalibrationComponent, component)
+            calibrations = calibration_component.get_calibrations(dimensional_shape, dimensional_calibrations, metadata)
+            if calibrations:
+                return calibrations
         return [Calibration.Calibration() for _ in dimensional_shape]
 
 
@@ -244,12 +247,25 @@ class CalibrationStyleSpatial(CalibrationStyle):
     is_calibrated = True
 
     def get_dimensional_calibrations(self, dimensional_shape: DataAndMetadata.ShapeType, dimensional_calibrations: DataAndMetadata.CalibrationListType, metadata: typing.Optional[DataAndMetadata.MetadataType]) -> DataAndMetadata.CalibrationListType:
-        defocus = metadata.get("instrument", dict()).get("defocus") if metadata else None
-        if defocus and dimensional_calibrations and len(set((dimensional_calibration.scale, dimensional_calibration.units) for dimensional_calibration in dimensional_calibrations)) == 1 and dimensional_calibrations[0].units == "rad":
-            scale = dimensional_calibrations[0].scale
-            image_width_m = abs(defocus) * math.sin(scale * dimensional_shape[1])
-            pixel_size_nm = 1e9 * image_width_m / dimensional_shape[1]
-            return [Calibration.Calibration(scale=pixel_size_nm, units="nm") for _ in dimensional_shape]
+        for component in Registry.get_components_by_type("calibration-component.spatial"):
+            calibration_component = typing.cast(CalibrationComponent, component)
+            calibrations = calibration_component.get_calibrations(dimensional_shape, dimensional_calibrations, metadata)
+            if calibrations:
+                return calibrations
+        return [Calibration.Calibration() for _ in dimensional_shape]
+
+
+class CalibrationStyleAngular(CalibrationStyle):
+    label = _("Angular")
+    calibration_style_id = "angular"
+    is_calibrated = True
+
+    def get_dimensional_calibrations(self, dimensional_shape: DataAndMetadata.ShapeType, dimensional_calibrations: DataAndMetadata.CalibrationListType, metadata: typing.Optional[DataAndMetadata.MetadataType]) -> DataAndMetadata.CalibrationListType:
+        for component in Registry.get_components_by_type("calibration-component.angular"):
+            calibration_component = typing.cast(CalibrationComponent, component)
+            calibrations = calibration_component.get_calibrations(dimensional_shape, dimensional_calibrations, metadata)
+            if calibrations:
+                return calibrations
         return [Calibration.Calibration() for _ in dimensional_shape]
 
 
@@ -1665,6 +1681,7 @@ def calibration_styles() -> typing.Sequence[CalibrationStyle]:
         CalibrationStyleNative(),
         CalibrationStyleTemporal(),
         CalibrationStyleSpatial(),
+        CalibrationStyleAngular(),
         CalibrationStylePixelsTopLeft(),
         CalibrationStylePixelsCenter(),
         CalibrationStyleFractionalTopLeft(),
