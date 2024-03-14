@@ -227,7 +227,7 @@ class CalibrationStyleNative(CalibrationStyle):
 
 
 class CalibrationDescriptionCalibrationStyle(CalibrationStyle):
-    def __init__(self, label: str, calibration_description: DataItem.CalibrationDescription) -> None:
+    def __init__(self, label: str, calibration_description: CalibrationDescription) -> None:
         self.label = label
         self.calibration_style_id = calibration_description.calibration_style_id
         self.is_calibrated = True
@@ -1669,6 +1669,19 @@ class DisplayDataShapeCalculator:
 
 
 @dataclasses.dataclass
+class CalibrationDescription:
+    calibration_style_id: str
+    calibration_style_type: str
+    dimension_set_id: str
+    intensity_calibration: typing.Optional[Calibration.Calibration]
+    dimensional_calibrations: typing.Optional[DataAndMetadata.CalibrationListType]
+
+
+class CalibrationProvider(typing.Protocol):
+    def get_calibration_descriptions(self, data_metadata: DataAndMetadata.DataMetadata) -> typing.Sequence[CalibrationDescription]: ...
+
+
+@dataclasses.dataclass
 class DisplayDataDelta:
     graphics: typing.Sequence[Graphics.Graphic]
     graphic_selection: GraphicSelection
@@ -1974,20 +1987,14 @@ class DisplayDataDeltaStream(Stream.ValueStream[DisplayDataDelta]):
             return DisplayDataShapeCalculator(d.data_metadata).shape
         return self.dimensional_shape if self.is_composite_data else None
 
-    def __get_calibration_descriptions(self) -> typing.Sequence[DataItem.CalibrationDescription]:
-        all_calibration_descriptions = list[DataItem.CalibrationDescription]()
-        dimensional_shape = self.dimensional_shape
-        intensity_calibration = self.intensity_calibration
-        dimensional_calibrations = self.dimensional_calibrations
-        metadata = self.metadata
-        if dimensional_shape is not None and intensity_calibration and dimensional_calibrations and metadata is not None:
+    def __get_calibration_descriptions(self) -> typing.Sequence[CalibrationDescription]:
+        all_calibration_descriptions = list[CalibrationDescription]()
+        xdata_list = self.__get_xdata_list()
+        if len(xdata_list) == 1 and (d := xdata_list[0]):
             for component in Registry.get_components_by_type("calibration-provider"):
-                calibration_provider = typing.cast(DataItem.CalibrationProvider, component)
+                calibration_provider = typing.cast(CalibrationProvider, component)
                 if calibration_provider:
-                    calibration_descriptions = calibration_provider.get_calibration_descriptions(dimensional_shape,
-                                                                                                 intensity_calibration,
-                                                                                                 dimensional_calibrations,
-                                                                                                 metadata)
+                    calibration_descriptions = calibration_provider.get_calibration_descriptions(d.data_metadata)
                     all_calibration_descriptions.extend(calibration_descriptions)
         return all_calibration_descriptions
 

@@ -63,19 +63,6 @@ class CalibrationList:
         return l
 
 
-@dataclasses.dataclass
-class CalibrationDescription:
-    calibration_style_id: str
-    calibration_style_type: str
-    dimension_set_id: str
-    intensity_calibration: typing.Optional[Calibration.Calibration]
-    dimensional_calibrations: typing.Optional[DataAndMetadata.CalibrationListType]
-
-
-class CalibrationProvider(typing.Protocol):
-    def get_calibration_descriptions(self, dimensional_shape: DataAndMetadata.ShapeType, intensity_calibration: Calibration.Calibration, dimensional_calibrations: DataAndMetadata.CalibrationListType, metadata: typing.Optional[DataAndMetadata.MetadataType]) -> typing.Sequence[CalibrationDescription]: ...
-
-
 """
     Data sources are interfaces to get data and metadata.
 
