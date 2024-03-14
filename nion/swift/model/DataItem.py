@@ -4,6 +4,7 @@ from __future__ import annotations
 import abc
 import contextlib
 import copy
+import dataclasses
 import datetime
 import gettext
 import operator
@@ -60,6 +61,19 @@ class CalibrationList:
         for calibration in self.list:
             l.append(calibration.write_dict())
         return l
+
+
+@dataclasses.dataclass
+class CalibrationDescription:
+    calibration_style_id: str
+    calibration_style_type: str
+    dimension_set_id: str
+    intensity_calibration: typing.Optional[Calibration.Calibration]
+    dimensional_calibrations: typing.Optional[DataAndMetadata.CalibrationListType]
+
+
+class CalibrationProvider(typing.Protocol):
+    def get_calibration_descriptions(self, dimensional_shape: DataAndMetadata.ShapeType, intensity_calibration: Calibration.Calibration, dimensional_calibrations: DataAndMetadata.CalibrationListType, metadata: typing.Optional[DataAndMetadata.MetadataType]) -> typing.Sequence[CalibrationDescription]: ...
 
 
 """

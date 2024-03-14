@@ -211,6 +211,9 @@ class CalibrationStyle(CalibrationStyleLike):
     def get_dimensional_calibrations(self, dimensional_shape: DataAndMetadata.ShapeType, dimensional_calibrations: DataAndMetadata.CalibrationListType, metadata: typing.Optional[DataAndMetadata.MetadataType]) -> DataAndMetadata.CalibrationListType:
         return list()
 
+    def get_intensity_calibration(self, calibration: Calibration.Calibration) -> Calibration.Calibration:
+        return calibration
+
 
 class CalibrationStyleNative(CalibrationStyle):
     label = _("Calibrated")
@@ -223,50 +226,20 @@ class CalibrationStyleNative(CalibrationStyle):
         return [Calibration.Calibration() for _ in dimensional_shape]
 
 
-class CalibrationComponent(typing.Protocol):
-    def get_calibrations(self, dimensional_shape: DataAndMetadata.ShapeType, dimensional_calibrations: DataAndMetadata.CalibrationListType, metadata: typing.Optional[DataAndMetadata.MetadataType]) -> typing.Optional[DataAndMetadata.CalibrationListType]: ...
-
-
-class CalibrationStyleTemporal(CalibrationStyle):
-    label = _("Temporal")
-    calibration_style_id = "temporal"
-    is_calibrated = True
+class CalibrationDescriptionCalibrationStyle(CalibrationStyle):
+    def __init__(self, label: str, calibration_description: DataItem.CalibrationDescription) -> None:
+        self.label = label
+        self.calibration_style_id = calibration_description.calibration_style_id
+        self.is_calibrated = True
+        self.calibration_description = calibration_description
 
     def get_dimensional_calibrations(self, dimensional_shape: DataAndMetadata.ShapeType, dimensional_calibrations: DataAndMetadata.CalibrationListType, metadata: typing.Optional[DataAndMetadata.MetadataType]) -> DataAndMetadata.CalibrationListType:
-        for component in Registry.get_components_by_type("calibration-component.temporal"):
-            calibration_component = typing.cast(CalibrationComponent, component)
-            calibrations = calibration_component.get_calibrations(dimensional_shape, dimensional_calibrations, metadata)
-            if calibrations:
-                return calibrations
-        return [Calibration.Calibration() for _ in dimensional_shape]
+        assert self.calibration_description.dimensional_calibrations is not None
+        return self.calibration_description.dimensional_calibrations
 
-
-class CalibrationStyleSpatial(CalibrationStyle):
-    label = _("Spatial")
-    calibration_style_id = "spatial"
-    is_calibrated = True
-
-    def get_dimensional_calibrations(self, dimensional_shape: DataAndMetadata.ShapeType, dimensional_calibrations: DataAndMetadata.CalibrationListType, metadata: typing.Optional[DataAndMetadata.MetadataType]) -> DataAndMetadata.CalibrationListType:
-        for component in Registry.get_components_by_type("calibration-component.spatial"):
-            calibration_component = typing.cast(CalibrationComponent, component)
-            calibrations = calibration_component.get_calibrations(dimensional_shape, dimensional_calibrations, metadata)
-            if calibrations:
-                return calibrations
-        return [Calibration.Calibration() for _ in dimensional_shape]
-
-
-class CalibrationStyleAngular(CalibrationStyle):
-    label = _("Angular")
-    calibration_style_id = "angular"
-    is_calibrated = True
-
-    def get_dimensional_calibrations(self, dimensional_shape: DataAndMetadata.ShapeType, dimensional_calibrations: DataAndMetadata.CalibrationListType, metadata: typing.Optional[DataAndMetadata.MetadataType]) -> DataAndMetadata.CalibrationListType:
-        for component in Registry.get_components_by_type("calibration-component.angular"):
-            calibration_component = typing.cast(CalibrationComponent, component)
-            calibrations = calibration_component.get_calibrations(dimensional_shape, dimensional_calibrations, metadata)
-            if calibrations:
-                return calibrations
-        return [Calibration.Calibration() for _ in dimensional_shape]
+    def get_intensity_calibration(self, calibration: Calibration.Calibration) -> Calibration.Calibration:
+        assert self.calibration_description.intensity_calibration is not None
+        return self.calibration_description.intensity_calibration
 
 
 class CalibrationStylePixelsTopLeft(CalibrationStyle):
@@ -301,22 +274,7 @@ class CalibrationStyleFractionalCenter(CalibrationStyle):
         return [Calibration.Calibration(scale=2.0/display_dimension, offset=-1.0) for display_dimension in dimensional_shape]
 
 
-class IntensityCalibrationStyle(CalibrationStyleLike):
-    label: str
-    calibration_style_id: str
-    is_calibrated: bool = False
-
-    def get_intensity_calibration(self, calibration: Calibration.Calibration) -> Calibration.Calibration:
-        return calibration
-
-
-class IntensityCalibrationStyleNative(IntensityCalibrationStyle):
-    label = _("Calibrated")
-    calibration_style_id = "calibrated"
-    is_calibrated = True
-
-
-class IntensityCalibrationStyleUncalibrated(IntensityCalibrationStyle):
+class IntensityCalibrationStyleUncalibrated(CalibrationStyle):
     label = _("Uncalibrated")
     calibration_style_id = "uncalibrated"
 
@@ -2016,25 +1974,51 @@ class DisplayDataDeltaStream(Stream.ValueStream[DisplayDataDelta]):
             return DisplayDataShapeCalculator(d.data_metadata).shape
         return self.dimensional_shape if self.is_composite_data else None
 
-    @property
-    def calibration_styles(self) -> typing.Sequence[CalibrationStyle]:
-        return [
-            CalibrationStyleNative(),
-            CalibrationStyleTemporal(),
-            CalibrationStyleSpatial(),
-            CalibrationStyleAngular(),
-            CalibrationStylePixelsTopLeft(),
-            CalibrationStylePixelsCenter(),
-            CalibrationStyleFractionalTopLeft(),
-            CalibrationStyleFractionalCenter()
-        ]
+    def __get_calibration_descriptions(self) -> typing.Sequence[DataItem.CalibrationDescription]:
+        all_calibration_descriptions = list[DataItem.CalibrationDescription]()
+        dimensional_shape = self.dimensional_shape
+        intensity_calibration = self.intensity_calibration
+        dimensional_calibrations = self.dimensional_calibrations
+        metadata = self.metadata
+        if dimensional_shape is not None and intensity_calibration and dimensional_calibrations and metadata is not None:
+            for component in Registry.get_components_by_type("calibration-provider"):
+                calibration_provider = typing.cast(DataItem.CalibrationProvider, component)
+                if calibration_provider:
+                    calibration_descriptions = calibration_provider.get_calibration_descriptions(dimensional_shape,
+                                                                                                 intensity_calibration,
+                                                                                                 dimensional_calibrations,
+                                                                                                 metadata)
+                    all_calibration_descriptions.extend(calibration_descriptions)
+        return all_calibration_descriptions
 
     @property
-    def intensity_calibration_styles(self) -> typing.Sequence[IntensityCalibrationStyle]:
-        return [
-            IntensityCalibrationStyleNative(),
-            IntensityCalibrationStyleUncalibrated(),
-        ]
+    def calibration_styles(self) -> typing.Sequence[CalibrationStyle]:
+        calibration_styles = list[CalibrationStyle]()
+        calibration_styles.append(CalibrationStyleNative())
+        calibration_descriptions = self.__get_calibration_descriptions()
+        for calibration_description in calibration_descriptions:
+            if calibration_description.calibration_style_id == "spatial":
+                calibration_styles.append(CalibrationDescriptionCalibrationStyle(_("Spatial"), calibration_description))
+            elif calibration_description.calibration_style_id == "temporal":
+                calibration_styles.append(CalibrationDescriptionCalibrationStyle(_("Temporal"), calibration_description))
+            elif calibration_description.calibration_style_id == "angular":
+                calibration_styles.append(CalibrationDescriptionCalibrationStyle(_("Angular"), calibration_description))
+        calibration_styles.append(CalibrationStylePixelsTopLeft())
+        calibration_styles.append(CalibrationStylePixelsCenter())
+        calibration_styles.append(CalibrationStyleFractionalTopLeft())
+        calibration_styles.append(CalibrationStyleFractionalCenter())
+        return calibration_styles
+
+    @property
+    def intensity_calibration_styles(self) -> typing.Sequence[CalibrationStyle]:
+        calibration_styles = list[CalibrationStyle]()
+        calibration_styles.append(CalibrationStyleNative())
+        calibration_descriptions = self.__get_calibration_descriptions()
+        for calibration_description in calibration_descriptions:
+            if calibration_description.calibration_style_id.startswith("intensity"):
+                calibration_styles.append(CalibrationDescriptionCalibrationStyle(_("Calibrated"), calibration_description))
+        calibration_styles.append(IntensityCalibrationStyleUncalibrated())
+        return calibration_styles
 
     def get_calibration_style_for_id(self, calibration_style_id: typing.Optional[str]) -> typing.Optional[CalibrationStyle]:
         for calibration_style in self.calibration_styles:
@@ -2042,8 +2026,7 @@ class DisplayDataDeltaStream(Stream.ValueStream[DisplayDataDelta]):
                 return calibration_style
         return None
 
-    def get_intensity_calibration_style_for_id(self, calibration_style_id: typing.Optional[str]) -> typing.Optional[
-        IntensityCalibrationStyle]:
+    def get_intensity_calibration_style_for_id(self, calibration_style_id: typing.Optional[str]) -> typing.Optional[CalibrationStyle]:
         for calibration_style in self.intensity_calibration_styles:
             if calibration_style.calibration_style_id == calibration_style_id:
                 return calibration_style
@@ -2054,8 +2037,8 @@ class DisplayDataDeltaStream(Stream.ValueStream[DisplayDataDelta]):
         return self.get_calibration_style_for_id(self.__calibration_style_id_stream.value) or CalibrationStyleNative()
 
     @property
-    def intensity_calibration_style(self) -> IntensityCalibrationStyle:
-        return self.get_intensity_calibration_style_for_id(self.__intensity_calibration_style_id_stream.value) or IntensityCalibrationStyleNative()
+    def intensity_calibration_style(self) -> CalibrationStyle:
+        return self.get_intensity_calibration_style_for_id(self.__intensity_calibration_style_id_stream.value) or CalibrationStyleNative()
 
     @property
     def displayed_dimensional_calibrations(self) -> typing.Sequence[Calibration.Calibration]:
@@ -2979,7 +2962,7 @@ class DisplayItem(Persistence.PersistentObject):
         return self.__display_data_delta_stream.calibration_style
 
     @property
-    def intensity_calibration_style(self) -> IntensityCalibrationStyle:
+    def intensity_calibration_style(self) -> CalibrationStyle:
         return self.__display_data_delta_stream.intensity_calibration_style
 
     @property
@@ -3026,7 +3009,7 @@ class DisplayItem(Persistence.PersistentObject):
         """The calibrations for only datum dimensions, in the displayed calibration style."""
         return self.__display_data_delta_stream.displayed_datum_calibrations
 
-    def get_displayed_intensity_calibration_with_calibration_style(self, calibration_style: IntensityCalibrationStyle) -> Calibration.Calibration:
+    def get_displayed_intensity_calibration_with_calibration_style(self, calibration_style: CalibrationStyle) -> Calibration.Calibration:
         intensity_calibration = self.__display_data_delta_stream.intensity_calibration
         if intensity_calibration:
             return calibration_style.get_intensity_calibration(intensity_calibration)
@@ -3039,7 +3022,7 @@ class DisplayItem(Persistence.PersistentObject):
     def __get_calibration_style_for_id(self, calibration_style_id: str) -> typing.Optional[CalibrationStyle]:
         return self.__display_data_delta_stream.get_calibration_style_for_id(calibration_style_id)
 
-    def __get_intensity_calibration_style_for_id(self, calibration_style_id: str) -> typing.Optional[IntensityCalibrationStyle]:
+    def __get_intensity_calibration_style_for_id(self, calibration_style_id: str) -> typing.Optional[CalibrationStyle]:
         return self.__display_data_delta_stream.get_intensity_calibration_style_for_id(calibration_style_id)
 
     @property
@@ -3047,7 +3030,7 @@ class DisplayItem(Persistence.PersistentObject):
         return self.__display_data_delta_stream.calibration_styles
 
     @property
-    def intensity_calibration_styles(self) -> typing.Sequence[IntensityCalibrationStyle]:
+    def intensity_calibration_styles(self) -> typing.Sequence[CalibrationStyle]:
         return self.__display_data_delta_stream.intensity_calibration_styles
 
     @property
@@ -3277,7 +3260,7 @@ class DisplayCalibrationInfo:
                  displayed_dimensional_calibrations: typing.Sequence[Calibration.Calibration],
                  displayed_intensity_calibration: Calibration.Calibration,
                  calibration_style: CalibrationStyle,
-                 intensity_calibration_style: IntensityCalibrationStyle,
+                 intensity_calibration_style: CalibrationStyle,
                  datum_calibrations: list[Calibration.Calibration]
                  ) -> None:
         assert all(calibration.is_valid for calibration in displayed_dimensional_calibrations)

@@ -1560,7 +1560,7 @@ class IntensityCalibrationStyleModelAdapter(CalibrationStyleModelAdapter):
         return display_item.intensity_calibration_styles
 
     def get_calibrations(self, display_item: DisplayItem.DisplayItem, calibration_style: DisplayItem.CalibrationStyleLike) -> typing.Sequence[Calibration.Calibration]:
-        return [display_item.get_displayed_intensity_calibration_with_calibration_style(typing.cast(DisplayItem.IntensityCalibrationStyle, calibration_style))]
+        return [display_item.get_displayed_intensity_calibration_with_calibration_style(typing.cast(DisplayItem.CalibrationStyle, calibration_style))]
 
     def get_calibration_style_id_property_name(self) -> str:
         return "intensity_calibration_style_id"

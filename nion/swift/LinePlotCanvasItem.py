@@ -244,7 +244,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.__displayed_dimensional_calibration: typing.Optional[Calibration.Calibration] = None
         self.__intensity_calibration: typing.Optional[Calibration.Calibration] = None
         self.__calibration_style: typing.Optional[DisplayItem.CalibrationStyle] = None
-        self.__intensity_calibration_style: typing.Optional[DisplayItem.IntensityCalibrationStyle] = None
+        self.__intensity_calibration_style: typing.Optional[DisplayItem.CalibrationStyle] = None
         self.__y_min = None
         self.__y_max = None
         self.__y_style = None
@@ -559,7 +559,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         displayed_dimensional_calibration = self.__displayed_dimensional_calibration or Calibration.Calibration()
         intensity_calibration = self.__intensity_calibration or Calibration.Calibration()
         calibration_style = self.__calibration_style or DisplayItem.CalibrationStyle()
-        intensity_calibration_style = self.__intensity_calibration_style or DisplayItem.IntensityCalibrationStyle()
+        intensity_calibration_style = self.__intensity_calibration_style or DisplayItem.CalibrationStyle()
         y_min = self.__y_min
         y_max = self.__y_max
         y_style = self.__y_style
