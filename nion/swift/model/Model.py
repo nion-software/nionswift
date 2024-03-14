@@ -301,6 +301,7 @@ DataGroup.rename("display_items", "display_item_references")
 
 Workspace = Schema.entity("workspace", None, None, {
     "name": Schema.prop(Schema.STRING),
+    "created": Schema.prop(Schema.TIMESTAMP),
     "layout": Schema.prop(Schema.DICT, Schema.OPTIONAL),
     "workspace_id": Schema.prop(Schema.STRING, Schema.OPTIONAL),
 })

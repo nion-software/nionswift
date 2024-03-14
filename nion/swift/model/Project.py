@@ -144,7 +144,7 @@ class Project(Persistence.PersistentObject):
 
     @property
     def sorted_workspaces(self) -> typing.Sequence[WorkspaceLayout.WorkspaceLayout]:
-        return sorted(self.workspaces, key=operator.attrgetter("modified"), reverse=True)
+        return sorted(self.workspaces, key=operator.attrgetter("timestamp_for_sorting"), reverse=True)
 
     def open(self) -> None:
         self.__storage_system.reset()  # this makes storage reusable during tests

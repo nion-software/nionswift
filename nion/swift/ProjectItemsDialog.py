@@ -31,7 +31,6 @@ from nion.swift.model import Schema
 from nion.swift.model import Symbolic
 from nion.ui import Declarative
 from nion.utils import Converter
-from nion.utils import ListModel
 from nion.utils import Registry
 
 if typing.TYPE_CHECKING:

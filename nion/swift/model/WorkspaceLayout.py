@@ -1,4 +1,5 @@
 # standard libraries
+import datetime
 import typing
 
 # third party libraries
@@ -8,6 +9,9 @@ import typing
 import uuid
 
 from nion.swift.model import Persistence
+from nion.swift.model.Persistence import PersistentDictType
+from nion.utils import Converter
+from nion.utils import DateTime
 
 
 class WorkspaceLayout(Persistence.PersistentObject):
@@ -20,9 +24,24 @@ class WorkspaceLayout(Persistence.PersistentObject):
     def __init__(self) -> None:
         super().__init__()
         self.define_type("workspace")
+        self.define_property("created", None, hidden=True, converter=Converter.DatetimeToStringConverter())
         self.define_property("name", str(), hidden=True)
         self.define_property("layout", dict(), hidden=True)
         self.define_property("workspace_id", str(uuid.uuid4()), hidden=True)
+
+    def read_from_dict(self, properties: PersistentDictType) -> None:
+        super().read_from_dict(properties)
+        if self.created is None:  # invalid timestamp -- set property to modified but don't trigger change
+            self._get_persistent_property("created").value = self.modified
+
+    @property
+    def created(self) -> datetime.datetime:
+        return typing.cast(datetime.datetime, self._get_persistent_property_value("created"))
+
+    @property
+    def timestamp_for_sorting(self) -> datetime.datetime:
+        created = self.created
+        return created if created else self.modified
 
     @property
     def name(self) -> str:

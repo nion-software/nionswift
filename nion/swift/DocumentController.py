@@ -1952,7 +1952,8 @@ class DocumentController(Window.Window):
                 assert workspace_controller
                 workspace_controller.change_workspace(workspace)
 
-            local_modified_datetime = workspace.modified + datetime.timedelta(minutes=Utility.local_utcoffset_minutes(workspace.modified))
+            workspace_timestamp = workspace.timestamp_for_sorting
+            local_modified_datetime = workspace_timestamp + datetime.timedelta(minutes=Utility.local_utcoffset_minutes(workspace_timestamp))
             workspace_modified_str = local_modified_datetime.strftime('%Y-%m-%d')
             if local_modified_datetime.date() == datetime.date.today():
                 workspace_modified_str = _("Today")
