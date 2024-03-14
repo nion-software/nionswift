@@ -18,7 +18,6 @@ from nion.data import Calibration
 from nion.data import Core
 from nion.data import DataAndMetadata
 from nion.data import Image
-from nion.swift import DisplayPanel
 from nion.swift import Panel
 from nion.swift.model import DisplayItem
 from nion.swift.model import Graphics
@@ -30,9 +29,8 @@ from nion.utils import Event
 from nion.utils import Model
 from nion.utils import Observable
 from nion.utils import Process
+from nion.utils import ReferenceCounting
 from nion.utils import Stream
-
-from nion.utils.ReferenceCounting import weak_partial
 
 if typing.TYPE_CHECKING:
     from nion.swift import DocumentController
@@ -793,13 +791,16 @@ class HistogramPanel(Panel.Panel):
         def compare_data(a: typing.Any, b: typing.Any) -> bool:
             return numpy.array_equal(a.data if a else None, b.data if b else None)  # type: ignore
 
+        def extract_displayed_intensity_calibration(display_calibration_info: typing.Optional[DisplayItem.DisplayCalibrationInfo]) -> typing.Optional[Calibration.Calibration]:
+            return display_calibration_info.displayed_intensity_calibration if display_calibration_info else None
+
         display_item_stream = TargetDisplayItemStream(document_controller)
         display_data_channel_stream = StreamPropertyStream[DisplayItem.DisplayDataChannel](typing.cast(Stream.AbstractStream[Observable.Observable], display_item_stream), "display_data_channel")
         display_values_stream = DisplayDataChannelDisplayValuesStream(display_data_channel_stream)
         display_data_and_metadata_stream = DisplayValuesValueStream[DataAndMetadata.DataAndMetadata](display_values_stream, "display_data_and_metadata", cmp=compare_data)
         display_range_stream = DisplayValuesValueStream[typing.Tuple[float, float]](display_values_stream, "display_range")
         display_data_range_stream = DisplayValuesValueStream[typing.Tuple[float, float]](display_values_stream, "data_range")
-        displayed_intensity_calibration_stream = StreamPropertyStream[Calibration.Calibration](typing.cast(Stream.AbstractStream[Observable.Observable], display_item_stream), "displayed_intensity_calibration")
+        displayed_intensity_calibration_stream = Stream.MapStream[DisplayItem.DisplayCalibrationInfo, Calibration.Calibration](DisplayCalibrationInfoStream(display_item_stream), extract_displayed_intensity_calibration)
 
         self._histogram_processor = HistogramProcessor(document_controller.event_loop)
 
@@ -889,6 +890,29 @@ class TargetDisplayItemStream(Stream.AbstractStream[DisplayItem.DisplayItem]):
         if display_item != self.__value:
             self.__value = display_item
             self.value_stream.fire(display_item)
+
+
+class DisplayCalibrationInfoStream(Stream.ValueStream[DisplayItem.DisplayCalibrationInfo]):
+    def __init__(self, display_item_stream: TargetDisplayItemStream) -> None:
+        super().__init__()
+        self.__display_item_stream = display_item_stream.add_ref()
+        self.__display_stream_listener = display_item_stream.value_stream.listen(ReferenceCounting.weak_partial(DisplayCalibrationInfoStream.__display_item_changed, self))
+        self.__display_data_delta_stream_action: typing.Optional[Stream.ValueStreamAction[DisplayItem.DisplayDataDelta]] = None
+        self.__display_item_changed(display_item_stream.value)
+
+    def __display_item_changed(self, display_item: typing.Optional[DisplayItem.DisplayItem]) -> None:
+        if display_item:
+            self.__display_data_delta_stream_action = Stream.ValueStreamAction(display_item.display_data_delta_stream, ReferenceCounting.weak_partial(DisplayCalibrationInfoStream.__handle_display_data_delta_stream, self))
+            self.__handle_display_data_delta_stream(display_item.display_data_delta_stream.value)
+        else:
+            self.__display_data_delta_stream_action = None
+            self.__handle_display_data_delta_stream(None)
+
+    def __handle_display_data_delta_stream(self, value: typing.Optional[DisplayItem.DisplayDataDelta]) -> None:
+        if value:
+            self.value_stream.fire(value.display_calibration_info)
+        else:
+            self.value_stream.fire(None)
 
 
 class TargetRegionStream(Stream.AbstractStream[Graphics.Graphic]):
@@ -998,7 +1022,7 @@ class ConcatStream(Stream.AbstractStream[T], typing.Generic[T]):
         def stream_changed(stream: ConcatStream[T], value: typing.Optional[Observable.Observable]) -> None:
             stream.__stream_changed(value)
 
-        self.__stream_listener = stream.value_stream.listen(weak_partial(stream_changed, self))
+        self.__stream_listener = stream.value_stream.listen(ReferenceCounting.weak_partial(stream_changed, self))
         self.__stream_changed(stream.value)
 
     def about_to_delete(self) -> None:
@@ -1037,7 +1061,7 @@ class ConcatStream(Stream.AbstractStream[T], typing.Generic[T]):
 
             self.__out_stream = self.__concat_fn(item)
             self.__out_stream.add_ref()
-            self.__out_stream_listener = self.__out_stream.value_stream.listen(weak_partial(out_stream_changed, self))
+            self.__out_stream_listener = self.__out_stream.value_stream.listen(ReferenceCounting.weak_partial(out_stream_changed, self))
             out_stream_changed(self, self.__out_stream.value)
         else:
             self.__value = None
@@ -1059,7 +1083,7 @@ class DisplayDataChannelDisplayValuesStream(Stream.ValueStream[DisplayItem.Displ
         self.__display_values_subscription: typing.Optional[DisplayItem.DisplayValuesSubscription] = None
         # listen for display changes
         self.__display_data_channel_stream = display_data_channel_stream.add_ref()
-        self.__display_data_channel_stream_listener = display_data_channel_stream.value_stream.listen(weak_partial(DisplayDataChannelDisplayValuesStream.__display_data_channel_changed, self))
+        self.__display_data_channel_stream_listener = display_data_channel_stream.value_stream.listen(ReferenceCounting.weak_partial(DisplayDataChannelDisplayValuesStream.__display_data_channel_changed, self))
         self.__display_data_channel_changed(display_data_channel_stream.value)
 
     def about_to_delete(self) -> None:
@@ -1075,7 +1099,7 @@ class DisplayDataChannelDisplayValuesStream(Stream.ValueStream[DisplayItem.Displ
 
     def __display_data_channel_changed(self, display_data_channel: typing.Optional[DisplayItem.DisplayDataChannel]) -> None:
         if display_data_channel:
-            self.__display_values_subscription = display_data_channel.subscribe_to_latest_computed_display_values(weak_partial(DisplayDataChannelDisplayValuesStream.__display_values_changed, self))
+            self.__display_values_subscription = display_data_channel.subscribe_to_latest_computed_display_values(ReferenceCounting.weak_partial(DisplayDataChannelDisplayValuesStream.__display_values_changed, self))
             self.__display_values_changed(display_data_channel.get_latest_computed_display_values())
         else:
             self.__display_values_subscription = None
@@ -1089,7 +1113,7 @@ class DisplayValuesValueStream(Stream.ValueStream[T]):
         self.__cmp: typing.Callable[[typing.Optional[T], typing.Optional[T]], bool] = cmp if cmp else typing.cast(typing.Callable[[typing.Optional[T], typing.Optional[T]], bool], operator.eq)
         # listen for display changes
         self.__display_value_stream = display_value_stream
-        self.__display_value_stream_listener = display_value_stream.value_stream.listen(weak_partial(DisplayValuesValueStream.__display_values_changed, self))
+        self.__display_value_stream_listener = display_value_stream.value_stream.listen(ReferenceCounting.weak_partial(DisplayValuesValueStream.__display_values_changed, self))
         self.__display_values_changed(display_value_stream.value)
 
     def about_to_delete(self) -> None:

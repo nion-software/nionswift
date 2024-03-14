@@ -6,6 +6,7 @@ import unittest
 import numpy
 
 # local libraries
+from nion.data import Calibration
 from nion.swift import Application
 from nion.swift import HistogramPanel
 from nion.swift.model import DataItem
@@ -97,12 +98,37 @@ class TestHistogramPanelClass(unittest.TestCase):
             document_controller.show_display_item(display_item)
             histogram_canvas_item.update_layout((0, 0), (80, 300), immediate=True)
             # verify assumptions
+            histogram_panel._histogram_processor._evaluate_immediate()
             stats1_text = histogram_panel._statistics_widget._stats1_property.value
             stats2_text = histogram_panel._statistics_widget._stats2_property.value
             self.assertIsNotNone(stats1_text)
             self.assertIsNotNone(stats2_text)
             # now change the data and verify that statistics gets recomputed via document model
             display_item.data_item.set_data(numpy.ones((10, 10), dtype=numpy.uint32))
+            # wait for statistics task to be complete
+            histogram_panel._histogram_processor._evaluate_immediate()
+            self.assertNotEqual(stats1_text, histogram_panel._statistics_widget._stats1_property.value)
+            self.assertNotEqual(stats2_text, histogram_panel._statistics_widget._stats2_property.value)
+
+    def test_changing_intensity_calibration_marks_statistics_as_dirty_then_recomputes_via_model(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(self.get_data())
+            data_item.intensity_calibration = Calibration.Calibration(0, 1, "nm")
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            # set up histogram
+            histogram_panel = document_controller.find_dock_panel("histogram-panel")
+            histogram_canvas_item = histogram_panel._histogram_widget._histogram_canvas_item
+            document_controller.show_display_item(display_item)
+            histogram_canvas_item.update_layout((0, 0), (80, 300), immediate=True)
+            # grab initial values
+            histogram_panel._histogram_processor._evaluate_immediate()
+            stats1_text = histogram_panel._statistics_widget._stats1_property.value
+            stats2_text = histogram_panel._statistics_widget._stats2_property.value
+            # now change the data and verify that statistics gets recomputed via document model
+            display_item.intensity_calibration_style_id = display_item.intensity_calibration_styles[-1].calibration_style_id
             # wait for statistics task to be complete
             histogram_panel._histogram_processor._evaluate_immediate()
             self.assertNotEqual(stats1_text, histogram_panel._statistics_widget._stats1_property.value)
