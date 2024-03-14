@@ -3,6 +3,14 @@
     "version": "UNRELEASED",
     "notes": [
       {
+        "issues": ["https://github.com/nion-software/nionswift/issues/230"],
+        "summary": "Add mechanism to include additional display calibrations (e.g., e/eV/s)."
+      },
+      {
+        "issues": ["https://github.com/nion-software/nionswift/issues/300"],
+        "summary": "Add support for independent dimensional and intensity calibrations."
+      },
+      {
         "issues": ["https://github.com/nion-software/nionswift/issues/919"],
         "summary": "Add menu items for flip horizontal/vertical and rotate right/left."
       },
