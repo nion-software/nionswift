@@ -59,51 +59,57 @@ def nice_label(value: float, precision: int) -> str:
         return (u"{0:0." + u"{0:d}".format(precision) + "f}").format(value)
 
 
-def calculate_y_axis(uncalibrated_data_list: typing.Sequence[typing.Optional[_NDArray]], data_min: typing.Optional[float], data_max: typing.Optional[float], y_calibration: typing.Optional[Calibration.Calibration], data_style: typing.Optional[str]) -> typing.Tuple[float, float, Geometry.Ticker]:
-    y_calibration = y_calibration if y_calibration else Calibration.Calibration()
+def calculate_y_axis(xdata_list: typing.Sequence[typing.Optional[DataAndMetadata.DataAndMetadata]], data_min: typing.Optional[float], data_max: typing.Optional[float], data_style: typing.Optional[str]) -> typing.Tuple[float, float, Geometry.Ticker]:
+    """Calculate the calibrated min/max and y-axis ticker for list of xdata.
+
+    xdata_list is the original calibrated data
+    data_min and data_max are calibrated values
+    """
 
     min_specified = data_min is not None
     max_specified = data_max is not None
 
     if min_specified:
-        uncalibrated_data_min = data_min
+        calibrated_data_min = data_min
     else:
-        uncalibrated_data_min = None
-        for uncalibrated_data in uncalibrated_data_list:
-            if uncalibrated_data is not None and uncalibrated_data.shape[-1] > 0:
-                if data_style == "log":
-                    partial_uncalibrated_data_min = numpy.amin(uncalibrated_data[uncalibrated_data > 0], initial=numpy.inf)
-                else:
-                    partial_uncalibrated_data_min = numpy.amin(uncalibrated_data)
-                if uncalibrated_data_min is not None:
-                    uncalibrated_data_min = min(uncalibrated_data_min, partial_uncalibrated_data_min)
-                else:
-                    uncalibrated_data_min = partial_uncalibrated_data_min
-        if uncalibrated_data_min is None or not numpy.isfinite(uncalibrated_data_min):
-                uncalibrated_data_min = 0.0
+        calibrated_data_min = None
+        for xdata in xdata_list:
+            if xdata and xdata.data_shape[-1] > 0:
+                uncalibrated_data = xdata.data
+                if uncalibrated_data is not None:
+                    if data_style == "log":
+                        calibrated_origin = xdata.intensity_calibration.convert_from_calibrated_value(0.0)
+                        partial_uncalibrated_data_min = numpy.amin(uncalibrated_data[uncalibrated_data > calibrated_origin], initial=numpy.inf)
+                    else:
+                        partial_uncalibrated_data_min = numpy.amin(uncalibrated_data)
+                    calibrated_value = xdata.intensity_calibration.convert_to_calibrated_value(partial_uncalibrated_data_min)
+                    if calibrated_data_min is not None:
+                        calibrated_data_min = min(calibrated_data_min, calibrated_value)
+                    else:
+                        calibrated_data_min = calibrated_value
+    if calibrated_data_min is None or not numpy.isfinite(calibrated_data_min):
+        calibrated_data_min = 0.0
 
     if max_specified:
-        uncalibrated_data_max = data_max
+        calibrated_data_max = data_max
     else:
-        uncalibrated_data_max = None
-        for uncalibrated_data in uncalibrated_data_list:
-            if uncalibrated_data is not None and uncalibrated_data.shape[-1] > 0:
-                if data_style == "log":
-                    partial_uncalibrated_data_max = numpy.amax(uncalibrated_data[uncalibrated_data > 0], initial=-numpy.inf)
-                else:
-                    partial_uncalibrated_data_max = numpy.amax(uncalibrated_data)
-                if uncalibrated_data_max is not None:
-                    uncalibrated_data_max = max(uncalibrated_data_max, partial_uncalibrated_data_max)
-                else:
-                    uncalibrated_data_max = partial_uncalibrated_data_max
-        if uncalibrated_data_max is None or not numpy.isfinite(uncalibrated_data_max):
-            uncalibrated_data_max = 0.0
-
-    assert uncalibrated_data_min is not None
-    assert uncalibrated_data_max is not None
-
-    calibrated_data_min = y_calibration.convert_to_calibrated_value(uncalibrated_data_min)
-    calibrated_data_max = y_calibration.convert_to_calibrated_value(uncalibrated_data_max)
+        calibrated_data_max = None
+        for xdata in xdata_list:
+            if xdata and xdata.data_shape[-1] > 0:
+                uncalibrated_data = xdata.data
+                if uncalibrated_data is not None:
+                    if data_style == "log":
+                        calibrated_origin = xdata.intensity_calibration.convert_from_calibrated_value(0.0)
+                        partial_uncalibrated_data_max = numpy.amax(uncalibrated_data[uncalibrated_data > calibrated_origin], initial=-numpy.inf)
+                    else:
+                        partial_uncalibrated_data_max = numpy.amax(uncalibrated_data)
+                    calibrated_value = xdata.intensity_calibration.convert_to_calibrated_value(partial_uncalibrated_data_max)
+                    if calibrated_data_max is not None:
+                        calibrated_data_max = max(calibrated_data_max, calibrated_value)
+                    else:
+                        calibrated_data_max = calibrated_value
+    if calibrated_data_max is None or not numpy.isfinite(calibrated_data_max):
+        calibrated_data_max = 0.0
 
     if data_style == "log":
         calibrated_data_min = math.log10(calibrated_data_min) if calibrated_data_min > 0 else 0.0
@@ -284,26 +290,24 @@ class LineGraphAxes:
 
         return x_ticks
 
-    def calculate_calibrated_xdata(self, uncalibrated_xdata: DataAndMetadata.DataAndMetadata) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+    def calculate_calibrated_xdata(self, xdata: DataAndMetadata.DataAndMetadata) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+        """Calculate the 'calibrated xdata'.
+
+         The 'calibrated xdata' is the xdata (with a calibration) but with a new intensity calibration where origin=0 and scale=1.
+         """
         calibrated_data: typing.Optional[_NDArray]
-        y_calibration = self.y_calibration
-        if y_calibration:
+        intensity_calibration = xdata.intensity_calibration
+        if intensity_calibration:
+            data = xdata.data
             if self.data_style == "log":
-                calibrated_data = y_calibration.offset + y_calibration.scale * uncalibrated_xdata.data
+                calibrated_data = intensity_calibration.offset + intensity_calibration.scale * data
                 calibrated_data[calibrated_data <= 0] = numpy.nan
                 numpy.log10(calibrated_data, out=calibrated_data)
             else:
-                calibrated_data = y_calibration.offset + y_calibration.scale * uncalibrated_xdata.data
+                calibrated_data = intensity_calibration.offset + intensity_calibration.scale * data
+            return DataAndMetadata.new_data_and_metadata(calibrated_data, intensity_calibration=Calibration.Calibration(units=intensity_calibration.units), dimensional_calibrations=xdata.dimensional_calibrations)
         else:
-            if self.data_style == "log":
-                calibrated_data = uncalibrated_xdata.data.copy()
-                calibrated_data[calibrated_data <= 0] = numpy.nan
-                numpy.log10(calibrated_data, out=calibrated_data)
-            else:
-                calibrated_data = uncalibrated_xdata.data
-        if calibrated_data is not None:
-            return DataAndMetadata.new_data_and_metadata(calibrated_data, dimensional_calibrations=uncalibrated_xdata.dimensional_calibrations)
-        return None
+            return xdata
 
 
 def are_axes_equal(axes1: typing.Optional[LineGraphAxes], axes2: typing.Optional[LineGraphAxes]) -> bool:
@@ -585,12 +589,14 @@ class LineGraphBackgroundCanvasItem(CanvasItem.AbstractCanvasItem):
 class LineGraphLayer:
     """Represents a layer of the line graph.
 
+    xdata is calibrated data.
+
     Tracks the data, calibrated data, axes. Provides methods to calculate the segments and draw fills/strokes separately.
     """
 
-    def __init__(self, uncalibrated_xdata: typing.Optional[DataAndMetadata.DataAndMetadata], fill_color: typing.Optional[Color.Color],
+    def __init__(self, xdata: typing.Optional[DataAndMetadata.DataAndMetadata], fill_color: typing.Optional[Color.Color],
                  stroke_color: typing.Optional[Color.Color], stroke_width: typing.Optional[float]) -> None:
-        self.uncalibrated_xdata = uncalibrated_xdata
+        self.__xdata = xdata
         self.fill_color = fill_color
         self.stroke_color = stroke_color
         self.stroke_width = stroke_width or 0.5
@@ -606,8 +612,8 @@ class LineGraphLayer:
 
     @property
     def calibrated_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
-        if self.__axes and self.uncalibrated_xdata and not self.__calibrated_xdata:
-            self.__calibrated_xdata = self.__axes.calculate_calibrated_xdata(self.uncalibrated_xdata)
+        if self.__axes and self.__xdata and not self.__calibrated_xdata:
+            self.__calibrated_xdata = self.__axes.calculate_calibrated_xdata(self.__xdata)
         return self.__calibrated_xdata
 
     def calculate(self, canvas_bounds: Geometry.IntRect) -> None:

@@ -824,6 +824,12 @@ class DisplayValues:
     def transformed_display_range(self) -> typing.Tuple[float, float]:
         return typing.cast(typing.Tuple[float, float], self.__transformed_display_range_processor.get_result("display_range"))
 
+    def get_calibration_styles(self) -> typing.Sequence[CalibrationStyle]:
+        return get_calibration_styles([self.display_data_and_metadata])
+
+    def get_intensity_calibration_styles(self) -> typing.Sequence[CalibrationStyle]:
+        return get_intensity_calibration_styles([self.display_data_and_metadata])
+
 
 DisplayValuesSubscription = object
 
@@ -1709,6 +1715,60 @@ class CalibrationProvider(typing.Protocol):
     def get_calibration_descriptions(self, data_metadata: DataAndMetadata.DataMetadata) -> typing.Sequence[CalibrationDescriptionLike]: ...
 
 
+def get_calibration_descriptions(xdata_list: typing.Sequence[typing.Optional[DataAndMetadata.DataAndMetadata]]) -> typing.Sequence[CalibrationDescription]:
+    all_calibration_descriptions = list[CalibrationDescription]()
+    common_calibration_descriptions = set[CalibrationDescription]()
+    for xdata in xdata_list:
+        if xdata:
+            xdata_calibration_descriptions = list[CalibrationDescription]()
+            for component in Registry.get_components_by_type("calibration-provider"):
+                calibration_provider = typing.cast(CalibrationProvider, component)
+                if calibration_provider:
+                    calibration_description_likes = calibration_provider.get_calibration_descriptions(xdata.data_metadata)
+                    for calibration_description_like in calibration_description_likes:
+                        calibration_description = CalibrationDescription(
+                            calibration_description_like.calibration_style_id,
+                            calibration_description_like.calibration_style_type,
+                            calibration_description_like.dimension_set_id,
+                            calibration_description_like.intensity_calibration,
+                            calibration_description_like.dimensional_calibrations)
+                        xdata_calibration_descriptions.append(calibration_description)
+            if not all_calibration_descriptions:
+                all_calibration_descriptions = xdata_calibration_descriptions
+                common_calibration_descriptions = set(xdata_calibration_descriptions)
+            common_calibration_descriptions.intersection_update(xdata_calibration_descriptions)
+    return [calibration_description for calibration_description in all_calibration_descriptions if calibration_description in common_calibration_descriptions]
+
+
+def get_calibration_styles(xdata_list: typing.Sequence[typing.Optional[DataAndMetadata.DataAndMetadata]]) -> typing.Sequence[CalibrationStyle]:
+    calibration_styles = list[CalibrationStyle]()
+    calibration_styles.append(CalibrationStyleNative())
+    calibration_descriptions = get_calibration_descriptions(xdata_list)
+    for calibration_description in calibration_descriptions:
+        if calibration_description.calibration_style_id == "spatial":
+            calibration_styles.append(CalibrationDescriptionCalibrationStyle(_("Spatial"), calibration_description))
+        elif calibration_description.calibration_style_id == "temporal":
+            calibration_styles.append(CalibrationDescriptionCalibrationStyle(_("Temporal"), calibration_description))
+        elif calibration_description.calibration_style_id == "angular":
+            calibration_styles.append(CalibrationDescriptionCalibrationStyle(_("Angular"), calibration_description))
+    calibration_styles.append(CalibrationStylePixelsTopLeft())
+    calibration_styles.append(CalibrationStylePixelsCenter())
+    calibration_styles.append(CalibrationStyleFractionalTopLeft())
+    calibration_styles.append(CalibrationStyleFractionalCenter())
+    return calibration_styles
+
+
+def get_intensity_calibration_styles(xdata_list: typing.Sequence[typing.Optional[DataAndMetadata.DataAndMetadata]]) -> typing.Sequence[CalibrationStyle]:
+    calibration_styles = list[CalibrationStyle]()
+    calibration_styles.append(CalibrationStyleNative())
+    calibration_descriptions = get_calibration_descriptions(xdata_list)
+    for calibration_description in calibration_descriptions:
+        if calibration_description.calibration_style_id.startswith("intensity"):
+            calibration_styles.append(CalibrationDescriptionCalibrationStyle(_("Calibrated"), calibration_description))
+    calibration_styles.append(IntensityCalibrationStyleUncalibrated())
+    return calibration_styles
+
+
 @dataclasses.dataclass
 class DisplayDataDelta:
     graphics: typing.Sequence[Graphics.Graphic]
@@ -2015,59 +2075,13 @@ class DisplayDataDeltaStream(Stream.ValueStream[DisplayDataDelta]):
             return DisplayDataShapeCalculator(d.data_metadata).shape
         return self.dimensional_shape if self.is_composite_data else None
 
-    def __get_calibration_descriptions(self) -> typing.Sequence[CalibrationDescription]:
-        all_calibration_descriptions = list[CalibrationDescription]()
-        common_calibration_descriptions = set[CalibrationDescription]()
-        xdata_list = self.__get_xdata_list()
-        for xdata in xdata_list:
-            if xdata:
-                xdata_calibration_descriptions = list[CalibrationDescription]()
-                for component in Registry.get_components_by_type("calibration-provider"):
-                    calibration_provider = typing.cast(CalibrationProvider, component)
-                    if calibration_provider:
-                        calibration_description_likes = calibration_provider.get_calibration_descriptions(xdata.data_metadata)
-                        for calibration_description_like in calibration_description_likes:
-                            calibration_description = CalibrationDescription(
-                                calibration_description_like.calibration_style_id,
-                                calibration_description_like.calibration_style_type,
-                                calibration_description_like.dimension_set_id,
-                                calibration_description_like.intensity_calibration,
-                                calibration_description_like.dimensional_calibrations)
-                            xdata_calibration_descriptions.append(calibration_description)
-                if not all_calibration_descriptions:
-                    all_calibration_descriptions = xdata_calibration_descriptions
-                    common_calibration_descriptions = set(xdata_calibration_descriptions)
-                common_calibration_descriptions.intersection_update(xdata_calibration_descriptions)
-        return [calibration_description for calibration_description in all_calibration_descriptions if calibration_description in common_calibration_descriptions]
-
     @property
     def calibration_styles(self) -> typing.Sequence[CalibrationStyle]:
-        calibration_styles = list[CalibrationStyle]()
-        calibration_styles.append(CalibrationStyleNative())
-        calibration_descriptions = self.__get_calibration_descriptions()
-        for calibration_description in calibration_descriptions:
-            if calibration_description.calibration_style_id == "spatial":
-                calibration_styles.append(CalibrationDescriptionCalibrationStyle(_("Spatial"), calibration_description))
-            elif calibration_description.calibration_style_id == "temporal":
-                calibration_styles.append(CalibrationDescriptionCalibrationStyle(_("Temporal"), calibration_description))
-            elif calibration_description.calibration_style_id == "angular":
-                calibration_styles.append(CalibrationDescriptionCalibrationStyle(_("Angular"), calibration_description))
-        calibration_styles.append(CalibrationStylePixelsTopLeft())
-        calibration_styles.append(CalibrationStylePixelsCenter())
-        calibration_styles.append(CalibrationStyleFractionalTopLeft())
-        calibration_styles.append(CalibrationStyleFractionalCenter())
-        return calibration_styles
+        return get_calibration_styles(self.__get_xdata_list())
 
     @property
     def intensity_calibration_styles(self) -> typing.Sequence[CalibrationStyle]:
-        calibration_styles = list[CalibrationStyle]()
-        calibration_styles.append(CalibrationStyleNative())
-        calibration_descriptions = self.__get_calibration_descriptions()
-        for calibration_description in calibration_descriptions:
-            if calibration_description.calibration_style_id.startswith("intensity"):
-                calibration_styles.append(CalibrationDescriptionCalibrationStyle(_("Calibrated"), calibration_description))
-        calibration_styles.append(IntensityCalibrationStyleUncalibrated())
-        return calibration_styles
+        return get_intensity_calibration_styles(self.__get_xdata_list())
 
     def get_calibration_style_for_id(self, calibration_style_id: typing.Optional[str]) -> typing.Optional[CalibrationStyle]:
         for calibration_style in self.calibration_styles:

@@ -243,8 +243,6 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.__data_scale: typing.Optional[float] = None
         self.__displayed_dimensional_calibration: typing.Optional[Calibration.Calibration] = None
         self.__intensity_calibration: typing.Optional[Calibration.Calibration] = None
-        self.__calibration_style: typing.Optional[DisplayItem.CalibrationStyle] = None
-        self.__intensity_calibration_style: typing.Optional[DisplayItem.CalibrationStyle] = None
         self.__y_min = None
         self.__y_max = None
         self.__y_style = None
@@ -354,8 +352,6 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             self.__displayed_dimensional_calibration = displayed_dimensional_calibrations[-1] if len(displayed_dimensional_calibrations) > 0 else Calibration.Calibration(scale=displayed_dimensional_scales[-1])
             assert self.__displayed_dimensional_calibration.is_valid
             self.__intensity_calibration = display_calibration_info.displayed_intensity_calibration
-            self.__calibration_style = display_calibration_info.calibration_style
-            self.__intensity_calibration_style = display_calibration_info.intensity_calibration_style
             self.__y_min = display_properties.get("y_min")
             self.__y_max = display_properties.get("y_max")
             self.__y_style = display_properties.get("y_style", "linear")
@@ -366,8 +362,39 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
             if len(self.__display_values_list) > 0:
                 with self.__xdata_lock:
-                    self.__xdata_list = [display_values.display_data_and_metadata if display_values else None for display_values in self.__display_values_list]
-                    xdata0 = self.__xdata_list[0]
+                    self.__xdata_list = list()
+                    for display_values in self.__display_values_list:
+                        # for each xdata in display values, create a new xdata (with a numpy array) where the
+                        # calibration is set from the calibration style in display_calibration_info. each xdata will
+                        # have to look at its metadata and create the calibration specific to it. the xdata should
+                        # support the given calibration style, but falls back to the default calibration if it doesn't.
+                        # handles both intensity and dimensional calibrations.
+                        xdata = display_values.display_data_and_metadata if display_values else None
+                        calibration_styles = display_values.get_calibration_styles() if display_values else list()
+                        intensity_calibration_styles = display_values.get_intensity_calibration_styles() if display_values else list()
+                        calibration_style: typing.Optional[DisplayItem.CalibrationStyle] = None
+                        intensity_calibration_style: typing.Optional[DisplayItem.CalibrationStyle] = None
+                        for calibration_style_ in calibration_styles:
+                            if calibration_style_.calibration_style_id == display_calibration_info.calibration_style.calibration_style_id:
+                                calibration_style = calibration_style_
+                        for intensity_calibration_style_ in intensity_calibration_styles:
+                            if intensity_calibration_style_.calibration_style_id == display_calibration_info.intensity_calibration_style.calibration_style_id:
+                                intensity_calibration_style = intensity_calibration_style_
+                        if xdata and calibration_style:
+                            dimensional_calibrations = calibration_style.get_dimensional_calibrations(xdata.data_shape, xdata.dimensional_calibrations, xdata.metadata)
+                        else:
+                            dimensional_calibrations = None
+                        if xdata and intensity_calibration_style:
+                            intensity_calibration = intensity_calibration_style.get_intensity_calibration(xdata.intensity_calibration)
+                        else:
+                            intensity_calibration = None
+                        if xdata:
+                            # xdata.data may not be a numpy array, so convert it to one.
+                            xdata = DataAndMetadata.new_data_and_metadata(numpy.array(xdata.data), intensity_calibration, dimensional_calibrations, xdata.metadata, xdata.timestamp, xdata.data_descriptor, xdata.timezone, xdata.timezone_offset)
+                            self.__xdata_list.append(xdata)
+                        else:
+                            self.__xdata_list.append(None)
+                    xdata0 = self.__xdata_list[0] if self.__xdata_list else None
                 if xdata0:
                     self.__update_frame(xdata0.metadata)
             else:
@@ -558,32 +585,11 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         """
         displayed_dimensional_calibration = self.__displayed_dimensional_calibration or Calibration.Calibration()
         intensity_calibration = self.__intensity_calibration or Calibration.Calibration()
-        calibration_style = self.__calibration_style or DisplayItem.CalibrationStyle()
-        intensity_calibration_style = self.__intensity_calibration_style or DisplayItem.CalibrationStyle()
         y_min = self.__y_min
         y_max = self.__y_max
         y_style = self.__y_style
         left_channel_opt = self.__left_channel
         right_channel_opt = self.__right_channel
-
-        scalar_xdata_list = None
-
-        def calculate_scalar_xdata(xdata_list: typing.Sequence[typing.Optional[DataAndMetadata.DataAndMetadata]]) -> typing.Sequence[typing.Optional[DataAndMetadata.DataAndMetadata]]:
-            scalar_xdata_list: typing.List[typing.Optional[DataAndMetadata.DataAndMetadata]] = list()
-            for xdata in xdata_list:
-                if xdata:
-                    scalar_data = Image.convert_to_grayscale(numpy.array(xdata.data))  # note: ensure scalar_data is numpy.array
-                    scalar_intensity_calibration = intensity_calibration_style.get_intensity_calibration(xdata.intensity_calibration)
-                    scalar_dimensional_calibrations = calibration_style.get_dimensional_calibrations(xdata.dimensional_shape, xdata.dimensional_calibrations, xdata.metadata)
-                    if displayed_dimensional_calibration.units == scalar_dimensional_calibrations[-1].units and intensity_calibration.units == scalar_intensity_calibration.units:
-                        # the data needs to have an intensity scale matching intensity_calibration. convert the data to use the common scale.
-                        scale = scalar_intensity_calibration.scale / intensity_calibration.scale
-                        offset = (scalar_intensity_calibration.offset - intensity_calibration.offset) / intensity_calibration.scale
-                        scalar_data = scalar_data * scale + offset
-                        scalar_xdata_list.append(DataAndMetadata.new_data_and_metadata(scalar_data, scalar_intensity_calibration, scalar_dimensional_calibrations))
-                else:
-                    scalar_xdata_list.append(None)
-            return scalar_xdata_list
 
         data_scale = self.__data_scale
         with self.__xdata_lock:
@@ -596,15 +602,16 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             left_channel = typing.cast(int, min(left_channel, right_channel))
             right_channel = typing.cast(int, max(left_channel, right_channel))
 
-            scalar_data_list: typing.List[typing.Optional[_NDArray]] = list()
-            if y_min is None or y_max is None and len(xdata_list) > 0:
-                scalar_xdata_list = calculate_scalar_xdata(xdata_list)
-                scalar_data_list = [xdata.data if xdata else None for xdata in scalar_xdata_list]
-            calibrated_data_min, calibrated_data_max, y_ticker = LineGraphCanvasItem.calculate_y_axis(scalar_data_list, y_min, y_max, intensity_calibration, y_style)
+            if y_min is not None:
+                y_min_calibrated = intensity_calibration.convert_to_calibrated_value(y_min)
+            else:
+                y_min_calibrated = None
+            if y_max is not None:
+                y_max_calibration = intensity_calibration.convert_to_calibrated_value(y_max)
+            else:
+                y_max_calibration = None
+            calibrated_data_min, calibrated_data_max, y_ticker = LineGraphCanvasItem.calculate_y_axis(xdata_list, y_min_calibrated, y_max_calibration, y_style)
             axes = LineGraphCanvasItem.LineGraphAxes(data_scale, calibrated_data_min, calibrated_data_max, left_channel, right_channel, displayed_dimensional_calibration, intensity_calibration, y_style, y_ticker)
-
-            if scalar_xdata_list is None:
-                scalar_xdata_list = calculate_scalar_xdata(xdata_list)
 
             if self.__display_frame_rate_id:
                 Utility.fps_tick("prepare_"+self.__display_frame_rate_id)
@@ -617,15 +624,15 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
             if len(display_layers) == 0:
                 index = 0
-                for scalar_index, scalar_xdata in enumerate(scalar_xdata_list):
-                    if scalar_xdata and scalar_xdata.is_data_1d:
+                for xdata_index, xdata in enumerate(xdata_list):
+                    if xdata and xdata.is_data_1d:
                         if index < MAX_LAYER_COUNT:
-                            display_layers.append({"fill_color": colors[index] if index == 0 else None, "stroke_color": colors[index] if index > 0 else None, "data_index": scalar_index})
+                            display_layers.append({"fill_color": colors[index] if index == 0 else None, "stroke_color": colors[index] if index > 0 else None, "data_index": xdata_index})
                             index += 1
-                    if scalar_xdata and scalar_xdata.is_data_2d:
-                        for row in range(min(scalar_xdata.data_shape[-1], MAX_LAYER_COUNT)):
+                    if xdata and xdata.is_data_2d:
+                        for row in range(min(xdata.data_shape[-1], MAX_LAYER_COUNT)):
                             if index < MAX_LAYER_COUNT:
-                                display_layers.append({"fill_color": colors[index] if index == 0 else None, "stroke_color": colors[index] if index > 0 else None, "data_index": scalar_index, "data_row": row})
+                                display_layers.append({"fill_color": colors[index] if index == 0 else None, "stroke_color": colors[index] if index > 0 else None, "data_index": xdata_index, "data_row": row})
                                 index += 1
 
             self.___has_valid_drawn_graph_data = False
@@ -638,19 +645,19 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                 stroke_width = display_layer.get("stroke_width", 0.5)
                 data_index = display_layer.get("data_index", 0)
                 data_row = display_layer.get("data_row", 0)
-                if 0 <= data_index < len(scalar_xdata_list):
+                if 0 <= data_index < len(xdata_list):
                     fill_color = Color.Color(fill_color_str) if fill_color_str else None
                     stroke_color = Color.Color(stroke_color_str) if stroke_color_str else None
-                    scalar_xdata = scalar_xdata_list[data_index]
-                    if scalar_xdata:
-                        data_row = max(0, min(scalar_xdata.dimensional_shape[0] - 1, data_row))
-                        intensity_calibration = scalar_xdata.intensity_calibration
-                        displayed_dimensional_calibration = scalar_xdata.dimensional_calibrations[-1]
-                        if scalar_xdata.is_data_2d:
-                            scalar_data = scalar_xdata.data[data_row:data_row + 1, :].reshape((scalar_xdata.dimensional_shape[-1],))
-                            scalar_xdata = DataAndMetadata.new_data_and_metadata(scalar_data, intensity_calibration, [displayed_dimensional_calibration])
-                    line_graph_layers.append(LineGraphCanvasItem.LineGraphLayer(scalar_xdata, fill_color, stroke_color, stroke_width))
-                    self.___has_valid_drawn_graph_data = scalar_xdata is not None
+                    xdata = xdata_list[data_index]
+                    if xdata:
+                        data_row = max(0, min(xdata.dimensional_shape[0] - 1, data_row))
+                        if xdata.is_data_2d:
+                            scalar_data = xdata.data[data_row:data_row + 1, :].reshape((xdata.dimensional_shape[-1],))
+                            intensity_calibration = xdata.intensity_calibration
+                            displayed_dimensional_calibration = xdata.dimensional_calibrations[-1]
+                            xdata = DataAndMetadata.new_data_and_metadata(scalar_data, intensity_calibration, [displayed_dimensional_calibration])
+                    line_graph_layers.append(LineGraphCanvasItem.LineGraphLayer(xdata, fill_color, stroke_color, stroke_width))
+                    self.___has_valid_drawn_graph_data = xdata is not None
 
             self.__line_graph_layers_canvas_item.update_line_graph_layers(line_graph_layers, axes)
 

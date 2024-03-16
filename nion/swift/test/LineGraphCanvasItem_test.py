@@ -82,7 +82,8 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             irow, icol = numpy.ogrid[0:16, 0:16]
             data[:] = data_min + (data_max - data_min) * (irow / 15.0)
             # auto on min/max
-            calibrated_data_min, calibrated_data_max, y_ticker = LineGraphCanvasItem.calculate_y_axis([data], None, None, None, None)
+            xdata = DataAndMetadata.new_data_and_metadata(data)
+            calibrated_data_min, calibrated_data_max, y_ticker = LineGraphCanvasItem.calculate_y_axis([xdata], None, None, None)
             axes = LineGraphCanvasItem.LineGraphAxes(1.0, calibrated_data_min, calibrated_data_max, 0, 100, None, None, None, y_ticker)
             self.assertEqual(axes.uncalibrated_data_min, expected_uncalibrated_data_min)
             self.assertEqual(axes.uncalibrated_data_max, expected_uncalibrated_data_max)
@@ -102,7 +103,8 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             with self.subTest(data_in=data_in, data_out=data_out):
                 data = numpy.linspace(data_in[0], data_in[1], 100, endpoint=False)
                 data_style = "log"
-                calibrated_data_min, calibrated_data_max, y_ticker = LineGraphCanvasItem.calculate_y_axis([data], None, None, None, data_style)
+                xdata = DataAndMetadata.new_data_and_metadata(data)
+                calibrated_data_min, calibrated_data_max, y_ticker = LineGraphCanvasItem.calculate_y_axis([xdata], None, None, data_style)
                 axes = LineGraphCanvasItem.LineGraphAxes(1.0, calibrated_data_min, calibrated_data_max, 0, 100, None, None, data_style, y_ticker)
                 self.assertAlmostEqual(axes.uncalibrated_data_min, data_out[0], places=1)
                 self.assertAlmostEqual(axes.uncalibrated_data_max, data_out[1], places=1)
@@ -115,12 +117,12 @@ class TestLineGraphCanvasItem(unittest.TestCase):
     def test_display_limits_are_reasonable_when_using_calibrated_log_scale(self):
 
         test_ranges = (
-            ((-0.1, 11.0), (0.97, 20.0)),
-            ((1000.0, 1100.0), (1992.70, 2238.7)),
-            ((1.0, 2.0), (0.09, 20.0)),
-            ((3.0, 4.0), (0.99, 3.0)),
-            ((2.0, 2.1), (0.09, 20.0)),
-            ((0.0, 5.0), (0.98, 10.0))
+            ((-0.1, 11.0), (2.6, 52.5)),
+            ((1000.0, 1100.0), (998.9, 1121.9)),
+            ((1.0, 2.0), (2.5, 12.5)),
+            ((3.0, 4.0), (3.0, 4.0)),
+            ((2.0, 2.1), (2.5, 12.5)),
+            ((0.0, 5.0), (2.5, 7.5))
         )
 
         for data_in, data_out in test_ranges:
@@ -128,8 +130,9 @@ class TestLineGraphCanvasItem(unittest.TestCase):
                 data = numpy.linspace(data_in[0], data_in[1], 100, endpoint=False)
                 intensity_calibration = Calibration.Calibration(-5, 2)
                 data_style = "log"
-                calibrated_data_min, calibrated_data_max, y_ticker = LineGraphCanvasItem.calculate_y_axis([data], None, None, intensity_calibration, data_style)
-                axes = LineGraphCanvasItem.LineGraphAxes(1.0, calibrated_data_min, calibrated_data_max, 0, 100, None, None, data_style, y_ticker)
+                xdata = DataAndMetadata.new_data_and_metadata(data, intensity_calibration=intensity_calibration)
+                calibrated_data_min, calibrated_data_max, y_ticker = LineGraphCanvasItem.calculate_y_axis([xdata], None, None, data_style)
+                axes = LineGraphCanvasItem.LineGraphAxes(1.0, calibrated_data_min, calibrated_data_max, 0, 100, None, intensity_calibration, data_style, y_ticker)
                 self.assertAlmostEqual(axes.uncalibrated_data_min, data_out[0], places=1)
                 self.assertAlmostEqual(axes.uncalibrated_data_max, data_out[1], places=1)
                 calibrated_data = axes.calculate_calibrated_xdata(DataAndMetadata.new_data_and_metadata(data)).data
