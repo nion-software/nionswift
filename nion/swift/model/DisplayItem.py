@@ -1668,6 +1668,24 @@ class DisplayDataShapeCalculator:
                 self.calibrations = dimensional_calibrations[next_dimension:]
 
 
+class CalibrationDescriptionLike:
+
+    @property
+    def calibration_style_id(self) -> str: raise NotImplementedError()
+
+    @property
+    def calibration_style_type(self) -> str: raise NotImplementedError()
+
+    @property
+    def dimension_set_id(self) -> str: raise NotImplementedError()
+
+    @property
+    def intensity_calibration(self) -> typing.Optional[Calibration.Calibration]: raise NotImplementedError()
+
+    @property
+    def dimensional_calibrations(self) -> typing.Optional[DataAndMetadata.CalibrationListType]: raise NotImplementedError()
+
+
 @dataclasses.dataclass
 class CalibrationDescription:
     calibration_style_id: str
@@ -1676,9 +1694,19 @@ class CalibrationDescription:
     intensity_calibration: typing.Optional[Calibration.Calibration]
     dimensional_calibrations: typing.Optional[DataAndMetadata.CalibrationListType]
 
+    def __hash__(self) -> int:
+        return hash((self.calibration_style_id, self.calibration_style_type, self.dimension_set_id))
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, CalibrationDescription):
+            return False
+        return (self.calibration_style_id == other.calibration_style_id and
+                self.calibration_style_type == other.calibration_style_type and
+                self.dimension_set_id == other.dimension_set_id)
+
 
 class CalibrationProvider(typing.Protocol):
-    def get_calibration_descriptions(self, data_metadata: DataAndMetadata.DataMetadata) -> typing.Sequence[CalibrationDescription]: ...
+    def get_calibration_descriptions(self, data_metadata: DataAndMetadata.DataMetadata) -> typing.Sequence[CalibrationDescriptionLike]: ...
 
 
 @dataclasses.dataclass
@@ -1989,14 +2017,28 @@ class DisplayDataDeltaStream(Stream.ValueStream[DisplayDataDelta]):
 
     def __get_calibration_descriptions(self) -> typing.Sequence[CalibrationDescription]:
         all_calibration_descriptions = list[CalibrationDescription]()
+        common_calibration_descriptions = set[CalibrationDescription]()
         xdata_list = self.__get_xdata_list()
-        if len(xdata_list) == 1 and (d := xdata_list[0]):
-            for component in Registry.get_components_by_type("calibration-provider"):
-                calibration_provider = typing.cast(CalibrationProvider, component)
-                if calibration_provider:
-                    calibration_descriptions = calibration_provider.get_calibration_descriptions(d.data_metadata)
-                    all_calibration_descriptions.extend(calibration_descriptions)
-        return all_calibration_descriptions
+        for xdata in xdata_list:
+            if xdata:
+                xdata_calibration_descriptions = list[CalibrationDescription]()
+                for component in Registry.get_components_by_type("calibration-provider"):
+                    calibration_provider = typing.cast(CalibrationProvider, component)
+                    if calibration_provider:
+                        calibration_description_likes = calibration_provider.get_calibration_descriptions(xdata.data_metadata)
+                        for calibration_description_like in calibration_description_likes:
+                            calibration_description = CalibrationDescription(
+                                calibration_description_like.calibration_style_id,
+                                calibration_description_like.calibration_style_type,
+                                calibration_description_like.dimension_set_id,
+                                calibration_description_like.intensity_calibration,
+                                calibration_description_like.dimensional_calibrations)
+                            xdata_calibration_descriptions.append(calibration_description)
+                if not all_calibration_descriptions:
+                    all_calibration_descriptions = xdata_calibration_descriptions
+                    common_calibration_descriptions = set(xdata_calibration_descriptions)
+                common_calibration_descriptions.intersection_update(xdata_calibration_descriptions)
+        return [calibration_description for calibration_description in all_calibration_descriptions if calibration_description in common_calibration_descriptions]
 
     @property
     def calibration_styles(self) -> typing.Sequence[CalibrationStyle]:
