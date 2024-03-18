@@ -6,7 +6,7 @@
         "summary": "Sort recent workspaces in menu by creation date (if available). Older workspaces copy modified date to creation date."
       },
       {
-        "issues": ["https://github.com/nion-software/nionswift/issues/230"],
+        "issues": ["https://github.com/nion-software/nionswift/issues/230", "https://github.com/nion-software/nionswift/issues/1019"],
         "summary": "Add mechanism to include additional display calibrations (e.g., e/eV/s)."
       },
       {
