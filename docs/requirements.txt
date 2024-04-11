@@ -3,5 +3,7 @@ h5py
 pytz
 tzlocal
 pillow
+nionui
+niondata
+nionutils
 sphinx-copybutton
-docutils<0.18  # see https://github.com/readthedocs/readthedocs.org/issues/8616
