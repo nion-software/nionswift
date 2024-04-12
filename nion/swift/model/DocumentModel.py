@@ -65,7 +65,7 @@ class Closeable(typing.Protocol):
 
 
 class Transaction:
-    def __init__(self, transaction_manager: "TransactionManager", item: Persistence.PersistentObject, items: typing.Set[Persistence.PersistentObject]) -> None:
+    def __init__(self, transaction_manager: TransactionManager, item: Persistence.PersistentObject, items: typing.Set[Persistence.PersistentObject]) -> None:
         self.__transaction_manager = transaction_manager
         self.__item = item
         self.__items = items
@@ -1852,7 +1852,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         if data_item:
             with self.__pending_data_item_updates_lock:
                 assert data_metadata
-                assert data_item.data_shape == data_metadata.data_shape
+                assert data_item.data_shape == data_metadata.data_shape, f"{data_item.data_shape=} == {data_metadata.data_shape=}"
                 assert data_item.data_dtype == data_metadata.data_dtype
                 data_item.queue_partial_update(data_and_metadata, src_slice=src_slice, dst_slice=dst_slice, metadata=data_metadata)
                 self.__pending_data_item_updates.append(data_item)

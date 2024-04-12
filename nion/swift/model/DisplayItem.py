@@ -2731,8 +2731,15 @@ class DisplayItem(Persistence.PersistentObject):
         self.item_changed_event.fire()
         self.notify_property_changed("displayed_title")
 
-    def __display_channel_property_changed(self, name: str) -> None:
-        self.display_changed_event.fire()
+    def __display_channel_property_changed(self, display_data_channel: DisplayDataChannel, name: str) -> None:
+        # during shutdown, the project persistent context will get cleared before the display item is closed. this
+        # triggers the data item to become unregistered which triggers the display data channel to fire a data item
+        # changed. this is a check for that condition, which hopefully doesn't occur in other situations. this is
+        # difficult to test since threading is involved. to test manually, ensure that thumbnails are not recomputed
+        # during shutdown by using print statements. consequently, ensure that thumbnails are not recomputed during
+        # startup.
+        if name != "data_item" or display_data_channel.data_item:  # shutting down?
+            self.display_changed_event.fire()
 
     @property
     def display_data_channel(self) -> typing.Optional[DisplayDataChannel]:
@@ -2904,7 +2911,7 @@ class DisplayItem(Persistence.PersistentObject):
 
     def __insert_display_data_channel(self, name: str, before_index: int, display_data_channel: DisplayDataChannel) -> None:
         display_data_channel.increment_display_ref_count(self._display_ref_count)
-        self.__display_data_channel_property_changed_event_listeners.insert(before_index, display_data_channel.property_changed_event.listen(self.__display_channel_property_changed))
+        self.__display_data_channel_property_changed_event_listeners.insert(before_index, display_data_channel.property_changed_event.listen(functools.partial(self.__display_channel_property_changed, display_data_channel)))
         self.__display_data_channel_data_item_will_change_event_listeners.insert(before_index, display_data_channel.data_item_will_change_event.listen(self.__data_item_will_change))
         self.__display_data_channel_data_item_did_change_event_listeners.insert(before_index, display_data_channel.data_item_did_change_event.listen(self.__data_item_did_change))
         self.__display_data_channel_data_item_changed_event_listeners.insert(before_index, display_data_channel.data_item_changed_event.listen(self.__item_changed))
