@@ -3,6 +3,9 @@
     "version": "UNRELEASED",
     "notes": [
       {
+        "summary": "Ask user for SVG size before exporting (assumes 96 DPI)."
+      },
+      {
         "summary": "Sort recent workspaces in menu by creation date (if available). Older workspaces copy modified date to creation date."
       },
       {
