@@ -894,28 +894,7 @@ class DocumentController(Window.Window):
             self.export_file(display_items[0])
 
     def export_svg(self, display_item: DisplayItem.DisplayItem) -> None:
-        filter = "SVG File (*.svg);;All Files (*.*)"
-        export_dir = self.ui.get_persistent_string("export_directory", self.ui.get_document_location())
-        export_dir = os.path.join(export_dir, display_item.displayed_title)
-        path, selected_filter, selected_directory = self.get_save_file_path(_("Export File"), export_dir, filter, None)
-        if path and not os.path.splitext(path)[1]:
-            path = path + os.path.extsep + "svg"
-        if path:
-            self.ui.set_persistent_string("export_directory", selected_directory)
-
-            if display_item.display_data_shape and len(display_item.display_data_shape) == 2:
-                display_shape = Geometry.IntSize(height=800, width=800)
-            else:
-                display_shape = Geometry.IntSize(height=600, width=800)
-
-            drawing_context, shape = DisplayPanel.preview(DisplayPanel.FixedUISettings(), display_item, display_shape.width, display_shape.height)
-
-            view_box = Geometry.IntRect(Geometry.IntPoint(), shape)
-
-            svg = drawing_context.to_svg(shape, view_box)
-
-            with Utility.AtomicFileWriter(pathlib.Path(path)) as fp:
-                fp.write(svg)
+        ExportDialog.ExportSVGDialog(self, display_item)
 
     # this method creates a task. it is thread safe.
     def create_task_context_manager(self, title: str, task_type: str, logging: bool = True) -> Task.TaskContextManager:

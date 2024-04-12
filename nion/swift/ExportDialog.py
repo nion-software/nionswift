@@ -17,9 +17,16 @@ import unicodedata
 
 # local libraries
 from nion.swift.model import ImportExportManager
+from nion.swift.model import Utility
+from nion.swift import DocumentController
+from nion.swift import DisplayPanel
+from nion.ui import Declarative
 from nion.ui import Dialog
 from nion.ui import UserInterface
 from nion.ui import Window
+from nion.utils import Converter
+from nion.utils import Geometry
+from nion.utils import Model
 
 if typing.TYPE_CHECKING:
     from nion.swift.model import DisplayItem
@@ -187,3 +194,84 @@ class ExportDialog(Dialog.OkCancelDialog):
                         logging.debug("Could not export image %s / %s", str(data_item), str(e))
                         traceback.print_exc()
                         traceback.print_stack()
+
+
+class ExportSVGHandler:
+    def __init__(self, display_item: DisplayItem.DisplayItem, display_size: Geometry.IntSize) -> None:
+        self.display_item = display_item
+
+        self.width_model = Model.PropertyModel(display_size.width)
+        self.height_model = Model.PropertyModel(display_size.height)
+
+        self.int_converter = Converter.IntegerToStringConverter()
+
+        u = Declarative.DeclarativeUI()
+        width_row = u.create_row(u.create_label(text=_("Width (in)"), width=80), u.create_line_edit(text="@binding(width_model.value, converter=int_converter)"), spacing=12)
+        height_row = u.create_row(u.create_label(text=_("Height (in)"), width=80), u.create_line_edit(text="@binding(height_model.value, converter=int_converter)"), spacing=12)
+        main_page = u.create_column(width_row, height_row, spacing=12, margin=12)
+
+        self.ui_view = main_page
+
+    def close(self) -> None:
+        pass
+
+
+class ExportSVGDialog:
+
+    def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem) -> None:
+        super().__init__()
+
+        self.__document_controller = document_controller
+
+        u = Declarative.DeclarativeUI()
+
+        display_item = display_item.snapshot()
+        display_properties = display_item.display_properties
+        display_properties["image_zoom"] = 1.0
+        display_properties["image_position"] = (0.5, 0.5)
+        display_properties["image_canvas_mode"] = "fit"
+        display_item.display_properties = display_properties
+
+        if display_item.display_data_shape and len(display_item.display_data_shape) == 2:
+            display_size = Geometry.IntSize(height=4, width=4)
+        else:
+            display_size = Geometry.IntSize(height=3, width=4)
+
+        handler = ExportSVGHandler(display_item, display_size)
+
+        def ok_clicked() -> bool:
+            dpi = 96
+            width_px = (handler.width_model.value or display_size.width) * dpi
+            height_px = (handler.height_model.value or display_size.height) * dpi
+
+            ui = document_controller.ui
+            filter = "SVG File (*.svg);;All Files (*.*)"
+            export_dir = ui.get_persistent_string("export_directory", ui.get_document_location())
+            export_dir = os.path.join(export_dir, display_item.displayed_title)
+            path, selected_filter, selected_directory = document_controller.get_save_file_path(_("Export File"), export_dir, filter, None)
+            if path and not os.path.splitext(path)[1]:
+                path = path + os.path.extsep + "svg"
+            if path:
+                ui.set_persistent_string("export_directory", selected_directory)
+
+                display_shape = Geometry.IntSize(height=height_px, width=width_px)
+
+                drawing_context, shape = DisplayPanel.preview(DisplayPanel.DisplayPanelUISettings(ui), display_item, display_shape.width, display_shape.height)
+
+                view_box = Geometry.IntRect(Geometry.IntPoint(), shape)
+
+                svg = drawing_context.to_svg(shape, view_box)
+
+                with Utility.AtomicFileWriter(pathlib.Path(path)) as fp:
+                    fp.write(svg)
+
+            return True
+
+        def cancel_clicked() -> bool:
+            return True
+
+        dialog = typing.cast(Dialog.ActionDialog, Declarative.construct(document_controller.ui, document_controller, u.create_modeless_dialog(handler.ui_view, title=_("Export SVG")), handler))
+        dialog.add_button(_("Cancel"), cancel_clicked)
+        dialog.add_button(_("Export"), ok_clicked)
+
+        dialog.show()
