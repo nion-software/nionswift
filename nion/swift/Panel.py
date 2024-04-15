@@ -239,7 +239,6 @@ class HeaderCanvasItem(CanvasItem.CanvasItemComposition):
         super().__init__()
         self.wants_mouse_events = True
         self.__title = title if title else ""
-        self.__label = label if label else ""
         self.__display_close_control = display_close_control
         self.__ui_settings = ui_settings
         self.__set_default_style()
@@ -297,16 +296,6 @@ class HeaderCanvasItem(CanvasItem.CanvasItemComposition):
     def title(self, title: str) -> None:
         if self.__title != title:
             self.__title = title
-            self.update()
-
-    @property
-    def label(self) -> str:
-        return self.__label
-
-    @label.setter
-    def label(self, label: str) -> None:
-        if self.__label != label:
-            self.__label = label
             self.update()
 
     @property
@@ -445,13 +434,6 @@ class HeaderCanvasItem(CanvasItem.CanvasItemComposition):
                     drawing_context.line_cap = "round"
                     drawing_context.stroke_style = self.__control_style
                     drawing_context.stroke()
-
-            with drawing_context.saver():
-                drawing_context.font = self.__font
-                drawing_context.text_align = 'left'
-                drawing_context.text_baseline = 'bottom'
-                drawing_context.fill_style = '#888'
-                drawing_context.fill_text(self.label, 8, canvas_size.height - self.__text_offset)
 
             with drawing_context.saver():
                 drawing_context.font = self.__font
