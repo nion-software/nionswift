@@ -160,13 +160,15 @@ class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__coordinate_system: typing.List[Calibration.Calibration] = list()
 
     def update_coordinate_system(self, displayed_shape: typing.Optional[DataAndMetadata.ShapeType], coordinate_system: typing.Sequence[Calibration.Calibration], graphics: typing.Sequence[Graphics.Graphic], graphic_selection: DisplayItem.GraphicSelection) -> None:
-        self.__coordinate_system = list(coordinate_system)
+        needs_update = False
+        if coordinate_system != self.__coordinate_system:
+            self.__coordinate_system = list(coordinate_system)
+            needs_update = True
         if displayed_shape is None or len(displayed_shape) != 2:
             displayed_shape = None
             graphics = list()
             graphic_selection = DisplayItem.GraphicSelection()
         assert displayed_shape is None or len(displayed_shape) == 2
-        needs_update = False
         if ((self.__displayed_shape is None) != (displayed_shape is None)) or (self.__displayed_shape != displayed_shape):
             self.__displayed_shape = displayed_shape
             needs_update = True
