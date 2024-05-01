@@ -1256,6 +1256,34 @@ class TestDataItemClass(unittest.TestCase):
             self.assertEqual(data_item_copy.session_metadata, data_item.session_metadata)
             self.assertEqual(data_item_copy.session_id, document_model.session_id)
 
+    def test_data_item_setting_session_data_trigger_property_changed_event(self):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            data_item = DataItem.DataItem(numpy.ones((2, 2)))
+            document_model.append_data_item(data_item)
+
+            received_session_changed = False
+            received_session_metadata_changed = False
+
+            def property_changed(name: str) -> None:
+                nonlocal received_session_changed, received_session_metadata_changed
+                if name == 'session':
+                    received_session_changed = True
+                elif name == 'session_metadata':
+                    received_session_metadata_changed = True
+
+            listener = data_item.property_changed_event.listen(property_changed)
+
+            session_metadata = data_item.session_metadata
+            session_metadata['site'] = 'Home'
+            data_item.session_metadata = session_metadata
+
+            listener = None
+
+            self.assertTrue(received_session_changed)
+            self.assertTrue(received_session_metadata_changed)
+
+
     def test_data_item_session_id_independent_from_data_source_session_id(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()

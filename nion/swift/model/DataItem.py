@@ -759,6 +759,8 @@ class DataItem(Persistence.PersistentObject):
         if name == "dynamic_title_enabled":
             self.__dynamic_title_enabled_stream.value = value
         self.notify_property_changed(name)
+        if name == "session":
+            self.notify_property_changed("session_metadata")
         if name in ("title", "caption", "description"):
             self.__notify_description_changed()
 

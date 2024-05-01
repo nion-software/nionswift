@@ -74,13 +74,12 @@ class ItemPropertySlug(DynamicStringSlug, typing.Generic[ItemPropertySlugType]):
     """A dynamic string slug that observes a property on an item and converts it to a string."""
     def __init__(self,
                  property: str,
-                 convert_fn: typing.Optional[typing.Callable[[typing.Optional[ItemPropertySlugType]], typing.Optional[str]]],
+                 convert_fn: typing.Optional[typing.Callable[[Observable.Observable, typing.Optional[ItemPropertySlugType]], typing.Optional[str]]],
                  slug: str,
                  default_value: typing.Optional[str] = None) -> None:
         super().__init__(slug, default_value)
         self.__property = property
         self.__convert_fn = convert_fn
-        self.__property_changed_event_listener: typing.Optional[Event.EventListener] = None
         self.__item_value_stream = Stream.PropertyChangedEventStream[ItemPropertySlugType](self._item_stream, self.__property)
         self.__item_value_stream_listener = self.__item_value_stream.value_stream.listen(weak_partial(ItemPropertySlug.__item_property_stream_value_changed, self))
         self.__item_property_stream_value_changed(self.__item_value_stream.value)
@@ -93,7 +92,11 @@ class ItemPropertySlug(DynamicStringSlug, typing.Generic[ItemPropertySlugType]):
             return str(value) if value is not None else None
 
         if self.__convert_fn:
-            self.value = self.__convert_fn(value)
+            item = self._item_stream.value
+            if item:
+                self.value = self.__convert_fn(item, value)
+            else:
+                self.value = None
         else:
             self.value = convert_to_str(value)
 
@@ -208,7 +211,7 @@ class _TestDynamicStringFactory(DynamicStringFactory):
             return dynamic_string
         if dynamic_string_type == "_slug_test":
 
-            def convert_metadata_to_slug_test_str(value: typing.Optional[Persistence.PersistentDictType]) -> typing.Optional[str]:
+            def convert_metadata_to_slug_test_str(item: Observable.Observable, value: typing.Optional[Persistence.PersistentDictType]) -> typing.Optional[str]:
                 if value is not None:
                     metadata = value
                     return typing.cast(typing.Optional[str], metadata.get("_slug_test", None))
