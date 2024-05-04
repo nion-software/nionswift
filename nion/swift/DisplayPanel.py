@@ -4,7 +4,6 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import copy
-import dataclasses
 import functools
 import gettext
 import math

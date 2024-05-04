@@ -1527,6 +1527,21 @@ class TestDataItemClass(unittest.TestCase):
             self.assertEqual("nome", data_item.title)
             self.assertTrue(data_item.dynamic_title_enabled)
 
+    def test_setting_dynamic_title_when_not_already_enabled_updates_title_immediately(self):
+        # requirement: dynamic_titles
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            data_item = DataItem.DataItem()
+            data_item.metadata = {"_slug_test": ""}
+            data_item.title = "red"
+            self.assertFalse(data_item.dynamic_title_enabled)
+            data_item.set_dynamic_title_by_id("_slug_test")
+            self.assertTrue(data_item.dynamic_title_enabled)
+            self.assertEqual("red", data_item.title)
+            document_model.append_data_item(data_item)
+            data_item.metadata = {"_slug_test": "green"}
+            self.assertEqual("green", data_item.title)
+
     # modify property/item/relationship on data source, display, region, etc.
     # copy or snapshot
 
