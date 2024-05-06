@@ -19,9 +19,9 @@ if typing.TYPE_CHECKING:
 
 
 class DataStructure(Persistence.PersistentObject):
-    entity_types:typing.Dict[str, Schema.EntityType] = dict()
-    entity_names:typing.Dict[str, str] = dict()
-    entity_package_names:typing.Dict[str, str] = dict()
+    entity_types: typing.Dict[str, Schema.EntityType] = dict()
+    entity_names: typing.Dict[str, str] = dict()
+    entity_package_names: typing.Dict[str, str] = dict()
 
     # regarding naming: https://en.wikipedia.org/wiki/Passive_data_structure
     def __init__(self, *, structure_type: typing.Optional[str] = None, source: typing.Optional[Persistence.PersistentObject] = None) -> None:
