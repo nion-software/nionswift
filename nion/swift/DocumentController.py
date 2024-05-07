@@ -2579,6 +2579,10 @@ class DocumentController(Window.Window):
 
         def receive_files_complete(index: int, data_items: typing.Sequence[DataItem.DataItem]) -> None:
             command: Undo.UndoableCommand
+
+            for data_item in data_items:
+                data_item.uuid = uuid.uuid4()
+
             if data_group and isinstance(data_group, DataGroup.DataGroup):
                 command = DocumentController.InsertDataGroupDataItemsCommand(self, data_group, data_items, index)
                 command.perform()

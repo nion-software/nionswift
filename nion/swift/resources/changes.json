@@ -3,6 +3,10 @@
     "version": "UNRELEASED",
     "notes": [
       {
+        "issues": ["https://github.com/nion-software/nionswift/issues/592"],
+        "summary": "Importing valid data always succeeds by assign new identifiers, instead of silently skipping possible duplicates."
+      },
+      {
         "summary": "Ask user for SVG size before exporting (assumes 96 DPI)."
       },
       {
