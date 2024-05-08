@@ -2,10 +2,10 @@
 
 .. _basic-use:
 
-###########################
-Nion Swift Quickstart Guide
-###########################
-This quickstart guide will provide you with a quick tutorial on how to use the most important features of Nion Swift. For more in-depth explanations, please see the full :ref:`user-guide`.
+################################
+Nion Swift Introductory Tutorial
+################################
+This introductory tutorial will show you how to use the most important features of Nion Swift. For more in-depth explanations, please see the full :ref:`user-guide`.
 
 *******************
 Intro to Nion Swift
