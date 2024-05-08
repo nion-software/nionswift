@@ -1,5 +1,6 @@
 :orphan:
 
+.. include:: defs.rst
 .. _installation:
 
 Nion Swift Installation

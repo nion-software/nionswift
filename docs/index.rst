@@ -1,3 +1,4 @@
+.. include:: defs.rst
 .. _index:
 
 |AppName| User's Guide (16.10.0)
