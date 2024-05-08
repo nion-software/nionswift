@@ -2,20 +2,21 @@
 
 Nion Swift User's Guide (16.10.0)
 ================================
-Nion Swift is open source scientific image processing software integrating hardware control, data acquisition,
-visualization, processing, and analysis using Python. Nion Swift is easily extended using Python. It runs on
-Windows, Linux, and macOS.
+|AppName| is an open-source scientific image-processing software that uses Python to integrate hardware control, data acquisition, visualization, processing, and analysis. It runs on Windows, Linux, and macOS.
 
 .. image:: graphics/workspace.png
   :width: 640
-  :alt: The Swift Workspace
+  :alt: The Main Workspace
+
+|AppName| is designed to be an intuitive and user-friendly platform, making the acquisition of scientific data from a range of microscopes and instruments a straightforward process. Its sophisticated data visualization, processing, and analysis capabilities further enhance your confidence in handling complex scientific data.
 
 Key Features
 
-- Data handling of 1D plots, 2D images, 1D and 2D collections of plots and images, and sequences.
-- Live computations that can be chained during acquisition or live parameter adjustment.
-- Open source, cross platform (macOS, Windows, Linux), and Python based scientific data processing.
+- Handles various data, including images, line plots, and higher dimensional data.
+- Live computations applied during acquisition or used for parameter adjustment.
 - Low latency, high throughput data acquisition platform.
+- Customization via scripting and plug-ins using Python.
+- Open source, cross-platform (macOS, Windows, Linux), and Python-based scientific data processing.
 
 Who Uses Nion Swift?
 --------------------
