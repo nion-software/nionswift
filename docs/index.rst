@@ -1,6 +1,6 @@
 .. _index:
 
-Nion Swift User's Guide (16.10.0)
+|AppName| User's Guide (16.10.0)
 ================================
 |AppName| is an open-source scientific image-processing software that uses Python to integrate hardware control, data acquisition, visualization, processing, and analysis. It runs on Windows, Linux, and macOS.
 
@@ -18,42 +18,36 @@ Key Features
 - Customization via scripting and plug-ins using Python.
 - Open source, cross-platform (macOS, Windows, Linux), and Python-based scientific data processing.
 
-Who Uses Nion Swift?
---------------------
+Who Uses |AppName|?
+-------------------
 
-Nion Swift has been primarily developed for the operation of Nion electron microscopes and also as an offline tool to
-visualize, process, and analyze scientific data from electron microscopes, other instrumentation, and other scientific
-fields.
+|AppName| has been primarily developed for the operation of Nion electron microscopes and also as an offline tool to visualize, process, and analyze scientific data from electron microscopes, other instrumentation, and other scientific fields.
 
-Nion Swift is open source. You can find the source code on
-`GitHub Nion Swift <https://github.com/nion-software/nionswift/>`_.
+|AppName| is open source. You can find the source code on
+`GitHub |AppName| <https://github.com/nion-software/nionswift/>`_.
 
 Installation/Upgrading
 ----------------------
-The quickest and easiest way to get Nion Swift running is to download a pre-built version that includes everything needed to run the basic application.
+The quickest and easiest way to get |AppName| running is to download a pre-built version that includes everything needed to run the basic application.
 
 * `Download for macOS, Linux, or Windows <https://nion.com/swift/downloads>`_.
 
-To install Nion Swift from Python source code, you will need to install a Python environment and then install Python packages required for Nion
-Swift.
+To install |AppName| from Python source code, you will need to install a Python environment and then install Python packages required for |AppName|.
 
-For specific installation details and download links, follow link below. Instructions to install additional packages to
-extend Nion Swift are also covered.
+For specific installation details and download links, follow link below. Instructions to install additional packages to extend |AppName| are also covered.
 
 * :ref:`installation`
 * :ref:`upgrading`
 
 Release Notes
 -------------
-To see a list of changes for each version of Nion Swift, follow the link below.
+To see a list of changes for each version of |AppName|, follow the link below.
 
 * :ref:`release-notes`
 
-Using Nion Swift
-----------------
-Once you have installed Nion Swift and successfully launched it, you can read the introduction to understand the basic
-ideas, follow through the basic tutorial to try out key concepts, and consult the user guide for more advanced use,
-Python scripting, and reference.
+Using |AppName|
+---------------
+Once you have installed |AppName| and successfully launched it, you can read the introduction to understand the basic ideas, follow through the basic tutorial to try out key concepts, and consult the user guide for more advanced use, Python scripting, and reference.
 
 * :ref:`basic-use`
 * :ref:`user-guide`
@@ -62,14 +56,13 @@ Python scripting, and reference.
 
 Python Scripting
 ----------------
-Nion Swift offers a great deal of functionality using the user interface. However, sometimes you will want to go beyond
-its intrinsic capabilities. Fortunately it is easy to extend the functionality using Python.
+|AppName| offers a great deal of functionality using the user interface. However, sometimes you will want to go beyond its intrinsic capabilities. Fortunately it is easy to extend the functionality using Python.
 
 * :ref:`scripting`
 
-Nion Swift Links
-----------------
-`Nion Swift Google Group <https://groups.google.com/forum/#!forum/nionswift>`_ News and Announcements.
+|AppName| Links
+---------------
+`|AppName| Google Group <https://groups.google.com/forum/#!forum/nionswift>`_ News and Announcements.
 
 Indices and Tables
 ==================
