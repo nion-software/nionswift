@@ -3,6 +3,10 @@
     "version": "UNRELEASED",
     "notes": [
       {
+        "issues": ["https://github.com/nion-software/nionswift/issues/1045"],
+        "summary": "Fix issue when displaying line plot of integer-valued 1D data item using log scale."
+      },
+      {
         "issues": ["https://github.com/nion-software/nionswift/issues/592"],
         "summary": "Importing valid data always succeeds by assign new identifiers, instead of silently skipping possible duplicates."
       },

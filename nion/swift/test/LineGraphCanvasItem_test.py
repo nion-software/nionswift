@@ -141,6 +141,20 @@ class TestLineGraphCanvasItem(unittest.TestCase):
                 self.assertAlmostEqual(numpy.nanmin(calibrated_data), math.log10(numpy.nanmin(data)))
                 self.assertAlmostEqual(numpy.nanmax(calibrated_data), math.log10(numpy.nanmax(data)))
 
+    def test_line_plot_with_log_scale_displays_integers(self):
+        data = numpy.array([1,2,3], dtype=int)
+        data_style = "log"
+        xdata = DataAndMetadata.new_data_and_metadata(data)
+        # at some point, calculate_y_axis failed to return without exception when the data type was int.
+        # so the main point of this test is to ensure that the function returns without exception.
+        calibrated_data_min, calibrated_data_max, y_ticker = LineGraphCanvasItem.calculate_y_axis([xdata], None, None, data_style)
+        # the asserts below are a sanity check to ensure that the function is returning reasonable values.
+        # note: these are calibrated values for the AXES not the original data. furthermore they will be log10.
+        # so checking that the first value is negative (original axes value is less than 1), and the second value
+        # is positive (original axes value is greater than 1) is a reasonable check.
+        self.assertLess(calibrated_data_min, 0.0)
+        self.assertGreater(calibrated_data_max, 0.0)
+
     def test_graph_segments_are_calculated_correctly_with_nans(self):
         # this was a bug in the original implementation
         data = numpy.zeros((16,))
