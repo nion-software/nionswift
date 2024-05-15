@@ -3269,7 +3269,8 @@ Window.register_action(SetToolModeAction("spot", _("Spot"), "spot_icon.png", _("
 Window.register_action(SetToolModeAction("wedge", _("Wedge"), "wedge_icon.png", _("Wedge tool for creating wedge masks")))
 Window.register_action(SetToolModeAction("ring", _("Ring"), "annular_ring.png", _("Ring tool for creating ring masks")))
 Window.register_action(SetToolModeAction("lattice", _("Lattice"), "lattice_icon.png", _("Lattice tool for creating periodic lattice masks")))
-
+Window.register_action(SetToolModeAction("zoom-in", _("Zoom In"), "mag_glass_in.png", _("Zoom in on image")))
+Window.register_action(SetToolModeAction("zoom-out", _("Zoom Out"), "mag_glass_out.png", _("Zoom out on image")))
 
 class WorkspaceChangeSplits(Window.Action):
     # this is for internal testing only. since it requires passing the splitter and splits,
