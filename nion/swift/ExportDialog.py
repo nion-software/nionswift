@@ -253,18 +253,8 @@ class ExportSVGDialog:
                 path = path + os.path.extsep + "svg"
             if path:
                 ui.set_persistent_string("export_directory", selected_directory)
-
                 display_shape = Geometry.IntSize(height=height_px, width=width_px)
-
-                drawing_context, shape = DisplayPanel.preview(DisplayPanel.DisplayPanelUISettings(ui), display_item, display_shape.width, display_shape.height)
-
-                view_box = Geometry.IntRect(Geometry.IntPoint(), shape)
-
-                svg = drawing_context.to_svg(shape, view_box)
-
-                with Utility.AtomicFileWriter(pathlib.Path(path)) as fp:
-                    fp.write(svg)
-
+                document_controller.export_svg_file(DisplayPanel.DisplayPanelUISettings(ui), display_item, display_shape, pathlib.Path(path))
             return True
 
         def cancel_clicked() -> bool:
