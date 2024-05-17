@@ -1227,7 +1227,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
     def mouse_released(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         if super().mouse_released(x, y, modifiers):
-            return
+            return True
 
         delegate = self.delegate
         widget_mapping = self.mouse_mapping
