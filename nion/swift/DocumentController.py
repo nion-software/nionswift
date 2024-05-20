@@ -3489,15 +3489,19 @@ class WorkspaceSplitAction(Window.Action):
         workspace_controller = window.workspace_controller
         display_panels = context.display_panels
         selected_display_panel = context.selected_display_panel
-        if workspace_controller and display_panels and selected_display_panel:
-            h = self.get_int_property(context, "horizontal_count")
-            v = self.get_int_property(context, "vertical_count")
-            h = max(1, min(8, h))
-            v = max(1, min(8, v))
-            display_panels = workspace_controller.apply_layouts(selected_display_panel, display_panels, h, v)
-            action_result = Window.ActionResult(Window.ActionStatus.FINISHED)
-            action_result.results["display_panels"] = list(display_panels)
-            return action_result
+        if workspace_controller:
+            if display_panels and selected_display_panel:
+                h = self.get_int_property(context, "horizontal_count")
+                v = self.get_int_property(context, "vertical_count")
+                h = max(1, min(8, h))
+                v = max(1, min(8, v))
+                display_panels = workspace_controller.apply_layouts(selected_display_panel, display_panels, h, v)
+                action_result = Window.ActionResult(Window.ActionStatus.FINISHED)
+                action_result.results["display_panels"] = list(display_panels)
+                return action_result
+
+            # no selected panel, cannot split
+            return Window.ActionResult(Window.ActionStatus.FINISHED)
         raise ValueError("Missing workspace controller")
 
     def is_enabled(self, context: Window.ActionContext) -> bool:
