@@ -73,22 +73,15 @@ def main() -> None:
 
     success = False
 
-    # next attempt to launch using pyqt
+    # next attempt to launch using pyside6
     try:
-        from PyQt5 import QtCore
-        success = True
-    except ImportError:
-        pass
-
-    # next attempt to launch using pyside2
-    try:
-        from PySide2 import QtCore
+        from PySide6 import QtCore
         success = True
     except ImportError:
         pass
 
     if not success:
-        print("Please install either pyqt or PySide2 using pip or conda or use nionswift-tool to launch.")
+        print("Please install either pyside6 using pip or conda or use nionswift-tool to launch.")
 
     if success:
         app, error = bootstrap_main(sys.argv)
