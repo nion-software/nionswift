@@ -643,6 +643,66 @@ class HandMouseHandler(MouseHandler):
                 change_display_properties_task.commit()
 
 
+class ZoomMouseHandler(MouseHandler):
+    def __init__(self, image_canvas_item: ImageCanvasItem, event_loop: asyncio.AbstractEventLoop, is_zooming_in: bool) -> None:
+        super().__init__(image_canvas_item, event_loop)
+        self.cursor_shape = "mag_glass"
+        self._is_zooming_in = is_zooming_in
+
+    async def _reactor_loop(self, r: Stream.ValueChangeStreamReactorInterface[MousePositionAndModifiers],
+                            image_canvas_item: ImageCanvasItem) -> None:
+        delegate = image_canvas_item.delegate
+        assert delegate
+
+        # get the beginning mouse position
+        value_change = await r.next_value_change()
+        value_change_value = value_change.value
+        assert value_change.is_begin
+        assert value_change_value is not None
+
+        image_position: typing.Optional[Geometry.FloatPoint] = None
+
+        # preliminary setup for the tracking loop.
+        mouse_pos, modifiers = value_change_value
+        start_drag_pos = mouse_pos
+
+        start_drag_pos_norm = image_canvas_item.convert_pixel_to_normalised(start_drag_pos)
+
+        #document_controller = image_canvas_item.__document_controller
+        #document_model = document_controller.document_model
+        #display_item = document_model.get_display_item_for_data_item(image_canvas_item.data_item)
+
+        with (delegate.create_change_display_properties_task() as change_display_properties_task):
+            # mouse tracking loop. wait for values and update the image position.
+            while True:
+                value_change = await r.next_value_change()
+                if value_change.is_end:
+                    if value_change.value is not None:
+                        mouse_pos, modifiers = value_change.value
+                        end_drag_pos = mouse_pos
+                        if (self._is_zooming_in and
+                            ((abs(start_drag_pos[0] - end_drag_pos[0]) > 3) or (abs(start_drag_pos[1] - end_drag_pos[1]) > 3))):
+                            image_canvas_item._apply_selection_zoom(start_drag_pos, end_drag_pos)
+                        else:
+                            image_canvas_item._apply_fixed_zoom(self._is_zooming_in, start_drag_pos)
+                    break
+                if value_change.value is not None:
+                    # Not released for the zoom target, we could do with drawing a rectangle
+                    mouse_pos, modifiers = value_change.value
+                    assert start_drag_pos
+                    #if crop_region:
+                        #display_item.remove_graphic(crop_region)
+                    #else:
+                        #crop_region = Graphics.RectangleGraphic()
+
+                    #end_drag_pos_norm = image_canvas_item.convert_pixel_to_normalised(mouse_pos)
+                    #crop_region.bounds = (start_drag_pos_norm, end_drag_pos_norm)
+                    #display_item.add_graphic(crop_region)
+
+            # if the image position was set, it means the user moved the image. perform the task.
+            if image_position:
+                change_display_properties_task.commit()
+
 class CreateGraphicMouseHandler(MouseHandler):
     def __init__(self, image_canvas_item: ImageCanvasItem, event_loop: asyncio.AbstractEventLoop, graphic_type: str) -> None:
         super().__init__(image_canvas_item, event_loop)
@@ -1050,15 +1110,83 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             self._set_image_canvas_position(new_image_canvas_position)
         return new_image_canvas_position
 
+    def convert_pixel_to_normalised(self, coord: tuple[int, int]) -> Geometry.FloatPoint:
+        if coord:
+            widget_mapping = ImageCanvasItemMapping.make(self.__data_shape, self.__composite_canvas_item.canvas_bounds,
+                                                         list())
+            if widget_mapping:
+                mapped = self.map_widget_to_image(coord)
+                norm_coord = tuple(ele1 / ele2 for ele1, ele2 in zip(mapped, self.__data_shape))
+                return Geometry.FloatPoint(norm_coord[0], norm_coord[1])  # y,x
+
+    #Apply a zoom factor to the widget, optionally focussed on a specific point
+    def _apply_fixed_zoom(self, zoom_in: bool, coord: tuple[int, int] = None):
+        # print('Applying zoom factor {0}, at coordinate {1},{2}'.format(zoom_in, coord[0], coord[1]))
+        if coord:
+            #Coordinate specified, so needing to recenter to that point before we adjust zoom levels
+            widget_mapping = ImageCanvasItemMapping.make(self.__data_shape, self.__composite_canvas_item.canvas_bounds, list())
+            if widget_mapping:
+                mapped = self.map_widget_to_image(coord)
+                norm_coord = tuple(ele1 / ele2 for ele1, ele2 in zip(mapped, self.__data_shape))
+                self._set_image_canvas_position(norm_coord)
+
+                # ensure that at least half of the image is always visible
+                new_image_norm_center_0 = max(min(norm_coord[0], 1.0), 0.0)
+                new_image_norm_center_1 = max(min(norm_coord[1], 1.0), 0.0)
+                # save the new image norm center
+                new_image_canvas_position = Geometry.FloatPoint(new_image_norm_center_0, new_image_norm_center_1)
+                self._set_image_canvas_position(new_image_canvas_position)
+
+        if zoom_in:
+            self.zoom_in()
+        else:
+            self.zoom_out()
+
+    def _apply_selection_zoom(self, coord1: tuple[int, int], coord2: tuple[int, int]):
+        # print('Applying zoom factor {0}, at coordinate {1},{2}'.format(zoom_in, coord[0], coord[1]))
+        assert coord1
+        assert coord2
+        # print('from {0} to {1}'.format(coord1, coord2))
+        widget_mapping = ImageCanvasItemMapping.make(self.__data_shape, self.__composite_canvas_item.canvas_bounds, list())
+        if widget_mapping:
+            coord1_mapped = self.map_widget_to_image(coord1)
+            coord2_mapped = self.map_widget_to_image(coord2)
+            norm_coord1 = tuple(ele1 / ele2 for ele1, ele2 in zip(coord1_mapped, self.__data_shape))
+            norm_coord2 = tuple(ele1 / ele2 for ele1, ele2 in zip(coord2_mapped, self.__data_shape))
+            # print('norm from {0} to {1}'.format(norm_coord1, norm_coord2))
+
+            norm_coord = tuple((ele1 + ele2)/2 for ele1, ele2 in zip(norm_coord1, norm_coord2))
+            self._set_image_canvas_position(norm_coord)
+            # image now centered on middle of selection, need to calculate new zoom level required
+            # selection size in widget pixels
+            selection_size_screen_space = tuple(
+                abs(ele1 - ele2) for ele1, ele2 in zip(coord1, coord2))  # y,x
+            # print(selection_size_screen_space)
+            widget_width = self.__composite_canvas_item.canvas_bounds.width / self.__image_zoom
+            widget_height = self.__composite_canvas_item.canvas_bounds.height / self.__image_zoom
+            # print(widget_width)
+            # print(widget_height)
+            widget_width_factor = widget_width / selection_size_screen_space[1]
+            widget_height_factor = widget_height / selection_size_screen_space[0]
+            widget_overall_factor = max(widget_height_factor, widget_width_factor)
+            # print('factor {0}'.format(widget_overall_factor))
+            # print('old zoom {0}'.format(self.__image_zoom))
+            self.__apply_display_properties_command({"image_zoom": widget_overall_factor * self.__image_zoom, "image_canvas_mode": "custom"})
+            # print('new zoom {0}'.format(self.__image_zoom))
+            # print(self.__composite_canvas_item.canvas_bounds)
+
+
     def mouse_clicked(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         if super().mouse_clicked(x, y, modifiers):
             return True
         delegate = self.delegate
         widget_mapping = self.mouse_mapping
+
         if delegate and widget_mapping:
             # now let the image panel handle mouse clicking if desired
             image_position = widget_mapping.map_point_widget_to_image(Geometry.FloatPoint(y, x))
             return delegate.image_clicked(image_position, modifiers)
+
         return False
 
     def mouse_pressed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
@@ -1082,6 +1210,16 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             assert self.__event_loop
             self.__mouse_handler = HandMouseHandler(self, self.__event_loop)
             self.__mouse_handler.mouse_pressed(Geometry.IntPoint(y=y, x=x), modifiers)
+        elif delegate.tool_mode == "zoom-in":
+            assert not self.__mouse_handler
+            assert self.__event_loop
+            self.__mouse_handler = ZoomMouseHandler(self, self.__event_loop, True)
+            self.__mouse_handler.mouse_pressed(Geometry.IntPoint(y=y, x=x), modifiers)
+        elif delegate.tool_mode == "zoom-out":
+            assert not self.__mouse_handler
+            assert self.__event_loop
+            self.__mouse_handler = ZoomMouseHandler(self, self.__event_loop, False)
+            self.__mouse_handler.mouse_pressed(Geometry.IntPoint(y=y, x=x), modifiers)
         elif delegate.tool_mode in graphic_type_map.keys():
             assert not self.__mouse_handler
             assert self.__event_loop
@@ -1092,6 +1230,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
     def mouse_released(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         if super().mouse_released(x, y, modifiers):
             return True
+
         delegate = self.delegate
         widget_mapping = self.mouse_mapping
         if not delegate or not widget_mapping:
@@ -1104,7 +1243,15 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         if self.__mouse_handler:
             self.__mouse_handler.mouse_released(Geometry.IntPoint(y, x), modifiers)
             self.__mouse_handler = None
-        if delegate.tool_mode != "hand":
+
+        # Should probably wrap this into a function of 'Non-Toggle' UI elements
+        if delegate.tool_mode == "hand":
+            pass
+        elif delegate.tool_mode == "zoom-in":
+            pass
+        elif delegate.tool_mode == "zoom-out":
+            pass
+        else:
             delegate.tool_mode = "pointer"
         return True
 
@@ -1134,6 +1281,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         image_position = widget_mapping.map_point_widget_to_image(mouse_pos)
         if delegate.image_mouse_position_changed(image_position, modifiers):
             return True
+
         if delegate.tool_mode == "pointer":
             self.cursor_shape = self.__mouse_handler.cursor_shape if self.__mouse_handler else "arrow"
         elif delegate.tool_mode == "line":
@@ -1154,6 +1302,11 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             self.cursor_shape = "cross"
         elif delegate.tool_mode == "hand":
             self.cursor_shape = "hand"
+        elif delegate.tool_mode == "zoom-in":
+            self.cursor_shape = "mag_glass"
+        elif delegate.tool_mode == "zoom-out":
+            self.cursor_shape = "mag_glass"
+
         # x,y already have transform applied
         self.__last_mouse = mouse_pos.to_int_point()
         self.__update_cursor_info()

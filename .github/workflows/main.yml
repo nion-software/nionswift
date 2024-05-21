@@ -1,0 +1,26 @@
+name: Add Issue to Kanban Board
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  add-to-kanban:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Add issue to Kanban board
+        uses: actions/github-script@0.7.0
+        with:
+          script: |
+            const issueNumber = context.payload.issue.number;
+            const projectId = '1';
+            const columnId = '1';
+            const octokit = new Octokit({ auth: process.env.PAT });
+            await octokit.projects.createCard({
+              column_id: columnId,
+              content_id: issueNumber,
+              content_type: 'Issue'
+            });
+        env:
+          PAT: ${{ secrets.PAT }}
