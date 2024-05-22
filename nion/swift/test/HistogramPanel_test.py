@@ -40,7 +40,7 @@ class TestHistogramPanelClass(unittest.TestCase):
             histogram_panel = document_controller.find_dock_panel("histogram-panel")
             histogram_canvas_item = histogram_panel._histogram_widget._histogram_canvas_item
             document_controller.show_display_item(display_item)
-            histogram_canvas_item.update_layout((0, 0), (80, 300), immediate=True)
+            histogram_canvas_item.update_layout((0, 0), (80, 300))
             # test
             display_data_channel = display_item.display_data_channels[0]
             self.assertEqual(display_data_channel.get_latest_computed_display_values().display_range, (200, 650))
@@ -72,7 +72,7 @@ class TestHistogramPanelClass(unittest.TestCase):
             histogram_panel = document_controller.find_dock_panel("histogram-panel")
             histogram_canvas_item = histogram_panel._histogram_widget._histogram_canvas_item
             document_controller.show_display_item(display_item)
-            histogram_canvas_item.update_layout((0, 0), (80, 300), immediate=True)
+            histogram_canvas_item.update_layout((0, 0), (80, 300))
             # verify assumptions
             # wait for histogram task to be complete
             histogram_panel._histogram_processor._evaluate_immediate()
@@ -96,7 +96,7 @@ class TestHistogramPanelClass(unittest.TestCase):
             histogram_panel = document_controller.find_dock_panel("histogram-panel")
             histogram_canvas_item = histogram_panel._histogram_widget._histogram_canvas_item
             document_controller.show_display_item(display_item)
-            histogram_canvas_item.update_layout((0, 0), (80, 300), immediate=True)
+            histogram_canvas_item.update_layout((0, 0), (80, 300))
             # verify assumptions
             histogram_panel._histogram_processor._evaluate_immediate()
             stats1_text = histogram_panel._statistics_widget._stats1_property.value
@@ -122,7 +122,7 @@ class TestHistogramPanelClass(unittest.TestCase):
             histogram_panel = document_controller.find_dock_panel("histogram-panel")
             histogram_canvas_item = histogram_panel._histogram_widget._histogram_canvas_item
             document_controller.show_display_item(display_item)
-            histogram_canvas_item.update_layout((0, 0), (80, 300), immediate=True)
+            histogram_canvas_item.update_layout((0, 0), (80, 300))
             # grab initial values
             histogram_panel._histogram_processor._evaluate_immediate()
             stats1_text = histogram_panel._statistics_widget._stats1_property.value
@@ -148,7 +148,7 @@ class TestHistogramPanelClass(unittest.TestCase):
             histogram_panel = document_controller.find_dock_panel("histogram-panel")
             histogram_canvas_item = histogram_panel._histogram_widget._histogram_canvas_item
             document_controller.show_display_item(display_item)
-            histogram_canvas_item.update_layout((0, 0), (80, 300), immediate=True)
+            histogram_canvas_item.update_layout((0, 0), (80, 300))
             # test
             histogram_panel._histogram_processor._evaluate_immediate()
             stats1_text = histogram_panel._statistics_widget._stats1_property.value
@@ -208,7 +208,7 @@ class TestHistogramPanelClass(unittest.TestCase):
             histogram_panel = document_controller.find_dock_panel("histogram-panel")
             histogram_canvas_item = histogram_panel._histogram_widget._histogram_canvas_item
             document_controller.show_display_item(display_item)
-            histogram_canvas_item.update_layout((0, 0), (80, 300), immediate=True)
+            histogram_canvas_item.update_layout((0, 0), (80, 300))
             # run test
             data_item._force_unload()
             histogram_canvas_item.mouse_position_changed(80, 58, 0)
@@ -229,7 +229,7 @@ class TestHistogramPanelClass(unittest.TestCase):
             histogram_panel = document_controller.find_dock_panel("histogram-panel")
             histogram_canvas_item = histogram_panel._histogram_widget._histogram_canvas_item
             document_controller.show_display_item(display_item)
-            histogram_canvas_item.update_layout((0, 0), (80, 300), immediate=True)
+            histogram_canvas_item.update_layout((0, 0), (80, 300))
 
     def test_histogram_statistics_on_slice(self):
         with TestContext.create_memory_context() as test_context:
@@ -246,7 +246,7 @@ class TestHistogramPanelClass(unittest.TestCase):
             histogram_panel = document_controller.find_dock_panel("histogram-panel")
             histogram_canvas_item = histogram_panel._histogram_widget._histogram_canvas_item
             document_controller.show_display_item(display_item)
-            histogram_canvas_item.update_layout((0, 0), (80, 300), immediate=True)
+            histogram_canvas_item.update_layout((0, 0), (80, 300))
             # force evaluation of the histogram statistics
             histogram_panel._histogram_processor._evaluate_immediate()
             statistics_dict = histogram_panel._histogram_processor.statistics

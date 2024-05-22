@@ -340,12 +340,12 @@ class ImageAreaCanvasItemLayout(CanvasItem.CanvasItemLayout):
         if content:
             if not content._has_layout:
                 # if the content has not layout yet, always update it.
-                self.update_canvas_item_layout(canvas_origin, canvas_size, content, immediate=immediate)
+                self.update_canvas_item_layout(canvas_origin, canvas_size, content)
             if canvas_size:
                 widget_mapping = ImageCanvasItemMapping.make(self._data_shape, Geometry.IntRect(canvas_origin, canvas_size), list())
                 if widget_mapping:
                     image_canvas_rect = calculate_origin_and_size(canvas_size, widget_mapping.data_shape, self._image_canvas_mode, self._image_zoom, self._image_position)
-                    content.update_layout(image_canvas_rect.origin, image_canvas_rect.size, immediate=immediate)
+                    content.update_layout(image_canvas_rect.origin, image_canvas_rect.size)
 
 
 class ImageAreaCompositeCanvasItem(CanvasItem.CanvasItemComposition):
