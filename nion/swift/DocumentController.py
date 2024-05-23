@@ -888,9 +888,7 @@ class DocumentController(Window.Window):
 
     def export_files(self, display_items: typing.Sequence[DisplayItem.DisplayItem]) -> None:
         if len(display_items) > 1:
-            export_dialog = ExportDialog.ExportDialog(self.ui, self)
-            export_dialog.on_accept = functools.partial(export_dialog.do_export, display_items)
-            export_dialog.show()
+            export_dialog = ExportDialog.ExportDialog(self.ui, self, self, display_items)
         elif len(display_items) == 1:
             self.export_file(display_items[0])
 
