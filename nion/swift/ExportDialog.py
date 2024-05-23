@@ -18,6 +18,7 @@ import unicodedata
 
 # local libraries
 from nion.swift.model import ImportExportManager
+from nion.swift.model import DisplayItem
 from nion.swift.model import Utility
 from nion.swift import DocumentController
 from nion.swift import DisplayPanel
@@ -35,18 +36,17 @@ if typing.TYPE_CHECKING:
 _ = gettext.gettext
 
 
-@dataclass(init=False)
 class ExportDialogViewModel:
-    include_title: Model.PropertyModel()
-    include_date: Model.PropertyModel()
-    include_dimensions: Model.PropertyModel()
-    include_sequence: Model.PropertyModel()
-    include_prefix: Model.PropertyModel()
-    prefix: Model.PropertyModel()
-    directory: Model.PropertyModel()
-    writer: Model.PropertyModel()
+    include_title: Model.PropertyModel[bool]
+    include_date: Model.PropertyModel[bool]
+    include_dimensions: Model.PropertyModel[bool]
+    include_sequence: Model.PropertyModel[bool]
+    include_prefix: Model.PropertyModel[bool]
+    prefix: Model.PropertyModel[str]
+    directory: Model.PropertyModel[str]
+    writer: Model.PropertyModel[ImportExportHandler]
 
-    def __init__(self, title: bool, date: bool, dimensions: bool, sequence: bool, prefix: str = None, directory: str = None, writer=None):
+    def __init__(self, title: bool, date: bool, dimensions: bool, sequence: bool, prefix: str = "", directory: str = "", writer=None):
         self.include_title = Model.PropertyModel(title)
         self.include_date = Model.PropertyModel(date)
         self.include_dimensions = Model.PropertyModel(dimensions)
@@ -61,7 +61,7 @@ class ExportDialogViewModel:
         self.writer = Model.PropertyModel(writer)
 
 
-class ExportDialog():
+class ExportDialog(Declarative.Handler):
     def __init__(self, ui: UserInterface.UserInterface, parent_window: Window.Window, document_controller: DocumentController.DocumentController, display_items: DisplayItem.DisplayItems):
         super().__init__()
 
@@ -71,7 +71,7 @@ class ExportDialog():
         self.directory = self.ui.get_persistent_string("export_directory", self.ui.get_document_location())
         self.writer = ImportExportManager.ImportExportManager().get_writer_by_id(io_handler_id)
 
-        self.viewmodel = ExportDialogViewModel(True, True, True, True, None, self.directory, self.writer)
+        self.viewmodel = ExportDialogViewModel(True, True, True, True, "", self.directory, self.writer)
         u = Declarative.DeclarativeUI()
         self._build_ui(u)
 
@@ -93,8 +93,7 @@ class ExportDialog():
         writer = self.writers[current_index]
         self.viewmodel.writer.value = writer
 
-    def _build_ui(self, u: Declarative.DeclarativeUI):
-        print("Building UI")
+    def _build_ui(self, u: Declarative.DeclarativeUI) -> None:
         self.file_type_index = 0
         self.writers = ImportExportManager.ImportExportManager().get_writers()
         writers_names = [getattr(writer, "name") for writer in self.writers]
@@ -145,7 +144,7 @@ class ExportDialog():
         self.ui_view = column
 
     @staticmethod
-    def build_filename(components: typing.List[str], extension: str, suffix: str = "($)", path: str = None) -> str:
+    def build_filename(components: typing.List[str], extension: str, suffix: str = "($)", path: str = "") -> str:
         # if path doesn't end in a directory character, add one
         if path:
             if not (path.endswith('/') or path.endswith('\\')):
