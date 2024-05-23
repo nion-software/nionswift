@@ -62,7 +62,7 @@ class ExportDialogViewModel:
 
 
 class ExportDialog(Declarative.Handler):
-    writer = ImportExportManager.ImportExportHandler
+    writer = ImportExportManager.ImportExportHandler()
     def __init__(self, ui: UserInterface.UserInterface, parent_window: Window.Window, document_controller: DocumentController.DocumentController, display_items: typing.Sequence[DisplayItem.DisplayItem]):
         super().__init__()
 
