@@ -46,7 +46,7 @@ class ExportDialogViewModel:
     directory: Model.PropertyModel[str]
     writer: Model.PropertyModel[ImportExportManager.ImportExportHandler]
 
-    def __init__(self, title: bool, date: bool, dimensions: bool, sequence: bool, prefix: str = "", directory: str = "", writer: ImportExportManager.ImportExportHandler = None):
+    def __init__(self, title: bool, date: bool, dimensions: bool, sequence: bool, writer: ImportExportManager.ImportExportHandler, prefix: str = "", directory: str = ""):
         self.include_title = Model.PropertyModel(title)
         self.include_date = Model.PropertyModel(date)
         self.include_dimensions = Model.PropertyModel(dimensions)
@@ -71,7 +71,7 @@ class ExportDialog(Declarative.Handler):
         self.directory = self.ui.get_persistent_string("export_directory", self.ui.get_document_location())
         self.writer = ImportExportManager.ImportExportManager().get_writer_by_id(io_handler_id)
 
-        self.viewmodel = ExportDialogViewModel(True, True, True, True, "", self.directory, self.writer)
+        self.viewmodel = ExportDialogViewModel(True, True, True, True, self.writer, "", self.directory)
         u = Declarative.DeclarativeUI()
         self._build_ui(u)
 
