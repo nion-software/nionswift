@@ -62,6 +62,7 @@ class ExportDialogViewModel:
 
 
 class ExportDialog(Declarative.Handler):
+    writer = ImportExportManager.ImportExportHandler
     def __init__(self, ui: UserInterface.UserInterface, parent_window: Window.Window, document_controller: DocumentController.DocumentController, display_items: typing.Sequence[DisplayItem.DisplayItem]):
         super().__init__()
 
@@ -69,7 +70,9 @@ class ExportDialog(Declarative.Handler):
         io_handler_id = self.ui.get_persistent_string("export_io_handler_id", "png-io-handler")
         self.__document_controller = document_controller
         self.directory = self.ui.get_persistent_string("export_directory", self.ui.get_document_location())
-        self.writer = ImportExportManager.ImportExportManager().get_writer_by_id(io_handler_id)
+        writer = ImportExportManager.ImportExportManager().get_writer_by_id(io_handler_id)
+        if writer:
+            self.writer = writer
 
         self.viewmodel = ExportDialogViewModel(True, True, True, True, self.writer, "", self.directory)
         u = Declarative.DeclarativeUI()
