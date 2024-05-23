@@ -32,7 +32,6 @@ from nion.utils import Model
 
 if typing.TYPE_CHECKING:
     from nion.swift.model import DisplayItem
-    from nion.swift.model import DisplayItems
 
 _ = gettext.gettext
 
@@ -45,9 +44,9 @@ class ExportDialogViewModel:
     include_prefix: Model.PropertyModel[bool]
     prefix: Model.PropertyModel[str]
     directory: Model.PropertyModel[str]
-    writer: Model.PropertyModel[ImportExportHandler]
+    writer: Model.PropertyModel[ImportExportManager.ImportExportHandler]
 
-    def __init__(self, title: bool, date: bool, dimensions: bool, sequence: bool, prefix: str = "", directory: str = "", writer: ImportExportHandler = None):
+    def __init__(self, title: bool, date: bool, dimensions: bool, sequence: bool, prefix: str = "", directory: str = "", writer: ImportExportManager.ImportExportHandler = None):
         self.include_title = Model.PropertyModel(title)
         self.include_date = Model.PropertyModel(date)
         self.include_dimensions = Model.PropertyModel(dimensions)
@@ -63,7 +62,7 @@ class ExportDialogViewModel:
 
 
 class ExportDialog(Declarative.Handler):
-    def __init__(self, ui: UserInterface.UserInterface, parent_window: Window.Window, document_controller: DocumentController.DocumentController, display_items: DisplayItem.DisplayItems):
+    def __init__(self, ui: UserInterface.UserInterface, parent_window: Window.Window, document_controller: DocumentController.DocumentController, display_items: typing.Sequence[DisplayItem.DisplayItem]):
         super().__init__()
 
         self.ui = ui
