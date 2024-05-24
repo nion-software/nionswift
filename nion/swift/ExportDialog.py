@@ -202,14 +202,16 @@ class ExportSVGHandler:
 
         self.width_model = Model.PropertyModel(display_size.width)
         self.height_model = Model.PropertyModel(display_size.height)
-
         self.int_converter = Converter.IntegerToStringConverter()
-
+        self.units = Model.PropertyModel()
         u = Declarative.DeclarativeUI()
-        width_row = u.create_row(u.create_label(text=_("Width (in)"), width=80), u.create_line_edit(text="@binding(width_model.value, converter=int_converter)"), spacing=12)
-        height_row = u.create_row(u.create_label(text=_("Height (in)"), width=80), u.create_line_edit(text="@binding(height_model.value, converter=int_converter)"), spacing=12)
-        main_page = u.create_column(width_row, height_row, spacing=12, margin=12)
 
+        width_row = u.create_row(u.create_label(text=_("Width (in)"), width=80), u.create_line_edit(text="@binding(width_model.value, converter=int_converter)"), spacing=12)
+        height_row = u.create_row(u.create_label(text=_("Height: "), width=80), u.create_line_edit(text="@binding(height_model.value, converter=int_converter)"),
+                                  u.create_combo_box(items=["Inches", "Centimeters","Pixels"],
+                                                     current_index="@binding(units.value)"), spacing=12)
+
+        main_page = u.create_column(height_row, spacing=12, margin=12)
         self.ui_view = main_page
 
     def close(self) -> None:
@@ -233,17 +235,25 @@ class ExportSVGDialog:
         display_item.display_properties = display_properties
 
         if display_item.display_data_shape and len(display_item.display_data_shape) == 2:
-            display_size = Geometry.IntSize(height=4, width=4)
+            display_size = Geometry.IntSize(height=10, width=10)
         else:
             display_size = Geometry.IntSize(height=3, width=4)
 
         handler = ExportSVGHandler(display_item, display_size)
 
         def ok_clicked() -> bool:
-            dpi = 96
-            width_px = (handler.width_model.value or display_size.width) * dpi
-            height_px = (handler.height_model.value or display_size.height) * dpi
+            pixels_per_unit = 96
+            if handler.units.value ==1:
+                pixels_per_unit = 37.7953
+            elif handler.units.value ==2:
+                pixels_per_unit = 1
 
+
+            display_item_ratio = display_item.display_data_shape[1]/display_item.display_data_shape[0]
+
+
+            height_px = (handler.height_model.value) * pixels_per_unit
+            width_px = int(height_px*display_item_ratio)
             ui = document_controller.ui
             filter = "SVG File (*.svg);;All Files (*.*)"
             export_dir = ui.get_persistent_string("export_directory", ui.get_document_location())
@@ -254,7 +264,18 @@ class ExportSVGDialog:
             if path:
                 ui.set_persistent_string("export_directory", selected_directory)
                 display_shape = Geometry.IntSize(height=height_px, width=width_px)
+
                 document_controller.export_svg_file(DisplayPanel.DisplayPanelUISettings(ui), display_item, display_shape, pathlib.Path(path))
+
+                drawing_context, shape = DisplayPanel.preview(DisplayPanel.DisplayPanelUISettings(ui), display_item, display_shape.width, display_shape.height)
+                view_box = Geometry.IntRect(Geometry.IntPoint(), shape)
+
+                svg = drawing_context.to_svg(shape, view_box)
+
+                with Utility.AtomicFileWriter(pathlib.Path(path)) as fp:
+                    fp.write(svg)
+
+
             return True
 
         def cancel_clicked() -> bool:
