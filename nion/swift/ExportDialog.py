@@ -190,7 +190,7 @@ class ExportDialog(Declarative.Handler):
     def export_clicked(display_items: typing.Sequence[DisplayItem.DisplayItem], viewmodel: ExportDialogViewModel) -> bool:
         directory = viewmodel.directory.value
         writer = viewmodel.writer
-        if directory and writer:
+        if directory and writer and writer.value:
             for index, display_item in enumerate(display_items):
                 data_item = display_item.data_item
                 if data_item:
