@@ -203,7 +203,7 @@ class ExportSVGHandler:
         self.width_model = Model.PropertyModel(display_size.width)
         self.height_model = Model.PropertyModel(display_size.height)
         self.int_converter = Converter.IntegerToStringConverter()
-        self.units = Model.PropertyModel()
+        self.units: int = Model.PropertyModel()
         u = Declarative.DeclarativeUI()
 
         width_row = u.create_row(u.create_label(text=_("Width (in)"), width=80), u.create_line_edit(text="@binding(width_model.value, converter=int_converter)"), spacing=12)
