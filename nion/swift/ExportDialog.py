@@ -46,7 +46,7 @@ class ExportDialogViewModel:
     directory: Model.PropertyModel[str]
     writer: Model.PropertyModel[ImportExportManager.ImportExportHandler]
 
-    def __init__(self, title: bool, date: bool, dimensions: bool, sequence: bool, writer: ImportExportManager.ImportExportHandler, prefix: str = "", directory: str = ""):
+    def __init__(self, title: bool, date: bool, dimensions: bool, sequence: bool, writer: typing.Optional[ImportExportManager.ImportExportHandler], prefix: str = "", directory: str = ""):
         self.include_title = Model.PropertyModel(title)
         self.include_date = Model.PropertyModel(date)
         self.include_dimensions = Model.PropertyModel(dimensions)
@@ -58,11 +58,12 @@ class ExportDialogViewModel:
             self.include_prefix = Model.PropertyModel(False)
             self.prefix = Model.PropertyModel(None)
         self.directory = Model.PropertyModel(directory)
-        self.writer = Model.PropertyModel(writer)
+        if writer:
+            self.writer = Model.PropertyModel(writer)
 
 
 class ExportDialog(Declarative.Handler):
-    writer: ImportExportManager|None = None
+    writer: typing.Optional[ImportExportManager.ImportExportHandler] = None
     def __init__(self, ui: UserInterface.UserInterface, parent_window: Window.Window, document_controller: DocumentController.DocumentController, display_items: typing.Sequence[DisplayItem.DisplayItem]):
         super().__init__()
 
