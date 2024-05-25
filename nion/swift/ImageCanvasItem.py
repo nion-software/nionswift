@@ -216,6 +216,7 @@ class ScaleMarkerCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__info_text = str()
         self.__screen_pixel_per_image_pixel_stream = screen_pixel_per_image_pixel_stream.add_ref()
         self.__screen_pixel_per_image_pixel_action = Stream.ValueStreamAction(screen_pixel_per_image_pixel_stream, lambda x: self.__update_sizing())
+        self.__scale_marker_width = 0
 
     def close(self) -> None:
         self.__screen_pixel_per_image_pixel_stream.remove_ref()
@@ -229,8 +230,8 @@ class ScaleMarkerCanvasItem(CanvasItem.AbstractCanvasItem):
         return self.__dimensional_calibration
 
     def __update_sizing(self) -> None:
-        height = self.scale_marker_height
-        width = 20
+        height = self.scale_marker_height + 4 + 2 * self.__get_font_metrics_fn(self.scale_marker_font, "MMM").height
+        scale_marker_width = 0
         dimensional_calibration = self.__dimensional_calibration
         if dimensional_calibration is not None:  # display scale marker?
             screen_pixel_per_image_pixel = self.__screen_pixel_per_image_pixel_stream.value
@@ -241,14 +242,9 @@ class ScaleMarkerCanvasItem(CanvasItem.AbstractCanvasItem):
                 # update the scale marker width
                 scale_marker_image_width = calibrated_scale_marker_width / dimensional_scale
                 scale_marker_width = round(scale_marker_image_width * screen_pixel_per_image_pixel)
-                text1 = dimensional_calibration.convert_to_calibrated_size_str(scale_marker_image_width)
-                text2 = self.__info_text
-                fm1 = self.__get_font_metrics_fn(self.scale_marker_font, text1)
-                fm2 = self.__get_font_metrics_fn(self.scale_marker_font, text2)
-                height = height + 4 + fm1.height + fm2.height
-                width = 20 + max(scale_marker_width, fm1.width, fm2.width)
+        self.__scale_marker_width = scale_marker_width
         new_sizing = self.copy_sizing()
-        new_sizing = new_sizing.with_fixed_width(width)
+        new_sizing = new_sizing.with_unconstrained_width()
         new_sizing = new_sizing.with_fixed_height(height)
         self.update_sizing(new_sizing)
         self.update()
@@ -272,7 +268,7 @@ class ScaleMarkerCanvasItem(CanvasItem.AbstractCanvasItem):
         if canvas_size and dimensional_calibration:  # display scale marker?
             screen_pixel_per_image_pixel = self.__screen_pixel_per_image_pixel_stream.value
             if screen_pixel_per_image_pixel and screen_pixel_per_image_pixel > 0.0:
-                scale_marker_image_width = self.scale_marker_width / screen_pixel_per_image_pixel
+                scale_marker_image_width = self.__scale_marker_width / screen_pixel_per_image_pixel
                 calibrated_scale_marker_width = Geometry.make_pretty2(scale_marker_image_width * dimensional_calibration.scale, True)
                 # update the scale marker width
                 scale_marker_image_width = calibrated_scale_marker_width / dimensional_calibration.scale
@@ -961,7 +957,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                             image_canvas_rect = None
                         if image_canvas_rect != self.__composite_canvas_item.canvas_rect:
                             # layout. this makes sure that the info overlay gets updated too.
-                            self.scroll_area_canvas_item.refresh_layout()
+                            self.update_layout(self.canvas_origin, self.canvas_size)
                             # trigger updates
                             self.__composite_canvas_item.update()
                             self.__bitmap_canvas_item.update()
