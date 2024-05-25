@@ -966,7 +966,6 @@ class TestStorageClass(unittest.TestCase):
                 display_item = document_model.get_display_item_for_data_item(data_item)
                 display_panel.set_display_panel_display_item(display_item)
                 display_panel.display_canvas_item.layout_immediate(Geometry.IntSize(w=200, h=50))
-                display_panel.display_canvas_item.prepare_display()  # force layout
 
     def test_writing_empty_data_item_returns_expected_values(self):
         with create_temp_profile_context() as profile_context:

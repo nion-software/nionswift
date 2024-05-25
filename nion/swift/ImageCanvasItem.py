@@ -1304,9 +1304,6 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                 drawing_context.fill_text("update:" + fps3, text_pos.x + 8, text_pos.y + 50)
                 drawing_context.statistics("display")
 
-    def prepare_display(self) -> None:
-        pass
-
     @property
     def image_canvas_mode(self) -> str:
         return self.__image_canvas_mode
