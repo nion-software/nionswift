@@ -285,22 +285,28 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.__line_graph_outer_left_legend.size_to_content()
         self.__line_graph_outer_right_legend.size_to_content()
 
-        self.__line_graph_legend_row.visible = False
-        self.__line_graph_legend_row.canvas_items[0].visible = False
-        self.__line_graph_legend_row.canvas_items[2].visible = False
-        self.__line_graph_outer_right_column.visible = False
-        self.__line_graph_outer_left_column.visible = False
+        line_graph_legend_row_visible = False
+        line_graph_legend_row_canvas_item0_visible = False
+        line_graph_legend_row_canvas_item2_visible = False
+        line_graph_outer_right_column_visible = False
+        line_graph_outer_left_column_visible = False
 
         if self.__legend_position == "top-left":
-            self.__line_graph_legend_row.visible= True
-            self.__line_graph_legend_row.canvas_items[2].visible = True
+            line_graph_legend_row_visible= True
+            line_graph_legend_row_canvas_item2_visible = True
         elif self.__legend_position == "top-right":
-            self.__line_graph_legend_row.visible = True
-            self.__line_graph_legend_row.canvas_items[0].visible = True
+            line_graph_legend_row_visible = True
+            line_graph_legend_row_canvas_item0_visible = True
         elif self.__legend_position == "outer-left":
-            self.__line_graph_outer_left_column.visible = True
+            line_graph_outer_left_column_visible = True
         elif self.__legend_position == "outer-right":
-            self.__line_graph_outer_right_column.visible = True
+            line_graph_outer_right_column_visible = True
+
+        self.__line_graph_legend_row.visible = line_graph_legend_row_visible
+        self.__line_graph_legend_row.canvas_items[0].visible = line_graph_legend_row_canvas_item0_visible
+        self.__line_graph_legend_row.canvas_items[2].visible = line_graph_legend_row_canvas_item2_visible
+        self.__line_graph_outer_right_column.visible = line_graph_outer_right_column_visible
+        self.__line_graph_outer_left_column.visible = line_graph_outer_left_column_visible
 
     def add_display_control(self, display_control_canvas_item: CanvasItem.AbstractCanvasItem, role: typing.Optional[str] = None) -> None:
         if role == "related_icons":
