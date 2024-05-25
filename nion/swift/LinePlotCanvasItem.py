@@ -516,9 +516,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         This method saves the display values and data and triggers an update. It should be as fast as possible.
 
         As a layer, this canvas item will respond to the update by calling prepare_render on the layer's rendering
-        thread. Prepare render will call prepare_display which will construct new axes and update all constituent
-        canvas items such as the axes labels and the graph layers. Each will trigger its own update if its inputs have
-        changed.
+        thread.
 
         The inefficiencies in this process are that the layer must re-render on each call to this function. There is
         also a cost within the constituent canvas items to check whether the axes or their data has changed.
@@ -721,9 +719,6 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         if xdata0:
             self.__view_to_selected_graphics(xdata0)
         return True
-
-    def prepare_display(self) -> None:
-        pass
 
     def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
         super()._repaint(drawing_context)
