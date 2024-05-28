@@ -96,13 +96,14 @@ class DisplayScriptCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             self.__display_xdata = display_xdata
         if display_data_delta.display_values_list_changed or display_data_delta.display_calibration_info_changed or display_data_delta.display_layers_list_changed or display_data_delta.display_properties_changed:
             self.__display_script = display_data_delta.display_properties.get("display_script")
-            self.update()
+        self.__update_display_info()
+        self.update()
 
     def handle_auto_display(self) -> bool:
         # enter key has been pressed
         return False
 
-    def _prepare_render(self) -> None:
+    def __update_display_info(self) -> None:
         data_and_metadata = self.__display_xdata
         display_script = self.__display_script
         if data_and_metadata and display_script:

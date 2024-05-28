@@ -532,7 +532,6 @@ class TestInspectorClass(unittest.TestCase):
             display_item.append_display_data_channel(DisplayItem.DisplayDataChannel(data_item=data_item2))
             display_panel.set_display_panel_display_item(display_item)
             display_panel.root_container.layout_immediate(Geometry.IntSize(240, 1000))
-            display_panel.display_canvas_item.prepare_display()  # force layout
             display_panel.display_canvas_item.refresh_layout_immediate()
             document_controller.periodic()
             line_plot_canvas_item = display_panel.display_canvas_item
