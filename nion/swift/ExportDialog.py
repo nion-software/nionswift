@@ -242,17 +242,17 @@ class ExportSVGDialog:
         handler = ExportSVGHandler(display_item, display_size)
 
         def ok_clicked() -> bool:
-            pixels_per_unit = 96
+            pixels_per_unit: float = 96.0
             if handler.units.value ==1:
                 pixels_per_unit = 37.7953
             elif handler.units.value ==2:
                 pixels_per_unit = 1
 
+            display_shape: tuple = display_item.display_data_shape
+            display_item_ratio = display_shape[1]/display_shape[0]
 
-            display_item_ratio = display_item.display_data_shape[1]/display_item.display_data_shape[0]
 
-
-            height_px = (handler.height_model.value) * pixels_per_unit
+            height_px = int((handler.height_model.value)) * pixels_per_unit
             width_px = int(height_px*display_item_ratio)
             ui = document_controller.ui
             filter = "SVG File (*.svg);;All Files (*.*)"
