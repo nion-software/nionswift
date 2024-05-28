@@ -3067,7 +3067,6 @@ def preview(ui_settings: UISettings.UISettings, display_item: DisplayItem.Displa
             display_canvas_item.update_display_data_delta(display_data_delta)
             with drawing_context.saver():
                 frame_width, frame_height = width, int(width / display_canvas_item.default_aspect_ratio)
-                display_canvas_item._prepare_render()
                 display_canvas_item.repaint_immediate(drawing_context, Geometry.IntSize(height=frame_height, width=frame_width))
                 shape = Geometry.IntSize(height=frame_height, width=frame_width)
     return drawing_context, shape
