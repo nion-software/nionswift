@@ -248,10 +248,18 @@ class ExportSVGDialog:
             elif handler.units.value ==2:
                 pixels_per_unit = 1
 
-            display_item_ratio = display_item.display_data_shape[1]/display_item.display_data_shape[0]
+            if display_item.display_data_shape is not None:
+                display_item_ratio = display_item.display_data_shape[1] / display_item.display_data_shape[0]
+            else:
+                # Handle the case where display_data_shape is None
+                display_item_ratio = 1  # or any other default value
 
-
-            height_px = int((handler.height_model.value)) * pixels_per_unit
+            height_value = handler.height_model.value
+            if height_value is not None:
+                height_px = int(height_value) * pixels_per_unit
+            else:
+                # Handle the case where height_model.value is None
+                height_px = 0  # or any other default value
             width_px = int(height_px*display_item_ratio)
             ui = document_controller.ui
             filter = "SVG File (*.svg);;All Files (*.*)"
@@ -262,7 +270,7 @@ class ExportSVGDialog:
                 path = path + os.path.extsep + "svg"
             if path:
                 ui.set_persistent_string("export_directory", selected_directory)
-                display_shape = Geometry.IntSize(height=height_px, width=width_px)
+                display_shape = Geometry.IntSize(height=int(height_px), width=int(width_px))
 
                 document_controller.export_svg_file(DisplayPanel.DisplayPanelUISettings(ui), display_item, display_shape, pathlib.Path(path))
 
