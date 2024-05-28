@@ -916,10 +916,10 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                         color_map_rgba = color_map_rgba.view(numpy.uint32).reshape(color_map_rgba.shape[:-1])
                     else:
                         color_map_rgba = None
-                    self.__bitmap_canvas_item.set_data(display_data.data, display_range, color_map_rgba, trigger_update=False)
+                    self.__bitmap_canvas_item.set_data(display_data.data, display_range, color_map_rgba)
                 else:
                     data_rgba = display_values.display_rgba
-                    self.__bitmap_canvas_item.set_rgba_bitmap_data(data_rgba, trigger_update=False)
+                    self.__bitmap_canvas_item.set_rgba_bitmap_data(data_rgba)
                 self.__timestamp_canvas_item.timestamp = display_values.display_rgba_timestamp if self.__display_latency else None
 
     def __update_display_properties_and_layers(self, display_calibration_info: DisplayItem.DisplayCalibrationInfo, display_properties: Persistence.PersistentDictType, display_layers: typing.Sequence[Persistence.PersistentDictType]) -> None:
@@ -983,12 +983,13 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                             self.update_layout(self.canvas_origin, self.canvas_size)
                             # trigger updates
                             self.__composite_canvas_item.update()
-                            self.__bitmap_canvas_item.update()
-                        else:
-                            # trigger updates
-                            self.__bitmap_canvas_item.update()
 
-                # update bitmaps
+                    # note: bitmap canvas item will be updated in the display_info_changed method.
+                    # doing it in display_info_changed ensures that the repaint (on a thread) does not occur
+                    # before setting the data. if the update were done above, as it used to be, the repaint
+                    # could occur before the new data was sent to the bitmap canvas item.
+
+                # update bitmaps. this will update the bitmap canvas item, too.
                 self.__display_info_changed()
 
                 # setting the bitmap on the bitmap_canvas_item is delayed until paint, so that it happens on a thread, since it may be time consuming
