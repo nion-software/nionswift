@@ -1641,6 +1641,43 @@ class TestDisplayPanelClass(unittest.TestCase):
             graphic.bounds = Geometry.FloatRect.from_tlbr(0.1, 0.1, 0.2, 0.2)
             self.assertEqual(update_count + 1, display_panel.display_canvas_item._update_count)
 
+    def test_image_display_canvas_item_does_not_update_if_graphic_does_not_change(self):
+        # confirm that clicking on a graphic does not change the display item (causing it or its thumbnail to redraw).
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.DataItem(numpy.random.randn(8, 8))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            graphic = Graphics.RectangleGraphic()
+            display_item.add_graphic(graphic)
+            display_panel.set_display_panel_display_item(display_item)
+            display_panel.root_container.layout_immediate(Geometry.IntSize(240, 240))
+            document_controller.periodic()
+            self.assertIsInstance(display_panel.display_canvas_item, ImageCanvasItem.ImageCanvasItem)
+            document_controller.periodic()
+            # click once
+            display_panel.display_canvas_item.simulate_click(Geometry.IntPoint(120, 120))
+            document_controller.periodic()
+            update_count = display_panel.display_canvas_item._update_count
+
+            display_item_did_change = False
+
+            def item_changed() -> None:
+                nonlocal display_item_did_change
+                display_item_did_change = True
+
+            with display_item.item_changed_event.listen(item_changed):
+                # click again, nothing should change. use explicit press/release to perform periodic.
+                display_panel.display_canvas_item.simulate_press(Geometry.IntPoint(120, 120))
+                document_controller.periodic()
+                display_panel.display_canvas_item.simulate_release(Geometry.IntPoint(120, 120))
+                document_controller.periodic()
+                self.assertEqual(update_count, display_panel.display_canvas_item._update_count)
+
+            self.assertFalse(display_item_did_change)
+
     def test_image_display_canvas_item_only_updates_once_if_color_map_changes(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()

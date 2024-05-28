@@ -2651,11 +2651,17 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
 
     def adjust_graphics(self, widget_mapping: Graphics.CoordinateMappingLike, graphic_drag_items: typing.Sequence[Graphics.Graphic], graphic_drag_part: str, graphic_part_data: typing.Dict[int, Graphics.DragPartData], graphic_drag_start_pos: Geometry.FloatPoint, pos: Geometry.FloatPoint, modifiers: UserInterface.KeyboardModifiers) -> None:
         if self.__display_item:
-            with self.__display_item.display_item_changes():
-                for graphic in graphic_drag_items:
-                    index = self.__display_item.graphics.index(graphic)
-                    part_data = (graphic_drag_part, ) + graphic_part_data[index]
-                    graphic.adjust_part(widget_mapping, graphic_drag_start_pos, pos, part_data, modifiers)
+            graphic_changed = False
+            for graphic in graphic_drag_items:
+                index = self.__display_item.graphics.index(graphic)
+                part_data = (graphic_drag_part, ) + graphic_part_data[index]
+                graphic_modified = graphic.modified_count
+                graphic.adjust_part(widget_mapping, graphic_drag_start_pos, pos, part_data, modifiers)
+                if graphic.modified_count != graphic_modified:
+                    graphic_changed = True
+            if graphic_changed:
+                self.__display_item._begin_display_item_changes()
+                self.__display_item._end_display_item_changes()
 
     def nudge_slice(self, delta: int) -> None:
         display_data_channel = self.__display_item.display_data_channel if self.__display_item else None
