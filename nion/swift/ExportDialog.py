@@ -248,8 +248,7 @@ class ExportSVGDialog:
             elif handler.units.value ==2:
                 pixels_per_unit = 1
 
-            display_shape: tuple = display_item.display_data_shape
-            display_item_ratio = display_shape[1]/display_shape[0]
+            display_item_ratio = display_item.display_data_shape[1]/display_item.display_data_shape[0]
 
 
             height_px = int((handler.height_model.value)) * pixels_per_unit
