@@ -3278,7 +3278,8 @@ Window.register_action(SetToolModeAction("spot", _("Spot"), "spot_icon.png", _("
 Window.register_action(SetToolModeAction("wedge", _("Wedge"), "wedge_icon.png", _("Wedge tool for creating wedge masks")))
 Window.register_action(SetToolModeAction("ring", _("Ring"), "annular_ring.png", _("Ring tool for creating ring masks")))
 Window.register_action(SetToolModeAction("lattice", _("Lattice"), "lattice_icon.png", _("Lattice tool for creating periodic lattice masks")))
-
+Window.register_action(SetToolModeAction("zoom-in", _("Zoom In"), "mag_glass_in.png", _("Zoom in on image")))
+Window.register_action(SetToolModeAction("zoom-out", _("Zoom Out"), "mag_glass_out.png", _("Zoom out on image")))
 
 class WorkspaceChangeSplits(Window.Action):
     # this is for internal testing only. since it requires passing the splitter and splits,
@@ -3497,15 +3498,19 @@ class WorkspaceSplitAction(Window.Action):
         workspace_controller = window.workspace_controller
         display_panels = context.display_panels
         selected_display_panel = context.selected_display_panel
-        if workspace_controller and display_panels and selected_display_panel:
-            h = self.get_int_property(context, "horizontal_count")
-            v = self.get_int_property(context, "vertical_count")
-            h = max(1, min(8, h))
-            v = max(1, min(8, v))
-            display_panels = workspace_controller.apply_layouts(selected_display_panel, display_panels, h, v)
-            action_result = Window.ActionResult(Window.ActionStatus.FINISHED)
-            action_result.results["display_panels"] = list(display_panels)
-            return action_result
+        if workspace_controller:
+            if display_panels and selected_display_panel:
+                h = self.get_int_property(context, "horizontal_count")
+                v = self.get_int_property(context, "vertical_count")
+                h = max(1, min(8, h))
+                v = max(1, min(8, v))
+                display_panels = workspace_controller.apply_layouts(selected_display_panel, display_panels, h, v)
+                action_result = Window.ActionResult(Window.ActionStatus.FINISHED)
+                action_result.results["display_panels"] = list(display_panels)
+                return action_result
+
+            # no selected panel, cannot split
+            return Window.ActionResult(Window.ActionStatus.FINISHED)
         raise ValueError("Missing workspace controller")
 
     def is_enabled(self, context: Window.ActionContext) -> bool:

@@ -291,6 +291,25 @@ class TestImageCanvasItemClass(unittest.TestCase):
             document_controller.tool_mode = "hand"
             display_panel.display_canvas_item.simulate_press((100,125))
 
+    def test_zoom_tool_on_one_image_of_multiple_displays(self):
+        # setup
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.DataItem(numpy.zeros((10, 10)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            copy_display_item = document_model.get_display_item_copy_new(display_item)
+            display_panel.set_display_panel_display_item(copy_display_item)
+            header_height = display_panel.header_canvas_item.header_height
+            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
+            # run test
+            document_controller.tool_mode = "zoom-in"
+            display_panel.display_canvas_item.simulate_press((100, 125))
+
+            document_controller.tool_mode = "zoom-out"
+            display_panel.display_canvas_item.simulate_press((125, 100))
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

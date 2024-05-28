@@ -1489,7 +1489,7 @@ class DisplayDataChannel(Persistence.PersistentObject):
         # the latest possibly-not-yet-computed display values are computed on a background thread, and the latest
         # computed display values are computed on the callers thread (which should not be the main thread).
         # an overarching goal is to never compute the display values on the main thread, which would prevent the
-        # rest of the UI from activity, or in prepare_display, which would prevent smooth updating.
+        # rest of the UI from activity, which would prevent smooth updating.
 
         # make display values. this can be converted to a method as it gets more complicated.
         def make_display_values() -> typing.Optional[DisplayValues]:

@@ -216,6 +216,7 @@ class ScaleMarkerCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__info_text = str()
         self.__screen_pixel_per_image_pixel_stream = screen_pixel_per_image_pixel_stream.add_ref()
         self.__screen_pixel_per_image_pixel_action = Stream.ValueStreamAction(screen_pixel_per_image_pixel_stream, lambda x: self.__update_sizing())
+        self.__scale_marker_width = 0
 
     def close(self) -> None:
         self.__screen_pixel_per_image_pixel_stream.remove_ref()
@@ -229,8 +230,8 @@ class ScaleMarkerCanvasItem(CanvasItem.AbstractCanvasItem):
         return self.__dimensional_calibration
 
     def __update_sizing(self) -> None:
-        height = self.scale_marker_height
-        width = 20
+        height = self.scale_marker_height + 4 + 2 * self.__get_font_metrics_fn(self.scale_marker_font, "MMM").height
+        scale_marker_width = 0
         dimensional_calibration = self.__dimensional_calibration
         if dimensional_calibration is not None:  # display scale marker?
             screen_pixel_per_image_pixel = self.__screen_pixel_per_image_pixel_stream.value
@@ -241,14 +242,9 @@ class ScaleMarkerCanvasItem(CanvasItem.AbstractCanvasItem):
                 # update the scale marker width
                 scale_marker_image_width = calibrated_scale_marker_width / dimensional_scale
                 scale_marker_width = round(scale_marker_image_width * screen_pixel_per_image_pixel)
-                text1 = dimensional_calibration.convert_to_calibrated_size_str(scale_marker_image_width)
-                text2 = self.__info_text
-                fm1 = self.__get_font_metrics_fn(self.scale_marker_font, text1)
-                fm2 = self.__get_font_metrics_fn(self.scale_marker_font, text2)
-                height = height + 4 + fm1.height + fm2.height
-                width = 20 + max(scale_marker_width, fm1.width, fm2.width)
+        self.__scale_marker_width = scale_marker_width
         new_sizing = self.copy_sizing()
-        new_sizing = new_sizing.with_fixed_width(width)
+        new_sizing = new_sizing.with_unconstrained_width()
         new_sizing = new_sizing.with_fixed_height(height)
         self.update_sizing(new_sizing)
         self.update()
@@ -272,7 +268,7 @@ class ScaleMarkerCanvasItem(CanvasItem.AbstractCanvasItem):
         if canvas_size and dimensional_calibration:  # display scale marker?
             screen_pixel_per_image_pixel = self.__screen_pixel_per_image_pixel_stream.value
             if screen_pixel_per_image_pixel and screen_pixel_per_image_pixel > 0.0:
-                scale_marker_image_width = self.scale_marker_width / screen_pixel_per_image_pixel
+                scale_marker_image_width = self.__scale_marker_width / screen_pixel_per_image_pixel
                 calibrated_scale_marker_width = Geometry.make_pretty2(scale_marker_image_width * dimensional_calibration.scale, True)
                 # update the scale marker width
                 scale_marker_image_width = calibrated_scale_marker_width / dimensional_calibration.scale
@@ -344,12 +340,12 @@ class ImageAreaCanvasItemLayout(CanvasItem.CanvasItemLayout):
         if content:
             if not content._has_layout:
                 # if the content has not layout yet, always update it.
-                self.update_canvas_item_layout(canvas_origin, canvas_size, content, immediate=immediate)
+                self.update_canvas_item_layout(canvas_origin, canvas_size, content)
             if canvas_size:
                 widget_mapping = ImageCanvasItemMapping.make(self._data_shape, Geometry.IntRect(canvas_origin, canvas_size), list())
                 if widget_mapping:
                     image_canvas_rect = calculate_origin_and_size(canvas_size, widget_mapping.data_shape, self._image_canvas_mode, self._image_zoom, self._image_position)
-                    content.update_layout(image_canvas_rect.origin, image_canvas_rect.size, immediate=immediate)
+                    content.update_layout(image_canvas_rect.origin, image_canvas_rect.size)
 
 
 class ImageAreaCompositeCanvasItem(CanvasItem.CanvasItemComposition):
@@ -643,6 +639,66 @@ class HandMouseHandler(MouseHandler):
                 change_display_properties_task.commit()
 
 
+class ZoomMouseHandler(MouseHandler):
+    def __init__(self, image_canvas_item: ImageCanvasItem, event_loop: asyncio.AbstractEventLoop, is_zooming_in: bool) -> None:
+        super().__init__(image_canvas_item, event_loop)
+        self.cursor_shape = "mag_glass"
+        self._is_zooming_in = is_zooming_in
+
+    async def _reactor_loop(self, r: Stream.ValueChangeStreamReactorInterface[MousePositionAndModifiers],
+                            image_canvas_item: ImageCanvasItem) -> None:
+        delegate = image_canvas_item.delegate
+        assert delegate
+
+        # get the beginning mouse position
+        value_change = await r.next_value_change()
+        value_change_value = value_change.value
+        assert value_change.is_begin
+        assert value_change_value is not None
+
+        image_position: typing.Optional[Geometry.FloatPoint] = None
+
+        # preliminary setup for the tracking loop.
+        mouse_pos, modifiers = value_change_value
+        start_drag_pos = mouse_pos
+
+        start_drag_pos_norm = image_canvas_item.convert_pixel_to_normalised(start_drag_pos)
+
+        #document_controller = image_canvas_item.__document_controller
+        #document_model = document_controller.document_model
+        #display_item = document_model.get_display_item_for_data_item(image_canvas_item.data_item)
+
+        with (delegate.create_change_display_properties_task() as change_display_properties_task):
+            # mouse tracking loop. wait for values and update the image position.
+            while True:
+                value_change = await r.next_value_change()
+                if value_change.is_end:
+                    if value_change.value is not None:
+                        mouse_pos, modifiers = value_change.value
+                        end_drag_pos = mouse_pos
+                        if (self._is_zooming_in and
+                            ((abs(start_drag_pos[0] - end_drag_pos[0]) > 3) or (abs(start_drag_pos[1] - end_drag_pos[1]) > 3))):
+                            image_canvas_item._apply_selection_zoom(start_drag_pos, end_drag_pos)
+                        else:
+                            image_canvas_item._apply_fixed_zoom(self._is_zooming_in, start_drag_pos)
+                    break
+                if value_change.value is not None:
+                    # Not released for the zoom target, we could do with drawing a rectangle
+                    mouse_pos, modifiers = value_change.value
+                    assert start_drag_pos
+                    #if crop_region:
+                        #display_item.remove_graphic(crop_region)
+                    #else:
+                        #crop_region = Graphics.RectangleGraphic()
+
+                    #end_drag_pos_norm = image_canvas_item.convert_pixel_to_normalised(mouse_pos)
+                    #crop_region.bounds = (start_drag_pos_norm, end_drag_pos_norm)
+                    #display_item.add_graphic(crop_region)
+
+            # if the image position was set, it means the user moved the image. perform the task.
+            if image_position:
+                change_display_properties_task.commit()
+
 class CreateGraphicMouseHandler(MouseHandler):
     def __init__(self, image_canvas_item: ImageCanvasItem, event_loop: asyncio.AbstractEventLoop, graphic_type: str) -> None:
         super().__init__(image_canvas_item, event_loop)
@@ -903,6 +959,29 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.__display_values = display_values_list[0] if display_values_list else None
         self.__display_values_dirty = True
 
+    def __display_info_changed(self) -> None:
+        if self.__data_shape is not None:
+            # configure the bitmap canvas item
+            display_values = self.__display_values
+            if display_values:
+                display_data = display_values.adjusted_data_and_metadata
+                if display_data and display_data.data_dtype == numpy.float32:
+                    display_range = display_values.transformed_display_range
+                    color_map_data = display_values.color_map_data
+                    color_map_rgba: typing.Optional[DrawingContext.RGBA32Type]
+                    if color_map_data is not None:
+                        color_map_rgba = numpy.empty(color_map_data.shape[:-1] + (4,), numpy.uint8)
+                        color_map_rgba[..., 0:3] = color_map_data
+                        color_map_rgba[..., 3] = 255
+                        color_map_rgba = color_map_rgba.view(numpy.uint32).reshape(color_map_rgba.shape[:-1])
+                    else:
+                        color_map_rgba = None
+                    self.__bitmap_canvas_item.set_data(display_data.data, display_range, color_map_rgba, trigger_update=False)
+                else:
+                    data_rgba = display_values.display_rgba
+                    self.__bitmap_canvas_item.set_rgba_bitmap_data(data_rgba, trigger_update=False)
+                self.__timestamp_canvas_item.timestamp = display_values.display_rgba_timestamp if self.__display_latency else None
+
     def __update_display_properties_and_layers(self, display_calibration_info: DisplayItem.DisplayCalibrationInfo, display_properties: Persistence.PersistentDictType, display_layers: typing.Sequence[Persistence.PersistentDictType]) -> None:
         # thread-safe
         data_and_metadata = self.__display_values.data_and_metadata if self.__display_values else None
@@ -961,13 +1040,16 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                             image_canvas_rect = None
                         if image_canvas_rect != self.__composite_canvas_item.canvas_rect:
                             # layout. this makes sure that the info overlay gets updated too.
-                            self.scroll_area_canvas_item.refresh_layout()
+                            self.update_layout(self.canvas_origin, self.canvas_size)
                             # trigger updates
                             self.__composite_canvas_item.update()
                             self.__bitmap_canvas_item.update()
                         else:
                             # trigger updates
                             self.__bitmap_canvas_item.update()
+
+                # update bitmaps
+                self.__display_info_changed()
 
                 # setting the bitmap on the bitmap_canvas_item is delayed until paint, so that it happens on a thread, since it may be time consuming
                 dimensional_calibration = calculate_dimensional_calibration(data_metadata, display_calibration_info.displayed_dimensional_calibrations)
@@ -1050,15 +1132,83 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             self._set_image_canvas_position(new_image_canvas_position)
         return new_image_canvas_position
 
+    def convert_pixel_to_normalised(self, coord: tuple[int, int]) -> Geometry.FloatPoint:
+        if coord:
+            widget_mapping = ImageCanvasItemMapping.make(self.__data_shape, self.__composite_canvas_item.canvas_bounds,
+                                                         list())
+            if widget_mapping:
+                mapped = self.map_widget_to_image(coord)
+                norm_coord = tuple(ele1 / ele2 for ele1, ele2 in zip(mapped, self.__data_shape))
+                return Geometry.FloatPoint(norm_coord[0], norm_coord[1])  # y,x
+
+    #Apply a zoom factor to the widget, optionally focussed on a specific point
+    def _apply_fixed_zoom(self, zoom_in: bool, coord: tuple[int, int] = None):
+        # print('Applying zoom factor {0}, at coordinate {1},{2}'.format(zoom_in, coord[0], coord[1]))
+        if coord:
+            #Coordinate specified, so needing to recenter to that point before we adjust zoom levels
+            widget_mapping = ImageCanvasItemMapping.make(self.__data_shape, self.__composite_canvas_item.canvas_bounds, list())
+            if widget_mapping:
+                mapped = self.map_widget_to_image(coord)
+                norm_coord = tuple(ele1 / ele2 for ele1, ele2 in zip(mapped, self.__data_shape))
+                self._set_image_canvas_position(norm_coord)
+
+                # ensure that at least half of the image is always visible
+                new_image_norm_center_0 = max(min(norm_coord[0], 1.0), 0.0)
+                new_image_norm_center_1 = max(min(norm_coord[1], 1.0), 0.0)
+                # save the new image norm center
+                new_image_canvas_position = Geometry.FloatPoint(new_image_norm_center_0, new_image_norm_center_1)
+                self._set_image_canvas_position(new_image_canvas_position)
+
+        if zoom_in:
+            self.zoom_in()
+        else:
+            self.zoom_out()
+
+    def _apply_selection_zoom(self, coord1: tuple[int, int], coord2: tuple[int, int]):
+        # print('Applying zoom factor {0}, at coordinate {1},{2}'.format(zoom_in, coord[0], coord[1]))
+        assert coord1
+        assert coord2
+        # print('from {0} to {1}'.format(coord1, coord2))
+        widget_mapping = ImageCanvasItemMapping.make(self.__data_shape, self.__composite_canvas_item.canvas_bounds, list())
+        if widget_mapping:
+            coord1_mapped = self.map_widget_to_image(coord1)
+            coord2_mapped = self.map_widget_to_image(coord2)
+            norm_coord1 = tuple(ele1 / ele2 for ele1, ele2 in zip(coord1_mapped, self.__data_shape))
+            norm_coord2 = tuple(ele1 / ele2 for ele1, ele2 in zip(coord2_mapped, self.__data_shape))
+            # print('norm from {0} to {1}'.format(norm_coord1, norm_coord2))
+
+            norm_coord = tuple((ele1 + ele2)/2 for ele1, ele2 in zip(norm_coord1, norm_coord2))
+            self._set_image_canvas_position(norm_coord)
+            # image now centered on middle of selection, need to calculate new zoom level required
+            # selection size in widget pixels
+            selection_size_screen_space = tuple(
+                abs(ele1 - ele2) for ele1, ele2 in zip(coord1, coord2))  # y,x
+            # print(selection_size_screen_space)
+            widget_width = self.__composite_canvas_item.canvas_bounds.width / self.__image_zoom
+            widget_height = self.__composite_canvas_item.canvas_bounds.height / self.__image_zoom
+            # print(widget_width)
+            # print(widget_height)
+            widget_width_factor = widget_width / selection_size_screen_space[1]
+            widget_height_factor = widget_height / selection_size_screen_space[0]
+            widget_overall_factor = max(widget_height_factor, widget_width_factor)
+            # print('factor {0}'.format(widget_overall_factor))
+            # print('old zoom {0}'.format(self.__image_zoom))
+            self.__apply_display_properties_command({"image_zoom": widget_overall_factor * self.__image_zoom, "image_canvas_mode": "custom"})
+            # print('new zoom {0}'.format(self.__image_zoom))
+            # print(self.__composite_canvas_item.canvas_bounds)
+
+
     def mouse_clicked(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         if super().mouse_clicked(x, y, modifiers):
             return True
         delegate = self.delegate
         widget_mapping = self.mouse_mapping
+
         if delegate and widget_mapping:
             # now let the image panel handle mouse clicking if desired
             image_position = widget_mapping.map_point_widget_to_image(Geometry.FloatPoint(y, x))
             return delegate.image_clicked(image_position, modifiers)
+
         return False
 
     def mouse_pressed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
@@ -1082,6 +1232,16 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             assert self.__event_loop
             self.__mouse_handler = HandMouseHandler(self, self.__event_loop)
             self.__mouse_handler.mouse_pressed(Geometry.IntPoint(y=y, x=x), modifiers)
+        elif delegate.tool_mode == "zoom-in":
+            assert not self.__mouse_handler
+            assert self.__event_loop
+            self.__mouse_handler = ZoomMouseHandler(self, self.__event_loop, True)
+            self.__mouse_handler.mouse_pressed(Geometry.IntPoint(y=y, x=x), modifiers)
+        elif delegate.tool_mode == "zoom-out":
+            assert not self.__mouse_handler
+            assert self.__event_loop
+            self.__mouse_handler = ZoomMouseHandler(self, self.__event_loop, False)
+            self.__mouse_handler.mouse_pressed(Geometry.IntPoint(y=y, x=x), modifiers)
         elif delegate.tool_mode in graphic_type_map.keys():
             assert not self.__mouse_handler
             assert self.__event_loop
@@ -1092,6 +1252,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
     def mouse_released(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         if super().mouse_released(x, y, modifiers):
             return True
+
         delegate = self.delegate
         widget_mapping = self.mouse_mapping
         if not delegate or not widget_mapping:
@@ -1104,7 +1265,15 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         if self.__mouse_handler:
             self.__mouse_handler.mouse_released(Geometry.IntPoint(y, x), modifiers)
             self.__mouse_handler = None
-        if delegate.tool_mode != "hand":
+
+        # Should probably wrap this into a function of 'Non-Toggle' UI elements
+        if delegate.tool_mode == "hand":
+            pass
+        elif delegate.tool_mode == "zoom-in":
+            pass
+        elif delegate.tool_mode == "zoom-out":
+            pass
+        else:
             delegate.tool_mode = "pointer"
         return True
 
@@ -1134,6 +1303,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         image_position = widget_mapping.map_point_widget_to_image(mouse_pos)
         if delegate.image_mouse_position_changed(image_position, modifiers):
             return True
+
         if delegate.tool_mode == "pointer":
             self.cursor_shape = self.__mouse_handler.cursor_shape if self.__mouse_handler else "arrow"
         elif delegate.tool_mode == "line":
@@ -1154,6 +1324,11 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             self.cursor_shape = "cross"
         elif delegate.tool_mode == "hand":
             self.cursor_shape = "hand"
+        elif delegate.tool_mode == "zoom-in":
+            self.cursor_shape = "mag_glass"
+        elif delegate.tool_mode == "zoom-out":
+            self.cursor_shape = "mag_glass"
+
         # x,y already have transform applied
         self.__last_mouse = mouse_pos.to_int_point()
         self.__update_cursor_info()
@@ -1254,12 +1429,6 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                     pos_2d = self.map_widget_to_image(self.__last_mouse)
                 delegate.cursor_changed(pos_2d)
 
-    def _prepare_render(self) -> None:
-        # this is called before layout and repainting. it gives this display item a chance
-        # to update anything required for layout and trigger a layout before a repaint if
-        # anything has changed.
-        self.prepare_display()
-
     def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
         super()._repaint(drawing_context)
         canvas_bounds = self.canvas_bounds
@@ -1287,31 +1456,6 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                 drawing_context.fill_text("frame:" + fps2, text_pos.x + 8, text_pos.y + 30)
                 drawing_context.fill_text("update:" + fps3, text_pos.x + 8, text_pos.y + 50)
                 drawing_context.statistics("display")
-
-    # this method will be invoked from the paint thread.
-    # data is calculated and then sent to the image canvas item.
-    def prepare_display(self) -> None:
-        if self.__data_shape is not None:
-            # configure the bitmap canvas item
-            display_values = self.__display_values
-            if display_values:
-                display_data = display_values.adjusted_data_and_metadata
-                if display_data and display_data.data_dtype == numpy.float32:
-                    display_range = display_values.transformed_display_range
-                    color_map_data = display_values.color_map_data
-                    color_map_rgba: typing.Optional[DrawingContext.RGBA32Type]
-                    if color_map_data is not None:
-                        color_map_rgba = numpy.empty(color_map_data.shape[:-1] + (4,), numpy.uint8)
-                        color_map_rgba[..., 0:3] = color_map_data
-                        color_map_rgba[..., 3] = 255
-                        color_map_rgba = color_map_rgba.view(numpy.uint32).reshape(color_map_rgba.shape[:-1])
-                    else:
-                        color_map_rgba = None
-                    self.__bitmap_canvas_item.set_data(display_data.data, display_range, color_map_rgba, trigger_update=False)
-                else:
-                    data_rgba = display_values.display_rgba
-                    self.__bitmap_canvas_item.set_rgba_bitmap_data(data_rgba, trigger_update=False)
-                self.__timestamp_canvas_item.timestamp = display_values.display_rgba_timestamp if self.__display_latency else None
 
     @property
     def image_canvas_mode(self) -> str:
