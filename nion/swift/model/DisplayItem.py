@@ -900,6 +900,8 @@ class DisplayDataChannel(Persistence.PersistentObject):
 
         self.__last_data_item: typing.Optional[DataItem.DataItem] = None
 
+        self.__is_data_item_connected = False
+
         def connect_data_item(data_item_: typing.Optional[Persistence.PersistentObject]) -> None:
             data_item = typing.cast(DataItem.DataItem, data_item_)
             self.__disconnect_data_item_events()
@@ -911,6 +913,7 @@ class DisplayDataChannel(Persistence.PersistentObject):
             # tell the data item that this display data channel is referencing it
             if data_item:
                 data_item.add_display_data_channel(self)
+                self.__is_data_item_connected = True
             if self.__data_item:
                 for _ in range(self.__display_ref_count):
                     self.__data_item.increment_data_ref_count()
@@ -926,6 +929,7 @@ class DisplayDataChannel(Persistence.PersistentObject):
             # tell the data item that this display data channel is no longer referencing it
             if data_item:
                 data_item.remove_display_data_channel(self)
+                self.__is_data_item_connected = False
             self.notify_property_changed("data_item")
 
         self.__data_item_reference.on_item_registered = connect_data_item
@@ -935,12 +939,17 @@ class DisplayDataChannel(Persistence.PersistentObject):
             connect_data_item(typing.cast(DataItem.DataItem, self.__data_item_reference.item))
 
     def close(self) -> None:
-        # wait for display values threads to finish. first notify the thread that we are closing, then wait for it
-        # to complete by getting the future and waiting for it to complete. then clear the streams to release any
-        # resources (display values).
+        # ensure display data channel is disconnected from the data item in case it was never added to document
+        # and subsequently about_to_be_removed is not called.
+        if self.__is_data_item_connected and (data_item := self.data_item):
+            data_item.remove_display_data_channel(self)
+            self.__is_data_item_connected = False
         self.__data_item_reference.on_item_registered = None
         self.__data_item_reference.on_item_unregistered = None
         self.__closing = True
+        # wait for display values threads to finish. first notify the thread that we are closing, then wait for it
+        # to complete by getting the future and waiting for it to complete. then clear the streams to release any
+        # resources (display values).
         with self.__display_values_update_lock:
             display_values_future = self.__display_values_future
         if display_values_future:
@@ -960,6 +969,7 @@ class DisplayDataChannel(Persistence.PersistentObject):
         # tell the data item that this display data channel is no longer referencing it
         if self.__data_item:
             self.__data_item.remove_display_data_channel(self)
+            self.__is_data_item_connected = False
         self.notify_property_changed("display_item")  # used for implicit connections
         super().about_to_be_removed(container)
 

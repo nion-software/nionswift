@@ -53,6 +53,17 @@ class TestDisplayItemClass(unittest.TestCase):
             self.assertIsNotNone(display_item.project_str)
             self.assertIsNotNone(display_item.used_display_type)
 
+    def test_display_data_channel_disconnects_if_display_item_closed(self):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item_snapshot = display_item.snapshot()
+            self.assertEqual(2, len(data_item.display_data_channels))
+            display_item_snapshot.close()
+            self.assertEqual(1, len(data_item.display_data_channels))
+
     def test_display_item_snapshot_and_copy_preserve_display_type(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()

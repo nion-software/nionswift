@@ -250,7 +250,7 @@ class DataItem(Persistence.PersistentObject):
         self.__pending_xdata: typing.Optional[DataAndMetadata.DataAndMetadata] = None
         self.__pending_queue: typing.List[typing.Tuple[DataAndMetadata.DataAndMetadata, typing.Sequence[slice], typing.Sequence[slice], DataAndMetadata.DataMetadata]] = list()
         self.__content_changed = False
-        self.__display_data_channel_refs = set()  # type: ignore  # display data channels referencing this data item
+        self.__display_data_channel_refs = set[weakref.ReferenceType["DisplayItem.DisplayDataChannel"]]()
         if data is not None:
             data_and_metadata = DataAndMetadata.DataAndMetadata.from_data(data, timezone=self.timezone, timezone_offset=self.timezone_offset)
             self.increment_data_ref_count()
@@ -463,7 +463,11 @@ class DataItem(Persistence.PersistentObject):
         return Persistence.PersistentObjectSpecifier(self.uuid)
 
     def add_display_data_channel(self, display_data_channel: DisplayItem.DisplayDataChannel) -> None:
-        """Add a display data channel referencing this data item."""
+        """Add a display data channel referencing this data item.
+
+        This is used as an optimization to be able to easily access the display data channels for a data item.
+        Think of it as an "index" in the database sense.
+        """
         self.__display_data_channel_refs.add(weakref.ref(display_data_channel))
         self.notify_add_item("display_data_channels", display_data_channel)
 
@@ -475,7 +479,12 @@ class DataItem(Persistence.PersistentObject):
     @property
     def display_data_channels(self) -> typing.Set[DisplayItem.DisplayDataChannel]:
         """Return the list of display data channels referencing this data item."""
-        return {display_data_channel_ref() for display_data_channel_ref in self.__display_data_channel_refs}
+        display_data_channels = set["DisplayItem.DisplayDataChannel"]()
+        for display_data_channel_ref in self.__display_data_channel_refs:
+            display_data_channel = display_data_channel_ref()
+            assert display_data_channel  # should never be None
+            display_data_channels.add(display_data_channel)
+        return display_data_channels
 
     @property
     def in_transaction_state(self) -> bool:
