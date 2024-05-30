@@ -895,12 +895,27 @@ class DocumentController(Window.Window):
             self.export_file(display_items[0])
 
     def export_svg_file(self, ui_settings: UISettings.UISettings, display_item: DisplayItem.DisplayItem, display_shape: Geometry.IntSize, path: pathlib.Path) -> None:
-        path = path.with_suffix(".svg")
-        drawing_context, shape = DisplayPanel.preview(ui_settings, display_item, display_shape.width, display_shape.height)
-        view_box = Geometry.IntRect(Geometry.IntPoint(), shape)
-        svg = drawing_context.to_svg(shape, view_box)
-        with Utility.AtomicFileWriter(path) as fp:
-            fp.write(svg)
+        # take a snapshot so to modify the display properties for the proper image zoom, position, and canvas mode.
+        # ensure that the snapshot is closed when finished.
+        display_item_snapshot = display_item.snapshot()
+        try:
+            # update the zoom, position, and canvas mode for the export. these are neutral values that ensure it will
+            # draw at 1:1 scale and centered in the canvas.
+            display_properties = display_item_snapshot.display_properties
+            display_properties["image_zoom"] = 1.0
+            display_properties["image_position"] = (0.5, 0.5)
+            display_properties["image_canvas_mode"] = "fit"
+            display_item_snapshot.display_properties = display_properties
+            # create the drawing context and shape for the preview
+            drawing_context, shape = DisplayPanel.preview(ui_settings, display_item_snapshot, display_shape.width, display_shape.height)
+            # set up the SVG
+            view_box = Geometry.IntRect(Geometry.IntPoint(), shape)
+            svg = drawing_context.to_svg(shape, view_box)
+            # write the file
+            with Utility.AtomicFileWriter(path.with_suffix(".svg")) as fp:
+                fp.write(svg)
+        finally:
+            display_item_snapshot.close()
 
     def export_svg(self, display_item: DisplayItem.DisplayItem) -> None:
         ExportDialog.ExportSVGDialog(self, display_item)

@@ -197,9 +197,7 @@ class ExportDialog(Dialog.OkCancelDialog):
 
 
 class ExportSVGHandler:
-    def __init__(self, display_item: DisplayItem.DisplayItem, display_size: Geometry.IntSize) -> None:
-        self.display_item = display_item
-
+    def __init__(self, display_size: Geometry.IntSize) -> None:
         self.width_model = Model.PropertyModel(display_size.width)
         self.height_model = Model.PropertyModel(display_size.height)
 
@@ -225,19 +223,12 @@ class ExportSVGDialog:
 
         u = Declarative.DeclarativeUI()
 
-        display_item = display_item.snapshot()
-        display_properties = display_item.display_properties
-        display_properties["image_zoom"] = 1.0
-        display_properties["image_position"] = (0.5, 0.5)
-        display_properties["image_canvas_mode"] = "fit"
-        display_item.display_properties = display_properties
-
         if display_item.display_data_shape and len(display_item.display_data_shape) == 2:
             display_size = Geometry.IntSize(height=4, width=4)
         else:
             display_size = Geometry.IntSize(height=3, width=4)
 
-        handler = ExportSVGHandler(display_item, display_size)
+        handler = ExportSVGHandler(display_size)
 
         def ok_clicked() -> bool:
             dpi = 96
