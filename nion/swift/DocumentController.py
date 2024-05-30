@@ -2755,6 +2755,7 @@ class DocumentController(Window.Window):
                 if not data_item_1 in used_data_items:
                     used_data_items.append(data_item_1)
         selected_graphics = used_display_item.selected_graphics if used_display_item else list()
+        selected_display_panel = selected_display_panel or (display_panel if len(used_display_panels) == 1 else None)
         return DocumentController.ActionContext(typing.cast("Application.Application", self.app), self, focus_widget,
                                                 used_display_panel, used_display_panels, selected_display_panel, model,
                                                 used_display_item, used_display_items, crop_graphic, selected_graphics,
