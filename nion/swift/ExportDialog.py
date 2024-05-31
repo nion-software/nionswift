@@ -202,12 +202,14 @@ class ExportSVGHandler:
 
         self.width_model = Model.PropertyModel(display_size.width)
         self.height_model = Model.PropertyModel(display_size.height)
-
+        self.units = Model.PropertyModel(0)
         self.int_converter = Converter.IntegerToStringConverter()
 
         u = Declarative.DeclarativeUI()
 
-        height_row = u.create_row(u.create_label(text=_("Height (in)"), width=80), u.create_line_edit(text="@binding(height_model.value, converter=int_converter)"), spacing=12)
+        height_row = u.create_row(u.create_label(text=_("Height: "), width=80), u.create_line_edit(text="@binding(height_model.value, converter=int_converter)"),
+                                  u.create_combo_box(items=["Inches", "Centimeters","Pixels"],
+                                                     current_index="@binding(units.value)"), spacing=12)
         main_page = u.create_column(height_row, spacing=12, margin=12)
 
         self.ui_view = main_page
@@ -240,14 +242,23 @@ class ExportSVGDialog:
         handler = ExportSVGHandler(display_item, display_size)
 
         def ok_clicked() -> bool:
-            dpi = 96
+            pixels_per_unit: float = 96.0
+            if handler.units.value == 1:
+                pixels_per_unit = 37.7953
+            elif handler.units.value == 2:
+                pixels_per_unit = 1
+
             if display_item.display_data_shape is not None:
                 display_item_ratio = display_item.display_data_shape[1] / display_item.display_data_shape[0]
             else:
                 display_item_ratio = 1
 
-
-            height_px = (handler.height_model.value or display_size.height) * dpi
+            height_value = handler.height_model.value
+            if height_value is not None:
+                height_px = int(height_value * pixels_per_unit)
+            else:
+                # Handle the case where height_model.value is None
+                height_px = 0  # or any other default value
             width_px = int(height_px * display_item_ratio)
             ui = document_controller.ui
             filter = "SVG File (*.svg);;All Files (*.*)"
