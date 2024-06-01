@@ -18,6 +18,7 @@ from nion.ui import UserInterface
 from nion.ui import Widgets
 from nion.utils import Geometry
 from nion.utils import Process
+from nion.utils import ReferenceCounting
 
 if typing.TYPE_CHECKING:
     from nion.swift.model import Persistence
@@ -152,9 +153,27 @@ class BitmapOverlayCanvasItem(CanvasItem.CanvasItemComposition):
 
 
 class ThumbnailCanvasItem(CanvasItem.CanvasItemComposition):
+    """A canvas item that displays a thumbnail and allows dragging the thumbnail.
+
+    To facilitate reusing existing canvas items, set the thumbnail source using set_thumbnail_source.
+
+    This class keeps a bitmap and an overlay canvas item. The overlay canvas item is used for drag and drop events.
+
+    Callers can set the on_drag, on_drop_mime_data, and on_delete callbacks to handle these events.
+    """
 
     def __init__(self, ui: UserInterface.UserInterface, thumbnail_source: AbstractThumbnailSource, size: typing.Optional[Geometry.IntSize] = None) -> None:
         super().__init__()
+        self.__ui = ui
+        self.__thumbnail_source = thumbnail_source
+        self.__thumbnail_size = size
+
+        # define the callbacks
+        self.on_drag: typing.Optional[typing.Callable[[UserInterface.MimeData, typing.Optional[_ImageDataType], int, int], None]] = None
+        self.on_drop_mime_data: typing.Optional[typing.Callable[[UserInterface.MimeData, int, int], str]] = None
+        self.on_delete: typing.Optional[typing.Callable[[], None]] = None
+
+        # set up the initial bitmap and overlay canvas items.
         bitmap_overlay_canvas_item = BitmapOverlayCanvasItem()
         bitmap_canvas_item = CanvasItem.BitmapCanvasItem(background_color="#CCC", border_color="#444")
         bitmap_overlay_canvas_item.add_canvas_item(bitmap_canvas_item)
@@ -162,41 +181,62 @@ class ThumbnailCanvasItem(CanvasItem.CanvasItemComposition):
             bitmap_canvas_item.update_sizing(bitmap_canvas_item.sizing.with_fixed_size(size))
             thumbnail_source.overlay_canvas_item.update_sizing(thumbnail_source.overlay_canvas_item.sizing.with_fixed_size(size))
         bitmap_overlay_canvas_item.add_canvas_item(thumbnail_source.overlay_canvas_item)
-        self.__thumbnail_source = thumbnail_source
-        self.on_drag: typing.Optional[typing.Callable[[UserInterface.MimeData, typing.Optional[_ImageDataType], int, int], None]] = None
-        self.on_drop_mime_data: typing.Optional[typing.Callable[[UserInterface.MimeData, int, int], str]] = None
-        self.on_delete: typing.Optional[typing.Callable[[], None]] = None
 
-        def drag_pressed(x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> None:
-            on_drag = self.on_drag
-            if callable(on_drag):
-                mime_data = ui.create_mime_data()
-                valid, thumbnail = thumbnail_source.populate_mime_data_for_drag(mime_data, Geometry.IntSize(width=80, height=80))
-                if valid:
-                    on_drag(mime_data, thumbnail, x, y)
-
+        # handle overlay drop callback by forwarding to the callback set by the caller.
         def drop_mime_data(mime_data: UserInterface.MimeData, x: int, y: int) -> str:
             if callable(self.on_drop_mime_data):
                 return self.on_drop_mime_data(mime_data, x, y)
             return "ignore"
 
+        # handle overlay drag callback by forwarding to the callback set by the caller.
         def delete() -> None:
             on_delete = self.on_delete
             if callable(on_delete):
                 on_delete()
 
-        bitmap_overlay_canvas_item.on_drag_pressed = drag_pressed
+        # connect the handlers to the overlay canvas item.
+        bitmap_overlay_canvas_item.on_drag_pressed = ReferenceCounting.weak_partial(ThumbnailCanvasItem.__drag_pressed, self)
         bitmap_overlay_canvas_item.on_drop_mime_data = drop_mime_data
         bitmap_overlay_canvas_item.on_delete = delete
 
-        def thumbnail_data_changed(thumbnail_data: typing.Optional[_NDArray]) -> None:
-            bitmap_canvas_item.rgba_bitmap_data = thumbnail_data
+        # store these for later use.
+        self.__bitmap_canvas_item = bitmap_canvas_item
+        self.__bitmap_overlay_canvas_item = bitmap_overlay_canvas_item
 
-        self.__thumbnail_source.on_thumbnail_data_changed = thumbnail_data_changed
+        # connect the thumbnail source data changed event to a handler and call the handler to initialize.
+        self.__thumbnail_source.on_thumbnail_data_changed = ReferenceCounting.weak_partial(ThumbnailCanvasItem.__thumbnail_data_changed, self)
+        self.__thumbnail_data_changed(self.__thumbnail_source.thumbnail_data)
 
-        bitmap_canvas_item.rgba_bitmap_data = self.__thumbnail_source.thumbnail_data
-
+        # add the overlay canvas item (with the bitmap canvas item) to this canvas item.
         self.add_canvas_item(bitmap_overlay_canvas_item)
+
+    def __drag_pressed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> None:
+        # handle drag by forwarding to the callback set by the caller.
+        on_drag = self.on_drag
+        if callable(on_drag):
+            mime_data = self.__ui.create_mime_data()
+            valid, thumbnail = self.__thumbnail_source.populate_mime_data_for_drag(mime_data, Geometry.IntSize(width=80, height=80))
+            if valid:
+                on_drag(mime_data, thumbnail, x, y)
+
+    def __thumbnail_data_changed(self, thumbnail_data: typing.Optional[_NDArray]) -> None:
+        # update the bitmap canvas item with the new thumbnail data.
+        self.__bitmap_canvas_item.rgba_bitmap_data = thumbnail_data
+
+    @property
+    def thumbnail_source(self) -> AbstractThumbnailSource:
+        return self.__thumbnail_source
+
+    def set_thumbnail_source(self, thumbnail_source: AbstractThumbnailSource) -> None:
+        # reconfigure with the new thumbnail source.
+        self.__thumbnail_source.close()
+        self.__thumbnail_source = thumbnail_source
+        if self.__thumbnail_size is not None:
+            thumbnail_source.overlay_canvas_item.update_sizing(thumbnail_source.overlay_canvas_item.sizing.with_fixed_size(self.__thumbnail_size))
+        self.__bitmap_overlay_canvas_item.remove_canvas_item(self.__bitmap_overlay_canvas_item.canvas_items[-1])
+        self.__bitmap_overlay_canvas_item.add_canvas_item(self.__thumbnail_source.overlay_canvas_item)
+        self.__thumbnail_source.on_thumbnail_data_changed = ReferenceCounting.weak_partial(ThumbnailCanvasItem.__thumbnail_data_changed, self)
+        self.__thumbnail_data_changed(self.__thumbnail_source.thumbnail_data)
 
     def close(self) -> None:
         self.__thumbnail_source.close()
