@@ -51,7 +51,7 @@ class ExportDialogViewModel:
 
 class ExportDialog(Declarative.Handler):
     writer: typing.Optional[ImportExportManager.ImportExportHandler] = None
-    def __init__(self, ui: UserInterface.UserInterface, parent_window: Window.Window, document_controller: DocumentController.DocumentController, display_items: typing.Sequence[DisplayItem.DisplayItem]):
+    def __init__(self, ui: UserInterface.UserInterface, document_controller: DocumentController.DocumentController, display_items: typing.Sequence[DisplayItem.DisplayItem]):
         super().__init__()
 
         self.ui = ui
@@ -66,8 +66,7 @@ class ExportDialog(Declarative.Handler):
         u = Declarative.DeclarativeUI()
         self._build_ui(u)
 
-        dialog = typing.cast(Dialog.ActionDialog,
-                             Declarative.construct(document_controller.ui, document_controller, u.create_modeless_dialog(self.ui_view, title=_("Export")), self))
+        dialog = typing.cast(Dialog.ActionDialog, Declarative.construct(document_controller.ui, document_controller, u.create_modeless_dialog(self.ui_view, title=_("Export")), self))
         dialog.add_button(_("Cancel"), self.cancel)
         dialog.add_button(_("Export"), functools.partial(self.export_clicked, display_items, self.viewmodel))
         dialog.show()
