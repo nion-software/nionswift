@@ -72,10 +72,18 @@ class ExportDialog(Declarative.Handler):
         u = Declarative.DeclarativeUI()
         self._build_ui(u)
 
+        # perform export, but save the last used writer
+        def handle_export_clicked() -> bool:
+            selected_writer = self.viewmodel.writer.value
+            writer_id = selected_writer.io_handler_id if selected_writer else "png-io-handler"
+            self.export_clicked(display_items, self.viewmodel)
+            self.ui.set_persistent_string("export_io_handler_id", writer_id)
+            return True
+
         # create the dialog and show it.
         dialog = typing.cast(Dialog.ActionDialog, Declarative.construct(document_controller.ui, document_controller, u.create_modeless_dialog(self.ui_view, title=_("Export")), self))
         dialog.add_button(_("Cancel"), self.cancel)
-        dialog.add_button(_("Export"), functools.partial(self.export_clicked, display_items, self.viewmodel))
+        dialog.add_button(_("Export"), handle_export_clicked)
         dialog.show()
 
     def choose_directory(self, widget: Declarative.UIWidget) -> None:
@@ -178,7 +186,7 @@ class ExportDialog(Declarative.Handler):
         return test_filepath
 
     @staticmethod
-    def export_clicked(display_items: typing.Sequence[DisplayItem.DisplayItem], viewmodel: ExportDialogViewModel) -> bool:
+    def export_clicked(display_items: typing.Sequence[DisplayItem.DisplayItem], viewmodel: ExportDialogViewModel) -> None:
         directory_path = pathlib.Path(viewmodel.directory.value or str())
         writer = viewmodel.writer
         if directory_path.is_dir() and writer and writer.value:
@@ -207,7 +215,6 @@ class ExportDialog(Declarative.Handler):
                         logging.debug("Could not export image %s / %s", str(data_item), str(e))
                         traceback.print_exc()
                         traceback.print_stack()
-        return True
 
     def cancel(self) -> bool:
         return True
