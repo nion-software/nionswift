@@ -162,6 +162,7 @@ class ExportDialog(Declarative.Handler):
 
         # stick components together for the first part of the filename, underscore delimited excluding blank component
         filename = "_".join(s for s in components if s)
+        filename.replace(".", "_")
 
         # check to see if filename is available, if so return that
         test_filepath = directory_path / pathlib.Path(filename).with_suffix(extension)
@@ -203,7 +204,7 @@ class ExportDialog(Declarative.Handler):
                             title = re.sub(r'[-\s]+', '-', title, flags=re.U)
                             components.append(title)
                         if viewmodel.include_date.value:
-                            components.append(data_item.created_local.isoformat().replace(':', ''))
+                            components.append(data_item.created_local.isoformat().replace(':', '').replace('.', '_'))
                         if viewmodel.include_dimensions.value:
                             components.append(
                                 "x".join([str(shape_n) for shape_n in data_item.dimensional_shape]))
