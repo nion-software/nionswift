@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 # standard libraries
-from dataclasses import dataclass
 import functools
 import gettext
 import logging
@@ -17,8 +16,8 @@ import unicodedata
 # None
 
 # local libraries
-from nion.swift.model import ImportExportManager
 from nion.swift.model import DisplayItem
+from nion.swift.model import ImportExportManager
 from nion.swift.model import Utility
 from nion.swift import DocumentController
 from nion.swift import DisplayPanel
@@ -37,26 +36,14 @@ _ = gettext.gettext
 
 
 class ExportDialogViewModel:
-    include_title: Model.PropertyModel[bool]
-    include_date: Model.PropertyModel[bool]
-    include_dimensions: Model.PropertyModel[bool]
-    include_sequence: Model.PropertyModel[bool]
-    include_prefix: Model.PropertyModel[bool]
-    prefix: Model.PropertyModel[str]
-    directory: Model.PropertyModel[str]
-    writer: Model.PropertyModel[ImportExportManager.ImportExportHandler]
 
     def __init__(self, title: bool, date: bool, dimensions: bool, sequence: bool, writer: typing.Optional[ImportExportManager.ImportExportHandler], prefix: str = "", directory: str = ""):
         self.include_title = Model.PropertyModel(title)
         self.include_date = Model.PropertyModel(date)
         self.include_dimensions = Model.PropertyModel(dimensions)
         self.include_sequence = Model.PropertyModel(sequence)
-        if prefix:
-            self.include_prefix = Model.PropertyModel(True)
-            self.prefix = Model.PropertyModel(prefix)
-        else:
-            self.include_prefix = Model.PropertyModel(False)
-            self.prefix = Model.PropertyModel(None)
+        self.include_prefix = Model.PropertyModel(prefix is not None)
+        self.prefix = Model.PropertyModel(prefix)
         self.directory = Model.PropertyModel(directory)
         if writer:
             self.writer = Model.PropertyModel(writer)
@@ -103,36 +90,43 @@ class ExportDialog(Declarative.Handler):
         writers_names = [getattr(writer, "name") for writer in self.writers]
         self.file_types = writers_names
 
-        #  self.viewmodel = viewmodel
-
         # Export Folder
         directory_label = u.create_row(u.create_label(text="Location:"))
-        directory_text = u.create_row(u.create_label(text=f'@binding(viewmodel.directory.value)'))
+        directory_text = u.create_row(u.create_label(text=f"@binding(viewmodel.directory.value)"))
         self.directory_text_label = directory_text
-        directory_button = u.create_row(u.create_push_button(text="Select Path..", on_clicked='choose_directory'))
+        directory_button = u.create_row(u.create_push_button(text=_("Select Path..."), on_clicked="choose_directory"))
 
         # Filename
         filename_label = u.create_row(u.create_label(text="Filename:"))
-        ## Title
-        title_checkbox = u.create_row(u.create_check_box(text="Include Title", checked=f'@binding(viewmodel.include_title.value)'))
 
-        ## Date
-        date_checkbox = u.create_row(u.create_check_box(text="Include Date", checked=f'@binding(viewmodel.include_date.value)'))
+        # Title
+        title_checkbox = u.create_row(
+            u.create_check_box(text="Include Title", checked=f"@binding(viewmodel.include_title.value)"))
 
-        ## Dimensions
-        dimension_checkbox = u.create_row(u.create_check_box(text="Include Dimensions", checked=f'@binding(viewmodel.include_dimensions.value)'))
+        # Date
+        date_checkbox = u.create_row(
+            u.create_check_box(text="Include Date", checked=f"@binding(viewmodel.include_date.value)"))
 
-        ## Sequence Number
-        sequence_checkbox = u.create_row(u.create_check_box(text="Include Sequence Number", checked=f'@binding(viewmodel.include_sequence.value)'))
+        # Dimensions
+        dimension_checkbox = u.create_row(
+            u.create_check_box(text="Include Dimensions", checked=f"@binding(viewmodel.include_dimensions.value)"))
 
-        ## Prefix
-        prefix_checkbox = u.create_row(u.create_check_box(text="Include Prefix", checked=f'@binding(viewmodel.include_prefix.value)'))
-        prefix_textbox = u.create_row(u.create_text_edit(text=f'@binding(viewmodel.prefix.value)'))
+        # Sequence Number
+        sequence_checkbox = u.create_row(
+            u.create_check_box(text="Include Sequence Number", checked=f"@binding(viewmodel.include_sequence.value)"))
 
-        ## File Type
-        file_type_combobox = u.create_combo_box(items=self.file_types, current_index=f'@binding(file_type_index.value)', on_current_index_changed="on_writer_changed")
+        # Prefix
+        prefix_checkbox = u.create_row(
+            u.create_check_box(text="Include Prefix", checked=f"@binding(viewmodel.include_prefix.value)"))
+        prefix_textbox = u.create_row(u.create_text_edit(text=f"@binding(viewmodel.prefix.value)"))
 
-        ## Build final ui column
+        # File Type
+        file_type_combobox = u.create_combo_box(
+            items=self.file_types,
+            current_index=f"@binding(file_type_index.value)",
+            on_current_index_changed="on_writer_changed")
+
+        # Build final ui column
         column = u.create_column(directory_label,
                                  directory_text,
                                  directory_button,
@@ -148,7 +142,7 @@ class ExportDialog(Declarative.Handler):
         self.ui_view = column
 
     @staticmethod
-    def build_filename(components: typing.List[str], extension: str, suffix: str = "($)", path: str = "") -> str:
+    def build_filename(components: typing.List[str], extension: str, path: str = "") -> str:
         # if path doesn't end in a directory character, add one
         if path:
             if not (path.endswith('/') or path.endswith('\\')):
@@ -170,18 +164,18 @@ class ExportDialog(Declarative.Handler):
             return test_filename
 
         # file must already exist
-        if suffix and '$' in suffix:
-            found_available = False
-            next_index = 1
-            max_index = 999
-            while not found_available and next_index <= max_index:
-                test_suffix = suffix.replace("$", str(next_index))
-                test_filename = filename + test_suffix + extension
-                if path:
-                    test_filename = path + test_filename
-                if not os.path.exists(test_filename):
-                    return test_filename
-                next_index = next_index + 1
+        suffix = "($)"
+        found_available = False
+        next_index = 1
+        max_index = 999
+        while not found_available and next_index <= max_index:
+            test_suffix = "({0})".format(next_index)
+            test_filename = filename + test_suffix + extension
+            if path:
+                test_filename = path + test_filename
+            if not os.path.exists(test_filename):
+                return test_filename
+            next_index = next_index + 1
 
         # Well we have no option here but to just go with the overwrite, either we ran out of index options or had none to begin with
         return test_filename
