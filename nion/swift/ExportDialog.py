@@ -144,13 +144,10 @@ class ExportDialog(Declarative.Handler):
         self.ui_view = column
 
     @staticmethod
-    def build_filename(components: typing.List[str], extension: str, path: str = "") -> str:
-        # if path doesn't end in a directory character, add one
-        if path:
-            if not (path.endswith('/') or path.endswith('\\')):
-                path = path + '/'
+    def build_filepath(components: typing.List[str], extension: str, directory_path: pathlib.Path) -> pathlib.Path:
+        assert directory_path.is_dir()
 
-        # if extension doesn't start with a '.', add one so we always know it is there
+        # if extension doesn't start with a '.', add one, so we always know it is there
         if not extension.startswith('.'):
             extension = '.' + extension
 
@@ -158,42 +155,39 @@ class ExportDialog(Declarative.Handler):
         filename = "_".join(s for s in components if s)
 
         # check to see if filename is available, if so return that
-        test_filename = filename + extension
-        if path:
-            test_filename = path + test_filename
-
-        if not os.path.exists(test_filename):
-            return test_filename
+        test_filepath = directory_path / pathlib.Path(filename).with_suffix(extension)
+        if not test_filepath.exists():
+            return test_filepath
 
         # file must already exist
-        suffix = "($)"
-        found_available = False
         next_index = 1
-        max_index = 999
-        while not found_available and next_index <= max_index:
-            test_suffix = "({0})".format(next_index)
-            test_filename = filename + test_suffix + extension
-            if path:
-                test_filename = path + test_filename
-            if not os.path.exists(test_filename):
-                return test_filename
+        max_index = 9999
+        last_test_filepath: typing.Optional[pathlib.Path] = None
+        while next_index <= max_index:
+            test_filepath = directory_path / pathlib.Path(f"{filename} {next_index}").with_suffix(extension)
+            if not test_filepath.exists():
+                return test_filepath
+            if test_filepath == last_test_filepath:
+                break
+            last_test_filepath = test_filepath  # in case we have a bug
             next_index = next_index + 1
 
-        # Well we have no option here but to just go with the overwrite, either we ran out of index options or had none to begin with
-        return test_filename
+        # We have no option here but to just go with the overwrite, either we ran out of index options or had none to begin with
+        print(f"Warning: Overwriting file {test_filepath}")
+        return test_filepath
 
     @staticmethod
     def export_clicked(display_items: typing.Sequence[DisplayItem.DisplayItem], viewmodel: ExportDialogViewModel) -> bool:
-        directory = viewmodel.directory.value
+        directory_path = pathlib.Path(viewmodel.directory.value or str())
         writer = viewmodel.writer
-        if directory and writer and writer.value:
+        if directory_path.is_dir() and writer and writer.value:
             for index, display_item in enumerate(display_items):
                 data_item = display_item.data_item
                 if data_item:
                     try:
                         components = list()
-                        if viewmodel.include_prefix.value: # self.options.get("prefix", False):
-                            components.append(str(viewmodel.prefix.value)) # prefix_edit_widget.text))
+                        if viewmodel.include_prefix.value:
+                            components.append(str(viewmodel.prefix.value))
                         if viewmodel.include_title.value:
                             title = unicodedata.normalize('NFKC', data_item.title)
                             title = re.sub(r'[^\w\s-]', '', title, flags=re.U).strip()
@@ -206,8 +200,8 @@ class ExportDialog(Declarative.Handler):
                                 "x".join([str(shape_n) for shape_n in data_item.dimensional_shape]))
                         if viewmodel.include_sequence.value:
                             components.append(str(index))
-                        filename = ExportDialog.build_filename(components, writer.value.extensions[0], path=directory)
-                        ImportExportManager.ImportExportManager().write_display_item_with_writer(writer.value, display_item, pathlib.Path(filename))
+                        filepath = ExportDialog.build_filepath(components, writer.value.extensions[0], directory_path=directory_path)
+                        ImportExportManager.ImportExportManager().write_display_item_with_writer(writer.value, display_item, filepath)
                     except Exception as e:
                         logging.debug("Could not export image %s / %s", str(data_item), str(e))
                         traceback.print_exc()
