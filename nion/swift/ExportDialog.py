@@ -56,17 +56,17 @@ class ExportDialog(Declarative.Handler):
         self.ui = ui
         self.__document_controller = document_controller
 
-        # set up values needed for the viewmodel
+        # configure the writers. ensure that the writer is set to the last used writer or the first writer if no last used.
+        self.__writers = ImportExportManager.ImportExportManager().get_writers()
         io_handler_id = self.ui.get_persistent_string("export_io_handler_id", "png-io-handler")
-        writer = ImportExportManager.ImportExportManager().get_writer_by_id(io_handler_id)
+        writer = ImportExportManager.ImportExportManager().get_writer_by_id(io_handler_id) or self.__writers[0]
+        self.writer_index = self.__writers.index(writer)
+
+        # set up directory needed for the viewmodel
         directory = self.ui.get_persistent_string("export_directory", self.ui.get_document_location())
 
         # the viewmodel is the data model for the dialog. no other variables are needed.
         self.viewmodel = ExportDialogViewModel(True, True, True, True, writer, "", directory)
-
-        # use this in the UI to display the current directory
-        self.writer_index = 0
-        self.__writers = ImportExportManager.ImportExportManager().get_writers()
 
         # build the UI
         u = Declarative.DeclarativeUI()
