@@ -93,53 +93,54 @@ class ExportDialog(Declarative.Handler):
         writers_names = [getattr(writer, "name") for writer in self.__writers]
 
         # Export Folder
-        directory_label = u.create_row(u.create_label(text="Location:"))
-        directory_text = u.create_row(u.create_label(text=f"@binding(viewmodel.directory.value)"))
+        directory_label = u.create_row(u.create_label(text="Location:"), u.create_stretch())
+        directory_text = u.create_row(u.create_label(text=f"@binding(viewmodel.directory.value)", width=480), u.create_stretch())
         self.directory_text_label = directory_text
-        directory_button = u.create_row(u.create_push_button(text=_("Select Path..."), on_clicked="choose_directory"))
+        directory_button = u.create_row(u.create_push_button(text=_("Select Path..."), on_clicked="choose_directory"), u.create_stretch())
 
         # Filename
-        filename_label = u.create_row(u.create_label(text="Filename:"))
+        filename_label = u.create_row(u.create_label(text="Filename:"), u.create_stretch())
 
         # Title
         title_checkbox = u.create_row(
-            u.create_check_box(text="Include Title", checked=f"@binding(viewmodel.include_title.value)"))
+            u.create_check_box(text="Include Title", checked=f"@binding(viewmodel.include_title.value)"), u.create_stretch())
 
         # Date
         date_checkbox = u.create_row(
-            u.create_check_box(text="Include Date", checked=f"@binding(viewmodel.include_date.value)"))
+            u.create_check_box(text="Include Date", checked=f"@binding(viewmodel.include_date.value)"), u.create_stretch())
 
         # Dimensions
         dimension_checkbox = u.create_row(
-            u.create_check_box(text="Include Dimensions", checked=f"@binding(viewmodel.include_dimensions.value)"))
+            u.create_check_box(text="Include Dimensions", checked=f"@binding(viewmodel.include_dimensions.value)"), u.create_stretch())
 
         # Sequence Number
         sequence_checkbox = u.create_row(
-            u.create_check_box(text="Include Sequence Number", checked=f"@binding(viewmodel.include_sequence.value)"))
+            u.create_check_box(text="Include Sequence Number", checked=f"@binding(viewmodel.include_sequence.value)"), u.create_stretch())
 
         # Prefix
         prefix_checkbox = u.create_row(
-            u.create_check_box(text="Include Prefix", checked=f"@binding(viewmodel.include_prefix.value)"))
-        prefix_textbox = u.create_row(u.create_text_edit(text=f"@binding(viewmodel.prefix.value)"))
+            u.create_check_box(text="Include Prefix", checked=f"@binding(viewmodel.include_prefix.value)"), u.create_stretch())
+        prefix_textbox = u.create_row(u.create_line_edit(text=f"@binding(viewmodel.prefix.value)", placeholder_text=_("None"), width=280), u.create_stretch())
 
         # File Type
         file_type_combobox = u.create_combo_box(
             items=writers_names,
             current_index=f"@binding(writer_index)",
             on_current_index_changed="on_writer_changed")
+        file_type_row = u.create_row(u.create_label(text=_("File Format")), file_type_combobox, u.create_stretch())
 
         # Build final ui column
         column = u.create_column(directory_label,
                                  directory_text,
                                  directory_button,
                                  filename_label,
+                                 file_type_row,
                                  title_checkbox,
                                  date_checkbox,
                                  dimension_checkbox,
                                  sequence_checkbox,
                                  prefix_checkbox,
                                  prefix_textbox,
-                                 file_type_combobox,
                                  spacing=12, margin=12)
         self.ui_view = column
 
