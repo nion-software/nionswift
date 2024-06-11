@@ -45,49 +45,52 @@ class ExportDialogViewModel:
         self.include_prefix = Model.PropertyModel(prefix is not None)
         self.prefix = Model.PropertyModel(prefix)
         self.directory = Model.PropertyModel(directory)
-        if writer:
-            self.writer = Model.PropertyModel(writer)
+        self.writer = Model.PropertyModel(writer)
 
 
 class ExportDialog(Declarative.Handler):
-    writer: typing.Optional[ImportExportManager.ImportExportHandler] = None
+
     def __init__(self, ui: UserInterface.UserInterface, document_controller: DocumentController.DocumentController, display_items: typing.Sequence[DisplayItem.DisplayItem]):
         super().__init__()
 
         self.ui = ui
-        io_handler_id = self.ui.get_persistent_string("export_io_handler_id", "png-io-handler")
         self.__document_controller = document_controller
-        self.directory = self.ui.get_persistent_string("export_directory", self.ui.get_document_location())
-        writer = ImportExportManager.ImportExportManager().get_writer_by_id(io_handler_id)
-        if writer:
-            self.writer = writer
 
-        self.viewmodel = ExportDialogViewModel(True, True, True, True, self.writer, "", self.directory)
+        # set up values needed for the viewmodel
+        io_handler_id = self.ui.get_persistent_string("export_io_handler_id", "png-io-handler")
+        writer = ImportExportManager.ImportExportManager().get_writer_by_id(io_handler_id)
+        directory = self.ui.get_persistent_string("export_directory", self.ui.get_document_location())
+
+        # the viewmodel is the data model for the dialog. no other variables are needed.
+        self.viewmodel = ExportDialogViewModel(True, True, True, True, writer, "", directory)
+
+        # use this in the UI to display the current directory
+        self.writer_index = 0
+        self.__writers = ImportExportManager.ImportExportManager().get_writers()
+
+        # build the UI
         u = Declarative.DeclarativeUI()
         self._build_ui(u)
 
+        # create the dialog and show it.
         dialog = typing.cast(Dialog.ActionDialog, Declarative.construct(document_controller.ui, document_controller, u.create_modeless_dialog(self.ui_view, title=_("Export")), self))
         dialog.add_button(_("Cancel"), self.cancel)
         dialog.add_button(_("Export"), functools.partial(self.export_clicked, display_items, self.viewmodel))
         dialog.show()
 
     def choose_directory(self, widget: Declarative.UIWidget) -> None:
-        existing_directory, directory = self.ui.get_existing_directory_dialog(_("Choose Export Directory"),
-                                                                              self.directory)
+        directory = self.viewmodel.directory.value or str()
+        existing_directory, directory = self.ui.get_existing_directory_dialog(_("Choose Export Directory"), directory)
         if existing_directory:
-            self.directory = existing_directory
-            self.viewmodel.directory.value = self.directory
-            self.ui.set_persistent_string("export_directory", self.directory)
+            self.viewmodel.directory.value = directory
+            self.ui.set_persistent_string("export_directory", directory)
 
     def on_writer_changed(self, widget: Declarative.UIWidget, current_index: int) -> None:
-        writer = self.writers[current_index]
+        writer = self.__writers[current_index]
         self.viewmodel.writer.value = writer
 
     def _build_ui(self, u: Declarative.DeclarativeUI) -> None:
-        self.file_type_index = 0
-        self.writers = ImportExportManager.ImportExportManager().get_writers()
-        writers_names = [getattr(writer, "name") for writer in self.writers]
-        self.file_types = writers_names
+        writers_names = [getattr(writer, "name") for writer in self.__writers]
 
         # Export Folder
         directory_label = u.create_row(u.create_label(text="Location:"))
@@ -121,8 +124,8 @@ class ExportDialog(Declarative.Handler):
 
         # File Type
         file_type_combobox = u.create_combo_box(
-            items=self.file_types,
-            current_index=f"@binding(file_type_index.value)",
+            items=writers_names,
+            current_index=f"@binding(writer_index)",
             on_current_index_changed="on_writer_changed")
 
         # Build final ui column
@@ -211,9 +214,9 @@ class ExportDialog(Declarative.Handler):
                         traceback.print_stack()
         return True
 
-
     def cancel(self) -> bool:
         return True
+
 
 class ExportSVGHandler:
     def __init__(self, display_size: Geometry.IntSize) -> None:
