@@ -3035,6 +3035,10 @@ class ExportSVGAction(Window.Action):
             window.export_svg(selected_display_item)
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return len(context.display_items) > 0 or context.display_item is not None
+
 
 class ImportDataAction(Window.Action):
     action_id = "file.import_data"
