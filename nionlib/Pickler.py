@@ -51,7 +51,7 @@ class Unpickler(pickle.Unpickler):
     @classmethod
     def call_threadsafe_method(cls, proxy, object, method, *args, **kwargs):
         try:
-            return Unpickler.unpickle(proxy, proxy.call_method_threadsafe(Pickler.pickle(object), method, Pickler.pickle(args), Pickler.pickle(kwargs)))
+            return Unpickler.unpickle(proxy, proxy.call_threadsafe_method(Pickler.pickle(object), method, Pickler.pickle(args), Pickler.pickle(kwargs)))
         except xmlrpc.client.Fault as e:
             error_type, error_string = e.faultString.split(":", 1)
             if error_type == "<class 'TimeoutError'>":

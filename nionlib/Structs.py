@@ -1,8 +1,8 @@
 import base64
 import copy
 import datetime
+import pickle
 import re
-import numpy
 
 
 class Calibration:
@@ -85,7 +85,7 @@ class DataAndCalibration:
     def from_rpc_dict(cls, d):
         if d is None:
             return None
-        data = numpy.loads(base64.b64decode(d["data"].encode('utf-8')))
+        data = pickle.loads(base64.b64decode(d["data"].encode('utf-8')))
         data_shape_and_dtype = data.shape, data.dtype  # TODO: DataAndMetadata from_rpc_dict fails for RGB
         intensity_calibration = Calibration.from_rpc_dict(d.get("intensity_calibration"))
         if "dimensional_calibrations" in d:
@@ -101,7 +101,7 @@ class DataAndCalibration:
         d = dict()
         data = self.data
         if data is not None:
-            d["data"] = base64.b64encode(numpy.ndarray.dumps(data)).decode('utf=8')
+            d["data"] = base64.b64encode(pickle.dumps(data)).decode('utf=8')
         if self.intensity_calibration:
             d["intensity_calibration"] = self.intensity_calibration.rpc_dict
         if self.dimensional_calibrations:
