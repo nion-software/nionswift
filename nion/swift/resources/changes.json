@@ -3,6 +3,10 @@
     "version": "UNRELEASED",
     "notes": [
       {
+        "issues": ["https://github.com/nion-software/nionswift/issues/586"],
+        "summary": "Fix issue where exporting could overwrite files with same metadata."
+      },
+      {
         "issues": ["https://github.com/nion-software/nionswift/issues/1045"],
         "summary": "Fix issue when displaying line plot of integer-valued 1D data item using log scale."
       },
