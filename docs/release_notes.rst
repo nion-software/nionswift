@@ -12,6 +12,27 @@ them for evaluation and feedback. If you encounter an issue or have feedback abo
 please contact us or `file issues
 <https://github.com/nion-software/nionswift/issues>`_.
 
+Version 16.11.0 (2024-06-13)
+----------------------------
+* Computed data items titles update automatically when changing source title. (`#32 <https://github.com/nion-software/nionswift/issues/32>`_)
+* Improve drawing performance and fix minor inconsistencies.
+* Improve startup performance by fixing issue that invalidated thumbnails on exit.
+* Fix issue where exporting could overwrite files with same metadata. (`#586 <https://github.com/nion-software/nionswift/issues/586>`_)
+* Add mechanism to include additional display calibrations (e.g., e/eV/s). (`#230 <https://github.com/nion-software/nionswift/issues/230>`_ `#1019 <https://github.com/nion-software/nionswift/issues/1019>`_)
+* Improve handling of number precision for inspector calibrations and display limits. (`#253 <https://github.com/nion-software/nionswift/issues/253>`_)
+* Ask user for SVG size before exporting (assumes 96 DPI).
+* Improve ordering of fields in session dialogs to have most frequently used fields at top.
+* Fix issue when displaying line plot of integer-valued 1D data item using log scale. (`#1045 <https://github.com/nion-software/nionswift/issues/1045>`_)
+* Importing valid data always succeeds by assign new identifiers, instead of silently skipping possible duplicates.
+* Sort recent workspaces in menu by creation date (if available). Older workspaces copy modified date to creation date.
+* Add support for independent dimensional and intensity calibrations. (`#300 <https://github.com/nion-software/nionswift/issues/300>`_)
+* Add menu items for flip horizontal/vertical and rotate right/left. (`#919 <https://github.com/nion-software/nionswift/issues/919>`_)
+* Fix issue when removing workspace to select next most recent workspace. (`#1002 <https://github.com/nion-software/nionswift/issues/1002>`_)
+* Fix issue when splitting display panels with multiple panels selected. (`#1001 <https://github.com/nion-software/nionswift/issues/1001>`_)
+* Make filtering work on modified date text and session metadata text when filtering data items in data panel. (`#922 <https://github.com/nion-software/nionswift/issues/922>`_ `#327 <https://github.com/nion-software/nionswift/issues/327>`_)
+* Fix issue with data panel spontaneously switching display after processing when using data panel text filter. (`#1001 <https://github.com/nion-software/nionswift/issues/1003>`_)
+* Fix issues with line plot when dimensional calibrations are invalid. Fall back to pixel calibration. (`#998 <https://github.com/nion-software/nionswift/issues/998>`_)
+
 Version 16.10.0 (2024-01-03)
 ----------------------------
 * Fix crash when screen properties change. Also respond better to DPI changes. (`#995 <https://github.com/nion-software/nionswift/issues/995>`_)
