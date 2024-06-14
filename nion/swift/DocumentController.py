@@ -887,10 +887,8 @@ class DocumentController(Window.Window):
             ImportExportManager.ImportExportManager().write_display_item_with_writer(selected_writer, display_item, pathlib.Path(path))
 
     def export_files(self, display_items: typing.Sequence[DisplayItem.DisplayItem]) -> None:
-        if len(display_items) > 1:
+        if len(display_items) > 0:
             ExportDialog.ExportDialog(self.ui, self, display_items)
-        elif len(display_items) == 1:
-            self.export_file(display_items[0])
 
     def export_svg_file(self, ui_settings: UISettings.UISettings, display_item: DisplayItem.DisplayItem, display_shape: Geometry.IntSize, path: pathlib.Path) -> None:
         # take a snapshot so to modify the display properties for the proper image zoom, position, and canvas mode.
@@ -3023,10 +3021,8 @@ class ExportAction(Window.Action):
         window = typing.cast(DocumentController, context.window)
         selected_display_item = context.display_item
         selected_display_items = context.display_items
-        if len(selected_display_items) > 1:
+        if len(selected_display_items) > 0:
             window.export_files(selected_display_items)
-        elif selected_display_item:
-            window.export_file(selected_display_item)
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
     def is_enabled(self, context: Window.ActionContext) -> bool:
