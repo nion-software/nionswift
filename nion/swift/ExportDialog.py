@@ -4,7 +4,6 @@ from __future__ import annotations
 import functools
 import gettext
 import logging
-import operator
 import os
 import pathlib
 import re
@@ -16,15 +15,12 @@ import unicodedata
 # None
 
 # local libraries
-from nion.swift.model import DisplayItem
 from nion.swift.model import ImportExportManager
-from nion.swift.model import Utility
 from nion.swift import DocumentController
 from nion.swift import DisplayPanel
 from nion.ui import Declarative
 from nion.ui import Dialog
 from nion.ui import UserInterface
-from nion.ui import Window
 from nion.utils import Converter
 from nion.utils import Geometry
 from nion.utils import Model
@@ -101,8 +97,8 @@ class ExportDialog(Declarative.Handler):
         writers_names = [getattr(writer, "name") for writer in self.__writers]
 
         # Export Folder
-        directory_label = u.create_row(u.create_label(text="Location:", font='bold'), u.create_stretch())
-        directory_text = u.create_row(u.create_label(text=f"@binding(viewmodel.directory.value)", width=280, height=40, word_wrap=True), u.create_stretch())
+        directory_label = u.create_row(u.create_label(text="Location:", font='bold'))
+        directory_text = u.create_row(u.create_column(u.create_label(text=f"@binding(viewmodel.directory.value)", min_width=280, height=48, word_wrap=True, size_policy_horizontal='min-expanding')))
         self.directory_text_label = directory_text
         directory_button = u.create_row(u.create_push_button(text=_("Select Path..."), on_clicked="choose_directory"), u.create_stretch())
 
