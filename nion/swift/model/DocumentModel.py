@@ -2167,49 +2167,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         computation._inputs = input_items
         computation._outputs = output_items
 
-    def __digest_requirement(self, requirement: typing.Mapping[str, typing.Any], data_item: DataItem.DataItem) -> bool:
-        requirement_type = requirement["type"]
-        xdata = data_item.xdata
-        if requirement_type == "datum_rank":
-            values = typing.cast(typing.Sequence[int], requirement.get("values"))
-            if not data_item.datum_dimension_count in values:
-                return False
-        if requirement_type == "datum_calibrations":
-            if requirement.get("units") == "equal":
-                if not xdata or len(set([calibration.units for calibration in xdata.datum_dimensional_calibrations])) != 1:
-                    return False
-        if requirement_type == "dimensionality":
-            min_dimension = requirement.get("min")
-            max_dimension = requirement.get("max")
-            dimensionality = len(data_item.dimensional_shape)
-            if min_dimension is not None and dimensionality < min_dimension:
-                return False
-            if max_dimension is not None and dimensionality > max_dimension:
-                return False
-        if requirement_type == "is_rgb_type":
-            if not xdata or not xdata.is_data_rgb_type:
-                return False
-        if requirement_type == "is_sequence":
-            if not data_item.is_sequence:
-                return False
-        if requirement_type == "is_navigable":
-            if not data_item.is_sequence and not data_item.is_collection:
-                return False
-        if requirement_type == "bool":
-            operator = requirement["operator"]
-            for operand in requirement["operands"]:
-                requirement_satisfied = self.__digest_requirement(operand, data_item)
-                if operator == "not":
-                    return not requirement_satisfied
-                if operator == "and" and not requirement_satisfied:
-                    return False
-                if operator == "or" and requirement_satisfied:
-                    return True
-            else:
-                if operator == "or":
-                    return False
-        return True
-
     def __make_computation(self, processing_id: str,
                            inputs: typing.List[typing.Tuple[DisplayItem.DisplayItem, typing.Optional[DataItem.DataItem], typing.Optional[Graphics.Graphic]]],
                            region_list_map: typing.Optional[typing.Mapping[str, typing.List[typing.Optional[Graphics.Graphic]]]] = None,
@@ -2226,14 +2183,14 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         processing_description = processing_descriptions[processing_id]
 
         # first process the sources in the description. match them to the inputs (which are data item/crop graphic tuples)
-        src_dicts = processing_description.get("sources", list())
-        assert len(inputs) == len(src_dicts)
+        sources = processing_description.sources
+        assert len(inputs) == len(sources)
         src_names: typing.List[str] = list()
         src_texts: typing.List[str] = list()
         src_labels: typing.List[str] = list()
         regions: typing.List[typing.Tuple[str, Graphics.Graphic, str]] = list()
         region_map: typing.Dict[str, Graphics.Graphic] = dict()
-        for i, (src_dict, input) in enumerate(zip(src_dicts, inputs)):
+        for i, (src, input) in enumerate(zip(sources, inputs)):
 
             display_item, data_item, _ = input
 
@@ -2243,27 +2200,26 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             # each source can have a list of requirements, check through them
             # implicit "and" connection between the requirements in the list. Could be changed to use the new
             # boolean options, but leave it like this for backwards compatibility for now.
-            requirements = src_dict.get("requirements", list())
+            requirements = src.requirements
             for requirement in requirements:
-                if not self.__digest_requirement(requirement, data_item):
+                if not requirement.is_data_item_valid(data_item):
                     return None
 
-            src_name = src_dict["name"]
-            src_label = src_dict["label"]
+            src_name = src.name
+            src_label = src.label
             src_names.append(src_name)
             src_texts.append(src_name)
             src_labels.append(src_label)
 
             # each source can have a list of regions to be matched to arguments or created on the source
-            region_dict_list = src_dict.get("regions", list())
+            processor_regions = src.regions
             src_region_list = region_list_map.get(src_name, list())
-            assert len(region_dict_list) == len(src_region_list)
-            for region_dict, region in zip(region_dict_list, src_region_list):
-                region_params = region_dict.get("params", dict())
-                region_type = region_dict["type"]
-                region_name = region_dict["name"]
+            assert len(processor_regions) == len(src_region_list)
+            for processor_region, region in zip(processor_regions, src_region_list):
+                region_params = processor_region.params
+                region_name = processor_region.name
                 region_label = region_params.get("label")
-                if region_type == "point":
+                if processor_region.region_type == Symbolic.ComputationProcsesorRegionTypeEnum.POINT:
                     if region:
                         assert isinstance(region, Graphics.PointGraphic)
                         point_region = region
@@ -2275,7 +2231,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                             display_item.add_graphic(point_region)
                     regions.append((region_name, point_region, region_label))
                     region_map[region_name] = point_region
-                elif region_type == "line":
+                elif processor_region.region_type == Symbolic.ComputationProcsesorRegionTypeEnum.LINE:
                     if region:
                         assert isinstance(region, Graphics.LineProfileGraphic)
                         line_region = region
@@ -2289,7 +2245,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                             display_item.add_graphic(line_region)
                     regions.append((region_name, line_region, region_params.get("label")))
                     region_map[region_name] = line_region
-                elif region_type == "rectangle":
+                elif processor_region.region_type == Symbolic.ComputationProcsesorRegionTypeEnum.RECTANGLE:
                     if region:
                         assert isinstance(region, Graphics.RectangleGraphic)
                         rect_region = region
@@ -2303,7 +2259,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                             display_item.add_graphic(rect_region)
                     regions.append((region_name, rect_region, region_params.get("label")))
                     region_map[region_name] = rect_region
-                elif region_type == "ellipse":
+                elif processor_region.region_type == Symbolic.ComputationProcsesorRegionTypeEnum.ELLIPSE:
                     if region:
                         assert isinstance(region, Graphics.EllipseGraphic)
                         ellipse_region = region
@@ -2317,7 +2273,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                             display_item.add_graphic(ellipse_region)
                     regions.append((region_name, ellipse_region, region_params.get("label")))
                     region_map[region_name] = ellipse_region
-                elif region_type == "spot":
+                elif processor_region.region_type == Symbolic.ComputationProcsesorRegionTypeEnum.SPOT:
                     if region:
                         assert isinstance(region, Graphics.SpotGraphic)
                         spot_region = region
@@ -2330,7 +2286,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                             display_item.add_graphic(spot_region)
                     regions.append((region_name, spot_region, region_params.get("label")))
                     region_map[region_name] = spot_region
-                elif region_type == "interval":
+                elif processor_region.region_type == Symbolic.ComputationProcsesorRegionTypeEnum.INTERVAL:
                     if region:
                         assert isinstance(region, Graphics.IntervalGraphic)
                         interval_graphic = region
@@ -2342,7 +2298,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                             display_item.add_graphic(interval_graphic)
                     regions.append((region_name, interval_graphic, region_params.get("label")))
                     region_map[region_name] = interval_graphic
-                elif region_type == "channel":
+                elif processor_region.region_type == Symbolic.ComputationProcsesorRegionTypeEnum.CHANNEL:
                     if region:
                         assert isinstance(region, Graphics.ChannelGraphic)
                         channel_region = region
@@ -2357,21 +2313,21 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
         # now extract the script (full script) or expression (implied imports and return statement)
         script = None
-        expression = processing_description.get("expression")
+        expression = processing_description.expression
         if expression:
             script = Symbolic.xdata_expression(expression)
             script = script.format(**dict(zip(src_names, src_texts)))
 
         # construct the computation
         computation = self.create_computation(script)
-        computation.attributes.update(processing_description.get("attributes", dict()))
-        computation.label = processing_description["title"]
+        computation.attributes.update(processing_description.attributes)
+        computation.label = processing_description.title
         computation.processing_id = processing_id
         # process the data item inputs
-        for src_dict, src_name, src_label, input in zip(src_dicts, src_names, src_labels, inputs):
+        for src, src_name, src_label, input in zip(sources, src_names, src_labels, inputs):
             in_display_item, data_item, graphic = input
             secondary_item = None
-            if src_dict.get("croppable", False):
+            if src.is_croppable:
                 secondary_item = graphic
             display_data_channel = in_display_item.get_display_data_channel_for_data_item(data_item) if data_item else None
             computation.create_input_item(src_name, Symbolic.make_item(display_data_channel, secondary_item=secondary_item), label=src_label)
@@ -2379,11 +2335,11 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         for region_name, region, region_label in regions:
             computation.create_input_item(region_name, Symbolic.make_item(region), label=region_label)
         # next process the parameters
-        for param_dict in processing_description.get("parameters", list()):
-            parameter_value = parameters.get(param_dict["name"], param_dict["value"])
-            computation.create_variable(param_dict["name"], param_dict["type"], parameter_value, value_default=param_dict.get("value_default"),
-                                        value_min=param_dict.get("value_min"), value_max=param_dict.get("value_max"),
-                                        control_type=param_dict.get("control_type"), label=param_dict.get("label"))
+        for param in processing_description.parameters:
+            parameter_value = parameters.get(param.name, param.value)
+            computation.create_variable(param.name, param.type, parameter_value, value_default=param.value_default,
+                                        value_min=param.value_min, value_max=param.value_max,
+                                        control_type=param.control_type, label=param.label)
 
         data_item0 = inputs[0][1]
         new_data_item = DataItem.new_data_item()
@@ -2396,17 +2352,16 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
         # next come the output regions that get created on the target itself
         new_regions: typing.Dict[str, Graphics.Graphic] = dict()
-        for out_region_dict in processing_description.get("out_regions", list()):
-            region_type = out_region_dict["type"]
-            region_name = out_region_dict["name"]
-            region_params = out_region_dict.get("params", dict())
-            if region_type == "interval":
+        for out_region in processing_description.out_regions:
+            region_name = out_region.name
+            region_params = out_region.params
+            if out_region.region_type == Symbolic.ComputationProcsesorRegionTypeEnum.INTERVAL:
                 interval_graphic = Graphics.IntervalGraphic()
                 for k, v in region_params.items():
                     setattr(interval_graphic, k, v)
                 new_display_item.add_graphic(interval_graphic)
                 new_regions[region_name] = interval_graphic
-            elif region_type == "point":
+            elif out_region.region_type == Symbolic.ComputationProcsesorRegionTypeEnum.POINT:
                 point_graphic = Graphics.PointGraphic()
                 for k, v in region_params.items():
                     setattr(point_graphic, k, v)
@@ -2433,7 +2388,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
     @classmethod
     def register_processing_descriptions(cls, processing_descriptions: typing.Dict[str, typing.Any]) -> None:
         assert len(set(Project.Project._processing_descriptions.keys()).intersection(set(processing_descriptions.keys()))) == 0
-        Project.Project._processing_descriptions.update(processing_descriptions)
+        for key, d in processing_descriptions.items():
+            assert key not in Project.Project._processing_descriptions
+            Project.Project._processing_descriptions[key] = Symbolic.ComputationProcessor.from_dict(d)
 
     @classmethod
     def unregister_processing_descriptions(cls, processing_ids: typing.Sequence[str]) -> None:
