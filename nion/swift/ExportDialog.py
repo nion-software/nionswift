@@ -322,12 +322,12 @@ class ExportResultDialog(Declarative.Handler):
         dialog.show()
 
     def open_export_folder(self, widget: Declarative.UIWidget) -> bool:
-        if platform.system() == "Windows":
-            os.startfile(self.export_folder)
-        elif platform.system() == "Darwin":
-            subprocess.Popen(["open", self.export_folder])
-        else:
-            subprocess.Popen(["xdg-open", self.export_folder])
+        if platform.system() == 'Windows':
+            subprocess.run(['explorer', self.export_folder])
+        elif platform.system() == 'Darwin':
+            subprocess.Popen(['open', self.export_folder])
+        elif platform.system() == 'linux':
+            subprocess.Popen(['xdg-open', self.export_folder])
         return True
 
     def _build_ui(self, u: Declarative.DeclarativeUI) -> None:
