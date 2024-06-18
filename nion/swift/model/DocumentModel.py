@@ -2179,11 +2179,11 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
         parameters = parameters or dict()
 
-        processing_descriptions = Project.Project._processing_descriptions
-        processing_description = processing_descriptions[processing_id]
+        processors = Project.Project._processors
+        processor = processors[processing_id]
 
         # first process the sources in the description. match them to the inputs (which are data item/crop graphic tuples)
-        sources = processing_description.sources
+        sources = processor.sources
         assert len(inputs) == len(sources)
         src_names: typing.List[str] = list()
         src_texts: typing.List[str] = list()
@@ -2313,15 +2313,15 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
         # now extract the script (full script) or expression (implied imports and return statement)
         script = None
-        expression = processing_description.expression
+        expression = processor.expression
         if expression:
             script = Symbolic.xdata_expression(expression)
             script = script.format(**dict(zip(src_names, src_texts)))
 
         # construct the computation
         computation = self.create_computation(script)
-        computation.attributes.update(processing_description.attributes)
-        computation.label = processing_description.title
+        computation.attributes.update(processor.attributes)
+        computation.label = processor.title
         computation.processing_id = processing_id
         # process the data item inputs
         for src, src_name, src_label, input in zip(sources, src_names, src_labels, inputs):
@@ -2335,7 +2335,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         for region_name, region, region_label in regions:
             computation.create_input_item(region_name, Symbolic.make_item(region), label=region_label)
         # next process the parameters
-        for param in processing_description.parameters:
+        for param in processor.parameters:
             parameter_value = parameters.get(param.name, param.value)
             computation.create_variable(param.name, param.param_type, parameter_value,
                                         value_default=param.value_default, value_min=param.value_min,
@@ -2352,7 +2352,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
         # next come the output regions that get created on the target itself
         new_regions: typing.Dict[str, Graphics.Graphic] = dict()
-        for out_region in processing_description.out_regions:
+        for out_region in processor.out_regions:
             region_name = out_region.name
             region_params = out_region.params
             if out_region.region_type == Symbolic.ComputationProcsesorRegionTypeEnum.INTERVAL:
@@ -2383,24 +2383,32 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
         return new_data_item
 
-    _builtin_processing_descriptions = None
+    _builtin_processors = dict[str, Symbolic.ComputationProcessor]()
+
+    @classmethod
+    def register_processors(cls, processors: dict[str, Symbolic.ComputationProcessor]) -> None:
+        assert len(set(Project.Project._processors.keys()).intersection(set(processors.keys()))) == 0
+        for key, processor in processors.items():
+            assert key not in Project.Project._processors
+            Project.Project._processors[key] = processor
+
+    @classmethod
+    def unregister_processors(cls, processing_ids: typing.Sequence[str]) -> None:
+        assert len(set(Project.Project._processors.keys()).intersection(set(processing_ids))) == len(processing_ids)
+        for processing_id in processing_ids:
+            Project.Project._processors.pop(processing_id)
 
     @classmethod
     def register_processing_descriptions(cls, processing_descriptions: typing.Dict[str, typing.Any]) -> None:
-        assert len(set(Project.Project._processing_descriptions.keys()).intersection(set(processing_descriptions.keys()))) == 0
-        for key, d in processing_descriptions.items():
-            assert key not in Project.Project._processing_descriptions
-            Project.Project._processing_descriptions[key] = Symbolic.ComputationProcessor.from_dict(d)
+        cls.register_processors({key: Symbolic.ComputationProcessor.from_dict(d) for key, d in processing_descriptions.items()})
 
     @classmethod
     def unregister_processing_descriptions(cls, processing_ids: typing.Sequence[str]) -> None:
-        assert len(set(Project.Project._processing_descriptions.keys()).intersection(set(processing_ids))) == len(processing_ids)
-        for processing_id in processing_ids:
-            Project.Project._processing_descriptions.pop(processing_id)
+        cls.unregister_processors(processing_ids)
 
     @classmethod
-    def _get_builtin_processing_descriptions(cls) -> typing.Dict[str, typing.Any]:
-        if not cls._builtin_processing_descriptions:
+    def _get_builtin_processors(cls) -> dict[str, Symbolic.ComputationProcessor]:
+        if not cls._builtin_processors:
             vs: typing.Dict[str, typing.Any] = dict()
 
             requirement_2d = {"type": "dimensionality", "min": 2, "max": 2}
@@ -2564,8 +2572,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             vs["extract-green"] = {"title": _("Green"), "expression": "xd.green({src}.display_rgba)", "sources": [{"name": "src", "label": _("Source"), "requirements": [requirement_is_rgb_type]}]}
             vs["extract-blue"] = {"title": _("Blue"), "expression": "xd.blue({src}.display_rgba)", "sources": [{"name": "src", "label": _("Source"), "requirements": [requirement_is_rgb_type]}]}
             vs["extract-alpha"] = {"title": _("Alpha"), "expression": "xd.alpha({src}.display_rgba)", "sources": [{"name": "src", "label": _("Source"), "requirements": [requirement_is_rgb_type]}]}
-            cls._builtin_processing_descriptions = vs
-        return cls._builtin_processing_descriptions
+            cls._builtin_processors = {k: Symbolic.ComputationProcessor.from_dict(v) for k, v in vs.items()}
+        return cls._builtin_processors
 
     def get_fft_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
         return self.__make_computation("fft", [(display_item, data_item, crop_region)])
@@ -2910,8 +2918,9 @@ class ImplicitMapConnection:
             if computation.get_computation_attribute("connection_type", None) == "map":
                 return True
             processing_id = computation.processing_id
-            if processing_id and DocumentModel._get_builtin_processing_descriptions().get(processing_id, dict()).get("attributes", dict()).get("connection_type", None) == "map":
-                return True
+            if processing_id and (processor := DocumentModel._get_builtin_processors().get(processing_id)):
+                if processor.attributes.get("connection_type", None) == "map":
+                    return True
             return False
 
         def match_graphic(graphic: Graphics.Graphic) -> bool:
@@ -2998,7 +3007,7 @@ class ImplicitLineProfileIntervalsConnection:
             self.__observer.close()
 
 
-DocumentModel.register_processing_descriptions(DocumentModel._get_builtin_processing_descriptions())
+DocumentModel.register_processors(DocumentModel._get_builtin_processors())
 
 
 def evaluate_data(computation: Symbolic.Computation) -> DataAndMetadata.DataAndMetadata:
