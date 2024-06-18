@@ -2565,12 +2565,12 @@ class Computation(Persistence.PersistentObject):
             self.computation_mutated_event.fire()
             self.needs_update = True
 
-    def update_script(self, processing_descriptions: typing.Mapping[str, ComputationProcessor]) -> None:
+    def update_script(self, processors: typing.Mapping[str, ComputationProcessor]) -> None:
         processing_id = self.processing_id
-        processing_description = processing_descriptions.get(processing_id) if processing_id else None
-        if processing_description:
-            if expression := processing_description.expression:
-                src_names = [processing_description_source.name for processing_description_source in processing_description.sources]
+        processor = processors.get(processing_id) if processing_id else None
+        if processor:
+            if expression := processor.expression:
+                src_names = [processing_description_source.name for processing_description_source in processor.sources]
                 script = xdata_expression(expression)
                 script = script.format(**dict(zip(src_names, src_names)))
                 self._get_persistent_property("original_expression").value = script
