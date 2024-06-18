@@ -1,5 +1,14 @@
 [
   {
+    "version": "UNRELEASED",
+    "notes": [
+      {
+        "issues": ["https://github.com/nion-software/nionswift/issues/932"],
+        "summary": "Export single data items with same naming options as exporting multiple items."
+      }
+    ]
+  },
+  {
     "version": "16.11.0",
     "notes": [
       {
