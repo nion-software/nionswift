@@ -20,6 +20,7 @@ from nion.swift.model import DataStructure
 from nion.swift.model import DisplayItem
 from nion.swift.model import FileStorageSystem
 from nion.swift.model import Persistence
+from nion.swift.model import Symbolic
 from nion.swift.model import WorkspaceLayout
 from nion.utils import Converter
 from nion.utils import ListModel
@@ -40,7 +41,7 @@ class Project(Persistence.PersistentObject):
 
     PROJECT_VERSION = 3
 
-    _processing_descriptions: PersistentDictType = dict()
+    _processing_descriptions = dict[str, Symbolic.ComputationProcessor]()
 
     def __init__(self, storage_system: Persistence.PersistentStorageInterface, cache_factory: typing.Optional[Cache.CacheFactory] = None) -> None:
         super().__init__()

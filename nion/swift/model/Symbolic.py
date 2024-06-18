@@ -24,6 +24,8 @@ import traceback
 import typing
 import uuid
 
+import typing_extensions
+
 # local libraries
 from nion.data import Core
 from nion.data import DataAndMetadata
@@ -2562,16 +2564,12 @@ class Computation(Persistence.PersistentObject):
             self.computation_mutated_event.fire()
             self.needs_update = True
 
-    def update_script(self, processing_descriptions: typing.Mapping[str, Persistence.PersistentDictType]) -> None:
+    def update_script(self, processing_descriptions: typing.Mapping[str, ComputationProcessor]) -> None:
         processing_id = self.processing_id
         processing_description = processing_descriptions.get(processing_id) if processing_id else None
         if processing_description:
-            expression = processing_description.get("expression")
-            if expression:
-                src_names = list()
-                source_dicts = processing_description["sources"]
-                for i, source_dict in enumerate(source_dicts):
-                    src_names.append(source_dict["name"])
+            if expression := processing_description.expression:
+                src_names = [processing_description_source.name for processing_description_source in processing_description.sources]
                 script = xdata_expression(expression)
                 script = script.format(**dict(zip(src_names, src_names)))
                 self._get_persistent_property("original_expression").value = script
@@ -2751,6 +2749,164 @@ class ScriptExpressionComputationExecutor(ComputationExecutor):
     @property
     def _target_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
         return self.__data_item.xdata if self.__data_item else self.__xdata
+
+
+PersistentDictType = typing.Dict[str, typing.Any]
+
+
+class ComputationProcessorRequirement(typing.Protocol):
+    def is_data_item_valid(self, data_item: DataItem.DataItem) -> bool: ...
+
+
+class ComputationProcessorRequirementDataRank(ComputationProcessorRequirement):
+    def __init__(self, d: PersistentDictType) -> None:
+        self.values = d["values"]
+
+    def is_data_item_valid(self, data_item: DataItem.DataItem) -> bool:
+        return data_item.datum_dimension_count in self.values
+
+
+class ComputationProcessorRequirementDatumCalibrations(ComputationProcessorRequirement):
+    def __init__(self, d: PersistentDictType) -> None:
+        self.requires_equal = d.get("units") == "equal"
+
+    def is_data_item_valid(self, data_item: DataItem.DataItem) -> bool:
+        if self.requires_equal:
+            xdata = data_item.xdata
+            if not xdata or len(set([calibration.units for calibration in xdata.datum_dimensional_calibrations])) != 1:
+                return False
+        return True
+
+
+class ComputationProcessorRequirementDimensionality(ComputationProcessorRequirement):
+    def __init__(self, d: PersistentDictType) -> None:
+        self.min_dimension = d.get("min")
+        self.max_dimension = d.get("max")
+
+    def is_data_item_valid(self, data_item: DataItem.DataItem) -> bool:
+        dimensionality = len(data_item.dimensional_shape)
+        if self.min_dimension is not None and dimensionality < self.min_dimension:
+            return False
+        if self.max_dimension is not None and dimensionality > self.max_dimension:
+            return False
+        return True
+
+
+class ComputationProcessorRequirementIsRGBType(ComputationProcessorRequirement):
+    def is_data_item_valid(self, data_item: DataItem.DataItem) -> bool:
+        return data_item.is_data_rgb_type
+
+
+class ComputationProcessorRequirementIsSequence(ComputationProcessorRequirement):
+    def is_data_item_valid(self, data_item: DataItem.DataItem) -> bool:
+        return data_item.is_sequence
+
+
+class ComputationProcessorRequirementIsNavigable(ComputationProcessorRequirement):
+    def is_data_item_valid(self, data_item: DataItem.DataItem) -> bool:
+        return data_item.is_sequence or data_item.is_collection
+
+
+class ComputationProcessorRequirementBoolean(ComputationProcessorRequirement):
+    def __init__(self, d: PersistentDictType) -> None:
+        self.operator = d["operator"]
+        self.operands = [create_computation_processor_requirement(operand) for operand in d["operands"]]
+
+    def is_data_item_valid(self, data_item: DataItem.DataItem) -> bool:
+        operator = self.operator
+        for operand in self.operands:
+            requirement_satisfied = operand.is_data_item_valid(data_item)
+            if operator == "not":
+                return not requirement_satisfied
+            if operator == "and" and not requirement_satisfied:
+                return False
+            if operator == "or" and requirement_satisfied:
+                return True
+        else:
+            if operator == "or":
+                return False
+        return True
+
+
+def create_computation_processor_requirement(d: PersistentDictType) -> ComputationProcessorRequirement:
+    requirement_type = d.get("type", None)
+    if requirement_type == "datum_rank":
+        return ComputationProcessorRequirementDataRank(d)
+    if requirement_type == "datum_calibrations":
+        return ComputationProcessorRequirementDatumCalibrations(d)
+    if requirement_type == "dimensionality":
+        return ComputationProcessorRequirementDimensionality(d)
+    if requirement_type == "is_rgb_type":
+        return ComputationProcessorRequirementIsRGBType()
+    if requirement_type == "is_sequence":
+        return ComputationProcessorRequirementIsSequence()
+    if requirement_type == "is_navigable":
+        return ComputationProcessorRequirementIsNavigable()
+    if requirement_type == "bool":
+        return ComputationProcessorRequirementBoolean(d)
+    raise ValueError(f"Unknown requirement type: {requirement_type}")
+
+
+class ComputationProcsesorRegionTypeEnum(enum.StrEnum):
+    POINT = "point"
+    LINE = "line"
+    RECTANGLE = "rectangle"
+    ELLIPSE = "ellipse"
+    SPOT = "spot"
+    INTERVAL = "interval"
+    CHANNEL = "channel"
+
+
+class ComputationProcessorRegion:
+    def __init__(self, d: PersistentDictType) -> None:
+        self.region_type_str = d["type"]
+        self.params = d.get("params", dict())
+        self.name = d.get("name", None)
+
+    @property
+    def region_type(self) -> ComputationProcsesorRegionTypeEnum:
+        return ComputationProcsesorRegionTypeEnum(self.region_type_str)
+
+
+class ComputationProcessorSource:
+    def __init__(self, d: PersistentDictType) -> None:
+        self.name = d["name"]
+        self.label = d["label"]
+        self.requirements = [create_computation_processor_requirement(requirement_d) for requirement_d in d.get("requirements", list())]
+        self.regions = [ComputationProcessorRegion(region_d) for region_d in d.get("regions", list())]
+        self.is_croppable = d.get("croppable", False)
+
+
+class ComputationProcessorParameter:
+    def __init__(self, d: PersistentDictType) -> None:
+        self.type = d["type"]
+        self.name = d["name"]
+        self.label = d.get("label", None)
+        self.value = d["value"]
+        self.value_default = d.get("value_default", None)
+        self.value_min = d.get("value_min", None)
+        self.value_max = d.get("value_max", None)
+        self.control_type = d.get("control_type", None)
+
+
+class ComputationProcessor:
+    def __init__(self, expression: typing.Optional[str], title: typing.Optional[str], sources: typing.Sequence[ComputationProcessorSource], parameters: typing.Sequence[ComputationProcessorParameter], attributes: typing.Mapping[str, typing.Any], out_regions: typing.Sequence[ComputationProcessorRegion]) -> None:
+        self.expression: typing.Optional[str] = expression
+        self.title: typing.Optional[str] = title
+        self.sources = list(sources)
+        self.parameters = list(parameters)
+        self.attributes = dict(attributes)
+        self.out_regions = list(out_regions)
+
+    @classmethod
+    def from_dict(cls, d: PersistentDictType) -> ComputationProcessor:
+        expression = d.get("expression", None)
+        title = d.get("title", None)
+        sources = [ComputationProcessorSource(source_d) for source_d in d.get("sources", list())]
+        parameters = [ComputationProcessorParameter(parameter_d) for parameter_d in d.get("parameters", list())]
+        attributes = d.get("attributes", dict())
+        out_regions = [ComputationProcessorRegion(region_d) for region_d in d.get("out_regions", list())]
+        return cls(expression, title, sources, parameters, attributes, out_regions)
 
 
 class RegisteredComputationExecutor(ComputationExecutor):
