@@ -55,7 +55,7 @@ _ = gettext.gettext
 class AddVariableCommand(Undo.UndoableCommand):
 
     def __init__(self, document_model: DocumentModel.DocumentModel, computation: Symbolic.Computation,
-                 name: typing.Optional[str] = None, value_type: typing.Optional[str] = None, value: typing.Any = None,
+                 name: typing.Optional[str] = None, value_type: typing.Optional[Symbolic.ComputationVariableType] = None, value: typing.Any = None,
                  value_default: typing.Any = None, value_min: typing.Any = None, value_max: typing.Any = None,
                  control_type: typing.Optional[str] = None,
                  specified_item: typing.Optional[Persistence.PersistentObject] = None,
@@ -320,7 +320,7 @@ class ComputationModel:
     def set_display_item(self, display_item: typing.Optional[DisplayItem.DisplayItem]) -> None:
         self.__set_display_item(display_item)
 
-    def add_variable(self, name: typing.Optional[str] = None, value_type: typing.Optional[str] = None,
+    def add_variable(self, name: typing.Optional[str] = None, value_type: typing.Optional[Symbolic.ComputationVariableType] = None,
                      value: typing.Any = None, value_default: typing.Any = None, value_min: typing.Any = None,
                      value_max: typing.Any = None, control_type: typing.Optional[str] = None,
                      specified_item: typing.Optional[Persistence.PersistentObject] = None,
@@ -879,7 +879,7 @@ class EditComputationDialog(Dialog.ActionDialog):
         add_object_button.on_clicked = add_object_pressed
 
         def add_variable_pressed() -> None:
-            self.__computation_model.add_variable("".join([random.choice(string.ascii_lowercase) for _ in range(4)]), value_type="integral", value=0)
+            self.__computation_model.add_variable("".join([random.choice(string.ascii_lowercase) for _ in range(4)]), value_type=Symbolic.ComputationVariableType.INTEGRAL, value=0)
 
         add_variable_button.on_clicked = add_variable_pressed
 

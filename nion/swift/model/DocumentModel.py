@@ -2337,9 +2337,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         # next process the parameters
         for param in processing_description.parameters:
             parameter_value = parameters.get(param.name, param.value)
-            computation.create_variable(param.name, param.type, parameter_value, value_default=param.value_default,
-                                        value_min=param.value_min, value_max=param.value_max,
-                                        control_type=param.control_type, label=param.label)
+            computation.create_variable(param.name, param.param_type, parameter_value,
+                                        value_default=param.value_default, value_min=param.value_min,
+                                        value_max=param.value_max, control_type=param.control_type, label=param.label)
 
         data_item0 = inputs[0][1]
         new_data_item = DataItem.new_data_item()
