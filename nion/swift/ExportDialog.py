@@ -216,7 +216,7 @@ class ExportDialog(Declarative.Handler):
                         filepath = ExportDialog.build_filepath(components, writer.value.extensions[0], directory_path=directory_path)
                         file_name = filepath.name
                         ImportExportManager.ImportExportManager().write_display_item_with_writer(writer.value, display_item, filepath)
-                        export_results.append(ExportResult(file_name, _('Complete'), ''))
+                        export_results.append(ExportResult(file_name, _('Succeeded'), ''))
                     except Exception as e:
                         logging.debug("Could not export image %s / %s", str(data_item), str(e))
                         traceback.print_exc()
@@ -312,23 +312,23 @@ class ExportResultDialog(Declarative.Handler):
         u = Declarative.DeclarativeUI()
         self._build_ui(u)
 
-        def open_export_folder() -> bool:
-            if platform.system() == "Windows":
-                os.startfile(self.export_folder)
-            elif platform.system() == "Darwin":
-                subprocess.Popen(["open", self.export_folder])
-            else:
-                subprocess.Popen(["xdg-open", self.export_folder])
-            return True
-
         # create the dialog and show it.
         dialog = typing.cast(Dialog.ActionDialog, Declarative.construct(document_controller.ui, document_controller,
                                                                         u.create_modeless_dialog(
                                                                             self.ui_view,
                                                                             title=_("Export Results")), self))
-        dialog.add_button(_("Open folder"), open_export_folder)
+
         dialog.add_button(_("OK"), self.ok_click)
         dialog.show()
+
+    def open_export_folder(self, widget: Declarative.UIWidget) -> bool:
+        if platform.system() == "Windows":
+            os.startfile(self.export_folder)
+        elif platform.system() == "Darwin":
+            subprocess.Popen(["open", self.export_folder])
+        else:
+            subprocess.Popen(["xdg-open", self.export_folder])
+        return True
 
     def _build_ui(self, u: Declarative.DeclarativeUI) -> None:
 
@@ -352,8 +352,17 @@ class ExportResultDialog(Declarative.Handler):
         error_column = u.create_column(*error_children, spacing=5)
 
         # Build main ui row
-        row = u.create_row(file_name_column, status_column, error_column, spacing=10, margin_horizontal=10)
-        self.ui_view = row
+        data_row = u.create_row(file_name_column, status_column, error_column, spacing=10)
+
+        path_title = u.create_label(text=_('Directory:'), font='bold')
+
+        path_directory = u.create_label(text=str(self.export_folder))
+
+        path_goto = u.create_row(u.create_push_button(text='Open Directory', on_clicked='open_export_folder'),
+                                 u.create_stretch())
+
+        self.ui_view = u.create_column(path_title, path_directory,u.create_spacing(5), path_goto,
+                                       u.create_spacing(10), data_row, margin=10)
 
     def ok_click(self) -> bool:
         return True
