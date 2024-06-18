@@ -2760,16 +2760,25 @@ class ComputationProcessorRequirement(typing.Protocol):
 
 
 class ComputationProcessorRequirementDataRank(ComputationProcessorRequirement):
-    def __init__(self, d: PersistentDictType) -> None:
-        self.values = d["values"]
+    def __init__(self, values: typing.Sequence[int]) -> None:
+        self.values = list(values)
+
+    @classmethod
+    def from_dict(cls, d: PersistentDictType) -> ComputationProcessorRequirementDataRank:
+        return cls(d["values"])
 
     def is_data_item_valid(self, data_item: DataItem.DataItem) -> bool:
         return data_item.datum_dimension_count in self.values
 
 
 class ComputationProcessorRequirementDatumCalibrations(ComputationProcessorRequirement):
-    def __init__(self, d: PersistentDictType) -> None:
-        self.requires_equal = d.get("units") == "equal"
+    def __init__(self, requires_equal: bool) -> None:
+        self.requires_equal = requires_equal
+
+    @classmethod
+    def from_dict(cls, d: PersistentDictType) -> ComputationProcessorRequirementDatumCalibrations:
+        requires_equal = d.get("units") == "equal"
+        return cls(requires_equal)
 
     def is_data_item_valid(self, data_item: DataItem.DataItem) -> bool:
         if self.requires_equal:
@@ -2780,9 +2789,15 @@ class ComputationProcessorRequirementDatumCalibrations(ComputationProcessorRequi
 
 
 class ComputationProcessorRequirementDimensionality(ComputationProcessorRequirement):
-    def __init__(self, d: PersistentDictType) -> None:
-        self.min_dimension = d.get("min")
-        self.max_dimension = d.get("max")
+    def __init__(self, min_dimension: typing.Optional[int], max_dimension: typing.Optional[int]) -> None:
+        self.min_dimension = min_dimension
+        self.max_dimension = max_dimension
+
+    @classmethod
+    def from_dict(cls, d: PersistentDictType) -> ComputationProcessorRequirementDimensionality:
+        min_dimension = d.get("min")
+        max_dimension = d.get("max")
+        return cls(min_dimension, max_dimension)
 
     def is_data_item_valid(self, data_item: DataItem.DataItem) -> bool:
         dimensionality = len(data_item.dimensional_shape)
@@ -2808,23 +2823,35 @@ class ComputationProcessorRequirementIsNavigable(ComputationProcessorRequirement
         return data_item.is_sequence or data_item.is_collection
 
 
+class ComputationProcessorRequirementBooleanOperator(enum.StrEnum):
+    NOT = "not"
+    AND = "and"
+    OR = "or"
+
+
 class ComputationProcessorRequirementBoolean(ComputationProcessorRequirement):
-    def __init__(self, d: PersistentDictType) -> None:
-        self.operator = d["operator"]
-        self.operands = [create_computation_processor_requirement(operand) for operand in d["operands"]]
+    def __init__(self, operator: ComputationProcessorRequirementBooleanOperator, operands: typing.Sequence[ComputationProcessorRequirement]) -> None:
+        self.operator = operator
+        self.operands = list(operands)
+
+    @classmethod
+    def from_dict(cls, d: PersistentDictType) -> ComputationProcessorRequirementBoolean:
+        operator = ComputationProcessorRequirementBooleanOperator(d["operator"])
+        operands = [create_computation_processor_requirement(operand) for operand in d["operands"]]
+        return cls(operator, operands)
 
     def is_data_item_valid(self, data_item: DataItem.DataItem) -> bool:
         operator = self.operator
         for operand in self.operands:
             requirement_satisfied = operand.is_data_item_valid(data_item)
-            if operator == "not":
+            if operator == ComputationProcessorRequirementBooleanOperator.NOT:
                 return not requirement_satisfied
-            if operator == "and" and not requirement_satisfied:
+            if operator == ComputationProcessorRequirementBooleanOperator.AND and not requirement_satisfied:
                 return False
-            if operator == "or" and requirement_satisfied:
+            if operator == ComputationProcessorRequirementBooleanOperator.OR and requirement_satisfied:
                 return True
         else:
-            if operator == "or":
+            if operator == ComputationProcessorRequirementBooleanOperator.OR:
                 return False
         return True
 
@@ -2832,11 +2859,11 @@ class ComputationProcessorRequirementBoolean(ComputationProcessorRequirement):
 def create_computation_processor_requirement(d: PersistentDictType) -> ComputationProcessorRequirement:
     requirement_type = d.get("type", None)
     if requirement_type == "datum_rank":
-        return ComputationProcessorRequirementDataRank(d)
+        return ComputationProcessorRequirementDataRank.from_dict(d)
     if requirement_type == "datum_calibrations":
-        return ComputationProcessorRequirementDatumCalibrations(d)
+        return ComputationProcessorRequirementDatumCalibrations.from_dict(d)
     if requirement_type == "dimensionality":
-        return ComputationProcessorRequirementDimensionality(d)
+        return ComputationProcessorRequirementDimensionality.from_dict(d)
     if requirement_type == "is_rgb_type":
         return ComputationProcessorRequirementIsRGBType()
     if requirement_type == "is_sequence":
@@ -2844,7 +2871,7 @@ def create_computation_processor_requirement(d: PersistentDictType) -> Computati
     if requirement_type == "is_navigable":
         return ComputationProcessorRequirementIsNavigable()
     if requirement_type == "bool":
-        return ComputationProcessorRequirementBoolean(d)
+        return ComputationProcessorRequirementBoolean.from_dict(d)
     raise ValueError(f"Unknown requirement type: {requirement_type}")
 
 
@@ -2859,23 +2886,35 @@ class ComputationProcsesorRegionTypeEnum(enum.StrEnum):
 
 
 class ComputationProcessorRegion:
-    def __init__(self, d: PersistentDictType) -> None:
-        self.region_type_str = d["type"]
-        self.params = d.get("params", dict())
-        self.name = d.get("name", None)
+    def __init__(self, region_type: ComputationProcsesorRegionTypeEnum, params: typing.Mapping[str, typing.Any], name: str) -> None:
+        self.region_type = region_type
+        self.params = dict(params)
+        self.name = name
 
-    @property
-    def region_type(self) -> ComputationProcsesorRegionTypeEnum:
-        return ComputationProcsesorRegionTypeEnum(self.region_type_str)
+    @classmethod
+    def from_dict(cls, d: PersistentDictType) -> ComputationProcessorRegion:
+        region_type = ComputationProcsesorRegionTypeEnum(d["type"])
+        params = d.get("params", dict())
+        name = d["name"]
+        return cls(region_type, params, name)
 
 
 class ComputationProcessorSource:
-    def __init__(self, d: PersistentDictType) -> None:
-        self.name = d["name"]
-        self.label = d["label"]
-        self.requirements = [create_computation_processor_requirement(requirement_d) for requirement_d in d.get("requirements", list())]
-        self.regions = [ComputationProcessorRegion(region_d) for region_d in d.get("regions", list())]
-        self.is_croppable = d.get("croppable", False)
+    def __init__(self, name: str, label: str, requirements: typing.Sequence[ComputationProcessorRequirement], regions: typing.Sequence[ComputationProcessorRegion], is_croppable: bool) -> None:
+        self.name = name
+        self.label = label
+        self.requirements = list(requirements)
+        self.regions = list(regions)
+        self.is_croppable = is_croppable
+
+    @classmethod
+    def from_dict(cls, d: PersistentDictType) -> ComputationProcessorSource:
+        name = d["name"]
+        label = d["label"]
+        requirements = [create_computation_processor_requirement(requirement_d) for requirement_d in d.get("requirements", list())]
+        regions = [ComputationProcessorRegion.from_dict(region_d) for region_d in d.get("regions", list())]
+        is_croppable = d.get("croppable", False)
+        return cls(name, label, requirements, regions, is_croppable)
 
 
 class ComputationProcessorParameter:
@@ -2915,10 +2954,10 @@ class ComputationProcessor:
     def from_dict(cls, d: PersistentDictType) -> ComputationProcessor:
         expression = d.get("expression", None)
         title = d.get("title", None)
-        sources = [ComputationProcessorSource(source_d) for source_d in d.get("sources", list())]
+        sources = [ComputationProcessorSource.from_dict(source_d) for source_d in d.get("sources", list())]
         parameters = [ComputationProcessorParameter.from_dict(parameter_d) for parameter_d in d.get("parameters", list())]
         attributes = d.get("attributes", dict())
-        out_regions = [ComputationProcessorRegion(region_d) for region_d in d.get("out_regions", list())]
+        out_regions = [ComputationProcessorRegion.from_dict(region_d) for region_d in d.get("out_regions", list())]
         return cls(expression, title, sources, parameters, attributes, out_regions)
 
 

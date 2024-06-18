@@ -2218,7 +2218,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             for processor_region, region in zip(processor_regions, src_region_list):
                 region_params = processor_region.params
                 region_name = processor_region.name
-                region_label = region_params.get("label")
+                region_label = typing.cast(str, region_params["label"])
                 if processor_region.region_type == Symbolic.ComputationProcsesorRegionTypeEnum.POINT:
                     if region:
                         assert isinstance(region, Graphics.PointGraphic)
@@ -2243,7 +2243,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                             setattr(line_region, k, v)
                         if display_item:
                             display_item.add_graphic(line_region)
-                    regions.append((region_name, line_region, region_params.get("label")))
+                    regions.append((region_name, line_region, region_label))
                     region_map[region_name] = line_region
                 elif processor_region.region_type == Symbolic.ComputationProcsesorRegionTypeEnum.RECTANGLE:
                     if region:
@@ -2257,7 +2257,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                             setattr(rect_region, k, v)
                         if display_item:
                             display_item.add_graphic(rect_region)
-                    regions.append((region_name, rect_region, region_params.get("label")))
+                    regions.append((region_name, rect_region, region_label))
                     region_map[region_name] = rect_region
                 elif processor_region.region_type == Symbolic.ComputationProcsesorRegionTypeEnum.ELLIPSE:
                     if region:
@@ -2271,7 +2271,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                             setattr(ellipse_region, k, v)
                         if display_item:
                             display_item.add_graphic(ellipse_region)
-                    regions.append((region_name, ellipse_region, region_params.get("label")))
+                    regions.append((region_name, ellipse_region, region_label))
                     region_map[region_name] = ellipse_region
                 elif processor_region.region_type == Symbolic.ComputationProcsesorRegionTypeEnum.SPOT:
                     if region:
@@ -2284,7 +2284,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                             setattr(spot_region, k, v)
                         if display_item:
                             display_item.add_graphic(spot_region)
-                    regions.append((region_name, spot_region, region_params.get("label")))
+                    regions.append((region_name, spot_region, region_label))
                     region_map[region_name] = spot_region
                 elif processor_region.region_type == Symbolic.ComputationProcsesorRegionTypeEnum.INTERVAL:
                     if region:
@@ -2296,7 +2296,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                             setattr(interval_graphic, k, v)
                         if display_item:
                             display_item.add_graphic(interval_graphic)
-                    regions.append((region_name, interval_graphic, region_params.get("label")))
+                    regions.append((region_name, interval_graphic, region_label))
                     region_map[region_name] = interval_graphic
                 elif processor_region.region_type == Symbolic.ComputationProcsesorRegionTypeEnum.CHANNEL:
                     if region:
@@ -2308,7 +2308,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                             setattr(channel_region, k, v)
                         if display_item:
                             display_item.add_graphic(channel_region)
-                    regions.append((region_name, channel_region, region_params.get("label")))
+                    regions.append((region_name, channel_region, region_label))
                     region_map[region_name] = channel_region
 
         # now extract the script (full script) or expression (implied imports and return statement)
