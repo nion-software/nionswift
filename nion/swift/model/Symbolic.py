@@ -535,7 +535,7 @@ class ComputationVariable(Persistence.PersistentObject):
     """
 
     def __init__(self, name: typing.Optional[str] = None, *, property_name: typing.Optional[str] = None,
-                 value_type: typing.Optional[str] = None, value: typing.Any = None, value_default: typing.Any = None,
+                 value_type: typing.Optional[ComputationVariableType] = None, value: typing.Any = None, value_default: typing.Any = None,
                  value_min: typing.Any = None, value_max: typing.Any = None, control_type: typing.Optional[str] = None,
                  specifier: typing.Optional[Specifier] = None, label: typing.Optional[str] = None,
                  secondary_specifier: typing.Optional[Specifier] = None,
@@ -548,7 +548,7 @@ class ComputationVariable(Persistence.PersistentObject):
         # existing fields (control_type) for that which are leftovers from the original implementation.
         self.define_property("name", name, changed=self.__property_changed, hidden=True)
         self.define_property("label", label if label else name, changed=self.__property_changed, hidden=True)
-        self.define_property("value_type", value_type, changed=self.__property_changed, hidden=True)
+        self.define_property("value_type", _map_variable_type_to_identifier.get(value_type, None) if value_type else None, changed=self.__property_changed, hidden=True)
         self.define_property("value", value, changed=self.__property_changed, reader=self.__value_reader, writer=self.__value_writer, hidden=True)
         self.define_property("value_default", value_default, changed=self.__property_changed, reader=self.__value_reader, writer=self.__value_writer, hidden=True)
         self.define_property("value_min", value_min, changed=self.__property_changed, reader=self.__value_reader, writer=self.__value_writer, hidden=True)
@@ -2283,13 +2283,14 @@ class Computation(Persistence.PersistentObject):
     def remove_variable(self, variable: ComputationVariable) -> None:
         self.remove_item("variables", variable)
 
-    def create_variable(self, name: typing.Optional[str] = None, value_type: typing.Optional[str] = None,
+    def create_variable(self, name: typing.Optional[str] = None, value_type: typing.Optional[ComputationVariableType | str] = None,
                         value: typing.Any = None, value_default: typing.Any = None, value_min: typing.Any = None,
                         value_max: typing.Any = None, control_type: typing.Optional[str] = None,
                         specified_item: typing.Optional[Persistence.PersistentObject] = None,
                         label: typing.Optional[str] = None) -> ComputationVariable:
         specifier = get_object_specifier(specified_item)
-        variable = ComputationVariable(name, value_type=value_type, value=value, value_default=value_default,
+        value_type_e = value_type if isinstance(value_type, ComputationVariableType) else (_map_identifier_to_variable_type[value_type] if value_type else None)
+        variable = ComputationVariable(name, value_type=value_type_e, value=value, value_default=value_default,
                                        value_min=value_min, value_max=value_max, control_type=control_type,
                                        specifier=specifier, label=label)
         self.add_variable(variable)
@@ -2878,15 +2879,27 @@ class ComputationProcessorSource:
 
 
 class ComputationProcessorParameter:
-    def __init__(self, d: PersistentDictType) -> None:
-        self.type = d["type"]
-        self.name = d["name"]
-        self.label = d.get("label", None)
-        self.value = d["value"]
-        self.value_default = d.get("value_default", None)
-        self.value_min = d.get("value_min", None)
-        self.value_max = d.get("value_max", None)
-        self.control_type = d.get("control_type", None)
+    def __init__(self, param_type: ComputationVariableType, name: str, label: typing.Optional[str], value: typing.Any, value_default: typing.Optional[typing.Any], value_min: typing.Optional[typing.Any], value_max: typing.Optional[typing.Any], control_type: typing.Optional[str]) -> None:
+        self.param_type = param_type
+        self.name = name
+        self.label = label
+        self.value = value
+        self.value_default = value_default
+        self.value_min = value_min
+        self.value_max = value_max
+        self.control_type = control_type
+
+    @classmethod
+    def from_dict(cls, d: PersistentDictType) -> ComputationProcessorParameter:
+        param_type = _map_identifier_to_variable_type[d["type"]]
+        name = d["name"]
+        label = d.get("label", None)
+        value = d["value"]
+        value_default = d.get("value_default", None)
+        value_min = d.get("value_min", None)
+        value_max = d.get("value_max", None)
+        control_type = d.get("control_type", None)
+        return cls(param_type, name, label, value, value_default, value_min, value_max, control_type)
 
 
 class ComputationProcessor:
@@ -2903,7 +2916,7 @@ class ComputationProcessor:
         expression = d.get("expression", None)
         title = d.get("title", None)
         sources = [ComputationProcessorSource(source_d) for source_d in d.get("sources", list())]
-        parameters = [ComputationProcessorParameter(parameter_d) for parameter_d in d.get("parameters", list())]
+        parameters = [ComputationProcessorParameter.from_dict(parameter_d) for parameter_d in d.get("parameters", list())]
         attributes = d.get("attributes", dict())
         out_regions = [ComputationProcessorRegion(region_d) for region_d in d.get("out_regions", list())]
         return cls(expression, title, sources, parameters, attributes, out_regions)

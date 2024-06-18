@@ -2722,15 +2722,15 @@ class Library(metaclass=SharedInstance):
         computation = self.__document_model.create_computation()
         for name, item in inputs.items():
             if isinstance(item, str):
-                computation.create_variable(name, value_type="string", value=item)
+                computation.create_variable(name, value_type=Symbolic.ComputationVariableType.STRING, value=item)
             elif isinstance(item, bool):
-                computation.create_variable(name, value_type="boolean", value=item)
+                computation.create_variable(name, value_type=Symbolic.ComputationVariableType.BOOLEAN, value=item)
             elif isinstance(item, numbers.Integral):
-                computation.create_variable(name, value_type="integral", value=item)
+                computation.create_variable(name, value_type=Symbolic.ComputationVariableType.INTEGRAL, value=item)
             elif isinstance(item, numbers.Real):
-                computation.create_variable(name, value_type="real", value=item)
+                computation.create_variable(name, value_type=Symbolic.ComputationVariableType.REAL, value=item)
             elif isinstance(item, numbers.Complex):
-                computation.create_variable(name, value_type="complex", value=item)
+                computation.create_variable(name, value_type=Symbolic.ComputationVariableType.COMPLEX, value=item)
             elif isinstance(item, dict) and item.get("object"):
                 object = item.get("object")
                 object_type = item.get("type")
