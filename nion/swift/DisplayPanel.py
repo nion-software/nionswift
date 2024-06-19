@@ -4,7 +4,6 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import copy
-import dataclasses
 import functools
 import gettext
 import math
@@ -826,6 +825,8 @@ class RelatedIconsCanvasItem(CanvasItem.CanvasItemComposition):
         self.__source_thumbnails.layout = CanvasItem.CanvasItemRowLayout(spacing=8)
         self.__dependent_thumbnails = CanvasItem.CanvasItemComposition()
         self.__dependent_thumbnails.layout = CanvasItem.CanvasItemRowLayout(spacing=8)
+        self.__source_display_items = list[DisplayItem.DisplayItem]()
+        self.__dependent_display_items = list[DisplayItem.DisplayItem]()
         self.add_spacing(12)
         self.add_canvas_item(self.__source_thumbnails)
         self.add_stretch()
@@ -838,6 +839,8 @@ class RelatedIconsCanvasItem(CanvasItem.CanvasItemComposition):
     def close(self) -> None:
         self.__related_items_stream_action.close()
         self.__related_items_stream_action = typing.cast(typing.Any, None)
+        self.__source_display_items.clear()
+        self.__dependent_display_items.clear()
         super().close()
 
     @property
@@ -851,19 +854,51 @@ class RelatedIconsCanvasItem(CanvasItem.CanvasItemComposition):
     def __related_items_changed(self, items: typing.Optional[_RelatedItemsTuple]) -> None:
         assert items is not None
         source_display_items, dependent_display_items = items
-        self.__source_thumbnails.remove_all_canvas_items()
-        self.__dependent_thumbnails.remove_all_canvas_items()
-        for source_display_item in source_display_items:
-            thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(self.ui, display_item=source_display_item)
-            thumbnail_canvas_item = DataItemThumbnailWidget.ThumbnailCanvasItem(self.ui, thumbnail_source, self.__thumbnail_size)
-            thumbnail_canvas_item.update_sizing(thumbnail_canvas_item.sizing.with_fixed_height(self.__thumbnail_size.height))
-            thumbnail_canvas_item.on_drag = self.__drag_fn
-            self.__source_thumbnails.add_canvas_item(thumbnail_canvas_item)
-        for dependent_display_item in dependent_display_items:
-            thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(self.ui, display_item=dependent_display_item)
-            thumbnail_canvas_item = DataItemThumbnailWidget.ThumbnailCanvasItem(self.ui, thumbnail_source, self.__thumbnail_size)
-            thumbnail_canvas_item.on_drag = self.__drag_fn
-            self.__dependent_thumbnails.add_canvas_item(thumbnail_canvas_item)
+
+        # try to reuse thumbnail canvas items if possible. the algorithm runs through the max of source display items
+        # and canvas items. for iteration, if both source and canvas item exist, update it if it is changed. if only
+        # the source item exists, create a new canvas item and add it to the canvas. if only the canvas item exists,
+        # remove it from the canvas. this is repeated for the dependent display items. the canvas items for the list
+        # of canvas items are stored in the source_display_items and dependent_display_items lists respectively, to
+        # allow for quick comparison and updating.
+
+        for index in range(max(len(source_display_items), self.__source_thumbnails.canvas_items_count)):
+            source_display_item = source_display_items[index] if index < len(source_display_items) else None
+            thumbnail_canvas_item = typing.cast(DataItemThumbnailWidget.ThumbnailCanvasItem, self.__source_thumbnails.canvas_items[index]) if index < self.__source_thumbnails.canvas_items_count else None
+            if source_display_item and thumbnail_canvas_item:
+                thumbnail_canvas_item = typing.cast(DataItemThumbnailWidget.ThumbnailCanvasItem, self.__source_thumbnails.canvas_items[index])
+                if self.__source_display_items[index] != source_display_item:
+                    thumbnail_canvas_item.set_thumbnail_source(DataItemThumbnailWidget.DataItemThumbnailSource(self.ui, display_item=source_display_item))
+                    self.__source_display_items[index] = source_display_item
+            elif not source_display_item and thumbnail_canvas_item:
+                self.__source_thumbnails.remove_canvas_item(self.__source_thumbnails.canvas_items[-1])
+                self.__source_display_items.pop(-1)
+            elif source_display_item and not thumbnail_canvas_item:
+                thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(self.ui, display_item=source_display_items[index])
+                thumbnail_canvas_item = DataItemThumbnailWidget.ThumbnailCanvasItem(self.ui, thumbnail_source, self.__thumbnail_size)
+                thumbnail_canvas_item.update_sizing(thumbnail_canvas_item.sizing.with_fixed_height(self.__thumbnail_size.height))
+                thumbnail_canvas_item.on_drag = self.__drag_fn
+                self.__source_thumbnails.add_canvas_item(thumbnail_canvas_item)
+                self.__source_display_items.append(source_display_item)
+
+        for index in range(max(len(dependent_display_items), self.__dependent_thumbnails.canvas_items_count)):
+            dependent_display_item = dependent_display_items[index] if index < len(dependent_display_items) else None
+            thumbnail_canvas_item = typing.cast(DataItemThumbnailWidget.ThumbnailCanvasItem, self.__dependent_thumbnails.canvas_items[index]) if index < self.__dependent_thumbnails.canvas_items_count else None
+            if dependent_display_item and thumbnail_canvas_item:
+                thumbnail_canvas_item = typing.cast(DataItemThumbnailWidget.ThumbnailCanvasItem, self.__dependent_thumbnails.canvas_items[index])
+                if self.__dependent_display_items[index] != dependent_display_item:
+                    thumbnail_canvas_item.set_thumbnail_source(DataItemThumbnailWidget.DataItemThumbnailSource(self.ui, display_item=dependent_display_item))
+                    self.__dependent_display_items[index] = dependent_display_item
+            elif not dependent_display_item and thumbnail_canvas_item:
+                self.__dependent_thumbnails.remove_canvas_item(self.__dependent_thumbnails.canvas_items[-1])
+                self.__dependent_display_items.pop(-1)
+            elif dependent_display_item and not thumbnail_canvas_item:
+                thumbnail_dependent = DataItemThumbnailWidget.DataItemThumbnailSource(self.ui, display_item=dependent_display_items[index])
+                thumbnail_canvas_item = DataItemThumbnailWidget.ThumbnailCanvasItem(self.ui, thumbnail_dependent, self.__thumbnail_size)
+                thumbnail_canvas_item.update_sizing(thumbnail_canvas_item.sizing.with_fixed_height(self.__thumbnail_size.height))
+                thumbnail_canvas_item.on_drag = self.__drag_fn
+                self.__dependent_thumbnails.add_canvas_item(thumbnail_canvas_item)
+                self.__dependent_display_items.append(dependent_display_item)
 
 
 class MissingDataCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
@@ -2652,11 +2687,17 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
 
     def adjust_graphics(self, widget_mapping: Graphics.CoordinateMappingLike, graphic_drag_items: typing.Sequence[Graphics.Graphic], graphic_drag_part: str, graphic_part_data: typing.Dict[int, Graphics.DragPartData], graphic_drag_start_pos: Geometry.FloatPoint, pos: Geometry.FloatPoint, modifiers: UserInterface.KeyboardModifiers) -> None:
         if self.__display_item:
-            with self.__display_item.display_item_changes():
-                for graphic in graphic_drag_items:
-                    index = self.__display_item.graphics.index(graphic)
-                    part_data = (graphic_drag_part, ) + graphic_part_data[index]
-                    graphic.adjust_part(widget_mapping, graphic_drag_start_pos, pos, part_data, modifiers)
+            graphic_changed = False
+            for graphic in graphic_drag_items:
+                index = self.__display_item.graphics.index(graphic)
+                part_data = (graphic_drag_part, ) + graphic_part_data[index]
+                graphic_modified = graphic.modified_count
+                graphic.adjust_part(widget_mapping, graphic_drag_start_pos, pos, part_data, modifiers)
+                if graphic.modified_count != graphic_modified:
+                    graphic_changed = True
+            if graphic_changed:
+                self.__display_item._begin_display_item_changes()
+                self.__display_item._end_display_item_changes()
 
     def nudge_slice(self, delta: int) -> None:
         display_data_channel = self.__display_item.display_data_channel if self.__display_item else None
@@ -3068,7 +3109,6 @@ def preview(ui_settings: UISettings.UISettings, display_item: DisplayItem.Displa
             display_canvas_item.update_display_data_delta(display_data_delta)
             with drawing_context.saver():
                 frame_width, frame_height = width, int(width / display_canvas_item.default_aspect_ratio)
-                display_canvas_item._prepare_render()
                 display_canvas_item.repaint_immediate(drawing_context, Geometry.IntSize(height=frame_height, width=frame_width))
                 shape = Geometry.IntSize(height=frame_height, width=frame_width)
     return drawing_context, shape

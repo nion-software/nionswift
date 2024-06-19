@@ -75,7 +75,8 @@ def calculate_y_axis(xdata_list: typing.Sequence[typing.Optional[DataAndMetadata
         calibrated_data_min = None
         for xdata in xdata_list:
             if xdata and xdata.data_shape[-1] > 0:
-                uncalibrated_data = xdata.data
+                # force the uncalibrated_data to be float so that numpy.amin with a numpy.inf initial value works.
+                uncalibrated_data = xdata.data if numpy.issubdtype(xdata.data.dtype, numpy.floating) else xdata.data.astype(float)
                 if uncalibrated_data is not None:
                     if data_style == "log":
                         calibrated_origin = xdata.intensity_calibration.convert_from_calibrated_value(0.0)
@@ -96,7 +97,8 @@ def calculate_y_axis(xdata_list: typing.Sequence[typing.Optional[DataAndMetadata
         calibrated_data_max = None
         for xdata in xdata_list:
             if xdata and xdata.data_shape[-1] > 0:
-                uncalibrated_data = xdata.data
+                # force the uncalibrated_data to be float so that numpy.amin with a numpy.inf initial value works.
+                uncalibrated_data = xdata.data if numpy.issubdtype(xdata.data.dtype, numpy.floating) else xdata.data.astype(float)
                 if uncalibrated_data is not None:
                     if data_style == "log":
                         calibrated_origin = xdata.intensity_calibration.convert_from_calibrated_value(0.0)

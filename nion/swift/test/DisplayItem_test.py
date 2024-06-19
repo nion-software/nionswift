@@ -15,6 +15,7 @@ from nion.swift import Application
 from nion.swift import Facade
 from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
+from nion.swift.model import DynamicString
 from nion.swift.model import ImportExportManager
 from nion.swift.test import TestContext
 from nion.ui import TestUI
@@ -51,6 +52,17 @@ class TestDisplayItemClass(unittest.TestCase):
             self.assertIsNotNone(display_item.status_str)
             self.assertIsNotNone(display_item.project_str)
             self.assertIsNotNone(display_item.used_display_type)
+
+    def test_display_data_channel_disconnects_if_display_item_closed(self):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item_snapshot = display_item.snapshot()
+            self.assertEqual(2, len(data_item.display_data_channels))
+            display_item_snapshot.close()
+            self.assertEqual(1, len(data_item.display_data_channels))
 
     def test_display_item_snapshot_and_copy_preserve_display_type(self):
         with TestContext.create_memory_context() as test_context:
@@ -494,6 +506,98 @@ class TestDisplayItemClass(unittest.TestCase):
             document_model = test_context.create_document_model()
             data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(numpy.zeros((8,)), dimensional_calibrations=[Calibration.Calibration(0.0, -math.inf, "x")]))
             document_model.append_data_item(data_item)
+
+    def test_displayed_title_shows_dynamic_title_or_title_if_set(self):
+        # requirement: dynamic_titles
+        with create_memory_profile_context() as profile_context:
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                data_item = DataItem.DataItem(numpy.zeros((8,)))
+                data_item.dynamic_title = DynamicString._TestDynamicString()
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                self.assertEqual("green", display_item.displayed_title)
+                data_item.title = "red"
+                self.assertEqual("red", display_item.displayed_title)
+                data_item.title = str()
+                self.assertEqual("green", display_item.displayed_title)
+                data_item.dynamic_title = DynamicString._TestDynamicString()
+
+    def test_dynamic_title_enabled_when_setting_dynamic_title_and_disabled_when_setting_title_directly(self):
+        # requirement: dynamic_titles
+        with create_memory_profile_context() as profile_context:
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                data_item = DataItem.DataItem(numpy.zeros((8,)))
+                data_item.dynamic_title = DynamicString._TestDynamicString()
+                self.assertTrue(data_item.dynamic_title_enabled)
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                self.assertEqual("green", display_item.displayed_title)
+                data_item.title = "red"
+                self.assertFalse(data_item.dynamic_title_enabled)
+                self.assertEqual("red", display_item.displayed_title)
+                data_item.dynamic_title = DynamicString._TestDynamicString()
+                self.assertTrue(data_item.dynamic_title_enabled)
+
+    def test_dynamic_title_updates_title_only_if_dynamic_title_is_enabled_and_updates_when_re_enabled(self):
+        # requirement: dynamic_titles
+        with create_memory_profile_context() as profile_context:
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                data_item = DataItem.DataItem(numpy.zeros((8,)))
+                data_item.dynamic_title = DynamicString._TestDynamicString()
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                self.assertEqual("green", display_item.displayed_title)
+                data_item.dynamic_title.string_stream.value = "blue"
+                self.assertEqual("blue", display_item.displayed_title)
+                data_item.dynamic_title_enabled = False
+                data_item.dynamic_title.string_stream.value = "purple"
+                self.assertEqual("blue", display_item.displayed_title)
+                data_item.dynamic_title_enabled = True
+                self.assertEqual("purple", display_item.displayed_title)
+
+    def test_displayed_title_shows_source_title_with_suffix_if_not_specified(self):
+        # requirement: dynamic_titles
+        with create_memory_profile_context() as profile_context:
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                data_item = DataItem.DataItem(numpy.zeros((8,)))
+                data_item.dynamic_title = DynamicString._TestDynamicString()
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                data_item2 = document_model.get_invert_new(display_item, display_item.data_item)
+                display_item2 = document_model.get_display_item_for_data_item(data_item2)
+                self.assertEqual("green (Negate)", display_item2.displayed_title)
+                data_item2.title = "blue"
+                self.assertEqual("blue", display_item2.displayed_title)
+                data_item2.title = None
+                self.assertEqual("green (Negate)", display_item2.displayed_title)
+                display_item2.title = "yellow"
+                self.assertEqual("yellow", display_item2.displayed_title)
+                display_item2.title = None
+                self.assertEqual("green (Negate)", display_item2.displayed_title)
+
+    def test_placeholder_title_ignores_specified_data_item_or_display_item_titles(self):
+        with create_memory_profile_context() as profile_context:
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                data_item = DataItem.DataItem(numpy.zeros((8,)))
+                data_item.title = "green"
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                data_item2 = document_model.get_invert_new(display_item, display_item.data_item)
+                display_item2 = document_model.get_display_item_for_data_item(data_item2)
+                self.assertEqual("green (Negate)", display_item2.placeholder_title)
+                data_item2.title = "blue"
+                self.assertEqual("green (Negate)", display_item2.placeholder_title)
+                data_item2.title = None
+                self.assertEqual("green (Negate)", display_item2.placeholder_title)
+                display_item2.title = "yellow"
+                self.assertEqual("green (Negate)", display_item2.placeholder_title)
+                display_item2.title = None
+                self.assertEqual("green (Negate)", display_item2.placeholder_title)
 
     # test_transaction_does_not_cascade_to_data_item_refs
     # test_increment_data_ref_counts_cascades_to_data_item_refs

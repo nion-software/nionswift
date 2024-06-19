@@ -51,13 +51,14 @@ class SessionPanel(Panel.Panel):
 
         self.__controller = SessionPanelController()
 
+        # ordered from most likely to change to least
         field_descriptions = [
-            [_("Site"), _("Site Description"), "site"],
-            [_("Instrument"), _("Instrument Description"), "instrument"],
+            [_("Sample Area"), _("Sample Area Description"), "sample_area"],
+            [_("Sample"), _("Sample Description"), "sample"],
             [_("Task"), _("Task Description"), "task"],
             [_("Microscopist"), _("Microscopist Name(s)"), "microscopist"],
-            [_("Sample"), _("Sample Description"), "sample"],
-            [_("Sample Area"), _("Sample Area Description"), "sample_area"],
+            [_("Instrument"), _("Instrument Description"), "instrument"],
+            [_("Site"), _("Site Description"), "site"],
         ]
 
         widget = self.ui.create_column_widget()

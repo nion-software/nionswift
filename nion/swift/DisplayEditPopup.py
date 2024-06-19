@@ -27,7 +27,7 @@ TOOL_TIP_STR = _("Use empty field for automatic title.")
 
 class InfoModel:
     def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem) -> None:
-        self.title_model = Model.PropertyModel[str](display_item.specified_title)
+        self.title_model = Model.PropertyModel[str](display_item.title)
         self.title_placeholder_model = Model.PropertyModel[str](display_item.placeholder_title)
         self.caption_model = Model.PropertyModel[str](display_item.caption)
 
@@ -104,14 +104,15 @@ class SessionHandler(Declarative.Handler):
     def __make_ui(self) -> Declarative.UIDescription:
         u = Declarative.DeclarativeUI()
 
+        # ordered from most likely to change to least
         field_descriptions = [
-            [_("Site"), _("Site Description"), "site"],
-            [_("Instrument"), _("Instrument Description"), "instrument"],
+            [_("Caption"), _("Caption"), "label"],
+            [_("Sample Area"), _("Sample Area Description"), "sample_area"],
+            [_("Sample"), _("Sample Description"), "sample"],
             [_("Task"), _("Task Description"), "task"],
             [_("Microscopist"), _("Microscopist Name(s)"), "microscopist"],
-            [_("Sample"), _("Sample Description"), "sample"],
-            [_("Sample Area"), _("Sample Area Description"), "sample_area"],
-            [_("Label"), _("Brief Label"), "label"],
+            [_("Instrument"), _("Instrument Description"), "instrument"],
+            [_("Site"), _("Site Description"), "site"],
         ]
 
         field_rows: typing.List[Declarative.UIDescription] = list()

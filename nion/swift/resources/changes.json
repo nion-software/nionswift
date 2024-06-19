@@ -3,14 +3,52 @@
     "version": "UNRELEASED",
     "notes": [
       {
-        "summary": "Ask user for SVG size before exporting (assumes 96 DPI)."
+        "issues": ["https://github.com/nion-software/nionswift/issues/932"],
+        "summary": "Export single data items with same naming options as exporting multiple items."
+      }
+    ]
+  },
+  {
+    "version": "16.11.0",
+    "notes": [
+      {
+        "issues": ["https://github.com/nion-software/nionswift/issues/32"],
+        "summary": "Computed data items titles update automatically when changing source title."
       },
       {
-        "summary": "Sort recent workspaces in menu by creation date (if available). Older workspaces copy modified date to creation date."
+        "summary": "Improve drawing performance and fix minor inconsistencies."
+      },
+      {
+        "summary": "Improve startup performance by fixing issue that invalidated thumbnails on exit."
+      },
+      {
+        "issues": ["https://github.com/nion-software/nionswift/issues/586"],
+        "summary": "Fix issue where exporting could overwrite files with same metadata."
       },
       {
         "issues": ["https://github.com/nion-software/nionswift/issues/230", "https://github.com/nion-software/nionswift/issues/1019"],
         "summary": "Add mechanism to include additional display calibrations (e.g., e/eV/s)."
+      },
+      {
+        "issues": ["https://github.com/nion-software/nionswift/issues/253"],
+        "summary": "Improve handling of number precision for inspector calibrations and display limits."
+      },
+      {
+        "summary": "Ask user for SVG size before exporting (assumes 96 DPI)."
+      },
+      {
+        "summary": "Improve ordering of fields in session dialogs to have most frequently used fields at top."
+      },
+      {
+        "issues": ["https://github.com/nion-software/nionswift/issues/1045"],
+        "summary": "Fix issue when displaying line plot of integer-valued 1D data item using log scale."
+      },
+      {
+        "issues": ["https://github.com/nion-software/nionswift/issues/592"],
+        "summary": "Importing valid data always succeeds by assign new identifiers, instead of silently skipping possible duplicates."
+      },
+      {
+        "summary": "Sort recent workspaces in menu by creation date (if available). Older workspaces copy modified date to creation date."
       },
       {
         "issues": ["https://github.com/nion-software/nionswift/issues/300"],
@@ -35,10 +73,6 @@
       {
         "issues": ["https://github.com/nion-software/nionswift/issues/1003"],
         "summary": "Fix issue with data panel spontaneously switching display after processing when using data panel text filter."
-      },
-      {
-        "issues": ["https://github.com/nion-software/nionswift/issues/253"],
-        "summary": "Improve handling of number precision for inspector calibrations and display limits."
       },
       {
         "issues": ["https://github.com/nion-software/nionswift/issues/998"],

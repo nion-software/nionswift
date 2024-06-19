@@ -3,29 +3,33 @@
 
 Data and Displays
 =================
-|AppName| operates on data arrays, which include 2D images and 1D spectra, which are generally called *Data Items*.
+This section describes the distinction between data items and display items in |AppName|.
 
-Data items represent data arrays with anywhere from one to five dimensions. The data array associated with a data item can be 1D or 2D data and then organized into 1D or 2D collections or 1D sequences. A data item can store scalar, complex, or RGB data. The scalar data can be integer or real.
+Data Items
+----------
+|AppName| primarily operates on data arrays such as 2D images and 1D spectra, which are generally called *Data Items*.
 
-A data item also stores both formal and informal metadata about the data. The formal metadata includes a title and description; the grouping of dimensions into data, collections, and sequences; dimensional and intensity calibrations; and creation and modification timestamps including time zone information. The informal metadata includes a freeform Python dict that is JSON compatible.
+The data in a data item may be organized into collections. For instance, a sequence of two dimensional images, or a two dimensional collection of one dimension spectra.
 
-A data item is displayed in one or more *Display Items*.
+The data in a data item may be stored as floating point numbers, integer numbers, complex numbers, or as RGB or RGBA values.
+
+A data item also stores metadata about the data. The metadata includes a title and description; the grouping of dimensions into data, collections, and sequences; dimensional and intensity calibrations; and creation and modification timestamps including time zone information. There may be other metadata stored as key-value pairs in more free-form manner.
 
 Display Items
 -------------
-Display items represent a view on one or more data items. A display item tracks things like how to translate the data in a 2D image data item to an image in the user interface. It also tracks how to reduce more complex data structures to either a 2D or 1D representation.
+Display items represent a view of one or more data items and can be edited separately its associated data items.
 
-Display items are distinct from data items so that you can have multiple views on a particular data item and also so that you can display multiple data items in the same display.
+A display item keeps track of how to display the data in a data item. For instance, the color table used to show an image or the range of data shown in a line plot.
+
+A data item can often represent more data than can be shown in a single display. For example, a sequence of 2D images can only sensibly display one of those images at once.
+
+A display item ultimately must reduce complicated data to a single 2D image or 1D plot. For example, it keeps track of which index of a sequence of images is shown, similar to how a movie shows only a single frame at time. Display items keep track of similar data reductions for other types of collections and data types.
+
+Display items may be associated with just a single data item, such as when the data is a 2D image. However, data items may also be associated with multiple data items, such as when multiple 1D data items are displayed on a single line plot.
 
 Display items include their own title and description. If these are empty, the title and description of the first data item is used instead.
 
-Display panels show individual display items and also allow you to browse available display items. The data panel shows the list of display items available in the project. See :ref:`display-panels` and :ref:`user-interface` for more information.
-
-Reducing Data for Display
--------------------------
-A data item can possibly represent more data than it can display at once. In addition, there may be multiple ways of viewing the data. The process of data reduction reduces all data items to either a 2D image or a 1D plot suitable for display.
-
-For example, a 2D spatial collection of 1D energy spectra (2D x 1D) cannot be displayed without reducing it. There are two obvious ways to reduce the data: either reduce to 1D by choosing a particular x, y coordinate from the collection dimensions; or reduce to 2D by choosing a particular energy at each x, y coordinate.
+Display items are shown in the workspace in display panels. See :ref:`display-panels` and :ref:`user-interface` for more information.
 
 Calibrations
 ------------
@@ -47,20 +51,20 @@ The freeform metadata can be viewed in the Metadata Panel or accessed from scrip
 
 Coordinate Systems
 ------------------
-To be consistent with scripting and Python NumPy coordinates, all coordinate systems increase towards the right and down and indices are ordered such that the slowest changing index in memory is first.
+In addition to calibrated coordinate systems, |AppName| uses pixel and relative coordinate systems.
 
-The pixel coordinate system displays pixels and can be displayed with the origin at the top-left or the origin at the center.
+The pixel coordinate system spans the size of the data array and can be displayed with the origin at the top-left or the origin at the center.
 
 The relative coordinate system displays fractional coordinates and can be displayed with the origin at the top-left and a range of 0.0 to 1.0 or with the origin at the center a range of -1.0 to 1.0.
 
 The calibrated coordinate system displays calibrated coordinates. The origin is determined by the calibration offset.
 
+Note: when referring to pixels, to be consistent with scripting and Python NumPy coordinates, all coordinate systems increase towards the right and down and indices are ordered such that the slowest changing index in memory is first, i.e. `image[y, x]`.
+
 Collections
 -----------
 Images and plots (2D and 1D) data can be arranged into collections with one or two dimensions. These are often expressed as 1D x 1D (spectra along a line), 2D x 1D (a spectrum image), 1D x 2D (images along a line), or 2D x 2D (4D STEM).
 
-Sequences
----------
 In addition to collections, 1D or 2D data or 1D or 2D collections of 1D or 2D data can be arranged into sequences. A sequence is roughly equivalent to a 1D collection.
 
 As an example, a sequence of 2D images would be a movie.

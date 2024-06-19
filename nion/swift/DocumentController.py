@@ -53,6 +53,7 @@ from nion.swift.model import Processing
 from nion.swift.model import Profile
 from nion.swift.model import Project
 from nion.swift.model import Symbolic
+from nion.swift.model import UISettings
 from nion.swift.model import Utility
 from nion.swift.model import WorkspaceLayout
 from nion.ui import CanvasItem
@@ -870,12 +871,12 @@ class DocumentController(Window.Window):
             filter_line = writer_name + " files (" + writer_extensions + ")"
             filter_lines.append(filter_line)
             filter_line_to_writer_map[filter_line] = writer
-        filter = ";;".join(filter_lines)
-        filter += ";;All Files (*.*)"
+        filter_str = ";;".join(filter_lines)
+        filter_str += ";;All Files (*.*)"
         export_dir = self.ui.get_persistent_string("export_directory", self.ui.get_document_location())
         export_dir = os.path.join(export_dir, display_item.displayed_title)
         selected_filter = self.ui.get_persistent_string("export_filter")
-        path, selected_filter, selected_directory = self.get_save_file_path(_("Export File"), export_dir, filter, selected_filter)
+        path, selected_filter, selected_directory = self.get_save_file_path(_("Export File"), export_dir, filter_str, selected_filter)
         selected_writer = filter_line_to_writer_map.get(selected_filter)
         if path and not os.path.splitext(path)[1]:
             if selected_writer:
@@ -886,12 +887,31 @@ class DocumentController(Window.Window):
             ImportExportManager.ImportExportManager().write_display_item_with_writer(selected_writer, display_item, pathlib.Path(path))
 
     def export_files(self, display_items: typing.Sequence[DisplayItem.DisplayItem]) -> None:
-        if len(display_items) > 1:
-            export_dialog = ExportDialog.ExportDialog(self.ui, self)
-            export_dialog.on_accept = functools.partial(export_dialog.do_export, display_items)
-            export_dialog.show()
-        elif len(display_items) == 1:
-            self.export_file(display_items[0])
+        if len(display_items) > 0:
+            ExportDialog.ExportDialog(self.ui, self, display_items)
+
+    def export_svg_file(self, ui_settings: UISettings.UISettings, display_item: DisplayItem.DisplayItem, display_shape: Geometry.IntSize, path: pathlib.Path) -> None:
+        # take a snapshot so to modify the display properties for the proper image zoom, position, and canvas mode.
+        # ensure that the snapshot is closed when finished.
+        display_item_snapshot = display_item.snapshot()
+        try:
+            # update the zoom, position, and canvas mode for the export. these are neutral values that ensure it will
+            # draw at 1:1 scale and centered in the canvas.
+            display_properties = display_item_snapshot.display_properties
+            display_properties["image_zoom"] = 1.0
+            display_properties["image_position"] = (0.5, 0.5)
+            display_properties["image_canvas_mode"] = "fit"
+            display_item_snapshot.display_properties = display_properties
+            # create the drawing context and shape for the preview
+            drawing_context, shape = DisplayPanel.preview(ui_settings, display_item_snapshot, display_shape.width, display_shape.height)
+            # set up the SVG
+            view_box = Geometry.IntRect(Geometry.IntPoint(), shape)
+            svg = drawing_context.to_svg(shape, view_box)
+            # write the file
+            with Utility.AtomicFileWriter(path.with_suffix(".svg")) as fp:
+                fp.write(svg)
+        finally:
+            display_item_snapshot.close()
 
     def export_svg(self, display_item: DisplayItem.DisplayItem) -> None:
         ExportDialog.ExportSVGDialog(self, display_item)
@@ -2579,6 +2599,10 @@ class DocumentController(Window.Window):
 
         def receive_files_complete(index: int, data_items: typing.Sequence[DataItem.DataItem]) -> None:
             command: Undo.UndoableCommand
+
+            for data_item in data_items:
+                data_item.uuid = uuid.uuid4()
+
             if data_group and isinstance(data_group, DataGroup.DataGroup):
                 command = DocumentController.InsertDataGroupDataItemsCommand(self, data_group, data_items, index)
                 command.perform()
@@ -2742,6 +2766,7 @@ class DocumentController(Window.Window):
                 if not data_item_1 in used_data_items:
                     used_data_items.append(data_item_1)
         selected_graphics = used_display_item.selected_graphics if used_display_item else list()
+        selected_display_panel = selected_display_panel or (display_panel if len(used_display_panels) == 1 else None)
         return DocumentController.ActionContext(typing.cast("Application.Application", self.app), self, focus_widget,
                                                 used_display_panel, used_display_panels, selected_display_panel, model,
                                                 used_display_item, used_display_items, crop_graphic, selected_graphics,
@@ -2996,10 +3021,8 @@ class ExportAction(Window.Action):
         window = typing.cast(DocumentController, context.window)
         selected_display_item = context.display_item
         selected_display_items = context.display_items
-        if len(selected_display_items) > 1:
+        if len(selected_display_items) > 0:
             window.export_files(selected_display_items)
-        elif selected_display_item:
-            window.export_file(selected_display_item)
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
     def is_enabled(self, context: Window.ActionContext) -> bool:
@@ -3020,6 +3043,10 @@ class ExportSVGAction(Window.Action):
         if selected_display_item:
             window.export_svg(selected_display_item)
         return Window.ActionResult(Window.ActionStatus.FINISHED)
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return len(context.display_items) > 0 or context.display_item is not None
 
 
 class ImportDataAction(Window.Action):

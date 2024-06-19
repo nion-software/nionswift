@@ -338,7 +338,7 @@ class ScriptListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
                 name_width = self.__ui.get_font_metrics(self._major_font_size(), name_string).width
                 if display_item.exists is not None and not display_item.exists:
                     type_str = "Folder" if type(display_item) is FolderListItem else "File"
-                    drawing_context.fill_text(f"({type_str} not found)",
+                    drawing_context.fill_text(f"({type_str} not found: {display_item.full_path})",
                                               rect[0][1] + 4 + display_item.indent + 4 + icon_offset + icon_width + name_width,
                                               rect[0][0] + 20 - 4)
                 elif display_item.show_dirname:
@@ -363,7 +363,7 @@ class RunScriptDialog(Dialog.ActionDialog):
         app = typing.cast(typing.Any, self.document_controller.app)  # trick typing
         self.__profile: typing.Optional[Profile.Profile] = app.profile if app else None
 
-        self.script_filter_pattern = "\\.py$"
+        self.script_filter_pattern = "(?<!__init__)\\.py$"
 
         self.__cancelled = False
 

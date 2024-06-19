@@ -1,9 +1,18 @@
 :orphan:
 
+.. include:: defs.rst
 .. _installation:
 
 Nion Swift Installation
 =======================
+The quickest and easiest way to get |AppName| running is to download a pre-built version that includes everything needed to run the basic application with key plug-ins.
+
+* `Download for macOS, Linux, or Windows <https://nion.com/swift/downloads>`_.
+
+Installation from Source Code
+-----------------------------
+To install |AppName| from Python source code, you will need to install a Python environment and then install Python packages required for |AppName|.
+
 Nion Swift is written in the Python programming language. To use Nion Swift, you will need to install a Python environment.
 
 As an open source project, there are many possible installation scenarios such as for offline use, for use on a Nion electron microscope, or for open source development. In addition, Python installation itself is highly flexible. Some Python installations will be used with other software, and others specifically with Nion Swift.

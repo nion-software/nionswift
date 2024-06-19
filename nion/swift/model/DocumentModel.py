@@ -1054,6 +1054,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.__is_loading = True
 
     def __finish_project_read(self) -> None:
+        for data_item in self.__data_items:
+            data_item.source_data_items_changed(self.get_source_data_items(data_item))
         for display_item in self.__display_items:
             display_item.source_display_items_changed(self.get_source_display_items(display_item), self.__is_loading)
         self.project_loaded_event.fire()
@@ -1340,6 +1342,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 self.related_items_changed.fire(display_item, source_display_items, dependent_display_items)
         # send the source changes to the target display item
         if isinstance(source_item, DataItem.DataItem) and isinstance(target_item, DataItem.DataItem):
+            target_item.source_data_items_changed(self.get_source_data_items(target_item))
             for display_item in self.get_display_items_for_data_item(target_item):
                 source_display_items = self.get_source_display_items(display_item) if display_item else list()
                 display_item.source_display_items_changed(source_display_items, self.__is_loading)
@@ -1362,6 +1365,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 self.related_items_changed.fire(display_item, source_display_items, dependent_display_items)
         # send the source changes to the target display item
         if isinstance(source_item, DataItem.DataItem) and isinstance(target_item, DataItem.DataItem):
+            target_item.source_data_items_changed(self.get_source_data_items(target_item))
             for display_item in self.get_display_items_for_data_item(target_item):
                 source_display_items = self.get_source_display_items(display_item) if display_item else list()
                 display_item.source_display_items_changed(source_display_items, self.__is_loading)
@@ -1408,8 +1412,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 for input in old_inputs:
                     self.__remove_dependency(input, output)
                 if isinstance(output, DataItem.DataItem):
-                    for display_item in self.get_display_items_for_data_item(output):
-                        display_item.computation_title_changed(None)
+                    output.computation_title_changed(None)
             for input in added_inputs:
                 for output in new_outputs:
                     self.__add_dependency(input, output)
@@ -1417,8 +1420,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 for input in same_inputs:
                     self.__add_dependency(input, output)
                 if isinstance(output, DataItem.DataItem):
-                    for display_item in self.get_display_items_for_data_item(output):
-                        display_item.computation_title_changed(computation_title)
+                    output.computation_title_changed(computation_title)
         if removed_inputs or added_inputs or removed_outputs or added_outputs:
             self.__transaction_manager._rebuild_transactions()
 
