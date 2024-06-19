@@ -381,6 +381,18 @@ class TestImportExportManagerClass(unittest.TestCase):
             data_element = ImportExportManager.create_data_element_from_data_item(data_item, include_data=False)
             json.dumps(data_element)
 
+    def test_csv_exporter_handles_3d_data(self):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            data_item = DataItem.DataItem(numpy.zeros((10, 10, 10)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            current_working_directory = os.getcwd()
+            file_path = os.path.join(current_working_directory, "__file.csv")
+            handler = ImportExportManager.CSVImportExportHandler("csv-io-handler", "CSV Raw", ["csv"])
+            handler.write_display_item(display_item, pathlib.Path(file_path), "csv")
+            self.assertFalse(os.path.exists(file_path))
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
