@@ -24,8 +24,6 @@ import traceback
 import typing
 import uuid
 
-import typing_extensions
-
 # local libraries
 from nion.data import Core
 from nion.data import DataAndMetadata
@@ -2565,9 +2563,9 @@ class Computation(Persistence.PersistentObject):
             self.computation_mutated_event.fire()
             self.needs_update = True
 
-    def update_script(self, processors: typing.Mapping[str, ComputationProcessor]) -> None:
+    def update_script(self) -> None:
         processing_id = self.processing_id
-        processor = processors.get(processing_id) if processing_id else None
+        processor = _processors.get(processing_id) if processing_id else None
         if processor:
             if expression := processor.expression:
                 src_names = [processing_description_source.name for processing_description_source in processor.sources]
@@ -3000,6 +2998,11 @@ class ComputationActivity(Activity.Activity):
     @property
     def displayed_title(self) -> str:
         return self.title + " (" + self.state + ")"
+
+
+# processors
+
+_processors = dict[str, ComputationProcessor]()
 
 
 # for computations
