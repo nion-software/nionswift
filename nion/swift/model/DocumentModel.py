@@ -2179,7 +2179,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
         parameters = parameters or dict()
 
-        processors = Project.Project._processors
+        processors = Symbolic._processors
         processor = processors[processing_id]
 
         # first process the sources in the description. match them to the inputs (which are data item/crop graphic tuples)
@@ -2387,16 +2387,16 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
     @classmethod
     def register_processors(cls, processors: dict[str, Symbolic.ComputationProcessor]) -> None:
-        assert len(set(Project.Project._processors.keys()).intersection(set(processors.keys()))) == 0
+        assert len(set(Symbolic._processors.keys()).intersection(set(processors.keys()))) == 0
         for key, processor in processors.items():
-            assert key not in Project.Project._processors
-            Project.Project._processors[key] = processor
+            assert key not in Symbolic._processors
+            Symbolic._processors[key] = processor
 
     @classmethod
     def unregister_processors(cls, processing_ids: typing.Sequence[str]) -> None:
-        assert len(set(Project.Project._processors.keys()).intersection(set(processing_ids))) == len(processing_ids)
+        assert len(set(Symbolic._processors.keys()).intersection(set(processing_ids))) == len(processing_ids)
         for processing_id in processing_ids:
-            Project.Project._processors.pop(processing_id)
+            Symbolic._processors.pop(processing_id)
 
     @classmethod
     def register_processing_descriptions(cls, processing_descriptions: typing.Dict[str, typing.Any]) -> None:

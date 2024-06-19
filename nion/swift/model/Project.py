@@ -41,8 +41,6 @@ class Project(Persistence.PersistentObject):
 
     PROJECT_VERSION = 3
 
-    _processors = dict[str, Symbolic.ComputationProcessor]()
-
     def __init__(self, storage_system: Persistence.PersistentStorageInterface, cache_factory: typing.Optional[Cache.CacheFactory] = None) -> None:
         super().__init__()
 
@@ -316,7 +314,7 @@ class Project(Persistence.PersistentObject):
                     if not self.get_item_by_uuid("computations", computation.uuid):
                         self.load_item("computations", len(self.computations), computation)
                         # TODO: handle update script and bind after reload in document model
-                        computation.update_script(Project._processors)
+                        computation.update_script()
                         computation.reset()
                     else:
                         computation.close()
