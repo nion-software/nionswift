@@ -599,7 +599,7 @@ class CSVImportExportHandler(ImportExportHandler):
         data_item = display_item.data_item
         assert data_item
         data = data_item.data
-        if data is not None:
+        if data is not None and self.can_write(data_item, 'csv'):
             numpy.savetxt(path, data, delimiter=', ')
 
 
