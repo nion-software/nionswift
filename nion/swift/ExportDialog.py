@@ -214,14 +214,21 @@ class ExportDialog(Declarative.Handler):
                         if viewmodel.include_sequence.value:
                             components.append(str(index))
                         filepath = ExportDialog.build_filepath(components, writer.value.extensions[0], directory_path=directory_path)
+
                         file_name = filepath.name
-                        ImportExportManager.ImportExportManager().write_display_item_with_writer(writer.value, display_item, filepath)
-                        export_results.append(ExportResult(file_name, _('Succeeded'), ''))
+                        data_metadata = data_item.data_metadata if data_item else None
+                        if data_metadata is not None and writer.value.can_write(data_metadata, filepath.suffix[1:].lower()):
+                            ImportExportManager.ImportExportManager().write_display_item_with_writer(writer.value, display_item, filepath)
+                            export_results.append(ExportResult(file_name, _('Succeeded'), ''))
+                        else:
+                            export_results.append(ExportResult(file_name, _('Failed'), f'Cannot output this data as {writer.value.name}'))
                     except Exception as e:
                         logging.debug("Could not export image %s / %s", str(data_item), str(e))
                         traceback.print_exc()
                         traceback.print_stack()
                         export_results.append(ExportResult(file_name, _('Failed'), str(e)))
+                else:
+                    export_results.append(ExportResult(display_item.displayed_title, _('Failed'), _('Cannot export items with multiple data items')))
 
             ExportResultDialog(ui, document_controller, export_results, directory_path)
 
