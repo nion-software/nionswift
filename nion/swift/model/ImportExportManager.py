@@ -593,7 +593,7 @@ class CSVImportExportHandler(ImportExportHandler):
         return list()
 
     def can_write(self, data_metadata: DataAndMetadata.DataMetadata, extension: str) -> bool:
-        return True
+        return 0 < len(data_metadata.dimensional_shape) <= 2
 
     def write_display_item(self, display_item: DisplayItem.DisplayItem, path: pathlib.Path, extension: str) -> None:
         data_item = display_item.data_item
