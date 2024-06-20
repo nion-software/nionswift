@@ -1696,6 +1696,46 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.recompute_all()
             self.assertEqual(1, document_model.computations[-1]._evaluation_count_for_test)
 
+    def test_inserting_and_changing_unrelated_graphic_does_not_trigger_pick_recompute(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((8, 8, 8), numpy.uint32))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            document_controller.perform_action("processing.pick")
+            # pick_display_item = document_model.display_items[-1]
+            document_model.recompute_all()
+            self.assertEqual(1, document_model.computations[-1]._evaluation_count_for_test)
+            rectangle = Graphics.RectangleGraphic()
+            display_item.add_graphic(rectangle)
+            document_model.recompute_all()
+            self.assertEqual(1, document_model.computations[-1]._evaluation_count_for_test)
+            rectangle.center = 0.2, 0.2
+            document_model.recompute_all()
+            self.assertEqual(1, document_model.computations[-1]._evaluation_count_for_test)
+
+    def test_removing_unrelated_graphic_does_not_trigger_pick_recompute(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((8, 8, 8), numpy.uint32))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            rectangle = Graphics.RectangleGraphic()
+            display_item.add_graphic(rectangle)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            document_controller.perform_action("processing.pick")
+            # pick_display_item = document_model.display_items[-1]
+            document_model.recompute_all()
+            self.assertEqual(1, document_model.computations[-1]._evaluation_count_for_test)
+            display_item.remove_graphic(rectangle).close()
+            document_model.recompute_all()
+            self.assertEqual(1, document_model.computations[-1]._evaluation_count_for_test)
+
     def test_data_source_watches_correct_graphics(self):
         # this failed at one point due to improper use of local variable
         with TestContext.create_memory_context() as test_context:
