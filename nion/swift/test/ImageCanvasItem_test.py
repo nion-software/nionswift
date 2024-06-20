@@ -307,9 +307,11 @@ class TestImageCanvasItemClass(unittest.TestCase):
             # run test
             document_controller.tool_mode = "zoom-in"
             display_panel.display_canvas_item.simulate_press((100, 125))
+            display_panel.display_canvas_item.simulate_release((100, 125))
 
             document_controller.tool_mode = "zoom-out"
             display_panel.display_canvas_item.simulate_press((125, 100))
+            display_panel.display_canvas_item.simulate_release((125, 100))
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
