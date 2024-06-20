@@ -1288,7 +1288,7 @@ class MonitoredDataSource(DataSource):
                 property_changed_listener = None
                 if isinstance(graphic, (Graphics.PointTypeGraphic, Graphics.LineTypeGraphic, Graphics.RectangleTypeGraphic, Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
                     property_changed_listener = graphic.property_changed_event.listen(functools.partial(filter_property_changed, graphic))
-                    self.__changed_event.fire()
+                    filter_property_changed(graphic, "label")  # dummy non-role value
                 self.__graphic_property_changed_listeners.insert(before_index, property_changed_listener)
 
         # when a graphic is removed, untrack it
@@ -1297,7 +1297,7 @@ class MonitoredDataSource(DataSource):
                 property_changed_listener = self.__graphic_property_changed_listeners.pop(index)
                 if property_changed_listener:
                     property_changed_listener.close()
-                    self.__changed_event.fire()
+                    filter_property_changed(graphic, "label")  # dummy non-role value
 
         self.__graphic_inserted_event_listener = self.__display_item.item_inserted_event.listen(graphic_inserted) if self.__display_item else None
         self.__graphic_removed_event_listener = self.__display_item.item_removed_event.listen(graphic_removed) if self.__display_item else None
