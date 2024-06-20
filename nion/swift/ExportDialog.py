@@ -19,6 +19,7 @@ import unicodedata
 
 # local libraries
 from nion.swift.model import ImportExportManager
+from nion.swift.model import Utility
 from nion.swift import DocumentController
 from nion.swift import DisplayPanel
 from nion.ui import Declarative
@@ -27,6 +28,7 @@ from nion.ui import UserInterface
 from nion.utils import Converter
 from nion.utils import Geometry
 from nion.utils import Model
+
 
 if typing.TYPE_CHECKING:
     from nion.swift.model import DisplayItem
@@ -164,8 +166,10 @@ class ExportDialog(Declarative.Handler):
         filename = "_".join(s for s in components if s)
         filename.replace(".", "_")
 
+        filename = Utility.simplify_filename(str(pathlib.Path(filename).with_suffix(extension)))
+
         # check to see if filename is available, if so return that
-        test_filepath = directory_path / pathlib.Path(filename).with_suffix(extension)
+        test_filepath = directory_path / pathlib.Path(filename)
         if not test_filepath.exists():
             return test_filepath
 
