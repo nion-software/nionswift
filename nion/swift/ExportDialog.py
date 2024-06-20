@@ -28,6 +28,8 @@ from nion.utils import Converter
 from nion.utils import Geometry
 from nion.utils import Model
 
+from nionswift.nion.swift.model import Utility
+
 if typing.TYPE_CHECKING:
     from nion.swift.model import DisplayItem
 
@@ -164,8 +166,10 @@ class ExportDialog(Declarative.Handler):
         filename = "_".join(s for s in components if s)
         filename.replace(".", "_")
 
+        filename = Utility.simplify_filename(str(pathlib.Path(filename).with_suffix(extension)))
+
         # check to see if filename is available, if so return that
-        test_filepath = directory_path / pathlib.Path(filename).with_suffix(extension)
+        test_filepath = directory_path / pathlib.Path(filename)
         if not test_filepath.exists():
             return test_filepath
 
