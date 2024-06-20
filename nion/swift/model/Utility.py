@@ -433,7 +433,7 @@ def sample_stack_all(count: int = 10, interval: float = 0.1) -> None:
     threading.Thread(target=do_sample).start()
 
 
-def simplify_filename(filename: str, replacement_char: str = '_', maximum_length: int = 64):
+def simplify_filename(filename: str, replacement_char: str = '_', maximum_length: int = 64) -> str:
     # This function replaces any illegal characters in a file name. Not a full path.
     # macOS illegal characters = \0 /
     # linux illegal characters = \0 /
