@@ -1676,9 +1676,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 computation.is_initial_computation_complete.wait(timeout)
             await event_loop.run_in_executor(None, sync_recompute)
 
-    def get_object_specifier(self, object: Persistence.PersistentObject, object_type: typing.Optional[str] = None) -> typing.Optional[Persistence.PersistentDictType]:
-        return DataStructure.get_object_specifier(object, object_type)
-
     def get_graphic_by_uuid(self, object_uuid: uuid.UUID) -> typing.Optional[Graphics.Graphic]:
         for display_item in self.display_items:
             for graphic in display_item.graphics:
