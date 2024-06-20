@@ -2185,11 +2185,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         # first process the sources in the description. match them to the inputs (which are data item/crop graphic tuples)
         sources = processor.sources
         assert len(inputs) == len(sources)
-        src_names: typing.List[str] = list()
-        src_texts: typing.List[str] = list()
-        src_labels: typing.List[str] = list()
         regions: typing.List[typing.Tuple[str, Graphics.Graphic, str]] = list()
-        region_map: typing.Dict[str, Graphics.Graphic] = dict()
         for i, (src, input) in enumerate(zip(sources, inputs)):
 
             display_item, data_item, _ = input
@@ -2205,15 +2201,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 if not requirement.is_data_item_valid(data_item):
                     return None
 
-            src_name = src.name
-            src_label = src.label
-            src_names.append(src_name)
-            src_texts.append(src_name)
-            src_labels.append(src_label)
-
             # each source can have a list of regions to be matched to arguments or created on the source
             processor_regions = src.regions
-            src_region_list = region_list_map.get(src_name, list())
+            src_region_list = region_list_map.get(src.name, list())
             assert len(processor_regions) == len(src_region_list)
             for processor_region, region in zip(processor_regions, src_region_list):
                 region_params = processor_region.params
@@ -2230,7 +2220,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                         if display_item:
                             display_item.add_graphic(point_region)
                     regions.append((region_name, point_region, region_label))
-                    region_map[region_name] = point_region
                 elif processor_region.region_type == Symbolic.ComputationProcsesorRegionTypeEnum.LINE:
                     if region:
                         assert isinstance(region, Graphics.LineProfileGraphic)
@@ -2244,7 +2233,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                         if display_item:
                             display_item.add_graphic(line_region)
                     regions.append((region_name, line_region, region_label))
-                    region_map[region_name] = line_region
                 elif processor_region.region_type == Symbolic.ComputationProcsesorRegionTypeEnum.RECTANGLE:
                     if region:
                         assert isinstance(region, Graphics.RectangleGraphic)
@@ -2258,7 +2246,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                         if display_item:
                             display_item.add_graphic(rect_region)
                     regions.append((region_name, rect_region, region_label))
-                    region_map[region_name] = rect_region
                 elif processor_region.region_type == Symbolic.ComputationProcsesorRegionTypeEnum.ELLIPSE:
                     if region:
                         assert isinstance(region, Graphics.EllipseGraphic)
@@ -2272,7 +2259,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                         if display_item:
                             display_item.add_graphic(ellipse_region)
                     regions.append((region_name, ellipse_region, region_label))
-                    region_map[region_name] = ellipse_region
                 elif processor_region.region_type == Symbolic.ComputationProcsesorRegionTypeEnum.SPOT:
                     if region:
                         assert isinstance(region, Graphics.SpotGraphic)
@@ -2285,7 +2271,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                         if display_item:
                             display_item.add_graphic(spot_region)
                     regions.append((region_name, spot_region, region_label))
-                    region_map[region_name] = spot_region
                 elif processor_region.region_type == Symbolic.ComputationProcsesorRegionTypeEnum.INTERVAL:
                     if region:
                         assert isinstance(region, Graphics.IntervalGraphic)
@@ -2297,7 +2282,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                         if display_item:
                             display_item.add_graphic(interval_graphic)
                     regions.append((region_name, interval_graphic, region_label))
-                    region_map[region_name] = interval_graphic
                 elif processor_region.region_type == Symbolic.ComputationProcsesorRegionTypeEnum.CHANNEL:
                     if region:
                         assert isinstance(region, Graphics.ChannelGraphic)
@@ -2309,14 +2293,14 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                         if display_item:
                             display_item.add_graphic(channel_region)
                     regions.append((region_name, channel_region, region_label))
-                    region_map[region_name] = channel_region
 
         # now extract the script (full script) or expression (implied imports and return statement)
         script = None
         expression = processor.expression
         if expression:
             script = Symbolic.xdata_expression(expression)
-            script = script.format(**dict(zip(src_names, src_texts)))
+            src_names = [src.name for src in sources]
+            script = script.format(**dict(zip(src_names, src_names)))
 
         # construct the computation
         computation = self.create_computation(script)
@@ -2324,13 +2308,13 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         computation.label = processor.title
         computation.processing_id = processing_id
         # process the data item inputs
-        for src, src_name, src_label, input in zip(sources, src_names, src_labels, inputs):
+        for src, input in zip(sources, inputs):
             in_display_item, data_item, graphic = input
             secondary_item = None
             if src.is_croppable:
                 secondary_item = graphic
             display_data_channel = in_display_item.get_display_data_channel_for_data_item(data_item) if data_item else None
-            computation.create_input_item(src_name, Symbolic.make_item(display_data_channel, secondary_item=secondary_item), label=src_label)
+            computation.create_input_item(src.name, Symbolic.make_item(display_data_channel, secondary_item=secondary_item, type=src.type), label=src.label)
         # process the regions
         for region_name, region, region_label in regions:
             computation.create_input_item(region_name, Symbolic.make_item(region), label=region_label)

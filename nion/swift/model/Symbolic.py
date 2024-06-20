@@ -2898,9 +2898,10 @@ class ComputationProcessorRegion:
 
 
 class ComputationProcessorSource:
-    def __init__(self, name: str, label: str, requirements: typing.Sequence[ComputationProcessorRequirement], regions: typing.Sequence[ComputationProcessorRegion], is_croppable: bool) -> None:
+    def __init__(self, name: str, label: str, type: typing.Optional[str], requirements: typing.Sequence[ComputationProcessorRequirement], regions: typing.Sequence[ComputationProcessorRegion], is_croppable: bool) -> None:
         self.name = name
         self.label = label
+        self.type = type
         self.requirements = list(requirements)
         self.regions = list(regions)
         self.is_croppable = is_croppable
@@ -2909,10 +2910,11 @@ class ComputationProcessorSource:
     def from_dict(cls, d: PersistentDictType) -> ComputationProcessorSource:
         name = d["name"]
         label = d["label"]
+        type = d.get("type", None)
         requirements = [create_computation_processor_requirement(requirement_d) for requirement_d in d.get("requirements", list())]
         regions = [ComputationProcessorRegion.from_dict(region_d) for region_d in d.get("regions", list())]
         is_croppable = d.get("croppable", False)
-        return cls(name, label, requirements, regions, is_croppable)
+        return cls(name, label, type, requirements, regions, is_croppable)
 
 
 class ComputationProcessorParameter:
