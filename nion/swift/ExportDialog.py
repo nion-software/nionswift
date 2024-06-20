@@ -19,6 +19,7 @@ import unicodedata
 
 # local libraries
 from nion.swift.model import ImportExportManager
+from nion.swift.model import Utility
 from nion.swift import DocumentController
 from nion.swift import DisplayPanel
 from nion.ui import Declarative
@@ -28,7 +29,7 @@ from nion.utils import Converter
 from nion.utils import Geometry
 from nion.utils import Model
 
-from nionswift.nion.swift.model import Utility
+
 
 if typing.TYPE_CHECKING:
     from nion.swift.model import DisplayItem
