@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 # standard libraries
+import dataclasses
 import functools
 import gettext
 import logging
 import os
 import pathlib
+import platform
 import re
+import subprocess
 import traceback
 import typing
 import unicodedata
@@ -72,7 +75,7 @@ class ExportDialog(Declarative.Handler):
         def handle_export_clicked() -> bool:
             selected_writer = self.viewmodel.writer.value
             writer_id = selected_writer.io_handler_id if selected_writer else "png-io-handler"
-            self.export_clicked(display_items, self.viewmodel)
+            self.export_clicked(display_items, self.viewmodel, ui, document_controller)
             self.ui.set_persistent_string("export_io_handler_id", writer_id)
             return True
 
@@ -184,13 +187,16 @@ class ExportDialog(Declarative.Handler):
         return test_filepath
 
     @staticmethod
-    def export_clicked(display_items: typing.Sequence[DisplayItem.DisplayItem], viewmodel: ExportDialogViewModel) -> None:
+    def export_clicked(display_items: typing.Sequence[DisplayItem.DisplayItem], viewmodel: ExportDialogViewModel,
+                       ui: UserInterface.UserInterface, document_controller: DocumentController.DocumentController) -> None:
         directory_path = pathlib.Path(viewmodel.directory.value or str())
         writer = viewmodel.writer
         if directory_path.is_dir() and writer and writer.value:
+            export_results = list()
             for index, display_item in enumerate(display_items):
                 data_item = display_item.data_item
                 if data_item:
+                    file_name: str = ''
                     try:
                         components = list()
                         if viewmodel.prefix.value is not None and viewmodel.prefix.value != '':
@@ -208,11 +214,23 @@ class ExportDialog(Declarative.Handler):
                         if viewmodel.include_sequence.value:
                             components.append(str(index))
                         filepath = ExportDialog.build_filepath(components, writer.value.extensions[0], directory_path=directory_path)
-                        ImportExportManager.ImportExportManager().write_display_item_with_writer(writer.value, display_item, filepath)
+
+                        file_name = filepath.name
+                        data_metadata = data_item.data_metadata if data_item else None
+                        if data_metadata is not None and writer.value.can_write(data_metadata, filepath.suffix[1:].lower()):
+                            ImportExportManager.ImportExportManager().write_display_item_with_writer(writer.value, display_item, filepath)
+                            export_results.append(ExportResult(file_name, _('Succeeded'), ''))
+                        else:
+                            export_results.append(ExportResult(file_name, _('Failed'), f'Cannot output this data as {writer.value.name}'))
                     except Exception as e:
                         logging.debug("Could not export image %s / %s", str(data_item), str(e))
                         traceback.print_exc()
                         traceback.print_stack()
+                        export_results.append(ExportResult(file_name, _('Failed'), str(e)))
+                else:
+                    export_results.append(ExportResult(display_item.displayed_title, _('Failed'), _('Cannot export items with multiple data items')))
+
+            ExportResultDialog(ui, document_controller, export_results, directory_path)
 
     def cancel(self) -> bool:
         return True
@@ -278,3 +296,80 @@ class ExportSVGDialog:
         dialog.add_button(_("Export"), ok_clicked)
 
         dialog.show()
+
+
+@dataclasses.dataclass
+class ExportResult:
+    file: str
+    status: str
+    error: typing.Optional[str]
+
+
+class ExportResultDialog(Declarative.Handler):
+    def __init__(self, ui: UserInterface.UserInterface, document_controller: DocumentController.DocumentController,
+                 exports: typing.Sequence[ExportResult], export_folder: pathlib.Path):
+        super().__init__()
+
+        self.ui = ui
+        self.__document_controller = document_controller
+        self.exports = exports
+        self.export_folder = export_folder
+
+        # build the UI
+        u = Declarative.DeclarativeUI()
+        self._build_ui(u)
+
+        # create the dialog and show it.
+        dialog = typing.cast(Dialog.ActionDialog, Declarative.construct(document_controller.ui, document_controller,
+                                                                        u.create_modeless_dialog(
+                                                                            self.ui_view,
+                                                                            title=_("Export Results")), self))
+
+        dialog.add_button(_("OK"), self.ok_click)
+        dialog.show()
+
+    def open_export_folder(self, widget: Declarative.UIWidget) -> bool:
+        if platform.system() == 'Windows':
+            subprocess.run(['explorer', self.export_folder])
+        elif platform.system() == 'Darwin':
+            subprocess.Popen(['open', self.export_folder])
+        elif platform.system() == 'linux':
+            subprocess.Popen(['xdg-open', self.export_folder])
+        return True
+
+    def _build_ui(self, u: Declarative.DeclarativeUI) -> None:
+
+        file_name_children = list()
+        status_children = list()
+        error_children = list()
+
+        file_name_children.append(u.create_label(text=_('File'), font='bold'))
+        status_children.append(u.create_label(text=_('Status'), font='bold'))
+
+        if any([export.error for export in self.exports]):
+            error_children.append((u.create_label(text=_('Error'), font='bold')))
+
+        for export in self.exports:
+            file_name_children.append(u.create_label(text=export.file))
+            status_children.append(u.create_label(text=export.status))
+            error_children.append(u.create_label(text=export.error))
+
+        file_name_column = u.create_column(*file_name_children, spacing=5)
+        status_column = u.create_column(*status_children, spacing=5)
+        error_column = u.create_column(*error_children, spacing=5)
+
+        # Build main ui row
+        data_row = u.create_row(file_name_column, status_column, error_column, spacing=10)
+
+        path_title = u.create_label(text=_('Directory:'), font='bold')
+
+        path_directory = u.create_label(text=str(self.export_folder))
+
+        path_goto = u.create_row(u.create_push_button(text='Open Directory', on_clicked='open_export_folder'),
+                                 u.create_stretch())
+
+        self.ui_view = u.create_column(path_title, path_directory,u.create_spacing(5), path_goto,
+                                       u.create_spacing(10), data_row, margin=10)
+
+    def ok_click(self) -> bool:
+        return True

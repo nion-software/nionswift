@@ -3,8 +3,16 @@
     "version": "UNRELEASED",
     "notes": [
       {
+        "issues": ["https://github.com/nion-software/nionswift/issues/749"],
+        "summary": "Add export result dialog to show final export status after exporting."
+      },
+      {
         "issues": ["https://github.com/nion-software/nionswift/issues/932"],
         "summary": "Export single data items with same naming options as exporting multiple items."
+      },
+      {
+        "issues": ["https://github.com/nion-software/nionswift/issues/245"],
+        "summary": "Exporting to CSV only allows 1D or 2D data."
       }
     ]
   },
