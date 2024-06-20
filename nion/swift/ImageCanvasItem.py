@@ -1323,9 +1323,9 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         elif delegate.tool_mode == "hand":
             self.cursor_shape = "hand"
         elif delegate.tool_mode == "zoom-in":
-            self.cursor_shape = "mag_glass"
+            self.cursor_shape = "cross"
         elif delegate.tool_mode == "zoom-out":
-            self.cursor_shape = "mag_glass"
+            self.cursor_shape = "cross"
 
         # x,y already have transform applied
         self.__last_mouse = mouse_pos.to_int_point()
