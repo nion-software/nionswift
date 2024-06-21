@@ -30,7 +30,6 @@ from nion.utils import Geometry
 from nion.utils import Model
 
 
-
 if typing.TYPE_CHECKING:
     from nion.swift.model import DisplayItem
 
