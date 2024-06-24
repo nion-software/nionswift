@@ -556,7 +556,7 @@ class ComputationVariable(Persistence.PersistentObject):
         self.define_item("specifier", typing.cast(Persistence._PersistentObjectFactoryFn, specifier_factory), changed=self.__specifier_changed, hidden=True)
         self.define_item("secondary_specifier", typing.cast(Persistence._PersistentObjectFactoryFn, specifier_factory), changed=self.__specifier_changed, hidden=True)
         self.define_relationship("object_specifiers", typing.cast(Persistence._PersistentObjectFactoryFn, specifier_factory), insert=self.__specifier_inserted, remove=self.__specifier_removed, hidden=True)
-        self.changed_event = Event.Event()
+        self.data_event = Event.Event()
         self.variable_type_changed_event = Event.Event()
         self.needs_rebuild_event = Event.Event()  # an event to be fired when the UI needs a rebuild
         self.__bound_item: typing.Optional[BoundItemBase] = None
@@ -823,7 +823,7 @@ class ComputationVariable(Persistence.PersistentObject):
 
                 def property_changed(key: str) -> None:
                     if key == "value":
-                        self.changed_event.fire()
+                        self.data_event.fire(BoundDataEventType.VARIABLE)
 
                 self.__variable_property_changed_listener = variable.property_changed_event.listen(property_changed)
 
@@ -857,7 +857,10 @@ class ComputationVariable(Persistence.PersistentObject):
             self.__bound_item.close()
         self.__bound_item = bound_item
         if self.__bound_item:
-            self.__bound_item_changed_event_listener = self.__bound_item.changed_event.listen(self.changed_event.fire)
+            def handle_data_event(event: BoundDataEventType) -> None:
+                self.data_event.fire(event)
+
+            self.__bound_item_changed_event_listener = self.__bound_item.data_event.listen(handle_data_event)
             self.__bound_item_base_item_inserted_event_listener = self.__bound_item.item_inserted_event.listen(self.item_inserted_event.fire)
             self.__bound_item_base_item_removed_event_listener = self.__bound_item.item_removed_event.listen(self.item_removed_event.fire)
             for index, base_item in enumerate(self.__bound_item.base_items):
@@ -892,7 +895,7 @@ class ComputationVariable(Persistence.PersistentObject):
         if name in ["name", "label"]:
             self.notify_property_changed("display_label")
         # send out the changed event
-        self.changed_event.fire()
+        self.data_event.fire(BoundDataEventType.UNSPECIFIED)
         # finally send out the rebuild event for the inspectors
         if name in ["value_type", "value_min", "value_max", "control_type"]:
             self.needs_rebuild_event.fire()
@@ -912,7 +915,7 @@ class ComputationVariable(Persistence.PersistentObject):
         if name in ("secondary_specifier"):
             self.notify_property_changed("secondary_specified_object")
         # send out the changed event
-        self.changed_event.fire()
+        self.data_event.fire(BoundDataEventType.UNSPECIFIED)
 
     def __specifier_inserted(self, name: str, before_index: int, specifier: typing.Optional[Specifier]) -> None:
         # update the bound list
@@ -922,7 +925,7 @@ class ComputationVariable(Persistence.PersistentObject):
         # notify
         self.notify_property_changed("specified_objects")
         # send out the changed event
-        self.changed_event.fire()
+        self.data_event.fire(BoundDataEventType.UNSPECIFIED)
 
     def __specifier_removed(self, name: str, index: int, specifier: typing.Optional[Specifier]) -> None:
         # update the bound list
@@ -932,14 +935,14 @@ class ComputationVariable(Persistence.PersistentObject):
         # notify
         self.notify_property_changed("specified_objects")
         # send out the changed event
-        self.changed_event.fire()
+        self.data_event.fire(BoundDataEventType.UNSPECIFIED)
 
     def notify_property_changed(self, key: str) -> None:
         # whenever a property changed event is fired, also fire the changed_event
         # is there a test for this? not that I can find.
         super().notify_property_changed(key)
         if key not in ("bound_item",):
-            self.changed_event.fire()
+            self.data_event.fire(BoundDataEventType.UNSPECIFIED)
 
     def get_control_type_default(self, value_type: ComputationVariableType) -> typing.Optional[str]:
         mapping = {
@@ -1256,21 +1259,29 @@ class DataSource:
 
 
 class MonitoredDataSource(DataSource):
-    def __init__(self, display_data_channel: DisplayItem.DisplayDataChannel, graphic: typing.Optional[Graphics.Graphic], changed_event: Event.Event) -> None:
+    def __init__(self, display_data_channel: DisplayItem.DisplayDataChannel, graphic: typing.Optional[Graphics.Graphic], data_event: Event.Event) -> None:
         super().__init__(display_data_channel, graphic)
         self.__display_item = typing.cast("DisplayItem.DisplayItem", display_data_channel.container)
         self.__graphic = graphic
-        self.__changed_event = changed_event  # not public since it is passed in
+        self.__data_event = data_event  # not public since it is passed in
         self.__data_item = display_data_channel.data_item
 
+        self.__data_changed_event_listener: typing.Optional[Event.EventListener] = None
+
+        def handle_data() -> None:
+            self.__data_event.fire(BoundDataEventType.DATA)
+
+        if self.__data_item:
+            self.__data_changed_event_listener = self.__data_item.data_changed_event.listen(handle_data)
+
         def handle_display_values(display_values: typing.Optional[DisplayItem.DisplayValues]) -> None:
-            self.__changed_event.fire()
+            self.__data_event.fire(BoundDataEventType.DISPLAY_DATA)
 
         self.__display_values_subscription = display_data_channel.subscribe_to_latest_display_values(handle_display_values)
         self.__property_changed_listener: typing.Optional[Event.EventListener] = None
 
         def property_changed(key: str) -> None:
-            self.__changed_event.fire()
+            self.__data_event.fire(BoundDataEventType.GRAPHIC)
 
         if self.__graphic:
             self.__property_changed_listener = self.__graphic.property_changed_event.listen(property_changed)
@@ -1278,7 +1289,7 @@ class MonitoredDataSource(DataSource):
         # when a graphic changes, if it's used in the mask or fourier_mask role, send out the changed event.
         def filter_property_changed(graphic: Graphics.Graphic, key: str) -> None:
             if key == "role" or graphic.used_role in ("mask", "fourier_mask"):
-                self.__changed_event.fire()
+                self.__data_event.fire(BoundDataEventType.FILTER)
 
         self.__graphic_property_changed_listeners: typing.List[typing.Optional[Event.EventListener]] = list()
 
@@ -1311,23 +1322,26 @@ class MonitoredDataSource(DataSource):
 
     def close(self) -> None:
         # shut down the trackers
-        for graphic_property_changed_listener in self.__graphic_property_changed_listeners:
-            if graphic_property_changed_listener:
-                graphic_property_changed_listener.close()
         self.__graphic_property_changed_listeners = list()
-        if self.__graphic_inserted_event_listener:
-            self.__graphic_inserted_event_listener.close()
-            self.__graphic_inserted_event_listener = None
-        if self.__graphic_removed_event_listener:
-            self.__graphic_removed_event_listener.close()
-            self.__graphic_removed_event_listener = None
-        if self.__property_changed_listener:
-            self.__property_changed_listener.close()
-            self.__property_changed_listener = None
+        self.__graphic_inserted_event_listener = None
+        self.__graphic_removed_event_listener = None
+        self.__data_changed_event_listener = None
+        self.__property_changed_listener = None
         self.__display_values_subscription = typing.cast(typing.Any, None)
         self.__display_item = None
         self.__graphic = typing.cast(typing.Any, None)
-        self.__changed_event = typing.cast(typing.Any, None)
+        self.__data_event = typing.cast(typing.Any, None)
+
+
+class BoundDataEventType(enum.Enum):
+    DATA = "data"
+    DISPLAY_DATA = "display_data"
+    CROP_REGION = "crop"
+    FILTER = "filter"
+    VARIABLE = "variable"
+    GRAPHIC = "graphic"
+    STRUCTURE = "structure"
+    UNSPECIFIED = "unknown"
 
 
 class BoundItemBase(Observable.Observable):
@@ -1339,7 +1353,7 @@ class BoundItemBase(Observable.Observable):
         super().__init__()
         BoundItemBase.count += 1
         self.specifier = specifier
-        self.changed_event = Event.Event()
+        self.data_event = Event.Event()
         self.valid = False
         self.__base_items: typing.List[Persistence.PersistentObject] = list()
 
@@ -1366,13 +1380,16 @@ class BoundData(BoundItemBase):
         self.__item_reference = container.create_item_reference(item_specifier=Persistence.read_persistent_specifier(specifier.reference_uuid))
         self.__data_changed_event_listener: typing.Optional[Event.EventListener] = None
 
+        def handle_data() -> None:
+            self.data_event.fire(BoundDataEventType.DATA)
+
         def maintain_data_source() -> None:
             if self.__data_changed_event_listener:
                 self.__data_changed_event_listener.close()
                 self.__data_changed_event_listener = None
             item = self._item
             if item:
-                self.__data_changed_event_listener = item.data_changed_event.listen(self.changed_event.fire)
+                self.__data_changed_event_listener = item.data_changed_event.listen(handle_data)
             self.valid = item is not None
             self._update_base_items(list(self._get_base_items()))
 
@@ -1420,7 +1437,7 @@ class BoundDisplayDataChannelBase(BoundItemBase):
         self.__display_values_subscription: typing.Optional[DisplayItem.DisplayValuesSubscription] = None
 
         def handle_display_values(display_values: typing.Optional[DisplayItem.DisplayValues]) -> None:
-            self.changed_event.fire()
+            self.data_event.fire(BoundDataEventType.DISPLAY_DATA)
 
         def maintain_data_source() -> None:
             self.__display_values_subscription = None
@@ -1492,7 +1509,7 @@ class BoundDataSource(BoundItemBase):
             display_data_channel = self._display_data_channel
             if display_data_channel and display_data_channel.data_item:
                 graphic = self._graphic
-                self.__data_source = MonitoredDataSource(display_data_channel, graphic, self.changed_event)
+                self.__data_source = MonitoredDataSource(display_data_channel, graphic, self.data_event)
             self.valid = self.__data_source is not None
             self._update_base_items(self._get_base_items())
 
@@ -1552,7 +1569,11 @@ class BoundDataItem(BoundItemBase):
 
         def item_registered(item: Persistence.PersistentObject) -> None:
             assert isinstance(item, DataItem.DataItem)
-            self.__data_item_changed_event_listener = item.data_item_changed_event.listen(self.changed_event.fire)
+
+            def handle_data_item_changed() -> None:
+                self.data_event.fire(BoundDataEventType.DATA)
+
+            self.__data_item_changed_event_listener = item.data_item_changed_event.listen(handle_data_item_changed)
             self._update_base_items(self._get_base_items())
 
         def item_unregistered(item: Persistence.PersistentObject) -> None:
@@ -1640,7 +1661,7 @@ class BoundFilterLikeData(BoundItemBase):
         self.__display_item_item_removed_event_listener: typing.Optional[Event.EventListener] = None
 
         def handle_display_values(display_values: typing.Optional[DisplayItem.DisplayValues]) -> None:
-            self.changed_event.fire()
+            self.data_event.fire(BoundDataEventType.DISPLAY_DATA)
 
         def maintain_data_source() -> None:
             self.__display_values_subscription = None
@@ -1766,7 +1787,7 @@ class BoundDataStructure(BoundItemBase):
         self.__property_changed_listener: typing.Optional[Event.EventListener] = None
 
         def data_structure_changed(property_name: str) -> None:
-            self.changed_event.fire()
+            self.data_event.fire(BoundDataEventType.STRUCTURE)
 
         def item_registered(item: Persistence.PersistentObject) -> None:
             assert isinstance(item, DataStructure.DataStructure)
@@ -1829,7 +1850,7 @@ class BoundGraphic(BoundItemBase):
             # have the computation decide what is a valid reason for recomputing.
             # see the test test_adjusting_interval_on_line_profile_does_not_trigger_recompute
             if not property_name in ("interval_descriptors",):
-                self.changed_event.fire()
+                self.data_event.fire(BoundDataEventType.GRAPHIC)
 
         def item_registered(item: Persistence.PersistentObject) -> None:
             self.__changed_listener = item.property_changed_event.listen(property_changed)
@@ -1905,7 +1926,6 @@ class BoundList(BoundItemBase):
     def __init__(self, bound_items: typing.Sequence[typing.Optional[BoundItemBase]]) -> None:
         super().__init__(None)
         self.__bound_items: typing.List[typing.Optional[BoundItemBase]] = list()
-        self.changed_event = Event.Event()
         self.is_list = True
         self.__changed_listeners: typing.List[typing.Optional[Event.EventListener]] = list()
         self.__inserted_listeners: typing.List[typing.Optional[Event.EventListener]] = list()
@@ -1946,7 +1966,7 @@ class BoundList(BoundItemBase):
             if name == "base_items":
                 self._update_base_items(self._get_base_items())
 
-        self.__changed_listeners.insert(index, bound_item.changed_event.listen(self.changed_event.fire) if bound_item else None)
+        self.__changed_listeners.insert(index, bound_item.data_event.listen(self.data_event.fire) if bound_item else None)
         self.__inserted_listeners.insert(index, bound_item.item_inserted_event.listen(handle_bound_items_changed) if bound_item else None)
         self.__removed_listeners.insert(index, bound_item.item_removed_event.listen(handle_bound_items_changed) if bound_item else None)
         self._update_base_items(self._get_base_items())
@@ -2016,6 +2036,7 @@ class Computation(Persistence.PersistentObject):
         self.__variable_base_item_removed_event_listeners: typing.List[Event.EventListener] = list()
         self.__result_base_item_inserted_event_listeners: typing.List[Event.EventListener] = list()
         self.__result_base_item_removed_event_listeners: typing.List[Event.EventListener] = list()
+        self.__processor: typing.Optional[ComputationProcessor] = None
         self.last_evaluate_data_time = 0.0
         self.needs_update = expression is not None
         self.computation_mutated_event = Event.Event()
@@ -2051,6 +2072,11 @@ class Computation(Persistence.PersistentObject):
     @property
     def item_specifier(self) -> Persistence.PersistentObjectSpecifier:
         return Persistence.PersistentObjectSpecifier(self.uuid)
+
+    def read_from_dict(self, properties: PersistentDictType) -> None:
+        super().read_from_dict(properties)
+        processing_id = self.processing_id
+        self.__processor = _processors.get(processing_id) if processing_id else None
 
     def read_properties_from_dict(self, d: Persistence.PersistentDictType) -> None:
         self.__source_reference.item_specifier = Persistence.read_persistent_specifier(d.get("source_uuid", None))
@@ -2089,6 +2115,7 @@ class Computation(Persistence.PersistentObject):
     @processing_id.setter
     def processing_id(self, value: typing.Optional[str]) -> None:
         self._set_persistent_property_value("processing_id", value)
+        self.__processor = _processors.get(value) if value else None
 
     @property
     def label(self) -> typing.Optional[str]:
@@ -2229,26 +2256,27 @@ class Computation(Persistence.PersistentObject):
     def __variable_inserted(self, name: str, before_index: int, variable: ComputationVariable) -> None:
         assert name == "variables"
 
-        def needs_update() -> None:
-            self.needs_update = True
+        def needs_update(variable: ComputationVariable, event_type: BoundDataEventType) -> None:
+            if not self.__processor or self.__processor.needs_update_for_event(variable.name, event_type):
+                self.needs_update = True
             self.computation_mutated_event.fire()
 
-        self.__variable_changed_event_listeners.insert(before_index, variable.changed_event.listen(needs_update))
+        self.__variable_changed_event_listeners.insert(before_index, variable.data_event.listen(functools.partial(needs_update, variable)))
 
-        def handle_variable_item_inserted(name: str, value: typing.Any, index: int) -> None:
+        def handle_variable_item_inserted(variable: ComputationVariable, name: str, value: typing.Any, index: int) -> None:
             if name == "base_items":
                 update_diff_notify(self, "input_items", self.__input_items, self.__get_input_items())
                 update_diff_notify(self, "direct_input_items", self.__direct_input_items, self.__get_direct_input_items())
-                needs_update()
+                needs_update(variable, BoundDataEventType.UNSPECIFIED)
 
-        def handle_variable_item_removed(name: str, value: typing.Any, index: int) -> None:
+        def handle_variable_item_removed(variable: ComputationVariable, name: str, value: typing.Any, index: int) -> None:
             if name == "base_items":
                 update_diff_notify(self, "input_items", self.__input_items, self.__get_input_items())
                 update_diff_notify(self, "direct_input_items", self.__direct_input_items, self.__get_direct_input_items())
-                needs_update()
+                needs_update(variable, BoundDataEventType.UNSPECIFIED)
 
-        self.__variable_base_item_inserted_event_listeners.insert(before_index, variable.item_inserted_event.listen(handle_variable_item_inserted))
-        self.__variable_base_item_removed_event_listeners.insert(before_index, variable.item_removed_event.listen(handle_variable_item_removed))
+        self.__variable_base_item_inserted_event_listeners.insert(before_index, variable.item_inserted_event.listen(functools.partial(handle_variable_item_inserted, variable)))
+        self.__variable_base_item_removed_event_listeners.insert(before_index, variable.item_removed_event.listen(functools.partial(handle_variable_item_removed, variable)))
 
         variable.bind()
 
@@ -2371,6 +2399,7 @@ class Computation(Persistence.PersistentObject):
         if value != self.original_expression:
             self.original_expression = value
             self.processing_id = None
+            self.__processor = None
             self.needs_update = True
             self.computation_mutated_event.fire()
 
@@ -2898,10 +2927,10 @@ class ComputationProcessorRegion:
 
 
 class ComputationProcessorSource:
-    def __init__(self, name: str, label: str, type: typing.Optional[str], requirements: typing.Sequence[ComputationProcessorRequirement], regions: typing.Sequence[ComputationProcessorRegion], is_croppable: bool) -> None:
+    def __init__(self, name: str, label: str, data_type: typing.Optional[str], requirements: typing.Sequence[ComputationProcessorRequirement], regions: typing.Sequence[ComputationProcessorRegion], is_croppable: bool) -> None:
         self.name = name
         self.label = label
-        self.type = type
+        self.data_type = data_type
         self.requirements = list(requirements)
         self.regions = list(regions)
         self.is_croppable = is_croppable
@@ -2910,11 +2939,19 @@ class ComputationProcessorSource:
     def from_dict(cls, d: PersistentDictType) -> ComputationProcessorSource:
         name = d["name"]
         label = d["label"]
-        type = d.get("type", None)
+        data_type = d.get("data_type", None)
         requirements = [create_computation_processor_requirement(requirement_d) for requirement_d in d.get("requirements", list())]
         regions = [ComputationProcessorRegion.from_dict(region_d) for region_d in d.get("regions", list())]
         is_croppable = d.get("croppable", False)
-        return cls(name, label, type, requirements, regions, is_croppable)
+        return cls(name, label, data_type, requirements, regions, is_croppable)
+
+    def needs_update_for_event(self, event_type: BoundDataEventType) -> bool:
+        if self.data_type == 'xdata':
+            if self.is_croppable:
+                return event_type in (BoundDataEventType.UNSPECIFIED, BoundDataEventType.DATA, BoundDataEventType.CROP_REGION)
+            else:
+                return event_type in (BoundDataEventType.UNSPECIFIED, BoundDataEventType.DATA)
+        return True
 
 
 class ComputationProcessorParameter:
@@ -2959,6 +2996,12 @@ class ComputationProcessor:
         attributes = d.get("attributes", dict())
         out_regions = [ComputationProcessorRegion.from_dict(region_d) for region_d in d.get("out_regions", list())]
         return cls(expression, title, sources, parameters, attributes, out_regions)
+
+    def needs_update_for_event(self, input_key: str, event_type: BoundDataEventType) -> bool:
+        for source in self.sources:
+            if source.name == input_key:
+                return source.needs_update_for_event(event_type)
+        return True
 
 
 class RegisteredComputationExecutor(ComputationExecutor):
