@@ -2311,7 +2311,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             if src.is_croppable:
                 secondary_item = graphic
             display_data_channel = in_display_item.get_display_data_channel_for_data_item(data_item) if data_item else None
-            computation.create_input_item(src.name, Symbolic.make_item(display_data_channel, secondary_item=secondary_item, type=src.type), label=src.label)
+            computation.create_input_item(src.name, Symbolic.make_item(display_data_channel, secondary_item=secondary_item), label=src.label)
         # process the regions
         for region_name, region, region_label in regions:
             computation.create_input_item(region_name, Symbolic.make_item(region), label=region_label)
@@ -2431,128 +2431,128 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                     # TODO: in appropriate places.
                     vs[processing_component.processing_id]["requirements"] = [requirement_4d]
 
-            vs["fft"] = {"title": _("FFT"), "expression": "xd.fft({src}.cropped_display_xdata)", "sources": [{"name": "src", "label": _("Source"), "croppable": True}]}
+            vs["fft"] = {"title": _("FFT"), "expression": "xd.fft({src}.cropped_display_xdata)", "sources": [{"name": "src", "label": _("Source"), "croppable": True, "data_type": "cropped_display_xdata"}]}
             vs["inverse-fft"] = {"title": _("Inverse FFT"), "expression": "xd.ifft({src}.xdata)",
-                "sources": [{"name": "src", "label": _("Source")}]}
+                "sources": [{"name": "src", "label": _("Source"), "data_type": "xdata"}]}
             vs["auto-correlate"] = {"title": _("Auto Correlate"), "expression": "xd.autocorrelate({src}.cropped_display_xdata)",
-                "sources": [{"name": "src", "label": _("Source"), "croppable": True}]}
+                "sources": [{"name": "src", "label": _("Source"), "data_type": "cropped_display_xdata", "croppable": True}]}
             vs["cross-correlate"] = {"title": _("Cross Correlate"), "expression": "xd.crosscorrelate({src1}.cropped_display_xdata, {src2}.cropped_display_xdata)",
-                "sources": [{"name": "src1", "label": _("Source 1"), "croppable": True}, {"name": "src2", "label": _("Source 2"), "croppable": True}]}
+                "sources": [{"name": "src1", "label": _("Source 1"), "data_type": "cropped_display_xdata", "croppable": True}, {"name": "src2", "label": _("Source 2"), "data_type": "cropped_display_xdata", "croppable": True}]}
             vs["sobel"] = {"title": _("Sobel"), "expression": "xd.sobel({src}.cropped_display_xdata)",
-                "sources": [{"name": "src", "label": _("Source"), "croppable": True}]}
+                "sources": [{"name": "src", "label": _("Source"), "data_type": "cropped_display_xdata", "croppable": True}]}
             vs["laplace"] = {"title": _("Laplace"), "expression": "xd.laplace({src}.cropped_display_xdata)",
-                "sources": [{"name": "src", "label": _("Source"), "croppable": True}]}
+                "sources": [{"name": "src", "label": _("Source"), "data_type": "cropped_display_xdata", "croppable": True}]}
             sigma_param = {"name": "sigma", "label": _("Sigma"), "type": "real", "value": 3, "value_default": 3, "value_min": 0, "value_max": 100,
                 "control_type": "slider"}
             vs["gaussian-blur"] = {"title": _("Gaussian Blur"), "expression": "xd.gaussian_blur({src}.cropped_display_xdata, sigma)",
-                "sources": [{"name": "src", "label": _("Source"), "croppable": True}], "parameters": [sigma_param]}
+                "sources": [{"name": "src", "label": _("Source"), "data_type": "cropped_display_xdata", "croppable": True}], "parameters": [sigma_param]}
             filter_size_param = {"name": "filter_size", "label": _("Size"), "type": "integral", "value": 3, "value_default": 3, "value_min": 1, "value_max": 100}
             vs["median-filter"] = {"title": _("Median Filter"), "expression": "xd.median_filter({src}.cropped_display_xdata, filter_size)",
-                "sources": [{"name": "src", "label": _("Source"), "croppable": True}], "parameters": [filter_size_param]}
+                "sources": [{"name": "src", "label": _("Source"), "data_type": "cropped_display_xdata", "croppable": True}], "parameters": [filter_size_param]}
             vs["uniform-filter"] = {"title": _("Uniform Filter"), "expression": "xd.uniform_filter({src}.cropped_display_xdata, filter_size)",
-                "sources": [{"name": "src", "label": _("Source"), "croppable": True}], "parameters": [filter_size_param]}
+                "sources": [{"name": "src", "label": _("Source"), "data_type": "cropped_display_xdata", "croppable": True}], "parameters": [filter_size_param]}
             do_transpose_param = {"name": "do_transpose", "label": _("Transpose"), "type": "boolean", "value": False, "value_default": False}
             do_flip_v_param = {"name": "do_flip_v", "label": _("Flip Vertical"), "type": "boolean", "value": False, "value_default": False}
             do_flip_h_param = {"name": "do_flip_h", "label": _("Flip Horizontal"), "type": "boolean", "value": False, "value_default": False}
             vs["transpose-flip"] = {"title": _("Transpose/Flip"), "expression": "xd.transpose_flip({src}.cropped_display_xdata, do_transpose, do_flip_v, do_flip_h)",
-                "sources": [{"name": "src", "label": _("Source"), "croppable": True}], "parameters": [do_transpose_param, do_flip_v_param, do_flip_h_param]}
+                "sources": [{"name": "src", "label": _("Source"), "data_type": "cropped_display_xdata", "croppable": True}], "parameters": [do_transpose_param, do_flip_v_param, do_flip_h_param]}
             width_param = {"name": "width", "label": _("Width"), "type": "integral", "value": 256, "value_default": 256, "value_min": 1}
             height_param = {"name": "height", "label": _("Height"), "type": "integral", "value": 256, "value_default": 256, "value_min": 1}
             vs["rebin"] = {"title": _("Rebin"), "expression": "xd.rebin_image({src}.cropped_display_xdata, (height, width))",
-                "sources": [{"name": "src", "label": _("Source"), "croppable": True}], "parameters": [width_param, height_param]}
+                "sources": [{"name": "src", "label": _("Source"), "data_type": "cropped_display_xdata", "croppable": True}], "parameters": [width_param, height_param]}
             vs["resample"] = {"title": _("Resample"), "expression": "xd.resample_image({src}.cropped_display_xdata, (height, width))",
-                "sources": [{"name": "src", "label": _("Source"), "croppable": True}], "parameters": [width_param, height_param]}
+                "sources": [{"name": "src", "label": _("Source"), "data_type": "cropped_display_xdata", "croppable": True}], "parameters": [width_param, height_param]}
             vs["resize"] = {"title": _("Resize"), "expression": "xd.resize({src}.cropped_display_xdata, (height, width), 'mean')",
-                "sources": [{"name": "src", "label": _("Source"), "croppable": True}], "parameters": [width_param, height_param]}
+                "sources": [{"name": "src", "label": _("Source"), "data_type": "cropped_display_xdata", "croppable": True}], "parameters": [width_param, height_param]}
             x_binning_param = {"name": "x_binning", "label": _("X Binning"), "type": "integral", "value": 2, "value_default": 2, "value_min": 1}
             y_binning_param = {"name": "y_binning", "label": _("Y Binning"), "type": "integral", "value": 2, "value_default": 2, "value_min": 1}
             vs["rebin_factor"] = {"title": _("Rebin"), "expression": "xd.rebin_factor({src}.cropped_display_xdata, (y_binning, x_binning))",
-                "sources": [{"name": "src", "label": _("Source"), "croppable": True}], "parameters": [x_binning_param, y_binning_param]}
+                "sources": [{"name": "src", "label": _("Source"), "data_type": "cropped_display_xdata", "croppable": True}], "parameters": [x_binning_param, y_binning_param]}
             vs["rebin_factor_1d"] = {"title": _("Rebin"), "expression": "xd.rebin_factor({src}.cropped_display_xdata, (x_binning,))",
-                "sources": [{"name": "src", "label": _("Source"), "croppable": True}], "parameters": [x_binning_param]}
+                "sources": [{"name": "src", "label": _("Source"), "data_type": "cropped_display_xdata", "croppable": True}], "parameters": [x_binning_param]}
             is_sequence_param = {"name": "is_sequence", "label": _("Sequence"), "type": "boolean", "value": False, "value_default": False}
             collection_dims_param = {"name": "collection_dims", "label": _("Collection Dimensions"), "type": "integral", "value": 0, "value_default": 0, "value_min": 0, "value_max": 0}
             datum_dims_param = {"name": "datum_dims", "label": _("Datum Dimensions"), "type": "integral", "value": 1, "value_default": 1, "value_min": 1, "value_max": 0}
             vs["redimension"] = {"title": _("Redimension"), "expression": "xd.redimension({src}.xdata, xd.data_descriptor(is_sequence=is_sequence, collection_dims=collection_dims, datum_dims=datum_dims))",
-                "sources": [{"name": "src", "label": _("Source")}], "parameters": [is_sequence_param, collection_dims_param, datum_dims_param]}
+                "sources": [{"name": "src", "label": _("Source"), "data_type": "xdata"}], "parameters": [is_sequence_param, collection_dims_param, datum_dims_param]}
             vs["squeeze"] = {"title": _("Squeeze"), "expression": "xd.squeeze({src}.xdata)",
-                "sources": [{"name": "src", "label": _("Source")}]}
+                "sources": [{"name": "src", "label": _("Source"), "data_type": "xdata"}]}
             bins_param = {"name": "bins", "label": _("Bins"), "type": "integral", "value": 256, "value_default": 256, "value_min": 2}
             vs["histogram"] = {"title": _("Histogram"), "expression": "xd.histogram({src}.cropped_display_xdata, bins)",
-                "sources": [{"name": "src", "label": _("Source"), "croppable": True}], "parameters": [bins_param]}
+                "sources": [{"name": "src", "label": _("Source"), "data_type": "cropped_display_xdata", "croppable": True}], "parameters": [bins_param]}
             vs["add"] = {"title": _("Add"), "expression": "{src1}.cropped_display_xdata + {src2}.cropped_display_xdata",
-                "sources": [{"name": "src1", "label": _("Source 1"), "croppable": True}, {"name": "src2", "label": _("Source 2"), "croppable": True}]}
+                "sources": [{"name": "src1", "label": _("Source 1"), "data_type": "cropped_display_xdata", "croppable": True}, {"name": "src2", "label": _("Source 2"), "data_type": "cropped_display_xdata", "croppable": True}]}
             vs["subtract"] = {"title": _("Subtract"), "expression": "{src1}.cropped_display_xdata - {src2}.cropped_display_xdata",
-                "sources": [{"name": "src1", "label": _("Source 1"), "croppable": True}, {"name": "src2", "label": _("Source 2"), "croppable": True}]}
+                "sources": [{"name": "src1", "label": _("Source 1"), "data_type": "cropped_display_xdata", "croppable": True}, {"name": "src2", "label": _("Source 2"), "data_type": "cropped_display_xdata", "croppable": True}]}
             vs["multiply"] = {"title": _("Multiply"), "expression": "{src1}.cropped_display_xdata * {src2}.cropped_display_xdata",
-                "sources": [{"name": "src1", "label": _("Source 1"), "croppable": True}, {"name": "src2", "label": _("Source 2"), "croppable": True}]}
+                "sources": [{"name": "src1", "label": _("Source 1"), "data_type": "cropped_display_xdata", "croppable": True}, {"name": "src2", "label": _("Source 2"), "data_type": "cropped_display_xdata", "croppable": True}]}
             vs["divide"] = {"title": _("Divide"), "expression": "{src1}.cropped_display_xdata / {src2}.cropped_display_xdata",
-                "sources": [{"name": "src1", "label": _("Source 1"), "croppable": True}, {"name": "src2", "label": _("Source 2"), "croppable": True}]}
-            vs["invert"] = {"title": _("Negate"), "expression": "xd.invert({src}.cropped_display_xdata)", "sources": [{"name": "src", "label": _("Source"), "croppable": True}]}
-            vs["masked"] = {"title": _("Masked"), "expression": "{src}.filtered_xdata", "sources": [{"name": "src", "label": _("Source")}]}
-            vs["mask"] = {"title": _("Mask"), "expression": "{src}.filter_xdata", "sources": [{"name": "src", "label": _("Source")}]}
+                "sources": [{"name": "src1", "label": _("Source 1"), "data_type": "cropped_display_xdata", "croppable": True}, {"name": "src2", "label": _("Source 2"), "data_type": "cropped_display_xdata", "croppable": True}]}
+            vs["invert"] = {"title": _("Negate"), "expression": "xd.invert({src}.cropped_display_xdata)", "sources": [{"name": "src", "label": _("Source"), "data_type": "cropped_display_xdata", "croppable": True}]}
+            vs["masked"] = {"title": _("Masked"), "expression": "{src}.filtered_xdata", "sources": [{"name": "src", "label": _("Source"), "data_type": "filtered_xdata"}]}
+            vs["mask"] = {"title": _("Mask"), "expression": "{src}.filter_xdata", "sources": [{"name": "src", "label": _("Source"), "data_type": "filter_xdata"}]}
             vs["convert-to-scalar"] = {"title": _("Scalar"), "expression": "{src}.cropped_display_xdata",
-                "sources": [{"name": "src", "label": _("Source"), "croppable": True}]}
+                "sources": [{"name": "src", "label": _("Source"), "data_type": "cropped_display_xdata", "croppable": True}]}
             vs["crop"] = {"title": _("Crop"), "expression": "{src}.cropped_display_xdata",
-                "sources": [{"name": "src", "label": _("Source"), "croppable": True}]}
+                "sources": [{"name": "src", "label": _("Source"), "data_type": "cropped_display_xdata", "croppable": True}]}
             vs["sum"] = {"title": _("Sum"), "expression": "xd.sum({src}.cropped_xdata, {src}.xdata.datum_dimension_indexes[0])",
-                "sources": [{"name": "src", "label": _("Source"), "croppable": True, "requirements": [requirement_2d_to_4d]}]}
+                "sources": [{"name": "src", "label": _("Source"), "data_type": "cropped_xdata", "croppable": True, "requirements": [requirement_2d_to_4d]}]}
             slice_center_param = {"name": "center", "label": _("Center"), "type": "integral", "value": 0, "value_default": 0, "value_min": 0}
             slice_width_param = {"name": "width", "label": _("Width"), "type": "integral", "value": 1, "value_default": 1, "value_min": 1}
             vs["slice"] = {"title": _("Slice"), "expression": "xd.slice_sum({src}.cropped_xdata, center, width)",
-                "sources": [{"name": "src", "label": _("Source"), "croppable": True, "requirements": [requirement_3d]}],
+                "sources": [{"name": "src", "label": _("Source"), "data_type": "cropped_xdata", "croppable": True, "requirements": [requirement_3d]}],
                 "parameters": [slice_center_param, slice_width_param]}
             pick_in_region = {"name": "pick_region", "type": "point", "params": {"label": _("Pick Point")}}
             pick_out_region = {"name": "interval_region", "type": "interval", "params": {"label": _("Display Slice"), "role": "slice"}}
             vs["pick-point"] = {"title": _("Pick"), "expression": "xd.pick({src}.xdata, pick_region.position)",
-                "sources": [{"name": "src", "label": _("Source"), "regions": [pick_in_region], "requirements": [requirement_4d_if_sequence_else_3d]}],
+                "sources": [{"name": "src", "label": _("Source"), "data_type": "xdata", "regions": [pick_in_region], "requirements": [requirement_4d_if_sequence_else_3d]}],
                 "out_regions": [pick_out_region]}
             pick_sum_in_region = {"name": "region", "type": "rectangle", "params": {"label": _("Pick Region")}}
             pick_sum_out_region = {"name": "interval_region", "type": "interval", "params": {"label": _("Display Slice"), "role": "slice"}}
             vs["pick-mask-sum"] = {"title": _("Pick Sum"), "expression": "xd.sum_region({src}.xdata, region.mask_xdata_with_shape({src}.xdata.data_shape[-3:-1]))",
-                "sources": [{"name": "src", "label": _("Source"), "regions": [pick_sum_in_region], "requirements": [requirement_4d_if_sequence_else_3d]}],
+                "sources": [{"name": "src", "label": _("Source"), "data_type": "xdata", "regions": [pick_sum_in_region], "requirements": [requirement_4d_if_sequence_else_3d]}],
                 "out_regions": [pick_sum_out_region]}
             vs["pick-mask-average"] = {"title": _("Pick Average"), "expression": "xd.average_region({src}.xdata, region.mask_xdata_with_shape({src}.xdata.data_shape[-3:-1]))",
-                "sources": [{"name": "src", "label": _("Source"), "regions": [pick_sum_in_region], "requirements": [requirement_4d_if_sequence_else_3d]}],
+                "sources": [{"name": "src", "label": _("Source"), "data_type": "xdata", "regions": [pick_sum_in_region], "requirements": [requirement_4d_if_sequence_else_3d]}],
                 "out_regions": [pick_sum_out_region]}
             vs["subtract-mask-average"] = {"title": _("Subtract Average"), "expression": "{src}.xdata - xd.average_region({src}.xdata, region.mask_xdata_with_shape({src}.xdata.data_shape[0:2]))",
-                "sources": [{"name": "src", "label": _("Source"), "regions": [pick_sum_in_region], "requirements": [requirement_3d]}],
+                "sources": [{"name": "src", "label": _("Source"), "data_type": "xdata", "regions": [pick_sum_in_region], "requirements": [requirement_3d]}],
                 "out_regions": [pick_sum_out_region]}
             line_profile_in_region = {"name": "line_region", "type": "line", "params": {"label": _("Line Profile")}}
             vs["line-profile"] = {"title": _("Line Profile"), "expression": "xd.line_profile(xd.absolute({src}.element_xdata) if {src}.element_xdata.is_data_complex_type else {src}.element_xdata, line_region.vector, line_region.line_width)",
-                "sources": [{"name": "src", "label": _("Source"), "regions": [line_profile_in_region]}]}
+                "sources": [{"name": "src", "label": _("Source"), "data_type": "element_xdata", "regions": [line_profile_in_region]}]}
             vs["radial-profile"] = {"title": _("Radial Profile"), "expression": "xd.radial_profile({src}.cropped_display_xdata)",
-                "sources": [{"name": "src", "label": _("Source"), "croppable": True, "requirements": [requirement_2d]}]}
+                "sources": [{"name": "src", "label": _("Source"), "data_type": "cropped_display_xdata", "croppable": True, "requirements": [requirement_2d]}]}
             vs["power-spectrum"] = {"title": _("Radial Power Spectrum"), "expression": "xd.radial_profile(xd.power(xd.absolute(xd.fft({src}.cropped_display_xdata)), 2))",
-                "sources": [{"name": "src", "label": _("Source"), "croppable": True, "requirements": [requirement_2d]}]}
+                "sources": [{"name": "src", "label": _("Source"), "data_type": "cropped_display_xdata", "croppable": True, "requirements": [requirement_2d]}]}
             vs["filter"] = {"title": _("Filter"), "expression": "xd.real(xd.ifft({src}.filtered_xdata))",
-                "sources": [{"name": "src", "label": _("Source"), "requirements": [requirement_2d]}]}
+                "sources": [{"name": "src", "label": _("Source"), "data_type": "filtered_xdata", "requirements": [requirement_2d]}]}
             vs["sequence-register"] = {"title": _("Shifts"), "expression": "xd.sequence_squeeze_measurement(xd.sequence_measure_relative_translation({src}.xdata, {src}.xdata[numpy.unravel_index(0, {src}.xdata.navigation_dimension_shape)], 100))",
-                "sources": [{"name": "src", "label": _("Source"), "requirements": [requirement_2d_to_3d]}]}
+                "sources": [{"name": "src", "label": _("Source"), "data_type": "xdata", "requirements": [requirement_2d_to_3d]}]}
             vs["sequence-align"] = {"title": _("Alignment"), "expression": "xd.sequence_align({src}.xdata, 100)",
-                "sources": [{"name": "src", "label": _("Source"), "requirements": [requirement_2d_to_5d, requirement_is_navigable]}]}
+                "sources": [{"name": "src", "label": _("Source"), "data_type": "xdata", "requirements": [requirement_2d_to_5d, requirement_is_navigable]}]}
             vs["sequence-fourier-align"] = {"title": _("Alignment"), "expression": "xd.sequence_fourier_align({src}.xdata, 100)",
-                "sources": [{"name": "src", "label": _("Source"), "requirements": [requirement_2d_to_5d, requirement_is_navigable]}]}
+                "sources": [{"name": "src", "label": _("Source"), "data_type": "xdata", "requirements": [requirement_2d_to_5d, requirement_is_navigable]}]}
             vs["sequence-integrate"] = {"title": _("Integrate"), "expression": "xd.sequence_integrate({src}.xdata)",
-                "sources": [{"name": "src", "label": _("Source"), "requirements": [requirement_is_sequence]}]}
+                "sources": [{"name": "src", "label": _("Source"), "data_type": "xdata", "requirements": [requirement_is_sequence]}]}
             trim_start_param = {"name": "start", "label": _("Start"), "type": "integral", "value": 0, "value_default": 0, "value_min": 0}
             trim_end_param = {"name": "end", "label": _("End"), "type": "integral", "value": 1, "value_default": 1, "value_min": 1}
             vs["sequence-trim"] = {"title": _("Trim"), "expression": "xd.sequence_trim({src}.xdata, start, end)",
-                "sources": [{"name": "src", "label": _("Source"), "requirements": [requirement_is_sequence]}],
+                "sources": [{"name": "src", "label": _("Source"), "data_type": "xdata", "requirements": [requirement_is_sequence]}],
                 "parameters": [trim_start_param, trim_end_param]}
             index_param = {"name": "index", "label": _("Index"), "type": "integral", "value": 1, "value_default": 1, "value_min": 1}
             vs["sequence-extract"] = {"title": _("Extract"), "expression": "xd.sequence_extract({src}.xdata, index)",
-                "sources": [{"name": "src", "label": _("Source"), "requirements": [requirement_is_sequence]}],
+                "sources": [{"name": "src", "label": _("Source"), "data_type": "xdata", "requirements": [requirement_is_sequence]}],
                 "parameters": [index_param]}
             vs["make-rgb"] = {"title": _("RGB"), "expression": "xd.rgb({src_red}.cropped_transformed_xdata, {src_green}.cropped_transformed_xdata, {src_blue}.cropped_transformed_xdata)",
-                "sources": [{"name": "src_red", "label": _("Red"), "croppable": True, "requirements": [requirement_2d]},
-                            {"name": "src_green", "label": _("Green"), "croppable": True, "requirements": [requirement_2d]},
-                            {"name": "src_blue", "label": _("Blue"), "croppable": True, "requirements": [requirement_2d]}]}
-            vs["extract-luminance"] = {"title": _("Luminance"), "expression": "xd.luminance({src}.display_rgba)", "sources": [{"name": "src", "label": _("Source"), "requirements": [requirement_is_rgb_type]}]}
-            vs["extract-red"] = {"title": _("Red"), "expression": "xd.red({src}.display_rgba)", "sources": [{"name": "src", "label": _("Source"), "requirements": [requirement_is_rgb_type]}]}
-            vs["extract-green"] = {"title": _("Green"), "expression": "xd.green({src}.display_rgba)", "sources": [{"name": "src", "label": _("Source"), "requirements": [requirement_is_rgb_type]}]}
-            vs["extract-blue"] = {"title": _("Blue"), "expression": "xd.blue({src}.display_rgba)", "sources": [{"name": "src", "label": _("Source"), "requirements": [requirement_is_rgb_type]}]}
-            vs["extract-alpha"] = {"title": _("Alpha"), "expression": "xd.alpha({src}.display_rgba)", "sources": [{"name": "src", "label": _("Source"), "requirements": [requirement_is_rgb_type]}]}
+                "sources": [{"name": "src_red", "label": _("Red"), "data_type": "cropped_transformed_xdata", "croppable": True, "requirements": [requirement_2d]},
+                            {"name": "src_green", "label": _("Green"), "data_type": "cropped_transformed_xdata", "croppable": True, "requirements": [requirement_2d]},
+                            {"name": "src_blue", "label": _("Blue"), "data_type": "cropped_transformed_xdata", "croppable": True, "requirements": [requirement_2d]}]}
+            vs["extract-luminance"] = {"title": _("Luminance"), "expression": "xd.luminance({src}.display_rgba)", "sources": [{"name": "src", "label": _("Source"), "data_type": "display_rgba", "requirements": [requirement_is_rgb_type]}]}
+            vs["extract-red"] = {"title": _("Red"), "expression": "xd.red({src}.display_rgba)", "sources": [{"name": "src", "label": _("Source"), "data_type": "display_rgba", "requirements": [requirement_is_rgb_type]}]}
+            vs["extract-green"] = {"title": _("Green"), "expression": "xd.green({src}.display_rgba)", "sources": [{"name": "src", "label": _("Source"), "data_type": "display_rgba", "requirements": [requirement_is_rgb_type]}]}
+            vs["extract-blue"] = {"title": _("Blue"), "expression": "xd.blue({src}.display_rgba)", "sources": [{"name": "src", "label": _("Source"), "data_type": "display_rgba", "requirements": [requirement_is_rgb_type]}]}
+            vs["extract-alpha"] = {"title": _("Alpha"), "expression": "xd.alpha({src}.display_rgba)", "sources": [{"name": "src", "label": _("Source"), "data_type": "display_rgba", "requirements": [requirement_is_rgb_type]}]}
             cls._builtin_processors = {k: Symbolic.ComputationProcessor.from_dict(v) for k, v in vs.items()}
         return cls._builtin_processors
 

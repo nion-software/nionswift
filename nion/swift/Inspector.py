@@ -3904,7 +3904,11 @@ class DataStructurePropertyVariableHandler(Declarative.Handler):
         self.ui_view = u.create_column(u.create_row(label, *([link] if computation_inspector_context.do_references else []), u.create_stretch()), line_edit, u.create_stretch(), spacing=8)
         self.__variable_listener = variable.property_changed_event.listen(ReferenceCounting.weak_partial(DataStructurePropertyVariableHandler.__property_changed, self))
         if variable.bound_item:
-            self.__bound_item_listener = variable.changed_event.listen(ReferenceCounting.weak_partial(DataStructurePropertyVariableHandler.__changed, self))
+            def handle_variable_event(handler: DataStructurePropertyVariableHandler, event_type: Symbolic.BoundDataEventType) -> None:
+                handler.__changed()
+
+            self.__bound_item_listener = variable.data_event.listen(
+                ReferenceCounting.weak_partial(handle_variable_event, self))
 
     @property
     def variable_value(self) -> str:
