@@ -2850,7 +2850,7 @@ class ComputationProcessorRequirementIsNavigable(ComputationProcessorRequirement
         return data_item.is_sequence or data_item.is_collection
 
 
-class ComputationProcessorRequirementBooleanOperator(enum.StrEnum):
+class ComputationProcessorRequirementBooleanOperator(enum.Enum):
     NOT = "not"
     AND = "and"
     OR = "or"
@@ -2902,7 +2902,7 @@ def create_computation_processor_requirement(d: PersistentDictType) -> Computati
     raise ValueError(f"Unknown requirement type: {requirement_type}")
 
 
-class ComputationProcsesorRegionTypeEnum(enum.StrEnum):
+class ComputationProcsesorRegionTypeEnum(enum.Enum):
     POINT = "point"
     LINE = "line"
     RECTANGLE = "rectangle"
