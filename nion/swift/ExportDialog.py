@@ -239,45 +239,133 @@ class ExportDialog(Declarative.Handler):
     def cancel(self) -> bool:
         return True
 
-
 class ExportSVGHandler:
+    width_value_line_edit: Declarative.UIWidget
+    height_value_line_edit: Declarative.UIWidget
     def __init__(self, display_size: Geometry.IntSize) -> None:
-        self.width_model = Model.PropertyModel(display_size.width)
-        self.height_model = Model.PropertyModel(display_size.height)
-
-        self.int_converter = Converter.IntegerToStringConverter()
+        self.display_size = display_size
+        self.aspect_ratio = display_size.width / display_size.height
+        self.width_model = Model.PropertyModel(float(display_size.width))
+        self.height_model = Model.PropertyModel(float(display_size.height))
+        self.unit_model = Model.PropertyModel(2)  # Default to pixels (index 2)
+        self.int_converter = Converter.FloatToStringConverter()
+        self.previous_unit_index = 2  # Default to pixels (index 2)
 
         u = Declarative.DeclarativeUI()
-        width_row = u.create_row(u.create_label(text=_("Width (in)"), width=80), u.create_line_edit(text="@binding(width_model.value, converter=int_converter)"), spacing=12)
-        height_row = u.create_row(u.create_label(text=_("Height (in)"), width=80), u.create_line_edit(text="@binding(height_model.value, converter=int_converter)"), spacing=12)
-        main_page = u.create_column(width_row, height_row, spacing=12, margin=12)
-
+        self.width_line_edit = u.create_line_edit(
+            text="@binding(width_model.value, converter=int_converter)",
+            on_text_edited="value_updated",
+            background_color="white"
+            ,name="width_value_line_edit"
+        )
+        self.height_line_edit = u.create_line_edit(
+            text="@binding(height_model.value, converter=int_converter)",
+            on_text_edited="value_updated",
+            background_color="white",
+            name="height_value_line_edit"
+        )
+        width_row = u.create_row(
+            u.create_label(text=_("Width:"), width=80),
+            self.width_line_edit,
+            spacing=12
+        )
+        height_row = u.create_row(
+            u.create_label(text=_("Height:"), width=80),
+            self.height_line_edit,
+            spacing=12
+        )
+        # Combo box for units
+        self.units_combo_box = u.create_combo_box(
+            items=[_("Inches"), _("Centimeters"), _("Pixels")],
+            current_index="@binding(unit_model.value)",
+            on_current_index_changed="unit_changed"
+        )
+        units_row = u.create_row(
+            u.create_label(text=_("Units:"), width=80),
+            self.units_combo_box,
+            spacing=12
+        )
+        main_page = u.create_column(width_row, height_row, units_row, spacing=12, margin=12)
         self.ui_view = main_page
+
+    def value_updated(self, widget: Declarative.UIWidget, text: str) -> None:
+        try:
+
+            if widget == self.width_value_line_edit:
+                new_width = float(text)
+                new_height = new_width / self.aspect_ratio
+                if self.unit_model.value == 2:
+                    new_height = round(new_height)
+                self.height_model.value = new_height
+                self.height_value_line_edit.background_color = "#d3d3d3"
+                self.width_value_line_edit.background_color = "white"
+            elif widget == self.height_value_line_edit:
+                new_height = float(text)
+                new_width = new_height * self.aspect_ratio
+                if self.unit_model.value == 2:
+                    new_width = round(new_width)
+                self.width_model.value = new_width
+                self.width_value_line_edit.background_color = "#d3d3d3"
+                self.height_value_line_edit.background_color = "white"
+        except ValueError:
+            pass  # Handle the case where the input is not a valid integer
+    def unit_changed(self, widget: Declarative.UIWidget, current_index: int) -> None:
+        width_px, height_px = self.convert_to_pixels(
+            self.width_model.value, self.height_model.value, self.previous_unit_index)
+        new_width, new_height = self.convert_from_pixels(width_px, height_px, current_index)
+        if current_index == 2:
+            new_width = round(new_width)
+            new_height = round(new_height)
+        self.width_model.value = new_width
+        self.height_model.value = new_height
+        self.previous_unit_index = current_index
+    def convert_to_pixels(self, width: typing.Optional[float], height: typing.Optional[float], unit_index: typing.Optional[int]) -> typing.Tuple[int, int]:
+        dpi = 96
+        if width is None or height is None:
+            return 0, 0
+        else:
+            width = float(width)
+            height = float(height)
+        if unit_index == 0:  # Inches
+            return int(width * dpi), int(height * dpi)
+        elif unit_index == 1:  # Centimeters
+            return int(width * dpi / 2.54), int(height * dpi / 2.54)
+        return int(round(width)),int(round(height)) # Pixels
+    def convert_from_pixels(self, width_px: typing.Optional[float], height_px: typing.Optional[float], unit_index: typing.Optional[int]) -> typing.Tuple[float, float]:
+        dpi = 96
+        if width_px is None or height_px is None:
+            return 0, 0
+        else:
+            width_px = float(width_px)
+            height_px = float(height_px)
+        if unit_index == 0:  # Inches
+            return width_px / dpi, height_px / dpi
+        elif unit_index == 1:  # Centimeters
+            return width_px * 2.54 / dpi, height_px * 2.54 / dpi
+        return width_px, height_px  # Pixels
+    def get_dimensions_in_pixels(self) -> typing.Tuple[int, int]:
+        return self.convert_to_pixels(
+            self.width_model.value, self.height_model.value, self.unit_model.value)
+
 
     def close(self) -> None:
         pass
 
-
 class ExportSVGDialog:
-
     def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem) -> None:
         super().__init__()
-
         self.__document_controller = document_controller
-
         u = Declarative.DeclarativeUI()
-
         if display_item.display_data_shape and len(display_item.display_data_shape) == 2:
-            display_size = Geometry.IntSize(height=4, width=4)
+            display_size = Geometry.IntSize(height=display_item.display_data_shape[1],
+                                            width=display_item.display_data_shape[0])
         else:
-            display_size = Geometry.IntSize(height=3, width=4)
-
+            display_size = Geometry.IntSize(height=4, width=4)
         handler = ExportSVGHandler(display_size)
 
         def ok_clicked() -> bool:
-            dpi = 96
-            width_px = (handler.width_model.value or display_size.width) * dpi
-            height_px = (handler.height_model.value or display_size.height) * dpi
+            width_px, height_px = handler.convert_to_pixels(handler.width_model.value,
+                                                            handler.height_model.value, handler.unit_model.value)
 
             ui = document_controller.ui
             filter = "SVG File (*.svg);;All Files (*.*)"
@@ -300,6 +388,7 @@ class ExportSVGDialog:
         dialog.add_button(_("Export"), ok_clicked)
 
         dialog.show()
+
 
 
 @dataclasses.dataclass
