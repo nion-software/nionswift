@@ -234,7 +234,8 @@ class ExportDialog(Declarative.Handler):
                 else:
                     export_results.append(ExportResult(display_item.displayed_title, _('Failed'), _('Cannot export items with multiple data items')))
 
-            ExportResultDialog(ui, document_controller, export_results, directory_path)
+            if any(e.status == 'Failed' for e in export_results):
+                ExportResultDialog(ui, document_controller, export_results, directory_path)
 
     def cancel(self) -> bool:
         return True
