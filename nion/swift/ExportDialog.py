@@ -381,7 +381,7 @@ class ExportResultDialog(Declarative.Handler):
                     spacing=COLUMN_SPACING
                 )
             ),
-            min_width=scroll_area_width, max_height=scroll_area_height
+            min_width=scroll_area_width, min_height=scroll_area_height, max_height=240
         )
 
         path_title = u.create_label(text=_('Directory:'), font='bold')
