@@ -36,6 +36,16 @@ if typing.TYPE_CHECKING:
 _ = gettext.gettext
 
 
+@dataclasses.dataclass
+class ConsoleStartupInfo:
+    console_startup_id: str
+    console_startup_lines: typing.Sequence[str]
+    console_startup_help: typing.Optional[typing.Sequence[str]]
+
+class ConsoleStartupComponent(typing.Protocol):
+    def get_console_startup_info(self, logger: logging.Logger) -> ConsoleStartupInfo: ...
+
+
 class ConsoleWidgetStateController:
     delims = " \t\n`~!@#$%^&*()-=+[{]}\\|;:\'\",<>/?"
 
@@ -366,6 +376,37 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
             self.insert_lines(text_lines)
 
 
+class DefaultConsoleStartupComponent:
+    def get_console_startup_info(self, logger: logging.Logger) -> ConsoleStartupInfo:
+        logger.info("Console Startup (logger, api, ui, show, etc.)")
+        lines = [
+            "import logging",
+            "import numpy as np",
+            "import numpy as numpy",
+            "import uuid",
+            "from nion.swift.model import PlugInManager",
+            "from nion.ui import Declarative",
+            "from nion.data import xdata_1_0 as xd",
+            "get_api = PlugInManager.api_broker_fn",
+            "api = get_api('~1.0', '~1.0')",
+            "ui = Declarative.DeclarativeUI()",
+            "show = api.show",
+            "def run_script(*args, **kwargs):",
+            "  api.run_script(*args, stdout=_stdout, **kwargs)",
+            "",
+            f"logger = logging.getLogger('console-loggers-{ConsoleDialog.console_number}')",
+            ]
+
+        variable_to_item_map = DocumentModel.MappedItemManager().item_map
+        for variable_name, data_item in variable_to_item_map.items():
+            data_item_specifier = data_item.item_specifier
+            lines.append(f"{variable_name} = api.library.get_item_by_specifier(api.create_specifier(item_uuid=uuid.UUID('{str(data_item_specifier.item_uuid)}')))")
+
+        return ConsoleStartupInfo("default_startup", lines, None)
+
+
+Registry.register_component(DefaultConsoleStartupComponent(), {"console-startup"})
+
 
 class ConsoleDialog(Dialog.ActionDialog):
 
@@ -381,41 +422,7 @@ class ConsoleDialog(Dialog.ActionDialog):
 
         self.__console_widget = ConsoleWidget(document_controller.ui, logger, properties={"min-height": 180, "min-width": 540})
 
-        lines = [
-            "import logging",
-            "import numpy as np",
-            "import numpy as numpy",
-            "import uuid",
-            "from nion.utils import Registry",
-            "from nion.swift.model import PlugInManager",
-            "from nion.ui import Declarative",
-            "from nion.data import xdata_1_0 as xd",
-            "get_api = PlugInManager.api_broker_fn",
-            "api = get_api('~1.0', '~1.0')",
-            "ui = Declarative.DeclarativeUI()",
-            "show = api.show",
-            "def run_script(*args, **kwargs):",
-            "  api.run_script(*args, stdout=_stdout, **kwargs)",
-            "",
-            f"logger = logging.getLogger('console-loggers-{ConsoleDialog.console_number}')",
-            ]
-
-        logger.info("Console Startup (logger, api, ui, show, etc.)")
-
-        variable_to_item_map = DocumentModel.MappedItemManager().item_map
-        for variable_name, data_item in variable_to_item_map.items():
-            data_item_specifier = data_item.item_specifier
-            lines.append(f"{variable_name} = api.library.get_item_by_specifier(api.create_specifier(item_uuid=uuid.UUID('{str(data_item_specifier.item_uuid)}')))")
-
-        @dataclasses.dataclass
-        class ConsoleStartupInfo:
-            console_startup_id: str
-            console_startup_lines: typing.Sequence[str]
-            console_startup_help: typing.Optional[typing.Sequence[str]]
-
-        class ConsoleStartupComponent(typing.Protocol):
-            def get_console_startup_info(self, logger: logging.Logger) -> ConsoleStartupInfo: ...
-
+        lines: list[str] = list()
         for component in Registry.get_components_by_type("console-startup"):
             console_startup_component = typing.cast(ConsoleStartupComponent, component)
             lines.extend(console_startup_component.get_console_startup_info(logger).console_startup_lines)
