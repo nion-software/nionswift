@@ -82,7 +82,10 @@ class ExportDialog(Declarative.Handler):
             return True
 
         # create the dialog and show it.
-        dialog = typing.cast(Dialog.ActionDialog, Declarative.construct(document_controller.ui, document_controller, u.create_modeless_dialog(self.ui_view, title=_("Export")), self))
+        export_text = _("Export")
+        items_text = _("Items")
+        title_text = f"{export_text} ({len(display_items)} {items_text})"
+        dialog = typing.cast(Dialog.ActionDialog, Declarative.construct(document_controller.ui, document_controller, u.create_modeless_dialog(self.ui_view, title=title_text), self))
         dialog.add_button(_("Cancel"), self.cancel)
         dialog.add_button(_("Export"), handle_export_clicked)
         dialog.show()
@@ -223,18 +226,19 @@ class ExportDialog(Declarative.Handler):
                         data_metadata = data_item.data_metadata if data_item else None
                         if data_metadata is not None and writer.value.can_write(data_metadata, filepath.suffix[1:].lower()):
                             ImportExportManager.ImportExportManager().write_display_item_with_writer(writer.value, display_item, filepath)
-                            export_results.append(ExportResult(file_name, _('Succeeded'), ''))
+                            export_results.append(ExportResult(file_name))
                         else:
-                            export_results.append(ExportResult(file_name, _('Failed'), f'Cannot output this data as {writer.value.name}'))
+                            error_message = _("Cannot export this data to file format")
+                            export_results.append(ExportResult(file_name, f"{error_message} {writer.value.name}"))
                     except Exception as e:
                         logging.debug("Could not export image %s / %s", str(data_item), str(e))
                         traceback.print_exc()
                         traceback.print_stack()
-                        export_results.append(ExportResult(file_name, _('Failed'), str(e)))
+                        export_results.append(ExportResult(file_name, str(e)))
                 else:
-                    export_results.append(ExportResult(display_item.displayed_title, _('Failed'), _('Cannot export items with multiple data items')))
+                    export_results.append(ExportResult(display_item.displayed_title, _("Cannot export items with multiple data items")))
 
-            if any(e.status == 'Failed' for e in export_results):
+            if any(e.error for e in export_results):
                 ExportResultDialog(ui, document_controller, export_results, directory_path)
 
     def cancel(self) -> bool:
@@ -306,8 +310,7 @@ class ExportSVGDialog:
 @dataclasses.dataclass
 class ExportResult:
     file: str
-    status: str
-    error: typing.Optional[str]
+    error: typing.Optional[str] = None
 
 
 class ExportResultDialog(Declarative.Handler):
@@ -325,10 +328,13 @@ class ExportResultDialog(Declarative.Handler):
         self._build_ui(u)
 
         # create the dialog and show it.
+        export_result_text = _("Export Results")
+        items_text = _("Items")
+        title_text = f"{export_result_text} ({len(exports)} {items_text})"
         dialog = typing.cast(Dialog.ActionDialog, Declarative.construct(document_controller.ui, document_controller,
-                                                                        u.create_modeless_dialog(
-                                                                            self.ui_view,
-                                                                            title=_("Export Results")), self))
+                                                                        u.create_modeless_dialog(self.ui_view,
+                                                                                                 title=title_text),
+                                                                        self))
 
         dialog.add_button(_("OK"), self.ok_click)
         dialog.show()
@@ -343,30 +349,40 @@ class ExportResultDialog(Declarative.Handler):
         return True
 
     def _build_ui(self, u: Declarative.DeclarativeUI) -> None:
+        FILE_FIELD_WIDTH = 320
+        STATUS_FIELD_WIDTH = 280
+        COLUMN_SPACING = 12
 
-        file_name_children = list()
-        status_children = list()
-        error_children = list()
+        header_labels = [
+            u.create_label(text=_('File'), font='bold', width=FILE_FIELD_WIDTH),
+            u.create_label(text=_('Status'), font='bold', width=STATUS_FIELD_WIDTH),
+        ]
 
-        file_name_children.append(u.create_label(text=_('File'), font='bold'))
-        status_children.append(u.create_label(text=_('Status'), font='bold'))
-
-        if any([export.error for export in self.exports]):
-            error_children.append((u.create_label(text=_('Error'), font='bold')))
+        file_name_labels = list()
+        status_labels = list()
 
         for export in self.exports:
-            file_name_children.append(u.create_label(text=export.file))
-            status_children.append(u.create_label(text=export.status))
-            error_children.append(u.create_label(text=export.error))
+            status_text = _("Succeeded") if not export.error else f"\N{WARNING SIGN} {export.error}"
+            color = 'green' if not export.error else 'red'
+            file_name_labels.append(u.create_label(text=export.file, tool_tip=export.file, width=FILE_FIELD_WIDTH))
+            status_labels.append(u.create_label(text=status_text, tool_tip=export.error, color=color, width=STATUS_FIELD_WIDTH))
 
-        file_name_column = u.create_column(*file_name_children, spacing=5)
-        status_column = u.create_column(*status_children, spacing=5)
-        error_column = u.create_column(*error_children, spacing=5)
+        header_row = u.create_row(*header_labels, u.create_stretch(), spacing=COLUMN_SPACING)
 
-        # Build main ui row
-        data_row = u.create_scroll_area(u.create_row(u.create_spacing(5), file_name_column, status_column,
-                                                     error_column, u.create_spacing(5), spacing=10),
-                                        height=250, width=1000)
+        scroll_area_width = FILE_FIELD_WIDTH + STATUS_FIELD_WIDTH + COLUMN_SPACING * 2 + 24  # 24 is the estimated width of the scrollbar
+        scroll_area_height = min(200, 28 + 28 * len(self.exports))  # 28 is the estimated height of a row
+
+        data_row = u.create_scroll_area(
+            u.create_column(
+                u.create_row(
+                    u.create_column(*file_name_labels, u.create_stretch(), spacing=8),
+                    u.create_column(*status_labels, u.create_stretch(), spacing=8),
+                    u.create_stretch(),
+                    spacing=COLUMN_SPACING
+                )
+            ),
+            min_width=scroll_area_width, max_height=scroll_area_height
+        )
 
         path_title = u.create_label(text=_('Directory:'), font='bold')
 
@@ -375,8 +391,8 @@ class ExportResultDialog(Declarative.Handler):
         path_goto = u.create_row(u.create_push_button(text='Open Directory', on_clicked='open_export_folder'),
                                  u.create_stretch())
 
-        self.ui_view = u.create_column(path_title, path_directory,u.create_spacing(5), path_goto,
-                                       u.create_spacing(10), data_row, margin=10)
+        self.ui_view = u.create_column(path_title, path_directory, path_goto, header_row, data_row, spacing=8,
+                                       margin=12)
 
     def ok_click(self) -> bool:
         return True
