@@ -363,7 +363,9 @@ class ExportResultDialog(Declarative.Handler):
         error_column = u.create_column(*error_children, spacing=5)
 
         # Build main ui row
-        data_row = u.create_row(file_name_column, status_column, error_column, spacing=10)
+        data_row = u.create_scroll_area(u.create_row(u.create_spacing(5), file_name_column, status_column,
+                                                     error_column, u.create_spacing(5), spacing=10),
+                                        height=250, width=1000)
 
         path_title = u.create_label(text=_('Directory:'), font='bold')
 
