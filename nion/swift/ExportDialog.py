@@ -106,7 +106,7 @@ class ExportDialog(Declarative.Handler):
 
         # Export Folder
         directory_label = u.create_row(u.create_label(text="Location:", font='bold'))
-        directory_text = u.create_row(u.create_column(u.create_label(text=f"@binding(viewmodel.directory.value)", min_width=280, height=48, word_wrap=True, size_policy_horizontal='min-expanding')))
+        directory_text = u.create_row(u.create_column(u.create_label(text=f"@binding(viewmodel.directory.value)", min_width=280, height=48, word_wrap=True, size_policy_horizontal='min-expanding', text_alignment_vertical='top')))
         self.directory_text_label = directory_text
         directory_button = u.create_row(u.create_push_button(text=_("Select Path..."), on_clicked="choose_directory"), u.create_stretch())
 
@@ -386,7 +386,7 @@ class ExportResultDialog(Declarative.Handler):
 
         path_title = u.create_label(text=_('Directory:'), font='bold')
 
-        path_directory = u.create_label(text=str(self.export_folder))
+        path_directory = u.create_label(text=str(self.export_folder), min_width=280, height=48, word_wrap=True, size_policy_horizontal='min-expanding', text_alignment_vertical='top')
 
         path_goto = u.create_row(u.create_push_button(text='Open Directory', on_clicked='open_export_folder'),
                                  u.create_stretch())
