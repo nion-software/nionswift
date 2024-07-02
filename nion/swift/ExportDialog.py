@@ -181,7 +181,8 @@ class ExportDialog(Declarative.Handler):
         max_index = 9999
         last_test_filepath: typing.Optional[pathlib.Path] = None
         while next_index <= max_index:
-            test_filepath = directory_path / pathlib.Path(f"{filename} {next_index}").with_suffix(extension)
+            filename_stem = pathlib.Path(filename).stem
+            test_filepath = directory_path / pathlib.Path(f"{filename_stem} {next_index}").with_suffix(extension)
             if not test_filepath.exists():
                 return test_filepath
             if test_filepath == last_test_filepath:
