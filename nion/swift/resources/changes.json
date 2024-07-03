@@ -3,6 +3,9 @@
     "version": "UNRELEASED",
     "notes": [
       {
+        "summary": "Retain state of inspector section twist downs when switching contexts or restarting."
+      },
+      {
         "issues": ["https://github.com/nion-software/nionswift/issues/749"],
         "summary": "Add export result dialog to show final export status after exporting."
       },
