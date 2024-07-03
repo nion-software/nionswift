@@ -263,7 +263,18 @@ class InspectorSection(Widgets.CompositeWidgetBase):
 
     def __init__(self, ui: UserInterface.UserInterface, section_id: str, section_title: str) -> None:
         self.__section_content_column = ui.create_column_widget()
-        super().__init__(Widgets.SectionWidget(ui, section_title, self.__section_content_column, "inspector/" + section_id + "/open"))
+        section_widget = Widgets.SectionWidget(ui, section_title, self.__section_content_column, "inspector/" + section_id + "/open")
+
+        # create a persistent bool model to store the expanded state of the section.
+        # this is used to remember the state of the section when the inspector is closed and reopened.
+        # the section id is used to create a unique key for the persistent bool model.
+        # the default state is expanded.
+        # bind the expanded state to the section widget expanded property.
+        self.__persistent_expanded_state = ui.create_persistent_bool_model("inspector-section-expanded." + section_id, True)
+        self.__expanded_state_binding = Binding.PropertyBinding(self.__persistent_expanded_state, "value")
+        section_widget.bind_expanded(self.__expanded_state_binding)
+
+        super().__init__(section_widget)
         self.ui = ui  # for use in subclasses
         self._unbinder = Unbinder()
 
