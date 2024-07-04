@@ -1542,6 +1542,40 @@ class TestDataItemClass(unittest.TestCase):
             data_item.metadata = {"_slug_test": "green"}
             self.assertEqual("green", data_item.title)
 
+    def test_update_partial_uses_timestamp_from_xdata_on_first_update_only(self):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            data_item = DataItem.DataItem()
+            document_model.append_data_item(data_item)
+            data_shape_and_dtype = (4, 4), float
+            intensity_calibration = Calibration.Calibration()
+            dimensional_calibrations = [Calibration.Calibration(), Calibration.Calibration()]
+            data_descriptor = DataAndMetadata.DataDescriptor(False, 0, 2)
+            data_metadata = DataAndMetadata.DataMetadata(data_shape_and_dtype,
+                                                         intensity_calibration,
+                                                         dimensional_calibrations,
+                                                         data_descriptor=data_descriptor,
+                                                         timestamp=datetime.datetime(2000, 1, 1))
+            data_and_metadata = DataAndMetadata.new_data_and_metadata(numpy.ones((2, 4), data_shape_and_dtype[1]))
+            data_item.reserve_data(data_shape=(4, 4), data_dtype=float, data_descriptor=DataAndMetadata.DataDescriptor(False, 0, 2))
+            document_model.update_data_item_partial(data_item, data_metadata, data_and_metadata, [slice(0, 2), slice(None)], [slice(0, 2), slice(None)])
+            document_model.perform_data_item_updates()
+            self.assertEqual(data_item.xdata.timestamp, datetime.datetime(2000, 1, 1))
+            data_metadata._set_timestamp(datetime.datetime(2000, 1, 2))
+            document_model.update_data_item_partial(data_item, data_metadata, data_and_metadata, [slice(0, 2), slice(None)], [slice(2, 4), slice(None)])
+            document_model.perform_data_item_updates()
+            self.assertEqual(data_item.xdata.timestamp, datetime.datetime(2000, 1, 1))
+
+    def test_queue_update_uses_timestamp_from_xdata(self):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            data_item = DataItem.DataItem(numpy.zeros((4, 4), float))
+            document_model.append_data_item(data_item)
+            data_and_metadata = DataAndMetadata.new_data_and_metadata(numpy.ones((4, 4), float), timestamp=datetime.datetime(2000, 1, 1))
+            document_model._queue_data_item_update(data_item, data_and_metadata)
+            document_model.perform_data_item_updates()
+            self.assertEqual(data_item.xdata.timestamp, datetime.datetime(2000, 1, 1))
+
     # modify property/item/relationship on data source, display, region, etc.
     # copy or snapshot
 
