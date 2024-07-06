@@ -7,6 +7,7 @@ import dataclasses
 import logging
 import math
 import threading
+import time
 import typing
 
 # third party libraries
@@ -920,7 +921,10 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                 else:
                     data_rgba = display_values.display_rgba
                     self.__bitmap_canvas_item.set_rgba_bitmap_data(data_rgba)
-                self.__timestamp_canvas_item.timestamp = display_values.display_rgba_timestamp if self.__display_latency else None
+                data_and_metadata = display_values.data_and_metadata
+                metadata_d = data_and_metadata.metadata if data_and_metadata else dict()
+                timestamp_ns = metadata_d.get("hardware_source", dict()).get("system_time_ns", time.perf_counter_ns()) if self.__display_latency else 0
+                self.__timestamp_canvas_item.timestamp_ns = timestamp_ns
 
     def __update_display_properties_and_layers(self, display_calibration_info: DisplayItem.DisplayCalibrationInfo, display_properties: Persistence.PersistentDictType, display_layers: typing.Sequence[Persistence.PersistentDictType]) -> None:
         # thread-safe
