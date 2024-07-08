@@ -3174,16 +3174,13 @@ class DisplayItem(Persistence.PersistentObject):
     @property
     def used_display_type(self) -> typing.Optional[str]:
         display_type = self.display_type
-        if not display_type in ("line_plot", "image", "display_script"):
+        if not display_type in ("line_plot", "image"):
             for display_data_channel in self.display_data_channels:
                 if display_data_channel.has_valid_data:
                     if display_data_channel.is_display_1d_preferred:
                         display_type = "line_plot"
                     elif display_data_channel.is_display_2d_preferred:
                         display_type = "image"
-                    # override
-                    if self.get_display_property("display_script"):
-                        display_type = "display_script"
                     if display_type:
                         break
         return display_type

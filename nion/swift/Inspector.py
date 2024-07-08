@@ -1825,8 +1825,8 @@ class ChangeDisplayTypeCommand(Undo.UndoableCommand):
 def make_display_type_chooser(document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem) -> typing.Tuple[UserInterface.BoxWidget, Event.EventListener]:
     ui = document_controller.ui
     display_type_row = ui.create_row_widget()
-    display_type_items = ((_("Default"), None), (_("Line Plot"), "line_plot"), (_("Image"), "image"), (_("Display Script"), "display_script"))
-    display_type_reverse_map = {None: 0, "line_plot": 1, "image": 2, "display_script": 3}
+    display_type_items = ((_("Default"), None), (_("Line Plot"), "line_plot"), (_("Image"), "image"))
+    display_type_reverse_map = {None: 0, "line_plot": 1, "image": 2}
     display_type_chooser = ui.create_combo_box_widget(items=display_type_items, item_getter=operator.itemgetter(0))
 
     def property_changed(name: str) -> None:
