@@ -266,7 +266,6 @@ class UnitType(enum.Enum):
     CENTIMETERS = 1
     PIXELS = 2
 
-
 class ExportSVGHandler:
 
     def __init__(self, display_size: Geometry.IntSize) -> None:
@@ -274,11 +273,11 @@ class ExportSVGHandler:
         self.aspect_ratio = display_size.width / display_size.height
         self.initial_width = str(display_size.width)
         self.initial_height = str(display_size.height)
-        self.unit_model = UnitType.PIXELS  # Default to pixels (index 2)
+        self.unit_model = UnitType.PIXELS  # Default to pixels
         self.float_converter = Converter.FloatToStringConverter()
         self.previous_unit_index = UnitType.PIXELS
-        self.width_value_line_edit: typing.Optional[UserInterface.LineEditWidget] = None
-        self.height_value_line_edit: typing.Optional[UserInterface.LineEditWidget] = None
+        self.width_value_line_edit: UserInterface.LineEditWidget
+        self.height_value_line_edit: UserInterface.LineEditWidget
         self.size = Geometry.FloatSize(0, 0)
         self.CM_PER_INCH = 2.54
         self.PIXELS_PER_INCH = 96
@@ -324,7 +323,7 @@ class ExportSVGHandler:
             if widget == self.width_value_line_edit:
                 new_width = float(text)
                 new_height = new_width / self.aspect_ratio
-                if self.unit_model.value == 2:
+                if self.unit_model == UnitType.PIXELS:
                     new_height = round(new_height)
                 self.height_value_line_edit.text = str(new_height)
                 self.height_value_line_edit.background_color = "#lightgrey"
@@ -332,53 +331,53 @@ class ExportSVGHandler:
             elif widget == self.height_value_line_edit:
                 new_height = float(text)
                 new_width = new_height * self.aspect_ratio
-                if self.unit_model.value == 2:
+                if self.unit_model == UnitType.PIXELS:
                     new_width = round(new_width)
-                self.width_value_line_edit.text = new_width
+                self.width_value_line_edit.text = str(new_width)
                 self.width_value_line_edit.background_color = "#lightgrey"
                 self.height_value_line_edit.background_color = "white"
         except ValueError:
             pass  # Handle the case where the input is not a valid integer
 
     def unit_changed(self, widget: UserInterface.ComboBoxWidget, current_index: int) -> None:
+        new_unit_type = UnitType(current_index)
         self.size = self.convert_to_pixels(
-            Geometry.FloatSize(height=self.height_value_line_edit.text, width=self.width_value_line_edit.text),
-            self.previous_unit_index)
-        new_width, new_height = self.convert_from_pixels(self.size, current_index)
-        if current_index == 2:
+            Geometry.FloatSize(height=float(self.height_value_line_edit.text), width=float(self.width_value_line_edit.text)),
+            self.previous_unit_index
+        )
+        new_width, new_height = self.convert_from_pixels(self.size, new_unit_type)
+        if new_unit_type == UnitType.PIXELS:
             new_width = round(new_width)
             new_height = round(new_height)
         else:
             new_width = round(new_width, 6)
             new_height = round(new_height, 6)
-        self.width_value_line_edit.text = new_width
-        self.height_value_line_edit.text = new_height
-        self.previous_unit_index = current_index
+        self.width_value_line_edit.text = str(new_width)
+        self.height_value_line_edit.text = str(new_height)
+        self.previous_unit_index = new_unit_type
 
-    def convert_to_pixels(self, size: Geometry.IntSize, unit_index: typing.Optional[int]) -> Geometry.IntSize(int, int):
-
+    def convert_to_pixels(self, size: Geometry.FloatSize, unit_type: UnitType) -> Geometry.IntSize:
         if size.height is None or size.width is None:
-            return 0, 0
+            return Geometry.IntSize(0, 0)
         else:
             height = float(size.height)
             width = float(size.width)
-        if unit_index == 0:  # Inches
+        if unit_type == UnitType.INCHES:
             return Geometry.IntSize(height=int(height * self.PIXELS_PER_INCH), width=int(width * self.PIXELS_PER_INCH))
-        elif unit_index == 1:  # Centimeters
+        elif unit_type == UnitType.CENTIMETERS:
             return Geometry.IntSize(height=int(height * self.PIXELS_PER_INCH / self.CM_PER_INCH),
                                     width=int(width * self.PIXELS_PER_INCH / self.CM_PER_INCH))
         return Geometry.IntSize(height=int(round(height)), width=int(round(width)))  # Pixels
 
-    def convert_from_pixels(self, size: Geometry.IntSize, unit_index: typing.Optional[int]) -> Geometry.FloatSize(float,
-                                                                                                                  float):
+    def convert_from_pixels(self, size: Geometry.IntSize, unit_type: UnitType) -> Geometry.FloatSize:
         if size.height is None or size.width is None:
-            return 0, 0
+            return Geometry.FloatSize(0.0, 0.0)
         else:
             height_px = float(size.height)
             width_px = float(size.width)
-        if unit_index == 0:  # Inches
+        if unit_type == UnitType.INCHES:
             return Geometry.FloatSize(height=height_px / self.PIXELS_PER_INCH, width=width_px / self.PIXELS_PER_INCH)
-        elif unit_index == 1:  # Centimeters
+        elif unit_type == UnitType.CENTIMETERS:
             return Geometry.FloatSize(height=height_px * self.CM_PER_INCH / self.PIXELS_PER_INCH,
                                       width=width_px * self.CM_PER_INCH / self.PIXELS_PER_INCH)
         return Geometry.FloatSize(width=width_px, height=height_px)  # Pixels
