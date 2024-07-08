@@ -278,7 +278,7 @@ class ExportSVGHandler:
         self.previous_unit_index = UnitType.PIXELS
         self.width_value_line_edit: UserInterface.LineEditWidget
         self.height_value_line_edit: UserInterface.LineEditWidget
-        self.size = Geometry.FloatSize(0, 0)
+        self.size = Geometry.IntSize(0, 0)  # Changed from FloatSize to IntSize
         self.CM_PER_INCH = 2.54
         self.PIXELS_PER_INCH = 96
         u = Declarative.DeclarativeUI()
@@ -342,7 +342,8 @@ class ExportSVGHandler:
     def unit_changed(self, widget: UserInterface.ComboBoxWidget, current_index: int) -> None:
         new_unit_type = UnitType(current_index)
         self.size = self.convert_to_pixels(
-            Geometry.FloatSize(height=float(self.height_value_line_edit.text), width=float(self.width_value_line_edit.text)),
+            Geometry.FloatSize(height=float(self.height_value_line_edit.text or 0),
+                               width=float(self.width_value_line_edit.text or 0)),
             self.previous_unit_index
         )
         new_width, new_height = self.convert_from_pixels(self.size, new_unit_type)
@@ -385,12 +386,12 @@ class ExportSVGHandler:
     def close(self) -> None:
         pass
 
-
 class ExportSVGDialog:
     def __init__(self, document_controller: DocumentController.DocumentController,
                  display_item: DisplayItem.DisplayItem) -> None:
         super().__init__()
         self.__document_controller = document_controller
+        u = Declarative.DeclarativeUI()
         u = Declarative.DeclarativeUI()
         if display_item.display_data_shape and len(display_item.display_data_shape) == 2:
             display_size = Geometry.IntSize(height=display_item.display_data_shape[0],
@@ -400,9 +401,13 @@ class ExportSVGDialog:
         handler = ExportSVGHandler(display_size)
 
         def ok_clicked() -> bool:
-            display_shape = handler.convert_to_pixels(Geometry.FloatSize(height=handler.height_value_line_edit.text,
-                                                                         width=handler.width_value_line_edit.text),
-                                                      handler.previous_unit_index)
+            display_shape: Geometry.IntSize = handler.convert_to_pixels(
+                Geometry.FloatSize(
+                    height=float(handler.height_value_line_edit.text or 0),
+                    width=float(handler.width_value_line_edit.text or 0)
+                ),
+                handler.previous_unit_index
+            )
             ui = document_controller.ui
             filter = "SVG File (*.svg);;All Files (*.*)"
             export_dir = ui.get_persistent_string("export_directory", ui.get_document_location())
