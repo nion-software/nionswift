@@ -1159,23 +1159,29 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                 mapped = self.map_widget_to_image(coord) # (y,x)
                 if mapped is not None and self.__data_shape is not None:
                     mapped_center = self.map_widget_to_image(Geometry.IntPoint(self.scroll_area_canvas_item.canvas_size.height//2, self.scroll_area_canvas_item.canvas_size.width//2))
-                    mapped_vector = (mapped_center[0] - mapped[0], mapped_center[1] - mapped[1])
-                    vector_scaling = zoom_factor / (1 + zoom_factor)
-                    if not zoom_in:
-                        vector_scaling = 1 / vector_scaling
-                    scaled_mapped_vector = (mapped_vector[0] * vector_scaling, mapped_vector[1] * vector_scaling)
-                    new_mapped_center = (mapped_center[0] - scaled_mapped_vector[0], mapped_center[1] - scaled_mapped_vector[1])
+                    if mapped_center is not None:
+                        mapped_vector = (mapped_center[0] - mapped[0], mapped_center[1] - mapped[1])
 
-                    mapped = new_mapped_center
-                    norm_coord = tuple(ele1 / ele2 for ele1, ele2 in zip(iter(mapped), iter(self.__data_shape)))
-                    self._set_image_canvas_position(Geometry.FloatPoint(norm_coord[0], norm_coord[1]))
+                        if zoom_in:
+                            vector_scaling = zoom_factor / (1 + zoom_factor)
+                        else:
+                            vector_scaling = zoom_factor
 
-                    # ensure that at least half of the image is always visible
-                    new_image_norm_center_0 = max(min(norm_coord[0], 1.0), 0.0)
-                    new_image_norm_center_1 = max(min(norm_coord[1], 1.0), 0.0)
-                    # save the new image norm center
-                    new_image_canvas_position = Geometry.FloatPoint(new_image_norm_center_0, new_image_norm_center_1)
-                    self._set_image_canvas_position(new_image_canvas_position)
+                        scaled_mapped_vector = (mapped_vector[0] * vector_scaling, mapped_vector[1] * vector_scaling)
+                        if zoom_in:
+                            new_mapped_center = (mapped_center[0] - scaled_mapped_vector[0], mapped_center[1] - scaled_mapped_vector[1])
+                        else:
+                            new_mapped_center = (mapped_center[0] + scaled_mapped_vector[0], mapped_center[1] + scaled_mapped_vector[1])
+
+                        norm_coord = tuple(ele1 / ele2 for ele1, ele2 in zip(iter(new_mapped_center), iter(self.__data_shape)))
+                        self._set_image_canvas_position(Geometry.FloatPoint(norm_coord[0], norm_coord[1]))
+
+                        # ensure that at least half of the image is always visible
+                        new_image_norm_center_0 = max(min(norm_coord[0], 1.0), 0.0)
+                        new_image_norm_center_1 = max(min(norm_coord[1], 1.0), 0.0)
+                        # save the new image norm center
+                        new_image_canvas_position = Geometry.FloatPoint(new_image_norm_center_0, new_image_norm_center_1)
+                        self._set_image_canvas_position(new_image_canvas_position)
 
         if zoom_in:
             self.zoom_in(zoom_factor)
