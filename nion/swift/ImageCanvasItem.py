@@ -642,7 +642,6 @@ class HandMouseHandler(MouseHandler):
 class ZoomMouseHandler(MouseHandler):
     def __init__(self, image_canvas_item: ImageCanvasItem, event_loop: asyncio.AbstractEventLoop, is_zooming_in: bool) -> None:
         super().__init__(image_canvas_item, event_loop)
-        self.cursor_shape = "mag_glass"
         self._is_zooming_in = is_zooming_in
 
     async def _reactor_loop(self, r: Stream.ValueChangeStreamReactorInterface[MousePositionAndModifiers],
@@ -678,7 +677,7 @@ class ZoomMouseHandler(MouseHandler):
                     if value_change.value is not None:
                         mouse_pos, modifiers = value_change.value
                         end_drag_pos = mouse_pos
-                        if (self._is_zooming_in and
+                        if False and (self._is_zooming_in and
                             ((abs(start_drag_pos[0] - end_drag_pos[0]) > 3)
                              or (abs(start_drag_pos[1] - end_drag_pos[1]) > 3))):
                             image_canvas_item._apply_selection_zoom(start_drag_pos, end_drag_pos)
@@ -1150,12 +1149,24 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
     #Apply a zoom factor to the widget, optionally focussed on a specific point
     def _apply_fixed_zoom(self, zoom_in: bool, coord: typing.Optional[Geometry.IntPoint]) -> None:
+        zoom_factor = 0.25
+
         if coord:
             # Coordinate specified, so needing to recenter to that point before we adjust zoom levels
             widget_mapping = ImageCanvasItemMapping.make(self.__data_shape, self.__composite_canvas_item.canvas_bounds, list())
             if widget_mapping:
-                mapped = self.map_widget_to_image(coord)
+                # coord is (x,y)
+                mapped = self.map_widget_to_image(coord) # (y,x)
                 if mapped is not None and self.__data_shape is not None:
+                    mapped_center = self.map_widget_to_image(Geometry.IntPoint(self.scroll_area_canvas_item.canvas_size.height//2, self.scroll_area_canvas_item.canvas_size.width//2))
+                    mapped_vector = (mapped_center[0] - mapped[0], mapped_center[1] - mapped[1])
+                    vector_scaling = zoom_factor / (1 + zoom_factor)
+                    if not zoom_in:
+                        vector_scaling = 1 / vector_scaling
+                    scaled_mapped_vector = (mapped_vector[0] * vector_scaling, mapped_vector[1] * vector_scaling)
+                    new_mapped_center = (mapped_center[0] - scaled_mapped_vector[0], mapped_center[1] - scaled_mapped_vector[1])
+
+                    mapped = new_mapped_center
                     norm_coord = tuple(ele1 / ele2 for ele1, ele2 in zip(iter(mapped), iter(self.__data_shape)))
                     self._set_image_canvas_position(Geometry.FloatPoint(norm_coord[0], norm_coord[1]))
 
@@ -1167,9 +1178,9 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                     self._set_image_canvas_position(new_image_canvas_position)
 
         if zoom_in:
-            self.zoom_in()
+            self.zoom_in(zoom_factor)
         else:
-            self.zoom_out()
+            self.zoom_out(zoom_factor)
 
     def _apply_selection_zoom(self, coord1: Geometry.IntPoint, coord2: Geometry.IntPoint) -> None:
         assert coord1
@@ -1497,11 +1508,13 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
     def set_two_to_one_mode(self) -> None:
         self.__apply_display_properties_command({"image_zoom": 0.5, "image_position": (0.5, 0.5), "image_canvas_mode": "2:1"})
 
-    def zoom_in(self) -> None:
-        self.__apply_display_properties_command({"image_zoom": self.__image_zoom * 1.25, "image_canvas_mode": "custom"})
+    def zoom_in(self, factor: float) -> None:
+        self.__apply_display_properties_command({"image_zoom": self.__image_zoom * (1+factor),
+                                                 "image_canvas_mode": "custom"})
 
-    def zoom_out(self) -> None:
-        self.__apply_display_properties_command({"image_zoom": self.__image_zoom / 1.25, "image_canvas_mode": "custom"})
+    def zoom_out(self, factor: float) -> None:
+        self.__apply_display_properties_command({"image_zoom": self.__image_zoom / (1+factor),
+                                                 "image_canvas_mode": "custom"})
 
     def move_left(self, amount: float = 10.0) -> None:
         self.apply_move_command(Geometry.FloatSize(0.0, amount))

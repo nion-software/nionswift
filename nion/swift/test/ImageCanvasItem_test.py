@@ -291,7 +291,7 @@ class TestImageCanvasItemClass(unittest.TestCase):
             document_controller.tool_mode = "hand"
             display_panel.display_canvas_item.simulate_press((100,125))
 
-    def test_zoom_tool_on_one_image_of_multiple_displays(self):
+    def test_zoom_tool_in_and_out_around_clicked_point(self):
         # setup
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
