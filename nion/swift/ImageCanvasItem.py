@@ -1157,7 +1157,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             if widget_mapping:
                 # coord is (x,y)
                 mapped = self.map_widget_to_image(coord) # (y,x)
-                if mapped is not None and self.__data_shape is not None:
+                if mapped is not None and self.__data_shape is not None and self.scroll_area_canvas_item.canvas_size is not None:
                     mapped_center = self.map_widget_to_image(Geometry.IntPoint(self.scroll_area_canvas_item.canvas_size.height//2, self.scroll_area_canvas_item.canvas_size.width//2))
                     if mapped_center is not None:
                         mapped_vector = (mapped_center[0] - mapped[0], mapped_center[1] - mapped[1])
