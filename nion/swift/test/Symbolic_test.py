@@ -994,7 +994,7 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(DocumentModel.evaluate_data(computation2).data, src_data + 5))
 
     def test_computation_variable_writes_and_reads(self):
-        with contextlib.closing(Symbolic.ComputationVariable("x", value_type="integral", value=5)) as variable:
+        with contextlib.closing(Symbolic.ComputationVariable("x", value_type=Symbolic.ComputationVariableType.INTEGRAL, value=5)) as variable:
             self.assertEqual(variable.name, "x")
             self.assertEqual(variable.value, 5)
             data_node_dict = variable.write_to_dict()
@@ -1004,9 +1004,9 @@ class TestSymbolicClass(unittest.TestCase):
                 self.assertEqual(variable.value, variable2.value)
 
     def test_computation_variable_change_type(self):
-        with contextlib.closing(Symbolic.ComputationVariable("x", value_type="integral", value=5)) as variable:
+        with contextlib.closing(Symbolic.ComputationVariable("x", value_type=Symbolic.ComputationVariableType.INTEGRAL, value=5)) as variable:
             variable.variable_type = "data_item"
-        with contextlib.closing(Symbolic.ComputationVariable("x", value_type="integral", value=5)) as variable:
+        with contextlib.closing(Symbolic.ComputationVariable("x", value_type=Symbolic.ComputationVariableType.INTEGRAL, value=5)) as variable:
             variable.variable_type = "graphic"
 
     def test_computation_reparsing_keeps_variables(self):
@@ -1693,6 +1693,63 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.recompute_all()
             self.assertEqual(1, document_model.computations[-1]._evaluation_count_for_test)
             interval_region.interval = 0.2, 0.3
+            document_model.recompute_all()
+            self.assertEqual(1, document_model.computations[-1]._evaluation_count_for_test)
+
+    def test_changing_display_slice_does_not_trigger_pick_recompute(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((8, 8, 8), numpy.uint32))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            document_controller.perform_action("processing.pick")
+            # pick_display_item = document_model.display_items[-1]
+            document_model.recompute_all()
+            self.assertEqual(1, document_model.computations[-1]._evaluation_count_for_test)
+            display_item.display_data_channels[0].slice_center += 1
+            document_model.recompute_all()
+            self.assertEqual(1, document_model.computations[-1]._evaluation_count_for_test)
+
+    def test_inserting_and_changing_unrelated_graphic_does_not_trigger_pick_recompute(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((8, 8, 8), numpy.uint32))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            document_controller.perform_action("processing.pick")
+            # pick_display_item = document_model.display_items[-1]
+            document_model.recompute_all()
+            self.assertEqual(1, document_model.computations[-1]._evaluation_count_for_test)
+            rectangle = Graphics.RectangleGraphic()
+            display_item.add_graphic(rectangle)
+            document_model.recompute_all()
+            self.assertEqual(1, document_model.computations[-1]._evaluation_count_for_test)
+            rectangle.center = 0.2, 0.2
+            document_model.recompute_all()
+            self.assertEqual(1, document_model.computations[-1]._evaluation_count_for_test)
+
+    def test_removing_unrelated_graphic_does_not_trigger_pick_recompute(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((8, 8, 8), numpy.uint32))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            rectangle = Graphics.RectangleGraphic()
+            display_item.add_graphic(rectangle)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            document_controller.perform_action("processing.pick")
+            # pick_display_item = document_model.display_items[-1]
+            document_model.recompute_all()
+            self.assertEqual(1, document_model.computations[-1]._evaluation_count_for_test)
+            display_item.remove_graphic(rectangle).close()
             document_model.recompute_all()
             self.assertEqual(1, document_model.computations[-1]._evaluation_count_for_test)
 

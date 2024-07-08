@@ -2465,7 +2465,7 @@ class TestStorageClass(unittest.TestCase):
                 self.assertEqual(len(document_model.data_items), 2)
                 computation = document_model.get_data_item_computation(document_model.data_items[1])
                 self.assertEqual(computation.processing_id, "line-profile")
-                self.assertEqual(computation.expression, Symbolic.xdata_expression(DocumentModel.DocumentModel._builtin_processing_descriptions["line-profile"]["expression"].replace("{src}", "src")))
+                self.assertEqual(computation.expression, Symbolic.xdata_expression(DocumentModel.DocumentModel._builtin_processors["line-profile"].expression.replace("{src}", "src")))
                 self.assertEqual(len(computation.variables), 2)
                 self.assertEqual(computation.get_input("src").data_item, document_model.data_items[0])
                 self.assertEqual(computation.get_input("line_region"), document_model.display_items[0].graphics[0])

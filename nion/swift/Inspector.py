@@ -653,7 +653,7 @@ class InfoInspectorSection(InspectorSection):
 
 class DataInfoInspectorSection(InspectorSection):
     def __init__(self, document_controller: DocumentController.DocumentController, display_data_channel: DisplayItem.DisplayDataChannel) -> None:
-        super().__init__(document_controller.ui, "data_info", _("Data Info"))
+        super().__init__(document_controller.ui, "data-info", _("Data Info"))
         # date
         self.info_section_datetime_row = self.ui.create_row_widget()
         self.info_section_datetime_row.add(self.ui.create_label_widget(_("Date"), properties={"width": 60}))
@@ -790,7 +790,7 @@ class ChangeDisplayLayerDisplayDataChannelCommand(Undo.UndoableCommand):
 
 class LinePlotDisplayLayersInspectorSection(InspectorSection):
     def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem) -> None:
-        super().__init__(document_controller.ui, "line_plot_display_layer", _("Line Plot Display Layers"))
+        super().__init__(document_controller.ui, "line-plot-display-layer", _("Line Plot Display Layers"))
         ui = self.ui
 
         def change_label(label_edit_widget: UserInterface.LineEditWidget, display_layer: DisplayItem.DisplayLayer, label: str) -> None:
@@ -1058,7 +1058,7 @@ class LinePlotDisplayLayersInspectorSection(InspectorSection):
 
 class ImageDataInspectorSection(InspectorSection):
     def __init__(self, document_controller: DocumentController.DocumentController, display_data_channel: DisplayItem.DisplayDataChannel, display_item: DisplayItem.DisplayItem) -> None:
-        super().__init__(document_controller.ui, "display-limits", _("Image Data"))
+        super().__init__(document_controller.ui, "image-data", _("Image Data"))
         ui = document_controller.ui
 
         self.widget_id = "image_data_inspector_section"
@@ -3904,7 +3904,11 @@ class DataStructurePropertyVariableHandler(Declarative.Handler):
         self.ui_view = u.create_column(u.create_row(label, *([link] if computation_inspector_context.do_references else []), u.create_stretch()), line_edit, u.create_stretch(), spacing=8)
         self.__variable_listener = variable.property_changed_event.listen(ReferenceCounting.weak_partial(DataStructurePropertyVariableHandler.__property_changed, self))
         if variable.bound_item:
-            self.__bound_item_listener = variable.changed_event.listen(ReferenceCounting.weak_partial(DataStructurePropertyVariableHandler.__changed, self))
+            def handle_variable_event(handler: DataStructurePropertyVariableHandler, event_type: Symbolic.BoundDataEventType) -> None:
+                handler.__changed()
+
+            self.__bound_item_listener = variable.data_event.listen(
+                ReferenceCounting.weak_partial(handle_variable_event, self))
 
     @property
     def variable_value(self) -> str:
