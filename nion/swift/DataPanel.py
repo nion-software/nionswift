@@ -76,10 +76,14 @@ class DisplayItemAdapter:
     def __init__(self, display_item: DisplayItem.DisplayItem, ui: UserInterface.UserInterface):
         self.ui = ui
         self.needs_update_event = Event.Event()
+        self.__list_item_drawing_context: typing.Optional[DrawingContext.DrawingContext] = None
+        self.__grid_item_drawing_context: typing.Optional[DrawingContext.DrawingContext] = None
 
         self.__display_item = display_item
 
         def display_item_changed() -> None:
+            self.__list_item_drawing_context = None
+            self.__grid_item_drawing_context = None
             self.needs_update_event.fire()
 
         self.__display_changed_event_listener = display_item.item_changed_event.listen(display_item_changed) if display_item else None
@@ -174,6 +178,8 @@ class DisplayItemAdapter:
             self.__thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.ui, self.__display_item).add_ref()
 
             def thumbnail_updated() -> None:
+                self.__list_item_drawing_context = None
+                self.__grid_item_drawing_context = None
                 self.needs_update_event.fire()
 
             assert self.__thumbnail_source  # type checker
@@ -182,22 +188,30 @@ class DisplayItemAdapter:
         return self.__thumbnail_source.thumbnail_data if self.__thumbnail_source else None
 
     def draw_list_item(self, drawing_context: DrawingContext.DrawingContext, rect: Geometry.IntRect) -> None:
-        with drawing_context.saver():
-            draw_rect = Geometry.IntRect(origin=rect.top_left + Geometry.IntPoint(y=4, x=4), size=Geometry.IntSize(h=72, w=72))
-            drawing_context.add(self.__create_thumbnail(draw_rect))
-            drawing_context.fill_style = "#000"
-            drawing_context.font = "11px serif"
-            drawing_context.fill_text(self.title_str, rect.left + 4 + 72 + 4, rect.top + 4 + 12)
-            drawing_context.fill_text(self.format_str, rect.left + 4 + 72 + 4, rect.top + 4 + 12 + 15)
-            drawing_context.fill_text(self.datetime_str, rect.left + 4 + 72 + 4, rect.top + 4 + 12 + 15 + 15)
-            if self.status_str:
-                drawing_context.fill_text(self.status_str, rect.left + 4 + 72 + 4, rect.top + 4 + 12 + 15 + 15 + 15)
-            else:
-                drawing_context.fill_style = "#888"
-                drawing_context.fill_text(self.project_str, rect.left + 4 + 72 + 4, rect.top + 4 + 12 + 15 + 15 + 15)
+        if not self.__list_item_drawing_context:
+            list_item_drawing_context = DrawingContext.DrawingContext()
+            with list_item_drawing_context.saver():
+                draw_rect = Geometry.IntRect(origin=rect.top_left + Geometry.IntPoint(y=4, x=4), size=Geometry.IntSize(h=72, w=72))
+                list_item_drawing_context.add(self.__create_thumbnail(draw_rect))
+                list_item_drawing_context.fill_style = "#000"
+                list_item_drawing_context.font = "11px serif"
+                list_item_drawing_context.fill_text(self.title_str, rect.left + 4 + 72 + 4, rect.top + 4 + 12)
+                list_item_drawing_context.fill_text(self.format_str, rect.left + 4 + 72 + 4, rect.top + 4 + 12 + 15)
+                list_item_drawing_context.fill_text(self.datetime_str, rect.left + 4 + 72 + 4, rect.top + 4 + 12 + 15 + 15)
+                if status_str := self.status_str:
+                    list_item_drawing_context.fill_text(status_str, rect.left + 4 + 72 + 4, rect.top + 4 + 12 + 15 + 15 + 15)
+                else:
+                    list_item_drawing_context.fill_style = "#888"
+                    list_item_drawing_context.fill_text(self.project_str, rect.left + 4 + 72 + 4, rect.top + 4 + 12 + 15 + 15 + 15)
+            self.__list_item_drawing_context = list_item_drawing_context
+        drawing_context.add(self.__list_item_drawing_context)
 
     def draw_grid_item(self, drawing_context: DrawingContext.DrawingContext, rect: Geometry.IntRect) -> None:
-        drawing_context.add(self.__create_thumbnail(rect.inset(6)))
+        if not self.__grid_item_drawing_context:
+            grid_item_drawing_context = DrawingContext.DrawingContext()
+            grid_item_drawing_context.add(self.__create_thumbnail(rect.inset(6)))
+            self.__grid_item_drawing_context = grid_item_drawing_context
+        drawing_context.add(self.__grid_item_drawing_context)
 
 
 class ItemExplorerCanvasItemLike(typing.Protocol):
@@ -425,7 +439,7 @@ class ItemExplorerController:
     def __display_item_adapter_end_changes(self, key: str) -> None:
         if key == "display_item_adapters":
             if self.canvas_item.visible:
-                self.__list_canvas_item.refresh_layout()
+                # note: layout is not needed here since only an individual adapter has changed
                 self.__list_canvas_item.update()
 
 
