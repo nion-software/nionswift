@@ -512,10 +512,15 @@ class DisplayRangeProcessor(ProcessorBase):
     def _execute(self) -> None:
         element_data_and_metadata = self._get_data_and_metadata_like("element_data")
         display_limits = typing.cast(typing.Optional[DisplayLimitsType], self._get_parameter("display_limits"))
-        data_range = typing.cast(typing.Optional[typing.Tuple[float, float]], self._get_parameter("data_range"))
-        data_sample = typing.cast(typing.Optional[_ImageDataType], self._get_parameter("data_sample"))
-        complex_display_type = self._get_optional_string("complex_display_type")
-        display_range = calculate_display_range(display_limits, data_range, data_sample, element_data_and_metadata, complex_display_type)
+        # data range is expensive; avoid it if possible
+        display_range: typing.Optional[typing.Tuple[float, float]]
+        if display_limits is not None and display_limits[0] is not None and display_limits[1] is not None:
+            display_range = display_limits[0], display_limits[1]
+        else:
+            data_range = typing.cast(typing.Optional[typing.Tuple[float, float]], self._get_parameter("data_range"))
+            data_sample = typing.cast(typing.Optional[_ImageDataType], self._get_parameter("data_sample"))
+            complex_display_type = self._get_optional_string("complex_display_type")
+            display_range = calculate_display_range(display_limits, data_range, data_sample, element_data_and_metadata, complex_display_type)
         self.set_result("display_range", display_range)
 
 
