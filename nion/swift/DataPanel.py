@@ -191,27 +191,33 @@ class DisplayItemAdapter:
         if not self.__list_item_drawing_context:
             list_item_drawing_context = DrawingContext.DrawingContext()
             with list_item_drawing_context.saver():
-                draw_rect = Geometry.IntRect(origin=rect.top_left + Geometry.IntPoint(y=4, x=4), size=Geometry.IntSize(h=72, w=72))
+                item_rect = Geometry.IntRect(Geometry.IntPoint(), size=rect.size)
+                draw_rect = Geometry.IntRect(origin=item_rect.top_left + Geometry.IntPoint(y=4, x=4), size=Geometry.IntSize(h=72, w=72))
                 list_item_drawing_context.add(self.__create_thumbnail(draw_rect))
                 list_item_drawing_context.fill_style = "#000"
                 list_item_drawing_context.font = "11px serif"
-                list_item_drawing_context.fill_text(self.title_str, rect.left + 4 + 72 + 4, rect.top + 4 + 12)
-                list_item_drawing_context.fill_text(self.format_str, rect.left + 4 + 72 + 4, rect.top + 4 + 12 + 15)
-                list_item_drawing_context.fill_text(self.datetime_str, rect.left + 4 + 72 + 4, rect.top + 4 + 12 + 15 + 15)
+                list_item_drawing_context.fill_text(self.title_str, item_rect.left + 4 + 72 + 4, item_rect.top + 4 + 12)
+                list_item_drawing_context.fill_text(self.format_str, item_rect.left + 4 + 72 + 4, item_rect.top + 4 + 12 + 15)
+                list_item_drawing_context.fill_text(self.datetime_str, item_rect.left + 4 + 72 + 4, item_rect.top + 4 + 12 + 15 + 15)
                 if status_str := self.status_str:
-                    list_item_drawing_context.fill_text(status_str, rect.left + 4 + 72 + 4, rect.top + 4 + 12 + 15 + 15 + 15)
+                    list_item_drawing_context.fill_text(status_str, item_rect.left + 4 + 72 + 4, item_rect.top + 4 + 12 + 15 + 15 + 15)
                 else:
                     list_item_drawing_context.fill_style = "#888"
-                    list_item_drawing_context.fill_text(self.project_str, rect.left + 4 + 72 + 4, rect.top + 4 + 12 + 15 + 15 + 15)
+                    list_item_drawing_context.fill_text(self.project_str, item_rect.left + 4 + 72 + 4, item_rect.top + 4 + 12 + 15 + 15 + 15)
             self.__list_item_drawing_context = list_item_drawing_context
-        drawing_context.add(self.__list_item_drawing_context)
+        with drawing_context.saver():
+            drawing_context.translate(rect.left, rect.top)
+            drawing_context.add(self.__list_item_drawing_context)
 
     def draw_grid_item(self, drawing_context: DrawingContext.DrawingContext, rect: Geometry.IntRect) -> None:
         if not self.__grid_item_drawing_context:
             grid_item_drawing_context = DrawingContext.DrawingContext()
-            grid_item_drawing_context.add(self.__create_thumbnail(rect.inset(6)))
+            item_rect = Geometry.IntRect(Geometry.IntPoint(), size=rect.size)
+            grid_item_drawing_context.add(self.__create_thumbnail(item_rect.inset(6)))
             self.__grid_item_drawing_context = grid_item_drawing_context
-        drawing_context.add(self.__grid_item_drawing_context)
+        with drawing_context.saver():
+            drawing_context.translate(rect.left, rect.top)
+            drawing_context.add(self.__grid_item_drawing_context)
 
 
 class ItemExplorerCanvasItemLike(typing.Protocol):
@@ -440,6 +446,7 @@ class ItemExplorerController:
         if key == "display_item_adapters":
             if self.canvas_item.visible:
                 # note: layout is not needed here since only an individual adapter has changed
+                # self.__list_canvas_item.refresh_layout()
                 self.__list_canvas_item.update()
 
 

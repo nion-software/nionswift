@@ -522,6 +522,7 @@ class CollectionsWidget(Widgets.CompositeWidgetBase):
                 live_items_controller,
                 latest_items_controller,
             ] + self.__data_group_controllers
+            collections_list_widget.update()
 
         all_items_controller.on_title_changed = collections_changed
         persistent_items_controller.on_title_changed = collections_changed
