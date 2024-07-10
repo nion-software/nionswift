@@ -3023,10 +3023,13 @@ class DisplayItem(Persistence.PersistentObject):
     def add_graphic(self, graphic: Graphics.Graphic) -> None:
         """Append a graphic, but do it through the container, so dependencies can be tracked."""
         self.insert_model_item(self, "graphics", self.item_count("graphics"), graphic)
+        self.__update_displays()
 
     def remove_graphic(self, graphic: Graphics.Graphic, *, safe: bool = False) -> Changes.UndeleteLog:
         """Remove a graphic, but do it through the container, so dependencies can be tracked."""
-        return self.remove_model_item(self, "graphics", graphic, safe=safe)
+        undelete_log = self.remove_model_item(self, "graphics", graphic, safe=safe)
+        self.__update_displays()
+        return undelete_log
 
     # this message comes from the graphic. the connection is established when a graphic
     # is added or removed from this object.
