@@ -123,7 +123,11 @@ class ThumbnailSource(ReferenceCounting.ReferenceCounted):
                 thumbnail_processor.mark_data_dirty()
                 thumbnail_processor.recompute(ui)
 
+        def graphics_changed(graphic_selection: DisplayItem.GraphicSelection) -> None:
+            thumbnail_changed()
+
         self.__display_changed_event_listener = display_item.display_changed_event.listen(thumbnail_changed)
+        self.__graphics_changed_event_listener = display_item.graphics_changed_event.listen(graphics_changed)
 
         def thumbnail_updated() -> None:
             self.thumbnail_updated_event.fire()
@@ -142,13 +146,12 @@ class ThumbnailSource(ReferenceCounting.ReferenceCounted):
         self.__display_will_close_listener = display_item.about_to_be_removed_event.listen(display_item_will_close)
 
     def about_to_delete(self) -> None:
-        self.__display_will_close_listener.close()
         self.__display_will_close_listener = typing.cast(typing.Any, None)
         if self.__thumbnail_processor:
             self.__thumbnail_processor.close()
             self.__thumbnail_processor = typing.cast(typing.Any, None)
-        self.__display_changed_event_listener.close()
         self.__display_changed_event_listener = typing.cast(typing.Any, None)
+        self.__graphics_changed_event_listener = typing.cast(typing.Any, None)
         super().about_to_delete()
 
     def add_ref(self) -> ThumbnailSource:
