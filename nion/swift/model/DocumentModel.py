@@ -1382,8 +1382,14 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             self.__computation_queue.append(computation)
         self.dispatch_task(self.__recompute)
 
-    def __establish_computation_dependencies(self, computation_title: str, old_inputs: typing.Set[Persistence.PersistentObject], new_inputs: typing.Set[Persistence.PersistentObject], old_outputs: typing.Set[Persistence.PersistentObject], new_outputs: typing.Set[Persistence.PersistentObject]) -> None:
+    def __establish_computation_dependencies(self, computation: Symbolic.Computation) -> None:
         # establish dependencies between input and output items.
+        old_inputs = computation._inputs
+        old_outputs = computation._outputs
+        input_items = computation.input_items
+        new_inputs = set(input_items)
+        output_items = computation.output_items
+        new_outputs = set(output_items)
         with self.__dependency_tree_lock:
             removed_inputs = old_inputs - new_inputs
             added_inputs = new_inputs - old_inputs
@@ -1419,10 +1425,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             for output in added_outputs:
                 for input in same_inputs:
                     self.__add_dependency(input, output)
-                if isinstance(output, DataItem.DataItem):
-                    output.computation_title_changed(computation_title)
         if removed_inputs or added_inputs or removed_outputs or added_outputs:
             self.__transaction_manager._rebuild_transactions()
+        computation._inputs = new_inputs
+        computation._outputs = new_outputs
 
     # live state, and dependencies
 
@@ -2158,11 +2164,32 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         # when a computation output is changed, this function is called to establish dependencies.
         # if other parts of the computation are changed (inputs, values, etc.), the __computation_changed
         # will handle the change (and trigger a new computation).
-        input_items = set(computation.input_items)
-        output_items = set(computation.output_items)
-        self.__establish_computation_dependencies(computation.label or _("Processed"), computation._inputs, input_items, computation._outputs, output_items)
-        computation._inputs = input_items
-        computation._outputs = output_items
+        self.__establish_computation_dependencies(computation)
+
+        # update the output titles
+
+        data_item_outputs = {output for output in computation._outputs if isinstance(output, DataItem.DataItem)}
+        has_multiple_data_item_outputs = len(data_item_outputs) > 1
+
+        base_computation_title = computation.label or _("Processed")
+
+        for result in computation.results:
+            if result_name := result.name:
+                output = computation.get_output(result_name)
+                if isinstance(output, DataItem.DataItem):
+                    computation_title = base_computation_title
+                    if has_multiple_data_item_outputs:
+                        computation_title += " - " + result.label
+                    output.computation_title_changed(computation_title)
+                    data_item_outputs.remove(output)
+
+        # update any output titles that were missed due to missing result name
+
+        for index, output in enumerate(data_item_outputs):
+            computation_title = base_computation_title
+            if has_multiple_data_item_outputs:
+                computation_title += " - " + str(index)
+            output.computation_title_changed(computation_title)
 
     def __make_computation(self, processing_id: str,
                            inputs: typing.List[typing.Tuple[DisplayItem.DisplayItem, typing.Optional[DataItem.DataItem], typing.Optional[Graphics.Graphic]]],
