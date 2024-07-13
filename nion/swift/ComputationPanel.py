@@ -1197,8 +1197,8 @@ class ComputationInspectorHandler(Declarative.Handler):
         inputs = u.create_column(items="model.computation_inputs_model.items", item_component_id="variable", spacing=8, size_policy_vertical="expanding")
         results = u.create_column(items="model.computation.results", item_component_id="result", spacing=8, size_policy_vertical="expanding")
         input_output_row = u.create_row(
-            u.create_column(inputs),
-            u.create_column(results),
+            u.create_column(u.create_column(inputs), u.create_stretch()),
+            u.create_column(u.create_column(results), u.create_stretch()),
             spacing=12,
             size_policy_vertical="expanding"
         )
