@@ -2593,9 +2593,7 @@ class Computation(Persistence.PersistentObject):
             self.needs_update = True
 
     def update_script(self) -> None:
-        processing_id = self.processing_id
-        processor = _processors.get(processing_id) if processing_id else None
-        if processor:
+        if processor := self.__processor:
             if expression := processor.expression:
                 src_names = [processing_description_source.name for processing_description_source in processor.sources]
                 script = xdata_expression(expression)
