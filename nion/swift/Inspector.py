@@ -2314,58 +2314,97 @@ class CollectionIndexInspectorSection(InspectorSection):
         super().close()
 
 
+class SliceModel(Observable.Observable):
+    def __init__(self, display_data_channel: DisplayItem.DisplayDataChannel) -> None:
+        super().__init__()
+        self.__display_data_channel = display_data_channel
+
+    @property
+    def slice_center(self) -> int:
+        return self.__display_data_channel.slice_center
+
+    @slice_center.setter
+    def slice_center(self, value: int) -> None:
+        if self.__display_data_channel.slice_center != value:
+            self.__display_data_channel.slice_center = value
+            self.notify_property_changed("slice_center")
+
+    @property
+    def slice_center_maximum(self) -> int:
+        return self.__display_data_channel.data_item.dimensional_shape[-1] - 1 if self.__display_data_channel.data_item else 0
+
+    @property
+    def slice_width(self) -> int:
+        return self.__display_data_channel.slice_width
+
+    @slice_width.setter
+    def slice_width(self, value: int) -> None:
+        if self.__display_data_channel.slice_width != value:
+            self.__display_data_channel.slice_width = value
+            self.notify_property_changed("slice_width")
+
+    @property
+    def slice_width_maximum(self) -> int:
+        return self.__display_data_channel.data_item.dimensional_shape[-1] - 1 if self.__display_data_channel.data_item else 0
+
+
+class SliceSectionHandler(Declarative.Handler):
+    def __init__(self, slice_model: SliceModel):
+        super().__init__()
+
+        self._slice_model = slice_model
+        self._int_to_string_converter = Converter.IntegerToStringConverter()
+
+        u = Declarative.DeclarativeUI()
+        self.ui_view = u.create_column(
+            u.create_row(
+                u.create_label(text=_("Slice"), width=60),
+                u.create_spacing(8),
+                u.create_line_edit(width=60,
+                                   text="@binding(_slice_model.slice_center, converter=_int_to_string_converter)"),
+                u.create_spacing(8),
+                u.create_slider(width=144, maximum=self._slice_model.slice_center_maximum,
+                                value="@binding(_slice_model.slice_center)"),
+                u.create_stretch()
+            ),
+            u.create_row(
+                u.create_label(text=_("Width"), width=60),
+                u.create_spacing(8),
+                u.create_line_edit(width=60,
+                                   text="@binding(_slice_model.slice_width, converter=_int_to_string_converter)"),
+                u.create_spacing(8),
+                u.create_slider(width=144, maximum=self._slice_model.slice_width_maximum,
+                                value="@binding(_slice_model.slice_width)"),
+                u.create_stretch()
+            )
+        )
+
+
+
 class SliceInspectorSection(InspectorSection):
-
-    """
-        Subclass InspectorSection to implement slice inspector.
-    """
-
     def __init__(self, document_controller: DocumentController.DocumentController, display_data_channel: DisplayItem.DisplayDataChannel) -> None:
         super().__init__(document_controller.ui, "slice", _("Slice"))
+        self.__document_controller = document_controller
+        self.__display_data_channel = display_data_channel
+        self.__event_loop = document_controller.event_loop
+        self.__pending_call: typing.Optional[asyncio.Handle] = None
+        self.__enable_ref: list[bool] = [False]
 
         data_item = display_data_channel.data_item
         assert data_item
 
-        slice_center_row_widget = self.ui.create_row_widget()  # use 280 pixels in row
-        slice_center_label_widget = self.ui.create_label_widget(_("Slice"), properties={"width": 60})
-        slice_center_line_edit_widget = self.ui.create_line_edit_widget(properties={"width": 60})
-        slice_center_slider_widget = self.ui.create_slider_widget(properties={"width": 144})
-        slice_center_slider_widget.maximum = data_item.dimensional_shape[-1] - 1  # signal_index
-        slice_center_slider_widget.bind_value(ChangeDisplayDataChannelPropertyBinding(document_controller, display_data_channel, "slice_center"))
-        slice_center_line_edit_widget.bind_text(ChangeDisplayDataChannelPropertyBinding(document_controller, display_data_channel, "slice_center", converter=Converter.IntegerToStringConverter()))
-        slice_center_row_widget.add(slice_center_label_widget)
-        slice_center_row_widget.add_spacing(8)
-        slice_center_row_widget.add(slice_center_slider_widget)
-        slice_center_row_widget.add_spacing(8)
-        slice_center_row_widget.add(slice_center_line_edit_widget)
-        slice_center_row_widget.add_stretch()
+        self._slice_model = SliceModel(display_data_channel)
 
-        slice_width_row_widget = self.ui.create_row_widget()  # use 280 pixels in row
-        slice_width_label_widget = self.ui.create_label_widget(_("Width"), properties={"width": 60})
-        slice_width_line_edit_widget = self.ui.create_line_edit_widget(properties={"width": 60})
-        slice_width_slider_widget = self.ui.create_slider_widget(properties={"width": 144})
-        slice_width_slider_widget.maximum = data_item.dimensional_shape[-1] - 1  # signal_index
-        slice_width_slider_widget.bind_value(ChangeDisplayDataChannelPropertyBinding(document_controller, display_data_channel, "slice_width"))
-        slice_width_line_edit_widget.bind_text(ChangeDisplayDataChannelPropertyBinding(document_controller, display_data_channel, "slice_width", converter=Converter.IntegerToStringConverter()))
-        slice_width_row_widget.add(slice_width_label_widget)
-        slice_width_row_widget.add_spacing(8)
-        slice_width_row_widget.add(slice_width_slider_widget)
-        slice_width_row_widget.add_spacing(8)
-        slice_width_row_widget.add(slice_width_line_edit_widget)
-        slice_width_row_widget.add_stretch()
+        widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop, SliceSectionHandler(self._slice_model))
+        self.__data_item_changed_event_listener = data_item.data_item_changed_event.listen(ReferenceCounting.weak_partial(SliceInspectorSection.__handle_data_item_changed, self)) if data_item else None
+        self.__handle_data_item_changed()
+        self.add_widget_to_content(widget)
 
-        # add unbinders
-        self._unbinder.add([display_data_channel], [slice_center_slider_widget.unbind_value, slice_center_line_edit_widget.unbind_text, slice_width_slider_widget.unbind_value, slice_width_line_edit_widget.unbind_text])
+    def __handle_data_item_changed(self) -> None:
+        if threading.current_thread() != threading.main_thread():
+            if self.__pending_call:
+                self.__pending_call.cancel()
 
-        self.add_widget_to_content(slice_center_row_widget)
-        self.add_widget_to_content(slice_width_row_widget)
-        self.finish_widget_content()
-
-        # for testing
-        self._slice_center_slider_widget = slice_center_slider_widget
-        self._slice_width_slider_widget = slice_width_slider_widget
-        self._slice_center_line_edit_widget = slice_center_line_edit_widget
-        self._slice_width_line_edit_widget = slice_width_line_edit_widget
 
 
 class RadianToDegreeStringConverter(Converter.ConverterLike[float, str]):
