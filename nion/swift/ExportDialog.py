@@ -84,10 +84,10 @@ class ExportDialog(Declarative.Handler):
 
     def choose_directory(self, widget: Declarative.UIWidget) -> None:
         directory = self.viewmodel.directory.value or str()
-        existing_directory, directory = self.ui.get_existing_directory_dialog(_("Choose Export Directory"), directory)
-        if existing_directory:
-            self.viewmodel.directory.value = directory
-            self.ui.set_persistent_string("export_directory", directory)
+        selected_directory, directory = self.ui.get_existing_directory_dialog(_("Choose Export Directory"), directory)
+        if selected_directory:
+            self.viewmodel.directory.value = selected_directory
+            self.ui.set_persistent_string("export_directory", selected_directory)
 
     def on_writer_changed(self, widget: Declarative.UIWidget, current_index: int) -> None:
         writer = self.__writers[current_index]
