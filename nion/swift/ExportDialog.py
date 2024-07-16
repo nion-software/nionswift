@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import enum
 # standard libraries
 import functools
 import gettext
@@ -33,7 +34,8 @@ if typing.TYPE_CHECKING:
     from nion.swift.model import DisplayItem
 
 _ = gettext.gettext
-
+CM_PER_INCH = 2.54
+PIXELS_PER_INCH = 96
 
 class ExportDialogViewModel:
 
@@ -221,56 +223,163 @@ class ExportDialog(Declarative.Handler):
         return True
 
 
+class UnitType(enum.Enum):
+    INCHES = 0
+    CENTIMETERS = 1
+    PIXELS = 2
+
 class ExportSVGHandler:
+
     def __init__(self, display_size: Geometry.IntSize) -> None:
-        self.width_model = Model.PropertyModel(display_size.width)
-        self.height_model = Model.PropertyModel(display_size.height)
-
-        self.int_converter = Converter.IntegerToStringConverter()
-
+        self.display_size = display_size
+        self.aspect_ratio = display_size.width / display_size.height
+        self.initial_width = str(display_size.width)
+        self.initial_height = str(display_size.height)
+        self.unit_model = UnitType.PIXELS  # Default to pixels
+        self.float_converter = Converter.FloatToStringConverter()
+        self.previous_unit_index = UnitType.PIXELS
+        self.width_value_line_edit: UserInterface.LineEditWidget
+        self.height_value_line_edit: UserInterface.LineEditWidget
+        self.size = Geometry.IntSize(0, 0)  # Changed from FloatSize to IntSize
         u = Declarative.DeclarativeUI()
-        width_row = u.create_row(u.create_label(text=_("Width (in)"), width=80), u.create_line_edit(text="@binding(width_model.value, converter=int_converter)"), spacing=12)
-        height_row = u.create_row(u.create_label(text=_("Height (in)"), width=80), u.create_line_edit(text="@binding(height_model.value, converter=int_converter)"), spacing=12)
-        main_page = u.create_column(width_row, height_row, spacing=12, margin=12)
-
+        self.width_line_edit = u.create_line_edit(
+            text="initial_width",
+            on_text_edited="value_updated",
+            background_color="white",
+            name="width_value_line_edit"
+        )
+        self.height_line_edit = u.create_line_edit(
+            text="initial_height",
+            on_text_edited="value_updated",
+            background_color="white",
+            name="height_value_line_edit"
+        )
+        width_row = u.create_row(
+            u.create_label(text=_("Width:"), width=80),
+            self.width_line_edit,
+            spacing=12
+        )
+        height_row = u.create_row(
+            u.create_label(text=_("Height:"), width=80),
+            self.height_line_edit,
+            spacing=12
+        )
+        # Combo box for units
+        self.units_combo_box = u.create_combo_box(
+            items=[_("Inches"), _("Centimeters"), _("Pixels")],
+            current_index="@binding(unit_model.value)",
+            on_current_index_changed="unit_changed"
+        )
+        units_row = u.create_row(
+            u.create_label(text=_("Units:"), width=80),
+            self.units_combo_box,
+            spacing=12
+        )
+        main_page = u.create_column(width_row, height_row, units_row, spacing=12, margin=12)
         self.ui_view = main_page
+
+    def value_updated(self, widget: UserInterface.LineEditWidget, text: str) -> None:
+        try:
+            if widget == self.width_value_line_edit:
+                new_width = float(text)
+                new_height = new_width / self.aspect_ratio
+                if self.unit_model == UnitType.PIXELS:
+                    new_height = round(new_height)
+                self.height_value_line_edit.text = str(new_height)
+                self.height_value_line_edit.background_color = "#lightgrey"
+                self.width_value_line_edit.background_color = "white"
+            elif widget == self.height_value_line_edit:
+                new_height = float(text)
+                new_width = new_height * self.aspect_ratio
+                if self.unit_model == UnitType.PIXELS:
+                    new_width = round(new_width)
+                self.width_value_line_edit.text = str(new_width)
+                self.width_value_line_edit.background_color = "#lightgrey"
+                self.height_value_line_edit.background_color = "white"
+        except ValueError:
+            pass  # Handle the case where the input is not a valid integer
+
+    def unit_changed(self, widget: UserInterface.ComboBoxWidget, current_index: int) -> None:
+        new_unit_type = UnitType(current_index)
+        self.size = self.convert_to_pixels(
+            Geometry.FloatSize(height=float(self.height_value_line_edit.text or 0),
+                               width=float(self.width_value_line_edit.text or 0)),
+            self.previous_unit_index
+        )
+        new_width, new_height = self.convert_from_pixels(self.size, new_unit_type)
+        if new_unit_type == UnitType.PIXELS:
+            new_width = round(new_width)
+            new_height = round(new_height)
+        else:
+            new_width = round(new_width, 6)
+            new_height = round(new_height, 6)
+        self.width_value_line_edit.text = str(new_width)
+        self.height_value_line_edit.text = str(new_height)
+        self.previous_unit_index = new_unit_type
+
+    def convert_to_pixels(self, size: Geometry.FloatSize, unit_type: UnitType) -> Geometry.IntSize:
+        if size.height is None or size.width is None:
+            return Geometry.IntSize(0, 0)
+        else:
+            height = float(size.height)
+            width = float(size.width)
+        if unit_type == UnitType.INCHES:
+            return Geometry.IntSize(height=int(height * PIXELS_PER_INCH), width=int(width * PIXELS_PER_INCH))
+        elif unit_type == UnitType.CENTIMETERS:
+            return Geometry.IntSize(height=int(height * PIXELS_PER_INCH / CM_PER_INCH),
+                                    width=int(width * PIXELS_PER_INCH / CM_PER_INCH))
+        return Geometry.IntSize(height=int(round(height)), width=int(round(width)))  # Pixels
+
+    def convert_from_pixels(self, size: Geometry.IntSize, unit_type: UnitType) -> Geometry.FloatSize:
+        if size.height is None or size.width is None:
+            return Geometry.FloatSize(0.0, 0.0)
+        else:
+            height_px = float(size.height)
+            width_px = float(size.width)
+        if unit_type == UnitType.INCHES:
+            return Geometry.FloatSize(height=height_px / PIXELS_PER_INCH, width=width_px / PIXELS_PER_INCH)
+        elif unit_type == UnitType.CENTIMETERS:
+            return Geometry.FloatSize(height=height_px * CM_PER_INCH / PIXELS_PER_INCH,
+                                      width=width_px * CM_PER_INCH / PIXELS_PER_INCH)
+        return Geometry.FloatSize(width=width_px, height=height_px)  # Pixels
 
     def close(self) -> None:
         pass
 
-
 class ExportSVGDialog:
-
-    def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem) -> None:
+    def __init__(self, document_controller: DocumentController.DocumentController,
+                 display_item: DisplayItem.DisplayItem) -> None:
         super().__init__()
-
         self.__document_controller = document_controller
-
         u = Declarative.DeclarativeUI()
-
+        u = Declarative.DeclarativeUI()
         if display_item.display_data_shape and len(display_item.display_data_shape) == 2:
-            display_size = Geometry.IntSize(height=4, width=4)
+            display_size = Geometry.IntSize(height=display_item.display_data_shape[0],
+                                            width=display_item.display_data_shape[1])
         else:
-            display_size = Geometry.IntSize(height=3, width=4)
-
+            display_size = Geometry.IntSize(height=3, width=5)
         handler = ExportSVGHandler(display_size)
 
         def ok_clicked() -> bool:
-            dpi = 96
-            width_px = (handler.width_model.value or display_size.width) * dpi
-            height_px = (handler.height_model.value or display_size.height) * dpi
-
+            display_shape: Geometry.IntSize = handler.convert_to_pixels(
+                Geometry.FloatSize(
+                    height=float(handler.height_value_line_edit.text or 0),
+                    width=float(handler.width_value_line_edit.text or 0)
+                ),
+                handler.previous_unit_index
+            )
             ui = document_controller.ui
             filter = "SVG File (*.svg);;All Files (*.*)"
             export_dir = ui.get_persistent_string("export_directory", ui.get_document_location())
             export_dir = os.path.join(export_dir, display_item.displayed_title)
-            path, selected_filter, selected_directory = document_controller.get_save_file_path(_("Export File"), export_dir, filter, None)
+            path, selected_filter, selected_directory = document_controller.get_save_file_path(_("Export File"),
+                                                                                               export_dir, filter, None)
             if path and not os.path.splitext(path)[1]:
                 path = path + os.path.extsep + "svg"
             if path:
                 ui.set_persistent_string("export_directory", selected_directory)
-                display_shape = Geometry.IntSize(height=height_px, width=width_px)
-                document_controller.export_svg_file(DisplayPanel.DisplayPanelUISettings(ui), display_item, display_shape, pathlib.Path(path))
+                document_controller.export_svg_file(DisplayPanel.DisplayPanelUISettings(ui), display_item,
+                                                    display_shape, pathlib.Path(path))
             return True
 
         def cancel_clicked() -> bool:
