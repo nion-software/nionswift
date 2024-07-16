@@ -511,6 +511,12 @@ class ChangeGraphicPropertyBinding(Binding.PropertyBinding):
 
 
 class DisplayDataChannelPropertyCommandModel(Model.PropertyChangedPropertyModel[typing.Any]):
+    """Display data channel property command model.
+
+    This model makes undoable changes to a display data channel property.
+
+    The value of the display data channel property appears as the 'value' property of this model.
+    """
 
     def __init__(self, document_controller: DocumentController.DocumentController,
                  display_data_channel: DisplayItem.DisplayDataChannel, property_name: str, title: str,
@@ -2325,27 +2331,16 @@ class CollectionIndexInspectorSection(InspectorSection):
         super().close()
 
 
-class SliceModel(Observable.Observable):
-    def __init__(self, document_controller: DocumentController.DocumentController, display_data_channel: DisplayItem.DisplayDataChannel) -> None:
+class SliceSectionHandler(Declarative.Handler):
+    def __init__(self, document_controller: DocumentController.DocumentController, display_data_channel: DisplayItem.DisplayDataChannel):
         super().__init__()
-        self.__display_data_channel = display_data_channel
+
         self.slice_center_model = DisplayDataChannelPropertyCommandModel(document_controller, display_data_channel, "slice_center", title=_("Change Slice"), command_id="change_slice_center")
         self.slice_width_model = DisplayDataChannelPropertyCommandModel(document_controller, display_data_channel, "slice_width", title=_("Change Slice"), command_id="change_slice_width")
 
-    @property
-    def slice_center_maximum(self) -> int:
-        return self.__display_data_channel.data_item.dimensional_shape[-1] - 1 if self.__display_data_channel.data_item else 0
+        self.slice_center_maximum = display_data_channel.data_item.dimensional_shape[-1] - 1 if display_data_channel.data_item else 0
+        self.slice_width_maximum = display_data_channel.data_item.dimensional_shape[-1] if display_data_channel.data_item else 0
 
-    @property
-    def slice_width_maximum(self) -> int:
-        return self.__display_data_channel.data_item.dimensional_shape[-1] - 1 if self.__display_data_channel.data_item else 0
-
-
-class SliceSectionHandler(Declarative.Handler):
-    def __init__(self, slice_model: SliceModel):
-        super().__init__()
-
-        self._slice_model = slice_model
         self._int_to_string_converter = Converter.IntegerToStringConverter()
 
         u = Declarative.DeclarativeUI()
@@ -2354,20 +2349,20 @@ class SliceSectionHandler(Declarative.Handler):
                 u.create_label(text=_("Slice"), width=60),
                 u.create_spacing(8),
                 u.create_line_edit(width=60,
-                                   text="@binding(_slice_model.slice_center_model.value, converter=_int_to_string_converter)"),
+                                   text="@binding(slice_center_model.value, converter=_int_to_string_converter)"),
                 u.create_spacing(8),
-                u.create_slider(width=144, maximum=self._slice_model.slice_center_maximum,
-                                value="@binding(_slice_model.slice_center_model.value)"),
+                u.create_slider(width=144, maximum=self.slice_center_maximum,
+                                value="@binding(slice_center_model.value)"),
                 u.create_stretch()
             ),
             u.create_row(
                 u.create_label(text=_("Width"), width=60),
                 u.create_spacing(8),
                 u.create_line_edit(width=60,
-                                   text="@binding(_slice_model.slice_width_model.value, converter=_int_to_string_converter)"),
+                                   text="@binding(slice_width_model.value, converter=_int_to_string_converter)"),
                 u.create_spacing(8),
-                u.create_slider(width=144, minimum=1, maximum=self._slice_model.slice_width_maximum,
-                                value="@binding(_slice_model.slice_width_model.value)"),
+                u.create_slider(width=144, minimum=1, maximum=self.slice_width_maximum,
+                                value="@binding(slice_width_model.value)"),
                 u.create_stretch()
             )
         )
@@ -2385,9 +2380,9 @@ class SliceInspectorSection(InspectorSection):
         data_item = display_data_channel.data_item
         assert data_item
 
-        self._slice_model = SliceModel(document_controller, display_data_channel)
+        self._slice_section_handler = SliceSectionHandler(document_controller, display_data_channel)
 
-        widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop, SliceSectionHandler(self._slice_model))
+        widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop, self._slice_section_handler)
         self.__data_item_changed_event_listener = data_item.data_item_changed_event.listen(ReferenceCounting.weak_partial(SliceInspectorSection.__handle_data_item_changed, self)) if data_item else None
         self.__handle_data_item_changed()
         self.add_widget_to_content(widget)
