@@ -49,6 +49,7 @@ from nion.utils import Observable
 from nion.utils import ReferenceCounting
 from nion.utils import Registry
 from nion.utils import Validator
+from nion.utils.Model import T
 
 if typing.TYPE_CHECKING:
     from nion.swift import Application
@@ -509,28 +510,27 @@ class ChangeGraphicPropertyBinding(Binding.PropertyBinding):
                 self.__document_controller.push_undo_command(command)
 
 
-class DisplayDataChannelPropertyCommandModel(Model.PropertyModel[typing.Any]):
+class DisplayDataChannelPropertyCommandModel(Model.PropertyChangedPropertyModel[typing.Any]):
 
     def __init__(self, document_controller: DocumentController.DocumentController,
                  display_data_channel: DisplayItem.DisplayDataChannel, property_name: str, title: str,
                  command_id: str) -> None:
-        super().__init__(getattr(display_data_channel, property_name))
-        self.__property_name = property_name
-        self.__display_data_channel = display_data_channel
+        super().__init__(display_data_channel, property_name)
+        self.__document_controller = document_controller
+        self.__title = title
+        self.__command_id = command_id
 
-        def property_changed_from_user(value: typing.Any) -> None:
-            if value != getattr(display_data_channel, property_name):
-                command = DisplayPanel.ChangeDisplayDataChannelCommand(document_controller.document_model, display_data_channel, title=title, command_id=command_id, is_mergeable=True, **{property_name: value})
-                command.perform()
-                document_controller.push_undo_command(command)
-
-        self.on_value_changed = property_changed_from_user
-
-        self.__changed_listener = display_data_channel.property_changed_event.listen(ReferenceCounting.weak_partial(DisplayDataChannelPropertyCommandModel.__property_changed_from_display, self))
-
-    def __property_changed_from_display(self, name: str) -> None:
-        if name == self.__property_name:
-            self.value = getattr(self.__display_data_channel, self.__property_name)
+    def _set_property_value(self, value: typing.Optional[typing.Any]) -> None:
+        document_controller = self.__document_controller
+        display_data_channel = typing.cast(DisplayItem.DisplayDataChannel, self._observable)
+        property_name = self._property_name
+        title = self.__title
+        command_id = self.__command_id
+        command = DisplayPanel.ChangeDisplayDataChannelCommand(document_controller.document_model, display_data_channel,
+                                                               title=title, command_id=command_id, is_mergeable=True,
+                                                               **{property_name: value})
+        command.perform()
+        document_controller.push_undo_command(command)
 
 
 class GraphicPropertyCommandModel(Model.PropertyModel[typing.Any]):
@@ -2326,33 +2326,15 @@ class CollectionIndexInspectorSection(InspectorSection):
 
 
 class SliceModel(Observable.Observable):
-    def __init__(self, display_data_channel: DisplayItem.DisplayDataChannel) -> None:
+    def __init__(self, document_controller: DocumentController.DocumentController, display_data_channel: DisplayItem.DisplayDataChannel) -> None:
         super().__init__()
         self.__display_data_channel = display_data_channel
-
-    @property
-    def slice_center(self) -> int:
-        return self.__display_data_channel.slice_center
-
-    @slice_center.setter
-    def slice_center(self, value: int) -> None:
-        if self.__display_data_channel.slice_center != value:
-            self.__display_data_channel.slice_center = value
-            self.notify_property_changed("slice_center")
+        self.slice_center_model = DisplayDataChannelPropertyCommandModel(document_controller, display_data_channel, "slice_center", title=_("Change Slice"), command_id="change_slice_center")
+        self.slice_width_model = DisplayDataChannelPropertyCommandModel(document_controller, display_data_channel, "slice_width", title=_("Change Slice"), command_id="change_slice_width")
 
     @property
     def slice_center_maximum(self) -> int:
         return self.__display_data_channel.data_item.dimensional_shape[-1] - 1 if self.__display_data_channel.data_item else 0
-
-    @property
-    def slice_width(self) -> int:
-        return self.__display_data_channel.slice_width
-
-    @slice_width.setter
-    def slice_width(self, value: int) -> None:
-        if self.__display_data_channel.slice_width != value:
-            self.__display_data_channel.slice_width = value
-            self.notify_property_changed("slice_width")
 
     @property
     def slice_width_maximum(self) -> int:
@@ -2372,24 +2354,23 @@ class SliceSectionHandler(Declarative.Handler):
                 u.create_label(text=_("Slice"), width=60),
                 u.create_spacing(8),
                 u.create_line_edit(width=60,
-                                   text="@binding(_slice_model.slice_center, converter=_int_to_string_converter)"),
+                                   text="@binding(_slice_model.slice_center_model.value, converter=_int_to_string_converter)"),
                 u.create_spacing(8),
                 u.create_slider(width=144, maximum=self._slice_model.slice_center_maximum,
-                                value="@binding(_slice_model.slice_center)"),
+                                value="@binding(_slice_model.slice_center_model.value)"),
                 u.create_stretch()
             ),
             u.create_row(
                 u.create_label(text=_("Width"), width=60),
                 u.create_spacing(8),
                 u.create_line_edit(width=60,
-                                   text="@binding(_slice_model.slice_width, converter=_int_to_string_converter)"),
+                                   text="@binding(_slice_model.slice_width_model.value, converter=_int_to_string_converter)"),
                 u.create_spacing(8),
-                u.create_slider(width=144, maximum=self._slice_model.slice_width_maximum,
-                                value="@binding(_slice_model.slice_width)"),
+                u.create_slider(width=144, minimum=1, maximum=self._slice_model.slice_width_maximum,
+                                value="@binding(_slice_model.slice_width_model.value)"),
                 u.create_stretch()
             )
         )
-
 
 
 class SliceInspectorSection(InspectorSection):
@@ -2404,7 +2385,7 @@ class SliceInspectorSection(InspectorSection):
         data_item = display_data_channel.data_item
         assert data_item
 
-        self._slice_model = SliceModel(display_data_channel)
+        self._slice_model = SliceModel(document_controller, display_data_channel)
 
         widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop, SliceSectionHandler(self._slice_model))
         self.__data_item_changed_event_listener = data_item.data_item_changed_event.listen(ReferenceCounting.weak_partial(SliceInspectorSection.__handle_data_item_changed, self)) if data_item else None
@@ -2415,7 +2396,6 @@ class SliceInspectorSection(InspectorSection):
         if threading.current_thread() != threading.main_thread():
             if self.__pending_call:
                 self.__pending_call.cancel()
-
 
 
 class RadianToDegreeStringConverter(Converter.ConverterLike[float, str]):

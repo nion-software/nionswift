@@ -549,9 +549,9 @@ class TestInspectorClass(unittest.TestCase):
             display_data_channel.slice_width = 4
             slice_inspector_section = Inspector.SliceInspectorSection(document_controller, display_item.display_data_channels[0])
             with contextlib.closing(slice_inspector_section):
-                self.assertEqual(slice_inspector_section._slice_model.slice_center, 16)
+                self.assertEqual(slice_inspector_section._slice_model.slice_center_model.value, 16)
                 self.assertEqual(slice_inspector_section._slice_model.slice_center_maximum, 31)
-                self.assertEqual(slice_inspector_section._slice_model.slice_width, 4)
+                self.assertEqual(slice_inspector_section._slice_model.slice_width_model.value, 4)
                 self.assertEqual(slice_inspector_section._slice_model.slice_width_maximum, 31)
 
     def test_image_display_inspector_shows_empty_fields_for_none_display_limits(self):
