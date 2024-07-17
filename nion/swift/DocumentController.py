@@ -353,6 +353,9 @@ class DocumentController(Window.Window):
         self.__last_activity = time.time()
 
     def about_to_show(self) -> None:
+        pass  # Previously this contained UI state/geometry loading which has now been moved.
+
+    def restore_ui_state_and_geometry(self) -> None:
         workspace_controller = self.workspace_controller
         if workspace_controller:
             geometry, state = workspace_controller.restore_geometry_state()

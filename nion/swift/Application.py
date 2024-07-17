@@ -613,6 +613,7 @@ class Application(UIApplication.BaseApplication):
                 display_panel.set_display_panel_display_item(display_item)
         setattr(document_controller, "_dynamic_recent_project_actions", list())
         document_controller.show()
+        document_controller.restore_ui_state_and_geometry()
         return document_controller
 
     def _set_profile_for_test(self, profile: typing.Optional[Profile.Profile]) -> None:
