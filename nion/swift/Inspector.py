@@ -2283,47 +2283,106 @@ class SequenceInspectorSection(InspectorSection):
         self._unbinder.add([display_data_channel], [sequence_index_slider_widget.unbind_value, sequence_index_line_edit_widget.unbind_text])
 
 
+class CollectionIndexModel(Observable.Observable):
+    def __init__(self, display_data_channel: DisplayItem.DisplayDataChannel, collection_index_model: DisplayDataChannelPropertyCommandModel, index: int) -> None:
+        super().__init__()
+
+        data_item = display_data_channel.data_item
+
+        assert data_item
+        self.__display_data_channel = display_data_channel
+        self.__data_item = data_item
+        self.__index = index
+        self.__collection_index_base = 1 if self.__data_item.is_sequence else 0
+        self.__collection_index_model = collection_index_model
+
+    @property
+    def display_data_channel(self) -> DisplayItem.DisplayDataChannel:
+        return self.__display_data_channel
+
+    @property
+    def index_maximum(self) -> int:
+        return self.__data_item.dimensional_shape[self.__collection_index_base + self.__index] - 1
+
+    @property
+    def index(self) -> int:
+        return self.__index
+
+    @property
+    def collection_index_model(self) -> DisplayDataChannelPropertyCommandModel:
+        return self.__collection_index_model
+
+
+class CollectionIndexHandler(Declarative.Handler):
+    def __init__(self, collection_model: CollectionIndexModel) -> None:
+        super().__init__()
+
+        self._collection_model = collection_model
+        self._tuple_to_int_converter = Converter.TupleToValueConverter(self._collection_model.collection_index_model,
+                                                                       "value", self._collection_model.index)
+        self._tuple_to_string_converter = Converter.TupleOfIntegersToStringValueConverter(self._collection_model.collection_index_model,
+                                                                       "value", self._collection_model.index)
+
+        u = Declarative.DeclarativeUI()
+        self.ui_view = u.create_row(
+                u.create_label(text="{}: {}".format(_("Index"), self._collection_model.index), width=60),
+                u.create_spacing(8),
+                u.create_line_edit(text="@binding(_collection_model.collection_index_model.value, converter=_tuple_to_string_converter)", width=60),
+                u.create_spacing(8),
+                u.create_slider(value="@binding(_collection_model.collection_index_model.value, converter=_tuple_to_int_converter)",
+                                maximum=self._collection_model.index_maximum, width=144),
+                u.create_stretch()
+            )
+
+
+class CollectionIndexSectionHandler(Declarative.Handler):
+    def __init__(self, collections_models: typing.Sequence[CollectionIndexModel]) -> None:
+        super().__init__()
+
+        self._collection_index_models = collections_models
+        u = Declarative.DeclarativeUI()
+
+        self.ui_view = u.create_column(items=f"_collection_index_models", item_component_id="collection_index", spacing=4)
+
+    def create_handler(self, component_id: str, container: typing.Optional[Symbolic.ComputationVariable] = None, item: typing.Any = None, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
+        collection_index_model = typing.cast(CollectionIndexModel, item)
+        return CollectionIndexHandler(collection_index_model)
+
+
 class CollectionIndexInspectorSection(InspectorSection):
-
-    """
-        Subclass InspectorSection to implement slice inspector.
-    """
-
     def __init__(self, document_controller: DocumentController.DocumentController, display_data_channel: DisplayItem.DisplayDataChannel) -> None:
         super().__init__(document_controller.ui, "collection-index", _("Index"))
+        self.__document_controller = document_controller
+        self.__display_data_channel = display_data_channel
+        self.__event_loop = document_controller.event_loop
+        self.__pending_call: typing.Optional[asyncio.Handle] = None
+        self.__enable_ref: list[bool] = [False]
 
         data_item = display_data_channel.data_item
         assert data_item
 
-        column_widget = self.ui.create_column_widget()
-        collection_index_base = 1 if data_item.is_sequence else 0
+        self.__collection_index_models: list[CollectionIndexModel] = []
+
+        self.__collection_index_model = DisplayDataChannelPropertyCommandModel(document_controller,
+                                                                               display_data_channel, "collection_index",
+                                                                               title=_("Change Collection Index"),
+                                                                               command_id="change_collection_index")
+
         for index in range(data_item.collection_dimension_count):
-            index_row_widget = self.ui.create_row_widget()  # use 280 pixels in row
-            index_label_widget = self.ui.create_label_widget("{}: {}".format(_("Index"), index), properties={"width": 60})
-            index_line_edit_widget = self.ui.create_line_edit_widget(properties={"width": 60})
-            index_slider_widget = self.ui.create_slider_widget(properties={"width": 144})
-            index_slider_widget.maximum = data_item.dimensional_shape[collection_index_base + index] - 1
+            self.__collection_index_models.append(CollectionIndexModel(display_data_channel, self.__collection_index_model, index))
 
-            self.__collection_index_model = DisplayDataChannelPropertyCommandModel(document_controller, display_data_channel, "collection_index", title=_("Change Collection Index"), command_id="change_collection_index")
+        widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop,
+                                               CollectionIndexSectionHandler(self.__collection_index_models))
+        self.__data_item_changed_event_listener = data_item.data_item_changed_event.listen(
+            ReferenceCounting.weak_partial(CollectionIndexInspectorSection.__handle_data_item_changed,
+                                           self)) if data_item else None
+        self.__handle_data_item_changed()
+        self.add_widget_to_content(widget)
 
-            index_slider_widget.bind_value(Binding.TuplePropertyBinding(self.__collection_index_model, "value", index))
-            index_line_edit_widget.bind_text(Binding.TuplePropertyBinding(self.__collection_index_model, "value", index, converter=Converter.IntegerToStringConverter()))
-            index_row_widget.add(index_label_widget)
-            index_row_widget.add_spacing(8)
-            index_row_widget.add(index_slider_widget)
-            index_row_widget.add_spacing(8)
-            index_row_widget.add(index_line_edit_widget)
-            index_row_widget.add_stretch()
-            column_widget.add(index_row_widget)
-
-            # add unbinders
-            self._unbinder.add([display_data_channel], [index_slider_widget.unbind_value, index_line_edit_widget.unbind_text])
-
-        self.add_widget_to_content(column_widget)
-        self.finish_widget_content()
-
-        # for testing
-        self._column_widget = column_widget
+    def __handle_data_item_changed(self) -> None:
+        if threading.current_thread() != threading.main_thread():
+            if self.__pending_call:
+                self.__pending_call.cancel()
 
     def close(self) -> None:
         self.__collection_index_model.close()
