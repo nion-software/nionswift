@@ -2246,6 +2246,27 @@ class LinePlotDisplayInspectorSection(InspectorSection):
         super().close()
 
 
+class SequenceSectionHandler(Declarative.Handler):
+    def __init__(self, document_controller: DocumentController.DocumentController, display_data_channel: DisplayItem.DisplayDataChannel):
+        super().__init__()
+
+        self.sequence_index_model = DisplayDataChannelPropertyCommandModel(document_controller, display_data_channel, "sequence_index", title=_("Change Sequence Index"), command_id="change_sequence_index")
+        self.sequence_index_maximum = display_data_channel.data_item.dimensional_shape[-1] if display_data_channel.data_item else 0
+
+        u = Declarative.DeclarativeUI()
+
+        self._int_to_string_converter = Converter.IntegerToStringConverter()
+
+        self.ui_view = u.create_row(
+            u.create_label(text="Index", width=60),
+            u.create_spacing(8),
+            u.create_slider(value="@binding(sequence_index_model)", maximum=self.sequence_index_maximum, width=144),
+            u.create_spacing(8),
+            u.create_line_edit(text="@binding(sequence_index_model, converter=_int_to_string_converter", width=60),
+            u.create_stretch()
+        )
+
+
 class SequenceInspectorSection(InspectorSection):
 
     """
