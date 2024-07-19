@@ -36,6 +36,7 @@ from nion.swift.model import Schema
 from nion.swift.model import Symbolic
 from nion.ui import CanvasItem
 from nion.ui import Declarative
+from nion.ui import DrawingContext
 from nion.ui import UserInterface
 from nion.ui import Widgets
 from nion.ui import Window
@@ -3591,6 +3592,10 @@ class DataSourceVariableHandler(Declarative.Handler):
         self.computation = computation
         self.variable = variable
         self.variable_model = variable_model
+        self.is_croppable = False
+        if processor_description := computation._processor_description:
+            if source_description := processor_description.get_source(variable.name):
+                self.is_croppable = source_description.is_croppable
         u = Declarative.DeclarativeUI()
         label = u.create_label(text="@binding(variable.display_label)")
         data_source_chooser = {
@@ -3600,6 +3605,9 @@ class DataSourceVariableHandler(Declarative.Handler):
             "on_delete": "data_item_delete",
             "min_width": 80,
             "min_height": 80,
+            "is_croppable": "@binding(is_croppable)",
+            "crop_enabled": "@binding(crop_enabled)",
+            "on_crop_enabled_clicked": "handle_toggle_crop_enabled"
         }
         self.ui_view = u.create_column(label, data_source_chooser, spacing=8)
         self.__property_changed_listener = variable.property_changed_event.listen(self.__property_changed)
@@ -3611,6 +3619,93 @@ class DataSourceVariableHandler(Declarative.Handler):
     def __property_changed(self, property_name: str) -> None:
         if property_name in ("specified_object", "secondary_specified_object"):
             self.property_changed_event.fire("display_item")
+        if property_name in ("secondary_specified_object",):
+            self.property_changed_event.fire("crop_enabled")
+
+    def handle_toggle_crop_enabled(self, widget: Declarative.UIWidget) -> None:
+        display_item = self.display_item
+        selected_graphic = display_item.selected_graphic if display_item else None
+        selected_crop_graphic = selected_graphic if isinstance(selected_graphic, Graphics.RectangleTypeGraphic) else None
+        all_graphics = display_item.graphics if display_item else list()
+        all_rect_graphics = (graphic for graphic in all_graphics if isinstance(graphic, Graphics.RectangleTypeGraphic))
+        first_rect_graphic = next(all_rect_graphics, None)
+        selected_crop_graphic = selected_crop_graphic if selected_crop_graphic else first_rect_graphic
+        # implement the toggle logic.
+        # if there is a selected crop graphic, and it is not already assigned rectangle, assign it, replacing the old one.
+        # otherwise, if there is a selected crop graphic, and it is already assigned rectangle, remove it. (toggle)
+        # otherwise, if there is no selected crop graphic, add a new crop rectangle and assign it.
+        # this behavior allows the user to toggle the selected rectangle on/off, select a new rectangle and assign it,
+        # or add a new rectangle or use the first known rectangle and assign it.
+        if selected_crop_graphic and selected_crop_graphic != self.variable.secondary_specified_object:
+            self.assign_crop_rectangle(selected_crop_graphic)
+        elif self.variable.secondary_specified_object:
+            self.remove_crop_rectangle()
+        else:
+            self.add_crop_rectangle()
+
+    def handle_new_crop(self, widget: Declarative.UIWidget) -> None:
+        self.add_crop_rectangle()
+
+    def handle_remove_crop(self, widget: Declarative.UIWidget) -> None:
+        self.remove_crop_rectangle()
+
+    def handle_assign_crop(self, widget: Declarative.UIWidget) -> None:
+        display_item = self.display_item
+        selected_graphic = display_item.selected_graphic if display_item else None
+        selected_crop_graphic = selected_graphic if isinstance(selected_graphic, Graphics.RectangleTypeGraphic) else None
+        if selected_crop_graphic:
+            self.assign_crop_rectangle(selected_crop_graphic)
+
+    def remove_crop_rectangle(self) -> None:
+        document_controller = self.document_controller
+        computation = self.computation
+        variable = self.variable
+        display_item = self.display_item
+        data_item = display_item.data_item if display_item else None
+        if data_item and display_item:
+            properties = {"variable_type": "data_source", "secondary_specified_object": None,
+                          "specified_object": display_item.get_display_data_channel_for_data_item(data_item)}
+            command = ChangeComputationVariableCommand(document_controller.document_model, computation,
+                                                       variable, title=_("Set Input Data Source"),
+                                                       **properties)  # type: ignore
+            command.perform()
+            document_controller.push_undo_command(command)
+
+    def add_crop_rectangle(self) -> None:
+        document_controller = self.document_controller
+        computation = self.computation
+        variable = self.variable
+        display_item = self.display_item
+        data_item = display_item.data_item if display_item else None
+        if data_item and display_item:
+            graphic = Graphics.RectangleGraphic()
+            graphic.bounds = Geometry.FloatRect(Geometry.FloatPoint(0.25, 0.25), Geometry.FloatSize(0.5, 0.5))
+            command = DisplayPanel.InsertGraphicsCommand(document_controller, display_item, [graphic])
+            command.perform()
+            document_controller.push_undo_command(command)
+            display_item.graphic_selection.set(display_item.graphics.index(graphic))
+            properties = {"variable_type": "data_source", "secondary_specified_object": graphic,
+                          "specified_object": display_item.get_display_data_channel_for_data_item(data_item)}
+            command = ChangeComputationVariableCommand(document_controller.document_model, computation,
+                                                       variable, title=_("Set Input Data Source"),
+                                                       **properties)  # type: ignore
+            command.perform()
+            document_controller.push_undo_command(command)
+
+    def assign_crop_rectangle(self, crop_graphic: Graphics.RectangleTypeGraphic) -> None:
+        document_controller = self.document_controller
+        computation = self.computation
+        variable = self.variable
+        display_item = self.display_item
+        data_item = display_item.data_item if display_item else None
+        if data_item and display_item:
+            properties = {"variable_type": "data_source", "secondary_specified_object": crop_graphic,
+                          "specified_object": display_item.get_display_data_channel_for_data_item(data_item)}
+            command = ChangeComputationVariableCommand(document_controller.document_model, computation,
+                                                       variable, title=_("Set Input Data Source"),
+                                                       **properties)  # type: ignore
+            command.perform()
+            document_controller.push_undo_command(command)
 
     @property
     def display_item(self) -> typing.Optional[DisplayItem.DisplayItem]:
@@ -3629,6 +3724,14 @@ class DataSourceVariableHandler(Declarative.Handler):
     @display_item.setter
     def display_item(self, value: DisplayItem.DisplayItem) -> None:
         pass  # handled separately
+
+    @property
+    def crop_enabled(self) -> bool:
+        return self.variable.secondary_specified_object is not None
+
+    @crop_enabled.setter
+    def crop_enabled(self, value: bool) -> None:
+        pass
 
     def drop_mime_data(self, mime_data: UserInterface.MimeData, x: int, y: int) -> typing.Optional[str]:
         # return drop_mime_data(self.document_controller, self.computation, self.variable, mime_data, x, y)
@@ -4487,6 +4590,117 @@ class DeclarativeImageChooserConstructor:
 
         return None
 
+class CroppedOverlayGraphicCanvasItem(CanvasItem.CanvasItemComposition):
+    def __init__(self, handle_clicked: typing.Callable[[], None]) -> None:
+        super().__init__()
+        self.wants_mouse_events = True
+        self.update_sizing(self.sizing.with_fixed_size(Geometry.IntSize(11, 11)))
+        self.__is_croppable = False
+        self.__crop_enabled = False
+        self.__handle_clicked = handle_clicked
+        self.__update_tool_tip()
+
+    @property
+    def is_croppable(self) -> bool:
+        return self.__is_croppable
+
+    @is_croppable.setter
+    def is_croppable(self, value: bool) -> None:
+        self.__is_croppable = value
+        self.__update_tool_tip()
+
+    def set_crop_enabled(self, crop_enabled: bool) -> None:
+        self.__crop_enabled = crop_enabled
+        self.update()
+        self.__update_tool_tip()
+
+    def __update_tool_tip(self) -> None:
+        if self.is_croppable:
+            if self.__crop_enabled:
+                self.tool_tip = _("Cropped. Click to remove or assign selected rectangle as crop.")
+            else:
+                self.tool_tip = _("Uncropped. Click to auto create or assign selected rectangle as crop.")
+        else:
+            self.tool_tip = str()
+
+    def mouse_clicked(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        self.__handle_clicked()
+        return False
+
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
+        super()._repaint(drawing_context)
+        canvas_bounds = self.canvas_bounds
+        if canvas_bounds and self.is_croppable:
+            with drawing_context.saver():
+                drawing_context.rect(canvas_bounds.left, canvas_bounds.top, canvas_bounds.width, canvas_bounds.height)
+                drawing_context.line_join = "miter"
+                drawing_context.fill_style = "gray"
+                drawing_context.fill()
+                drawing_context.stroke_style = "white"
+                drawing_context.line_width = 1.2
+                drawing_context.stroke()
+                if self.__crop_enabled:
+                    drawing_context.rect(canvas_bounds.center.x - 1, canvas_bounds.center.y - 1, canvas_bounds.width / 2, canvas_bounds.height / 2)
+                    drawing_context.line_width = 1.2
+                    drawing_context.stroke_style = "white"
+                    drawing_context.stroke()
+
+
+class CroppedOverlayCanvasItem(CanvasItem.CanvasItemComposition):
+    def __init__(self) -> None:
+        super().__init__()
+        self.__crop_enabled = False
+
+        self.on_crop_enabled_clicked: typing.Optional[typing.Callable[[], None]] = None
+
+        def get_crop_enabled() -> bool:
+            return self.__crop_enabled
+
+        def set_crop_enabled(value: bool) -> None:
+            if value != self.__crop_enabled:
+                self.__crop_enabled = value
+                self.__graphic_canvas_item.set_crop_enabled(value)
+
+        self.__crop_enabled_binding_helper = UserInterface.BindablePropertyHelper[bool](get_crop_enabled, set_crop_enabled)
+
+        def handle_clicked() -> None:
+            if callable(self.on_crop_enabled_clicked):
+                self.on_crop_enabled_clicked()
+
+        self.__graphic_canvas_item = CroppedOverlayGraphicCanvasItem(handle_clicked)
+
+        self.layout = CanvasItem.CanvasItemRowLayout()
+        composition = CanvasItem.CanvasItemComposition()
+        composition.layout = CanvasItem.CanvasItemColumnLayout()
+        composition.add_stretch()
+        composition.add_canvas_item(self.__graphic_canvas_item)
+        composition.add_spacing(4)
+        self.add_stretch()
+        self.add_canvas_item(composition)
+        self.add_spacing(4)
+
+    @property
+    def is_croppable(self) -> bool:
+        return self.__graphic_canvas_item.is_croppable
+
+    @is_croppable.setter
+    def is_croppable(self, value: bool) -> None:
+        self.__graphic_canvas_item.is_croppable = value
+
+    @property
+    def crop_enabled(self) -> bool:
+        return self.__crop_enabled_binding_helper.value
+
+    @crop_enabled.setter
+    def crop_enabled(self, value: bool) -> None:
+        self.__crop_enabled_binding_helper.value = value
+
+    def bind_crop_enabled(self, binding: Binding.Binding) -> None:
+        self.__crop_enabled_binding_helper.bind_value(binding)
+
+    def unbind_crop_enabled(self) -> None:
+        self.__crop_enabled_binding_helper.unbind_value()
+
 
 class DeclarativeDataSourceChooserConstructor:
 
@@ -4496,7 +4710,8 @@ class DeclarativeDataSourceChooserConstructor:
     def construct(self, d_type: str, ui: UserInterface.UserInterface, window: typing.Optional[Window.Window], d: Declarative.UIDescription, handler: Declarative.HandlerLike, finishes: typing.List[typing.Callable[[], None]]) -> typing.Optional[UserInterface.Widget]:
         if d_type == "data_source_chooser":
             properties = Declarative.construct_sizing_properties(d)
-            thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(ui, window=window)
+            cropped_overlay = CroppedOverlayCanvasItem()
+            thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(ui, window=window, overlay_canvas_items=[cropped_overlay])
 
             def drop_mime_data(mime_data: UserInterface.MimeData, x: int, y: int) -> str:
                 on_drop_mime_data_method = typing.cast(typing.Optional[str], d.get("on_drop_mime_data"))
@@ -4517,6 +4732,9 @@ class DeclarativeDataSourceChooserConstructor:
             if handler:
                 Declarative.connect_name(widget, d, handler)
                 Declarative.connect_reference_value(thumbnail_source, d, handler, "display_item", finishes)
+                Declarative.connect_reference_value(cropped_overlay, d, handler, "is_croppable", finishes, value_type=bool)
+                Declarative.connect_reference_value(cropped_overlay, d, handler, "crop_enabled", finishes, value_type=bool)
+                Declarative.connect_event(widget, cropped_overlay, d, handler, "on_crop_enabled_clicked", [])
                 Declarative.connect_attributes(widget, d, handler, finishes)
 
             return widget
