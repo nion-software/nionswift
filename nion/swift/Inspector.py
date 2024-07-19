@@ -539,6 +539,31 @@ class DisplayDataChannelPropertyCommandModel(Model.PropertyChangedPropertyModel[
         document_controller.push_undo_command(command)
 
 
+class DisplayPropertyCommandModel(Model.PropertyChangedPropertyModel[typing.Any]):
+    """Display data channel property command model.
+
+    This model makes undoable changes to a display item property.
+    """
+
+    def __init__(self, document_controller: DocumentController.DocumentController,
+                 display_item: DisplayItem, property_name: str) -> None:
+        super().__init__(display_item, property_name)
+        self.__display_item = display_item
+        self.__document_controller = document_controller
+        self.__property_name = property_name
+
+    def _set_property_value(self, value: typing.Optional[typing.Any]) -> None:
+        command = DisplayPanel.ChangeDisplayCommand(self.__document_controller.document_model, self.__display_item,
+                                                    title=_("Change Display"),
+                                                    command_id="change_display_" + self.__property_name, is_mergeable=True,
+                                                    **{self.__property_name: value})
+        command.perform()
+        self.__document_controller.push_undo_command(command)
+
+    def _get_property_value(self) -> typing.Optional[typing.Any]:
+        return self.__display_item.get_display_property(self.__property_name)
+
+
 class GraphicPropertyCommandModel(Model.PropertyModel[typing.Any]):
 
     def __init__(self, document_controller: DocumentController.DocumentController,
@@ -1839,32 +1864,30 @@ class ChangeDisplayTypeCommand(Undo.UndoableCommand):
         return isinstance(command, self.__class__) and bool(self.command_id) and self.command_id == command.command_id and self.__display_item_uuid == command.__display_item_uuid
 
 
-def make_display_type_chooser(document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem) -> typing.Tuple[UserInterface.BoxWidget, Event.EventListener]:
-    ui = document_controller.ui
-    display_type_row = ui.create_row_widget()
-    display_type_items = ((_("Default"), None), (_("Line Plot"), "line_plot"), (_("Image"), "image"))
-    display_type_reverse_map = {None: 0, "line_plot": 1, "image": 2}
-    display_type_chooser = ui.create_combo_box_widget(items=display_type_items, item_getter=operator.itemgetter(0))
+class DisplayTypeChooserHandler(Declarative.Handler):
+    def __init__(self, display_item: DisplayItem.DisplayItem, document_controller: DocumentController.DocumentController) -> None:
+        super().__init__()
+        self._document_controller = document_controller
+        self._display_item = display_item
+        self._display_type_items = (_("Default"), _("Line Plot"), _("Image"))
+        self._display_type_flags = (None, "line_plot", "image")
+        self._display_type_reverse_map = {None: 0, "line_plot": 1, "image": 2}
+        self._current_index = self._display_type_reverse_map[self._display_item.display_type]
 
-    def property_changed(name: str) -> None:
-        if name == "display_type":
-            display_type_chooser.current_index = display_type_reverse_map[display_item.display_type]
+        u = Declarative.DeclarativeUI()
 
-    listener = display_item.property_changed_event.listen(property_changed)
+        self.ui_view = u.create_row(
+            u.create_label(text=_("Display Type:"), width=120),
+            u.create_combo_box(items=self._display_type_items, on_current_index_changed="change_display_type", current_index="@binding(_current_index)"),
+            u.create_stretch()
+        )
 
-    def change_display_type(item: typing.Tuple[str, typing.Optional[str]]) -> None:
-        if display_item.display_type != item[1]:
-            command = ChangeDisplayTypeCommand(document_controller.document_model, display_item, display_type=item[1])
+    def change_display_type(self,  widget: Declarative.UIWidget, current_index: int) -> None:
+        current_display_type = self._display_type_flags[current_index]
+        if self._display_item.display_type != current_display_type:
+            command = ChangeDisplayTypeCommand(self._document_controller.document_model, self._display_item, display_type=current_display_type)
             command.perform()
-            document_controller.push_undo_command(command)
-
-    display_type_chooser.on_current_item_changed = change_display_type
-    display_type_chooser.current_index = display_type_reverse_map.get(display_item.display_type, 0)
-    display_type_row.add(ui.create_label_widget(_("Display Type:"), properties={"width": 120}))
-    display_type_row.add(display_type_chooser)
-    display_type_row.add_stretch()
-    return display_type_row, listener
-
+            self._document_controller.push_undo_command(command)
 
 def make_color_map_chooser(document_controller: DocumentController.DocumentController, display_data_channel: DisplayItem.DisplayDataChannel) -> typing.Tuple[UserInterface.BoxWidget, Event.EventListener]:
     ui = document_controller.ui
@@ -2126,47 +2149,90 @@ class ImageDisplayInspectorSection(InspectorSection):
     def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem) -> None:
         super().__init__(document_controller.ui, "display-limits", _("Image Display"))
 
-        # display type
-        display_type_row, self.__display_type_changed_listener = make_display_type_chooser(document_controller, display_item)
+        self._image_diaplay_handler = DisplayTypeChooserHandler(display_item, document_controller)
+        widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop,
+                                               self._image_diaplay_handler)
 
-        self.add_widget_to_content(display_type_row)
-
-        self.finish_widget_content()
-
-    def close(self) -> None:
-        self.__display_type_changed_listener.close()
-        self.__display_type_changed_listener = typing.cast(typing.Any, None)
-        super().close()
+        self.add_widget_to_content(widget)
 
 
-def make_legend_position(document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem) -> typing.Tuple[UserInterface.BoxWidget, Event.EventListener]:
-    # This function is currently only utilized by line plots
-    ui = document_controller.ui
-    legend_position_row = ui.create_row_widget()
-    legend_position_options = [(_("None"), None), (_("Top Left"), "top-left"), (_("Top Right"), "top-right"), (_("Outer Left"), "outer-left"), (_("Outer Right"), "outer-right")]
-    legend_position_reverse_map = {p[1]: i for i, p in enumerate(legend_position_options)}
-    legend_position_chooser = ui.create_combo_box_widget(items=legend_position_options, item_getter=operator.itemgetter(0))
+class LegendPositionChooserHandler(Declarative.Handler):
+    def __init__(self, display_item: DisplayItem.DisplayItem, document_controller: DocumentController.DocumentController) -> None:
+        super().__init__()
+        self._document_controller = document_controller
+        self._display_item = display_item
+        self._legend_position_items = (_("None"), _("Top Left"), _("Top Right"), _("Outer Left"), _("Outer Right"))
+        self._legend_position_flags = (None, "top-left", "top-right", "outer-left", "outer-right")
+        self._legend_position_reverse_map = {p: i for i, p in enumerate(self._legend_position_flags)}
+        self._current_index = self._legend_position_reverse_map.get(display_item.get_display_property("legend_position", None), 0)
 
-    def property_changed(name: str) -> None:
-        if name == "legend_position":
-            legend_position_chooser.current_index = legend_position_reverse_map.get(display_item.get_display_property("legend_position", None), 0)
+        u = Declarative.DeclarativeUI()
 
-    listener = display_item.display_property_changed_event.listen(property_changed)
+        self.ui_view = u.create_row(
+            u.create_label(text=_("Legend Position:"), width=120),
+            u.create_combo_box(items=self._legend_position_items, on_current_index_changed="change_legend_position", current_index="@binding(_current_index)"),
+            u.create_stretch()
+        )
 
-    def change_legend_position(item: typing.Tuple[str, typing.Optional[str]]) -> None:
-        if display_item.get_display_property("legend_position", None) != item[1]:
-            command = DisplayPanel.ChangeDisplayCommand(document_controller.document_model, display_item, title=_("Legend Position"), command_id="change_legend_position", is_mergeable=True, legend_position=item[1])
+    def change_legend_position(self,  widget: Declarative.UIWidget, current_index: int) -> None:
+        current_legend_position = self._legend_position_flags[current_index]
+        old_legend_position = self._display_item.get_display_property("legend_position", None)
+        if old_legend_position != current_legend_position:
+            command = DisplayPanel.ChangeDisplayCommand(self._document_controller.document_model, self._display_item,
+                                                        title=_("Legend Position"), command_id="change_legend_position",
+                                                        is_mergeable=True, legend_position=current_legend_position)
             command.perform()
-            document_controller.push_undo_command(command)
+            self._document_controller.push_undo_command(command)
 
-    legend_position_chooser.on_current_item_changed = change_legend_position
-    legend_position_chooser.current_index = legend_position_reverse_map.get(display_item.get_display_property("legend_position", None), 0)
-    legend_position_row.add(ui.create_label_widget(_("Legend Position:"), properties={"width": 120}))
-    legend_position_row.add(legend_position_chooser)
-    legend_position_row.add_stretch()
 
-    return legend_position_row, listener
+class LinePlotDisplaySectionHandler(Declarative.Handler):
+    def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem):
+        super().__init__()
 
+        self._y_min_model = DisplayPropertyCommandModel(document_controller, display_item, "y_min")
+        self._y_max_model = DisplayPropertyCommandModel(document_controller, display_item, "y_max")
+        self._left_channel_model = DisplayPropertyCommandModel(document_controller, display_item, "left_channel")
+        self._right_channel_model = DisplayPropertyCommandModel(document_controller, display_item, "right_channel")
+        self._y_style_model = DisplayPropertyCommandModel(document_controller, display_item, "y_style")
+
+        self._float_to_string_converter = BetterFloatToStringConverter(pass_none=True)
+
+        class LogCheckedToCheckStateConverter(Converter.ConverterLike[str, str]):
+            """ Convert between bool and checked/unchecked strings. """
+
+            def convert(self, value: typing.Optional[str]) -> typing.Optional[bool]:
+                """ Convert bool to checked or unchecked string """
+                return value == "log"
+
+            def convert_back(self, value: typing.Optional[bool]) -> typing.Optional[str]:
+                """ Convert checked or unchecked string to bool """
+                return "log" if value else "linear"
+
+        self._log_checked_to_check_state_converter = LogCheckedToCheckStateConverter()
+
+        u = Declarative.DeclarativeUI()
+        
+        self.ui_view = u.create_column(
+            u.create_row(
+                u.create_label(text=_("Display:"), width=120),
+                u.create_line_edit(text="@binding(_y_min_model.value, converter=_float_to_string_converter)", width=60, placeholder_text=_("Auto")),
+                u.create_spacing(8),
+                u.create_line_edit(text="@binding(_y_max_model.value, converter=_float_to_string_converter)", width=60, placeholder_text=_("Auto")),
+                u.create_stretch()
+            ),
+            u.create_row(
+                u.create_label(text=_("Channels:"), width=120),
+                u.create_line_edit(text="@binding(_left_channel_model.value, converter=_float_to_string_converter)", width=60, placeholder_text=_("Auto")),
+                u.create_spacing(8),
+                u.create_line_edit(text="@binding(_right_channel_model.value, converter=_float_to_string_converter)", width=60, placeholder_text=_("Auto")),
+                u.create_stretch()
+            ),
+            u.create_row(
+                u.create_check_box(text=_("Log Scale (Y)"), checked="@binding(_y_style_model.value, converter=_log_checked_to_check_state_converter)"),
+                u.create_stretch()
+            )
+        )
+        
 
 class LinePlotDisplayInspectorSection(InspectorSection):
 
@@ -2177,73 +2243,20 @@ class LinePlotDisplayInspectorSection(InspectorSection):
     def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem) -> None:
         super().__init__(document_controller.ui, "line-plot", _("Line Plot Display"))
 
-        # display type
-        display_type_row, self.__display_type_changed_listener = make_display_type_chooser(document_controller, display_item)
+        self._display_type_chooser = DisplayTypeChooserHandler(display_item, document_controller)
+        display_type_chooser_widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop, self._display_type_chooser)
 
-        float_point_2_none_converter = BetterFloatToStringConverter(pass_none=True)
+        self._line_plot_display_section_handler = LinePlotDisplaySectionHandler(document_controller, display_item)
+        widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop, self._line_plot_display_section_handler)
 
-        self.display_limits_limit_row = self.ui.create_row_widget()
-        self.display_limits_limit_low = self.ui.create_line_edit_widget(properties={"width": 80})
-        self.display_limits_limit_high = self.ui.create_line_edit_widget(properties={"width": 80})
-        self.display_limits_limit_low.bind_text(ChangeDisplayPropertyBinding(document_controller, display_item, "y_min", converter=float_point_2_none_converter))
-        self.display_limits_limit_high.bind_text(ChangeDisplayPropertyBinding(document_controller, display_item, "y_max", converter=float_point_2_none_converter))
-        self.display_limits_limit_low.placeholder_text = _("Auto")
-        self.display_limits_limit_high.placeholder_text = _("Auto")
-        self.display_limits_limit_row.add(self.ui.create_label_widget(_("Display:"), properties={"width": 120}))
-        self.display_limits_limit_row.add(self.display_limits_limit_low)
-        self.display_limits_limit_row.add_spacing(8)
-        self.display_limits_limit_row.add(self.display_limits_limit_high)
-        self.display_limits_limit_row.add_stretch()
+        self._legend_position_chooser = LegendPositionChooserHandler(display_item, document_controller)
+        legend_position_chooser_widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop, self._legend_position_chooser)
 
-        self.channels_row = self.ui.create_row_widget()
-        self.channels_left = self.ui.create_line_edit_widget(properties={"width": 80})
-        self.channels_right = self.ui.create_line_edit_widget(properties={"width": 80})
-        self.channels_left.bind_text(ChangeDisplayPropertyBinding(document_controller, display_item, "left_channel", converter=float_point_2_none_converter))
-        self.channels_right.bind_text(ChangeDisplayPropertyBinding(document_controller, display_item, "right_channel", converter=float_point_2_none_converter))
-        self.channels_left.placeholder_text = _("Auto")
-        self.channels_right.placeholder_text = _("Auto")
-        self.channels_row.add(self.ui.create_label_widget(_("Channels:"), properties={"width": 120}))
-        self.channels_row.add(self.channels_left)
-        self.channels_row.add_spacing(8)
-        self.channels_row.add(self.channels_right)
-        self.channels_row.add_stretch()
-
-        class LogCheckedToCheckStateConverter(Converter.ConverterLike[str, str]):
-            """ Convert between bool and checked/unchecked strings. """
-
-            def convert(self, value: typing.Optional[str]) -> typing.Optional[str]:
-                """ Convert bool to checked or unchecked string """
-                return "checked" if value == "log" else "unchecked"
-
-            def convert_back(self, value: typing.Optional[str]) -> typing.Optional[str]:
-                """ Convert checked or unchecked string to bool """
-                return "log" if value == "checked" else "linear"
-
-        self.style_row = self.ui.create_row_widget()
-        self.style_y_log = self.ui.create_check_box_widget(_("Log Scale (Y)"))
-        self.style_y_log.bind_check_state(ChangeDisplayPropertyBinding(document_controller, display_item, "y_style", converter=LogCheckedToCheckStateConverter()))
-        self.style_row.add(self.style_y_log)
-        self.style_row.add_stretch()
-
-        legend_position_row, self.__legend_position_changed_listener = make_legend_position(document_controller, display_item)
-
-        self.add_widget_to_content(display_type_row)
-        self.add_widget_to_content(self.display_limits_limit_row)
-        self.add_widget_to_content(self.channels_row)
-        self.add_widget_to_content(self.style_row)
-        self.add_widget_to_content(legend_position_row)
+        self.add_widget_to_content(display_type_chooser_widget)
+        self.add_widget_to_content(widget)
+        self.add_widget_to_content(legend_position_chooser_widget)
 
         self.finish_widget_content()
-
-        # add unbinders
-        self._unbinder.add([display_item], [self.display_limits_limit_low.unbind_text, self.display_limits_limit_high.unbind_text, self.channels_left.unbind_text, self.channels_right.unbind_text, self.style_y_log.unbind_check_state])
-
-    def close(self) -> None:
-        self.__legend_position_changed_listener.close()
-        self.__legend_position_changed_listener = typing.cast(typing.Any, None)
-        self.__display_type_changed_listener.close()
-        self.__display_type_changed_listener = typing.cast(typing.Any, None)
-        super().close()
 
 
 class SequenceInspectorSection(InspectorSection):
