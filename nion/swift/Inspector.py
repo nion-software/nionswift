@@ -1839,6 +1839,31 @@ class ChangeDisplayTypeCommand(Undo.UndoableCommand):
         return isinstance(command, self.__class__) and bool(self.command_id) and self.command_id == command.command_id and self.__display_item_uuid == command.__display_item_uuid
 
 
+class DisplayTypeChooserHandler(Declarative.Handler):
+    def __init__(self, display_item: DisplayItem.DisplayItem, document_controller: DocumentController.DocumentController) -> None:
+        super().__init__()
+        self._document_controller = document_controller
+        self._display_item = display_item
+        self._display_type_items = (_("Default"), _("Line Plot"), _("Image"))
+        self._display_type_flags = (None, "line_plot", "image")
+        self._display_type_reverse_map = {None: 0, "line_plot": 1, "image": 2}
+        self._current_index = self._display_type_reverse_map[self._display_item.display_type]
+
+        u = Declarative.DeclarativeUI()
+
+        self.ui_view = u.create_row(
+            u.create_label(text=_("Display Type:"), width=120),
+            u.create_combo_box(items=self._display_type_items, on_current_index_changed="change_display_type", current_index="@binding(_current_index)")
+        )
+
+    def change_display_type(self,  widget: Declarative.UIWidget, current_index: int) -> None:
+        current_display_type = self._display_type_flags[current_index]
+        if self._display_item.display_type != current_display_type:
+            command = ChangeDisplayTypeCommand(self._document_controller.document_model, self._display_item, display_type=current_display_type)
+            command.perform()
+            self._document_controller.push_undo_command(command)
+
+
 def make_display_type_chooser(document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem) -> typing.Tuple[UserInterface.BoxWidget, Event.EventListener]:
     ui = document_controller.ui
     display_type_row = ui.create_row_widget()
@@ -2126,17 +2151,11 @@ class ImageDisplayInspectorSection(InspectorSection):
     def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem) -> None:
         super().__init__(document_controller.ui, "display-limits", _("Image Display"))
 
-        # display type
-        display_type_row, self.__display_type_changed_listener = make_display_type_chooser(document_controller, display_item)
+        self._image_diaplay_handler = DisplayTypeChooserHandler(display_item, document_controller)
+        widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop,
+                                               self._image_diaplay_handler)
 
-        self.add_widget_to_content(display_type_row)
-
-        self.finish_widget_content()
-
-    def close(self) -> None:
-        self.__display_type_changed_listener.close()
-        self.__display_type_changed_listener = typing.cast(typing.Any, None)
-        super().close()
+        self.add_widget_to_content(widget)
 
 
 def make_legend_position(document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem) -> typing.Tuple[UserInterface.BoxWidget, Event.EventListener]:
