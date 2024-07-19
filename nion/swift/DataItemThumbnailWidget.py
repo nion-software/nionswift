@@ -36,7 +36,7 @@ class AbstractThumbnailSource:
     def __init__(self) -> None:
         self.on_thumbnail_data_changed: typing.Optional[typing.Callable[[typing.Optional[_NDArray]], None]] = None
         self.__thumbnail_data: typing.Optional[_NDArray] = None
-        self.overlay_canvas_item: CanvasItem.AbstractCanvasItem = CanvasItem.EmptyCanvasItem()
+        self.overlay_canvas_items = list[CanvasItem.AbstractCanvasItem]()
 
     def close(self) -> None:
         self.on_thumbnail_data_changed = None
@@ -179,8 +179,10 @@ class ThumbnailCanvasItem(CanvasItem.CanvasItemComposition):
         bitmap_overlay_canvas_item.add_canvas_item(bitmap_canvas_item)
         if size is not None:
             bitmap_canvas_item.update_sizing(bitmap_canvas_item.sizing.with_fixed_size(size))
-            thumbnail_source.overlay_canvas_item.update_sizing(thumbnail_source.overlay_canvas_item.sizing.with_fixed_size(size))
-        bitmap_overlay_canvas_item.add_canvas_item(thumbnail_source.overlay_canvas_item)
+            for overlay_canvas_item in thumbnail_source.overlay_canvas_items:
+                overlay_canvas_item.update_sizing(overlay_canvas_item.sizing.with_fixed_size(size))
+        for overlay_canvas_item in thumbnail_source.overlay_canvas_items:
+            bitmap_overlay_canvas_item.add_canvas_item(overlay_canvas_item)
 
         # handle overlay drop callback by forwarding to the callback set by the caller.
         def drop_mime_data(mime_data: UserInterface.MimeData, x: int, y: int) -> str:
@@ -232,9 +234,11 @@ class ThumbnailCanvasItem(CanvasItem.CanvasItemComposition):
         self.__thumbnail_source.close()
         self.__thumbnail_source = thumbnail_source
         if self.__thumbnail_size is not None:
-            thumbnail_source.overlay_canvas_item.update_sizing(thumbnail_source.overlay_canvas_item.sizing.with_fixed_size(self.__thumbnail_size))
-        self.__bitmap_overlay_canvas_item.remove_canvas_item(self.__bitmap_overlay_canvas_item.canvas_items[-1])
-        self.__bitmap_overlay_canvas_item.add_canvas_item(self.__thumbnail_source.overlay_canvas_item)
+            for overlay_canvas_item in thumbnail_source.overlay_canvas_items:
+                overlay_canvas_item.update_sizing(overlay_canvas_item.sizing.with_fixed_size(self.__thumbnail_size))
+        self.__bitmap_overlay_canvas_item.remove_all_canvas_items()
+        for overlay_canvas_item in thumbnail_source.overlay_canvas_items:
+            self.__bitmap_overlay_canvas_item.add_canvas_item(overlay_canvas_item)
         self.__thumbnail_source.on_thumbnail_data_changed = ReferenceCounting.weak_partial(ThumbnailCanvasItem.__thumbnail_data_changed, self)
         self.__thumbnail_data_changed(self.__thumbnail_source.thumbnail_data)
 
@@ -306,8 +310,7 @@ class ThumbnailWidget(Widgets.CompositeWidgetBase):
         super().close()
 
 
-class DataItemBitmapOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
-
+class IsLiveOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
     def __init__(self) -> None:
         super().__init__()
         self.__active = False
@@ -336,7 +339,8 @@ class DataItemThumbnailSource(AbstractThumbnailSource):
 
     def __init__(self, ui: UserInterface.UserInterface, *,
                  display_item: typing.Optional[DisplayItem.DisplayItem] = None,
-                 window: typing.Optional[Window.Window] = None) -> None:
+                 window: typing.Optional[Window.Window] = None,
+                 overlay_canvas_items: typing.Optional[typing.Sequence[CanvasItem.AbstractCanvasItem]] = None) -> None:
         super().__init__()
         self.ui = ui
         self.__display_item: typing.Optional[DisplayItem.DisplayItem] = None
@@ -344,7 +348,11 @@ class DataItemThumbnailSource(AbstractThumbnailSource):
         self.__display_item_binding: typing.Optional[Binding.Binding] = None
         self.__thumbnail_source: typing.Optional[Thumbnails.ThumbnailSource] = None
         self.__thumbnail_updated_event_listener: typing.Optional[Event.EventListener] = None
-        self.overlay_canvas_item = DataItemBitmapOverlayCanvasItem()
+
+        self.is_live_overlay_canvas_item = IsLiveOverlayCanvasItem()
+
+        self.overlay_canvas_items = [self.is_live_overlay_canvas_item] + (list(overlay_canvas_items) if overlay_canvas_items else [])
+
         if display_item:
             self.set_display_item(display_item)
         self.__update_display_item_task: typing.Optional[asyncio.Task[None]] = None
@@ -370,10 +378,10 @@ class DataItemThumbnailSource(AbstractThumbnailSource):
     def __update_thumbnail(self) -> None:
         if self.__display_item:
             self._set_thumbnail_data(Thumbnails.ThumbnailManager().thumbnail_data_for_display_item(self.__display_item))
-            setattr(self.overlay_canvas_item, "active", self.__display_item.is_live)
+            self.is_live_overlay_canvas_item.active = self.__display_item.is_live
         else:
             self._set_thumbnail_data(None)
-            setattr(self.overlay_canvas_item, "active", False)
+            self.is_live_overlay_canvas_item.active = False
         if callable(self.on_thumbnail_data_changed):
             self.on_thumbnail_data_changed(self.thumbnail_data)
 
