@@ -315,28 +315,6 @@ class LineGraphAxes:
             return xdata
 
 
-def are_axes_equal(axes1: typing.Optional[LineGraphAxes], axes2: typing.Optional[LineGraphAxes]) -> bool:
-    if (axes1 is None) != (axes2 is None):
-        return False
-    if axes1 is None or axes2 is None:
-        return True
-    if axes1.drawn_left_channel != axes2.drawn_left_channel:
-        return False
-    if axes1.drawn_right_channel != axes2.drawn_right_channel:
-        return False
-    if axes1.calibrated_data_min != axes2.calibrated_data_min:
-        return False
-    if axes1.calibrated_data_max != axes2.calibrated_data_max:
-        return False
-    if axes1.x_calibration != axes2.x_calibration:
-        return False
-    if axes1.y_calibration != axes2.y_calibration:
-        return False
-    if axes1.data_style != axes2.data_style:
-        return False
-    return True
-
-
 def draw_background(drawing_context: DrawingContext.DrawingContext, plot_rect: Geometry.IntRect, background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]) -> None:
     with drawing_context.saver():
         drawing_context.begin_path()
@@ -562,9 +540,9 @@ class LineGraphBackgroundCanvasItem(CanvasItem.AbstractCanvasItem):
         self.background_color = "#FFF"
 
     def set_axes(self, axes: typing.Optional[LineGraphAxes]) -> None:
-        if not are_axes_equal(self.__axes, axes):
-            self.__axes = axes
-            self.update()
+        # assume this is only called when axes changes
+        self.__axes = axes
+        self.update()
 
     def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
         # draw the data, if any
@@ -612,6 +590,7 @@ class LineGraphLayer:
         self.baseline = 0.0
 
     def set_axes(self, axes: typing.Optional[LineGraphAxes]) -> None:
+        # assume this is only called when axes changes
         self.__axes = axes
         self.__calibrated_xdata = None
 
@@ -681,16 +660,15 @@ class LineGraphLayersCanvasItem(CanvasItem.AbstractCanvasItem):
         return self.__axes
 
     def set_axes(self, axes: typing.Optional[LineGraphAxes]) -> None:
-        if not are_axes_equal(self.__axes, axes):
-            self.__axes = axes
-            for line_graph_layer in self.__line_graph_layers:
-                line_graph_layer.set_axes(axes)
-            self.update()
+        # assume this is only called when axes changes
+        self.__axes = axes
+        for line_graph_layer in self.__line_graph_layers:
+            line_graph_layer.set_axes(axes)
+        self.update()
 
     def update_line_graph_layers(self, line_graph_layers: typing.Sequence[LineGraphLayer], axes: typing.Optional[LineGraphAxes]) -> None:
         self.__line_graph_layers.clear()
         self.__line_graph_layers.extend(line_graph_layers)
-        self.__axes = None  # forces set_axes to update
         self.set_axes(axes)
 
     @property
@@ -727,9 +705,9 @@ class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__regions: typing.List[RegionInfo] = list()
 
     def set_axes(self, axes: typing.Optional[LineGraphAxes]) -> None:
-        if not are_axes_equal(self.__axes, axes):
-            self.__axes = axes
-            self.update()
+        # assume this is only called when axes changes
+        self.__axes = axes
+        self.update()
 
     def set_calibrated_data(self, calibrated_data: typing.Optional[_NDArray]) -> None:
         if calibrated_data is None or self.__calibrated_data is None or not numpy.array_equal(calibrated_data, self.__calibrated_data):
@@ -894,9 +872,9 @@ class LineGraphHorizontalAxisTicksCanvasItem(CanvasItem.AbstractCanvasItem):
         self.update_sizing(self.sizing.with_fixed_height(self.tick_height))
 
     def set_axes(self, axes: typing.Optional[LineGraphAxes]) -> None:
-        if not are_axes_equal(self.__axes, axes):
-            self.__axes = axes
-            self.update()
+        # assume this is only called when axes changes
+        self.__axes = axes
+        self.update()
 
     def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
         # draw the data, if any
@@ -927,12 +905,11 @@ class LineGraphHorizontalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
         self.update_sizing(self.sizing.with_fixed_height(self.font_size + 4))
 
     def set_axes(self, axes: typing.Optional[LineGraphAxes]) -> None:
-        if not are_axes_equal(self.__axes, axes):
-            self.__axes = axes
-            self.update()
+        # assume this is only called when axes changes
+        self.__axes = axes
+        self.update()
 
     def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
-
         # draw the data, if any
         axes = self.__axes
         canvas_size = self.canvas_size
@@ -973,10 +950,10 @@ class LineGraphHorizontalAxisLabelCanvasItem(CanvasItem.AbstractCanvasItem):
         self.update_sizing(new_sizing)
 
     def set_axes(self, axes: typing.Optional[LineGraphAxes]) -> None:
-        if not are_axes_equal(self.__axes, axes):
-            self.__axes = axes
-            self.size_to_content()
-            self.update()
+        # assume this is only called when axes changes
+        self.__axes = axes
+        self.size_to_content()
+        self.update()
 
     def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
         # draw the data, if any
@@ -1005,9 +982,9 @@ class LineGraphVerticalAxisTicksCanvasItem(CanvasItem.AbstractCanvasItem):
         self.update_sizing(self.sizing.with_fixed_width(self.tick_width))
 
     def set_axes(self, axes: typing.Optional[LineGraphAxes]) -> None:
-        if not are_axes_equal(self.__axes, axes):
-            self.__axes = axes
-            self.update()
+        # assume this is only called when axes changes
+        self.__axes = axes
+        self.update()
 
     def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
         # draw the data, if any
@@ -1086,14 +1063,14 @@ def calculate_scientific_notation_drawing_width(ui_settings: UISettings.UISettin
 class LineGraphVerticalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
     """Canvas item to draw the vertical scale."""
 
-    def __init__(self) -> None:
+    def __init__(self, ui_settings: UISettings.UISettings) -> None:
         super().__init__()
         self.__axes: typing.Optional[LineGraphAxes] = None
         self.font_size = 12
         self.__fonts = ("{0:d}px".format(self.font_size), "{0:d}px".format(int(self.font_size * 0.8)))
-        self.__ui_settings: typing.Optional[UISettings.UISettings] = None
+        self.__ui_settings = ui_settings
 
-    def size_to_content(self, ui_settings: UISettings.UISettings) -> None:
+    def size_to_content(self) -> None:
         """ Size the canvas item to the proper width, the maximum of any label. """
         new_sizing = self.copy_sizing()
 
@@ -1105,6 +1082,7 @@ class LineGraphVerticalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
             # calculate the width based on the label lengths
             max_width = 0
             y_range = axes.calibrated_value_max - axes.calibrated_value_min
+            ui_settings = self.__ui_settings
             max_width = max(max_width, calculate_scientific_notation_drawing_width(ui_settings, self.__fonts, axes.y_ticker.value_label(axes.calibrated_value_max + y_range * 5)))
             max_width = max(max_width, calculate_scientific_notation_drawing_width(ui_settings, self.__fonts, axes.y_ticker.value_label(axes.calibrated_value_min - y_range * 5)))
             new_sizing = new_sizing.with_minimum_width(max_width)
@@ -1112,13 +1090,11 @@ class LineGraphVerticalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
 
         self.update_sizing(new_sizing)
 
-        self.__ui_settings = ui_settings  # hack
-
-    def set_axes(self, axes: typing.Optional[LineGraphAxes], ui_settings: UISettings.UISettings) -> None:
-        if not are_axes_equal(self.__axes, axes):
-            self.__axes = axes
-            self.size_to_content(ui_settings)
-            self.update()
+    def set_axes(self, axes: typing.Optional[LineGraphAxes]) -> None:
+        # assume this is only called when axes changes
+        self.__axes = axes
+        self.size_to_content()
+        self.update()
 
     def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
         # draw the data, if any
@@ -1182,13 +1158,12 @@ class LineGraphVerticalAxisLabelCanvasItem(CanvasItem.AbstractCanvasItem):
         self.update_sizing(new_sizing)
 
     def set_axes(self, axes: typing.Optional[LineGraphAxes]) -> None:
-        if not are_axes_equal(self.__axes, axes):
-            self.__axes = axes
-            self.size_to_content()
-            self.update()
+        # assume this is only called when axes changes
+        self.__axes = axes
+        self.size_to_content()
+        self.update()
 
     def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
-
         # draw the data, if any
         axes = self.__axes
         canvas_size = self.canvas_size
@@ -1269,7 +1244,10 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
         self.wants_mouse_events = True
         self.wants_drag_events = True
         self.__ui_settings = ui_settings
-        self.font_size = 12
+        self.font_size: typing.Final = 12
+
+        # caching
+        self.__needs_size_to_content = True
 
     def __generate_effective_entries(self) -> None:
         """
@@ -1283,37 +1261,43 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
             effective_entries.insert(self.__entry_to_insert, effective_entries.pop(self.__dragging_index))
 
         self.__effective_entries = effective_entries
+        self.__needs_size_to_content = True
 
         self.size_to_content()
 
     def size_to_content(self) -> None:
-        line_height = self.font_size + 4
-        border = 4
+        if self.__needs_size_to_content:
+            line_height = self.font_size + 4
+            border = 4
 
-        legend_height = len(self.__effective_entries) * line_height + border * 2
+            effective_entries = self.effective_entries
 
-        if len(self.effective_entries) == 0:
-            legend_height = 0
+            legend_height = len(effective_entries) * line_height + border * 2
 
-        text_width = 0
-        font = "{0:d}px".format(self.font_size)
+            if len(effective_entries) == 0:
+                legend_height = 0
 
-        for index, legend_entry in enumerate(self.effective_entries):
-            text_width = max(text_width, self.__ui_settings.get_font_metrics(font, legend_entry.label).width)
+            text_width = 0
+            font = "{0:d}px".format(self.font_size)
 
-        legend_width = text_width + border * 2 + line_height
+            for index, legend_entry in enumerate(effective_entries):
+                text_width = max(text_width, self.__ui_settings.get_font_metrics(font, legend_entry.label).width)
 
-        new_sizing = self.copy_sizing().with_fixed_width(legend_width).with_fixed_height(legend_height)
-        self.update_sizing(new_sizing)
+            legend_width = text_width + border * 2 + line_height
+
+            new_sizing = self.copy_sizing().with_fixed_width(legend_width).with_fixed_height(legend_height)
+            self.update_sizing(new_sizing)
+
+            self.__needs_size_to_content = False
 
     def wants_drag_event(self, mime_data: UserInterface.MimeData, x: int, y: int) -> bool:
         return mime_data.has_format(MimeTypes.LAYER_MIME_TYPE)
 
     def set_legend_entries(self, legend_entries: typing.Sequence[LegendEntry]) -> None:
-        if self.__legend_entries != legend_entries:
-            self.__legend_entries = list(legend_entries)
-            self.__generate_effective_entries()
-            self.update()
+        # assume this is only called when legend entries changes
+        self.__legend_entries = list(legend_entries)
+        self.__generate_effective_entries()
+        self.update()
 
     def __get_legend_index(self, x: int, y: int, ignore_y: bool = False, insertion: bool = False) -> int:
         # Returns the current index at a certain x and y if over a legend item, otherwise returns -1. If ignore_y is set,
