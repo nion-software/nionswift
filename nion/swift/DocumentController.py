@@ -352,10 +352,10 @@ class DocumentController(Window.Window):
     def _register_ui_activity(self) -> None:
         self.__last_activity = time.time()
 
-    def about_to_show(self) -> None:
-        pass  # Previously this contained UI state/geometry loading which has now been moved.
-
     def restore_ui_state_and_geometry(self) -> None:
+        # this is done only when the project is first loaded. it used to be done anytime the window was shown (via
+        # about_to_show), which included times when it was restored from a minimized state. this led to quirky behavior
+        # when restoring from minimized state. doing this only once at document load fixes that issue.
         workspace_controller = self.workspace_controller
         if workspace_controller:
             geometry, state = workspace_controller.restore_geometry_state()
