@@ -1982,7 +1982,7 @@ class DocumentController(Window.Window):
         selected_display_panel = self.selected_display_panel
         display_item = selected_display_panel.display_item if selected_display_panel else None
         data_item = display_item.data_item if display_item else None
-        if data_item:
+        if display_item and data_item:
 
             def describe_data_descriptor(data_descriptor: DataAndMetadata.DataDescriptor, data_shape: typing.Sequence[int]) -> str:
                 if data_descriptor.is_sequence:

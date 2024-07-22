@@ -831,8 +831,8 @@ class LinePlotDisplayLayersInspectorSection(InspectorSection):
                 command.perform()
                 document_controller.push_undo_command(command)
 
-        def add_layer(display_layer: DisplayItem.DisplayLayer) -> None:
-            index = display_item.display_layers.index(display_layer) + 1
+        def add_layer(display_layer: typing.Optional[DisplayItem.DisplayLayer]) -> None:
+            index = display_item.display_layers.index(display_layer) + 1 if display_layer else 0
             command = DisplayPanel.AddDisplayLayerCommand(document_controller.document_model, display_item, index)
             command.perform()
             document_controller.push_undo_command(command)
@@ -1036,7 +1036,7 @@ class LinePlotDisplayLayersInspectorSection(InspectorSection):
         button_row = ui.create_row_widget()
         button_row.add(add_layer_button_widget)
         button_row.add_stretch()
-        add_layer_button_widget.on_clicked = functools.partial(add_layer, 0)
+        add_layer_button_widget.on_clicked = functools.partial(add_layer, None)
         column.add(button_row)
 
         def update_labels() -> None:
