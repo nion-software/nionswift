@@ -2,7 +2,6 @@ from __future__ import annotations
 
 
 # standard libraries
-import functools
 import enum
 import gettext
 import logging
@@ -310,8 +309,8 @@ class ExportSVGHandler:
         newshape = self.convert_from_pixels(self.size, new_unit_type)
 
         if new_unit_type == UnitType.PIXELS:
-            new_width:float = round(newshape.width)
-            new_height:float = round(newshape.height)
+            new_width = round(newshape.width)
+            new_height = round(newshape.height)
         else:
             new_width = round(newshape.width, 6)
             new_height = round(newshape.height, 6)
@@ -368,7 +367,7 @@ class ExportSVGDialog:
             filter = "SVG File (*.svg);;All Files (*.*)"
             export_dir = ui.get_persistent_string("export_directory", ui.get_document_location())
             export_dir = os.path.join(export_dir, display_item.displayed_title)
-            path, selected_filter, selected_directory = document_controller.get_save_file_path(_("Export File"),export_dir, filter, None)
+            path, selected_filter, selected_directory = document_controller.get_save_file_path(_("Export File"), export_dir, filter, None)
             if path and not os.path.splitext(path)[1]:
                 path = path + os.path.extsep + "svg"
             if path:
