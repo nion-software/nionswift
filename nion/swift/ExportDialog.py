@@ -2,6 +2,7 @@ from __future__ import annotations
 
 # standard libraries
 import dataclasses
+import enum
 import functools
 import gettext
 import logging
@@ -28,12 +29,15 @@ from nion.ui import UserInterface
 from nion.utils import Converter
 from nion.utils import Geometry
 from nion.utils import Model
-
+from nion.utils import Observable
 
 if typing.TYPE_CHECKING:
     from nion.swift.model import DisplayItem
 
 _ = gettext.gettext
+
+PIXELS_PER_INCH = 96.0
+PIXELS_PER_CM = 37.795275591
 
 
 class ExportDialogViewModel:
@@ -246,66 +250,176 @@ class ExportDialog(Declarative.Handler):
         return True
 
 
-class ExportSVGHandler:
-    def __init__(self, display_size: Geometry.IntSize) -> None:
-        self.width_model = Model.PropertyModel(display_size.width)
-        self.height_model = Model.PropertyModel(display_size.height)
+class UnitType(enum.Enum):
+    PIXELS = 0
+    INCHES = 1
+    CENTIMETERS = 2
 
-        self.int_converter = Converter.IntegerToStringConverter()
 
+ConversionUnits = {
+    UnitType.PIXELS: 1,
+    UnitType.CENTIMETERS: 37,
+    UnitType.INCHES: 96
+}
+
+
+class ExportSizeModel(Observable.Observable):
+    def __init__(self, display_item: DisplayItem.DisplayItem) -> None:
+        super().__init__()
+        display_size = self.__determine_display_size(display_item)
+        self.__width: int = display_size.width
+        self.__height: int = display_size.height
+        self.__aspect_ratio = self.__width / self.__height
+        self.__units = UnitType.PIXELS
+
+    def __determine_display_size(self, display_item: DisplayItem.DisplayItem) -> Geometry.IntSize:
+        if display_item.display_data_shape and len(display_item.display_data_shape) == 2:
+            return Geometry.IntSize(height=display_item.display_data_shape[0], width=display_item.display_data_shape[1])
+        return Geometry.IntSize(height=3, width=5)
+
+    @property
+    def width(self) -> float:
+        return self.__convert_from_pixels(self.__width)
+
+    @width.setter
+    def width(self, new_width: float) -> None:
+        self.__width = self.__convert_to_pixels(new_width)
+        self.__height = int(self.__width / self.__aspect_ratio)
+        self.notify_property_changed("width")
+        self.notify_property_changed("height")
+
+    @property
+    def height(self) -> float:
+        return self.__convert_from_pixels(self.__height)
+
+    @height.setter
+    def height(self, new_height: float) -> None:
+        self.__height = self.__convert_to_pixels(new_height)
+        self.__width = int(self.__height * self.__aspect_ratio)
+        self.notify_property_changed("width")
+        self.notify_property_changed("height")
+
+    @property
+    def units(self) -> int:
+        return self.__units.value
+
+    @units.setter
+    def units(self, new_units: int) -> None:
+        new_enum = UnitType(new_units)
+        if self.__units != new_enum:
+            self.__units = new_enum
+            self.notify_property_changed("width")
+            self.notify_property_changed("height")
+
+    def __convert_to_pixels(self, value: float) -> int:
+        return int(round(value * ConversionUnits[self.__units]))
+
+    def __convert_from_pixels(self, value: int) -> float:
+        return value / ConversionUnits[self.__units]
+
+
+class ExportSVGHandler(Declarative.Handler):
+    width_value_line_edit: UserInterface.LineEditWidget
+    height_value_line_edit: UserInterface.LineEditWidget
+
+    def __init__(self, model: ExportSizeModel) -> None:
+        super().__init__()
+        self.model = model  # Ensure model is an attribute of the handler
         u = Declarative.DeclarativeUI()
-        width_row = u.create_row(u.create_label(text=_("Width (in)"), width=80), u.create_line_edit(text="@binding(width_model.value, converter=int_converter)"), spacing=12)
-        height_row = u.create_row(u.create_label(text=_("Height (in)"), width=80), u.create_line_edit(text="@binding(height_model.value, converter=int_converter)"), spacing=12)
-        main_page = u.create_column(width_row, height_row, spacing=12, margin=12)
+        self._float_to_string_converter = Converter.FloatToStringConverter()
 
-        self.ui_view = main_page
+        self.ui_view = u.create_column(
+            u.create_row(
+                u.create_label(text=_("Width:"), width=80),
+                u.create_line_edit(
+                    text="@binding(model.width, converter=_float_to_string_converter)",
+                    on_text_edited="value_updated",
+                    background_color="white",
+                    name="width_value_line_edit"
 
-    def close(self) -> None:
-        pass
+                ),
+                spacing=12
+            ),
+            u.create_row(
+                u.create_label(text=_("Height:"), width=80),
+                u.create_line_edit(
+                    text="@binding(model.height, converter=_float_to_string_converter)",
+                    on_text_edited="value_updated",
+                    background_color="white",
+                    name="height_value_line_edit"
+
+                ),
+                spacing=12
+            ),
+            u.create_row(
+                u.create_label(text=_("Units:"), width=80),
+                u.create_combo_box(
+                    items=[_("Pixels"), _("Inches"), _("Centimeters")],
+                    current_index="@binding(model.units)",
+                ),
+                spacing=12
+            ),
+            spacing=12,
+            margin=12
+        )
+
+    def value_updated(self, widget: UserInterface.LineEditWidget, text: str) -> None:
+
+        if widget == self.width_value_line_edit:
+            self.height_value_line_edit.background_color = "lightgray"
+            self.width_value_line_edit.background_color = "white"
+        elif widget == self.height_value_line_edit:
+            self.width_value_line_edit.background_color = "lightgray"
+            self.height_value_line_edit.background_color = "white"
 
 
 class ExportSVGDialog:
-
-    def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem) -> None:
+    def __init__(self, document_controller: DocumentController.DocumentController,
+                 display_item: DisplayItem.DisplayItem) -> None:
         super().__init__()
-
         self.__document_controller = document_controller
+        self.__display_item = display_item
+        self.__model = ExportSizeModel(display_item)
+        self.__handler = ExportSVGHandler(self.__model)
+        self.__init_ui()
 
+    def __init_ui(self) -> None:
         u = Declarative.DeclarativeUI()
-
-        if display_item.display_data_shape and len(display_item.display_data_shape) == 2:
-            display_size = Geometry.IntSize(height=4, width=4)
-        else:
-            display_size = Geometry.IntSize(height=3, width=4)
-
-        handler = ExportSVGHandler(display_size)
-
-        def ok_clicked() -> bool:
-            dpi = 96
-            width_px = (handler.width_model.value or display_size.width) * dpi
-            height_px = (handler.height_model.value or display_size.height) * dpi
-
-            ui = document_controller.ui
-            filter = "SVG File (*.svg);;All Files (*.*)"
-            export_dir = ui.get_persistent_string("export_directory", ui.get_document_location())
-            export_dir = os.path.join(export_dir, display_item.displayed_title)
-            path, selected_filter, selected_directory = document_controller.get_save_file_path(_("Export File"), export_dir, filter, None)
-            if path and not os.path.splitext(path)[1]:
-                path = path + os.path.extsep + "svg"
-            if path:
-                ui.set_persistent_string("export_directory", selected_directory)
-                display_shape = Geometry.IntSize(height=height_px, width=width_px)
-                document_controller.export_svg_file(DisplayPanel.DisplayPanelUISettings(ui), display_item, display_shape, pathlib.Path(path))
-            return True
-
-        def cancel_clicked() -> bool:
-            return True
-
-        dialog = typing.cast(Dialog.ActionDialog, Declarative.construct(document_controller.ui, document_controller, u.create_modeless_dialog(handler.ui_view, title=_("Export SVG")), handler))
-        dialog.add_button(_("Cancel"), cancel_clicked)
-        dialog.add_button(_("Export"), ok_clicked)
-
+        dialog = typing.cast(Dialog.ActionDialog, Declarative.construct(
+            self.__document_controller.ui,
+            self.__document_controller,
+            u.create_modeless_dialog(
+                self.__handler.ui_view, title=_("Export SVG")
+            ),
+            self.__handler
+        ))
+        dialog.add_button(_("Cancel"), self.__cancel_clicked)
+        dialog.add_button(_("Export"), self.__ok_clicked)
         dialog.show()
+
+    def __ok_clicked(self) -> bool:
+        display_shape = Geometry.IntSize(width=int(self.__model.width), height=int(self.__model.height))
+        ui = self.__document_controller.ui
+        filter = "SVG File (*.svg);;All Files (*.*)"
+        export_dir = ui.get_persistent_string("export_directory", ui.get_document_location())
+        export_dir = os.path.join(export_dir, self.__display_item.displayed_title)
+        path, selected_filter, selected_directory = self.__document_controller.get_save_file_path(
+            _("Export File"), export_dir, filter, None
+        )
+        if path and not os.path.splitext(path)[1]:
+            path = path + os.path.extsep + "svg"
+        if path:
+            ui.set_persistent_string("export_directory", selected_directory)
+            self.__document_controller.export_svg_file(
+                DisplayPanel.DisplayPanelUISettings(ui),
+                self.__display_item,
+                display_shape,
+                pathlib.Path(path)
+            )
+        return True
+
+    def __cancel_clicked(self) -> bool:
+        return True
 
 
 @dataclasses.dataclass
