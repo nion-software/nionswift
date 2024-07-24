@@ -2266,11 +2266,14 @@ class LinePlotDisplayInspectorSection(InspectorSection):
 
 
 class SequenceSectionHandler(Declarative.Handler):
-    def __init__(self, document_controller: DocumentController.DocumentController, display_data_channel: DisplayItem.DisplayDataChannel):
+    def __init__(self, document_controller: DocumentController.DocumentController, display_data_channel: DisplayItem.DisplayDataChannel) -> None:
         super().__init__()
 
+        data_item = display_data_channel.data_item
+        assert data_item
+
         self.sequence_index_model = DisplayDataChannelPropertyCommandModel(document_controller, display_data_channel, "sequence_index", title=_("Change Sequence Index"), command_id="change_sequence_index")
-        self.sequence_index_maximum = display_data_channel.data_item.dimensional_shape[-1] if display_data_channel.data_item else 0
+        self.sequence_index_maximum = data_item.dimensional_shape[0] -1  if display_data_channel.data_item else 0
 
         u = Declarative.DeclarativeUI()
 
@@ -2279,9 +2282,9 @@ class SequenceSectionHandler(Declarative.Handler):
         self.ui_view = u.create_row(
             u.create_label(text="Index", width=60),
             u.create_spacing(8),
-            u.create_slider(value="@binding(sequence_index_model)", maximum=self.sequence_index_maximum, width=144),
+            u.create_slider(value="@binding(sequence_index_model.value)", maximum=self.sequence_index_maximum, width=144),
             u.create_spacing(8),
-            u.create_line_edit(text="@binding(sequence_index_model, converter=_int_to_string_converter", width=60),
+            u.create_line_edit(text="@binding(sequence_index_model.value, converter=_int_to_string_converter)", width=60),
             u.create_stretch()
         )
 
@@ -2295,32 +2298,11 @@ class SequenceInspectorSection(InspectorSection):
     def __init__(self, document_controller: DocumentController.DocumentController, display_data_channel: DisplayItem.DisplayDataChannel) -> None:
         super().__init__(document_controller.ui, "sequence", _("Sequence"))
 
-        data_item = display_data_channel.data_item
-        assert data_item
+        self._sequence_section_handler = SequenceSectionHandler(document_controller, display_data_channel)
 
-        sequence_index_row_widget = self.ui.create_row_widget()  # use 280 pixels in row
-        sequence_index_label_widget = self.ui.create_label_widget(_("Index"), properties={"width": 60})
-        sequence_index_line_edit_widget = self.ui.create_line_edit_widget(properties={"width": 60})
-        sequence_index_slider_widget = self.ui.create_slider_widget(properties={"width": 144})
-        sequence_index_slider_widget.maximum = data_item.dimensional_shape[0] - 1  # sequence_index
-        sequence_index_slider_widget.bind_value(ChangeDisplayDataChannelPropertyBinding(document_controller, display_data_channel, "sequence_index"))
-        sequence_index_line_edit_widget.bind_text(ChangeDisplayDataChannelPropertyBinding(document_controller, display_data_channel, "sequence_index", converter=Converter.IntegerToStringConverter()))
-        sequence_index_row_widget.add(sequence_index_label_widget)
-        sequence_index_row_widget.add_spacing(8)
-        sequence_index_row_widget.add(sequence_index_slider_widget)
-        sequence_index_row_widget.add_spacing(8)
-        sequence_index_row_widget.add(sequence_index_line_edit_widget)
-        sequence_index_row_widget.add_stretch()
-
-        self.add_widget_to_content(sequence_index_row_widget)
-        self.finish_widget_content()
-
-        # for testing
-        self._sequence_index_slider_widget = sequence_index_slider_widget
-        self._sequence_index_line_edit_widget = sequence_index_line_edit_widget
-
-        # add unbinders
-        self._unbinder.add([display_data_channel], [sequence_index_slider_widget.unbind_value, sequence_index_line_edit_widget.unbind_text])
+        widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop,
+                                               self._sequence_section_handler)
+        self.add_widget_to_content(widget)
 
 
 class CollectionIndexInspectorSection(InspectorSection):
