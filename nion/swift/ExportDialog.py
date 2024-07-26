@@ -14,6 +14,7 @@ import subprocess
 import traceback
 import typing
 import unicodedata
+import traceback
 
 # third party libraries
 # None
@@ -35,9 +36,6 @@ if typing.TYPE_CHECKING:
     from nion.swift.model import DisplayItem
 
 _ = gettext.gettext
-
-PIXELS_PER_INCH = 96.0
-PIXELS_PER_CM = 37.795275591
 
 
 class ExportDialogViewModel:
@@ -257,47 +255,65 @@ class UnitType(enum.Enum):
 
 
 ConversionUnits = {
-    UnitType.PIXELS: 1,
-    UnitType.CENTIMETERS: 37,
-    UnitType.INCHES: 96
+    UnitType.PIXELS: 1.0,
+    UnitType.CENTIMETERS: 37.795275591,
+    UnitType.INCHES: 96.0
 }
 
 
 class ExportSizeModel(Observable.Observable):
     def __init__(self, display_item: DisplayItem.DisplayItem) -> None:
         super().__init__()
-        display_size = self.__determine_display_size(display_item)
-        self.__width: int = display_size.width
-        self.__height: int = display_size.height
+        display_size = self.__calculate_display_size_in_pixels(display_item)
+        self.__width = display_size.width
+        self.__height = display_size.height
         self.__aspect_ratio = self.__width / self.__height
         self.__units = UnitType.PIXELS
+        self.__float_to_string_converter = Converter.FloatToStringConverter()
+        self.__width_text: typing.Optional[str] = None
+        self.__height_text: typing.Optional[str] = None
 
-    def __determine_display_size(self, display_item: DisplayItem.DisplayItem) -> Geometry.IntSize:
+    def __calculate_display_size_in_pixels(self, display_item: DisplayItem.DisplayItem) -> Geometry.IntSize:
         if display_item.display_data_shape and len(display_item.display_data_shape) == 2:
             return Geometry.IntSize(height=display_item.display_data_shape[0], width=display_item.display_data_shape[1])
-        return Geometry.IntSize(height=3, width=5)
+        return Geometry.IntSize(height=288, width=480)
 
     @property
     def width(self) -> float:
         return self.__convert_from_pixels(self.__width)
+    @property
+    def width_text(self) -> typing.Optional[str]:
+        return self.__width_text
 
-    @width.setter
-    def width(self, new_width: float) -> None:
-        self.__width = self.__convert_to_pixels(new_width)
-        self.__height = int(self.__width / self.__aspect_ratio)
-        self.notify_property_changed("width")
-        self.notify_property_changed("height")
+    @width_text.setter
+    def width_text(self, new_width: typing.Optional[str]) -> None:
+        if new_width is not None and new_width != "":
+            self.__width = self.__convert_to_pixels(self.__float_to_string_converter.convert_back(new_width))
+            self.__height = int(self.__width / self.__aspect_ratio)
+            self.__height_text = None
+            self.notify_property_changed("height_text")
+            self.notify_property_changed("width")
+            self.notify_property_changed("height")
+        self.__width_text = new_width
+        self.notify_property_changed("width_text")
 
     @property
     def height(self) -> float:
         return self.__convert_from_pixels(self.__height)
-
-    @height.setter
-    def height(self, new_height: float) -> None:
-        self.__height = self.__convert_to_pixels(new_height)
-        self.__width = int(self.__height * self.__aspect_ratio)
-        self.notify_property_changed("width")
-        self.notify_property_changed("height")
+    @property
+    def height_text(self) -> typing.Optional[str]:
+        return self.__height_text
+    @height_text.setter
+    def height_text(self, new_height: typing.Optional[str]) -> None:
+        if new_height is not None and new_height != "":
+            self.__height = self.__convert_to_pixels(self.__float_to_string_converter.convert_back(new_height))
+            self.__width = int(self.__height * self.__aspect_ratio)
+            self.__width_text = None
+            self.notify_property_changed("width_text")
+            self.notify_property_changed("width")
+            self.notify_property_changed("height")
+        self.__height_text = new_height
+        self.notify_property_changed("height_text")
 
     @property
     def units(self) -> int:
@@ -311,11 +327,16 @@ class ExportSizeModel(Observable.Observable):
             self.notify_property_changed("width")
             self.notify_property_changed("height")
 
-    def __convert_to_pixels(self, value: float) -> int:
-        return int(round(value * ConversionUnits[self.__units]))
+    def __convert_to_pixels(self, value: typing.Optional[float]) -> int:
+        if value is not None:
+            return int(round(value * ConversionUnits[self.__units]))
+        else:
+            return 0
 
     def __convert_from_pixels(self, value: int) -> float:
         return value / ConversionUnits[self.__units]
+    def getshape(self) -> Geometry.IntSize:
+        return Geometry.IntSize(height=self.__height, width=self.__width)
 
 
 class ExportSVGHandler(Declarative.Handler):
@@ -332,22 +353,16 @@ class ExportSVGHandler(Declarative.Handler):
             u.create_row(
                 u.create_label(text=_("Width:"), width=80),
                 u.create_line_edit(
-                    text="@binding(model.width, converter=_float_to_string_converter)",
-                    on_text_edited="value_updated",
-                    background_color="white",
-                    name="width_value_line_edit"
-
+                    placeholder_text="@binding(model.width, converter=_float_to_string_converter)",
+                    text="@binding(model.width_text)"
                 ),
                 spacing=12
             ),
             u.create_row(
                 u.create_label(text=_("Height:"), width=80),
                 u.create_line_edit(
-                    text="@binding(model.height, converter=_float_to_string_converter)",
-                    on_text_edited="value_updated",
-                    background_color="white",
-                    name="height_value_line_edit"
-
+                    placeholder_text="@binding(model.height, converter=_float_to_string_converter)",
+                    text="@binding(model.height_text)"
                 ),
                 spacing=12
             ),
@@ -362,15 +377,6 @@ class ExportSVGHandler(Declarative.Handler):
             spacing=12,
             margin=12
         )
-
-    def value_updated(self, widget: UserInterface.LineEditWidget, text: str) -> None:
-
-        if widget == self.width_value_line_edit:
-            self.height_value_line_edit.background_color = "lightgray"
-            self.width_value_line_edit.background_color = "white"
-        elif widget == self.height_value_line_edit:
-            self.width_value_line_edit.background_color = "lightgray"
-            self.height_value_line_edit.background_color = "white"
 
 
 class ExportSVGDialog:
@@ -398,7 +404,7 @@ class ExportSVGDialog:
         dialog.show()
 
     def __ok_clicked(self) -> bool:
-        display_shape = Geometry.IntSize(width=int(self.__model.width), height=int(self.__model.height))
+        display_shape = self.__model.getshape()
         ui = self.__document_controller.ui
         filter = "SVG File (*.svg);;All Files (*.*)"
         export_dir = ui.get_persistent_string("export_directory", ui.get_document_location())
