@@ -934,6 +934,7 @@ class Workspace:
         index = container.canvas_items.index(display_panel)
         if isinstance(container, CanvasItem.SplitterCanvasItem):
             # modify the existing splitter
+            splits = list(container.splits)
             old_split = container.splits[index] if not new_splits else 0.0
             new_index_adj = 1 if region == "right" or region == "bottom" else 0
             new_display_panel = DisplayPanel.DisplayPanel(self.document_controller, dict(), new_uuid)
@@ -948,7 +949,9 @@ class Workspace:
             if new_splits:
                 container.splits = copy.copy(new_splits)
             else:
-                splits = list(container.splits)
+                # splits = list(container.splits)
+                splits[index] = old_split * 0.5
+                splits.insert(index, old_split * 0.5)
                 splits[index] = old_split * 0.5
                 splits[index + 1] = old_split * 0.5
                 container.splits = splits
