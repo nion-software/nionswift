@@ -49,7 +49,6 @@ from nion.utils import Observable
 from nion.utils import ReferenceCounting
 from nion.utils import Registry
 from nion.utils import Validator
-from nion.utils.Model import T
 
 if typing.TYPE_CHECKING:
     from nion.swift import Application
@@ -2284,7 +2283,7 @@ class SequenceInspectorSection(InspectorSection):
 
 
 class CollectionIndexModel(Observable.Observable):
-    def __init__(self, display_data_channel: DisplayItem.DisplayDataChannel, collection_index_model: DisplayDataChannelPropertyCommandModel, index: int) -> None:
+    def __init__(self, display_data_channel: DisplayItem.DisplayDataChannel, collection_index_model: Model.PropertyModel[typing.Tuple[int, ...]], index: int) -> None:
         super().__init__()
 
         data_item = display_data_channel.data_item
@@ -2295,6 +2294,15 @@ class CollectionIndexModel(Observable.Observable):
         self.__index = index
         self.__collection_index_base = 1 if self.__data_item.is_sequence else 0
         self.__collection_index_model = collection_index_model
+        self.__collection_index_model_listener = self.__collection_index_model.property_changed_event.listen(
+            ReferenceCounting.weak_partial(CollectionIndexModel.__handle_collection_index_changed, self))
+        self.__last_value = self.value
+
+    def __handle_collection_index_changed(self, property_name: str) -> None:
+        if property_name == "value":
+            if self.value != self.__last_value:
+                self.__last_value = self.value
+                self.notify_property_changed("value")
 
     @property
     def display_data_channel(self) -> DisplayItem.DisplayDataChannel:
@@ -2309,8 +2317,17 @@ class CollectionIndexModel(Observable.Observable):
         return self.__index
 
     @property
-    def collection_index_model(self) -> DisplayDataChannelPropertyCommandModel:
-        return self.__collection_index_model
+    def value(self) -> int:
+        tuple_value = self.__collection_index_model.value
+        return tuple_value[self.__index] if tuple_value else 0
+
+    @value.setter
+    def value(self, value: int) -> None:
+        tuple_value = self.__collection_index_model.value
+        collection_index = list(tuple_value) if tuple_value else []
+        collection_index[self.__index] = value
+        self.__collection_index_model.value = tuple(collection_index)
+        self.__last_value = self.value
 
 
 class CollectionIndexHandler(Declarative.Handler):
@@ -2318,19 +2335,15 @@ class CollectionIndexHandler(Declarative.Handler):
         super().__init__()
 
         self._collection_model = collection_model
-        self._tuple_to_int_converter = Converter.TupleToValueConverter(self._collection_model.collection_index_model,
-                                                                       "value", self._collection_model.index)
-        self._tuple_to_string_converter = Converter.TupleOfIntegersToStringValueConverter(self._collection_model.collection_index_model,
-                                                                       "value", self._collection_model.index)
+        self._int_to_string_converter = Converter.IntegerToStringConverter()
 
         u = Declarative.DeclarativeUI()
         self.ui_view = u.create_row(
                 u.create_label(text="{}: {}".format(_("Index"), self._collection_model.index), width=60),
                 u.create_spacing(8),
-                u.create_line_edit(text="@binding(_collection_model.collection_index_model.value, converter=_tuple_to_string_converter)", width=60),
+                u.create_line_edit(text="@binding(_collection_model.value, converter=_int_to_string_converter)", width=60),
                 u.create_spacing(8),
-                u.create_slider(value="@binding(_collection_model.collection_index_model.value, converter=_tuple_to_int_converter)",
-                                maximum=self._collection_model.index_maximum, width=144),
+                u.create_slider(value="@binding(_collection_model.value)", maximum=self._collection_model.index_maximum, width=144),
                 u.create_stretch()
             )
 
