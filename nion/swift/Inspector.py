@@ -547,7 +547,7 @@ class DisplayPropertyCommandModel(Model.PropertyChangedPropertyModel[typing.Any]
     """
 
     def __init__(self, document_controller: DocumentController.DocumentController,
-                 display_item: DisplayItem, property_name: str) -> None:
+                 display_item: DisplayItem.DisplayItem, property_name: str) -> None:
         super().__init__(display_item, property_name)
         self.__display_item = display_item
         self.__document_controller = document_controller
