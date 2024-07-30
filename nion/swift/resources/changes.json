@@ -20,6 +20,9 @@
       {
         "issues": ["https://github.com/nion-software/nionswift/issues/245"],
         "summary": "Exporting to CSV only allows 1D or 2D data."
+      },
+      {
+        "summary": "Allow user to assign/unassign rectangle used for cropping computation data source inputs using icon overlay."
       }
     ]
   },

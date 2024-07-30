@@ -77,8 +77,7 @@ class GraphicSelection:
     @property
     def current_index(self) -> typing.Optional[int]:
         if len(self.__indexes) == 1:
-            for index in self.__indexes:
-                return index
+            return next(iter(self.__indexes))
         return None
 
     @property
@@ -2997,6 +2996,12 @@ class DisplayItem(Persistence.PersistentObject):
     @property
     def selected_graphics(self) -> typing.Sequence[Graphics.Graphic]:
         return [self.graphics[i] for i in self.graphic_selection.indexes]
+
+    @property
+    def selected_graphic(self) -> typing.Optional[Graphics.Graphic]:
+        if selected_graphic_index := self.graphic_selection.current_index:
+            return self.graphics[selected_graphic_index]
+        return None
 
     def __insert_graphic(self, name: str, before_index: int, graphic: Graphics.Graphic) -> None:
         graphic_changed_listener = graphic.property_changed_event.listen(lambda p: self.__graphic_changed(graphic))

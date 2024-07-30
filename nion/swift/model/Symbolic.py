@@ -2620,6 +2620,10 @@ class Computation(Persistence.PersistentObject):
                 traceback.print_exc()
         return None
 
+    @property
+    def _processor_description(self) -> typing.Optional[ComputationProcessor]:
+        return self.__processor
+
 
 class ComputationExecutor:
 
@@ -3000,6 +3004,12 @@ class ComputationProcessor:
             if source.name == input_key:
                 return source.needs_update_for_event(event_type)
         return True
+
+    def get_source(self, name: str) -> typing.Optional[ComputationProcessorSource]:
+        for source in self.sources:
+            if source.name == name:
+                return source
+        return None
 
 
 class RegisteredComputationExecutor(ComputationExecutor):

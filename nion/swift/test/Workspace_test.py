@@ -1658,6 +1658,41 @@ class TestWorkspaceClass(unittest.TestCase):
         finally:
             DisplayPanel.DisplayPanelManager().unregister_display_panel_controller_factory("test")
 
+    def test_split_within_split_keeps_parent_splits(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=100, height=100))
+            workspace_controller = document_controller.workspace_controller
+            display_panel = workspace_controller.display_panels[0]
+            document_controller.selected_display_panel = display_panel
+            document_controller.perform_action("workspace.split_2x2")
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=100, height=100))
+            expected_bounds = [
+                Geometry.IntRect.from_tlhw(0, 0, 50, 50),
+                Geometry.IntRect.from_tlhw(0, 50, 50, 50),
+                Geometry.IntRect.from_tlhw(50, 0, 50, 50),
+                Geometry.IntRect.from_tlhw(50, 50, 50, 50)
+            ]
+            for bounds, display_panel in zip(expected_bounds, workspace_controller.display_panels):
+                self.assertEqual(bounds.size, display_panel.canvas_bounds.size)
+                self.assertEqual(bounds.origin, display_panel.map_to_root_container(display_panel.canvas_bounds.origin))
+            document_controller.selected_display_panel = workspace_controller.display_panels[3]
+            document_controller.perform_action("workspace.split_2x2")
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=100, height=100))
+            expected_bounds = [
+                Geometry.IntRect.from_tlhw(0, 0, 50, 50),
+                Geometry.IntRect.from_tlhw(0, 50, 50, 50),
+                Geometry.IntRect.from_tlhw(50, 0, 50, 50),
+                Geometry.IntRect.from_tlhw(50, 50, 25, 25),
+                Geometry.IntRect.from_tlhw(50, 75, 25, 25),
+                Geometry.IntRect.from_tlhw(75, 50, 25, 25),
+                Geometry.IntRect.from_tlhw(75, 75, 25, 25),
+            ]
+            for bounds, display_panel in zip(expected_bounds, workspace_controller.display_panels):
+                self.assertEqual(bounds.size, display_panel.canvas_bounds.size)
+                self.assertEqual(bounds.origin, display_panel.map_to_root_container(display_panel.canvas_bounds.origin))
+
     # def test_display_panel_controller_initially_displays_existing_data(self):
     #     # cannot implement until common code for display controllers is moved into document model
     #     pass

@@ -922,18 +922,16 @@ class Workspace:
         assert container
         # record old splits for undo if modifying an existing splitter; otherwise removing the display panel is trivial
         old_splits = list(container.splits) if isinstance(container, CanvasItem.SplitterCanvasItem) and container.orientation == orientation else None
-        # if not modifying an existing splitter or if modifying in the other orientation, wrap panel in new splitter
-        if not isinstance(container, CanvasItem.SplitterCanvasItem) or container.orientation != orientation:
-            # check if trying to drag on non-axis edge of splitter
-            # special case where top level item is the image panel
-            splitter_canvas_item = CanvasItem.SplitterCanvasItem(orientation=orientation)
-            splitter_canvas_item.on_splits_will_change = functools.partial(self._splits_will_change, splitter_canvas_item)
-            splitter_canvas_item.on_splits_changed = functools.partial(self._splits_did_change, splitter_canvas_item)
-            container.wrap_canvas_item(display_panel, splitter_canvas_item)
-            container = splitter_canvas_item
+        # always wrap target panel in new splitter. this makes it easier to close splitters without affecting other layout.
+        splitter_canvas_item = CanvasItem.SplitterCanvasItem(orientation=orientation)
+        splitter_canvas_item.on_splits_will_change = functools.partial(self._splits_will_change, splitter_canvas_item)
+        splitter_canvas_item.on_splits_changed = functools.partial(self._splits_did_change, splitter_canvas_item)
+        container.wrap_canvas_item(display_panel, splitter_canvas_item)
+        container = splitter_canvas_item
         index = container.canvas_items.index(display_panel)
         if isinstance(container, CanvasItem.SplitterCanvasItem):
             # modify the existing splitter
+            splits = list(container.splits)
             old_split = container.splits[index] if not new_splits else 0.0
             new_index_adj = 1 if region == "right" or region == "bottom" else 0
             new_display_panel = DisplayPanel.DisplayPanel(self.document_controller, dict(), new_uuid)
@@ -948,7 +946,9 @@ class Workspace:
             if new_splits:
                 container.splits = copy.copy(new_splits)
             else:
-                splits = list(container.splits)
+                # splits = list(container.splits)
+                splits[index] = old_split * 0.5
+                splits.insert(index, old_split * 0.5)
                 splits[index] = old_split * 0.5
                 splits[index + 1] = old_split * 0.5
                 container.splits = splits

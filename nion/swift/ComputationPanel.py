@@ -1207,28 +1207,9 @@ class ComputationInspectorHandler(Declarative.Handler):
             note = u.create_row(u.create_label(text=_("Use Command+Shift+E to edit data item script.")), visible="@binding(model.is_custom)")
         else:
             note = u.create_row(u.create_label(text=_("Use Ctrl+Shift+E to edit data item script.")), visible="@binding(model.is_custom)")
-        delete_row = u.create_row(u.create_stretch(), u.create_push_button(text=_("Delete"), spacing=12, on_clicked="handle_delete"))
-        delete_confirm_row = u.create_row(u.create_stretch(),
-                                          u.create_label(text=_("Are you sure?")),
-                                          u.create_push_button(text=_("Delete"), on_clicked="handle_confirm_delete"),
-                                          u.create_push_button(text=_("Cancel"), on_clicked="handle_cancel_delete"),
-                                          spacing=12)
-        delete_control_row = u.create_row(u.create_stack(delete_row, delete_confirm_row, current_index="@binding(delete_state_model.value)"))
-        controls = u.create_row(u.create_column(status, note, delete_control_row, u.create_stretch(), spacing=12), u.create_stretch())
+        controls = u.create_row(u.create_column(status, note, u.create_stretch(), spacing=12), u.create_stretch())
         inspector_column = u.create_column(label, *source_line, u.create_column(input_output_row, parameters, u.create_divider(orientation="horizontal"), controls, spacing=12), spacing=12)
         return inspector_column
-
-    def handle_delete(self, widget: Declarative.UIWidget) -> None:
-        self.delete_state_model.value = 1
-
-    def handle_confirm_delete(self, widget: Declarative.UIWidget) -> None:
-        command = RemoveComputationCommand(self.document_controller, self.model.computation)
-        command.perform()
-        self.document_controller.push_undo_command(command)
-        self.delete_state_model.value = 0
-
-    def handle_cancel_delete(self, widget: Declarative.UIWidget) -> None:
-        self.delete_state_model.value = 0
 
     def create_handler(self, component_id: str, container: typing.Optional[Symbolic.ComputationVariable] = None, item: typing.Any = None, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
         if component_id == "variable":
