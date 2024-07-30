@@ -2198,7 +2198,7 @@ class LinePlotDisplaySectionHandler(Declarative.Handler):
 
         self._float_to_string_converter = BetterFloatToStringConverter(pass_none=True)
 
-        class LogCheckedToCheckStateConverter(Converter.ConverterLike[str, str]):
+        class LogCheckedToCheckStateConverter(Converter.ConverterLike[str, bool]):
             """ Convert between bool and checked/unchecked strings. """
 
             def convert(self, value: typing.Optional[str]) -> typing.Optional[bool]:
