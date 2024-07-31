@@ -1213,69 +1213,152 @@ class ImageDataInspectorSection(InspectorSection):
         super().close()
 
 
-class SessionInspectorSection(InspectorSection):
-
+class SessionInspectorModel(Observable.Observable):
     def __init__(self, document_controller: DocumentController.DocumentController, data_item: DataItem.DataItem) -> None:
-        super().__init__(document_controller.ui, "session", _("Session"))
+        super().__init__()
+        self.__document_controller = document_controller
+        self.__data_item = data_item
+        self.__property_changed_listener = data_item.property_changed_event.listen(
+            self._fields_changed) if data_item else None
 
-        ui = document_controller.ui
+    def _update_metadata(self, field_id: str, value: str) -> None:
+        session_metadata = dict(self.__data_item.session_metadata)
+        session_metadata[field_id] = str(value)
+        command = ChangePropertyCommand(self.__document_controller.document_model, self.__data_item, "session_metadata",
+                                        session_metadata)
+        command.perform()
+        self.__document_controller.push_undo_command(command)
 
-        field_descriptions = [
-            [_("Site"), _("Site Description"), "site"],
-            [_("Instrument"), _("Instrument Description"), "instrument"],
-            [_("Task"), _("Task Description"), "task"],
-            [_("Microscopist"), _("Microscopist Name(s)"), "microscopist"],
-            [_("Sample"), _("Sample Description"), "sample"],
-            [_("Sample Area"), _("Sample Area Description"), "sample_area"],
-            [_("Label"), _("Brief Label"), "label"],
-        ]
+    def _fields_changed(self, key: str) -> None:
+        if key == "session_metadata":
+            self.notify_property_changed("site")
+            self.notify_property_changed("instrument")
+            self.notify_property_changed("task")
+            self.notify_property_changed("microscopist")
+            self.notify_property_changed("sample")
+            self.notify_property_changed("sample_area")
+            self.notify_property_changed("label")
 
-        widget = self.ui.create_column_widget()
+    @property
+    def site(self) -> typing.Optional[str]:
+        return self.__data_item.session_metadata.get("site")
 
-        def line_edit_changed(line_edit_widget: UserInterface.LineEditWidget, field_id: str, text: str) -> None:
-            session_metadata = dict(data_item.session_metadata)
-            session_metadata[field_id] = str(text)
-            command = ChangePropertyCommand(document_controller.document_model, data_item, "session_metadata", session_metadata)
-            command.perform()
-            document_controller.push_undo_command(command)
-            line_edit_widget.request_refocus()
+    @site.setter
+    def site(self, value: str) -> None:
+        self._update_metadata("site", value)
 
-        field_line_edit_widget_map = dict()
+    @property
+    def instrument(self) -> typing.Optional[str]:
+        return self.__data_item.session_metadata.get("instrument")
 
-        first_field = True
-        for field_description in field_descriptions:
-            title, placeholder, field_id = field_description
-            row = self.ui.create_row_widget()
-            row.add(self.ui.create_label_widget(title, properties={"width": 100}))
-            line_edit_widget = self.ui.create_line_edit_widget()
-            line_edit_widget.placeholder_text = placeholder
-            line_edit_widget.on_editing_finished = functools.partial(line_edit_changed, line_edit_widget, field_id)
-            field_line_edit_widget_map[field_id] = line_edit_widget
-            row.add(line_edit_widget)
-            if not first_field:
-                widget.add_spacing(4)
-            first_field = False
-            widget.add(row)
+    @instrument.setter
+    def instrument(self, value: str) -> None:
+        self._update_metadata("instrument", value)
 
-        def update_fields(fields: typing.Mapping[str, str]) -> None:
-            for field_id, line_edit_widget in field_line_edit_widget_map.items():
-                line_edit_widget.text = fields.get(field_id)
+    @property
+    def task(self) -> typing.Optional[str]:
+        return self.__data_item.session_metadata.get("task")
 
-        def fields_changed(key: str) -> None:
-            if key == 'session_metadata':
-                widget.add_task("update_fields", functools.partial(update_fields, data_item.session_metadata))
-        self.__property_changed_listener = data_item.property_changed_event.listen(fields_changed) if data_item else None
+    @task.setter
+    def task(self, value: str) -> None:
+        self._update_metadata("task", value)
 
-        if data_item:
-            update_fields(data_item.session_metadata)
+    @property
+    def microscopist(self) -> typing.Optional[str]:
+        return self.__data_item.session_metadata.get("microscopist")
 
-        self.add_widget_to_content(widget)
-        self.finish_widget_content()
+    @microscopist.setter
+    def microscopist(self, value: str) -> None:
+        self._update_metadata("microscopist", value)
+
+    @property
+    def sample(self) -> typing.Optional[str]:
+        return self.__data_item.session_metadata.get("sample")
+
+    @sample.setter
+    def sample(self, value: str) -> None:
+        self._update_metadata("sample", value)
+
+    @property
+    def sample_area(self) -> typing.Optional[str]:
+        return self.__data_item.session_metadata.get("sample_area")
+
+    @sample_area.setter
+    def sample_area(self, value: str) -> None:
+        self._update_metadata("sample_area", value)
+
+    @property
+    def label(self) -> typing.Optional[str]:
+        return self.__data_item.session_metadata.get("label")
+
+    @label.setter
+    def label(self, value: str) -> None:
+        self._update_metadata("label", value)
 
     def close(self) -> None:
         if self.__property_changed_listener:
             self.__property_changed_listener.close()
-            self.__property_changed_listener = typing.cast(typing.Any, None)
+
+
+class SessionInspectorHandler(Declarative.Handler):
+    def __init__(self, document_controller: DocumentController.DocumentController, data_item: DataItem.DataItem) -> None:
+        super().__init__()
+        self._session_model = SessionInspectorModel(document_controller, data_item)
+        u = Declarative.DeclarativeUI()
+
+        self.ui_view = u.create_column(
+            u.create_row(
+                u.create_label(text=_("Site"), width=100),
+                u.create_line_edit(text="@binding(_session_model.site)", placeholder_text=_("Site Description"))
+            ),
+            u.create_spacing(4),
+            u.create_row(
+                u.create_label(text=_("Instrument"), width=100),
+                u.create_line_edit(text="@binding(_session_model.instrument)", placeholder_text=_("Instrument Description"))
+            ),
+            u.create_spacing(4),
+            u.create_row(
+                u.create_label(text=_("Task"), width=100),
+                u.create_line_edit(text="@binding(_session_model.task)", placeholder_text=_("Task Description"))
+            ),
+            u.create_spacing(4),
+            u.create_row(
+                u.create_label(text=_("Microscopist"), width=100),
+                u.create_line_edit(text="@binding(_session_model.microscopist)", placeholder_text=_("Microscopist Name(s)"))
+            ),
+            u.create_spacing(4),
+            u.create_row(
+                u.create_label(text=_("Sample"), width=100),
+                u.create_line_edit(text="@binding(_session_model.sample)", placeholder_text=_("Sample Description"))
+            ),
+            u.create_spacing(4),
+            u.create_row(
+                u.create_label(text=_("Sample Area"), width=100),
+                u.create_line_edit(text="@binding(_session_model.sample_area)", placeholder_text=_("Sample Area Description"))
+            ),
+            u.create_spacing(4),
+            u.create_row(
+                u.create_label(text=_("Label"), width=100),
+                u.create_line_edit(text="@binding(_session_model.label)", placeholder_text=_("Brief Label"))
+            )
+        )
+
+    def close(self) -> None:
+        self._session_model.close()
+        super().close()
+
+
+class SessionInspectorSection(InspectorSection):
+    def __init__(self, document_controller: DocumentController.DocumentController, data_item: DataItem.DataItem) -> None:
+        super().__init__(document_controller.ui, "session", _("Session"))
+
+        self._session_inspector_handler = SessionInspectorHandler(document_controller, data_item)
+        widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop, self._session_inspector_handler)
+        self.add_widget_to_content(widget)
+        self.finish_widget_content()
+
+    def close(self) -> None:
+        self._session_inspector_handler.close()
         super().close()
 
 
