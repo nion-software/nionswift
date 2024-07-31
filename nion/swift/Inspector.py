@@ -668,29 +668,38 @@ class InfoInspectorSection(InspectorSection):
         self._unbinder.add([display_item], [self.info_title_label.unbind_text, self.caption_static_text.unbind_text, self.info_session_label.unbind_text, self.info_datetime_label.unbind_text])
 
 
+class DataInfoInspectorSectionHandler(Declarative.Handler):
+    def __init__(self, document_controller: DocumentController.DocumentController, display_data_channel: DisplayItem.DisplayDataChannel):
+        super().__init__()
+
+        self._created_local_as_string_model = DisplayDataChannelPropertyCommandModel(document_controller, display_data_channel, "created_local_as_string", title=_("Created Local"), command_id="created_local_changed")
+        self._size_and_data_format_as_string = DisplayDataChannelPropertyCommandModel(document_controller, display_data_channel, "size_and_data_format_as_string", title=_("Size And Data Format"), command_id="size_and_data_format_changed")
+
+        u = Declarative.DeclarativeUI()
+
+        self.ui_view = u.create_column(
+            u.create_row(
+                u.create_label(text=_("Date"), width=60),
+                u.create_label(text="@binding(_created_local_as_string_model.value)", width=240),
+                u.create_stretch()
+            ),
+            u.create_row(
+                u.create_label(text=_("Data"), width=60),
+                u.create_label(text="@binding(_size_and_data_format_as_string.value)", width=240),
+                u.create_stretch()
+            ),
+            spacing=4,
+            margin_bottom=4
+        )
+
+
 class DataInfoInspectorSection(InspectorSection):
     def __init__(self, document_controller: DocumentController.DocumentController, display_data_channel: DisplayItem.DisplayDataChannel) -> None:
         super().__init__(document_controller.ui, "data-info", _("Data Info"))
-        # date
-        self.info_section_datetime_row = self.ui.create_row_widget()
-        self.info_section_datetime_row.add(self.ui.create_label_widget(_("Date"), properties={"width": 60}))
-        self.info_datetime_label = self.ui.create_label_widget(properties={"width": 240})
-        self.info_datetime_label.bind_text(Binding.PropertyBinding(display_data_channel, "created_local_as_string"))
-        self.info_section_datetime_row.add(self.info_datetime_label)
-        self.info_section_datetime_row.add_stretch()
-        # format (size, datatype)
-        self.info_section_format_row = self.ui.create_row_widget()
-        self.info_section_format_row.add(self.ui.create_label_widget(_("Data"), properties={"width": 60}))
-        self.info_format_label = self.ui.create_label_widget(properties={"width": 240})
-        self.info_format_label.bind_text(Binding.PropertyBinding(display_data_channel, "size_and_data_format_as_string"))
-        self.info_section_format_row.add(self.info_format_label)
-        self.info_section_format_row.add_stretch()
-        # add all of the rows to the section content
-        self.add_widget_to_content(self.info_section_datetime_row)
-        self.add_widget_to_content(self.info_section_format_row)
-        self.finish_widget_content()
-        # add unbinders
-        self._unbinder.add([display_data_channel], [self.info_datetime_label.unbind_text, self.info_format_label.unbind_text])
+        self._data_info_handler = DataInfoInspectorSectionHandler(document_controller, display_data_channel)
+        widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop, self._data_info_handler)
+
+        self.add_widget_to_content(widget)
 
 
 class ChangeDisplayLayerPropertyCommand(Undo.UndoableCommand):
