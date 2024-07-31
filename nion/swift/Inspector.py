@@ -540,8 +540,8 @@ class DisplayDataChannelPropertyCommandModel(Model.PropertyChangedPropertyModel[
         document_controller.push_undo_command(command)
 
 
-class DisplayPropertyCommandModel(Model.PropertyChangedPropertyModel[typing.Any]):
-    """Display data channel property command model.
+class DisplayItemPropertyCommandModel(Model.PropertyChangedPropertyModel[typing.Any]):
+    """Display item channel property command model.
 
     This model makes undoable changes to a display item property.
     """
@@ -2190,11 +2190,11 @@ class LinePlotDisplaySectionHandler(Declarative.Handler):
     def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem):
         super().__init__()
 
-        self._y_min_model = DisplayPropertyCommandModel(document_controller, display_item, "y_min")
-        self._y_max_model = DisplayPropertyCommandModel(document_controller, display_item, "y_max")
-        self._left_channel_model = DisplayPropertyCommandModel(document_controller, display_item, "left_channel")
-        self._right_channel_model = DisplayPropertyCommandModel(document_controller, display_item, "right_channel")
-        self._y_style_model = DisplayPropertyCommandModel(document_controller, display_item, "y_style")
+        self._y_min_model = DisplayItemPropertyCommandModel(document_controller, display_item, "y_min")
+        self._y_max_model = DisplayItemPropertyCommandModel(document_controller, display_item, "y_max")
+        self._left_channel_model = DisplayItemPropertyCommandModel(document_controller, display_item, "left_channel")
+        self._right_channel_model = DisplayItemPropertyCommandModel(document_controller, display_item, "right_channel")
+        self._y_style_model = DisplayItemPropertyCommandModel(document_controller, display_item, "y_style")
 
         self._float_to_string_converter = BetterFloatToStringConverter(pass_none=True)
 
