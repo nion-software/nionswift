@@ -588,109 +588,97 @@ class GraphicPropertyCommandModel(Model.PropertyModel[typing.Any]):
             self.value = getattr(self.__graphic, self.__property_name)
 
 
+class InfoInspectorHandler(Declarative.Handler):
+    def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem):
+        super().__init__()
+        self._display_item = display_item
+        self._title_model = Model.PropertyChangedPropertyModel[str](display_item, "title")
+        self._placeholder_title_model = Model.PropertyChangedPropertyModel[str](display_item, "placeholder_title")
+        self._caption_model = Model.PropertyChangedPropertyModel[str](display_item, "caption")
+        self._editable_caption_model = Model.PropertyModel[str](display_item.caption)
+        self._caption_current_index = Model.PropertyModel[int](0)
+        self._session_id_model = Model.PropertyChangedPropertyModel[str](display_item, "session_id")
+        self._created_local_as_string_model = Model.PropertyChangedPropertyModel[str](display_item, "created_local_as_string")
+        self.info_title_label: typing.Optional[UserInterface.Widget] = None
+
+        u = Declarative.DeclarativeUI()
+
+        TOOL_TIP_STR = _("Use empty field for automatic title.")
+
+        self.ui_view = u.create_column(
+            u.create_row(
+                u.create_label(text=_("Title"), width=60, tooltip=TOOL_TIP_STR),
+                u.create_line_edit(name="info_title_label", text="@binding(_title_model.value)", placeholder_text="@binding(_placeholder_title_model.value)", tooltip=TOOL_TIP_STR),
+                u.create_spacing(8)
+            ),
+            u.create_row(
+                u.create_column(
+                    u.create_label(text=_("Caption"), width=60),
+                    u.create_stretch()
+                ),
+                u.create_stack(
+                    u.create_column(
+                        u.create_text_edit(height=60, editable=False, text="@binding(_caption_model.value)"),
+                        u.create_row(
+                            u.create_push_button(text=_("Edit"), on_clicked="_begin_caption_edit"),
+                            u.create_stretch()
+                        ),
+                    ),
+                    u.create_column(
+                        u.create_text_edit(height=60, text="@binding(_editable_caption_model.value)"),
+                        u.create_row(
+                            u.create_push_button(text=_("Save"), on_clicked="_save_caption_edit"),
+                            u.create_push_button(text=_("Cancel"), on_clicked="_end_caption_edit"),
+                            u.create_stretch()
+                        )
+                    ),
+                    current_index="@binding(_caption_current_index.value)"
+                ),
+                u.create_spacing(8)
+            ),
+            u.create_row(
+                u.create_label(text=_("Session"), width=60),
+                u.create_label(text="@binding(_session_id_model.value)", width=240),
+                u.create_stretch()
+            ),
+            u.create_row(
+                u.create_label(text=_("Date"), width=60),
+                u.create_label(text="@binding(_created_local_as_string_model.value)"),
+            ),
+            spacing=4
+        )
+
+    def _begin_caption_edit(self, widget: UserInterface.Widget) -> None:
+        self._editable_caption_model.value = self._display_item.caption
+        self._caption_current_index.value = 1
+
+    def _save_caption_edit(self, widget: UserInterface.Widget) -> None:
+        new_caption = self._editable_caption_model.value
+        self._display_item.caption = new_caption if new_caption is not None else str()
+        self._caption_current_index.value = 0
+
+    def _end_caption_edit(self, widget: UserInterface.Widget) -> None:
+        self._editable_caption_model.value = self._display_item.caption
+        self._caption_current_index.value = 0
+
+
 class InfoInspectorSection(InspectorSection):
 
     """
         Subclass InspectorSection to implement info inspector.
     """
 
-    def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem) -> None:
+    def __init__(self, document_controller: DocumentController.DocumentController,
+                 display_item: DisplayItem.DisplayItem) -> None:
         super().__init__(document_controller.ui, "info", _("Info"))
         ui = document_controller.ui
         self.widget_id = "info_inspector_section"
-        # title
-        TOOL_TIP_STR = _("Use empty field for automatic title.")
-        self.info_section_title_row = self.ui.create_row_widget()
-        title_label_widget = self.ui.create_label_widget(_("Title"), properties={"width": 60})
-        title_label_widget.tool_tip = TOOL_TIP_STR
-        self.info_section_title_row.add(title_label_widget)
-        self.info_title_label = self.ui.create_line_edit_widget()
-        self.info_title_label.bind_text(ChangeDisplayItemPropertyBinding(document_controller, display_item, "title"))
-        self.info_title_label.bind_placeholder_text(Binding.PropertyBinding(display_item, "placeholder_title"))
-        self.info_title_label.tool_tip = TOOL_TIP_STR
-        self.info_section_title_row.add(self.info_title_label)
-        self.info_section_title_row.add_spacing(8)
-        # caption
-        self.caption_row = self.ui.create_row_widget()
 
-        self.caption_label_column = self.ui.create_column_widget()
-        self.caption_label_column.add(self.ui.create_label_widget(_("Caption"), properties={"width": 60}))
-        self.caption_label_column.add_stretch()
+        self._info_section_handler = InfoInspectorHandler(document_controller, display_item)
+        widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop, self._info_section_handler)
+        self.add_widget_to_content(widget)
 
-        self.caption_edit_stack = self.ui.create_stack_widget()
-
-        self.caption_static_column = self.ui.create_column_widget()
-        self.caption_static_text = self.ui.create_text_edit_widget(properties={"height": 60})
-        self.caption_static_text.editable = False
-        caption_binding = Binding.PropertyBinding(display_item, "caption")
-        caption_binding.source_setter = None
-        self.caption_static_text.bind_text(caption_binding)
-        self.caption_static_button_row = self.ui.create_row_widget()
-        self.caption_static_edit_button = self.ui.create_push_button_widget(_("Edit"))
-        def begin_caption_edit() -> None:
-            self.caption_editable_text.text = display_item.caption
-            self.caption_static_text.unbind_text()
-            self.caption_edit_stack.current_index = 1
-        self.caption_static_edit_button.on_clicked = begin_caption_edit
-        self.caption_static_button_row.add(self.caption_static_edit_button)
-        self.caption_static_button_row.add_stretch()
-        self.caption_static_column.add(self.caption_static_text)
-        self.caption_static_column.add(self.caption_static_button_row)
-        self.caption_static_column.add_stretch()
-
-        self.caption_editable_column = self.ui.create_column_widget()
-        self.caption_editable_text = self.ui.create_text_edit_widget(properties={"height": 60})
-        self.caption_editable_button_row = self.ui.create_row_widget()
-        self.caption_editable_save_button = self.ui.create_push_button_widget(_("Save"))
-        self.caption_editable_cancel_button = self.ui.create_push_button_widget(_("Cancel"))
-        def end_caption_edit() -> None:
-            caption_binding = Binding.PropertyBinding(display_item, "caption")
-            caption_binding.source_setter = None
-            self.caption_static_text.bind_text(caption_binding)
-            self.caption_edit_stack.current_index = 0
-        def save_caption_edit() -> None:
-            command = ChangeDisplayItemPropertyCommand(document_controller.document_model, display_item, "caption", self.caption_editable_text.text)
-            command.perform()
-            document_controller.push_undo_command(command)
-            end_caption_edit()
-        self.caption_editable_button_row.add(self.caption_editable_save_button)
-        self.caption_editable_button_row.add(self.caption_editable_cancel_button)
-        self.caption_editable_button_row.add_stretch()
-        self.caption_editable_save_button.on_clicked = save_caption_edit
-        self.caption_editable_cancel_button.on_clicked = end_caption_edit
-        self.caption_editable_column.add(self.caption_editable_text)
-        self.caption_editable_column.add(self.caption_editable_button_row)
-        self.caption_editable_column.add_stretch()
-
-        self.caption_edit_stack.add(self.caption_static_column)
-        self.caption_edit_stack.add(self.caption_editable_column)
-
-        self.caption_row.add(self.caption_label_column)
-        self.caption_row.add(self.caption_edit_stack)
-        self.caption_row.add_spacing(8)
-
-        # session
-        self.info_section_session_row = self.ui.create_row_widget()
-        self.info_section_session_row.add(self.ui.create_label_widget(_("Session"), properties={"width": 60}))
-        self.info_session_label = self.ui.create_label_widget(properties={"width": 240})
-        self.info_session_label.bind_text(Binding.PropertyBinding(display_item, "session_id"))
-        self.info_section_session_row.add(self.info_session_label)
-        self.info_section_session_row.add_stretch()
-        # date
-        self.info_section_datetime_row = self.ui.create_row_widget()
-        self.info_section_datetime_row.add(self.ui.create_label_widget(_("Date"), properties={"width": 60}))
-        self.info_datetime_label = self.ui.create_label_widget(properties={"width": 240})
-        self.info_datetime_label.bind_text(Binding.PropertyBinding(display_item, "created_local_as_string"))
-        self.info_section_datetime_row.add(self.info_datetime_label)
-        self.info_section_datetime_row.add_stretch()
-        # add all of the rows to the section content
-        self.add_widget_to_content(self.info_section_title_row)
-        self.add_widget_to_content(self.caption_row)
-        self.add_widget_to_content(self.info_section_session_row)
-        self.add_widget_to_content(self.info_section_datetime_row)
-        self.finish_widget_content()
-        # add unbinders
-        self._unbinder.add([display_item], [self.info_title_label.unbind_text, self.caption_static_text.unbind_text, self.info_session_label.unbind_text, self.info_datetime_label.unbind_text])
+        self.info_title_label = self._info_section_handler.info_title_label
 
 
 class DataInfoInspectorSectionHandler(Declarative.Handler):
@@ -4571,8 +4559,9 @@ class DisplayInspector(Widgets.CompositeWidgetBase):
             if len(display_item.graphics) > 0:
                 inspector_sections.append(GraphicsInspectorSection(document_controller, display_item))
             def focus_default() -> None:
-                info_inspector_section.info_title_label.focused = True
-                info_inspector_section.info_title_label.request_refocus()
+                if info_inspector_section.info_title_label is not None:
+                    info_inspector_section.info_title_label.focused = True
+                    info_inspector_section.info_title_label.request_refocus()
             self.__focus_default = focus_default
         elif display_item and display_item.used_display_type == "image":
             info_inspector_section = InfoInspectorSection(document_controller, display_item)
@@ -4594,8 +4583,9 @@ class DisplayInspector(Widgets.CompositeWidgetBase):
             if len(display_item.graphics) > 0:
                 inspector_sections.append(GraphicsInspectorSection(document_controller, display_item))
             def focus_default() -> None:
-                info_inspector_section.info_title_label.focused = True
-                info_inspector_section.info_title_label.request_refocus()
+                if info_inspector_section.info_title_label is not None:
+                    info_inspector_section.info_title_label.focused = True
+                    info_inspector_section.info_title_label.request_refocus()
             self.__focus_default = focus_default
         elif display_item:
             info_inspector_section = InfoInspectorSection(document_controller, display_item)
@@ -4606,8 +4596,9 @@ class DisplayInspector(Widgets.CompositeWidgetBase):
                 if data_item:
                     inspector_sections.append(SessionInspectorSection(document_controller, data_item))
             def focus_default() -> None:
-                info_inspector_section.info_title_label.focused = True
-                info_inspector_section.info_title_label.request_refocus()
+                if info_inspector_section.info_title_label is not None:
+                    info_inspector_section.info_title_label.focused = True
+                    info_inspector_section.info_title_label.request_refocus()
             self.__focus_default = focus_default
 
         for inspector_section in inspector_sections:
