@@ -5,10 +5,12 @@ import json
 import logging
 import os
 import pathlib
+import typing
 import unittest
 import uuid
 
 # third party libraries
+import imageio.v3 as imageio
 import numpy
 
 # local libraries
@@ -135,6 +137,64 @@ class TestImportExportManagerClass(unittest.TestCase):
                         data_item.close()
                 finally:
                     os.remove(file_path)
+
+    def test_standard_io_write_has_correct_byte_order(self):
+        # swift displays this data in the following manner: AA RR GG BB
+        data_argb = [0xFFC08040, 0xFFC08040, 0xFFC08040, 0xFFC08040]
+        # swift displays this data in the following manner: BB, GG, RR, AA
+        image_bgra = numpy.array(data_argb, dtype=numpy.uint32).view(numpy.uint8).reshape((2, 2, 4))
+        # swift displays this data in the following manner: BB, GG, RR
+        image_bgr = numpy.array([[[64,128,192],[64,128,192]],[[64,128,192],[64,128,192]]], numpy.uint8)
+
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            current_working_directory = os.getcwd()
+            extension = "bmp"
+            file_path_bgra = os.path.join(current_working_directory, f"__file_bgra.{extension}")
+            file_path_bgr = os.path.join(current_working_directory, f"__file_bgr.{extension}")
+            handler = ImportExportManager.StandardImportExportHandler(f"{extension}-io-handler", extension, [extension])
+            data_item_bgra = DataItem.DataItem(image_bgra)
+            self.assertTrue(data_item_bgra.is_data_rgb_type)
+            document_model.append_data_item(data_item_bgra)
+            display_item_bgra = document_model.get_display_item_for_data_item(data_item_bgra)
+            data_item_bgr = DataItem.DataItem(image_bgr)
+            self.assertTrue(data_item_bgr.is_data_rgb_type)
+            document_model.append_data_item(data_item_bgr)
+            display_item_bgr = document_model.get_display_item_for_data_item(data_item_bgr)
+
+            # ensure that writing the data to a file and reading it back results in the same data.
+            # also ensure that the file contains the correct byte ordering.
+            handler.write_display_item(display_item_bgra, pathlib.Path(file_path_bgra), extension)
+            self.assertTrue(os.path.exists(file_path_bgra))
+            try:
+                data_items = handler.read_data_items(extension, pathlib.Path(file_path_bgra))
+                self.assertEqual(len(data_items), 1)
+                self.assertTrue(numpy.array_equal(data_item_bgra.data, data_items[0].data))
+                for data_item in data_items:
+                    data_item.close()
+
+                with open(file_path_bgra, "rb") as f:
+                    b = f.read()
+                    read_image_bgr = imageio.imread(typing.cast(typing.BinaryIO, b), extension="."  + extension)
+                    self.assertTrue(numpy.array_equal(read_image_bgr[0][0], numpy.array([192, 128, 64], dtype=numpy.uint8)))
+            finally:
+                os.remove(file_path_bgra)
+
+            handler.write_display_item(display_item_bgr, pathlib.Path(file_path_bgr), extension)
+            self.assertTrue(os.path.exists(file_path_bgr))
+            try:
+                data_items = handler.read_data_items(extension, pathlib.Path(file_path_bgr))
+                self.assertEqual(len(data_items), 1)
+                self.assertTrue(numpy.array_equal(data_item_bgr.data, data_items[0].data[:,:,0:3]))
+                for data_item in data_items:
+                    data_item.close()
+
+                with open(file_path_bgr, "rb") as f:
+                    b = f.read()
+                    read_image_bgr = imageio.imread(typing.cast(typing.BinaryIO, b), extension="."  + extension)
+                    self.assertTrue(numpy.array_equal(read_image_bgr[0][0], numpy.array([192, 128, 64], dtype=numpy.uint8)))
+            finally:
+                os.remove(file_path_bgr)
 
     def test_get_writers_for_empty_data_item_returns_valid_list(self):
         data_item = DataItem.DataItem()
