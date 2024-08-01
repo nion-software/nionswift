@@ -1218,12 +1218,27 @@ class SessionInspectorModel(Observable.Observable):
         super().__init__()
         self.__document_controller = document_controller
         self.__data_item = data_item
-        self.__property_changed_listener = data_item.property_changed_event.listen(
-            self._fields_changed) if data_item else None
 
-    def _update_metadata(self, field_id: str, value: str) -> None:
+        self.site_model = Model.PropertyModel[str](self.__data_item.session.get("site", str()))
+        self.site_model.on_value_changed = functools.partial(self._update_metadata, "site")
+        self.instrument_model = Model.PropertyModel[str](self.__data_item.session.get("instrument", str()))
+        self.instrument_model.on_value_changed = functools.partial(self._update_metadata, "instrument")
+        self.task_model = Model.PropertyModel[str](self.__data_item.session.get("task", str()))
+        self.task_model.on_value_changed = functools.partial(self._update_metadata, "task")
+        self.microscopist_model = Model.PropertyModel[str](self.__data_item.session.get("microscopist", str()))
+        self.microscopist_model.on_value_changed = functools.partial(self._update_metadata, "microscopist")
+        self.sample_model = Model.PropertyModel[str](self.__data_item.session.get("sample", str()))
+        self.sample_model.on_value_changed = functools.partial(self._update_metadata, "sample")
+        self.sample_area_model = Model.PropertyModel[str](self.__data_item.session.get("sample_area", str()))
+        self.sample_area_model.on_value_changed = functools.partial(self._update_metadata, "sample_area")
+        self.label_model = Model.PropertyModel[str](self.__data_item.session.get("label", str()))
+        self.label_model.on_value_changed = functools.partial(self._update_metadata, "label")
+
+        self.__property_changed_listener = data_item.property_changed_event.listen(self._fields_changed) if data_item else None
+
+    def _update_metadata(self, field_id: str, new_value: typing.Optional[str]) -> None:
         session_metadata = dict(self.__data_item.session_metadata)
-        session_metadata[field_id] = str(value)
+        session_metadata[field_id] = new_value
         command = ChangePropertyCommand(self.__document_controller.document_model, self.__data_item, "session_metadata",
                                         session_metadata)
         command.perform()
@@ -1231,69 +1246,13 @@ class SessionInspectorModel(Observable.Observable):
 
     def _fields_changed(self, key: str) -> None:
         if key == "session_metadata":
-            self.notify_property_changed("site")
-            self.notify_property_changed("instrument")
-            self.notify_property_changed("task")
-            self.notify_property_changed("microscopist")
-            self.notify_property_changed("sample")
-            self.notify_property_changed("sample_area")
-            self.notify_property_changed("label")
-
-    @property
-    def site(self) -> typing.Optional[str]:
-        return self.__data_item.session_metadata.get("site")
-
-    @site.setter
-    def site(self, value: str) -> None:
-        self._update_metadata("site", value)
-
-    @property
-    def instrument(self) -> typing.Optional[str]:
-        return self.__data_item.session_metadata.get("instrument")
-
-    @instrument.setter
-    def instrument(self, value: str) -> None:
-        self._update_metadata("instrument", value)
-
-    @property
-    def task(self) -> typing.Optional[str]:
-        return self.__data_item.session_metadata.get("task")
-
-    @task.setter
-    def task(self, value: str) -> None:
-        self._update_metadata("task", value)
-
-    @property
-    def microscopist(self) -> typing.Optional[str]:
-        return self.__data_item.session_metadata.get("microscopist")
-
-    @microscopist.setter
-    def microscopist(self, value: str) -> None:
-        self._update_metadata("microscopist", value)
-
-    @property
-    def sample(self) -> typing.Optional[str]:
-        return self.__data_item.session_metadata.get("sample")
-
-    @sample.setter
-    def sample(self, value: str) -> None:
-        self._update_metadata("sample", value)
-
-    @property
-    def sample_area(self) -> typing.Optional[str]:
-        return self.__data_item.session_metadata.get("sample_area")
-
-    @sample_area.setter
-    def sample_area(self, value: str) -> None:
-        self._update_metadata("sample_area", value)
-
-    @property
-    def label(self) -> typing.Optional[str]:
-        return self.__data_item.session_metadata.get("label")
-
-    @label.setter
-    def label(self, value: str) -> None:
-        self._update_metadata("label", value)
+            self.site_model.value = self.__data_item.session.get("site", str())
+            self.instrument_model.value = self.__data_item.session.get("instrument", str())
+            self.task_model.value = self.__data_item.session.get("task", str())
+            self.microscopist_model.value = self.__data_item.session.get("microscopist", str())
+            self.sample_model.value = self.__data_item.session.get("sample", str())
+            self.sample_area_model.value = self.__data_item.session.get("sample_area", str())
+            self.label_model.value = self.__data_item.session.get("label", str())
 
     def close(self) -> None:
         if self.__property_changed_listener:
@@ -1309,37 +1268,37 @@ class SessionInspectorHandler(Declarative.Handler):
         self.ui_view = u.create_column(
             u.create_row(
                 u.create_label(text=_("Site"), width=100),
-                u.create_line_edit(text="@binding(_session_model.site)", placeholder_text=_("Site Description"))
+                u.create_line_edit(text="@binding(_session_model.site_model.value)", placeholder_text=_("Site Description"))
             ),
             u.create_spacing(4),
             u.create_row(
                 u.create_label(text=_("Instrument"), width=100),
-                u.create_line_edit(text="@binding(_session_model.instrument)", placeholder_text=_("Instrument Description"))
+                u.create_line_edit(text="@binding(_session_model.instrument_model.value)", placeholder_text=_("Instrument Description"))
             ),
             u.create_spacing(4),
             u.create_row(
                 u.create_label(text=_("Task"), width=100),
-                u.create_line_edit(text="@binding(_session_model.task)", placeholder_text=_("Task Description"))
+                u.create_line_edit(text="@binding(_session_model.task_model.value)", placeholder_text=_("Task Description"))
             ),
             u.create_spacing(4),
             u.create_row(
                 u.create_label(text=_("Microscopist"), width=100),
-                u.create_line_edit(text="@binding(_session_model.microscopist)", placeholder_text=_("Microscopist Name(s)"))
+                u.create_line_edit(text="@binding(_session_model.microscopist_model.value)", placeholder_text=_("Microscopist Name(s)"))
             ),
             u.create_spacing(4),
             u.create_row(
                 u.create_label(text=_("Sample"), width=100),
-                u.create_line_edit(text="@binding(_session_model.sample)", placeholder_text=_("Sample Description"))
+                u.create_line_edit(text="@binding(_session_model.sample_model.value)", placeholder_text=_("Sample Description"))
             ),
             u.create_spacing(4),
             u.create_row(
                 u.create_label(text=_("Sample Area"), width=100),
-                u.create_line_edit(text="@binding(_session_model.sample_area)", placeholder_text=_("Sample Area Description"))
+                u.create_line_edit(text="@binding(_session_model.sample_area_model.value)", placeholder_text=_("Sample Area Description"))
             ),
             u.create_spacing(4),
             u.create_row(
                 u.create_label(text=_("Label"), width=100),
-                u.create_line_edit(text="@binding(_session_model.label)", placeholder_text=_("Brief Label"))
+                u.create_line_edit(text="@binding(_session_model.label_model.value)", placeholder_text=_("Brief Label"))
             )
         )
 
