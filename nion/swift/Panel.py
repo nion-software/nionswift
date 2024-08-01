@@ -22,7 +22,7 @@ from nion.swift.model import Utility
 from nion.ui import Application
 from nion.ui import CanvasItem
 from nion.ui import Declarative
-from nion.ui import PyQtProxy
+from nion.ui.PyQtProxy import ParseFontString
 from nion.ui import UserInterface
 from nion.utils import Geometry
 from nion.utils import Registry
@@ -445,7 +445,7 @@ class HeaderCanvasItem(CanvasItem.CanvasItemComposition):
                 drawing_context.fill_text(self.title, canvas_size.width // 2, canvas_size.height - self.__text_offset)
 
             font_string = self.__font
-            font = PyQtProxy.ParseFontString(font_string)
+            font = ParseFontString(font_string)
             fm = QtGui.QFontMetrics(font)
             text_size = fm.horizontalAdvance(self.title)
             title_rect = Geometry.IntRect.from_tlhw(canvas_size.height - self.__text_offset - (fm.height() / 2), (canvas_size.width // 2) - (text_size / 2), fm.height(), text_size)
