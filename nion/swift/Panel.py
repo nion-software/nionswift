@@ -404,50 +404,51 @@ class HeaderCanvasItem(CanvasItem.CanvasItemComposition):
         control_margin_x = 7
         control_width_with_margin = 2 * control_margin_x + control_size
         canvas_size = self.canvas_size
+        close_rect: Geometry.IntRect = None
+        if canvas_size:
+            # Variables containing the coordinates of the rendering locations, not the full clickable control
+            close_box_left = canvas_size.width - control_width_with_margin + control_margin_x
+            close_box_right = canvas_size.width - control_margin_x
+            close_box_top = canvas_size.height // 2 - 3
+            close_box_bottom = canvas_size.height // 2 + 3
 
-        # Variables containing the coordinates of the rendering locations, not the full clickable control
-        close_box_left = canvas_size.width - control_width_with_margin + control_margin_x
-        close_box_right = canvas_size.width - control_margin_x
-        close_box_top = canvas_size.height // 2 - 3
-        close_box_bottom = canvas_size.height // 2 + 3
+            control_margin_y = canvas_size.height - (close_box_bottom - close_box_top) - 2
+            if control_margin_y > control_margin_x:
+                control_margin_y = control_margin_x
 
-        control_margin_y = canvas_size.height - (close_box_bottom - close_box_top) - 2
-        if control_margin_y > control_margin_x:
-            control_margin_y = control_margin_x
-
-        close_rect = Geometry.IntRect.from_tlhw(
-                             close_box_top - control_margin_y,
-                             close_box_left - control_margin_x,
-                             control_size + 2 * control_margin_y,
-                             control_width_with_margin) #  Rectangle containing bounds of the control
-
-        with drawing_context.saver():
-            drawing_context.begin_path()
-            drawing_context.move_to(close_box_left, close_box_top)
-            drawing_context.line_to(close_box_right, close_box_bottom)
-            drawing_context.move_to(close_box_left, close_box_bottom)
-            drawing_context.line_to(close_box_right, close_box_top)
-            drawing_context.line_width = 1.5
-            drawing_context.line_cap = "round"
-            drawing_context.stroke_style = self.__control_style
-            drawing_context.stroke()
-
+            close_rect = Geometry.IntRect.from_tlhw(
+                                 close_box_top - control_margin_y,
+                                 close_box_left - control_margin_x,
+                                 control_size + 2 * control_margin_y,
+                                 control_width_with_margin) #  Rectangle containing bounds of the control
+            with drawing_context.saver():
+                drawing_context.begin_path()
+                drawing_context.move_to(close_box_left, close_box_top)
+                drawing_context.line_to(close_box_right, close_box_bottom)
+                drawing_context.move_to(close_box_left, close_box_bottom)
+                drawing_context.line_to(close_box_right, close_box_top)
+                drawing_context.line_width = 1.5
+                drawing_context.line_cap = "round"
+                drawing_context.stroke_style = self.__control_style
+                drawing_context.stroke()
         return close_rect
 
     def _draw_title_text(self, drawing_context: DrawingContext.DrawingContext) -> Geometry.IntRect:
         canvas_size = self.canvas_size
-        with drawing_context.saver():
-            drawing_context.font = self.__font
-            drawing_context.text_align = 'center'
-            drawing_context.text_baseline = 'bottom'
-            drawing_context.fill_style = '#000'
-            drawing_context.fill_text(self.title, canvas_size.width // 2, canvas_size.height - self.__text_offset)
+        title_rect: Geometry.IntRect = None
+        if canvas_size:
+            with drawing_context.saver():
+                drawing_context.font = self.__font
+                drawing_context.text_align = 'center'
+                drawing_context.text_baseline = 'bottom'
+                drawing_context.fill_style = '#000'
+                drawing_context.fill_text(self.title, canvas_size.width // 2, canvas_size.height - self.__text_offset)
 
-        font_string = self.__font
-        font = PyQtProxy.ParseFontString(font_string)
-        fm = QtGui.QFontMetrics(font)
-        text_size = fm.horizontalAdvance(self.title)
-        title_rect = Geometry.IntRect.from_tlhw(canvas_size.height - self.__text_offset - (fm.height() / 2), (canvas_size.width // 2) - (text_size / 2), fm.height(), text_size)
+            font_string = self.__font
+            font = PyQtProxy.ParseFontString(font_string)
+            fm = QtGui.QFontMetrics(font)
+            text_size = fm.horizontalAdvance(self.title)
+            title_rect = Geometry.IntRect.from_tlhw(canvas_size.height - self.__text_offset - (fm.height() / 2), (canvas_size.width // 2) - (text_size / 2), fm.height(), text_size)
         return title_rect
 
 
@@ -456,29 +457,28 @@ class HeaderCanvasItem(CanvasItem.CanvasItemComposition):
         control_margin = 2
         control_width = 10
         canvas_size = self.canvas_size
-        with drawing_context.saver():
-            drawing_context.begin_path()
-            close_box_left = title_rect.right + control_margin + control_title_margin # canvas_size.width - (40 - 7)
-            close_box_right = close_box_left + control_width # canvas_size.width - (40 - 13)
-            close_box_top = canvas_size.height // 2 - 5
-            close_box_bottom = canvas_size.height // 2 + 5
-            drawing_context.move_to(close_box_left, close_box_bottom)
-            drawing_context.line_to(close_box_left + 4, close_box_bottom - 1)
-            drawing_context.line_to(close_box_left + 10, close_box_bottom - 8)
-            drawing_context.line_to(close_box_left + 8, close_box_bottom - 10)
-            drawing_context.line_to(close_box_left + 1, close_box_bottom - 4)
-            drawing_context.line_to(close_box_left, close_box_bottom)
-            drawing_context.move_to(close_box_left + 4, close_box_bottom - 1)
-            drawing_context.line_to(close_box_left, close_box_bottom - 3)
-            #  drawing_context.line_to(close_box_right, close_box_bottom)
-            #  drawing_context.move_to(close_box_left, close_box_bottom)
-            #  drawing_context.line_to(close_box_right, close_box_top)
-            drawing_context.line_width = 1
-            drawing_context.line_cap = "round"
-            drawing_context.stroke_style = self.__control_style
-            drawing_context.stroke()
-        control_rect = Geometry.IntRect.from_tlhw(close_box_top - control_margin, close_box_left - control_margin, control_width + 2 * control_margin, control_width + 2 * control_margin)
-        self.__edit_control_rect = control_rect
+        control_rect: Geometry.IntRect = None
+        if canvas_size:
+            with drawing_context.saver():
+                drawing_context.begin_path()
+                close_box_left = title_rect.right + control_margin + control_title_margin # canvas_size.width - (40 - 7)
+                close_box_right = close_box_left + control_width # canvas_size.width - (40 - 13)
+                close_box_top = canvas_size.height // 2 - 5
+                close_box_bottom = canvas_size.height // 2 + 5
+                drawing_context.move_to(close_box_left, close_box_bottom)
+                drawing_context.line_to(close_box_left + 4, close_box_bottom - 1)
+                drawing_context.line_to(close_box_left + 10, close_box_bottom - 8)
+                drawing_context.line_to(close_box_left + 8, close_box_bottom - 10)
+                drawing_context.line_to(close_box_left + 1, close_box_bottom - 4)
+                drawing_context.line_to(close_box_left, close_box_bottom)
+                drawing_context.move_to(close_box_left + 4, close_box_bottom - 1)
+                drawing_context.line_to(close_box_left, close_box_bottom - 3)
+                drawing_context.line_width = 1
+                drawing_context.line_cap = "round"
+                drawing_context.stroke_style = self.__control_style
+                drawing_context.stroke()
+            control_rect = Geometry.IntRect.from_tlhw(close_box_top - control_margin, close_box_left - control_margin, control_width + 2 * control_margin, control_width + 2 * control_margin)
+            self.__edit_control_rect = control_rect
         return control_rect
     def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
         canvas_size = self.canvas_size
