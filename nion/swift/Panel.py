@@ -6,19 +6,23 @@ import dataclasses
 import functools
 import gettext
 import logging
+import os
+import platform
 import sys
 import threading
 import typing
 import weakref
 
 # third party libraries
-# None
+from PySide6 import QtCore
+from PySide6 import QtGui
 
 # local libraries
 from nion.swift.model import Utility
 from nion.ui import Application
 from nion.ui import CanvasItem
 from nion.ui import Declarative
+from nion.ui import PyQtProxy
 from nion.ui import UserInterface
 from nion.utils import Geometry
 from nion.utils import Registry
@@ -235,11 +239,13 @@ class HeaderCanvasItem(CanvasItem.CanvasItemComposition):
     # header_height = 20 if sys.platform == "win32" else 22
 
     def __init__(self, ui_settings: UISettings.UISettings, title: typing.Optional[str] = None,
-                 label: typing.Optional[str] = None, display_close_control: bool = False) -> None:
+                 label: typing.Optional[str] = None, display_close_control: bool = False,
+                 display_edit_control: bool = False) -> None:
         super().__init__()
         self.wants_mouse_events = True
         self.__title = title if title else ""
         self.__display_close_control = display_close_control
+        self.__display_edit_control = display_edit_control
         self.__ui_settings = ui_settings
         self.__set_default_style()
         self.update_sizing(self.sizing.with_fixed_height(self.header_height))
@@ -248,13 +254,17 @@ class HeaderCanvasItem(CanvasItem.CanvasItemComposition):
         self.on_close_clicked: typing.Optional[typing.Callable[[], None]] = None
         self.on_context_menu_clicked: typing.Optional[typing.Callable[[int, int, int, int], bool]] = None
         self.on_double_clicked: typing.Optional[typing.Callable[[int, int, UserInterface.KeyboardModifiers], bool]] = None
+        self.on_edit_clicked: typing.Optional[typing.Callable[[], None]] = None
         self.on_tool_tip: typing.Optional[typing.Callable[[], typing.Optional[str]]] = None
         self.__mouse_pressed_position: typing.Optional[Geometry.IntPoint] = None
+        self.__edit_control_rect: typing.Optional[Geometry.IntRect] = None
+        self.__close_control_rect: typing.Optional[Geometry.IntRect] = None
 
     def close(self) -> None:
         self.on_select_pressed = None
         self.on_drag_pressed = None
         self.on_close_clicked = None
+        self.on_edit_clicked = None
         self.on_context_menu_clicked = None
         self.__ui_settings = typing.cast(typing.Any, None)
         super().close()
@@ -354,15 +364,17 @@ class HeaderCanvasItem(CanvasItem.CanvasItemComposition):
     def mouse_released(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         canvas_size = self.canvas_size
         select_ok = self.__mouse_pressed_position is not None
-        if canvas_size and self.__display_close_control:
-            close_box_left = canvas_size.width - (20 - 4)
-            close_box_right = canvas_size.width - (20 - 18)
-            close_box_top = 2
-            close_box_bottom = canvas_size.height - 2
-            if x > close_box_left and x < close_box_right and y > close_box_top and y < close_box_bottom:
+        if canvas_size and self.__display_close_control and self.__close_control_rect:
+            if self.__close_control_rect.contains_point(Geometry.IntPoint(y, x)):
                 on_close_clicked = self.on_close_clicked
                 if callable(on_close_clicked):
                     on_close_clicked()
+                    select_ok = False
+        if canvas_size and self.__display_edit_control and self.__edit_control_rect:
+            if self.__edit_control_rect.contains_point(Geometry.IntPoint(y, x)):
+                on_edit_clicked = self.on_edit_clicked
+                if callable(on_edit_clicked):
+                    on_edit_clicked()
                     select_ok = False
         if select_ok:
             on_select_pressed = self.on_select_pressed
@@ -376,6 +388,98 @@ class HeaderCanvasItem(CanvasItem.CanvasItemComposition):
             return self.on_context_menu_clicked(x, y, gx, gy)
         return False
 
+
+    def _draw_controls_windows(self, drawing_context: DrawingContext.DrawingContext) -> None:
+        self.__close_control_rect = self._draw_close_control_windows(drawing_context)
+        title_rect = self._draw_title_text(drawing_context)
+        self.__edit_control_rect = self._draw_edit_button(drawing_context, title_rect)
+
+    def _draw_close_control_mac(self, drawing_context: DrawingContext.DrawingContext) -> None:
+        self._draw_close_control_windows(drawing_context)
+    def _draw_close_control_linux(self, drawing_context: DrawingContext.DrawingContext) -> None:
+        self._draw_controls_windows(drawing_context)
+
+    def _draw_close_control_windows(self, drawing_context: DrawingContext.DrawingContext) -> Geometry.IntRect:
+        control_size = 6
+        control_margin_x = 7
+        control_width_with_margin = 2 * control_margin_x + control_size
+        canvas_size = self.canvas_size
+
+        # Variables containing the coordinates of the rendering locations, not the full clickable control
+        close_box_left = canvas_size.width - control_width_with_margin + control_margin_x
+        close_box_right = canvas_size.width - control_margin_x
+        close_box_top = canvas_size.height // 2 - 3
+        close_box_bottom = canvas_size.height // 2 + 3
+
+        control_margin_y = canvas_size.height - (close_box_bottom - close_box_top) - 2
+        if control_margin_y > control_margin_x:
+            control_margin_y = control_margin_x
+
+        close_rect = Geometry.IntRect.from_tlhw(
+                             close_box_top - control_margin_y,
+                             close_box_left - control_margin_x,
+                             control_size + 2 * control_margin_y,
+                             control_width_with_margin) #  Rectangle containing bounds of the control
+
+        with drawing_context.saver():
+            drawing_context.begin_path()
+            drawing_context.move_to(close_box_left, close_box_top)
+            drawing_context.line_to(close_box_right, close_box_bottom)
+            drawing_context.move_to(close_box_left, close_box_bottom)
+            drawing_context.line_to(close_box_right, close_box_top)
+            drawing_context.line_width = 1.5
+            drawing_context.line_cap = "round"
+            drawing_context.stroke_style = self.__control_style
+            drawing_context.stroke()
+
+        return close_rect
+
+    def _draw_title_text(self, drawing_context: DrawingContext.DrawingContext) -> Geometry.IntRect:
+        canvas_size = self.canvas_size
+        with drawing_context.saver():
+            drawing_context.font = self.__font
+            drawing_context.text_align = 'center'
+            drawing_context.text_baseline = 'bottom'
+            drawing_context.fill_style = '#000'
+            drawing_context.fill_text(self.title, canvas_size.width // 2, canvas_size.height - self.__text_offset)
+
+        font_string = self.__font
+        font = PyQtProxy.ParseFontString(font_string)
+        fm = QtGui.QFontMetrics(font)
+        text_size = fm.horizontalAdvance(self.title)
+        title_rect = Geometry.IntRect.from_tlhw(canvas_size.height - self.__text_offset - (fm.height() / 2), (canvas_size.width // 2) - (text_size / 2), fm.height(), text_size)
+        return title_rect
+
+
+    def _draw_edit_button(self, drawing_context: DrawingContext.DrawingContext, title_rect: Geometry.IntRect) -> Geometry.IntRect:
+        control_title_margin = 3
+        control_margin = 2
+        control_width = 10
+        canvas_size = self.canvas_size
+        with drawing_context.saver():
+            drawing_context.begin_path()
+            close_box_left = title_rect.right + control_margin + control_title_margin # canvas_size.width - (40 - 7)
+            close_box_right = close_box_left + control_width # canvas_size.width - (40 - 13)
+            close_box_top = canvas_size.height // 2 - 5
+            close_box_bottom = canvas_size.height // 2 + 5
+            drawing_context.move_to(close_box_left, close_box_bottom)
+            drawing_context.line_to(close_box_left + 4, close_box_bottom - 1)
+            drawing_context.line_to(close_box_left + 10, close_box_bottom - 8)
+            drawing_context.line_to(close_box_left + 8, close_box_bottom - 10)
+            drawing_context.line_to(close_box_left + 1, close_box_bottom - 4)
+            drawing_context.line_to(close_box_left, close_box_bottom)
+            drawing_context.move_to(close_box_left + 4, close_box_bottom - 1)
+            drawing_context.line_to(close_box_left, close_box_bottom - 3)
+            #  drawing_context.line_to(close_box_right, close_box_bottom)
+            #  drawing_context.move_to(close_box_left, close_box_bottom)
+            #  drawing_context.line_to(close_box_right, close_box_top)
+            drawing_context.line_width = 1
+            drawing_context.line_cap = "round"
+            drawing_context.stroke_style = self.__control_style
+            drawing_context.stroke()
+        control_rect = Geometry.IntRect.from_tlhw(close_box_top - control_margin, close_box_left - control_margin, control_width + 2 * control_margin, control_width + 2 * control_margin)
+        self.__edit_control_rect = control_rect
+        return control_rect
     def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
         canvas_size = self.canvas_size
         if canvas_size:
@@ -420,27 +524,19 @@ class HeaderCanvasItem(CanvasItem.CanvasItemComposition):
                     drawing_context.stroke()
 
             if self.__display_close_control:
-                with drawing_context.saver():
-                    drawing_context.begin_path()
-                    close_box_left = canvas_size.width - (20 - 7)
-                    close_box_right = canvas_size.width - (20 - 13)
-                    close_box_top = canvas_size.height // 2 - 3
-                    close_box_bottom = canvas_size.height // 2 + 3
-                    drawing_context.move_to(close_box_left, close_box_top)
-                    drawing_context.line_to(close_box_right, close_box_bottom)
-                    drawing_context.move_to(close_box_left, close_box_bottom)
-                    drawing_context.line_to(close_box_right, close_box_top)
-                    drawing_context.line_width = 1.5
-                    drawing_context.line_cap = "round"
-                    drawing_context.stroke_style = self.__control_style
-                    drawing_context.stroke()
+                match platform.system():
+                    case "Darwin": #  MAC
+                        self._draw_close_control_mac(drawing_context)
+                    case "Linux":
+                        self._draw_close_control_linux(drawing_context)
+                    case _: #  Default to Windows
+                        self._draw_controls_windows(drawing_context)
 
-            with drawing_context.saver():
-                drawing_context.font = self.__font
-                drawing_context.text_align = 'center'
-                drawing_context.text_baseline = 'bottom'
-                drawing_context.fill_style = '#000'
-                drawing_context.fill_text(self.title, canvas_size.width // 2, canvas_size.height - self.__text_offset)
+
+
+
+
+
 
 
 class PanelSectionFactory(typing.Protocol):
