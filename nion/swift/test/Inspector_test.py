@@ -570,24 +570,24 @@ class TestInspectorClass(unittest.TestCase):
             inspector_section = inspector_panel.widget.find_widget_by_id("image_data_inspector_section")
             display_data_channel.display_limits = None
             document_controller.periodic()  # needed to update the inspector
-            self.assertEqual(inspector_section.display_limits_limit_low.text, None)
-            self.assertEqual(inspector_section.display_limits_limit_high.text, None)
+            self.assertEqual(inspector_section.image_data_inspector_handler.display_limits_limit_low.text, None)
+            self.assertEqual(inspector_section.image_data_inspector_handler.display_limits_limit_high.text, None)
             display_data_channel.display_limits = (None, None)
             document_controller.periodic()  # needed to update the inspector
-            self.assertEqual(inspector_section.display_limits_limit_low.text, None)
-            self.assertEqual(inspector_section.display_limits_limit_high.text, None)
+            self.assertEqual(inspector_section.image_data_inspector_handler.display_limits_limit_low.text, None)
+            self.assertEqual(inspector_section.image_data_inspector_handler.display_limits_limit_high.text, None)
             display_data_channel.display_limits = (1, None)
             document_controller.periodic()  # needed to update the inspector
-            self.assertEqual(inspector_section.display_limits_limit_low.text, "1.0")
-            self.assertEqual(inspector_section.display_limits_limit_high.text, None)
+            self.assertEqual(inspector_section.image_data_inspector_handler.display_limits_limit_low.text, "1.0")
+            self.assertEqual(inspector_section.image_data_inspector_handler.display_limits_limit_high.text, None)
             display_data_channel.display_limits = (None, 2)
             document_controller.periodic()  # needed to update the inspector
-            self.assertEqual(inspector_section.display_limits_limit_low.text, None)
-            self.assertEqual(inspector_section.display_limits_limit_high.text, "2.0")
+            self.assertEqual(inspector_section.image_data_inspector_handler.display_limits_limit_low.text, None)
+            self.assertEqual(inspector_section.image_data_inspector_handler.display_limits_limit_high.text, "2.0")
             display_data_channel.display_limits = (1, 2)
             document_controller.periodic()  # needed to update the inspector
-            self.assertEqual(inspector_section.display_limits_limit_low.text, "1.0")
-            self.assertEqual(inspector_section.display_limits_limit_high.text, "2.0")
+            self.assertEqual(inspector_section.image_data_inspector_handler.display_limits_limit_low.text, "1.0")
+            self.assertEqual(inspector_section.image_data_inspector_handler.display_limits_limit_high.text, "2.0")
 
     def test_image_display_inspector_sets_display_limits_when_text_is_changed(self):
         with TestContext.create_memory_context() as test_context:
@@ -604,13 +604,13 @@ class TestInspectorClass(unittest.TestCase):
             inspector_panel = document_controller.find_dock_panel("inspector-panel")
             inspector_section = inspector_panel.widget.find_widget_by_id("image_data_inspector_section")
             self.assertEqual(display_data_channel.display_limits, None)
-            inspector_section.display_limits_limit_low.editing_finished("1")
+            inspector_section.image_data_inspector_handler.display_limits_limit_low.editing_finished("1")
             self.assertEqual(display_data_channel.display_limits, (1.0, None))
-            inspector_section.display_limits_limit_high.editing_finished("2")
+            inspector_section.image_data_inspector_handler.display_limits_limit_high.editing_finished("2")
             self.assertEqual(display_data_channel.display_limits, (1.0, 2.0))
-            inspector_section.display_limits_limit_low.editing_finished("")
+            inspector_section.image_data_inspector_handler.display_limits_limit_low.editing_finished("")
             self.assertEqual(display_data_channel.display_limits, (None, 2.0))
-            inspector_section.display_limits_limit_high.editing_finished("")
+            inspector_section.image_data_inspector_handler.display_limits_limit_high.editing_finished("")
             self.assertEqual(display_data_channel.display_limits, None)
 
     def test_inspector_handles_deleted_data(self):
