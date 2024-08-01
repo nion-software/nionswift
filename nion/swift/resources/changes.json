@@ -22,6 +22,9 @@
         "summary": "Exporting to CSV only allows 1D or 2D data."
       },
       {
+        "summary": "Fix issue of swapped color channels when exporting to PNG, JPEG, GIF, and BMP."
+      },
+      {
         "summary": "Allow user to assign/unassign rectangle used for cropping computation data source inputs using icon overlay."
       }
     ]
