@@ -404,7 +404,7 @@ class HeaderCanvasItem(CanvasItem.CanvasItemComposition):
         control_margin_x = 7
         control_width_with_margin = 2 * control_margin_x + control_size
         canvas_size = self.canvas_size
-        close_rect: Geometry.IntRect = None
+        close_rect: typing.Optional[Geometry.IntRect] = None
         if canvas_size:
             # Variables containing the coordinates of the rendering locations, not the full clickable control
             close_box_left = canvas_size.width - control_width_with_margin + control_margin_x
@@ -435,7 +435,7 @@ class HeaderCanvasItem(CanvasItem.CanvasItemComposition):
 
     def _draw_title_text(self, drawing_context: DrawingContext.DrawingContext) -> Geometry.IntRect:
         canvas_size = self.canvas_size
-        title_rect: Geometry.IntRect = None
+        title_rect: typing.Optional[Geometry.IntRect] = None
         if canvas_size:
             with drawing_context.saver():
                 drawing_context.font = self.__font
@@ -457,7 +457,7 @@ class HeaderCanvasItem(CanvasItem.CanvasItemComposition):
         control_margin = 2
         control_width = 10
         canvas_size = self.canvas_size
-        control_rect: Geometry.IntRect = None
+        control_rect: typing.Optional[Geometry.IntRect] = None
         if canvas_size:
             with drawing_context.saver():
                 drawing_context.begin_path()
