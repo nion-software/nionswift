@@ -399,7 +399,7 @@ class HeaderCanvasItem(CanvasItem.CanvasItemComposition):
     def _draw_close_control_linux(self, drawing_context: DrawingContext.DrawingContext) -> None:
         self._draw_controls_windows(drawing_context)
 
-    def _draw_close_control_windows(self, drawing_context: DrawingContext.DrawingContext) -> Geometry.IntRect:
+    def _draw_close_control_windows(self, drawing_context: DrawingContext.DrawingContext) -> typing.Optional[Geometry.IntRect]:
         control_size = 6
         control_margin_x = 7
         control_width_with_margin = 2 * control_margin_x + control_size
@@ -433,7 +433,7 @@ class HeaderCanvasItem(CanvasItem.CanvasItemComposition):
                 drawing_context.stroke()
         return close_rect
 
-    def _draw_title_text(self, drawing_context: DrawingContext.DrawingContext) -> Geometry.IntRect:
+    def _draw_title_text(self, drawing_context: DrawingContext.DrawingContext) -> typing.Optional[Geometry.IntRect]:
         canvas_size = self.canvas_size
         title_rect: typing.Optional[Geometry.IntRect] = None
         if canvas_size:
@@ -452,13 +452,13 @@ class HeaderCanvasItem(CanvasItem.CanvasItemComposition):
         return title_rect
 
 
-    def _draw_edit_button(self, drawing_context: DrawingContext.DrawingContext, title_rect: Geometry.IntRect) -> Geometry.IntRect:
+    def _draw_edit_button(self, drawing_context: DrawingContext.DrawingContext, title_rect: typing.Optional[Geometry.IntRect]) -> typing.Optional[Geometry.IntRect]:
         control_title_margin = 3
         control_margin = 2
         control_width = 10
         canvas_size = self.canvas_size
         control_rect: typing.Optional[Geometry.IntRect] = None
-        if canvas_size:
+        if canvas_size and title_rect:
             with drawing_context.saver():
                 drawing_context.begin_path()
                 close_box_left = title_rect.right + control_margin + control_title_margin # canvas_size.width - (40 - 7)
