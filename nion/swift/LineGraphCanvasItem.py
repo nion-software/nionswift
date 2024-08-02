@@ -577,22 +577,38 @@ class LineGraphLayer:
     Tracks the data, calibrated data, axes. Provides methods to calculate the segments and draw fills/strokes separately.
     """
 
-    def __init__(self, xdata: typing.Optional[DataAndMetadata.DataAndMetadata], fill_color: typing.Optional[Color.Color],
-                 stroke_color: typing.Optional[Color.Color], stroke_width: typing.Optional[float]) -> None:
+    def __init__(self,
+                 xdata: typing.Optional[DataAndMetadata.DataAndMetadata],
+                 axes: typing.Optional[LineGraphAxes],
+                 fill_color: typing.Optional[Color.Color],
+                 stroke_color: typing.Optional[Color.Color],
+                 stroke_width: typing.Optional[float]) -> None:
         self.__xdata = xdata
-        self.fill_color = fill_color
-        self.stroke_color = stroke_color
-        self.stroke_width = stroke_width or 0.5
+        self.__fill_color = fill_color
+        self.__stroke_color = stroke_color
+        self.__stroke_width = stroke_width or 0.5
+        self.__canvas_bounds: typing.Optional[Geometry.IntRect] = None
         self.__calibrated_xdata: typing.Optional[DataAndMetadata.DataAndMetadata] = None
-        self.retained_rebin_1d: typing.Dict[str, typing.Any] = dict()
-        self.__axes: typing.Optional[LineGraphAxes] = None
-        self.segments: typing.List[LineGraphSegment] = list()
-        self.baseline = 0.0
-
-    def set_axes(self, axes: typing.Optional[LineGraphAxes]) -> None:
-        # assume this is only called when axes changes
+        self.__retained_rebin_1d: typing.Dict[str, typing.Any] = dict()
         self.__axes = axes
-        self.__calibrated_xdata = None
+        self.__segments: typing.List[LineGraphSegment] = list()
+        self.__baseline = 0.0
+
+    @property
+    def fill_color(self) -> typing.Optional[Color.Color]:
+        return self.__fill_color
+
+    @property
+    def stroke_color(self) -> typing.Optional[Color.Color]:
+        return self.__stroke_color
+
+    @property
+    def stroke_width(self) -> float:
+        return self.__stroke_width
+
+    @property
+    def axes(self) -> typing.Optional[LineGraphAxes]:
+        return self.__axes
 
     @property
     def calibrated_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
@@ -601,6 +617,8 @@ class LineGraphLayer:
         return self.__calibrated_xdata
 
     def calculate(self, canvas_bounds: Geometry.IntRect) -> None:
+        # this class is read-only, so we can only calculate once.
+        assert self.__canvas_bounds is None or self.__canvas_bounds == canvas_bounds
         calibrated_xdata = self.calibrated_xdata
         segments: typing.List[LineGraphSegment] = list()
         baseline = 0.0
@@ -629,19 +647,19 @@ class LineGraphLayer:
                                                           calibrated_data_min, calibrated_data_range,
                                                           calibrated_left_channel,
                                                           calibrated_right_channel, x_calibration,
-                                                          self.retained_rebin_1d, axes.data_style)
-        self.segments = segments
-        self.baseline = baseline
+                                                          self.__retained_rebin_1d, axes.data_style)
+        self.__segments = segments
+        self.__baseline = baseline
 
     def draw_fills(self, drawing_context: DrawingContext.DrawingContext) -> None:
         if self.fill_color:
-            for segment in self.segments:
-                segment.fill(drawing_context, self.baseline, Color.Color(self.fill_color))
+            for segment in self.__segments:
+                segment.fill(drawing_context, self.__baseline, Color.Color(self.fill_color))
 
     def draw_strokes(self, drawing_context: DrawingContext.DrawingContext) -> None:
         if self.stroke_color:
-            for segment in self.segments:
-                segment.stroke(drawing_context, self.baseline, Color.Color(self.stroke_color), self.stroke_width)
+            for segment in self.__segments:
+                segment.stroke(drawing_context, self.__baseline, Color.Color(self.stroke_color), self.stroke_width)
 
 
 class LineGraphLayersCanvasItem(CanvasItem.AbstractCanvasItem):
@@ -652,24 +670,17 @@ class LineGraphLayersCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def __init__(self) -> None:
         super().__init__()
-        self.__axes: typing.Optional[LineGraphAxes] = None
         self.__line_graph_layers: typing.List[LineGraphLayer] = list()
 
     @property
     def _axes(self) -> typing.Optional[LineGraphAxes]:  # for testing only
-        return self.__axes
+        return self.__line_graph_layers[0].axes if self.__line_graph_layers else None
 
-    def set_axes(self, axes: typing.Optional[LineGraphAxes]) -> None:
-        # assume this is only called when axes changes
-        self.__axes = axes
-        for line_graph_layer in self.__line_graph_layers:
-            line_graph_layer.set_axes(axes)
-        self.update()
-
-    def update_line_graph_layers(self, line_graph_layers: typing.Sequence[LineGraphLayer], axes: typing.Optional[LineGraphAxes]) -> None:
-        self.__line_graph_layers.clear()
-        self.__line_graph_layers.extend(line_graph_layers)
-        self.set_axes(axes)
+    def update_line_graph_layers(self, line_graph_layers: typing.Sequence[LineGraphLayer]) -> None:
+        if self.__line_graph_layers != line_graph_layers:
+            self.__line_graph_layers.clear()
+            self.__line_graph_layers.extend(line_graph_layers)
+            self.update()
 
     @property
     def calibrated_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
@@ -700,18 +711,17 @@ class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
     def __init__(self) -> None:
         super().__init__()
         self.font_size = 12
-        self.__axes: typing.Optional[LineGraphAxes] = None
-        self.__calibrated_data: typing.Optional[_NDArray] = None
         self.__regions: typing.List[RegionInfo] = list()
+        self.__line_graph_layers: typing.List[LineGraphLayer] = list()
 
-    def set_axes(self, axes: typing.Optional[LineGraphAxes]) -> None:
-        # assume this is only called when axes changes
-        self.__axes = axes
-        self.update()
+    @property
+    def _axes(self) -> typing.Optional[LineGraphAxes]:  # for testing only
+        return self.__line_graph_layers[0].axes if self.__line_graph_layers else None
 
-    def set_calibrated_data(self, calibrated_data: typing.Optional[_NDArray]) -> None:
-        if calibrated_data is None or self.__calibrated_data is None or not numpy.array_equal(calibrated_data, self.__calibrated_data):
-            self.__calibrated_data = calibrated_data
+    def update_line_graph_layers(self, line_graph_layers: typing.Sequence[LineGraphLayer]) -> None:
+        if self.__line_graph_layers != line_graph_layers:
+            self.__line_graph_layers.clear()
+            self.__line_graph_layers.extend(line_graph_layers)
             self.update()
 
     def set_regions(self, regions: typing.Sequence[RegionInfo]) -> None:
@@ -726,14 +736,17 @@ class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
             return
         assert canvas_size
 
-        data = self.__calibrated_data
+        calibrated_xdata = self.__line_graph_layers[0].calibrated_xdata if self.__line_graph_layers else None
+        calibrated_data = calibrated_xdata.data if calibrated_xdata else None
+
+        data = calibrated_data
         regions = self.__regions
         font_size = self.font_size
 
         if data is not None and len(data.shape) > 1:
             data = data[0, ...]
 
-        axes = self.__axes
+        axes = self._axes
         if axes:
             # extract the data we need for drawing y-axis
             calibrated_data_min = axes.calibrated_data_min

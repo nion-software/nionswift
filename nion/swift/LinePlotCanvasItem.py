@@ -251,6 +251,8 @@ class LinePlotDisplayInfo:
 
             xdata_list = self.xdata_list
 
+            axes = self.axes
+
             for index, display_layer in enumerate(self.__display_layers[0:MAX_LAYER_COUNT]):
                 fill_color_str = display_layer.get("fill_color")
                 stroke_color_str = display_layer.get("stroke_color")
@@ -269,7 +271,7 @@ class LinePlotDisplayInfo:
                             displayed_dimensional_calibration = xdata.dimensional_calibrations[-1]
                             xdata = DataAndMetadata.new_data_and_metadata(scalar_data, intensity_calibration, [displayed_dimensional_calibration])
                     line_graph_layers.append(
-                        LineGraphCanvasItem.LineGraphLayer(xdata, fill_color, stroke_color, stroke_width))
+                        LineGraphCanvasItem.LineGraphLayer(xdata, axes, fill_color, stroke_color, stroke_width))
                     self._has_valid_drawn_graph_data = xdata is not None
             self.__line_graph_layers = line_graph_layers
         return self.__line_graph_layers
@@ -556,23 +558,22 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
             # tell the other canvas items to update
             line_plot_display_info = self.__line_plot_display_info
-            axes = line_plot_display_info.axes
             line_graph_layers = line_plot_display_info.line_graph_layers
             legend_entries = line_plot_display_info.legend_entries
-            self.__line_graph_layers_canvas_item.update_line_graph_layers(line_graph_layers, axes)
+            self.__line_graph_layers_canvas_item.update_line_graph_layers(line_graph_layers)
+            self.__line_graph_regions_canvas_item.update_line_graph_layers(line_graph_layers)
 
             # update the canvas items
             self.__update_legend_origin()
-            self.__line_graph_regions_canvas_item.set_calibrated_data(self.line_graph_layers_canvas_item.calibrated_data)
             if self.__legend_entries != legend_entries:
                 self.__legend_entries = legend_entries
                 self.__line_graph_legend_canvas_item.set_legend_entries(legend_entries)
                 self.__line_graph_outer_left_legend.set_legend_entries(legend_entries)
                 self.__line_graph_outer_right_legend.set_legend_entries(legend_entries)
+            axes = line_plot_display_info.axes
             if not are_axes_equal(self.__axes, axes):
                 self.__axes = axes
                 self.__line_graph_background_canvas_item.set_axes(axes)
-                self.__line_graph_regions_canvas_item.set_axes(axes)
                 self.__line_graph_frame_canvas_item.set_draw_frame(bool(axes))
                 self.__line_graph_vertical_axis_label_canvas_item.set_axes(axes)
                 self.__line_graph_vertical_axis_scale_canvas_item.set_axes(axes)
