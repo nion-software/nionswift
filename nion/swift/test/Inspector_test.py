@@ -1592,6 +1592,22 @@ class TestInspectorClass(unittest.TestCase):
                 dimensional_calibration_model.units = "y"
                 self.assertEqual("y", data_item.dimensional_calibrations[1].units)
 
+    def test_session_inspector_model_closes_properly(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((32,)))
+            document_model.append_data_item(data_item)
+            session_inspector_model = Inspector.SessionInspectorModel(document_controller, data_item)
+            self.assertFalse(hasattr(session_inspector_model, "close"))
+            # session_inspector_model.close()  # failed it old style code.
+            session_inspector_model = None
+            # nothing should be printed when this is run, since the model has been closed and no python
+            # reference to it remains. in the failing code, the close does nothing other than mark the event
+            # as not accepting events anymore. the change to data below would trigger a log message if this
+            # isn't working properly.
+            data_item.set_intensity_calibration(Calibration.Calibration(units="miles"))
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

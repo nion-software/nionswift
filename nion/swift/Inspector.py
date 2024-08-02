@@ -1234,7 +1234,7 @@ class SessionInspectorModel(Observable.Observable):
         self.label_model = Model.PropertyModel[str](self.__data_item.session.get("label", str()))
         self.label_model.on_value_changed = functools.partial(self._update_metadata, "label")
 
-        self.__property_changed_listener = data_item.property_changed_event.listen(self._fields_changed) if data_item else None
+        self.__property_changed_listener = data_item.property_changed_event.listen(ReferenceCounting.weak_partial(SessionInspectorModel.__fields_changed, self)) if data_item else None
 
     def _update_metadata(self, field_id: str, new_value: typing.Optional[str]) -> None:
         session_metadata = dict(self.__data_item.session_metadata)
@@ -1244,7 +1244,7 @@ class SessionInspectorModel(Observable.Observable):
         command.perform()
         self.__document_controller.push_undo_command(command)
 
-    def _fields_changed(self, key: str) -> None:
+    def __fields_changed(self, key: str) -> None:
         if key == "session_metadata":
             self.site_model.value = self.__data_item.session.get("site", str())
             self.instrument_model.value = self.__data_item.session.get("instrument", str())
@@ -1253,10 +1253,6 @@ class SessionInspectorModel(Observable.Observable):
             self.sample_model.value = self.__data_item.session.get("sample", str())
             self.sample_area_model.value = self.__data_item.session.get("sample_area", str())
             self.label_model.value = self.__data_item.session.get("label", str())
-
-    def close(self) -> None:
-        if self.__property_changed_listener:
-            self.__property_changed_listener.close()
 
 
 class SessionInspectorHandler(Declarative.Handler):
@@ -1301,10 +1297,6 @@ class SessionInspectorHandler(Declarative.Handler):
                 u.create_line_edit(text="@binding(_session_model.label_model.value)", placeholder_text=_("Brief Label"))
             )
         )
-
-    def close(self) -> None:
-        self._session_model.close()
-        super().close()
 
 
 class SessionInspectorSection(InspectorSection):
