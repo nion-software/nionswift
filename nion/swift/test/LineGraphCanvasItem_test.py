@@ -306,8 +306,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             display_panel.layout_immediate((640, 480))
             axes = display_panel.display_canvas_item._axes
             drawing_context = DrawingContext.DrawingContext()
-            line_graph_layer = LineGraphCanvasItem.LineGraphLayer(data_item.xdata, Color.Color("black"), Color.Color("black"), None)
-            line_graph_layer.set_axes(axes)
+            line_graph_layer = LineGraphCanvasItem.LineGraphLayer(data_item.xdata, axes, Color.Color("black"), Color.Color("black"), None)
             line_graph_layer.calculate(Geometry.IntRect.from_tlbr(0, 0, 480, 640))
             line_graph_layer.draw_fills(drawing_context)
             line_graph_layer.draw_strokes(drawing_context)
@@ -330,8 +329,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             axes = display_panel.display_canvas_item._axes
             self.assertEqual(axes.data_style, "log")
             drawing_context = DrawingContext.DrawingContext()
-            line_graph_layer = LineGraphCanvasItem.LineGraphLayer(data_item.xdata, Color.Color("black"), Color.Color("black"), None)
-            line_graph_layer.set_axes(axes)
+            line_graph_layer = LineGraphCanvasItem.LineGraphLayer(data_item.xdata, axes, Color.Color("black"), Color.Color("black"), None)
             line_graph_layer.calculate(Geometry.IntRect.from_tlbr(0, 0, 480, 640))
             line_graph_layer.draw_fills(drawing_context)
             line_graph_layer.draw_strokes(drawing_context)
@@ -410,8 +408,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             display_panel.layout_immediate((640, 480))
             axes = display_panel.display_canvas_item._axes
             drawing_context = DrawingContext.DrawingContext()
-            line_graph_layer = LineGraphCanvasItem.LineGraphLayer(data_item.xdata, Color.Color("black"), Color.Color("black"), None)
-            line_graph_layer.set_axes(axes)
+            line_graph_layer = LineGraphCanvasItem.LineGraphLayer(data_item.xdata, axes, Color.Color("black"), Color.Color("black"), None)
             line_graph_layer.calculate(Geometry.IntRect.from_tlbr(0, 0, 480, 640))
             line_graph_layer.draw_fills(drawing_context)
             line_graph_layer.draw_strokes(drawing_context)
