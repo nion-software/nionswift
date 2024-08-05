@@ -14,7 +14,6 @@ import subprocess
 import traceback
 import typing
 import unicodedata
-import traceback
 
 # third party libraries
 # None
@@ -270,8 +269,7 @@ class ExportSizeModel(Observable.Observable):
         self.__aspect_ratio = self.__width / self.__height
         self.__units = UnitType.PIXELS
         self.__float_to_string_converter = Converter.FloatToStringConverter()
-        self.__width_text: typing.Optional[str] = None
-        self.__height_text: typing.Optional[str] = None
+        self.__primary_field = 'width'  # Primary field to determine which text is calculated
 
     def __calculate_display_size_in_pixels(self, display_item: DisplayItem.DisplayItem) -> Geometry.IntSize:
         if display_item.display_data_shape and len(display_item.display_data_shape) == 2:
@@ -281,38 +279,43 @@ class ExportSizeModel(Observable.Observable):
     @property
     def width(self) -> float:
         return self.__convert_from_pixels(self.__width)
+
     @property
     def width_text(self) -> typing.Optional[str]:
-        return self.__width_text
+        if self.__primary_field == 'width':
+            return self.__float_to_string_converter.convert(self.width)
+        return None
 
     @width_text.setter
     def width_text(self, new_width: typing.Optional[str]) -> None:
-        if new_width is not None and new_width != "":
+        if new_width and new_width != "":
             self.__width = self.__convert_to_pixels(self.__float_to_string_converter.convert_back(new_width))
             self.__height = int(self.__width / self.__aspect_ratio)
-            self.__height_text = None
-            self.notify_property_changed("height_text")
+            self.__primary_field = 'width'
             self.notify_property_changed("width")
             self.notify_property_changed("height")
-        self.__width_text = new_width
         self.notify_property_changed("width_text")
+        self.notify_property_changed("height_text")
 
     @property
     def height(self) -> float:
         return self.__convert_from_pixels(self.__height)
+
     @property
     def height_text(self) -> typing.Optional[str]:
-        return self.__height_text
+        if self.__primary_field == 'height':
+            return self.__float_to_string_converter.convert(self.height)
+        return None
+
     @height_text.setter
     def height_text(self, new_height: typing.Optional[str]) -> None:
-        if new_height is not None and new_height != "":
+        if new_height and new_height != "":
             self.__height = self.__convert_to_pixels(self.__float_to_string_converter.convert_back(new_height))
             self.__width = int(self.__height * self.__aspect_ratio)
-            self.__width_text = None
-            self.notify_property_changed("width_text")
+            self.__primary_field = 'height'
             self.notify_property_changed("width")
             self.notify_property_changed("height")
-        self.__height_text = new_height
+        self.notify_property_changed("width_text")
         self.notify_property_changed("height_text")
 
     @property
@@ -326,6 +329,8 @@ class ExportSizeModel(Observable.Observable):
             self.__units = new_enum
             self.notify_property_changed("width")
             self.notify_property_changed("height")
+            self.notify_property_changed("width_text")
+            self.notify_property_changed("height_text")
 
     def __convert_to_pixels(self, value: typing.Optional[float]) -> int:
         if value is not None:
@@ -335,6 +340,7 @@ class ExportSizeModel(Observable.Observable):
 
     def __convert_from_pixels(self, value: int) -> float:
         return value / ConversionUnits[self.__units]
+
     def getshape(self) -> Geometry.IntSize:
         return Geometry.IntSize(height=self.__height, width=self.__width)
 
@@ -348,7 +354,6 @@ class ExportSVGHandler(Declarative.Handler):
         self.model = model  # Ensure model is an attribute of the handler
         u = Declarative.DeclarativeUI()
         self._float_to_string_converter = Converter.FloatToStringConverter()
-
         self.ui_view = u.create_column(
             u.create_row(
                 u.create_label(text=_("Width:"), width=80),
