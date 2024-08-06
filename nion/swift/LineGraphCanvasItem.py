@@ -736,15 +736,8 @@ class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
             return
         assert canvas_size
 
-        calibrated_xdata = self.__line_graph_layers[0].calibrated_xdata if self.__line_graph_layers else None
-        calibrated_data = calibrated_xdata.data if calibrated_xdata else None
-
-        data = calibrated_data
         regions = self.__regions
         font_size = self.font_size
-
-        if data is not None and len(data.shape) > 1:
-            data = data[0, ...]
 
         axes = self._axes
         if axes:
@@ -774,87 +767,59 @@ class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
                 level = canvas_size.height - canvas_size.height * 0.8 + index * 8
                 with drawing_context.saver():
                     drawing_context.clip_rect(0, 0, canvas_size.width, canvas_size.height)
-                    if region.style == "tag" and data is not None:
-                        if calibrated_data_range != 0.0:
-                            channel = (left_channel + right_channel) / 2
-                            data_index = int(channel * data.shape[0])
-                            data_value = data[data_index] if 0 <= data_index < data.shape[0] else 0
-                            py = plot_origin_y + plot_height - (plot_height * (data_value - calibrated_data_min) / calibrated_data_range)
-                            py = max(plot_origin_y, py)
-                            py = min(plot_origin_y + plot_height, py)
-                            x = convert_coordinate_to_pixel(canvas_size, channel, data_scale, data_left, data_right)
-                            with drawing_context.saver():
-                                drawing_context.begin_path()
-                                drawing_context.move_to(x, py - 3)
-                                drawing_context.line_to(x, py - 13)
-                                drawing_context.line_width = 1
-                                drawing_context.stroke_style = region.color
-                                if not region_selected:
-                                    drawing_context.line_dash = 2
-                                drawing_context.stroke()
+                    drawing_context.begin_path()
 
-                                label = region.label
-                                if label:
-                                    drawing_context.line_dash = 0
-                                    drawing_context.fill_style = region.color
-                                    drawing_context.font = "{0:d}px".format(font_size)
-                                    drawing_context.text_align = "center"
-                                    drawing_context.text_baseline = "bottom"
-                                    drawing_context.fill_text(label, x, py - 16)
-                    else:
-                        drawing_context.begin_path()
+                    left = convert_coordinate_to_pixel(canvas_size, left_channel, data_scale, data_left, data_right)
+                    drawing_context.move_to(left, plot_origin_y)
+                    drawing_context.line_to(left, plot_origin_y + plot_height)
 
-                        left = convert_coordinate_to_pixel(canvas_size, left_channel, data_scale, data_left, data_right)
-                        drawing_context.move_to(left, plot_origin_y)
-                        drawing_context.line_to(left, plot_origin_y + plot_height)
+                    right = convert_coordinate_to_pixel(canvas_size, right_channel, data_scale, data_left, data_right)
+                    drawing_context.move_to(right, plot_origin_y)
+                    drawing_context.line_to(right, plot_origin_y + plot_height)
 
-                        right = convert_coordinate_to_pixel(canvas_size, right_channel, data_scale, data_left, data_right)
-                        drawing_context.move_to(right, plot_origin_y)
-                        drawing_context.line_to(right, plot_origin_y + plot_height)
+                    drawing_context.line_width = 1
+                    drawing_context.stroke_style = region.color
+                    if not region_selected:
+                        drawing_context.line_dash = 2
+                    drawing_context.stroke()
 
-                        drawing_context.line_width = 1
-                        drawing_context.stroke_style = region.color
-                        if not region_selected:
-                            drawing_context.line_dash = 2
-                        drawing_context.stroke()
-
-                        mid_x = (left + right) // 2
-                        drawing_context.move_to(left, level)
-                        drawing_context.line_to(mid_x - 3, level)
-                        drawing_context.move_to(mid_x + 3, level)
-                        drawing_context.line_to(right - 3, level)
-                        drawing_context.stroke()
-                        drawing_context.line_dash = 0
-                        if region_selected:
-                            draw_marker(drawing_context, Geometry.FloatPoint(level, mid_x), fill=region.color, stroke=region.color)
-                            drawing_context.fill_style = region.color
-                            drawing_context.font = "{0:d}px".format(font_size)
-                            left_text = region.left_text
-                            right_text = region.right_text
-                            middle_text = region.middle_text
-                            if middle_text:
-                                drawing_context.text_align = "center"
-                                drawing_context.text_baseline = "bottom"
-                                drawing_context.fill_text(middle_text, mid_x, level - 6)
-                            if left_text:
-                                drawing_context.text_align = "right"
-                                drawing_context.text_baseline = "center"
-                                drawing_context.fill_text(left_text, left - 4, level)
-                            if right_text:
-                                drawing_context.text_align = "left"
-                                drawing_context.text_baseline = "center"
-                                drawing_context.fill_text(right_text, right + 4, level)
-                        else:
-                            draw_marker(drawing_context, Geometry.FloatPoint(level, mid_x), stroke=region.color)
-
-                        label = region.label
-                        if label:
-                            drawing_context.line_dash = 0
-                            drawing_context.fill_style = region.color
-                            drawing_context.font = "{0:d}px".format(font_size)
+                    mid_x = (left + right) // 2
+                    drawing_context.move_to(left, level)
+                    drawing_context.line_to(mid_x - 3, level)
+                    drawing_context.move_to(mid_x + 3, level)
+                    drawing_context.line_to(right - 3, level)
+                    drawing_context.stroke()
+                    drawing_context.line_dash = 0
+                    if region_selected:
+                        draw_marker(drawing_context, Geometry.FloatPoint(level, mid_x), fill=region.color, stroke=region.color)
+                        drawing_context.fill_style = region.color
+                        drawing_context.font = "{0:d}px".format(font_size)
+                        left_text = region.left_text
+                        right_text = region.right_text
+                        middle_text = region.middle_text
+                        if middle_text and region.style != "tag":
                             drawing_context.text_align = "center"
-                            drawing_context.text_baseline = "top"
-                            drawing_context.fill_text(label, mid_x, level + 6)
+                            drawing_context.text_baseline = "bottom"
+                            drawing_context.fill_text(middle_text, mid_x, level - 6)
+                        if left_text and region.style != "tag":
+                            drawing_context.text_align = "right"
+                            drawing_context.text_baseline = "center"
+                            drawing_context.fill_text(left_text, left - 4, level)
+                        if right_text:
+                            drawing_context.text_align = "left"
+                            drawing_context.text_baseline = "center"
+                            drawing_context.fill_text(right_text, right + 4, level)
+                    else:
+                        draw_marker(drawing_context, Geometry.FloatPoint(level, mid_x), stroke=region.color)
+
+                    label = region.label
+                    if label:
+                        drawing_context.line_dash = 0
+                        drawing_context.fill_style = region.color
+                        drawing_context.font = "{0:d}px".format(font_size)
+                        drawing_context.text_align = "center"
+                        drawing_context.text_baseline = "top"
+                        drawing_context.fill_text(label, mid_x, level + 6)
 
 
 class LineGraphFrameCanvasItem(CanvasItem.AbstractCanvasItem):
