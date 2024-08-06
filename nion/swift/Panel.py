@@ -6,7 +6,7 @@ import dataclasses
 import functools
 import gettext
 import logging
-import platform
+# import platform
 import sys
 import threading
 import typing
@@ -648,13 +648,14 @@ class HeaderCanvasItem(CanvasItem.AbstractCanvasItem):
                     drawing_context.stroke()
 
             if self.__display_close_control:
-                match platform.system():
-                    case "Darwin": #  MAC
-                        self._draw_close_control_mac(drawing_context)
-                    case "Linux":
-                        self._draw_close_control_linux(drawing_context)
-                    case _: #  Default to Windows
-                        self._draw_controls_windows(drawing_context)
+                self._draw_controls_windows(drawing_context)
+                # match platform.system():
+                #    case "Darwin": #  MAC
+                #        self._draw_close_control_mac(drawing_context)
+                #    case "Linux":
+                #        self._draw_close_control_linux(drawing_context)
+                #    case _: #  Default to Windows
+                #        self._draw_controls_windows(drawing_context)
 
 
 class PanelSectionFactory(typing.Protocol):
