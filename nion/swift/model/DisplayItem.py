@@ -1653,6 +1653,7 @@ class DisplayItemSaveProperties:
     display_layers_list: typing.List[Persistence.PersistentDictType]
     calibration_style_id: str
     intensity_calibration_style_id: str
+    caption: str
 
 
 class DisplayDataShapeCalculator:
@@ -2708,13 +2709,14 @@ class DisplayItem(Persistence.PersistentObject):
                 import traceback; traceback.print_exc()
 
     def save_properties(self) -> DisplayItemSaveProperties:
-        return DisplayItemSaveProperties(self.display_properties, self.display_layers_list, self.calibration_style_id, self.intensity_calibration_style_id)
+        return DisplayItemSaveProperties(self.display_properties, self.display_layers_list, self.calibration_style_id, self.intensity_calibration_style_id, self.caption)
 
     def restore_properties(self, properties: DisplayItemSaveProperties) -> None:
         self.display_properties = properties.display_properties
         self.display_layers_list = properties.display_layers_list
         self.calibration_style_id = properties.calibration_style_id
         self.intensity_calibration_style_id = properties.intensity_calibration_style_id
+        self.caption = properties.caption
 
     class ContextManager:
         def __init__(self, display_item: DisplayItem) -> None:

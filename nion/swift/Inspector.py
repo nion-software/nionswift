@@ -594,7 +594,7 @@ class InfoInspectorHandler(Declarative.Handler):
         self._display_item = display_item
         self._title_model = Model.PropertyChangedPropertyModel[str](display_item, "title")
         self._placeholder_title_model = Model.PropertyChangedPropertyModel[str](display_item, "placeholder_title")
-        self._caption_model = Model.PropertyChangedPropertyModel[str](display_item, "caption")
+        self._caption_model = DisplayItemPropertyCommandModel(document_controller, display_item, "caption")
         self._editable_caption_model = Model.PropertyModel[str](display_item.caption)
         self._caption_current_index = Model.PropertyModel[int](0)
         self._session_id_model = Model.PropertyChangedPropertyModel[str](display_item, "session_id")
@@ -654,7 +654,7 @@ class InfoInspectorHandler(Declarative.Handler):
 
     def _save_caption_edit(self, widget: UserInterface.Widget) -> None:
         new_caption = self._editable_caption_model.value
-        self._display_item.caption = new_caption if new_caption is not None else str()
+        self._caption_model.value = new_caption if new_caption is not None else str()
         self._caption_current_index.value = 0
 
     def _end_caption_edit(self, widget: UserInterface.Widget) -> None:
