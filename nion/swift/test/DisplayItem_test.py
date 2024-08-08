@@ -76,6 +76,19 @@ class TestDisplayItemClass(unittest.TestCase):
                 with contextlib.closing(copy.deepcopy(display_item)) as copy_display_item:
                     self.assertEqual("line_plot", copy_display_item.display_type)
 
+    def test_display_item_snapshot_and_preserves_display_data_channel_properties(self):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(numpy.ones((2, 3, 3, 4, 4)), data_descriptor=DataAndMetadata.DataDescriptor(True, 2, 2)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            # note: not testing all properties, only indexes
+            display_item.display_data_channels[0].sequence_index = 1
+            display_item.display_data_channels[0].collection_index = (1, 2)
+            with contextlib.closing(display_item.snapshot()) as snapshot_display_item:
+                self.assertEqual(1, snapshot_display_item.display_data_channels[0].sequence_index)
+                self.assertEqual((1, 2, 0), snapshot_display_item.display_data_channels[0].collection_index)
+
     def test_appending_display_data_channel_does_nothing_if_display_data_channel_already_exists(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()

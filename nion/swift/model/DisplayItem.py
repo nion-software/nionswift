@@ -1071,6 +1071,7 @@ class DisplayDataChannel(Persistence.PersistentObject):
 
     def __deepcopy__(self, memo: typing.Dict[typing.Any, typing.Any]) -> DisplayDataChannel:
         display_data_channel = self.__class__()
+        display_data_channel._is_reading = True  # enable to avoid validating with no data
         display_data_channel._set_persistent_property_value("complex_display_type", self._get_persistent_property_value("complex_display_type"))
         display_data_channel._set_persistent_property_value("display_limits", self._get_persistent_property_value("display_limits"))
         display_data_channel._set_persistent_property_value("color_map_id", self._get_persistent_property_value("color_map_id"))
@@ -1082,6 +1083,7 @@ class DisplayDataChannel(Persistence.PersistentObject):
         display_data_channel._set_persistent_property_value("slice_center", self._get_persistent_property_value("slice_center"))
         display_data_channel._set_persistent_property_value("slice_width", self._get_persistent_property_value("slice_width"))
         display_data_channel._set_persistent_property_value("data_item_reference", self._get_persistent_property_value("data_item_reference"))
+        display_data_channel._is_reading = False
         if self.__data_item and self.__data_item.uuid == uuid.UUID(self._get_persistent_property_value("data_item_reference")):
             # setting the item here allows it to be used to determine the project
             # so that the new item can be added to the same project. however, it
