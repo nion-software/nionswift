@@ -6,7 +6,7 @@ import dataclasses
 import functools
 import gettext
 import logging
-# import platform
+import platform
 import sys
 import threading
 import typing
@@ -257,7 +257,7 @@ class HeaderCanvasItem(CanvasItem.CanvasItemComposition):
         self.__mouse_pressed_position: typing.Optional[Geometry.IntPoint] = None
         self.__edit_control_rect: typing.Optional[Geometry.IntRect] = None
         self.__close_control_rect: typing.Optional[Geometry.IntRect] = None
-        self.__get_font_metrics:typing.Optional[typing.Callable[[str, str], UISettings.FontMetrics]] = None
+        self.__get_font_metrics: typing.Optional[typing.Callable[[str, str], UISettings.FontMetrics]] = None
 
         if get_font_metrics_fn:
             self.__get_font_metrics = get_font_metrics_fn
@@ -395,7 +395,6 @@ class HeaderCanvasItem(CanvasItem.CanvasItemComposition):
             return self.on_context_menu_clicked(x, y, gx, gy)
         return False
 
-
     def _draw_controls_windows(self, drawing_context: DrawingContext.DrawingContext) -> None:
         self.__close_control_rect = self._draw_close_control_windows(drawing_context)
         title_rect = self._draw_title_text(drawing_context)
@@ -404,9 +403,10 @@ class HeaderCanvasItem(CanvasItem.CanvasItemComposition):
         else:
             self.__edit_control_rect = Geometry.IntRect.from_tlhw(0, 0, 0, 0)
 
-    def _draw_close_control_mac(self, drawing_context: DrawingContext.DrawingContext) -> None:
-        self._draw_close_control_windows(drawing_context)
-    def _draw_close_control_linux(self, drawing_context: DrawingContext.DrawingContext) -> None:
+    def _draw_controls_mac(self, drawing_context: DrawingContext.DrawingContext) -> None:
+        self._draw_controls_windows(drawing_context)
+
+    def _draw_controls_linux(self, drawing_context: DrawingContext.DrawingContext) -> None:
         self._draw_controls_windows(drawing_context)
 
     def _draw_close_control_windows(self, drawing_context: DrawingContext.DrawingContext) -> typing.Optional[Geometry.IntRect]:
@@ -430,7 +430,7 @@ class HeaderCanvasItem(CanvasItem.CanvasItemComposition):
                                  close_box_top - control_margin_y,
                                  close_box_left - control_margin_x,
                                  control_size + 2 * control_margin_y,
-                                 control_width_with_margin) #  Rectangle containing bounds of the control
+                                 control_width_with_margin)  # Rectangle containing bounds of the control
             with drawing_context.saver():
                 drawing_context.begin_path()
                 drawing_context.move_to(close_box_left, close_box_top)
@@ -463,11 +463,10 @@ class HeaderCanvasItem(CanvasItem.CanvasItemComposition):
                     font_metrics.height,
                     font_metrics.width)
             else:
-                 # Without knowing how big the text is, need to do a clunky fallback
-                 # Close button and pencil is roughly 40 pixels wide
+                # Without knowing how big the text is, need to do a clunky fallback
+                # Close button and pencil is roughly 40 pixels wide
                 title_rect = Geometry.IntRect.from_tlhw(0, 40, canvas_size.height, canvas_size.width - 80)
         return title_rect
-
 
     def _draw_edit_button(self, drawing_context: DrawingContext.DrawingContext, title_rect: typing.Optional[Geometry.IntRect]) -> typing.Optional[Geometry.IntRect]:
         control_title_margin = 3
@@ -478,8 +477,8 @@ class HeaderCanvasItem(CanvasItem.CanvasItemComposition):
         if canvas_size and title_rect:
             with drawing_context.saver():
                 drawing_context.begin_path()
-                close_box_left = title_rect.right + control_margin + control_title_margin # canvas_size.width - (40 - 7)
-                close_box_right = close_box_left + control_width # canvas_size.width - (40 - 13)
+                close_box_left = title_rect.right + control_margin + control_title_margin  # canvas_size.width - (40 - 7)
+                close_box_right = close_box_left + control_width  # canvas_size.width - (40 - 13)
                 close_box_top = canvas_size.height // 2 - 5
                 close_box_bottom = canvas_size.height // 2 + 5
                 drawing_context.move_to(close_box_left, close_box_bottom)
@@ -497,6 +496,7 @@ class HeaderCanvasItem(CanvasItem.CanvasItemComposition):
             control_rect = Geometry.IntRect.from_tlhw(close_box_top - control_margin, close_box_left - control_margin, control_width + 2 * control_margin, control_width + 2 * control_margin)
             self.__edit_control_rect = control_rect
         return control_rect
+
     def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
         canvas_size = self.canvas_size
         if canvas_size:
@@ -524,8 +524,8 @@ class HeaderCanvasItem(CanvasItem.CanvasItemComposition):
             with drawing_context.saver():
                 drawing_context.begin_path()
                 # line is adjust 1/2 pixel down to align to pixel boundary
-                drawing_context.move_to(0, canvas_size.height-0.5)
-                drawing_context.line_to(canvas_size.width, canvas_size.height-0.5)
+                drawing_context.move_to(0, canvas_size.height - 0.5)
+                drawing_context.line_to(canvas_size.width, canvas_size.height - 0.5)
                 drawing_context.stroke_style = self.__bottom_stroke_style
                 drawing_context.stroke()
 
@@ -541,20 +541,12 @@ class HeaderCanvasItem(CanvasItem.CanvasItemComposition):
                     drawing_context.stroke()
 
             if self.__display_close_control:
-                self._draw_controls_windows(drawing_context)
-                # match platform.system():
-                #    case "Darwin": #  MAC
-                #        self._draw_close_control_mac(drawing_context)
-                #    case "Linux":
-                #        self._draw_close_control_linux(drawing_context)
-                #    case _: #  Default to Windows
-                #        self._draw_controls_windows(drawing_context)
-
-
-
-
-
-
+                if platform.system() == "Darwin":  # Mac
+                    self._draw_controls_mac(drawing_context)
+                elif platform.system() == "Linux":
+                    self._draw_controls_linux(drawing_context)
+                else:
+                    self._draw_controls_windows(drawing_context)
 
 
 class PanelSectionFactory(typing.Protocol):
