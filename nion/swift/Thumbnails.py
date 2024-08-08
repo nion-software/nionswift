@@ -21,6 +21,7 @@ from nion.swift.model import DisplayItem
 from nion.ui import DrawingContext
 from nion.ui import UserInterface
 from nion.utils import Event
+from nion.utils import Geometry
 from nion.utils import ReferenceCounting
 from nion.utils import ThreadPool
 
@@ -74,10 +75,15 @@ class ThumbnailProcessor:
         return self.__get_cached_value()
 
     def __get_calculated_data(self, ui: UserInterface.UserInterface) -> typing.Optional[DrawingContext.RGBA32Type]:
-        drawing_context, shape = DisplayPanel.preview(DisplayPanel.DisplayPanelUISettings(ui), self.__display_item, 512, 512)
+        display_item = self.__display_item
+        if display_item.display_data_shape and len(display_item.display_data_shape) == 2:
+            pixel_shape = Geometry.IntSize(height=512, width=512)
+        else:
+            pixel_shape = Geometry.IntSize(height=308, width=512)
+        drawing_context = DisplayPanel.preview(DisplayPanel.DisplayPanelUISettings(ui), display_item, pixel_shape)
         thumbnail_drawing_context = DrawingContext.DrawingContext()
         thumbnail_drawing_context.scale(self.width / 512, self.height / 512)
-        thumbnail_drawing_context.translate(0, (shape[1] - shape[0]) * 0.5)
+        thumbnail_drawing_context.translate(0, (pixel_shape.width - pixel_shape.height) * 0.5)
         thumbnail_drawing_context.add(drawing_context)
         return ui.create_rgba_image(thumbnail_drawing_context, self.width, self.height)
 

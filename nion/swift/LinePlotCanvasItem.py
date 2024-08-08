@@ -442,10 +442,6 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         super().close()
 
     @property
-    def default_aspect_ratio(self) -> float:
-        return (1 + 5 ** 0.5) / 2  # golden ratio
-
-    @property
     def line_graph_layers_canvas_item(self) -> LineGraphCanvasItem.LineGraphLayersCanvasItem:
         return self.__line_graph_layers_canvas_item
 

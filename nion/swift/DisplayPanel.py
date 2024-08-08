@@ -3097,9 +3097,8 @@ class DisplayPanelManager(metaclass=Utility.Singleton):
         return dynamic_live_actions
 
 
-def preview(ui_settings: UISettings.UISettings, display_item: DisplayItem.DisplayItem, width: int, height: int) -> typing.Tuple[DrawingContext.DrawingContext, Geometry.IntSize]:
+def preview(ui_settings: UISettings.UISettings, display_item: DisplayItem.DisplayItem, pixel_shape: Geometry.IntSize) -> DrawingContext.DrawingContext:
     drawing_context = DrawingContext.DrawingContext()
-    shape = Geometry.IntSize()
     display_canvas_item = create_display_canvas_item(display_item, ui_settings, None, None, draw_background=False)
     if display_canvas_item:
         with contextlib.closing(display_canvas_item):
@@ -3108,7 +3107,5 @@ def preview(ui_settings: UISettings.UISettings, display_item: DisplayItem.Displa
             display_data_delta.mark_changed()
             display_canvas_item.update_display_data_delta(display_data_delta)
             with drawing_context.saver():
-                frame_width, frame_height = width, int(width / display_canvas_item.default_aspect_ratio)
-                display_canvas_item.repaint_immediate(drawing_context, Geometry.IntSize(height=frame_height, width=frame_width))
-                shape = Geometry.IntSize(height=frame_height, width=frame_width)
-    return drawing_context, shape
+                display_canvas_item.repaint_immediate(drawing_context, pixel_shape)
+    return drawing_context

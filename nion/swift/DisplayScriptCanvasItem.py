@@ -79,10 +79,6 @@ class DisplayScriptCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             self.__closed = True
         super().close()
 
-    @property
-    def default_aspect_ratio(self) -> float:
-        return 1.0
-
     def add_display_control(self, display_control_canvas_item: CanvasItem.AbstractCanvasItem, role: typing.Optional[str] = None) -> None:
         display_control_canvas_item.close()
 

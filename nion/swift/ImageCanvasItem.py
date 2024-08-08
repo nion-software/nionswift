@@ -886,10 +886,6 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         super().close()
 
     @property
-    def default_aspect_ratio(self) -> float:
-        return 1.0
-
-    @property
     def _scale_marker_canvas_item_for_test(self) -> ScaleMarkerCanvasItem:
         return self.__scale_marker_canvas_item
 

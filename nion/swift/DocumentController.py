@@ -58,6 +58,7 @@ from nion.swift.model import Utility
 from nion.swift.model import WorkspaceLayout
 from nion.ui import CanvasItem
 from nion.ui import Dialog
+from nion.ui import DrawingContext
 from nion.ui import PreferencesDialog
 from nion.ui import Window
 from nion.ui import UserInterface
@@ -906,10 +907,10 @@ class DocumentController(Window.Window):
             display_properties["image_canvas_mode"] = "fit"
             display_item_snapshot.display_properties = display_properties
             # create the drawing context and shape for the preview
-            drawing_context, shape = DisplayPanel.preview(ui_settings, display_item_snapshot, display_shape.width, display_shape.height)
+            drawing_context = DisplayPanel.preview(ui_settings, display_item_snapshot, display_shape)
             # set up the SVG
-            view_box = Geometry.IntRect(Geometry.IntPoint(), shape)
-            svg = drawing_context.to_svg(shape, view_box)
+            view_box = Geometry.IntRect(Geometry.IntPoint(), display_shape)
+            svg = drawing_context.to_svg(display_shape, view_box)
             # write the file
             with Utility.AtomicFileWriter(path.with_suffix(".svg")) as fp:
                 fp.write(svg)
@@ -1649,12 +1650,11 @@ class DocumentController(Window.Window):
             else:
                 display_shape = Geometry.IntSize(height=600, width=800)
 
-            drawing_context, shape = DisplayPanel.preview(DisplayPanel.FixedUISettings(), display_item, display_shape.width,
-                                                          display_shape.height)
+            drawing_context = DisplayPanel.preview(DisplayPanel.FixedUISettings(), display_item, display_shape)
 
-            view_box = Geometry.IntRect(Geometry.IntPoint(), shape)
+            view_box = Geometry.IntRect(Geometry.IntPoint(), display_shape)
 
-            svg = drawing_context.to_svg(shape, view_box)
+            svg = drawing_context.to_svg(display_shape, view_box)
 
             mime_data.set_data_as_string(MimeTypes.SVG_MIME_TYPE, svg)
 

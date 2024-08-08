@@ -89,10 +89,6 @@ class DisplayCanvasItemDelegate(typing.Protocol):
 class DisplayCanvasItem(CanvasItem.CanvasItemComposition):
 
     @property
-    def default_aspect_ratio(self) -> float:
-        return 1.0
-
-    @property
     def key_contexts(self) -> typing.Sequence[str]:
         """Return key contexts.
 

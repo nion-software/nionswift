@@ -3159,7 +3159,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(numpy.zeros((8,8)), dimensional_calibrations=[Calibration.Calibration(0.0, -math.inf, "x"), Calibration.Calibration(0.0, -math.inf, "x")]))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            DisplayPanel.preview(DisplayPanel.DisplayPanelUISettings(document_controller.ui), display_item, 512, 512)
+            DisplayPanel.preview(DisplayPanel.DisplayPanelUISettings(document_controller.ui), display_item, Geometry.IntSize(512, 512))
 
     def test_line_plot_display_handles_invalid_calibration(self):
         with TestContext.create_memory_context() as test_context:
@@ -3169,7 +3169,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(numpy.zeros((8,)), dimensional_calibrations=[Calibration.Calibration(0.0, -math.inf, "x")]))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            DisplayPanel.preview(DisplayPanel.DisplayPanelUISettings(document_controller.ui), display_item, 512, 128)
+            DisplayPanel.preview(DisplayPanel.DisplayPanelUISettings(document_controller.ui), display_item, Geometry.IntSize(128, 128))
 
 
 if __name__ == '__main__':

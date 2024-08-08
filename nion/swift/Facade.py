@@ -1341,7 +1341,8 @@ class DataItem(metaclass=SharedInstance):
 
     def data_item_to_svg(self) -> str:
         if self.__display_item:
-            drawing_context, shape = DisplayPanelModule.preview(DisplayPanelModule.FixedUISettings(), self.__display_item, 320, 240)
+            shape = Geometry.IntSize(height=240, width=320)
+            drawing_context = DisplayPanelModule.preview(DisplayPanelModule.FixedUISettings(), self.__display_item, shape)
             view_box = Geometry.IntRect(Geometry.IntPoint(), shape)
             return drawing_context.to_svg(shape, view_box)
         return str()
