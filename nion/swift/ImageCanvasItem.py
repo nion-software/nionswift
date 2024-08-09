@@ -663,6 +663,10 @@ class CreateGraphicMouseHandler(MouseHandler):
         pos = widget_mapping.map_point_widget_to_image_norm(mouse_pos)
         start_drag_pos = mouse_pos
 
+        # bypass multi-select if this tool is started with only the shift key selected. see notes where
+        # bypass_multi_select is defined.
+        image_canvas_item.bypass_multi_select = modifiers.only_shift
+
         with delegate.create_create_graphic_task(self.graphic_type, pos) as create_create_graphic_task:
             # create the graphic and assign a drag part
             graphic = getattr(create_create_graphic_task, "_graphic")

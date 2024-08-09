@@ -1846,7 +1846,11 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
             return "ignore"
 
         def adjust_secondary_focus(modifiers: UserInterface.KeyboardModifiers) -> None:
-            if modifiers.only_shift:
+            display_canvas_item = self.display_canvas_item
+            if display_canvas_item and display_canvas_item.bypass_multi_select:
+                display_canvas_item.bypass_multi_select = False
+                self.__document_controller.selected_display_panel = self
+            elif modifiers.only_shift:
                 self.__document_controller.add_secondary_display_panel(self)
             elif modifiers.only_control:
                 self.__document_controller.toggle_secondary_display_panel(self)

@@ -87,6 +87,14 @@ class DisplayCanvasItemDelegate(typing.Protocol):
 
 
 class DisplayCanvasItem(CanvasItem.CanvasItemComposition):
+    """Allow display canvas items (tools) to bypass multi-select.
+
+    In cases where only_shift is used in the tool, the tool should bypass multi-select and the result will be as if
+    the user clicked in the target display panel without modifiers. For instance, if the user shift-clicks using the
+    crop tool to restrict the crop to a square shape, the crop tool should bypass multi-select and the result will be
+    as if the user clicked in the target display panel without modifiers, selecting the target panel.
+    """
+    bypass_multi_select = False
 
     @property
     def key_contexts(self) -> typing.Sequence[str]:
