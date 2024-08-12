@@ -6,7 +6,6 @@ import dataclasses
 import functools
 import gettext
 import logging
-import platform
 import sys
 import threading
 import typing
@@ -498,25 +497,21 @@ class HeaderCanvasItem(CanvasItem.AbstractCanvasItem):
             return self.on_context_menu_clicked(x, y, gx, gy)
         return False
 
+
     def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> typing.Optional[CanvasItem.BaseComposer]:
         return HeaderCanvasItemComposer(self, self.sizing, composer_cache, self.title, self.__display_close_control, self.__start_header_color, self.__end_header_color)
 
 
-    def _draw_controls_windows(self, drawing_context: DrawingContext.DrawingContext) -> None:
-        self.__close_control_rect = self._draw_close_control_windows(drawing_context)
+
+    def _draw_controls(self, drawing_context: DrawingContext.DrawingContext) -> None:
+        self.__close_control_rect = self._draw_close_control(drawing_context)
         title_rect = self._draw_title_text(drawing_context)
         if title_rect and title_rect.width > 0:
             self.__edit_control_rect = self._draw_edit_button(drawing_context, title_rect)
         else:
             self.__edit_control_rect = Geometry.IntRect.from_tlhw(0, 0, 0, 0)
 
-    def _draw_controls_mac(self, drawing_context: DrawingContext.DrawingContext) -> None:
-        self._draw_controls_windows(drawing_context)
-
-    def _draw_controls_linux(self, drawing_context: DrawingContext.DrawingContext) -> None:
-        self._draw_controls_windows(drawing_context)
-
-    def _draw_close_control_windows(self, drawing_context: DrawingContext.DrawingContext) -> typing.Optional[Geometry.IntRect]:
+    def _draw_close_control(self, drawing_context: DrawingContext.DrawingContext) -> typing.Optional[Geometry.IntRect]:
         control_size = 6
         control_margin_x = 7
         control_width_with_margin = 2 * control_margin_x + control_size
@@ -533,11 +528,10 @@ class HeaderCanvasItem(CanvasItem.AbstractCanvasItem):
             if control_margin_y > control_margin_x:
                 control_margin_y = control_margin_x
 
-            close_rect = Geometry.IntRect.from_tlhw(
-                                 close_box_top - control_margin_y,
-                                 close_box_left - control_margin_x,
-                                 control_size + 2 * control_margin_y,
-                                 control_width_with_margin)  # Rectangle containing bounds of the control
+            close_rect = Geometry.IntRect.from_tlhw(close_box_top - control_margin_y,
+                                                    close_box_left - control_margin_x,
+                                                    control_size + 2 * control_margin_y,
+                                                    control_width_with_margin)  # Rectangle containing bounds of the control
             with drawing_context.saver():
                 drawing_context.begin_path()
                 drawing_context.move_to(close_box_left, close_box_top)
@@ -648,12 +642,7 @@ class HeaderCanvasItem(CanvasItem.AbstractCanvasItem):
                     drawing_context.stroke()
 
             if self.__display_close_control:
-                if platform.system() == "Darwin":  # Mac
-                    self._draw_controls_mac(drawing_context)
-                elif platform.system() == "Linux":
-                    self._draw_controls_linux(drawing_context)
-                else:
-                    self._draw_controls_windows(drawing_context)
+                self._draw_controls(drawing_context)
 
 
 class PanelSectionFactory(typing.Protocol):
