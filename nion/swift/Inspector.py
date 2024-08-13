@@ -2875,6 +2875,63 @@ class CalibratedAngleBinding(Binding.Binding):
         return RadianToDegreeStringConverter().convert(-math.atan2(calibrated_dy, calibrated_dx))
 
 
+class DisplayItemCalibratedValueModel(Model.PropertyModel[typing.Any]):
+    """ Model to catch the property changed event for the calibration changing that can trigger a UI update """
+    def __init__(self, property_model: Model.PropertyModel[typing.Any],
+                 converter: Converter.ConverterLike[typing.Any, typing.Any],
+                 display_item: DisplayItem.DisplayItem):
+        super().__init__()
+        self.__property_model = property_model
+        self.__converter = converter
+        self.__display_item = display_item
+
+        self.__display_item_listener = self.__display_item.display_property_changed_event.listen(
+            ReferenceCounting.weak_partial(DisplayItemCalibratedValueModel.__on_calibration_changed, self))
+        self.__property_listener = self.__property_model.property_changed_event.listen(
+            ReferenceCounting.weak_partial(DisplayItemCalibratedValueModel.__on_value_changed, self))
+
+    def __on_calibration_changed(self, property: str) -> None:
+        if property == "displayed_dimensional_calibrations":
+            self.notify_property_changed("value")
+
+    def __on_value_changed(self, property: str) -> None:
+        self.notify_property_changed("value")
+
+    @property
+    def value(self) -> typing.Any:
+        return self.__converter.convert(self.__property_model.value)
+
+    @value.setter
+    def value(self, value: typing.Any) -> None:
+        self.__property_model.value = self.__converter.convert_back(value)
+
+
+class TuplePropertyElementModel(Model.PropertyModel[typing.Any]):
+    def __init__(self, source: Model.PropertyModel[tuple[typing.Any]], index: int):
+        super().__init__()
+        self.__source = source
+        self.__index = index
+        self.__listener = self.__source.property_changed_event.listen(
+            ReferenceCounting.weak_partial(TuplePropertyElementModel.__on_tuple_changed, self))
+
+    @property
+    def value(self) -> typing.Any:
+        tuple_value = self.__source.value
+        return tuple_value[self.__index] if tuple_value else None
+
+    @value.setter
+    def value(self, new_value: typing.Any) -> None:
+        if self.value != new_value:
+            tuple_value = self.__source.value
+            tuple_as_list = list(tuple_value) if tuple_value else []
+            tuple_as_list[self.__index] = new_value
+            self.__source.value = tuple(tuple_as_list)
+
+    def __on_tuple_changed(self, property_name: str) -> None:
+        if property_name == "value":
+            self.notify_property_changed("value")
+
+
 def make_point_type_inspector(document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem, graphic: Graphics.Graphic) -> InspectorSectionWidget:
     ui = document_controller.ui
     graphic_widget = InspectorSectionWidget(ui)
@@ -2905,8 +2962,14 @@ def make_point_type_inspector(document_controller: DocumentController.DocumentCo
     if display_data_shape and len(display_data_shape) > 1:
         # calculate values from rectangle type graphic
         # signal_index
-        position_x_binding = CalibratedValueBinding(1, display_item, Binding.TuplePropertyBinding(position_model, "value", 1))
-        position_y_binding = CalibratedValueBinding(0, display_item, Binding.TuplePropertyBinding(position_model, "value", 0))
+        position_x_model = DisplayItemCalibratedValueModel(TuplePropertyElementModel(position_model, 1),
+                                                           CalibratedValueFloatToStringConverter(display_item, 1),
+                                                           display_item)
+        position_y_model = DisplayItemCalibratedValueModel(TuplePropertyElementModel(position_model, 0),
+                                                           CalibratedValueFloatToStringConverter(display_item, 0),
+                                                           display_item)
+        position_x_binding = Binding.PropertyBinding(position_x_model, 'value')
+        position_y_binding = Binding.PropertyBinding(position_y_model, 'value')
         graphic_position_x_line_edit.bind_text(position_x_binding)
         graphic_position_y_line_edit.bind_text(position_y_binding)
     else:
