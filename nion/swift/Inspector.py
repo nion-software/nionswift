@@ -540,6 +540,23 @@ class DisplayDataChannelPropertyCommandModel(Model.PropertyChangedPropertyModel[
 
 
 class DisplayItemPropertyCommandModel(Model.PropertyChangedPropertyModel[typing.Any]):
+    def __init__(self, document_controller: DocumentController.DocumentController,
+                 display_item: DisplayItem.DisplayItem, property_name: str) -> None:
+        super().__init__(display_item, property_name)
+        self.__display_item = display_item
+        self.__document_controller = document_controller
+        self.__property_name = property_name
+
+    def _set_property_value(self, value: typing.Optional[typing.Any]) -> None:
+        command = ChangeDisplayItemPropertyCommand(self.__document_controller.document_model, self.__display_item, self.__property_name, value)
+        command.perform()
+        self.__document_controller.push_undo_command(command)
+
+    def _get_property_value(self) -> typing.Optional[typing.Any]:
+        return getattr(self.__display_item, self.__property_name)
+
+
+class DisplayItemDisplayPropertyCommandModel(Model.PropertyChangedPropertyModel[typing.Any]):
     """Display item channel property command model.
 
     This model makes undoable changes to a display item property.
@@ -592,13 +609,13 @@ class InfoInspectorHandler(Declarative.Handler):
     def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem):
         super().__init__()
         self._display_item = display_item
-        self._title_model = Model.PropertyChangedPropertyModel[str](display_item, "title")
-        self._placeholder_title_model = Model.PropertyChangedPropertyModel[str](display_item, "placeholder_title")
+        self._title_model = DisplayItemPropertyCommandModel(document_controller, display_item, "title")
+        self._placeholder_title_model = DisplayItemPropertyCommandModel(document_controller, display_item, "placeholder_title")
         self._caption_model = DisplayItemPropertyCommandModel(document_controller, display_item, "caption")
         self._editable_caption_model = Model.PropertyModel[str](display_item.caption)
         self._caption_current_index = Model.PropertyModel[int](0)
         self._session_id_model = Model.PropertyChangedPropertyModel[str](display_item, "session_id")
-        self._created_local_as_string_model = Model.PropertyChangedPropertyModel[str](display_item, "created_local_as_string")
+        self._created_local_as_string_model = DisplayItemPropertyCommandModel(document_controller, display_item, "created_local_as_string")
         self.info_title_label: typing.Optional[UserInterface.Widget] = None
 
         u = Declarative.DeclarativeUI()
@@ -671,7 +688,6 @@ class InfoInspectorSection(InspectorSection):
     def __init__(self, document_controller: DocumentController.DocumentController,
                  display_item: DisplayItem.DisplayItem) -> None:
         super().__init__(document_controller.ui, "info", _("Info"))
-        ui = document_controller.ui
         self.widget_id = "info_inspector_section"
 
         self._info_section_handler = InfoInspectorHandler(document_controller, display_item)
@@ -2186,11 +2202,11 @@ class LinePlotDisplaySectionHandler(Declarative.Handler):
     def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem):
         super().__init__()
 
-        self._y_min_model = DisplayItemPropertyCommandModel(document_controller, display_item, "y_min")
-        self._y_max_model = DisplayItemPropertyCommandModel(document_controller, display_item, "y_max")
-        self._left_channel_model = DisplayItemPropertyCommandModel(document_controller, display_item, "left_channel")
-        self._right_channel_model = DisplayItemPropertyCommandModel(document_controller, display_item, "right_channel")
-        self._y_style_model = DisplayItemPropertyCommandModel(document_controller, display_item, "y_style")
+        self._y_min_model = DisplayItemDisplayPropertyCommandModel(document_controller, display_item, "y_min")
+        self._y_max_model = DisplayItemDisplayPropertyCommandModel(document_controller, display_item, "y_max")
+        self._left_channel_model = DisplayItemDisplayPropertyCommandModel(document_controller, display_item, "left_channel")
+        self._right_channel_model = DisplayItemDisplayPropertyCommandModel(document_controller, display_item, "right_channel")
+        self._y_style_model = DisplayItemDisplayPropertyCommandModel(document_controller, display_item, "y_style")
 
         self._float_to_string_converter = BetterFloatToStringConverter(pass_none=True)
 
