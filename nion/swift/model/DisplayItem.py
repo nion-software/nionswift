@@ -520,6 +520,9 @@ class DisplayRangeProcessor(ProcessorBase):
             data_sample = typing.cast(typing.Optional[_ImageDataType], self._get_parameter("data_sample"))
             complex_display_type = self._get_optional_string("complex_display_type")
             display_range = calculate_display_range(display_limits, data_range, data_sample, element_data_and_metadata, complex_display_type)
+        # double check for cases where one or the other display limit is specified and the other is calculated.
+        if display_range is not None and display_range[0] is not None and display_range[1] is not None:
+            display_range = min(display_range[0], display_range[1]), max(display_range[0], display_range[1])
         self.set_result("display_range", display_range)
 
 
