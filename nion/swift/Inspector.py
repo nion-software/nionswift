@@ -2886,15 +2886,15 @@ class DisplayItemCalibratedValueModel(Model.PropertyModel[typing.Any]):
         self.__display_item = display_item
 
         self.__display_item_listener = self.__display_item.display_property_changed_event.listen(
-            ReferenceCounting.weak_partial(DisplayItemCalibratedValueModel._on_calibration_changed, self))
+            ReferenceCounting.weak_partial(DisplayItemCalibratedValueModel.__on_calibration_changed, self))
         self.__property_listener = self.__property_model.property_changed_event.listen(
-            ReferenceCounting.weak_partial(DisplayItemCalibratedValueModel._on_value_changed, self))
+            ReferenceCounting.weak_partial(DisplayItemCalibratedValueModel.__on_value_changed, self))
 
-    def _on_calibration_changed(self, property: str) -> None:
-        if property == "calibration_style_id":
+    def __on_calibration_changed(self, property: str) -> None:
+        if property == "displayed_dimensional_calibrations":
             self.notify_property_changed("value")
 
-    def _on_value_changed(self, property: str) -> None:
+    def __on_value_changed(self, property: str) -> None:
         self.notify_property_changed("value")
 
     @property
@@ -2909,24 +2909,25 @@ class DisplayItemCalibratedValueModel(Model.PropertyModel[typing.Any]):
 class TuplePropertyElementModel(Model.PropertyModel[typing.Any]):
     def __init__(self, source: Model.PropertyModel[tuple[typing.Any]], index: int):
         super().__init__()
-        self._source = source
-        self._index = index
-        self._listener = self._source.property_changed_event.listen(
-            ReferenceCounting.weak_partial(TuplePropertyElementModel._on_tuple_changed, self))
+        self.__source = source
+        self.__index = index
+        self.__listener = self.__source.property_changed_event.listen(
+            ReferenceCounting.weak_partial(TuplePropertyElementModel.__on_tuple_changed, self))
 
     @property
     def value(self) -> typing.Any:
-        tuple_value = self._source.value
-        return tuple_value[self._index] if tuple_value else None
+        tuple_value = self.__source.value
+        return tuple_value[self.__index] if tuple_value else None
 
     @value.setter
     def value(self, new_value: typing.Any) -> None:
-        tuple_value = self._source.value
-        tuple_as_list = list(tuple_value) if tuple_value else []
-        tuple_as_list[self._index] = new_value
-        self._source.value = tuple(tuple_as_list)
+        if self.value != new_value:
+            tuple_value = self.__source.value
+            tuple_as_list = list(tuple_value) if tuple_value else []
+            tuple_as_list[self.__index] = new_value
+            self.__source.value = tuple(tuple_as_list)
 
-    def _on_tuple_changed(self, property_name: str) -> None:
+    def __on_tuple_changed(self, property_name: str) -> None:
         if property_name == "value":
             self.notify_property_changed("value")
 
