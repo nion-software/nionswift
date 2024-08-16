@@ -759,7 +759,11 @@
             {
                 "type": "item",
                 "action_id": "application.about"
-            }
+            },
+			{
+				"type": "item",
+                "action_id": "application.show_keybind_cheatsheet"
+			}
         ]
     }
 ]
