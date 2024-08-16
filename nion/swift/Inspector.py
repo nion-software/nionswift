@@ -527,16 +527,17 @@ class DisplayDataChannelPropertyCommandModel(Model.PropertyChangedPropertyModel[
         self.__command_id = command_id
 
     def _set_property_value(self, value: typing.Optional[typing.Any]) -> None:
-        document_controller = self.__document_controller
-        display_data_channel = typing.cast(DisplayItem.DisplayDataChannel, self._observable)
-        property_name = self._property_name
-        title = self.__title
-        command_id = self.__command_id
-        command = DisplayPanel.ChangeDisplayDataChannelCommand(document_controller.document_model, display_data_channel,
-                                                               title=title, command_id=command_id, is_mergeable=True,
-                                                               **{property_name: value})
-        command.perform()
-        document_controller.push_undo_command(command)
+        if value != self._get_property_value():
+            document_controller = self.__document_controller
+            display_data_channel = typing.cast(DisplayItem.DisplayDataChannel, self._observable)
+            property_name = self._property_name
+            title = self.__title
+            command_id = self.__command_id
+            command = DisplayPanel.ChangeDisplayDataChannelCommand(document_controller.document_model, display_data_channel,
+                                                                   title=title, command_id=command_id, is_mergeable=True,
+                                                                   **{property_name: value})
+            command.perform()
+            document_controller.push_undo_command(command)
 
 
 class DisplayItemPropertyCommandModel(Model.PropertyChangedPropertyModel[typing.Any]):
@@ -548,9 +549,10 @@ class DisplayItemPropertyCommandModel(Model.PropertyChangedPropertyModel[typing.
         self.__property_name = property_name
 
     def _set_property_value(self, value: typing.Optional[typing.Any]) -> None:
-        command = ChangeDisplayItemPropertyCommand(self.__document_controller.document_model, self.__display_item, self.__property_name, value)
-        command.perform()
-        self.__document_controller.push_undo_command(command)
+        if value != self._get_property_value():
+            command = ChangeDisplayItemPropertyCommand(self.__document_controller.document_model, self.__display_item, self.__property_name, value)
+            command.perform()
+            self.__document_controller.push_undo_command(command)
 
     def _get_property_value(self) -> typing.Optional[typing.Any]:
         return getattr(self.__display_item, self.__property_name)
@@ -570,12 +572,13 @@ class DisplayItemDisplayPropertyCommandModel(Model.PropertyChangedPropertyModel[
         self.__property_name = property_name
 
     def _set_property_value(self, value: typing.Optional[typing.Any]) -> None:
-        command = DisplayPanel.ChangeDisplayCommand(self.__document_controller.document_model, self.__display_item,
-                                                    title=_("Change Display"),
-                                                    command_id="change_display_" + self.__property_name, is_mergeable=True,
-                                                    **{self.__property_name: value})
-        command.perform()
-        self.__document_controller.push_undo_command(command)
+        if value != self._get_property_value():
+            command = DisplayPanel.ChangeDisplayCommand(self.__document_controller.document_model, self.__display_item,
+                                                        title=_("Change Display"),
+                                                        command_id="change_display_" + self.__property_name, is_mergeable=True,
+                                                        **{self.__property_name: value})
+            command.perform()
+            self.__document_controller.push_undo_command(command)
 
     def _get_property_value(self) -> typing.Optional[typing.Any]:
         return self.__display_item.get_display_property(self.__property_name)
