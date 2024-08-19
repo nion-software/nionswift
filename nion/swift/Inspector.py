@@ -2725,6 +2725,8 @@ class CalibratedSizeFloatToStringConverter(Converter.ConverterLike[float, str]):
         if value is not None:
             calibration = self.__get_calibration()
             data_size = self.__get_data_size()
+            if isinstance(value, str):
+                print("blah!")
             return calibration.convert_to_calibrated_size_str(data_size * value * self.__factor, value_range=(0, data_size), samples=data_size)
         return None
 
@@ -3181,9 +3183,8 @@ class GraphicsInspectorHandler(Declarative.Handler):
         self._y1_model = DisplayItemCalibratedValueModel(TuplePropertyElementModel(end_model, 0),
                                                          CalibratedValueFloatToStringConverter(self.__display_item, 0),
                                                          self.__display_item)
-        self._length_model = DisplayItemCalibratedValueModel(LineLengthModel(start_model, end_model, self.__display_item),
-                                                             CalibratedSizeFloatToStringConverter(self.__display_item, 0, uniform=True),
-                                                             self.__display_item)
+        self._length_model = LineLengthModel(start_model, end_model, self.__display_item)
+
         return u.create_column(
             u.create_row(
                 u.create_spacing(20),
@@ -3410,11 +3411,17 @@ class GraphicsInspectorSection(InspectorSection):
 
     def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem, selected_only: bool = False) -> None:
         super().__init__(document_controller.ui, "graphics", _("Graphics"))
+        self.widget_id = "graphics_inspector_section"
         graphics = getattr(display_item, "selected_graphics" if selected_only else "graphics")
+
+        handlers = []
         for index, graphic in enumerate(graphics):
             graphic_handler = GraphicsInspectorHandler(document_controller, display_item, graphic)
             graphic_widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop, graphic_handler)
             self.add_widget_to_content(graphic_widget)
+            handlers.append(graphic_handler)
+
+        self._handlers = handlers
 
 
 class ChangeComputationVariableCommand(Undo.UndoableCommand):
