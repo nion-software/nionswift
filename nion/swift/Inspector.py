@@ -3184,6 +3184,7 @@ class GraphicsInspectorHandler(Declarative.Handler):
                                                          CalibratedValueFloatToStringConverter(self.__display_item, 0),
                                                          self.__display_item)
         self._length_model = LineLengthModel(start_model, end_model, self.__display_item)
+        self._angle_model = LineAngleModel(start_model, end_model, self.__display_item)
 
         return u.create_column(
             u.create_row(
@@ -3209,7 +3210,11 @@ class GraphicsInspectorHandler(Declarative.Handler):
             u.create_row(
                 u.create_spacing(20),
                 u.create_label(text=_("L"), width=26),
-                u.create_line_edit()
+                u.create_line_edit(text="@binding(_length_model.value)"),
+                u.create_spacing(8),
+                u.create_label(text=_("A"), width=26),
+                u.create_line_edit(text="@binding(_angle_model.value)"),
+                u.create_stretch()
             )
         )
 
