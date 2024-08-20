@@ -271,6 +271,7 @@ class ExportSizeModel(Observable.Observable):
         self.__float_to_string_converter = Converter.FloatToStringConverter()
         self.__primary_field = 'width'  # Primary field to determine which text is calculated
         self.__enforce_width_height_constraints()
+
     def __calculate_display_size_in_pixels(self, display_item: DisplayItem.DisplayItem) -> Geometry.IntSize:
         if display_item.display_data_shape and len(display_item.display_data_shape) == 2:
             return Geometry.IntSize(height=display_item.display_data_shape[0], width=display_item.display_data_shape[1])
