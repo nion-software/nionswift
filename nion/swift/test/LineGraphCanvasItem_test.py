@@ -307,9 +307,10 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             axes = display_panel.display_canvas_item._axes
             drawing_context = DrawingContext.DrawingContext()
             line_graph_layer = LineGraphCanvasItem.LineGraphLayer(data_item.xdata, axes, Color.Color("black"), Color.Color("black"), None)
-            line_graph_layer.calculate(Geometry.IntRect.from_tlbr(0, 0, 480, 640))
-            line_graph_layer.draw_fills(drawing_context)
-            line_graph_layer.draw_strokes(drawing_context)
+            canvas_bounds = Geometry.IntRect.from_tlbr(0, 0, 480, 640)
+            composer_cache = CanvasItem.ComposerCache()
+            line_graph_layer.draw_fills(drawing_context, canvas_bounds, composer_cache)
+            line_graph_layer.draw_strokes(drawing_context, canvas_bounds, composer_cache)
             # ensure that the drawing commands are sufficiently populated to have drawn the graph
             self.assertGreater(len(drawing_context.commands), 100)
 
@@ -330,9 +331,10 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             self.assertEqual(axes.data_style, "log")
             drawing_context = DrawingContext.DrawingContext()
             line_graph_layer = LineGraphCanvasItem.LineGraphLayer(data_item.xdata, axes, Color.Color("black"), Color.Color("black"), None)
-            line_graph_layer.calculate(Geometry.IntRect.from_tlbr(0, 0, 480, 640))
-            line_graph_layer.draw_fills(drawing_context)
-            line_graph_layer.draw_strokes(drawing_context)
+            canvas_bounds = Geometry.IntRect.from_tlbr(0, 0, 480, 640)
+            composer_cache = CanvasItem.ComposerCache()
+            line_graph_layer.draw_fills(drawing_context, canvas_bounds, composer_cache)
+            line_graph_layer.draw_strokes(drawing_context, canvas_bounds, composer_cache)
             # ensure that the drawing commands are sufficiently populated to have drawn the graph
             self.assertGreater(len(drawing_context.commands), 100)
 
@@ -409,9 +411,10 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             axes = display_panel.display_canvas_item._axes
             drawing_context = DrawingContext.DrawingContext()
             line_graph_layer = LineGraphCanvasItem.LineGraphLayer(data_item.xdata, axes, Color.Color("black"), Color.Color("black"), None)
-            line_graph_layer.calculate(Geometry.IntRect.from_tlbr(0, 0, 480, 640))
-            line_graph_layer.draw_fills(drawing_context)
-            line_graph_layer.draw_strokes(drawing_context)
+            canvas_bounds = Geometry.IntRect.from_tlbr(0, 0, 480, 640)
+            composer_cache = CanvasItem.ComposerCache()
+            line_graph_layer.draw_fills(drawing_context, canvas_bounds, composer_cache)
+            line_graph_layer.draw_strokes(drawing_context, canvas_bounds, composer_cache)
             # ensure that the drawing commands are sufficiently populated to have drawn the graph
             self.assertGreater(len(drawing_context.commands), 100)
 
