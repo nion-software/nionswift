@@ -263,18 +263,37 @@ ConversionUnits = {
 class ExportSizeModel(Observable.Observable):
     def __init__(self, display_item: DisplayItem.DisplayItem) -> None:
         super().__init__()
-        display_size = self.__calculate_display_size_in_pixels(display_item)
-        self.__width = display_size.width
-        self.__height = display_size.height
-        self.__aspect_ratio = self.__width / self.__height
-        self.__units = UnitType.PIXELS
-        self.__float_to_string_converter = Converter.FloatToStringConverter()
-        self.__primary_field = 'width'  # Primary field to determine which text is calculated
+        if display_item.data_item is not None:
+            self.__image_2d = display_item.data_item.is_data_2d
+            self.__display_item = display_item
+            display_size = self.__calculate_display_size_in_pixels(display_item)
+            self.__width = display_size.width
+            self.__height = display_size.height
+            self.__aspect_ratio = self.__width / self.__height
+            self.__units = UnitType.PIXELS
+            self.__float_to_string_converter = Converter.FloatToStringConverter()
+            self.__primary_field = 'width'  # Primary field to determine which text is calculated
 
     def __calculate_display_size_in_pixels(self, display_item: DisplayItem.DisplayItem) -> Geometry.IntSize:
-        if display_item.display_data_shape and len(display_item.display_data_shape) == 2:
+        if display_item.display_data_shape and self.__image_2d:
             return Geometry.IntSize(height=display_item.display_data_shape[0], width=display_item.display_data_shape[1])
         return Geometry.IntSize(height=288, width=480)
+
+    @property
+    def image_info(self) -> typing.Optional[str]:
+        assert self.__display_item.data_item and self.__display_item.dimensional_shape
+        data_information = self.__display_item.displayed_title + "\n"
+        if self.__image_2d:
+            data_information += "Image Size " + str(self.__display_item.dimensional_shape) + "\n"
+            calibrated_image_size = (self.__display_item.dimensional_shape[0] * self.__display_item.data_item.dimensional_calibrations[0].scale,
+                                     self.__display_item.dimensional_shape[1] * self.__display_item.data_item.dimensional_calibrations[1].scale)
+            data_information += ("(" + str(calibrated_image_size[0]) + " " + self.__display_item.data_item.dimensional_calibrations[0].units + "," +
+                                 str(calibrated_image_size[1]) + " " + self.__display_item.data_item.dimensional_calibrations[1].units + ")")
+        else:
+            data_information += "Line Plot Size " + str(self.__display_item.dimensional_shape[0])
+            calibrated_line_plot_size = self.__display_item.dimensional_shape[0] * self.__display_item.data_item.dimensional_calibrations[0].scale
+            data_information += ("(" + str(calibrated_line_plot_size) + " " + self.__display_item.data_item.dimensional_calibrations[0].units + ")")
+        return data_information
 
     @property
     def width(self) -> float:
@@ -356,6 +375,9 @@ class ExportSVGHandler(Declarative.Handler):
         u = Declarative.DeclarativeUI()
         self._float_to_string_converter = Converter.FloatToStringConverter()
         self.ui_view = u.create_column(
+            u.create_row(
+                u.create_label(text="@binding(model.image_info)", word_wrap=True), spacing=12
+            ),
             u.create_row(
                 u.create_label(text=_("Width:"), width=80),
                 u.create_line_edit(
