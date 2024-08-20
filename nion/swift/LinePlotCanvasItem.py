@@ -177,7 +177,7 @@ class LinePlotDisplayInfo:
                         intensity_calibration = None
                     if xdata:
                         # xdata.data may not be a numpy array, so convert it to one.
-                        xdata = DataAndMetadata.new_data_and_metadata(numpy.array(xdata.data),
+                        xdata = DataAndMetadata.new_data_and_metadata(numpy.asarray(xdata.data),
                                                                       intensity_calibration,
                                                                       dimensional_calibrations, xdata.metadata,
                                                                       xdata.timestamp, xdata.data_descriptor,
