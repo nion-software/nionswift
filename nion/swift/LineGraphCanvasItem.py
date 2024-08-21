@@ -171,6 +171,9 @@ class LineGraphAxes:
         self.__calibrated_data_max = calibrated_data_max
         self.__y_ticker = y_ticker
 
+    def __repr__(self) -> str:
+        return f"Axes {self.drawn_left_channel}:{self.drawn_right_channel} [{self.calibrated_data_min},{self.calibrated_data_max} {self.x_calibration} {self.y_calibration} {self.data_style} {self.data_scale}"
+
     @property
     def y_ticker(self) -> Geometry.Ticker:
         return self.__y_ticker

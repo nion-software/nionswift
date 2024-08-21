@@ -270,12 +270,40 @@ class ExportSizeModel(Observable.Observable):
         self.__units = UnitType.PIXELS
         self.__float_to_string_converter = Converter.FloatToStringConverter()
         self.__primary_field = 'width'  # Primary field to determine which text is calculated
+        self.__enforce_width_height_constraints()
 
     def __calculate_display_size_in_pixels(self, display_item: DisplayItem.DisplayItem) -> Geometry.IntSize:
         if display_item.display_data_shape and len(display_item.display_data_shape) == 2:
             return Geometry.IntSize(height=display_item.display_data_shape[0], width=display_item.display_data_shape[1])
         return Geometry.IntSize(height=288, width=480)
 
+    def __enforce_width_height_constraints(self) -> None:
+        min_size_in_inches = 3.0
+        max_size_in_inches = 12.0
+        min_size_in_current_units = min_size_in_inches * ConversionUnits[UnitType.INCHES] / ConversionUnits[self.__units]
+        max_size_in_current_units = max_size_in_inches * ConversionUnits[UnitType.INCHES] / ConversionUnits[self.__units]
+        width_in_current_units = self.__convert_from_pixels(self.__width)
+        height_in_current_units = self.__convert_from_pixels(self.__height)
+        if width_in_current_units < height_in_current_units:
+            if width_in_current_units < min_size_in_current_units:
+                width_in_current_units = min_size_in_current_units
+                self.__width = self.__convert_to_pixels(width_in_current_units)
+                self.__height = int(self.__width / self.__aspect_ratio)
+        else:
+            if height_in_current_units < min_size_in_current_units:
+                height_in_current_units = min_size_in_current_units
+                self.__height = self.__convert_to_pixels(height_in_current_units)
+                self.__width = int(self.__height * self.__aspect_ratio)
+        if width_in_current_units > height_in_current_units:
+            if width_in_current_units > max_size_in_current_units:
+                width_in_current_units = max_size_in_current_units
+                self.__width = self.__convert_to_pixels(width_in_current_units)
+                self.__height = int(self.__width / self.__aspect_ratio)
+        else:
+            if height_in_current_units > max_size_in_current_units:
+                height_in_current_units = max_size_in_current_units
+                self.__height = self.__convert_to_pixels(height_in_current_units)
+                self.__width = int(self.__height * self.__aspect_ratio)
     @property
     def width(self) -> float:
         return self.__convert_from_pixels(self.__width)
