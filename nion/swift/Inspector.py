@@ -2731,8 +2731,6 @@ class CalibratedSizeFloatToStringConverter(Converter.ConverterLike[float, str]):
         if value is not None:
             calibration = self.__get_calibration()
             data_size = self.__get_data_size()
-            if isinstance(value, str):
-                print("blah!")
             return calibration.convert_to_calibrated_size_str(data_size * value * self.__factor, value_range=(0, data_size), samples=data_size)
         return None
 
