@@ -670,6 +670,19 @@ class LineGraphLayer:
         self.__calibrated_xdata: typing.Optional[DataAndMetadata.DataAndMetadata] = None
         self.__axes = axes
 
+    def __repr__(self) -> str:
+        data_sum = numpy.sum(self.__xdata) if self.__xdata else 0.0
+        return f"LineGraphLayer {data_sum} {self.__fill_color} {self.__stroke_color} {self.__stroke_width} {self.__axes}"
+
+    def __eq__(self, other: typing.Any) -> bool:
+        if not isinstance(other, LineGraphLayer):
+            return False
+        return (self.__xdata is not None and other.__xdata is not None and self.__xdata.data is other.__xdata.data and
+                self.__fill_color == other.__fill_color and
+                self.__stroke_color == other.__stroke_color and
+                self.__stroke_width == other.__stroke_width and
+                self.__axes == other.__axes)
+
     @property
     def xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
         return self.__xdata
@@ -692,9 +705,11 @@ class LineGraphLayer:
 
     def draw_fills(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> typing.Tuple[CanvasItem.CacheValue, ...]:
         if self.fill_color:
-            calibrated_xdata_cache_value = composer_cache.get_cache_value(CalibratedDataAndMetadataCacheItem(self.__xdata, self.__axes))
+            calibrated_data_and_metadata_cache_item = CalibratedDataAndMetadataCacheItem(self.__xdata, self.__axes)
+            calibrated_xdata_cache_value = composer_cache.get_cache_value(calibrated_data_and_metadata_cache_item)
             calibrated_xdata = typing.cast(typing.Optional[DataAndMetadata.DataAndMetadata], calibrated_xdata_cache_value.value)
-            segments_cache_value = composer_cache.get_cache_value(SegmentsCacheItem(calibrated_xdata, self.__axes, canvas_bounds))
+            segments_cache_item = SegmentsCacheItem(calibrated_xdata, self.__axes, canvas_bounds)
+            segments_cache_value = composer_cache.get_cache_value(segments_cache_item)
             segments, baseline = typing.cast(typing.Tuple[typing.List[LineGraphSegment], float], segments_cache_value.value)
             for segment in segments:
                 segment.fill(drawing_context, baseline, Color.Color(self.fill_color))
@@ -703,9 +718,11 @@ class LineGraphLayer:
 
     def draw_strokes(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> typing.Tuple[CanvasItem.CacheValue, ...]:
         if self.stroke_color:
-            calibrated_xdata_cache_value = composer_cache.get_cache_value(CalibratedDataAndMetadataCacheItem(self.__xdata, self.__axes))
+            calibrated_data_and_metadata_cache_item = CalibratedDataAndMetadataCacheItem(self.__xdata, self.__axes)
+            calibrated_xdata_cache_value = composer_cache.get_cache_value(calibrated_data_and_metadata_cache_item)
             calibrated_xdata = typing.cast(typing.Optional[DataAndMetadata.DataAndMetadata], calibrated_xdata_cache_value.value)
-            segments_cache_value = composer_cache.get_cache_value(SegmentsCacheItem(calibrated_xdata, self.__axes, canvas_bounds))
+            segments_cache_item = SegmentsCacheItem(calibrated_xdata, self.__axes, canvas_bounds)
+            segments_cache_value = composer_cache.get_cache_value(segments_cache_item)
             segments, baseline = typing.cast(typing.Tuple[typing.List[LineGraphSegment], float], segments_cache_value.value)
             for segment in segments:
                 segment.stroke(drawing_context, baseline, Color.Color(self.stroke_color), self.stroke_width)
@@ -713,23 +730,59 @@ class LineGraphLayer:
         return tuple()
 
 
-class LineGraphLayersCanvasItemComposer(CanvasItem.BaseComposer):
-    def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing, cache: CanvasItem.ComposerCache, line_graph_layers: typing.Sequence[LineGraphLayer]) -> None:
+class LineGraphLayerCanvasItemComposer(CanvasItem.BaseComposer):
+    def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing, cache: CanvasItem.ComposerCache, line_graph_layer: LineGraphLayer, is_fill: bool) -> None:
         super().__init__(canvas_item, layout_sizing, cache)
-        self.__line_graph_layers = list(line_graph_layers)
         self.__cache_values = list[typing.Tuple[CanvasItem.CacheValue, ...]]()
+        self.__line_graph_layer = line_graph_layer
+        self.__is_fill = is_fill
 
     def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> None:
         cache_values = list[typing.Tuple[CanvasItem.CacheValue, ...]]()
-        line_graph_layers = list(self.__line_graph_layers)
-        for line_graph_layer in reversed(line_graph_layers):
+        line_graph_layer = self.__line_graph_layer
+        if self.__is_fill:
             cache_values.append(line_graph_layer.draw_fills(drawing_context, canvas_bounds, composer_cache))
-        for line_graph_layer in reversed(line_graph_layers):
+        else:
             cache_values.append(line_graph_layer.draw_strokes(drawing_context, canvas_bounds, composer_cache))
         self.__cache_values = cache_values
 
 
-class LineGraphLayersCanvasItem(CanvasItem.AbstractCanvasItem):
+class LineGraphLayerCanvasItem(CanvasItem.AbstractCanvasItem):
+    """Canvas item to draw the line plot layer by layer.
+
+    Draws the fills followed by the strokes.
+    """
+
+    def __init__(self, cache: CanvasItem.ComposerCache) -> None:
+        super().__init__(cache)
+        self.__line_graph_layer: typing.Optional[LineGraphLayer] = None
+        self.__is_fill = False
+
+    def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> CanvasItem.BaseComposer:
+        assert self.__line_graph_layer
+        return LineGraphLayerCanvasItemComposer(self, self.layout_sizing, composer_cache, self.__line_graph_layer, self.__is_fill)
+
+    @property
+    def _xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+        return self.__line_graph_layer.xdata if self.__line_graph_layer else None
+
+    @property
+    def _axes(self) -> typing.Optional[LineGraphAxes]:  # for testing only
+        return self.__line_graph_layer.axes if self.__line_graph_layer else None
+
+    def update_line_graph_layer(self, line_graph_layer: LineGraphLayer, is_fill: bool) -> None:
+        if self.__line_graph_layer != line_graph_layer or self.__is_fill != is_fill:
+            self.__line_graph_layer = line_graph_layer
+            self.__is_fill = is_fill
+            self._invalidate_composer()
+            self.update()
+
+    @property
+    def calibrated_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+        return CalibratedDataAndMetadataCacheItem(self._xdata, self._axes).calculate()
+
+
+class LineGraphLayersCanvasItem(CanvasItem.CanvasItemComposition):
     """Canvas item to draw the line plot layer by layer.
 
     Draws the fills followed by the strokes.
@@ -737,25 +790,28 @@ class LineGraphLayersCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def __init__(self) -> None:
         super().__init__()
-        self.__line_graph_layers: typing.List[LineGraphLayer] = list()
-
-    def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> CanvasItem.BaseComposer:
-        return LineGraphLayersCanvasItemComposer(self, self.layout_sizing, composer_cache, self.__line_graph_layers)
+        self.__cache = CanvasItem.ComposerCache()
 
     @property
     def _xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
-        return self.__line_graph_layers[0].xdata if self.__line_graph_layers else None
+        return typing.cast(LineGraphLayerCanvasItem, self.canvas_items[0])._xdata if self.canvas_items else None
 
     @property
     def _axes(self) -> typing.Optional[LineGraphAxes]:  # for testing only
-        return self.__line_graph_layers[0].axes if self.__line_graph_layers else None
+        return typing.cast(LineGraphLayerCanvasItem, self.canvas_items[0])._axes if self.canvas_items else None
 
     def update_line_graph_layers(self, line_graph_layers: typing.Sequence[LineGraphLayer]) -> None:
-        if self.__line_graph_layers != line_graph_layers:
-            self.__line_graph_layers.clear()
-            self.__line_graph_layers.extend(line_graph_layers)
-            self._invalidate_composer()
-            self.update()
+        line_graph_layers = list(line_graph_layers)
+        while len(self.canvas_items) < len(line_graph_layers) * 2:
+            self.add_canvas_item(LineGraphLayerCanvasItem(self.__cache))
+        while len(self.canvas_items) > len(line_graph_layers) * 2:
+            self.remove_canvas_item(self.canvas_items[-1])
+        for canvas_item, line_graph_layer in zip(self.canvas_items[:len(line_graph_layers)], line_graph_layers):
+            line_graph_layer_canvas_item = typing.cast(LineGraphLayerCanvasItem, canvas_item)
+            line_graph_layer_canvas_item.update_line_graph_layer(line_graph_layer, True)
+        for canvas_item, line_graph_layer in zip(self.canvas_items[len(line_graph_layers):], line_graph_layers):
+            line_graph_layer_canvas_item = typing.cast(LineGraphLayerCanvasItem, canvas_item)
+            line_graph_layer_canvas_item.update_line_graph_layer(line_graph_layer, False)
 
     @property
     def calibrated_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
