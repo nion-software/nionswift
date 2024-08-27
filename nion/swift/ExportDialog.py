@@ -261,9 +261,9 @@ ConversionUnits = {
 
 
 class ExportSizeModel(Observable.Observable):
-    def __init__(self, display_item: DisplayItem.DisplayItem, ui: UserInterface.UserInterface) -> None:
+    def __init__(self, display_item: DisplayItem.DisplayItem, units_persistent_model: UserInterface.StringPersistentModel) -> None:
         super().__init__()
-        self.ui = ui
+        self.__units_persistent_model = units_persistent_model
         display_size = self.__calculate_display_size_in_pixels(display_item)
         self.__width = display_size.width
         self.__height = display_size.height
@@ -271,7 +271,7 @@ class ExportSizeModel(Observable.Observable):
         self.__float_to_string_converter = Converter.FloatToStringConverter()
         self.__primary_field = 'width'  # Primary field to determine which text is calculater
         # Load the persisted units value, default to PIXELS if not found
-        persisted_units = self.ui.get_persistent_string("export_units", UnitType.PIXELS.name)
+        persisted_units = self.__units_persistent_model.value
         self.__units = UnitType[persisted_units]
 
     def __calculate_display_size_in_pixels(self, display_item: DisplayItem.DisplayItem) -> Geometry.IntSize:
@@ -330,7 +330,7 @@ class ExportSizeModel(Observable.Observable):
         new_enum = UnitType(new_units)
         if self.__units != new_enum:
             self.__units = new_enum
-            self.ui.set_persistent_string("export_units", self.__units.name)
+            self.__units_persistent_model.value = self.__units.name
             self.notify_property_changed("width")
             self.notify_property_changed("height")
             self.notify_property_changed("width_text")
@@ -395,7 +395,12 @@ class ExportSVGDialog:
         super().__init__()
         self.__document_controller = document_controller
         self.__display_item = display_item
-        self.__model = ExportSizeModel(display_item, document_controller.ui)
+        self.__units_persistent_model = UserInterface.StringPersistentModel(
+            ui=document_controller.ui,
+            storage_key="export_units",
+            value=UnitType.PIXELS.name  # Default value if not found
+        )
+        self.__model = ExportSizeModel(display_item, self.__units_persistent_model)
         self.__handler = ExportSVGHandler(self.__model)
         self.__init_ui()
 
