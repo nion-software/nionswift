@@ -286,19 +286,22 @@ class ExportSizeModel(Observable.Observable):
     @property
     def width_text(self) -> typing.Optional[str]:
         if self.__primary_field == 'width':
-            return self.__float_to_string_converter.convert(self.__width_in_units)
+            return self.__float_to_string_converter.convert(self.width)
         return None
 
     @width_text.setter
     def width_text(self, new_width: typing.Optional[str]) -> None:
         if new_width and new_width != "":
-            width = self.__float_to_string_converter.convert_back(new_width)
-            if width is not None:
-                self.__width_in_units = width
-            self.__height_in_units = self.__width_in_units / self.__aspect_ratio
-            self.__primary_field = 'width'
-            self.notify_property_changed("width")
-            self.notify_property_changed("height")
+            new_width_value = self.__float_to_string_converter.convert_back(new_width)
+            if new_width_value is not None:
+                self.__width_in_units = new_width_value
+                self.__height_in_units = self.__width_in_units / self.__aspect_ratio
+                if self.__units == UnitType.PIXELS:
+                    self.__width_in_units = round(self.__width_in_units)
+                    self.__height_in_units = round(self.__height_in_units)
+                self.__primary_field = 'width'
+                self.notify_property_changed("width")
+                self.notify_property_changed("height")
         self.notify_property_changed("width_text")
         self.notify_property_changed("height_text")
 
@@ -309,19 +312,22 @@ class ExportSizeModel(Observable.Observable):
     @property
     def height_text(self) -> typing.Optional[str]:
         if self.__primary_field == 'height':
-            return self.__float_to_string_converter.convert(self.__height_in_units)
+            return self.__float_to_string_converter.convert(self.height)
         return None
 
     @height_text.setter
     def height_text(self, new_height: typing.Optional[str]) -> None:
-        if new_height is not None and new_height != "":
-            height = self.__float_to_string_converter.convert_back(new_height)
-            if height is not None:
-                self.__height_in_units = height
-            self.__width_in_units = self.__height_in_units * self.__aspect_ratio
-            self.__primary_field = 'height'
-            self.notify_property_changed("width")
-            self.notify_property_changed("height")
+        if new_height and new_height != "":
+            new_height_value = self.__float_to_string_converter.convert_back(new_height)
+            if new_height_value is not None:
+                self.__height_in_units = new_height_value
+                self.__width_in_units = self.__height_in_units * self.__aspect_ratio
+                if self.__units == UnitType.PIXELS:
+                    self.__width_in_units = round(self.__width_in_units)
+                    self.__height_in_units = round(self.__height_in_units)
+                self.__primary_field = 'height'
+                self.notify_property_changed("width")
+                self.notify_property_changed("height")
         self.notify_property_changed("width_text")
         self.notify_property_changed("height_text")
 
@@ -333,9 +339,14 @@ class ExportSizeModel(Observable.Observable):
     def units(self, new_units: int) -> None:
         new_enum = UnitType(new_units)
         if self.__units != new_enum:
-            self.__width_in_units = self.__convert_from_pixels(self.__convert_to_pixels(self.__width_in_units, self.__units), new_enum)
-            self.__height_in_units = self.__convert_from_pixels(self.__convert_to_pixels(self.__height_in_units, self.__units), new_enum)
+            # Convert current dimensions in the old unit to the new unit
+            self.__width_in_units = self.__convert_between_units(self.__width_in_units, self.__units, new_enum)
+            self.__height_in_units = self.__convert_between_units(self.__height_in_units, self.__units, new_enum)
             self.__units = new_enum
+            if self.__units == UnitType.PIXELS:
+                # Round dimensions to ensure integer pixel values
+                self.__width_in_units = round(self.__width_in_units)
+                self.__height_in_units = round(self.__height_in_units)
             self.notify_property_changed("width")
             self.notify_property_changed("height")
             self.notify_property_changed("width_text")
@@ -346,6 +357,9 @@ class ExportSizeModel(Observable.Observable):
 
     def __convert_from_pixels(self, value: int, units: UnitType) -> float:
         return value / ConversionUnits[units]
+
+    def __convert_between_units(self, value: float, from_units: UnitType, to_units: UnitType) -> float:
+        return value * ConversionUnits[from_units] / ConversionUnits[to_units]
 
     @property
     def pixel_shape(self) -> Geometry.IntSize:
