@@ -272,7 +272,7 @@ class ExportSizeModel(Observable.Observable):
         self.__primary_field = 'width'  # Primary field to determine which text is calculater
         # Load the persisted units value, default to PIXELS if not found
         persisted_units = self.__units_persistent_model.value
-        self.__units = UnitType[persisted_units]
+        self.__units = UnitType[str(persisted_units)]
 
     def __calculate_display_size_in_pixels(self, display_item: DisplayItem.DisplayItem) -> Geometry.IntSize:
         if display_item.display_data_shape and len(display_item.display_data_shape) == 2:
