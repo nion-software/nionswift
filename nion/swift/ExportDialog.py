@@ -248,15 +248,15 @@ class ExportDialog(Declarative.Handler):
 
 
 class UnitType(enum.Enum):
-    PIXELS = 0
-    INCHES = 1
-    CENTIMETERS = 2
+    PIXEL = 0
+    INCH = 1
+    CENTIMETER = 2
 
 
 ConversionUnits = {
-    UnitType.PIXELS: 1.0,
-    UnitType.CENTIMETERS: 37.795275591,
-    UnitType.INCHES: 96.0
+    UnitType.PIXEL: 1.0,
+    UnitType.CENTIMETER: 37.795275591,
+    UnitType.INCH: 96.0
 }
 
 
@@ -270,7 +270,7 @@ class ExportSizeModel(Observable.Observable):
             self.__width = display_size.width
             self.__height = display_size.height
             self.__aspect_ratio = self.__width / self.__height
-            self.__units = UnitType.PIXELS
+            self.__units = UnitType.PIXEL
             self.__float_to_string_converter = Converter.FloatToStringConverter()
             self.__primary_field = 'width'  # Primary field to determine which text is calculated
 
@@ -313,8 +313,10 @@ class ExportSizeModel(Observable.Observable):
             self.__primary_field = 'width'
             self.notify_property_changed("width")
             self.notify_property_changed("height")
+            self.notify_property_changed("calibrated_units")
         self.notify_property_changed("width_text")
         self.notify_property_changed("height_text")
+        self.notify_property_changed("calibrated_units_text")
 
     @property
     def height(self) -> float:
@@ -334,9 +336,57 @@ class ExportSizeModel(Observable.Observable):
             self.__primary_field = 'height'
             self.notify_property_changed("width")
             self.notify_property_changed("height")
+            self.notify_property_changed("calibrated_units")
         self.notify_property_changed("width_text")
         self.notify_property_changed("height_text")
+        self.notify_property_changed("calibrated_units_text")
 
+    @property
+    def calibrated_units(self) -> typing.Optional[str]:
+        assert self.__display_item.dimensional_shape and self.__display_item.data_item and self.__display_item.data_item.dimensional_calibrations
+        if not (((self.__convert_from_pixels(self.__height)) == 0) or (self.__convert_from_pixels(self.__height)) == 0):
+            x_scale = ((self.__display_item.dimensional_shape[0] * self.__display_item.data_item.dimensional_calibrations[0].scale) /
+                       self.__convert_from_pixels(self.__height))
+            y_scale = ((self.__display_item.dimensional_shape[1] * self.__display_item.data_item.dimensional_calibrations[1].scale) /
+                       self.__convert_from_pixels(self.__width))
+        else:
+            x_scale = (self.__display_item.dimensional_shape[0] * self.__display_item.data_item.dimensional_calibrations[0].scale)
+            y_scale = (self.__display_item.dimensional_shape[1] * self.__display_item.data_item.dimensional_calibrations[1].scale)
+        avg_scale = (x_scale + y_scale) / 2
+        units = self.__display_item.data_item.dimensional_calibrations[0].units
+        output_units = self.__units.name.lower()
+        return f"{avg_scale:.2f} {units} per {output_units}"
+
+    @property
+    def calibrated_units_text(self) -> typing.Optional[str]:
+        if self.__primary_field == 'calibrated_units':
+            calibrated_units = self.calibrated_units
+            return f"{calibrated_units}"
+        return None
+
+    @calibrated_units_text.setter
+    def calibrated_units_text(self, new_calibrated_units_text: typing.Optional[str]) -> None:
+        if new_calibrated_units_text and new_calibrated_units_text.strip():
+            try:
+                assert self.__display_item.data_item and self.__display_item.dimensional_shape
+                scale = float(new_calibrated_units_text.split()[0])
+                y_size = self.__display_item.dimensional_shape[0] * self.__display_item.data_item.dimensional_calibrations[0].scale
+                x_size = self.__display_item.dimensional_shape[1] * self.__display_item.data_item.dimensional_calibrations[1].scale
+                x_scale = x_size/scale
+                y_scale = y_size/scale
+                self.__width = self.__convert_to_pixels(x_scale)
+                self.__height = self.__convert_to_pixels(y_scale)
+                self.__primary_field = 'calibrated_units'
+                self.notify_property_changed("width")
+                self.notify_property_changed("height")
+                self.notify_property_changed("calibrated_units")
+                self.notify_property_changed("width_text")
+                self.notify_property_changed("height_text")
+                self.notify_property_changed("calibrated_units_text")
+
+            except ValueError:
+                print(new_calibrated_units_text)
+                pass
     @property
     def units(self) -> int:
         return self.__units.value
@@ -348,8 +398,10 @@ class ExportSizeModel(Observable.Observable):
             self.__units = new_enum
             self.notify_property_changed("width")
             self.notify_property_changed("height")
+            self.notify_property_changed("calibrated_units")
             self.notify_property_changed("width_text")
             self.notify_property_changed("height_text")
+            self.notify_property_changed("calibrated_units_text")
 
     def __convert_to_pixels(self, value: typing.Optional[float]) -> int:
         if value is not None:
@@ -376,7 +428,7 @@ class ExportSVGHandler(Declarative.Handler):
         self._float_to_string_converter = Converter.FloatToStringConverter()
         self.ui_view = u.create_column(
             u.create_row(
-                u.create_label(text="@binding(model.image_info)", word_wrap=True), spacing=12
+                u.create_label(text="@binding(model.image_info)", word_wrap=True), spacing=50
             ),
             u.create_row(
                 u.create_label(text=_("Width:"), width=80),
@@ -398,7 +450,16 @@ class ExportSVGHandler(Declarative.Handler):
                 u.create_label(text=_("Units:"), width=80),
                 u.create_combo_box(
                     items=[_("Pixels"), _("Inches"), _("Centimeters")],
-                    current_index="@binding(model.units)",
+                    current_index="@binding(model.units)"
+                ),
+                spacing=12
+            ),
+            u.create_row(
+                u.create_label(text=_("Calibrated Units:"), width=80),
+                u.create_line_edit(
+                    placeholder_text="@binding(model.calibrated_units)",
+                    text="@binding(model.calibrated_units_text)",
+                    width=135
                 ),
                 spacing=12
             ),
