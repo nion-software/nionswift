@@ -265,7 +265,7 @@ class ExportSizeModel(Observable.Observable):
         super().__init__()
 
         if display_item.data_item is not None:
-            self.__image_2d = display_item.data_item.is_data_2d
+            self.__image_1d = display_item.data_item.is_data_1d
             self.__display_item = display_item
             display_size = self.__calculate_display_size_in_pixels(display_item)
             self.__width = display_size.width
@@ -277,15 +277,15 @@ class ExportSizeModel(Observable.Observable):
             self.__enforce_width_height_constraints()
 
     def __calculate_display_size_in_pixels(self, display_item: DisplayItem.DisplayItem) -> Geometry.IntSize:
-        if display_item.display_data_shape and self.__image_2d:
+        if display_item.display_data_shape and not  self.__image_1d:
             return Geometry.IntSize(height=display_item.display_data_shape[0], width=display_item.display_data_shape[1])
         return Geometry.IntSize(height=288, width=480)
 
     def __enforce_width_height_constraints(self) -> None:
         min_size_in_inches = 3.0
         max_size_in_inches = 12.0
-        min_size_in_current_units = min_size_in_inches * ConversionUnits[UnitType.INCHES] / ConversionUnits[self.__units]
-        max_size_in_current_units = max_size_in_inches * ConversionUnits[UnitType.INCHES] / ConversionUnits[self.__units]
+        min_size_in_current_units = min_size_in_inches * ConversionUnits[UnitType.INCH] / ConversionUnits[self.__units]
+        max_size_in_current_units = max_size_in_inches * ConversionUnits[UnitType.INCH] / ConversionUnits[self.__units]
         width_in_current_units = self.__convert_from_pixels(self.__width)
         height_in_current_units = self.__convert_from_pixels(self.__height)
         if width_in_current_units < height_in_current_units:
@@ -312,12 +312,12 @@ class ExportSizeModel(Observable.Observable):
     def image_info(self) -> typing.Optional[str]:
         assert self.__display_item.data_item and self.__display_item.dimensional_shape
         data_information = self.__display_item.displayed_title + "\n"
-        if self.__image_2d:
+        if not self.__image_1d:
             data_information += "Image Size " + str(self.__display_item.dimensional_shape) + "\n"
-            calibrated_image_size = (self.__display_item.dimensional_shape[0] * self.__display_item.data_item.dimensional_calibrations[0].scale,
-                                     self.__display_item.dimensional_shape[1] * self.__display_item.data_item.dimensional_calibrations[1].scale)
-            data_information += ("(" + str(calibrated_image_size[0]) + " " + self.__display_item.data_item.dimensional_calibrations[0].units + "," +
-                                 str(calibrated_image_size[1]) + " " + self.__display_item.data_item.dimensional_calibrations[1].units + ")")
+            calibrated_image_size = (self.__display_item.dimensional_shape[-2] * self.__display_item.data_item.dimensional_calibrations[-2].scale,
+                                     self.__display_item.dimensional_shape[-1] * self.__display_item.data_item.dimensional_calibrations[-1].scale)
+            data_information += ("(" + str(calibrated_image_size[-2]) + " " + self.__display_item.data_item.dimensional_calibrations[-2].units + "," +
+                                 str(calibrated_image_size[-1]) + " " + self.__display_item.data_item.dimensional_calibrations[-1].units + ")")
         else:
             data_information += "Line Plot Size " + str(self.__display_item.dimensional_shape[0])
             calibrated_line_plot_size = self.__display_item.dimensional_shape[0] * self.__display_item.data_item.dimensional_calibrations[0].scale
@@ -373,16 +373,22 @@ class ExportSizeModel(Observable.Observable):
     @property
     def calibrated_units(self) -> typing.Optional[str]:
         assert self.__display_item.dimensional_shape and self.__display_item.data_item and self.__display_item.data_item.dimensional_calibrations
-        if not (((self.__convert_from_pixels(self.__height)) == 0) or (self.__convert_from_pixels(self.__height)) == 0):
+        if not self.__image_1d:
+            if not (((self.__convert_from_pixels(self.__height)) == 0) or (self.__convert_from_pixels(self.__height)) == 0):
+                x_scale = ((self.__display_item.dimensional_shape[-2] * self.__display_item.data_item.dimensional_calibrations[-2].scale) /
+                           self.__convert_from_pixels(self.__height))
+                y_scale = ((self.__display_item.dimensional_shape[-1] * self.__display_item.data_item.dimensional_calibrations[-1].scale) /
+                           self.__convert_from_pixels(self.__width))
+            else:
+                x_scale = (self.__display_item.dimensional_shape[-2] * self.__display_item.data_item.dimensional_calibrations[-2].scale)
+                y_scale = (self.__display_item.dimensional_shape[-1] * self.__display_item.data_item.dimensional_calibrations[-1].scale)
+            avg_scale = (x_scale + y_scale) / 2
+        else:
             x_scale = ((self.__display_item.dimensional_shape[0] * self.__display_item.data_item.dimensional_calibrations[0].scale) /
                        self.__convert_from_pixels(self.__height))
-            y_scale = ((self.__display_item.dimensional_shape[1] * self.__display_item.data_item.dimensional_calibrations[1].scale) /
-                       self.__convert_from_pixels(self.__width))
-        else:
-            x_scale = (self.__display_item.dimensional_shape[0] * self.__display_item.data_item.dimensional_calibrations[0].scale)
-            y_scale = (self.__display_item.dimensional_shape[1] * self.__display_item.data_item.dimensional_calibrations[1].scale)
-        avg_scale = (x_scale + y_scale) / 2
-        units = self.__display_item.data_item.dimensional_calibrations[0].units
+            avg_scale = x_scale
+
+        units = self.__display_item.data_item.dimensional_calibrations[-2].units
         output_units = self.__units.name.lower()
         return f"{avg_scale:.2f} {units} per {output_units}"
 
@@ -399,8 +405,8 @@ class ExportSizeModel(Observable.Observable):
             try:
                 assert self.__display_item.data_item and self.__display_item.dimensional_shape
                 scale = float(new_calibrated_units_text.split()[0])
-                y_size = self.__display_item.dimensional_shape[0] * self.__display_item.data_item.dimensional_calibrations[0].scale
-                x_size = self.__display_item.dimensional_shape[1] * self.__display_item.data_item.dimensional_calibrations[1].scale
+                y_size = self.__display_item.dimensional_shape[-2] * self.__display_item.data_item.dimensional_calibrations[-2].scale
+                x_size = self.__display_item.dimensional_shape[-1] * self.__display_item.data_item.dimensional_calibrations[1].scale
                 x_scale = x_size/scale
                 y_scale = y_size/scale
                 self.__width = self.__convert_to_pixels(x_scale)
