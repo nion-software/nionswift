@@ -277,8 +277,8 @@ class ExportSizeModel(Observable.Observable):
             self.__enforce_width_height_constraints()
 
     def __calculate_display_size_in_pixels(self, display_item: DisplayItem.DisplayItem) -> Geometry.IntSize:
-        if display_item.display_data_shape and not  self.__image_1d:
-            return Geometry.IntSize(height=display_item.display_data_shape[0], width=display_item.display_data_shape[1])
+        if display_item.display_data_shape and not self.__image_1d:
+            return Geometry.IntSize(height=display_item.display_data_shape[-2], width=display_item.display_data_shape[-1])
         return Geometry.IntSize(height=288, width=480)
 
     def __enforce_width_height_constraints(self) -> None:
@@ -308,6 +308,7 @@ class ExportSizeModel(Observable.Observable):
                 height_in_current_units = max_size_in_current_units
                 self.__height = self.__convert_to_pixels(height_in_current_units)
                 self.__width = int(self.__height * self.__aspect_ratio)
+
     @property
     def image_info(self) -> typing.Optional[str]:
         assert self.__display_item.data_item and self.__display_item.dimensional_shape
@@ -406,7 +407,7 @@ class ExportSizeModel(Observable.Observable):
                 assert self.__display_item.data_item and self.__display_item.dimensional_shape
                 scale = float(new_calibrated_units_text.split()[0])
                 y_size = self.__display_item.dimensional_shape[-2] * self.__display_item.data_item.dimensional_calibrations[-2].scale
-                x_size = self.__display_item.dimensional_shape[-1] * self.__display_item.data_item.dimensional_calibrations[1].scale
+                x_size = self.__display_item.dimensional_shape[-1] * self.__display_item.data_item.dimensional_calibrations[-1].scale
                 x_scale = x_size/scale
                 y_scale = y_size/scale
                 self.__width = self.__convert_to_pixels(x_scale)
@@ -422,6 +423,7 @@ class ExportSizeModel(Observable.Observable):
             except ValueError:
                 print(new_calibrated_units_text)
                 pass
+
     @property
     def units(self) -> int:
         return self.__units.value
