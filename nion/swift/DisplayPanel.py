@@ -1799,9 +1799,15 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         self.__footer_canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
         self.__footer_canvas_item.update_sizing(self.__footer_canvas_item.sizing.with_collapsible(True))
 
+        background_composition_canvas_item = CanvasItem.CanvasItemComposition()
+        empty_canvas_item = CanvasItem.EmptyCanvasItem(background_color="#ECECEC")
+        empty_canvas_item.update_sizing(empty_canvas_item.sizing.with_minimum_width(0).with_minimum_height(0))
+        background_composition_canvas_item.add_canvas_item(empty_canvas_item)
+        background_composition_canvas_item.add_canvas_item(self.__content_canvas_item)
+
         self.layout = CanvasItem.CanvasItemColumnLayout()
         self.add_canvas_item(self.__header_canvas_item)
-        self.add_canvas_item(self.__content_canvas_item)
+        self.add_canvas_item(background_composition_canvas_item)
         self.add_canvas_item(self.__footer_canvas_item)
 
         self.__display_panel_id: typing.Optional[str] = None
