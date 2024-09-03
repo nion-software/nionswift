@@ -248,40 +248,44 @@ class ExportDialog(Declarative.Handler):
 
 
 class UnitType(enum.Enum):
-    PIXELS = 0
-    INCHES = 1
-    CENTIMETERS = 2
+    PIXEL = 0
+    INCH = 1
+    CENTIMETER = 2
 
 
 ConversionUnits = {
-    UnitType.PIXELS: 1.0,
-    UnitType.CENTIMETERS: 37.795275591,
-    UnitType.INCHES: 96.0
+    UnitType.PIXEL: 1.0,
+    UnitType.CENTIMETER: 37.795275591,
+    UnitType.INCH: 96.0
 }
 
 
 class ExportSizeModel(Observable.Observable):
     def __init__(self, display_item: DisplayItem.DisplayItem) -> None:
         super().__init__()
-        display_size = self.__calculate_display_size_in_pixels(display_item)
-        self.__width = display_size.width
-        self.__height = display_size.height
-        self.__aspect_ratio = self.__width / self.__height
-        self.__units = UnitType.PIXELS
-        self.__float_to_string_converter = Converter.FloatToStringConverter()
-        self.__primary_field = 'width'  # Primary field to determine which text is calculated
-        self.__enforce_width_height_constraints()
+
+        if display_item.data_item is not None:
+            self.__image_1d = display_item.data_item.is_data_1d
+            self.__display_item = display_item
+            display_size = self.__calculate_display_size_in_pixels(display_item)
+            self.__width = display_size.width
+            self.__height = display_size.height
+            self.__aspect_ratio = self.__width / self.__height
+            self.__units = UnitType.PIXEL
+            self.__float_to_string_converter = Converter.FloatToStringConverter()
+            self.__primary_field = 'width'  # Primary field to determine which text is calculated
+            self.__enforce_width_height_constraints()
 
     def __calculate_display_size_in_pixels(self, display_item: DisplayItem.DisplayItem) -> Geometry.IntSize:
-        if display_item.display_data_shape and len(display_item.display_data_shape) == 2:
-            return Geometry.IntSize(height=display_item.display_data_shape[0], width=display_item.display_data_shape[1])
+        if display_item.display_data_shape and not self.__image_1d:
+            return Geometry.IntSize(height=display_item.display_data_shape[-2], width=display_item.display_data_shape[-1])
         return Geometry.IntSize(height=288, width=480)
 
     def __enforce_width_height_constraints(self) -> None:
         min_size_in_inches = 3.0
         max_size_in_inches = 12.0
-        min_size_in_current_units = min_size_in_inches * ConversionUnits[UnitType.INCHES] / ConversionUnits[self.__units]
-        max_size_in_current_units = max_size_in_inches * ConversionUnits[UnitType.INCHES] / ConversionUnits[self.__units]
+        min_size_in_current_units = min_size_in_inches * ConversionUnits[UnitType.INCH] / ConversionUnits[self.__units]
+        max_size_in_current_units = max_size_in_inches * ConversionUnits[UnitType.INCH] / ConversionUnits[self.__units]
         width_in_current_units = self.__convert_from_pixels(self.__width)
         height_in_current_units = self.__convert_from_pixels(self.__height)
         if width_in_current_units < height_in_current_units:
@@ -304,6 +308,23 @@ class ExportSizeModel(Observable.Observable):
                 height_in_current_units = max_size_in_current_units
                 self.__height = self.__convert_to_pixels(height_in_current_units)
                 self.__width = int(self.__height * self.__aspect_ratio)
+
+    @property
+    def image_info(self) -> typing.Optional[str]:
+        assert self.__display_item.data_item and self.__display_item.dimensional_shape
+        data_information = self.__display_item.displayed_title + "\n"
+        if not self.__image_1d:
+            data_information += "Image Size " + str(self.__display_item.dimensional_shape) + "\n"
+            calibrated_image_size = (self.__display_item.dimensional_shape[-2] * self.__display_item.data_item.dimensional_calibrations[-2].scale,
+                                     self.__display_item.dimensional_shape[-1] * self.__display_item.data_item.dimensional_calibrations[-1].scale)
+            data_information += ("(" + str(calibrated_image_size[-2]) + " " + self.__display_item.data_item.dimensional_calibrations[-2].units + "," +
+                                 str(calibrated_image_size[-1]) + " " + self.__display_item.data_item.dimensional_calibrations[-1].units + ")")
+        else:
+            data_information += "Line Plot Size " + str(self.__display_item.dimensional_shape[0])
+            calibrated_line_plot_size = self.__display_item.dimensional_shape[0] * self.__display_item.data_item.dimensional_calibrations[0].scale
+            data_information += ("(" + str(calibrated_line_plot_size) + " " + self.__display_item.data_item.dimensional_calibrations[0].units + ")")
+        return data_information
+
     @property
     def width(self) -> float:
         return self.__convert_from_pixels(self.__width)
@@ -322,8 +343,10 @@ class ExportSizeModel(Observable.Observable):
             self.__primary_field = 'width'
             self.notify_property_changed("width")
             self.notify_property_changed("height")
+            self.notify_property_changed("calibrated_units")
         self.notify_property_changed("width_text")
         self.notify_property_changed("height_text")
+        self.notify_property_changed("calibrated_units_text")
 
     @property
     def height(self) -> float:
@@ -343,8 +366,63 @@ class ExportSizeModel(Observable.Observable):
             self.__primary_field = 'height'
             self.notify_property_changed("width")
             self.notify_property_changed("height")
+            self.notify_property_changed("calibrated_units")
         self.notify_property_changed("width_text")
         self.notify_property_changed("height_text")
+        self.notify_property_changed("calibrated_units_text")
+
+    @property
+    def calibrated_units(self) -> typing.Optional[str]:
+        assert self.__display_item.dimensional_shape and self.__display_item.data_item and self.__display_item.data_item.dimensional_calibrations
+        if not self.__image_1d:
+            if not (((self.__convert_from_pixels(self.__height)) == 0) or (self.__convert_from_pixels(self.__height)) == 0):
+                x_scale = ((self.__display_item.dimensional_shape[-2] * self.__display_item.data_item.dimensional_calibrations[-2].scale) /
+                           self.__convert_from_pixels(self.__height))
+                y_scale = ((self.__display_item.dimensional_shape[-1] * self.__display_item.data_item.dimensional_calibrations[-1].scale) /
+                           self.__convert_from_pixels(self.__width))
+            else:
+                x_scale = (self.__display_item.dimensional_shape[-2] * self.__display_item.data_item.dimensional_calibrations[-2].scale)
+                y_scale = (self.__display_item.dimensional_shape[-1] * self.__display_item.data_item.dimensional_calibrations[-1].scale)
+            avg_scale = (x_scale + y_scale) / 2
+        else:
+            x_scale = ((self.__display_item.dimensional_shape[0] * self.__display_item.data_item.dimensional_calibrations[0].scale) /
+                       self.__convert_from_pixels(self.__height))
+            avg_scale = x_scale
+
+        units = self.__display_item.data_item.dimensional_calibrations[-2].units
+        output_units = self.__units.name.lower()
+        return f"{avg_scale:.2f} {units} per {output_units}"
+
+    @property
+    def calibrated_units_text(self) -> typing.Optional[str]:
+        if self.__primary_field == 'calibrated_units':
+            calibrated_units = self.calibrated_units
+            return f"{calibrated_units}"
+        return None
+
+    @calibrated_units_text.setter
+    def calibrated_units_text(self, new_calibrated_units_text: typing.Optional[str]) -> None:
+        if new_calibrated_units_text and new_calibrated_units_text.strip():
+            try:
+                assert self.__display_item.data_item and self.__display_item.dimensional_shape
+                scale = float(new_calibrated_units_text.split()[0])
+                y_size = self.__display_item.dimensional_shape[-2] * self.__display_item.data_item.dimensional_calibrations[-2].scale
+                x_size = self.__display_item.dimensional_shape[-1] * self.__display_item.data_item.dimensional_calibrations[-1].scale
+                x_scale = x_size/scale
+                y_scale = y_size/scale
+                self.__width = self.__convert_to_pixels(x_scale)
+                self.__height = self.__convert_to_pixels(y_scale)
+                self.__primary_field = 'calibrated_units'
+                self.notify_property_changed("width")
+                self.notify_property_changed("height")
+                self.notify_property_changed("calibrated_units")
+                self.notify_property_changed("width_text")
+                self.notify_property_changed("height_text")
+                self.notify_property_changed("calibrated_units_text")
+
+            except ValueError:
+                print(new_calibrated_units_text)
+                pass
 
     @property
     def units(self) -> int:
@@ -357,8 +435,10 @@ class ExportSizeModel(Observable.Observable):
             self.__units = new_enum
             self.notify_property_changed("width")
             self.notify_property_changed("height")
+            self.notify_property_changed("calibrated_units")
             self.notify_property_changed("width_text")
             self.notify_property_changed("height_text")
+            self.notify_property_changed("calibrated_units_text")
 
     def __convert_to_pixels(self, value: typing.Optional[float]) -> int:
         if value is not None:
@@ -385,6 +465,9 @@ class ExportSVGHandler(Declarative.Handler):
         self._float_to_string_converter = Converter.FloatToStringConverter()
         self.ui_view = u.create_column(
             u.create_row(
+                u.create_label(text="@binding(model.image_info)", word_wrap=True), spacing=50
+            ),
+            u.create_row(
                 u.create_label(text=_("Width:"), width=80),
                 u.create_line_edit(
                     placeholder_text="@binding(model.width, converter=_float_to_string_converter)",
@@ -404,7 +487,16 @@ class ExportSVGHandler(Declarative.Handler):
                 u.create_label(text=_("Units:"), width=80),
                 u.create_combo_box(
                     items=[_("Pixels"), _("Inches"), _("Centimeters")],
-                    current_index="@binding(model.units)",
+                    current_index="@binding(model.units)"
+                ),
+                spacing=12
+            ),
+            u.create_row(
+                u.create_label(text=_("Calibrated Units:"), width=80),
+                u.create_line_edit(
+                    placeholder_text="@binding(model.calibrated_units)",
+                    text="@binding(model.calibrated_units_text)",
+                    width=135
                 ),
                 spacing=12
             ),
