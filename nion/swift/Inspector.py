@@ -3046,59 +3046,36 @@ class GraphicsInspectorHandler(Declarative.Handler):
         self._lock_position_model = GraphicPropertyCommandModel(self.__document_controller, self.__display_item, graphic, "is_position_locked", title=_(f"Change {self._graphic_type_model.value} Position Locked"), command_id=f"change_{self._graphic_type_model.value}_position_locked")
         self._lock_shape_model = GraphicPropertyCommandModel(self.__document_controller, self.__display_item, graphic, "is_shape_locked", title=_(f"Change {self._graphic_type_model.value} Shape Locked"), command_id=f"change_{self._graphic_type_model.value}_shape_locked")
 
-        calibration_styles = display_item.calibration_styles
-        self.__display_calibration_style_options = [calibration_style.label for calibration_style in calibration_styles]
-        self.__display_calibration_style_ids = [calibration_style.calibration_style_id for calibration_style in calibration_styles]
-        self.__display_calibration_style_reverse_map = {p: i for i, p in enumerate(self.__display_calibration_style_ids)}
-
-        self._current_calibration_index_model = Model.PropertyModel(self.__display_calibration_style_reverse_map.get(self.__display_item.calibration_style_id))
-        self.__claibration_style_listener = self.__display_item.display_property_changed_event.listen(
-            ReferenceCounting.weak_partial(GraphicsInspectorHandler.__update_calibration_id, self)
-        )
-
         u = Declarative.DeclarativeUI()
 
         title_row = u.create_row(
             u.create_label(text="@binding(_graphic_type_model.value)", width=100),
-            u.create_spacing(8),
-            u.create_line_edit(text="@binding(_graphic_label_model.value)", placeholder_text=_("None")),
-            u.create_spacing(8)
+            u.create_stretch(),
+            u.create_line_edit(text="@binding(_graphic_label_model.value)", placeholder_text=_("None"), width=160),
+            u.create_spacing(4)
         )
 
         pos_shape_row = self.__create_position_and_shape_ui()
 
         lock_row = u.create_row(
-            u.create_label(text=_("Lock"), width=60),
-            u.create_check_box(text=_("Position"), checked="@binding(_lock_position_model.value)"),
+            u.create_label(text=_("Lock"), width=60, text_alignment_vertical="center"),
+            u.create_check_box(text=_("Position"), checked="@binding(_lock_position_model.value)", text_alignment_vertical="center"),
             u.create_spacing(12),
-            u.create_check_box(text=_("Shape"), checked="@binding(_lock_shape_model.value)"),
+            u.create_check_box(text=_("Shape"), checked="@binding(_lock_shape_model.value)", text_alignment_vertical="center"),
             u.create_stretch(),
             u.create_push_button(text="\N{BULLSEYE}", on_clicked="_move_to_center_clicked", width=26, text_alignment_horizontal="center"),
-        )
-
-        display_calibrations_row = u.create_row(
-            u.create_label(text=_("Display"), width=60),
-            u.create_combo_box(items=self.__display_calibration_style_options, current_index="@binding(_current_calibration_index_model.value)", on_current_index_changed="_change_calibration_style_option"),
-            u.create_stretch()
+            u.create_spacing(4)
         )
 
         self.ui_view = u.create_column(
             title_row,
             u.create_spacing(4),
             pos_shape_row,
-            u.create_spacing(12),
-            lock_row,
             u.create_spacing(4),
-            display_calibrations_row,
+            lock_row,
+            u.create_spacing(12),
             width=280
         )
-
-    def _change_calibration_style_option(self, widget: Declarative.UIWidget, current_index: int) -> None:
-        self.__display_item.calibration_style_id = self.__display_calibration_style_ids[current_index]
-
-    def __update_calibration_id(self, property_name: typing.Any) -> None:
-        if property_name == "calibration_style_id":
-            self._current_calibration_index_model.value = self.__display_calibration_style_reverse_map[self.__display_item.calibration_style_id]
 
     def __set_type_specifics(self) -> None:
         if isinstance(self.__graphic, Graphics.PointGraphic):
@@ -3164,11 +3141,15 @@ class GraphicsInspectorHandler(Declarative.Handler):
         self._line_profile_width_model = DisplayItemCalibratedValueModel(
             GraphicPropertyCommandModel(self.__document_controller, self.__display_item, self.__graphic, "width", title=_("Change Width"), command_id="change_line_profile_width"),
             CalibratedSizeFloatToStringConverter(self.__display_item, 0, factor), self.__display_item)
-        return u.create_row(
-            u.create_spacing(20),
-            u.create_label(text=_("Width"), width=52),
-            u.create_line_edit(text="@binding(_line_profile_width_model.value)", width=98),
-            u.create_stretch()
+        return u.create_column(
+            self.__create_line_shape_and_pos(),
+            u.create_spacing(4),
+            u.create_row(
+                u.create_spacing(20),
+                u.create_label(text=_("Width"), width=52),
+                u.create_line_edit(text="@binding(_line_profile_width_model.value)", width=98),
+                u.create_stretch()
+            )
         )
 
     def __create_line_shape_and_pos(self) -> Declarative.UIDescriptionResult:
@@ -3214,10 +3195,10 @@ class GraphicsInspectorHandler(Declarative.Handler):
             u.create_row(
                 u.create_spacing(20),
                 u.create_label(text=_("L"), width=26),
-                u.create_line_edit(text="@binding(_length_model.value)"),
+                u.create_line_edit(text="@binding(_length_model.value)", width=98),
                 u.create_spacing(8),
                 u.create_label(text=_("A"), width=26),
-                u.create_line_edit(text="@binding(_angle_model.value)"),
+                u.create_line_edit(text="@binding(_angle_model.value)", width=98),
                 u.create_stretch()
             )
         )
@@ -3261,7 +3242,8 @@ class GraphicsInspectorHandler(Declarative.Handler):
             ),
             u.create_row(
                 u.create_spacing(20),
-                u.create_label(text=_("Rotation (deg)"), width=26),
+                u.create_label(text=_("Rotation (deg)")),
+                u.create_spacing(8),
                 u.create_line_edit(text="@binding(_rotation_model.value, converter=_radian_to_degrees_string_converter)", width=98),
                 u.create_stretch()
             ),
@@ -3412,6 +3394,44 @@ class GraphicsInspectorHandler(Declarative.Handler):
             return self.__shape_and_pos_func()
 
 
+class GraphicsCalibrationHandler(Declarative.Handler):
+    def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem):
+        super().__init__()
+
+        self.__document_controller = document_controller
+        self.__display_item = display_item
+
+        calibration_styles = display_item.calibration_styles
+        self.__display_calibration_style_options = [calibration_style.label for calibration_style in calibration_styles]
+        self.__display_calibration_style_ids = [calibration_style.calibration_style_id for calibration_style in
+                                                calibration_styles]
+        self.__display_calibration_style_reverse_map = {p: i for i, p in
+                                                        enumerate(self.__display_calibration_style_ids)}
+
+        self._current_calibration_index_model = Model.PropertyModel(
+            self.__display_calibration_style_reverse_map.get(self.__display_item.calibration_style_id))
+        self.__calibration_style_listener = self.__display_item.display_property_changed_event.listen(
+            ReferenceCounting.weak_partial(GraphicsCalibrationHandler.__update_calibration_id, self)
+        )
+
+        u = Declarative.DeclarativeUI()
+
+        self.ui_view = display_calibrations_row = u.create_row(
+            u.create_label(text=_("Display"), width=60, text_alignment_vertical="center"),
+            u.create_combo_box(items=self.__display_calibration_style_options,
+                               current_index="@binding(_current_calibration_index_model.value)",
+                               on_current_index_changed="_change_calibration_style_option"),
+            u.create_stretch()
+        )
+
+    def _change_calibration_style_option(self, widget: Declarative.UIWidget, current_index: int) -> None:
+        self.__display_item.calibration_style_id = self.__display_calibration_style_ids[current_index]
+
+    def __update_calibration_id(self, property_name: typing.Any) -> None:
+        if property_name == "calibration_style_id":
+            self._current_calibration_index_model.value = self.__display_calibration_style_reverse_map[self.__display_item.calibration_style_id]
+
+
 class GraphicsInspectorSection(InspectorSection):
 
     """
@@ -3431,6 +3451,10 @@ class GraphicsInspectorSection(InspectorSection):
             handlers.append(graphic_handler)
 
         self._handlers = handlers
+        self._calibration_handler = GraphicsCalibrationHandler(document_controller, display_item)
+
+        calibration_widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop, self._calibration_handler)
+        self.add_widget_to_content(calibration_widget)
 
 
 class ChangeComputationVariableCommand(Undo.UndoableCommand):
