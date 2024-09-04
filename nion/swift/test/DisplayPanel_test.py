@@ -1126,7 +1126,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         width, height = 640, 480
         display_panel = TestDisplayPanel()
         def get_font_metrics(a, b): return UserInterface.FontMetrics(0, 0, 0, 0, 0)
-        overlay = DisplayPanel.DisplayPanelOverlayCanvasItem(get_font_metrics)
+        overlay = DisplayPanel.DisplayPanelOverlayCanvasItemComposition(get_font_metrics)
         overlay.on_drag_enter = display_panel.handle_drag_enter
         overlay.on_drag_move = display_panel.handle_drag_move
         overlay.on_drop = display_panel.handle_drop
@@ -1150,7 +1150,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         width, height = 640, 480
         display_panel = TestDisplayPanel()
         def get_font_metrics(a, b): return UserInterface.FontMetrics(0, 0, 0, 0, 0)
-        overlay = DisplayPanel.DisplayPanelOverlayCanvasItem(get_font_metrics)
+        overlay = DisplayPanel.DisplayPanelOverlayCanvasItemComposition(get_font_metrics)
         overlay.on_drag_enter = display_panel.handle_drag_enter
         overlay.on_drag_move = display_panel.handle_drag_move
         overlay.on_drop = display_panel.handle_drop
