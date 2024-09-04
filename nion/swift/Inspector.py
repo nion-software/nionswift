@@ -3058,6 +3058,7 @@ class GraphicsInspectorHandler(Declarative.Handler):
         pos_shape_row = self.__create_position_and_shape_ui()
 
         lock_row = u.create_row(
+            u.create_spacing(3),
             u.create_label(text=_("Lock"), width=60, text_alignment_vertical="center"),
             u.create_check_box(text=_("Position"), checked="@binding(_lock_position_model.value)", text_alignment_vertical="center"),
             u.create_spacing(12),
