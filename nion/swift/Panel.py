@@ -230,7 +230,7 @@ class OutputPanel(Panel):
         super().close()
 
 
-class HeaderCanvasItem(CanvasItem.CanvasItemComposition):
+class HeaderCanvasItem(CanvasItem.AbstractCanvasItem):
 
     # header_height = 20 if sys.platform == "win32" else 22
 
