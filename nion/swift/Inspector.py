@@ -4835,7 +4835,7 @@ class DeclarativeImageChooserConstructor:
 
         return None
 
-class CroppedOverlayGraphicCanvasItem(CanvasItem.CanvasItemComposition):
+class CroppedOverlayGraphicCanvasItem(CanvasItem.AbstractCanvasItem):
     def __init__(self, handle_clicked: typing.Callable[[], None]) -> None:
         super().__init__()
         self.wants_mouse_events = True

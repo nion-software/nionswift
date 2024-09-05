@@ -9,9 +9,10 @@ from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.swift.model import Persistence
+from nion.swift.model import Utility
 from nion.ui import CanvasItem
+from nion.ui import DrawingContext
 from nion.ui import UserInterface
-from nion.ui import Window
 from nion.utils import Geometry
 
 
@@ -116,3 +117,63 @@ class DisplayCanvasItem(CanvasItem.CanvasItemComposition):
     def handle_auto_display(self) -> bool: ...
 
     def update_display_data_delta(self, display_data_delta: DisplayItem.DisplayDataDelta) -> None: ...
+
+
+class FrameRateCanvasItem(CanvasItem.AbstractCanvasItem):
+    def __init__(self) -> None:
+        super().__init__()
+        self.__display_frame_rate_id: typing.Optional[str] = None
+        self.__display_frame_rate_last_index = 0
+
+    @property
+    def display_frame_rate_id(self) -> typing.Optional[str]:
+        return self.__display_frame_rate_id
+
+    @display_frame_rate_id.setter
+    def display_frame_rate_id(self, value: typing.Optional[str]) -> None:
+        self.__display_frame_rate_id = value
+        self.update()
+
+    def toggle_display(self, display_frame_rate_id: str) -> None:
+        if self.__display_frame_rate_id is None:
+            self.__display_frame_rate_id = display_frame_rate_id
+        else:
+            self.__display_frame_rate_id = None
+        self.update()
+
+    def frame_tick(self, frame_index: int) -> None:
+        if self.__display_frame_rate_id:
+            if frame_index != self.__display_frame_rate_last_index:
+                Utility.fps_tick("frame_" + self.__display_frame_rate_id)
+                self.__display_frame_rate_last_index = frame_index
+            Utility.fps_tick("update_" + self.__display_frame_rate_id)
+            self.update()
+
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
+        super()._repaint(drawing_context)
+        display_frame_rate_id = self.__display_frame_rate_id
+        canvas_bounds = self.canvas_bounds
+        if canvas_bounds and display_frame_rate_id:
+            Utility.fps_tick("display_" + display_frame_rate_id)
+            fps = Utility.fps_get("display_" + display_frame_rate_id)
+            fps2 = Utility.fps_get("frame_" + display_frame_rate_id)
+            fps3 = Utility.fps_get("update_" + display_frame_rate_id)
+            with drawing_context.saver():
+                font = "normal 11px serif"
+                text_pos = canvas_bounds.top_left
+                drawing_context.begin_path()
+                drawing_context.move_to(text_pos.x, text_pos.y)
+                drawing_context.line_to(text_pos.x + 200, text_pos.y)
+                drawing_context.line_to(text_pos.x + 200, text_pos.y + 60)
+                drawing_context.line_to(text_pos.x, text_pos.y + 60)
+                drawing_context.close_path()
+                drawing_context.fill_style = "rgba(255, 255, 255, 0.6)"
+                drawing_context.fill()
+                drawing_context.font = font
+                drawing_context.text_baseline = "middle"
+                drawing_context.text_align = "left"
+                drawing_context.fill_style = "#000"
+                drawing_context.fill_text("display:" + fps, text_pos.x + 8, text_pos.y + 10)
+                drawing_context.fill_text("frame:" + fps2, text_pos.x + 8, text_pos.y + 30)
+                drawing_context.fill_text("update:" + fps3, text_pos.x + 8, text_pos.y + 50)
+                drawing_context.statistics("display")

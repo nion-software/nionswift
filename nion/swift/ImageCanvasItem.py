@@ -20,10 +20,8 @@ from nion.swift import DisplayCanvasItem
 from nion.swift.model import DisplayItem
 from nion.swift.model import Graphics
 from nion.swift.model import UISettings
-from nion.swift.model import Utility
 from nion.ui import CanvasItem
 from nion.utils import Geometry
-from nion.utils import Process
 from nion.utils import Registry
 from nion.utils import Stream
 
@@ -859,12 +857,14 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.__overlay_canvas_item.add_stretch()
         self.__overlay_canvas_item.add_canvas_item(info_overlay_row)
         self.__overlay_canvas_item.add_spacing(8)
+        self.__frame_rate_canvas_item = DisplayCanvasItem.FrameRateCanvasItem()
         # canvas items get added back to front
         if draw_background:
             self.add_canvas_item(CanvasItem.BackgroundCanvasItem())
         self.add_canvas_item(self.scroll_area_canvas_item)
         self.add_canvas_item(self.__overlay_canvas_item)
         self.add_canvas_item(self.__timestamp_canvas_item)
+        self.add_canvas_item(self.__frame_rate_canvas_item)
 
         self.__display_values_dirty = False
         self.__display_values: typing.Optional[DisplayItem.DisplayValues] = None
@@ -879,8 +879,6 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.__mouse_handler: typing.Optional[MouseHandler] = None
 
         # frame rate and latency
-        self.__display_frame_rate_id: typing.Optional[str] = None
-        self.__display_frame_rate_last_index = 0
         self.__display_latency = False
 
     def close(self) -> None:
@@ -966,11 +964,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                     self.__scroll_area_layout._data_shape = self.__data_shape
                     self.__composite_canvas_item._data_shape = self.__data_shape
                     self.__coordinate_system = display_calibration_info.datum_calibrations
-                    if self.__display_frame_rate_id:
-                        if frame_info.frame_index != self.__display_frame_rate_last_index:
-                            Utility.fps_tick("frame_"+self.__display_frame_rate_id)
-                            self.__display_frame_rate_last_index = frame_info.frame_index
-                        Utility.fps_tick("update_"+self.__display_frame_rate_id)
+                    self.__frame_rate_canvas_item.frame_tick(frame_info.frame_index)
                     # update the cursor info
                     self.__update_cursor_info()
 
@@ -1231,10 +1225,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         return key_contexts
 
     def toggle_frame_rate(self) -> None:
-        if self.__display_frame_rate_id is None:
-            self.__display_frame_rate_id = str(id(self))
-        else:
-            self.__display_frame_rate_id = None
+        self.__frame_rate_canvas_item.toggle_display(str(id(self)))
 
     def toggle_latency(self) -> None:
         self.__display_latency = not self.__display_latency
@@ -1280,34 +1271,6 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                 if image_size is not None and len(image_size) > 1:
                     pos_2d = self.map_widget_to_image(self.__last_mouse)
                 delegate.cursor_changed(pos_2d)
-
-    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
-        super()._repaint(drawing_context)
-        canvas_bounds = self.canvas_bounds
-        if canvas_bounds and self.__display_frame_rate_id:
-            Utility.fps_tick("display_"+self.__display_frame_rate_id)
-            fps = Utility.fps_get("display_"+self.__display_frame_rate_id)
-            fps2 = Utility.fps_get("frame_"+self.__display_frame_rate_id)
-            fps3 = Utility.fps_get("update_"+self.__display_frame_rate_id)
-            with drawing_context.saver():
-                font = "normal 11px serif"
-                text_pos = canvas_bounds.top_left
-                drawing_context.begin_path()
-                drawing_context.move_to(text_pos.x, text_pos.y)
-                drawing_context.line_to(text_pos.x + 200, text_pos.y)
-                drawing_context.line_to(text_pos.x + 200, text_pos.y + 60)
-                drawing_context.line_to(text_pos.x, text_pos.y + 60)
-                drawing_context.close_path()
-                drawing_context.fill_style = "rgba(255, 255, 255, 0.6)"
-                drawing_context.fill()
-                drawing_context.font = font
-                drawing_context.text_baseline = "middle"
-                drawing_context.text_align = "left"
-                drawing_context.fill_style = "#000"
-                drawing_context.fill_text("display:" + fps, text_pos.x + 8, text_pos.y + 10)
-                drawing_context.fill_text("frame:" + fps2, text_pos.x + 8, text_pos.y + 30)
-                drawing_context.fill_text("update:" + fps3, text_pos.x + 8, text_pos.y + 50)
-                drawing_context.statistics("display")
 
     @property
     def image_canvas_mode(self) -> str:

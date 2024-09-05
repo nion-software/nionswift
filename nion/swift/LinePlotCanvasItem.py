@@ -314,10 +314,6 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
         self.__last_xdata_list: typing.List[typing.Optional[DataAndMetadata.DataAndMetadata]] = list()
 
-        # frame rate
-        self.__display_frame_rate_id: typing.Optional[str] = None
-        self.__display_frame_rate_last_index = 0
-
         self.__line_graph_area_stack = CanvasItem.CanvasItemComposition()
         self.__line_graph_background_canvas_item = LineGraphCanvasItem.LineGraphBackgroundCanvasItem()
         self.__line_graph_layers_canvas_item = LineGraphCanvasItem.LineGraphLayersCanvasItem()
@@ -398,12 +394,14 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.__display_controls.layout = CanvasItem.CanvasItemColumnLayout()
         self.__display_controls.add_canvas_item(line_graph_background_canvas_item)
 
+        self.__frame_rate_canvas_item = DisplayCanvasItem.FrameRateCanvasItem()
+
         # canvas items get added back to front
         # create the child canvas items
-        # the background
+        # the background first.
         self.add_canvas_item(CanvasItem.BackgroundCanvasItem("#FFF"))
-        # self.add_canvas_item(line_graph_background_canvas_item)
         self.add_canvas_item(self.__display_controls)
+        self.add_canvas_item(self.__frame_rate_canvas_item)
 
         self.__display_values_list: typing.List[typing.Optional[DisplayItem.DisplayValues]] = list()
 
@@ -554,7 +552,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
     def __update_frame(self, metadata: DataAndMetadata.MetadataType) -> None:
         # update frame rate info
-        if self.__display_frame_rate_id:
+        if self.__frame_rate_canvas_item.display_frame_rate_id:
             # allow registered metadata_display components to populate a dictionary
             # the line plot canvas item will look at "frame_index"
             d: Persistence.PersistentDictType = dict()
@@ -564,17 +562,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             # pull out the frame_index key
             frame_index = d.get("frame_index", 0)
 
-            if frame_index != self.__display_frame_rate_last_index:
-                Utility.fps_tick("frame_"+self.__display_frame_rate_id)
-                self.__display_frame_rate_last_index = frame_index
-
-    def update(self) -> None:
-        if self.__display_frame_rate_id:
-            xdata_list = self.__line_plot_display_info.xdata_list
-            if len(xdata_list) != len(self.__last_xdata_list) or not all([a is b for a, b in zip(xdata_list, self.__last_xdata_list)]):
-                Utility.fps_tick("update_"+self.__display_frame_rate_id)
-                self.__last_xdata_list = copy.copy(xdata_list)
-        super().update()
+            self.__frame_rate_canvas_item.frame_tick(frame_index)
 
     def __update_graphics_coordinate_system(self, graphics: typing.Sequence[Graphics.Graphic],
                                             graphic_selection: DisplayItem.GraphicSelection,
@@ -715,38 +703,6 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         if xdata0:
             self.__view_to_selected_graphics(xdata0)
         return True
-
-    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
-        super()._repaint(drawing_context)
-
-        if self.__display_frame_rate_id:
-            Utility.fps_tick("display_"+self.__display_frame_rate_id)
-
-        if self.__display_frame_rate_id:
-            fps = Utility.fps_get("display_"+self.__display_frame_rate_id)
-            fps2 = Utility.fps_get("frame_"+self.__display_frame_rate_id)
-            fps3 = Utility.fps_get("update_"+self.__display_frame_rate_id)
-
-            rect = self.canvas_bounds
-            if rect:
-                with drawing_context.saver():
-                    font = "normal 11px serif"
-                    text_pos = Geometry.IntPoint(y=rect.top, x=rect.right - 100)
-                    drawing_context.begin_path()
-                    drawing_context.move_to(text_pos.x, text_pos.y)
-                    drawing_context.line_to(text_pos.x + 200, text_pos.y)
-                    drawing_context.line_to(text_pos.x + 200, text_pos.y + 40)
-                    drawing_context.line_to(text_pos.x, text_pos.y + 40)
-                    drawing_context.close_path()
-                    drawing_context.fill_style = "rgba(255, 255, 255, 0.6)"
-                    drawing_context.fill()
-                    drawing_context.font = font
-                    drawing_context.text_baseline = "middle"
-                    drawing_context.text_align = "left"
-                    drawing_context.fill_style = "#000"
-                    drawing_context.fill_text("display:" + fps, text_pos.x + 8, text_pos.y + 10)
-                    drawing_context.fill_text("frame:" + fps2, text_pos.x + 8, text_pos.y + 30)
-                    drawing_context.fill_text("update:" + fps3, text_pos.x + 8, text_pos.y + 50)
 
     def __update_canvas_items(self, axes: typing.Optional[LineGraphCanvasItem.LineGraphAxes], legend_entries: typing.Sequence[LineGraphCanvasItem.LegendEntry]) -> None:
         self.__line_graph_background_canvas_item.set_axes(axes)
@@ -942,10 +898,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         return False
 
     def toggle_frame_rate(self) -> None:
-        if self.__display_frame_rate_id is None:
-            self.__display_frame_rate_id = str(id(self))
-        else:
-            self.__display_frame_rate_id = None
+        self.__frame_rate_canvas_item.toggle_display(str(id(self)))
 
     def key_released(self, key: UserInterface.Key) -> bool:
         if super().key_released(key):
