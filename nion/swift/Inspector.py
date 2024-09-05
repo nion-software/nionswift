@@ -50,7 +50,6 @@ from nion.utils import Observable
 from nion.utils import ReferenceCounting
 from nion.utils import Registry
 from nion.utils import Validator
-from nion.utils.Model import T
 
 if typing.TYPE_CHECKING:
     from nion.swift import Application
@@ -888,9 +887,7 @@ class ColorChooserHandler(Declarative.Handler):
         self.__display_item = display_item
         self.__display_layer = display_layer
         self._color_model = color_model
-        self._color_chooser_widget: typing.Optional[Widgets.ColorPushButtonWidget] = None
         color_chooser = {"type": "color_chooser",
-                         "name": "_color_chooser_widget",
                          "color": "@binding(_color_model.value)"}
         u = Declarative.DeclarativeUI()
         self.ui_view = u.create_row(
