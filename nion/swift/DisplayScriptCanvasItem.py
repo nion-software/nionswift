@@ -43,7 +43,21 @@ class DisplayScriptCanvasItemDelegate(typing.Protocol):
     def tool_mode(self) -> str: return str()
 
 
-class DisplayScriptCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
+class DrawingContextCanvasItem(CanvasItem.AbstractCanvasItem):
+    def __init__(self) -> None:
+        super().__init__()
+        self.__drawing_context: typing.Optional[DrawingContext.DrawingContext] = None
+
+    def set_drawing_context(self, drawing_context: DrawingContext.DrawingContext) -> None:
+        self.__drawing_context = drawing_context
+        self.update()
+
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
+        if self.__drawing_context:
+            drawing_context.add(self.__drawing_context)
+
+
+class ScriptDisplayCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
     """Display a custom display using a script.
 
     Callers are expected to pass in a font metrics function and a delegate.
@@ -55,19 +69,19 @@ class DisplayScriptCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.__ui_settings = ui_settings
         self.delegate = delegate
 
-        self.__drawing_context_lock = threading.RLock()
-        self.__drawing_context = DrawingContext.DrawingContext()
-
         self.__display_xdata: typing.Optional[DataAndMetadata.DataAndMetadata] = None
         self.__display_script: typing.Optional[str] = None
 
         self.__closing_lock = threading.RLock()
         self.__closed = False
 
+        self.__drawing_context_canvas_item = DrawingContextCanvasItem()
+
         # canvas items get added back to front
         # create the child canvas items
-        # the background
+        # the background first.
         self.add_canvas_item(CanvasItem.BackgroundCanvasItem())
+        self.add_canvas_item(self.__drawing_context_canvas_item)
 
         # frame rate
         self.__display_frame_rate_id: typing.Optional[str] = None
@@ -131,43 +145,7 @@ class DisplayScriptCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                         # traceback.format_exception(*sys.exc_info())
                         print(str(e) or "Unable to evaluate display script.")  # a stack trace would be too much information right now
 
-                    with self.__drawing_context_lock:
-                        self.__drawing_context = drawing_context
-
-    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
-        super()._repaint(drawing_context)
-
-        with self.__drawing_context_lock:
-            drawing_context.add(self.__drawing_context)
-
-        if self.__display_frame_rate_id:
-            Utility.fps_tick("display_"+self.__display_frame_rate_id)
-
-        if self.__display_frame_rate_id:
-            fps = Utility.fps_get("display_"+self.__display_frame_rate_id)
-            fps2 = Utility.fps_get("frame_"+self.__display_frame_rate_id)
-            fps3 = Utility.fps_get("update_"+self.__display_frame_rate_id)
-
-            canvas_bounds = self.canvas_bounds
-            if canvas_bounds:
-                with drawing_context.saver():
-                    font = "normal 11px serif"
-                    text_pos = canvas_bounds.top_right + Geometry.IntPoint(y=0, x=-100)
-                    drawing_context.begin_path()
-                    drawing_context.move_to(text_pos.x, text_pos.y)
-                    drawing_context.line_to(text_pos.x + 120, text_pos.y)
-                    drawing_context.line_to(text_pos.x + 120, text_pos.y + 60)
-                    drawing_context.line_to(text_pos.x, text_pos.y + 60)
-                    drawing_context.close_path()
-                    drawing_context.fill_style = "rgba(255, 255, 255, 0.6)"
-                    drawing_context.fill()
-                    drawing_context.font = font
-                    drawing_context.text_baseline = "middle"
-                    drawing_context.text_align = "left"
-                    drawing_context.fill_style = "#000"
-                    drawing_context.fill_text("display:" + fps, text_pos.x + 8, text_pos.y + 10)
-                    drawing_context.fill_text("frame:" + fps2, text_pos.x + 8, text_pos.y + 30)
-                    drawing_context.fill_text("update:" + fps3, text_pos.x + 8, text_pos.y + 50)
+                    self.__drawing_context_canvas_item.set_drawing_context(drawing_context)
 
     def mouse_entered(self) -> bool:
         if super().mouse_entered():

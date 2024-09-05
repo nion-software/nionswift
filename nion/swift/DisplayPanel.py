@@ -503,9 +503,9 @@ def create_display_canvas_item(display_item: DisplayItem.DisplayItem, ui_setting
     elif display_type == "image":
         return ImageCanvasItem.ImageCanvasItem(ui_settings, delegate, event_loop, draw_background)
     elif display_type == "display_script":
-        return DisplayScriptCanvasItem.DisplayScriptCanvasItem(ui_settings, delegate)
+        return DisplayScriptCanvasItem.ScriptDisplayCanvasItem(ui_settings, delegate)
     else:
-        return MissingDataCanvasItem(delegate)
+        return MissingDisplayCanvasItem(delegate)
 
 
 def is_valid_display_type(display_type: str) -> bool:
@@ -979,25 +979,9 @@ class RelatedIconsCanvasItem(CanvasItem.CanvasItemComposition):
                 self.__dependent_display_items.append(dependent_display_item)
 
 
-class MissingDataCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
-    """ Canvas item to draw background_color. """
-    def __init__(self, delegate: typing.Optional[DisplayCanvasItem.DisplayCanvasItemDelegate]) -> None:
+class MissingCanvasItem(CanvasItem.AbstractCanvasItem):
+    def __init__(self) -> None:
         super().__init__()
-        self.__delegate = delegate
-
-    def context_menu_event(self, x: int, y: int, gx: int, gy: int) -> bool:
-        return self.__delegate.show_display_context_menu(gx, gy) if self.__delegate else False
-
-    @property
-    def key_contexts(self) -> typing.Sequence[str]:
-        return ["display_panel"]
-
-    def add_display_control(self, display_control_canvas_item: CanvasItem.AbstractCanvasItem, role: typing.Optional[str] = None) -> None:
-        display_control_canvas_item.close()
-
-    def handle_auto_display(self) -> bool:
-        # enter key has been pressed
-        return False
 
     def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
         # canvas size
@@ -1016,6 +1000,28 @@ class MissingDataCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                 drawing_context.line_to(canvas_size.width, 0)
                 drawing_context.stroke_style = "#444"
                 drawing_context.stroke()
+
+
+class MissingDisplayCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
+    """ Canvas item to draw background_color. """
+    def __init__(self, delegate: typing.Optional[DisplayCanvasItem.DisplayCanvasItemDelegate]) -> None:
+        super().__init__()
+        self.__delegate = delegate
+        self.add_canvas_item(MissingCanvasItem())
+
+    def context_menu_event(self, x: int, y: int, gx: int, gy: int) -> bool:
+        return self.__delegate.show_display_context_menu(gx, gy) if self.__delegate else False
+
+    @property
+    def key_contexts(self) -> typing.Sequence[str]:
+        return ["display_panel"]
+
+    def add_display_control(self, display_control_canvas_item: CanvasItem.AbstractCanvasItem, role: typing.Optional[str] = None) -> None:
+        display_control_canvas_item.close()
+
+    def handle_auto_display(self) -> bool:
+        # enter key has been pressed
+        return False
 
 
 class DisplayTracker:

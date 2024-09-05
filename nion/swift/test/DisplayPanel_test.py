@@ -1168,7 +1168,7 @@ class TestDisplayPanelClass(unittest.TestCase):
     def test_1d_data_with_zero_dimensions_display_fails_without_exception(self):
         self.data_item.set_data(numpy.zeros((0, )))
         # display panel should not have any display_canvas_item now since data is not valid
-        self.assertIsInstance(self.display_panel.display_canvas_item, DisplayPanel.MissingDataCanvasItem)
+        self.assertIsInstance(self.display_panel.display_canvas_item, DisplayPanel.MissingDisplayCanvasItem)
         # thumbnails and processors
         thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.document_controller.ui, self.display_item)
         with thumbnail_source.ref():
@@ -1180,7 +1180,7 @@ class TestDisplayPanelClass(unittest.TestCase):
     def test_2d_data_with_zero_dimensions_display_fails_without_exception(self):
         self.data_item.set_data(numpy.zeros((0, 0)))
         # display panel should not have any display_canvas_item now since data is not valid
-        self.assertIsInstance(self.display_panel.display_canvas_item, DisplayPanel.MissingDataCanvasItem)
+        self.assertIsInstance(self.display_panel.display_canvas_item, DisplayPanel.MissingDisplayCanvasItem)
         # thumbnails and processors
         thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.document_controller.ui, self.display_item)
         with thumbnail_source.ref():
