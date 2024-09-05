@@ -369,8 +369,10 @@ class ImageAreaCompositeCanvasItem(CanvasItem.CanvasItemComposition):
 
     @_data_shape.setter
     def _data_shape(self, value: typing.Optional[DataAndMetadata.Shape2dType]) -> None:
-        self.__data_shape = value
-        self.__update_screen_pixel_per_image()
+        if self.__data_shape != value:
+            self.__data_shape = value
+            self.__update_screen_pixel_per_image()
+            self.update()
 
     def __update_screen_pixel_per_image(self) -> None:
         screen_pixel_per_image_pixel = 0.0
@@ -386,7 +388,49 @@ class ImageAreaCompositeCanvasItem(CanvasItem.CanvasItemComposition):
 class ImageAreaCanvasItem(CanvasItem.CanvasItemComposition):
     def __init__(self, content: CanvasItem.AbstractCanvasItem) -> None:
         super().__init__()
+        self.__scroll_area_layout = ImageAreaCanvasItemLayout()
+        self.layout = self.__scroll_area_layout
         self.add_canvas_item(content)
+
+    @property
+    def _data_shape(self) -> typing.Optional[DataAndMetadata.Shape2dType]:
+        return self.__scroll_area_layout._data_shape
+
+    @_data_shape.setter
+    def _data_shape(self, value: typing.Optional[DataAndMetadata.Shape2dType]) -> None:
+        if self.__scroll_area_layout._data_shape != value:
+            self.__scroll_area_layout._data_shape = value
+            self.update()
+
+    @property
+    def _image_zoom(self) -> float:
+        return self.__scroll_area_layout._image_zoom
+
+    @_image_zoom.setter
+    def _image_zoom(self, value: float) -> None:
+        if self.__scroll_area_layout._image_zoom != value:
+            self.__scroll_area_layout._image_zoom = value
+            self.update()
+
+    @property
+    def _image_position(self) -> Geometry.FloatPoint:
+        return self.__scroll_area_layout._image_position
+
+    @_image_position.setter
+    def _image_position(self, value: Geometry.FloatPoint) -> None:
+        if self.__scroll_area_layout._image_position != value:
+            self.__scroll_area_layout._image_position = value
+            self.update()
+
+    @property
+    def _image_canvas_mode(self) -> str:
+        return self.__scroll_area_layout._image_canvas_mode
+
+    @_image_canvas_mode.setter
+    def _image_canvas_mode(self, value: str) -> None:
+        if self.__scroll_area_layout._image_canvas_mode != value:
+            self.__scroll_area_layout._image_canvas_mode = value
+            self.update()
 
     def _repaint_children(self, drawing_context: DrawingContext.DrawingContext, *, immediate: bool = False) -> None:
         # paint the children with the content origin and a clip rect.
@@ -841,9 +885,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.__composite_canvas_item.add_canvas_item(self.__bitmap_canvas_item)
         self.__composite_canvas_item.add_canvas_item(self.__graphics_canvas_item)
         # and put the composition into a scroll area
-        self.__scroll_area_layout = ImageAreaCanvasItemLayout()
         self.scroll_area_canvas_item = ImageAreaCanvasItem(self.__composite_canvas_item)
-        self.scroll_area_canvas_item.layout = self.__scroll_area_layout
         # info overlay (scale marker, etc.)
         self.__scale_marker_canvas_item = ScaleMarkerCanvasItem(self.__composite_canvas_item.screen_pixel_per_image_pixel_stream, ui_settings.get_font_metrics)
         info_overlay_row = CanvasItem.CanvasItemComposition()
@@ -946,13 +988,13 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                 if self.__image_zoom != image_zoom or self.__image_position != image_position or self.__image_canvas_mode != image_canvas_mode:
                     if image_zoom is not None:
                         self.__image_zoom = image_zoom
-                        self.__scroll_area_layout._image_zoom = self.__image_zoom
+                        self.scroll_area_canvas_item._image_zoom = self.__image_zoom
                     if image_position is not None:
                         self.__image_position = image_position
-                        self.__scroll_area_layout._image_position = self.__image_position
+                        self.scroll_area_canvas_item._image_position = self.__image_position
                     if image_canvas_mode is not None:
                         self.__image_canvas_mode = image_canvas_mode
-                        self.__scroll_area_layout._image_canvas_mode = self.__image_canvas_mode
+                        self.scroll_area_canvas_item._image_canvas_mode = self.__image_canvas_mode
 
                 # if the data changes, update the display.
                 data_shape = display_calibration_info.display_data_shape
@@ -961,7 +1003,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                     self.__display_properties_dirty = False
                     self.__display_calibration_info_dirty = False
                     self.__data_shape = data_shape[0], data_shape[1]
-                    self.__scroll_area_layout._data_shape = self.__data_shape
+                    self.scroll_area_canvas_item._data_shape = self.__data_shape
                     self.__composite_canvas_item._data_shape = self.__data_shape
                     self.__coordinate_system = display_calibration_info.datum_calibrations
                     self.__frame_rate_canvas_item.frame_tick(frame_info.frame_index)
