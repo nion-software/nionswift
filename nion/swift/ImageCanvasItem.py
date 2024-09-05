@@ -143,6 +143,38 @@ class ImageCanvasItemMapping(Graphics.CoordinateMappingLike):
         raise NotImplementedError()
 
 
+class GraphicsCanvasItemComposer(CanvasItem.BaseComposer):
+    def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing, cache: CanvasItem.ComposerCache,
+                 ui_settings: UISettings.UISettings, graphics: typing.List[Graphics.Graphic], graphic_selection: DisplayItem.GraphicSelection,
+                 displayed_shape: typing.Optional[DataAndMetadata.ShapeType], coordinate_system: typing.List[Calibration.Calibration]) -> None:
+        super().__init__(canvas_item, layout_sizing, cache)
+        self.__ui_settings = ui_settings
+        self.__graphics = graphics
+        self.__graphic_selection = graphic_selection
+        self.__displayed_shape = displayed_shape
+        self.__coordinate_system = coordinate_system
+
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> None:
+        ui_settings = self.__ui_settings
+        graphics = self.__graphics
+        graphic_selection = self.__graphic_selection
+        displayed_shape = self.__displayed_shape
+        coordinate_system = self.__coordinate_system
+        widget_mapping = ImageCanvasItemMapping.make(displayed_shape, canvas_bounds, coordinate_system)
+        if graphics and widget_mapping:
+            with drawing_context.saver():
+                drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
+                for graphic_index, graphic in enumerate(graphics):
+                    if isinstance(graphic, (Graphics.PointTypeGraphic, Graphics.LineTypeGraphic, Graphics.RectangleTypeGraphic, Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
+                        try:
+                            graphic.draw(drawing_context, ui_settings, widget_mapping, graphic_selection.contains(graphic_index))
+                        except Exception as e:
+                            import traceback
+                            logging.debug("Graphic Repaint Error: %s", e)
+                            traceback.print_exc()
+                            traceback.print_stack()
+
+
 class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):
     """A canvas item to paint the graphic items on the image.
 
@@ -182,19 +214,57 @@ class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):
         if needs_update:
             self.update()
 
-    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
-        widget_mapping = ImageCanvasItemMapping.make(self.__displayed_shape, self.canvas_bounds, self.__coordinate_system)
-        if self.__graphics and widget_mapping:
+    def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> typing.Optional[CanvasItem.BaseComposer]:
+        return GraphicsCanvasItemComposer(self, self.sizing, composer_cache, self.__ui_settings, self.__graphics, self.__graphic_selection, self.__displayed_shape, self.__coordinate_system)
+
+
+class ScaleMarkerCanvasItemComposer(CanvasItem.BaseComposer):
+    def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing,
+                 cache: CanvasItem.ComposerCache, dimensional_calibration: typing.Optional[Calibration.Calibration],
+                 info_text: str, screen_pixel_per_image_pixel: typing.Optional[float],
+                 get_font_metrics_fn: typing.Callable[[str, str], UISettings.FontMetrics]) -> None:
+        super().__init__(canvas_item, layout_sizing, cache)
+        self.__dimensional_calibration = dimensional_calibration
+        self.__info_text = info_text
+        self.__screen_pixel_per_image_pixel = screen_pixel_per_image_pixel
+        self.__get_font_metrics_fn = get_font_metrics_fn
+
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> None:
+        dimensional_calibration = self.__dimensional_calibration
+        info_text = self.__info_text
+        screen_pixel_per_image_pixel = self.__screen_pixel_per_image_pixel
+        scale_marker_width = 120
+        scale_marker_height = 6
+        scale_marker_font = "normal 14px serif"
+        get_font_metrics_fn = self.__get_font_metrics_fn
+        if dimensional_calibration:  # display scale marker?
             with drawing_context.saver():
-                for graphic_index, graphic in enumerate(self.__graphics):
-                    if isinstance(graphic, (Graphics.PointTypeGraphic, Graphics.LineTypeGraphic, Graphics.RectangleTypeGraphic, Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
-                        try:
-                            graphic.draw(drawing_context, self.__ui_settings, widget_mapping, self.__graphic_selection.contains(graphic_index))
-                        except Exception as e:
-                            import traceback
-                            logging.debug("Graphic Repaint Error: %s", e)
-                            traceback.print_exc()
-                            traceback.print_stack()
+                drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
+                if screen_pixel_per_image_pixel and screen_pixel_per_image_pixel > 0.0:
+                    scale_marker_image_width = scale_marker_width / screen_pixel_per_image_pixel
+                    calibrated_scale_marker_width = Geometry.make_pretty2(scale_marker_image_width * dimensional_calibration.scale, True)
+                    # update the scale marker width
+                    scale_marker_image_width = calibrated_scale_marker_width / dimensional_calibration.scale
+                    scale_marker_calculated_width = scale_marker_image_width * screen_pixel_per_image_pixel
+                    baseline = canvas_bounds.height
+                    drawing_context.begin_path()
+                    drawing_context.move_to(0, baseline)
+                    drawing_context.line_to(0 + scale_marker_calculated_width, baseline)
+                    drawing_context.line_to(0 + scale_marker_calculated_width, baseline - scale_marker_height)
+                    drawing_context.line_to(0, baseline - scale_marker_height)
+                    drawing_context.close_path()
+                    drawing_context.fill_style = "#448"
+                    drawing_context.fill()
+                    drawing_context.stroke_style = "#000"
+                    drawing_context.stroke()
+                    drawing_context.font = scale_marker_font
+                    drawing_context.text_baseline = "bottom"
+                    drawing_context.fill_style = "#FFF"
+                    text1 = dimensional_calibration.convert_to_calibrated_size_str(scale_marker_image_width)
+                    text2 = info_text
+                    fm1 = get_font_metrics_fn(scale_marker_font, text1)
+                    drawing_context.fill_text(text1, 0, baseline - scale_marker_height - 4)
+                    drawing_context.fill_text(text2, 0, baseline - scale_marker_height - 4 - fm1.height)
 
 
 class ScaleMarkerCanvasItem(CanvasItem.AbstractCanvasItem):
@@ -261,37 +331,8 @@ class ScaleMarkerCanvasItem(CanvasItem.AbstractCanvasItem):
             self.__update_sizing()
             self.update()
 
-    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
-        canvas_size = self.canvas_size
-        dimensional_calibration = self.__dimensional_calibration
-        if canvas_size and dimensional_calibration:  # display scale marker?
-            screen_pixel_per_image_pixel = self.__screen_pixel_per_image_pixel_stream.value
-            if screen_pixel_per_image_pixel and screen_pixel_per_image_pixel > 0.0:
-                scale_marker_image_width = self.__scale_marker_width / screen_pixel_per_image_pixel
-                calibrated_scale_marker_width = Geometry.make_pretty2(scale_marker_image_width * dimensional_calibration.scale, True)
-                # update the scale marker width
-                scale_marker_image_width = calibrated_scale_marker_width / dimensional_calibration.scale
-                scale_marker_width = scale_marker_image_width * screen_pixel_per_image_pixel
-                baseline = canvas_size.height
-                with drawing_context.saver():
-                    drawing_context.begin_path()
-                    drawing_context.move_to(0, baseline)
-                    drawing_context.line_to(0 + scale_marker_width, baseline)
-                    drawing_context.line_to(0 + scale_marker_width, baseline - self.scale_marker_height)
-                    drawing_context.line_to(0, baseline - self.scale_marker_height)
-                    drawing_context.close_path()
-                    drawing_context.fill_style = "#448"
-                    drawing_context.fill()
-                    drawing_context.stroke_style = "#000"
-                    drawing_context.stroke()
-                    drawing_context.font = self.scale_marker_font
-                    drawing_context.text_baseline = "bottom"
-                    drawing_context.fill_style = "#FFF"
-                    text1 = dimensional_calibration.convert_to_calibrated_size_str(scale_marker_image_width)
-                    text2 = self.__info_text
-                    fm1 = self.__get_font_metrics_fn(self.scale_marker_font, text1)
-                    drawing_context.fill_text(text1, 0, baseline - self.scale_marker_height - 4)
-                    drawing_context.fill_text(text2, 0, baseline - self.scale_marker_height - 4 - fm1.height)
+    def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> typing.Optional[CanvasItem.BaseComposer]:
+        return ScaleMarkerCanvasItemComposer(self, self.sizing, composer_cache, self.__dimensional_calibration, self.__info_text, self.__screen_pixel_per_image_pixel_stream.value, self.__get_font_metrics_fn)
 
 
 def calculate_origin_and_size(canvas_size: Geometry.IntSize, data_shape: DataAndMetadata.Shape2dType, image_canvas_mode: str, image_zoom: float, image_position: Geometry.FloatPoint) -> Geometry.IntRect:

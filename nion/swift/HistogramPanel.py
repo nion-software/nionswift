@@ -26,6 +26,7 @@ from nion.ui import DrawingContext
 from nion.ui import Widgets
 from nion.utils import Binding
 from nion.utils import Event
+from nion.utils import Geometry
 from nion.utils import Model
 from nion.utils import Observable
 from nion.utils import Process
@@ -50,6 +51,48 @@ IT = typing.TypeVar('IT')
 OT = typing.TypeVar('OT')
 
 
+class AdornmentsCanvasItemComposer(CanvasItem.BaseComposer):
+    def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing, cache: CanvasItem.ComposerCache, display_limits: typing.Tuple[float, float]) -> None:
+        super().__init__(canvas_item, layout_sizing, cache)
+        self.__display_limits = display_limits
+
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> None:
+        display_limits = self.__display_limits
+        with drawing_context.saver():
+            drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
+            left = display_limits[0]
+            right = display_limits[1]
+
+            # draw left display limit
+            if left > 0.0:
+                with drawing_context.saver():
+                    drawing_context.begin_path()
+                    drawing_context.move_to(left * canvas_bounds.width, 1)
+                    drawing_context.line_to(left * canvas_bounds.width, canvas_bounds.height - 1)
+                    drawing_context.line_width = 2
+                    drawing_context.stroke_style = "#000"
+                    drawing_context.stroke()
+
+            # draw right display limit
+            if right < 1.0:
+                with drawing_context.saver():
+                    drawing_context.begin_path()
+                    drawing_context.move_to(right * canvas_bounds.width, 1)
+                    drawing_context.line_to(right * canvas_bounds.width, canvas_bounds.height - 1)
+                    drawing_context.line_width = 2
+                    drawing_context.stroke_style = "#FFF"
+                    drawing_context.stroke()
+
+            # draw border
+            with drawing_context.saver():
+                drawing_context.begin_path()
+                drawing_context.move_to(0, canvas_bounds.height)
+                drawing_context.line_to(canvas_bounds.width, canvas_bounds.height)
+                drawing_context.line_width = 1
+                drawing_context.stroke_style = "#444"
+                drawing_context.stroke()
+
+
 class AdornmentsCanvasItem(CanvasItem.AbstractCanvasItem):
     """A canvas item to draw the adornments on top of the histogram.
 
@@ -62,45 +105,58 @@ class AdornmentsCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def __init__(self) -> None:
         super().__init__()
-        self.display_limits: typing.Tuple[float, float] = (0.0, 1.0)
+        self.__display_limits: typing.Tuple[float, float] = (0.0, 1.0)
 
-    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
-        """Repaint the canvas item. This will occur on a thread."""
+    @property
+    def display_limits(self) -> typing.Tuple[float, float]:
+        return self.__display_limits
 
-        # canvas size
-        canvas_size = self.canvas_size
-        if canvas_size:
-            left = self.display_limits[0]
-            right = self.display_limits[1]
+    @display_limits.setter
+    def display_limits(self, display_limits: typing.Tuple[float, float]) -> None:
+        self.__display_limits = display_limits
+        self.update()
 
-            # draw left display limit
-            if left > 0.0:
+    def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> typing.Optional[CanvasItem.BaseComposer]:
+        return AdornmentsCanvasItemComposer(self, self.sizing, composer_cache, self.display_limits)
+
+
+class SimpleLineGraphCanvasItemComposer(CanvasItem.BaseComposer):
+    def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing, cache: CanvasItem.ComposerCache, background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]], data: typing.Optional[_NDArray]) -> None:
+        super().__init__(canvas_item, layout_sizing, cache)
+        self.__background_color = background_color
+        self.__data = data
+
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> None:
+        background_color = self.__background_color
+        data = self.__data
+        with drawing_context.saver():
+            drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
+
+            # draw background
+            if background_color:
                 with drawing_context.saver():
                     drawing_context.begin_path()
-                    drawing_context.move_to(left * canvas_size.width, 1)
-                    drawing_context.line_to(left * canvas_size.width, canvas_size.height - 1)
-                    drawing_context.line_width = 2
-                    drawing_context.stroke_style = "#000"
-                    drawing_context.stroke()
+                    drawing_context.move_to(0, 0)
+                    drawing_context.line_to(canvas_bounds.width, 0)
+                    drawing_context.line_to(canvas_bounds.width, canvas_bounds.height)
+                    drawing_context.line_to(0, canvas_bounds.height)
+                    drawing_context.close_path()
+                    drawing_context.fill_style = background_color
+                    drawing_context.fill()
 
-            # draw right display limit
-            if right < 1.0:
+            # draw the data, if any
+            if (data is not None and len(data) > 0):
+
+                # draw the histogram itself
                 with drawing_context.saver():
                     drawing_context.begin_path()
-                    drawing_context.move_to(right * canvas_size.width, 1)
-                    drawing_context.line_to(right * canvas_size.width, canvas_size.height - 1)
-                    drawing_context.line_width = 2
-                    drawing_context.stroke_style = "#FFF"
+                    binned_data = Image.rebin_1d(data, int(canvas_bounds.width)) if int(canvas_bounds.width) != data.shape[0] else data
+                    for i in range(canvas_bounds.width):
+                        drawing_context.move_to(i, canvas_bounds.height)
+                        drawing_context.line_to(i, canvas_bounds.height * (1 - binned_data[i]))
+                    drawing_context.line_width = 1
+                    drawing_context.stroke_style = "#444"
                     drawing_context.stroke()
-
-            # draw border
-            with drawing_context.saver():
-                drawing_context.begin_path()
-                drawing_context.move_to(0, canvas_size.height)
-                drawing_context.line_to(canvas_size.width, canvas_size.height)
-                drawing_context.line_width = 1
-                drawing_context.stroke_style = "#444"
-                drawing_context.stroke()
 
 
 class SimpleLineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
@@ -145,39 +201,27 @@ class SimpleLineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__background_color = background_color
         self.update()
 
-    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
-        """Repaint the canvas item. This will occur on a thread."""
-        canvas_size = self.canvas_size
-        if canvas_size:
-            # draw background
-            if self.background_color:
-                with drawing_context.saver():
-                    drawing_context.begin_path()
-                    drawing_context.move_to(0, 0)
-                    drawing_context.line_to(canvas_size.width, 0)
-                    drawing_context.line_to(canvas_size.width, canvas_size.height)
-                    drawing_context.line_to(0, canvas_size.height)
-                    drawing_context.close_path()
-                    drawing_context.fill_style = self.background_color
-                    drawing_context.fill()
+    def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> typing.Optional[CanvasItem.BaseComposer]:
+        return SimpleLineGraphCanvasItemComposer(self, self.sizing, composer_cache, self.background_color, self.data)
 
-            # draw the data, if any
-            if (self.data is not None and len(self.data) > 0):
 
-                # draw the histogram itself
-                with drawing_context.saver():
-                    drawing_context.begin_path()
-                    binned_data = Image.rebin_1d(self.data, int(canvas_size.width), self.__retained_rebin_1d) if int(canvas_size.width) != self.data.shape[0] else self.data
-                    for i in range(canvas_size.width):
-                        drawing_context.move_to(i, canvas_size.height)
-                        drawing_context.line_to(i, canvas_size.height * (1 - binned_data[i]))
-                    drawing_context.line_width = 1
-                    drawing_context.stroke_style = "#444"
-                    drawing_context.stroke()
+class ColorMapCanvasItemComposer(CanvasItem.BaseComposer):
+    def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing, cache: CanvasItem.ComposerCache, color_map_data: typing.Optional[_RGBA8ImageDataType]) -> None:
+        super().__init__(canvas_item, layout_sizing, cache)
+        self.__color_map_data = color_map_data
+
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> None:
+        color_map_data = self.__color_map_data
+        with drawing_context.saver():
+            drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
+            if color_map_data is not None:
+                rgba_image: numpy.typing.NDArray[numpy.uint32] = numpy.empty((4,) + color_map_data.shape[:-1], dtype=numpy.uint32)
+                Image.get_rgb_view(rgba_image)[:] = color_map_data[numpy.newaxis, :, :]  # scalar data assigned to each component of rgb view
+                Image.get_alpha_view(rgba_image)[:] = 255
+                drawing_context.draw_image(rgba_image, 0, 0, canvas_bounds.width, canvas_bounds.height)
 
 
 class ColorMapCanvasItem(CanvasItem.AbstractCanvasItem):
-
     def __init__(self) -> None:
         super().__init__()
         self.update_sizing(self.sizing.with_fixed_height(4))
@@ -197,16 +241,8 @@ class ColorMapCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__color_map_data = data
         self.update()
 
-    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
-        """Repaint the canvas item. This will occur on a thread."""
-        canvas_size = self.canvas_size
-        if canvas_size:
-            with drawing_context.saver():
-                if self.__color_map_data is not None:
-                    rgba_image: numpy.typing.NDArray[numpy.uint32] = numpy.empty((4,) + self.__color_map_data.shape[:-1], dtype=numpy.uint32)
-                    Image.get_rgb_view(rgba_image)[:] = self.__color_map_data[numpy.newaxis, :, :]  # scalar data assigned to each component of rgb view
-                    Image.get_alpha_view(rgba_image)[:] = 255
-                    drawing_context.draw_image(rgba_image, 0, 0, canvas_size.width, canvas_size.height)
+    def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> typing.Optional[CanvasItem.BaseComposer]:
+        return ColorMapCanvasItemComposer(self, self.sizing, composer_cache, self.__color_map_data)
 
 
 class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
@@ -266,9 +302,6 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
 
         self.histogram_data = histogram_data
 
-        # make sure the adornments get updated
-        self.__adornments_canvas_item.update()
-
     @property
     def histogram_data(self) -> typing.Optional[_NDArray]:
         return self.__simple_line_graph_canvas_item.data
@@ -287,7 +320,6 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
 
     def __set_display_limits(self, display_limits: typing.Tuple[float, float]) -> None:
         self.__adornments_canvas_item.display_limits = display_limits
-        self.__adornments_canvas_item.update()
 
     def mouse_double_clicked(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         if super().mouse_double_clicked(x, y, modifiers):

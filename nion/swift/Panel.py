@@ -230,6 +230,109 @@ class OutputPanel(Panel):
         super().close()
 
 
+class HeaderCanvasItemComposer(CanvasItem.BaseComposer):
+    def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing, cache: CanvasItem.ComposerCache, title: str, display_close_control: bool, start_header_color: str, end_header_color: str) -> None:
+        super().__init__(canvas_item, layout_sizing, cache)
+        self.__title = title
+        self.__display_close_control = display_close_control
+        self.__start_header_color = start_header_color
+        self.__end_header_color = end_header_color
+        if sys.platform == "win32":
+            self.__font = 'normal 11px system serif'
+            self.__top_offset = 1
+            self.__text_offset = 4
+            self.__top_stroke_style = '#b8b8b8'
+            self.__side_stroke_style = '#b8b8b8'
+            self.__bottom_stroke_style = '#b8b8b8'
+            self.__control_style = '#000000'
+        else:
+            self.__font = 'normal 10pt system serif'
+            self.__top_offset = 0
+            self.__text_offset = 7
+            self.__top_stroke_style = '#ffffff'
+            self.__bottom_stroke_style = '#b0b0b0'
+            self.__side_stroke_style = None
+            self.__control_style = '#808080'
+
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> None:
+        start_header_color = self.__start_header_color
+        end_header_color = self.__end_header_color
+        top_offset = self.__top_offset
+        top_stroke_style = self.__top_stroke_style
+        bottom_stroke_style = self.__bottom_stroke_style
+        side_stroke_style = self.__side_stroke_style
+        display_close_control = self.__display_close_control
+        control_style = self.__control_style
+        font = self.__font
+        title = self.__title
+        text_offset = self.__text_offset
+        with drawing_context.saver():
+            drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
+            with drawing_context.saver():
+                drawing_context.begin_path()
+                drawing_context.move_to(0, 1)
+                drawing_context.line_to(0, canvas_bounds.height)
+                drawing_context.line_to(canvas_bounds.width, canvas_bounds.height)
+                drawing_context.line_to(canvas_bounds.width, 1)
+                drawing_context.close_path()
+                gradient = drawing_context.create_linear_gradient(canvas_bounds.width, canvas_bounds.height, 0, 0, 0, canvas_bounds.height)
+                gradient.add_color_stop(0, start_header_color)
+                gradient.add_color_stop(1, end_header_color)
+                drawing_context.fill_style = gradient
+                drawing_context.fill()
+
+            with drawing_context.saver():
+                drawing_context.begin_path()
+                # line is adjust 1/2 pixel down to align to pixel boundary
+                drawing_context.move_to(0, 0.5 + top_offset)
+                drawing_context.line_to(canvas_bounds.width, 0.5 + top_offset)
+                drawing_context.stroke_style = top_stroke_style
+                drawing_context.stroke()
+
+            with drawing_context.saver():
+                drawing_context.begin_path()
+                # line is adjust 1/2 pixel down to align to pixel boundary
+                drawing_context.move_to(0, canvas_bounds.height-0.5)
+                drawing_context.line_to(canvas_bounds.width, canvas_bounds.height-0.5)
+                drawing_context.stroke_style = bottom_stroke_style
+                drawing_context.stroke()
+
+            if side_stroke_style:
+                with drawing_context.saver():
+                    drawing_context.begin_path()
+                    # line is adjust 1/2 pixel down to align to pixel boundary
+                    drawing_context.move_to(0.5, 1.5)
+                    drawing_context.line_to(0.5, canvas_bounds.height - 0.5)
+                    drawing_context.move_to(canvas_bounds.width - 0.5, 1.5)
+                    drawing_context.line_to(canvas_bounds.width - 0.5, canvas_bounds.height - 0.5)
+                    drawing_context.stroke_style = side_stroke_style
+                    drawing_context.stroke()
+
+            if display_close_control:
+                with drawing_context.saver():
+                    drawing_context.begin_path()
+                    close_box_left = canvas_bounds.width - (20 - 7)
+                    close_box_right = canvas_bounds.width - (20 - 13)
+                    close_box_top = canvas_bounds.height // 2 - 3
+                    close_box_bottom = canvas_bounds.height // 2 + 3
+                    drawing_context.move_to(close_box_left, close_box_top)
+                    drawing_context.line_to(close_box_right, close_box_bottom)
+                    drawing_context.move_to(close_box_left, close_box_bottom)
+                    drawing_context.line_to(close_box_right, close_box_top)
+                    drawing_context.line_width = 1.5
+                    drawing_context.line_cap = "round"
+                    drawing_context.stroke_style = control_style
+                    drawing_context.stroke()
+
+            with drawing_context.saver():
+                drawing_context.font = font
+                drawing_context.text_align = 'center'
+                drawing_context.text_baseline = 'bottom'
+                drawing_context.fill_style = '#000'
+                drawing_context.fill_text(title, canvas_bounds.width // 2, canvas_bounds.height - text_offset)
+
+
+
 class HeaderCanvasItem(CanvasItem.AbstractCanvasItem):
 
     # header_height = 20 if sys.platform == "win32" else 22
@@ -376,71 +479,8 @@ class HeaderCanvasItem(CanvasItem.AbstractCanvasItem):
             return self.on_context_menu_clicked(x, y, gx, gy)
         return False
 
-    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
-        canvas_size = self.canvas_size
-        if canvas_size:
-            with drawing_context.saver():
-                drawing_context.begin_path()
-                drawing_context.move_to(0, 1)
-                drawing_context.line_to(0, canvas_size.height)
-                drawing_context.line_to(canvas_size.width, canvas_size.height)
-                drawing_context.line_to(canvas_size.width, 1)
-                drawing_context.close_path()
-                gradient = drawing_context.create_linear_gradient(canvas_size.width, canvas_size.height, 0, 0, 0, canvas_size.height)
-                gradient.add_color_stop(0, self.__start_header_color)
-                gradient.add_color_stop(1, self.__end_header_color)
-                drawing_context.fill_style = gradient
-                drawing_context.fill()
-
-            with drawing_context.saver():
-                drawing_context.begin_path()
-                # line is adjust 1/2 pixel down to align to pixel boundary
-                drawing_context.move_to(0, 0.5 + self.__top_offset)
-                drawing_context.line_to(canvas_size.width, 0.5 + self.__top_offset)
-                drawing_context.stroke_style = self.__top_stroke_style
-                drawing_context.stroke()
-
-            with drawing_context.saver():
-                drawing_context.begin_path()
-                # line is adjust 1/2 pixel down to align to pixel boundary
-                drawing_context.move_to(0, canvas_size.height-0.5)
-                drawing_context.line_to(canvas_size.width, canvas_size.height-0.5)
-                drawing_context.stroke_style = self.__bottom_stroke_style
-                drawing_context.stroke()
-
-            if self.__side_stroke_style:
-                with drawing_context.saver():
-                    drawing_context.begin_path()
-                    # line is adjust 1/2 pixel down to align to pixel boundary
-                    drawing_context.move_to(0.5, 1.5)
-                    drawing_context.line_to(0.5, canvas_size.height - 0.5)
-                    drawing_context.move_to(canvas_size.width - 0.5, 1.5)
-                    drawing_context.line_to(canvas_size.width - 0.5, canvas_size.height - 0.5)
-                    drawing_context.stroke_style = self.__side_stroke_style
-                    drawing_context.stroke()
-
-            if self.__display_close_control:
-                with drawing_context.saver():
-                    drawing_context.begin_path()
-                    close_box_left = canvas_size.width - (20 - 7)
-                    close_box_right = canvas_size.width - (20 - 13)
-                    close_box_top = canvas_size.height // 2 - 3
-                    close_box_bottom = canvas_size.height // 2 + 3
-                    drawing_context.move_to(close_box_left, close_box_top)
-                    drawing_context.line_to(close_box_right, close_box_bottom)
-                    drawing_context.move_to(close_box_left, close_box_bottom)
-                    drawing_context.line_to(close_box_right, close_box_top)
-                    drawing_context.line_width = 1.5
-                    drawing_context.line_cap = "round"
-                    drawing_context.stroke_style = self.__control_style
-                    drawing_context.stroke()
-
-            with drawing_context.saver():
-                drawing_context.font = self.__font
-                drawing_context.text_align = 'center'
-                drawing_context.text_baseline = 'bottom'
-                drawing_context.fill_style = '#000'
-                drawing_context.fill_text(self.title, canvas_size.width // 2, canvas_size.height - self.__text_offset)
+    def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> typing.Optional[CanvasItem.BaseComposer]:
+        return HeaderCanvasItemComposer(self, self.sizing, composer_cache, self.title, self.__display_close_control, self.__start_header_color, self.__end_header_color)
 
 
 class PanelSectionFactory(typing.Protocol):

@@ -1240,7 +1240,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_panel.set_display_panel_display_item(display_item)
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
             header_height = self.display_panel.header_canvas_item.header_height
-            root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=1000, height=1000 + header_height))
+            root_canvas_item.update_layout_immediate(Geometry.IntPoint(), Geometry.IntSize(width=1000, height=1000 + header_height))
             # drag to make line
             display_panel.display_canvas_item.simulate_drag((100,125), (200,250))
             document_controller.periodic()
@@ -1270,7 +1270,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_panel.set_display_panel_display_item(display_item)
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
             header_height = self.display_panel.header_canvas_item.header_height
-            root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=1000, height=1000 + header_height))
+            root_canvas_item.update_layout_immediate(Geometry.IntPoint(), Geometry.IntSize(width=1000, height=1000 + header_height))
             # drag for the line profile
             display_panel.display_canvas_item.simulate_drag((100,125), (200,250))
             self.document_controller.periodic()
@@ -1296,7 +1296,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_panel.set_display_panel_display_item(display_item)
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
             header_height = self.display_panel.header_canvas_item.header_height
-            root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=1000, height=1000 + header_height))
+            root_canvas_item.update_layout_immediate(Geometry.IntPoint(), Geometry.IntSize(width=1000, height=1000 + header_height))
             # drag and check transactions
             self.assertFalse(data_item.in_transaction_state)
             self.assertFalse(display_item.in_transaction_state)
@@ -1334,7 +1334,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel.set_display_panel_display_item(display_item)
             self.assertIsNotNone(display_panel.display_canvas_item)
-            root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=1000, height=500 + header_height))
+            root_canvas_item.update_layout_immediate(Geometry.IntPoint(), Geometry.IntSize(width=1000, height=500 + header_height))
             document_controller.set_filter("none")
             document_controller.tool_mode = "line-profile"
             display_panel.display_canvas_item.simulate_drag((100,125), (200,250))

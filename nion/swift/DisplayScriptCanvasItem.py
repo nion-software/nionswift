@@ -10,7 +10,6 @@ import typing
 # local libraries
 from nion.swift import DisplayCanvasItem
 from nion.swift.model import UISettings
-from nion.swift.model import Utility
 from nion.ui import CanvasItem
 from nion.ui import DrawingContext
 from nion.utils import Geometry
@@ -43,6 +42,18 @@ class DisplayScriptCanvasItemDelegate(typing.Protocol):
     def tool_mode(self) -> str: return str()
 
 
+class DrawingContextCanvasItemComposer(CanvasItem.BaseComposer):
+    def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing, cache: CanvasItem.ComposerCache, drawing_context: typing.Optional[DrawingContext.DrawingContext]) -> None:
+        super().__init__(canvas_item, layout_sizing, cache)
+        self.__drawing_context = drawing_context
+
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> None:
+        if self.__drawing_context:
+            with drawing_context.saver():
+                drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
+                drawing_context.add(self.__drawing_context)
+
+
 class DrawingContextCanvasItem(CanvasItem.AbstractCanvasItem):
     def __init__(self) -> None:
         super().__init__()
@@ -52,9 +63,8 @@ class DrawingContextCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__drawing_context = drawing_context
         self.update()
 
-    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
-        if self.__drawing_context:
-            drawing_context.add(self.__drawing_context)
+    def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> typing.Optional[CanvasItem.BaseComposer]:
+        return DrawingContextCanvasItemComposer(self, self.sizing, composer_cache, self.__drawing_context)
 
 
 class ScriptDisplayCanvasItem(DisplayCanvasItem.DisplayCanvasItem):

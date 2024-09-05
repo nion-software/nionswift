@@ -4835,6 +4835,30 @@ class DeclarativeImageChooserConstructor:
 
         return None
 
+
+class CroppedOverlayGraphicCanvasItemComposer(CanvasItem.BaseComposer):
+    def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing, cache: CanvasItem.ComposerCache, is_crop_enabled: bool) -> None:
+        super().__init__(canvas_item, layout_sizing, cache)
+        self.__crop_enabled = is_crop_enabled
+
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> None:
+        is_crop_enabled = self.__crop_enabled
+        with drawing_context.saver():
+            drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
+            drawing_context.rect(canvas_bounds.left, canvas_bounds.top, canvas_bounds.width, canvas_bounds.height)
+            drawing_context.line_join = "miter"
+            drawing_context.fill_style = "gray"
+            drawing_context.fill()
+            drawing_context.stroke_style = "white"
+            drawing_context.line_width = 1.2
+            drawing_context.stroke()
+            if is_crop_enabled:
+                drawing_context.rect(canvas_bounds.center.x - 1, canvas_bounds.center.y - 1, canvas_bounds.width / 2, canvas_bounds.height / 2)
+                drawing_context.line_width = 1.2
+                drawing_context.stroke_style = "white"
+                drawing_context.stroke()
+
+
 class CroppedOverlayGraphicCanvasItem(CanvasItem.AbstractCanvasItem):
     def __init__(self, handle_clicked: typing.Callable[[], None]) -> None:
         super().__init__()
@@ -4872,23 +4896,8 @@ class CroppedOverlayGraphicCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__handle_clicked()
         return False
 
-    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
-        super()._repaint(drawing_context)
-        canvas_bounds = self.canvas_bounds
-        if canvas_bounds and self.is_croppable:
-            with drawing_context.saver():
-                drawing_context.rect(canvas_bounds.left, canvas_bounds.top, canvas_bounds.width, canvas_bounds.height)
-                drawing_context.line_join = "miter"
-                drawing_context.fill_style = "gray"
-                drawing_context.fill()
-                drawing_context.stroke_style = "white"
-                drawing_context.line_width = 1.2
-                drawing_context.stroke()
-                if self.__crop_enabled:
-                    drawing_context.rect(canvas_bounds.center.x - 1, canvas_bounds.center.y - 1, canvas_bounds.width / 2, canvas_bounds.height / 2)
-                    drawing_context.line_width = 1.2
-                    drawing_context.stroke_style = "white"
-                    drawing_context.stroke()
+    def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> typing.Optional[CanvasItem.BaseComposer]:
+        return CroppedOverlayGraphicCanvasItemComposer(self, self.sizing, composer_cache, self.__crop_enabled)
 
 
 class CroppedOverlayCanvasItem(CanvasItem.CanvasItemComposition):
