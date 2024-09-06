@@ -368,12 +368,47 @@ def calculate_origin_and_size(canvas_size: Geometry.IntSize, data_shape: DataAnd
 
 
 class ImageAreaCanvasItemLayout(CanvasItem.CanvasItemLayout):
-    def __init__(self) -> None:
+    def __init__(self, data_shape: typing.Optional[DataAndMetadata.Shape2dType] = None, image_zoom: float = 1.0, image_position: Geometry.FloatPoint = Geometry.FloatPoint(0.5, 0.5), image_canvas_mode: str = "fit") -> None:
         super().__init__()
-        self._data_shape: typing.Optional[DataAndMetadata.Shape2dType] = None
-        self._image_zoom = 1.0
-        self._image_position = Geometry.FloatPoint(0.5, 0.5)
-        self._image_canvas_mode = "fit"
+        self.__data_shape: typing.Optional[DataAndMetadata.Shape2dType] = data_shape
+        self.__image_zoom = image_zoom
+        self.__image_position = image_position
+        self.__image_canvas_mode = image_canvas_mode
+
+    def copy(self) -> ImageAreaCanvasItemLayout:
+        return ImageAreaCanvasItemLayout(self.__data_shape, self.__image_zoom, self.__image_position, self.__image_canvas_mode)
+
+    @property
+    def data_shape(self) -> typing.Optional[DataAndMetadata.Shape2dType]:
+        return self.__data_shape
+
+    @data_shape.setter
+    def data_shape(self, value: typing.Optional[DataAndMetadata.Shape2dType]) -> None:
+        self.__data_shape = value
+
+    @property
+    def image_zoom(self) -> float:
+        return self.__image_zoom
+
+    @image_zoom.setter
+    def image_zoom(self, value: float) -> None:
+        self.__image_zoom = value
+
+    @property
+    def image_position(self) -> Geometry.FloatPoint:
+        return self.__image_position
+
+    @image_position.setter
+    def image_position(self, value: Geometry.FloatPoint) -> None:
+        self.__image_position = value
+
+    @property
+    def image_canvas_mode(self) -> str:
+        return self.__image_canvas_mode
+
+    @image_canvas_mode.setter
+    def image_canvas_mode(self, value: str) -> None:
+        self.__image_canvas_mode = value
 
     def layout(self, canvas_origin: Geometry.IntPoint, canvas_size: Geometry.IntSize, canvas_items: typing.Sequence[CanvasItem.LayoutItem], *, immediate: bool = False) -> None:
         content = canvas_items[0] if canvas_items else None
@@ -382,9 +417,9 @@ class ImageAreaCanvasItemLayout(CanvasItem.CanvasItemLayout):
                 # if the content has not layout yet, always update it.
                 self.update_canvas_item_layout(canvas_origin, canvas_size, content)
             if canvas_size:
-                widget_mapping = ImageCanvasItemMapping.make(self._data_shape, Geometry.IntRect(canvas_origin, canvas_size), list())
+                widget_mapping = ImageCanvasItemMapping.make(self.__data_shape, Geometry.IntRect(canvas_origin, canvas_size), list())
                 if widget_mapping:
-                    image_canvas_rect = calculate_origin_and_size(canvas_size, widget_mapping.data_shape, self._image_canvas_mode, self._image_zoom, self._image_position)
+                    image_canvas_rect = calculate_origin_and_size(canvas_size, widget_mapping.data_shape, self.__image_canvas_mode, self.__image_zoom, self.__image_position)
                     content.update_layout(image_canvas_rect.origin, image_canvas_rect.size)
 
 
@@ -426,6 +461,27 @@ class ImageAreaCompositeCanvasItem(CanvasItem.CanvasItemComposition):
             self.screen_pixel_per_image_pixel_stream.value = screen_pixel_per_image_pixel
 
 
+class ImageAreaCanvasItemComposer(CanvasItem.CanvasItemCompositionComposer):
+    def __init__(self,
+                 canvas_item: CanvasItem.AbstractCanvasItem,
+                 layout_sizing: CanvasItem.Sizing,
+                 composer_cache: CanvasItem.ComposerCache,
+                 layout: CanvasItem.CanvasItemAbstractLayout,
+                 child_composers: typing.Sequence[CanvasItem.BaseComposer],
+                 background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]],
+                 border_color: typing.Optional[str]) -> None:
+        super().__init__(canvas_item, layout_sizing, composer_cache, layout, child_composers, background_color, border_color)
+        self.__child_composers = child_composers
+
+    def _repaint_children(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, child_composers: typing.Sequence[CanvasItem.BaseComposer]) -> None:
+        with drawing_context.saver():
+            drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
+            drawing_context.clip_rect(0, 0, canvas_bounds.width, canvas_bounds.height)
+            # TODO: add visible rect
+            child_composer = self.__child_composers[0]
+            child_composer.repaint(drawing_context, child_composer._canvas_bounds)
+
+
 class ImageAreaCanvasItem(CanvasItem.CanvasItemComposition):
     def __init__(self, content: CanvasItem.AbstractCanvasItem) -> None:
         super().__init__()
@@ -435,57 +491,46 @@ class ImageAreaCanvasItem(CanvasItem.CanvasItemComposition):
 
     @property
     def _data_shape(self) -> typing.Optional[DataAndMetadata.Shape2dType]:
-        return self.__scroll_area_layout._data_shape
+        return self.__scroll_area_layout.data_shape
 
     @_data_shape.setter
     def _data_shape(self, value: typing.Optional[DataAndMetadata.Shape2dType]) -> None:
-        if self.__scroll_area_layout._data_shape != value:
-            self.__scroll_area_layout._data_shape = value
+        if self.__scroll_area_layout.data_shape != value:
+            self.__scroll_area_layout.data_shape = value
             self.update()
 
     @property
     def _image_zoom(self) -> float:
-        return self.__scroll_area_layout._image_zoom
+        return self.__scroll_area_layout.image_zoom
 
     @_image_zoom.setter
     def _image_zoom(self, value: float) -> None:
-        if self.__scroll_area_layout._image_zoom != value:
-            self.__scroll_area_layout._image_zoom = value
+        if self.__scroll_area_layout.image_zoom != value:
+            self.__scroll_area_layout_image_zoom = value
             self.update()
 
     @property
     def _image_position(self) -> Geometry.FloatPoint:
-        return self.__scroll_area_layout._image_position
+        return self.__scroll_area_layout.image_position
 
     @_image_position.setter
     def _image_position(self, value: Geometry.FloatPoint) -> None:
-        if self.__scroll_area_layout._image_position != value:
-            self.__scroll_area_layout._image_position = value
+        if self.__scroll_area_layout.image_position != value:
+            self.__scroll_area_layout.image_position = value
             self.update()
 
     @property
     def _image_canvas_mode(self) -> str:
-        return self.__scroll_area_layout._image_canvas_mode
+        return self.__scroll_area_layout.image_canvas_mode
 
     @_image_canvas_mode.setter
     def _image_canvas_mode(self, value: str) -> None:
-        if self.__scroll_area_layout._image_canvas_mode != value:
-            self.__scroll_area_layout._image_canvas_mode = value
+        if self.__scroll_area_layout.image_canvas_mode != value:
+            self.__scroll_area_layout.image_canvas_mode = value
             self.update()
 
-    def _repaint_children(self, drawing_context: DrawingContext.DrawingContext, *, immediate: bool = False) -> None:
-        # paint the children with the content origin and a clip rect.
-        with drawing_context.saver():
-            canvas_origin = self.canvas_origin
-            canvas_size = self.canvas_size
-            if canvas_origin and canvas_size:
-                drawing_context.clip_rect(canvas_origin.x, canvas_origin.y, canvas_size.width, canvas_size.height)
-                content = self.canvas_items[0]
-                content_canvas_origin = content.canvas_origin
-                if content_canvas_origin:
-                    drawing_context.translate(content_canvas_origin.x, content_canvas_origin.y)
-                    visible_rect = Geometry.IntRect(origin=-content_canvas_origin, size=canvas_size)
-                    content._repaint_visible(drawing_context, visible_rect)
+    def _get_composition_composer(self, child_composers: typing.Sequence[CanvasItem.BaseComposer], composer_cache: CanvasItem.ComposerCache) -> CanvasItem.BaseComposer:
+        return ImageAreaCanvasItemComposer(self, self.layout_sizing, composer_cache, self.__scroll_area_layout.copy(), child_composers, self.background_color, self.border_color)
 
     def canvas_items_at_point(self, x: int, y: int) -> typing.List[CanvasItem.AbstractCanvasItem]:
         canvas_items: typing.List[CanvasItem.AbstractCanvasItem] = []
