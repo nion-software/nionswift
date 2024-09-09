@@ -976,21 +976,11 @@ class LinePlotDisplayLayersInspectorSection(InspectorSection):
                 label_row.add_spacing(12)
                 label_edit_widget.on_editing_finished = functools.partial(change_label, label_edit_widget, display_layer)
                 # move up, move down, add layer, remove layer
-                move_forward_button_widget = Widgets.TextPushButtonWidget(ui, "\N{UPWARDS WHITE ARROW}")
-                move_backward_button_widget = Widgets.TextPushButtonWidget(ui, "\N{DOWNWARDS WHITE ARROW}")
-                add_layer_button_widget = Widgets.TextPushButtonWidget(ui, "\N{PLUS SIGN}")
-                remove_layer_button_widget = Widgets.TextPushButtonWidget(ui, "\N{MINUS SIGN}")
-                button_row = ui.create_row_widget()
-                button_row.add(move_forward_button_widget)
-                button_row.add(move_backward_button_widget)
-                button_row.add_stretch()
-                button_row.add(add_layer_button_widget)
-                button_row.add(remove_layer_button_widget)
-                button_row.add_spacing(12)
-                move_forward_button_widget.on_button_clicked = functools.partial(move_layer_forward, display_layer)
-                move_backward_button_widget.on_button_clicked = functools.partial(move_layer_backward, display_layer)
-                add_layer_button_widget.on_button_clicked = functools.partial(add_layer, display_layer)
-                remove_layer_button_widget.on_button_clicked = functools.partial(remove_layer, display_layer)
+                button_row = make_line_plot_display_layer_button_row(document_controller,
+                                                                     functools.partial(move_layer_forward, display_layer),
+                                                                     functools.partial(move_layer_backward, display_layer),
+                                                                     functools.partial(add_layer, display_layer),
+                                                                     functools.partial(remove_layer, display_layer))
                 # content: display data channel, row
                 display_data_channel_index_widget = ui.create_line_edit_widget(properties={"width": 36})
                 display_data_channel_index_widget.widget_id = "display_data_channel_index_widget"
@@ -4980,6 +4970,63 @@ class DeclarativeDataSourceChooserConstructor:
                 Declarative.connect_reference_value(cropped_overlay, d, handler, "is_croppable", finishes, value_type=bool)
                 Declarative.connect_reference_value(cropped_overlay, d, handler, "crop_enabled", finishes, value_type=bool)
                 Declarative.connect_event(widget, cropped_overlay, d, handler, "on_crop_enabled_clicked", [])
+                Declarative.connect_attributes(widget, d, handler, finishes)
+
+            return widget
+
+        return None
+
+
+def make_line_plot_display_layer_button_row(document_controller: DocumentController.DocumentController,
+                                            on_forward_button_clicked: typing.Optional[typing.Callable[[], None]],
+                                            on_backward_button_clicked: typing.Optional[typing.Callable[[], None]],
+                                            on_add_button_clicked: typing.Optional[typing.Callable[[], None]],
+                                            on_remove_button_clicked: typing.Optional[typing.Callable[[], None]]) -> Declarative.DeclarativeWidget:
+    handler = LinePlotDisplayLayerButtonRowHandler(on_forward_button_clicked, on_backward_button_clicked, on_add_button_clicked, on_remove_button_clicked)
+    return Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop, handler)
+
+
+class LinePlotDisplayLayerButtonRowHandler(Declarative.Handler):
+    def __init__(self, on_forward_button_clicked: typing.Optional[typing.Callable[[], None]],
+                 on_backward_button_clicked: typing.Optional[typing.Callable[[], None]],
+                 on_add_button_clicked: typing.Optional[typing.Callable[[], None]],
+                 on_remove_button_clicked: typing.Optional[typing.Callable[[], None]]) -> None:
+        self._on_forward_button_clicked = on_forward_button_clicked
+        self._on_backward_button_clicked = on_backward_button_clicked
+        self._on_add_button_clicked = on_add_button_clicked
+        self._on_remove_button_clicked = on_remove_button_clicked
+        u = Declarative.DeclarativeUI()
+
+        self.ui_view = u.create_row(
+            {"type": "text_push_button",
+             "text": "\N{UPWARDS WHITE ARROW}",
+             "on_button_clicked": "_on_forward_button_clicked"},
+            {"type": "text_push_button",
+             "text": "\N{DOWNWARDS WHITE ARROW}",
+             "on_button_clicked": "_on_backward_button_clicked"},
+            u.create_stretch(),
+            {"type": "text_push_button",
+             "text": "\N{PLUS SIGN}",
+             "on_button_clicked": "_on_add_button_clicked"},
+            {"type": "text_push_button",
+             "text": "\N{MINUS SIGN}",
+             "on_button_clicked": "_on_remove_button_clicked"},
+            u.create_spacing(12)
+        )
+
+
+class DeclarativeTextPushButtonWidgetConstructor:
+    def __init__(self, app: Application.Application) -> None:
+        self.__app = app
+
+    def construct(self, d_type: str, ui: UserInterface.UserInterface, window: typing.Optional[Window.Window], d: Declarative.UIDescription, handler: Declarative.HandlerLike, finishes: typing.List[typing.Callable[[], None]]) -> typing.Optional[UserInterface.Widget]:
+        if d_type == "text_push_button":
+            text = d.get("text", "")
+            widget = Widgets.TextPushButtonWidget(ui, text)
+
+            if handler:
+                Declarative.connect_name(widget, d, handler)
+                Declarative.connect_reference_value(widget, d, handler, "on_button_clicked", finishes)
                 Declarative.connect_attributes(widget, d, handler, finishes)
 
             return widget
