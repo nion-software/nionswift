@@ -2038,7 +2038,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         def delete_display_item_adapters(display_item_adapters: typing.Sequence[DataPanel.DisplayItemAdapter]) -> None:
             document_controller.delete_display_items([display_item_adapter.display_item for display_item_adapter in display_item_adapters])
 
-        self.__horizontal_data_grid_controller = DataPanel.DataGridController(document_controller.event_loop, document_controller.ui, self.__filtered_display_item_adapters_model, self.__selection, direction=GridCanvasItem.Direction.Row, wrap=False)
+        self.__horizontal_data_grid_controller = DataPanel.DataGridController(document_controller.ui, self.__filtered_display_item_adapters_model, self.__selection, direction=GridCanvasItem.Direction.Row, wrap=False)
         self.__horizontal_data_grid_controller.on_context_menu_event = self.__handle_context_menu_for_display
         self.__horizontal_data_grid_controller.on_display_item_adapter_double_clicked = double_clicked
         self.__horizontal_data_grid_controller.on_focus_changed = focus_changed
@@ -2046,7 +2046,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         self.__horizontal_data_grid_controller.on_drag_started = data_list_drag_started
         self.__horizontal_data_grid_controller.on_key_pressed = key_pressed
 
-        self.__grid_data_grid_controller = DataPanel.DataGridController(document_controller.event_loop, document_controller.ui, self.__filtered_display_item_adapters_model, self.__selection)
+        self.__grid_data_grid_controller = DataPanel.DataGridController(document_controller.ui, self.__filtered_display_item_adapters_model, self.__selection)
         self.__grid_data_grid_controller.on_context_menu_event = self.__handle_context_menu_for_display
         self.__grid_data_grid_controller.on_display_item_adapter_double_clicked = double_clicked
         self.__grid_data_grid_controller.on_focus_changed = focus_changed

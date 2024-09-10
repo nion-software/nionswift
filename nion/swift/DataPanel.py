@@ -249,12 +249,10 @@ class ThreadHelper:
 
 
 class ItemExplorerController:
-    def __init__(self, event_loop: asyncio.AbstractEventLoop, ui: UserInterface.UserInterface,
+    def __init__(self, ui: UserInterface.UserInterface,
                  canvas_item: CanvasItem.AbstractCanvasItem,
                  display_item_adapters_model: ListModel.MappedListModel, selection: Selection.IndexedSelection,
                  direction: GridCanvasItem.Direction = GridCanvasItem.Direction.Row, wrap: bool = True) -> None:
-        self.__event_loop = event_loop
-        self.__thread_helper = ThreadHelper(event_loop)
         self.__pending_tasks: typing.List[asyncio.Task[None]] = list()
         self.ui = ui
         self.__selection = selection
@@ -321,8 +319,6 @@ class ItemExplorerController:
 
     def close(self) -> None:
         assert not self.__closed
-        self.__thread_helper.close()
-        self.__thread_helper = typing.cast(typing.Any, None)
         for pending_task in self.__pending_tasks:
             pending_task.cancel()
         self.__pending_tasks = typing.cast(typing.Any, None)
@@ -425,7 +421,7 @@ class ItemExplorerController:
         return self.__display_item_adapters[index]
 
     def __display_item_adapter_needs_update(self) -> None:
-        self.__thread_helper.call_on_main_thread("list_canvas_item.update", self.__list_canvas_item.update)
+        self.__list_canvas_item.update()
 
     # call this method to insert a display item
     # not thread safe
@@ -526,18 +522,18 @@ class GridCanvasItemDelegate(GridCanvasItem.GridCanvasItemDelegate):
 
 
 class DataListController(ItemExplorerController):
-    def __init__(self, event_loop: asyncio.AbstractEventLoop, ui: UserInterface.UserInterface,
-                 display_item_adapters_model: ListModel.MappedListModel, selection: Selection.IndexedSelection) -> None:
+    def __init__(self, ui: UserInterface.UserInterface, display_item_adapters_model: ListModel.MappedListModel,
+                 selection: Selection.IndexedSelection) -> None:
         canvas_item = ListCanvasItem.ListCanvasItem(ListCanvasItemDelegate(self), selection)
-        super().__init__(event_loop, ui, canvas_item, display_item_adapters_model, selection, GridCanvasItem.Direction.Row, True)
+        super().__init__(ui, canvas_item, display_item_adapters_model, selection, GridCanvasItem.Direction.Row, True)
 
 
 class DataGridController(ItemExplorerController):
-    def __init__(self, event_loop: asyncio.AbstractEventLoop, ui: UserInterface.UserInterface,
-                 display_item_adapters_model: ListModel.MappedListModel, selection: Selection.IndexedSelection,
+    def __init__(self, ui: UserInterface.UserInterface, display_item_adapters_model: ListModel.MappedListModel,
+                 selection: Selection.IndexedSelection,
                  direction: GridCanvasItem.Direction = GridCanvasItem.Direction.Row, wrap: bool = True) -> None:
         canvas_item = GridCanvasItem.GridCanvasItem(GridCanvasItemDelegate(self), selection, direction, wrap)
-        super().__init__(event_loop, ui, canvas_item, display_item_adapters_model, selection, direction, wrap)
+        super().__init__(ui, canvas_item, display_item_adapters_model, selection, direction, wrap)
 
 
 class ItemExplorerWidget(Widgets.CompositeWidgetBase):
@@ -605,12 +601,12 @@ class DataPanel(Panel.Panel):
         def delete_display_item_adapters(display_item_adapters: typing.List[DisplayItemAdapter]) -> None:
             document_controller.delete_display_items([display_item_adapter.display_item for display_item_adapter in display_item_adapters if display_item_adapter.display_item])
 
-        self.data_list_controller = DataListController(document_controller.event_loop, ui, self.__filtered_display_item_adapters_model, self.__selection)
+        self.data_list_controller = DataListController(ui, self.__filtered_display_item_adapters_model, self.__selection)
         self.data_list_controller.on_context_menu_event = show_context_menu
         self.data_list_controller.on_focus_changed = focus_changed
         self.data_list_controller.on_delete_display_item_adapters = delete_display_item_adapters
 
-        self.data_grid_controller = DataGridController(document_controller.event_loop, ui, self.__filtered_display_item_adapters_model, self.__selection)
+        self.data_grid_controller = DataGridController(ui, self.__filtered_display_item_adapters_model, self.__selection)
         self.data_grid_controller.on_context_menu_event = show_context_menu
         self.data_grid_controller.on_focus_changed = focus_changed
         self.data_grid_controller.on_delete_display_item_adapters = delete_display_item_adapters
