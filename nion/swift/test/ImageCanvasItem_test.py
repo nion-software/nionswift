@@ -15,6 +15,7 @@ from nion.swift.model import Graphics
 from nion.swift.test import TestContext
 from nion.ui import DrawingContext
 from nion.ui import TestUI
+from nion.ui.UserInterface import KeyboardModifiers
 
 
 class TestImageCanvasItemClass(unittest.TestCase):
@@ -305,13 +306,13 @@ class TestImageCanvasItemClass(unittest.TestCase):
             header_height = display_panel.header_canvas_item.header_height
             display_panel.root_container.layout_immediate((1000 + header_height, 1000))
             # run test
-            document_controller.tool_mode = "zoom-in"
+            document_controller.tool_mode = "zoom"
             display_panel.display_canvas_item.simulate_press((100, 125))
             display_panel.display_canvas_item.simulate_release((100, 125))
 
-            document_controller.tool_mode = "zoom-out"
-            display_panel.display_canvas_item.simulate_press((125, 100))
-            display_panel.display_canvas_item.simulate_release((125, 100))
+            document_controller.tool_mode = "zoom"
+            display_panel.display_canvas_item.simulate_press((125, 100), KeyboardModifiers.control)
+            display_panel.display_canvas_item.simulate_release((125, 100), KeyboardModifiers.control)
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
