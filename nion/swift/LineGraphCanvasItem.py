@@ -759,8 +759,11 @@ class LineGraphLayerCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__is_fill = False
 
     def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> CanvasItem.BaseComposer:
-        assert self.__line_graph_layer
-        return LineGraphLayerCanvasItemComposer(self, self.layout_sizing, composer_cache, self.__line_graph_layer, self.__is_fill)
+        # the line graph can be in a partially updated state, so check if the layer is valid yet.
+        if self.__line_graph_layer:
+            return LineGraphLayerCanvasItemComposer(self, self.layout_sizing, composer_cache, self.__line_graph_layer, self.__is_fill)
+        else:
+            return CanvasItem.EmptyCanvasItemComposer(self, self.layout_sizing, composer_cache)
 
     @property
     def _xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
