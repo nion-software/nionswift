@@ -1257,7 +1257,6 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         image_position = widget_mapping.map_point_widget_to_image(mouse_pos)
         if delegate.image_mouse_position_changed(image_position, modifiers):
             return True
-
         if delegate.tool_mode == "pointer":
             self.cursor_shape = self.__mouse_handler.cursor_shape if self.__mouse_handler else "arrow"
         elif delegate.tool_mode == "line":
