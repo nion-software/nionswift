@@ -2828,7 +2828,7 @@ class DisplayItem(Persistence.PersistentObject):
         self.notify_property_changed("description")
         self.notify_property_changed("session_id")
 
-    def source_display_items_changed(self, source_display_items: typing.Sequence[DisplayItem], is_loading: bool) -> None:
+    def finish_project_read(self) -> None:
         # the line below is a hack to resend the display data delta. this is required because of an architectural
         # problem: the display layer may not initially have a correct display_data_channel until the whole project is
         # read. the display_data_channel will only return the correct value once the data items are read; and that
