@@ -590,7 +590,6 @@ class LineGraphBackgroundCanvasItem(CanvasItem.AbstractCanvasItem):
     def set_axes(self, axes: typing.Optional[LineGraphAxes]) -> None:
         # assume this is only called when axes changes
         self.__axes = axes
-        self._invalidate_composer()
         self.update()
 
 
@@ -777,7 +776,6 @@ class LineGraphLayerCanvasItem(CanvasItem.AbstractCanvasItem):
         if self.__line_graph_layer != line_graph_layer or self.__is_fill != is_fill:
             self.__line_graph_layer = line_graph_layer
             self.__is_fill = is_fill
-            self._invalidate_composer()
             self.update()
 
     @property
@@ -930,13 +928,11 @@ class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
         axes = line_graph_layers[0].axes if line_graph_layers else None
         if self.__axes != axes:
             self.__axes = axes
-            self._invalidate_composer()
             self.update()
 
     def set_regions(self, regions: typing.Sequence[RegionInfo]) -> None:
         if (self.__regions is None and regions is not None) or (self.__regions != regions):
             self.__regions = list(regions)
-            self._invalidate_composer()
             self.update()
 
     def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> CanvasItem.BaseComposer:
@@ -963,7 +959,6 @@ class LineGraphFrameCanvasItem(CanvasItem.AbstractCanvasItem):
     def set_draw_frame(self, draw_frame: bool) -> None:
         if self.__draw_frame != draw_frame:
             self.__draw_frame = draw_frame
-            self._invalidate_composer()
             self.update()
 
     def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> CanvasItem.BaseComposer:
@@ -1007,7 +1002,6 @@ class LineGraphHorizontalAxisTicksCanvasItem(CanvasItem.AbstractCanvasItem):
     def set_axes(self, axes: typing.Optional[LineGraphAxes]) -> None:
         # assume this is only called when axes changes
         self.__axes = axes
-        self._invalidate_composer()
         self.update()
 
     def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> CanvasItem.BaseComposer:
@@ -1049,7 +1043,6 @@ class LineGraphHorizontalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
     def set_axes(self, axes: typing.Optional[LineGraphAxes]) -> None:
         # assume this is only called when axes changes
         self.__axes = axes
-        self._invalidate_composer()
         self.update()
 
     def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> CanvasItem.BaseComposer:
@@ -1099,13 +1092,11 @@ class LineGraphHorizontalAxisLabelCanvasItem(CanvasItem.AbstractCanvasItem):
                 new_sizing = new_sizing.with_minimum_height(self.__font_size + 4)
                 new_sizing = new_sizing.with_maximum_height(self.__font_size + 4)
         self.update_sizing(new_sizing)
-        self._invalidate_composer()
 
     def set_axes(self, axes: typing.Optional[LineGraphAxes]) -> None:
         # assume this is only called when axes changes
         self.__axes = axes
         self.size_to_content()
-        self._invalidate_composer()
         self.update()
 
     def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> CanvasItem.BaseComposer:
@@ -1148,7 +1139,6 @@ class LineGraphVerticalAxisTicksCanvasItem(CanvasItem.AbstractCanvasItem):
     def set_axes(self, axes: typing.Optional[LineGraphAxes]) -> None:
         # assume this is only called when axes changes
         self.__axes = axes
-        self._invalidate_composer()
         self.update()
 
     def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> CanvasItem.BaseComposer:
@@ -1287,13 +1277,11 @@ class LineGraphVerticalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
             new_sizing = new_sizing.with_maximum_width(max_width)
 
         self.update_sizing(new_sizing)
-        self._invalidate_composer()
 
     def set_axes(self, axes: typing.Optional[LineGraphAxes]) -> None:
         # assume this is only called when axes changes
         self.__axes = axes
         self.size_to_content()
-        self._invalidate_composer()
         self.update()
 
     def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> CanvasItem.BaseComposer:
@@ -1349,13 +1337,11 @@ class LineGraphVerticalAxisLabelCanvasItem(CanvasItem.AbstractCanvasItem):
                 new_sizing = new_sizing.with_minimum_width(self.__font_size + 4)
                 new_sizing = new_sizing.with_maximum_width(self.__font_size + 4)
         self.update_sizing(new_sizing)
-        self._invalidate_composer()
 
     def set_axes(self, axes: typing.Optional[LineGraphAxes]) -> None:
         # assume this is only called when axes changes
         self.__axes = axes
         self.size_to_content()
-        self._invalidate_composer()
         self.update()
 
     def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> CanvasItem.BaseComposer:
@@ -1544,7 +1530,6 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
 
             new_sizing = self.copy_sizing().with_fixed_width(legend_width).with_fixed_height(legend_height)
             self.update_sizing(new_sizing)
-            self._invalidate_composer()
 
             self.__needs_size_to_content = False
 
@@ -1555,7 +1540,6 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
         # assume this is only called when legend entries changes
         self.__legend_entries = list(legend_entries)
         self.__generate_effective_entries()
-        self._invalidate_composer()
         self.update()
 
     def __get_legend_index(self, x: int, y: int, ignore_y: bool = False, insertion: bool = False) -> int:
@@ -1633,7 +1617,6 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
         if old_entry != self.__entry_to_insert:
             # update effective entries and the display if it changed
             self.__generate_effective_entries()
-            self._invalidate_composer()
             self.update()
         return "ignore"
 
@@ -1648,7 +1631,6 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
                 self.__dragging_index = i
                 self._drag_start_position = Geometry.IntPoint(x=x, y=y)
                 self.__entry_to_insert = i
-                self._invalidate_composer()
                 self.update()
                 return True
         return False
@@ -1659,7 +1641,6 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
         self._drag_start_position = None
         self.__entry_to_insert = None
         self.__generate_effective_entries()
-        self._invalidate_composer()
         self.update()
         return True
 
@@ -1673,7 +1654,6 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__foreign_legend_uuid_and_index = None
         # when we leave the drag area, update the effective entries because we're no longer previewing a shift
         self.__generate_effective_entries()
-        self._invalidate_composer()
         self.update()
         return "ignore"
 
@@ -1687,14 +1667,12 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
                 self.__dragging_index = legend_data["index"]
                 self.__mouse_pressed_for_dragging = True
                 self.__generate_effective_entries()
-                self._invalidate_composer()
                 self.update()
             else:
                 # if we aren't the source, setup foreign_legend_* and update the display
                 assert display_item
                 self.__foreign_legend_entry = LegendEntry(label=legend_data["label"], fill_color=legend_data["fill_color"], stroke_color=legend_data["stroke_color"])
                 self.__foreign_legend_uuid_and_index = (display_item, typing.cast(int, legend_data["index"]))
-                self._invalidate_composer()
                 self.update()
             return "move"
         return "ignore"
@@ -1704,7 +1682,6 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
         self._drag_start_position = None
         self.__mouse_pressed_for_dragging = False
         self.__mouse_dragging = False
-        self._invalidate_composer()
 
         if mime_data.has_format(MimeTypes.LAYER_MIME_TYPE):
             legend_data, source_display_item = MimeTypes.mime_data_get_layer(mime_data, self.__delegate.get_document_model())
