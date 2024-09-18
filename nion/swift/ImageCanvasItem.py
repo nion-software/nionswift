@@ -506,7 +506,7 @@ class ImageAreaCanvasItem(CanvasItem.CanvasItemComposition):
     @_image_zoom.setter
     def _image_zoom(self, value: float) -> None:
         if self.__scroll_area_layout.image_zoom != value:
-            self.__scroll_area_layout_image_zoom = value
+            self.__scroll_area_layout.image_zoom = value
             self.update()
 
     @property
