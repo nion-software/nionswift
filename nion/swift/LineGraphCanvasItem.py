@@ -15,7 +15,6 @@ import gettext
 import math
 import re
 import typing
-import weakref
 
 # third party libraries
 import numpy
@@ -29,6 +28,7 @@ from nion.swift import Undo
 from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import UISettings
+from nion.swift.model import Utility
 from nion.ui import CanvasItem
 from nion.ui import DrawingContext
 from nion.ui import UserInterface
@@ -783,6 +783,25 @@ class LineGraphLayerCanvasItem(CanvasItem.AbstractCanvasItem):
         return CalibratedDataAndMetadataCacheItem(self._xdata, self._axes).calculate()
 
 
+class LineGraphLayersCanvasItemCompositionComposer(CanvasItem.CanvasItemCompositionComposer):
+    def __init__(self,
+                 canvas_item: CanvasItem.AbstractCanvasItem,
+                 layout_sizing: CanvasItem.Sizing,
+                 composer_cache: CanvasItem.ComposerCache,
+                 layout: CanvasItem.CanvasItemAbstractLayout,
+                 child_composers: typing.Sequence[CanvasItem.BaseComposer],
+                 background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]],
+                 border_color: typing.Optional[str],
+                 display_frame_rate_id: typing.Optional[str]) -> None:
+        super().__init__(canvas_item, layout_sizing, composer_cache, layout, child_composers, background_color, border_color)
+        self.__display_frame_rate_id = display_frame_rate_id
+
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> None:
+        super()._repaint(drawing_context, canvas_bounds, composer_cache)
+        if self.__display_frame_rate_id:
+            Utility.fps_tick("display_" + self.__display_frame_rate_id)
+
+
 class LineGraphLayersCanvasItem(CanvasItem.CanvasItemComposition):
     """Canvas item to draw the line plot layer by layer.
 
@@ -792,6 +811,16 @@ class LineGraphLayersCanvasItem(CanvasItem.CanvasItemComposition):
     def __init__(self) -> None:
         super().__init__()
         self.__cache = CanvasItem.ComposerCache()
+        self.__display_frame_rate_id: typing.Optional[str] = None
+
+    @property
+    def display_frame_rate_id(self) -> typing.Optional[str]:
+        return self.__display_frame_rate_id
+
+    @display_frame_rate_id.setter
+    def display_frame_rate_id(self, value: typing.Optional[str]) -> None:
+        self.__display_frame_rate_id = value
+        self.update()
 
     @property
     def _xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
@@ -817,6 +846,9 @@ class LineGraphLayersCanvasItem(CanvasItem.CanvasItemComposition):
     @property
     def calibrated_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
         return CalibratedDataAndMetadataCacheItem(self._xdata, self._axes).calculate()
+
+    def _get_composition_composer(self, child_composers: typing.Sequence[CanvasItem.BaseComposer], composer_cache: CanvasItem.ComposerCache) -> CanvasItem.BaseComposer:
+        return LineGraphLayersCanvasItemCompositionComposer(self, self.layout_sizing, composer_cache, self.layout.copy(), child_composers, self.background_color, self.border_color, self.__display_frame_rate_id)
 
 
 class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
