@@ -20,6 +20,7 @@ from nion.swift import DisplayCanvasItem
 from nion.swift.model import DisplayItem
 from nion.swift.model import Graphics
 from nion.swift.model import UISettings
+from nion.swift.model import Utility
 from nion.ui import CanvasItem
 from nion.utils import Geometry
 from nion.utils import Registry
@@ -565,6 +566,38 @@ class ImageAreaCanvasItem(CanvasItem.CanvasItemComposition):
         return False
 
 
+class ImageBitmapCanvasItemComposer(CanvasItem.CellCanvasItemComposer):
+    def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing, cache: CanvasItem.ComposerCache, cell: CanvasItem.CellLike, style: typing.Set[str], display_frame_rate_id: typing.Optional[str]) -> None:
+        super().__init__(canvas_item, layout_sizing, cache, cell, style)
+        self.__display_frame_rate_id = display_frame_rate_id
+
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> None:
+        super()._repaint(drawing_context, canvas_bounds, composer_cache)
+        if self.__display_frame_rate_id:
+            Utility.fps_tick("display_" + self.__display_frame_rate_id)
+
+
+
+class ImageBitmapCanvasItem(CanvasItem.BitmapCanvasItem):
+    def __init__(self, draw_background: bool = True) -> None:
+        super().__init__(background_color="#888" if draw_background else "transparent")
+        self.__display_frame_rate_id: typing.Optional[str] = None
+
+    @property
+    def display_frame_rate_id(self) -> typing.Optional[str]:
+        return self.__display_frame_rate_id
+
+    @display_frame_rate_id.setter
+    def display_frame_rate_id(self, value: typing.Optional[str]) -> None:
+        self.__display_frame_rate_id = value
+        self.update()
+
+    def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> typing.Optional[CanvasItem.BaseComposer]:
+        if cell := self.cell:
+            return ImageBitmapCanvasItemComposer(self, self.layout_sizing, composer_cache, cell, self.style, self.__display_frame_rate_id)
+        return None
+
+
 MousePositionAndModifiers = typing.Tuple[Geometry.IntPoint, "UserInterface.KeyboardModifiers"]
 MouseHandlerReactorFn = typing.Callable[[Stream.ValueChangeStreamReactorInterface[MousePositionAndModifiers]], typing.Coroutine[typing.Any, typing.Any, typing.Any]]
 
@@ -964,7 +997,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         # create the child canvas items
         # the background
         # next the zoom-able items
-        self.__bitmap_canvas_item = CanvasItem.BitmapCanvasItem(background_color="#888" if draw_background else "transparent")
+        self.__bitmap_canvas_item = ImageBitmapCanvasItem(draw_background)
         self.__graphics_canvas_item = GraphicsCanvasItem(ui_settings)
         # put the zoom-able items into a composition
         self.__composite_canvas_item = ImageAreaCompositeCanvasItem()
@@ -1354,6 +1387,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
     def toggle_frame_rate(self) -> None:
         self.__frame_rate_canvas_item.toggle_display(str(id(self)))
+        self.__bitmap_canvas_item.display_frame_rate_id = self.__frame_rate_canvas_item.display_frame_rate_id
 
     def toggle_latency(self) -> None:
         self.__display_latency = not self.__display_latency

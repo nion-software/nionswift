@@ -153,6 +153,14 @@ class FrameRateCanvasItemComposer(CanvasItem.BaseComposer):
 
 
 class FrameRateCanvasItem(CanvasItem.AbstractCanvasItem):
+    """Display frame rate in the display canvas item.
+
+    There are three rates that are tracked. The "display" rate is the rate at which the display is updated and is
+    "ticked" when low level repaint occurs, which generally happens once per update. The "frame" rate is the rate at
+    the frame index changes. The "update" rate is the rate at which the display is updated and is "ticked" when the
+    display is updated. It is different from the "display" since it is just a request to update; whereas the "display"
+    is the actual repaint being performed.
+    """
     def __init__(self) -> None:
         super().__init__()
         self.__display_frame_rate_id: typing.Optional[str] = None

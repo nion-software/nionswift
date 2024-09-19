@@ -921,6 +921,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
     def toggle_frame_rate(self) -> None:
         self.__frame_rate_canvas_item.toggle_display(str(id(self)))
+        self.__line_graph_layers_canvas_item.display_frame_rate_id = self.__frame_rate_canvas_item.display_frame_rate_id
 
     def key_released(self, key: UserInterface.Key) -> bool:
         if super().key_released(key):
