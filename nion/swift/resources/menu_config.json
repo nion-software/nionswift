@@ -41,12 +41,23 @@
                 "action_id": "file.import_data"
             },
             {
-                "type": "item",
-                "action_id": "file.export"
-            },
-            {
-                "type": "item",
-                "action_id": "file.export_svg"
+                "type": "sub_menu",
+                "menu_id": "file_export",
+                "title": "Export...",
+                "items":[
+                    {
+                        "type": "item",
+                        "action_id":"export.single_export"
+                    },
+                     {
+                        "type": "item",
+                        "action_id":"export.batch_export"
+                    },
+                     {
+                        "type": "item",
+                        "action_id": "file.export_svg"
+                    }
+                ]
             },
             {
                 "type": "separator"

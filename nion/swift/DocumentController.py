@@ -3012,9 +3012,9 @@ class DeleteDataItemAction(Window.Action):
         return self.action_name
 
 
-class ExportAction(Window.Action):
-    action_id = "file.export"
-    action_name = _("Export...")
+class SingleExportAction(Window.Action):
+    action_id = "export.single_export"
+    action_name = _("Single Export...")
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         raise NotImplementedError()
@@ -3023,6 +3023,25 @@ class ExportAction(Window.Action):
         context = typing.cast(DocumentController.ActionContext, context)
         window = typing.cast(DocumentController, context.window)
         selected_display_item = context.display_item
+        if selected_display_item:
+            window.export_file(selected_display_item)
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return len(context.display_items) == 1 and context.display_item is not None
+
+
+class BatchExportAction(Window.Action):
+    action_id = "export.batch_export"
+    action_name = _("Batch Export...")
+
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        raise NotImplementedError()
+
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
         selected_display_items = context.display_items
         if len(selected_display_items) > 0:
             window.export_files(selected_display_items)
@@ -3049,7 +3068,7 @@ class ExportSVGAction(Window.Action):
 
     def is_enabled(self, context: Window.ActionContext) -> bool:
         context = typing.cast(DocumentController.ActionContext, context)
-        return len(context.display_items) > 0 or context.display_item is not None
+        return len(context.display_items) == 1 and context.display_item is not None
 
 
 class ImportDataAction(Window.Action):
@@ -3080,11 +3099,11 @@ class ImportFolderAction(Window.Action):
 
 Window.register_action(DeleteItemAction())
 Window.register_action(DeleteDataItemAction())
-Window.register_action(ExportAction())
+Window.register_action(SingleExportAction())
+Window.register_action(BatchExportAction())
 Window.register_action(ExportSVGAction())
 Window.register_action(ImportDataAction())
 Window.register_action(ImportFolderAction())
-
 
 
 class DataItemRecorderAction(Window.Action):
