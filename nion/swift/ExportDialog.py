@@ -273,7 +273,7 @@ class ExportSizeModel(Observable.Observable):
         "centimeters": UnitType.CENTIMETERS
     }
 
-    def __init__(self, display_item: DisplayItem.DisplayItem, units_model: UserInterface.StringPersistentModel) -> None:
+    def __init__(self, display_item: DisplayItem.DisplayItem, units_model: Model.PropertyModel[str]) -> None:
         super().__init__()
         self.__units_model = units_model
         display_size = self.__calculate_display_size_in_pixels(display_item)
@@ -296,9 +296,6 @@ class ExportSizeModel(Observable.Observable):
         max_size_in_inches = 12.0
         min_size_in_current_units = min_size_in_inches * ConversionUnits[UnitType.INCHES] / ConversionUnits[self.__units]
         max_size_in_current_units = max_size_in_inches * ConversionUnits[UnitType.INCHES] / ConversionUnits[self.__units]
-        print(self.__units)
-        print(self.__last_input_value)
-        print(self.width, self.height)
         if self.__primary_field == 'width':
             if self.width < min_size_in_current_units:
                 self.__last_input_value = min_size_in_current_units * ConversionUnits[self.__units] / ConversionUnits[self.__last_input_units]
