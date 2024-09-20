@@ -2639,7 +2639,7 @@ class DocumentController(Window.Window):
     def populate_context_menu(self, menu: UserInterface.Menu, action_context: DocumentController.ActionContext) -> None:
         self.add_action_to_menu_if_enabled(menu, "display.reveal", action_context)
         self.add_action_to_menu_if_enabled(menu, "file.export", action_context)
-
+        self.add_action_to_menu_if_enabled(menu, "file.export_batch", action_context)
         data_item = action_context.data_item
         if data_item:
             source_data_items = self.document_model.get_source_data_items(data_item)
@@ -3019,7 +3019,7 @@ class DeleteDataItemAction(Window.Action):
 
 class ExportAction(Window.Action):
     action_id = "file.export"
-    action_name = _("Export...")
+    action_name = _("Export Single...")
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         raise NotImplementedError()
@@ -3028,6 +3028,25 @@ class ExportAction(Window.Action):
         context = typing.cast(DocumentController.ActionContext, context)
         window = typing.cast(DocumentController, context.window)
         selected_display_item = context.display_item
+        if selected_display_item:
+            window.export_file(selected_display_item)
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return len(context.display_items) == 1 and context.display_item is not None
+
+
+class ExportBatchAction(Window.Action):
+    action_id = "file.export_batch"
+    action_name = _("Export Multiple...")
+
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        raise NotImplementedError()
+
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
         selected_display_items = context.display_items
         if len(selected_display_items) > 0:
             window.export_files(selected_display_items)
@@ -3054,7 +3073,7 @@ class ExportSVGAction(Window.Action):
 
     def is_enabled(self, context: Window.ActionContext) -> bool:
         context = typing.cast(DocumentController.ActionContext, context)
-        return len(context.display_items) > 0 or context.display_item is not None
+        return len(context.display_items) == 1 and context.display_item is not None
 
 
 class ImportDataAction(Window.Action):
@@ -3086,10 +3105,10 @@ class ImportFolderAction(Window.Action):
 Window.register_action(DeleteItemAction())
 Window.register_action(DeleteDataItemAction())
 Window.register_action(ExportAction())
+Window.register_action(ExportBatchAction())
 Window.register_action(ExportSVGAction())
 Window.register_action(ImportDataAction())
 Window.register_action(ImportFolderAction())
-
 
 
 class DataItemRecorderAction(Window.Action):

@@ -41,8 +41,15 @@
                 "action_id": "file.import_data"
             },
             {
+                "type": "separator"
+            },
+            {
                 "type": "item",
                 "action_id": "file.export"
+            },
+            {
+                "type": "item",
+                "action_id": "file.export_batch"
             },
             {
                 "type": "item",
