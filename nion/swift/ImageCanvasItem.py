@@ -23,7 +23,6 @@ from nion.swift.model import UISettings
 from nion.swift.model import Utility
 from nion.ui import CanvasItem
 from nion.utils import Geometry
-from nion.utils import Process
 from nion.utils import Registry
 from nion.utils import Stream
 
@@ -145,6 +144,38 @@ class ImageCanvasItemMapping(Graphics.CoordinateMappingLike):
         raise NotImplementedError()
 
 
+class GraphicsCanvasItemComposer(CanvasItem.BaseComposer):
+    def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing, cache: CanvasItem.ComposerCache,
+                 ui_settings: UISettings.UISettings, graphics: typing.List[Graphics.Graphic], graphic_selection: DisplayItem.GraphicSelection,
+                 displayed_shape: typing.Optional[DataAndMetadata.ShapeType], coordinate_system: typing.List[Calibration.Calibration]) -> None:
+        super().__init__(canvas_item, layout_sizing, cache)
+        self.__ui_settings = ui_settings
+        self.__graphics = graphics
+        self.__graphic_selection = graphic_selection
+        self.__displayed_shape = displayed_shape
+        self.__coordinate_system = coordinate_system
+
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> None:
+        ui_settings = self.__ui_settings
+        graphics = self.__graphics
+        graphic_selection = self.__graphic_selection
+        displayed_shape = self.__displayed_shape
+        coordinate_system = self.__coordinate_system
+        widget_mapping = ImageCanvasItemMapping.make(displayed_shape, canvas_bounds, coordinate_system)
+        if graphics and widget_mapping:
+            with drawing_context.saver():
+                drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
+                for graphic_index, graphic in enumerate(graphics):
+                    if isinstance(graphic, (Graphics.PointTypeGraphic, Graphics.LineTypeGraphic, Graphics.RectangleTypeGraphic, Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
+                        try:
+                            graphic.draw(drawing_context, ui_settings, widget_mapping, graphic_selection.contains(graphic_index))
+                        except Exception as e:
+                            import traceback
+                            logging.debug("Graphic Repaint Error: %s", e)
+                            traceback.print_exc()
+                            traceback.print_stack()
+
+
 class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):
     """A canvas item to paint the graphic items on the image.
 
@@ -184,19 +215,57 @@ class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):
         if needs_update:
             self.update()
 
-    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
-        widget_mapping = ImageCanvasItemMapping.make(self.__displayed_shape, self.canvas_bounds, self.__coordinate_system)
-        if self.__graphics and widget_mapping:
+    def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> typing.Optional[CanvasItem.BaseComposer]:
+        return GraphicsCanvasItemComposer(self, self.sizing, composer_cache, self.__ui_settings, self.__graphics, self.__graphic_selection, self.__displayed_shape, self.__coordinate_system)
+
+
+class ScaleMarkerCanvasItemComposer(CanvasItem.BaseComposer):
+    def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing,
+                 cache: CanvasItem.ComposerCache, dimensional_calibration: typing.Optional[Calibration.Calibration],
+                 info_text: str, screen_pixel_per_image_pixel: typing.Optional[float],
+                 get_font_metrics_fn: typing.Callable[[str, str], UISettings.FontMetrics]) -> None:
+        super().__init__(canvas_item, layout_sizing, cache)
+        self.__dimensional_calibration = dimensional_calibration
+        self.__info_text = info_text
+        self.__screen_pixel_per_image_pixel = screen_pixel_per_image_pixel
+        self.__get_font_metrics_fn = get_font_metrics_fn
+
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> None:
+        dimensional_calibration = self.__dimensional_calibration
+        info_text = self.__info_text
+        screen_pixel_per_image_pixel = self.__screen_pixel_per_image_pixel
+        scale_marker_width = 120
+        scale_marker_height = 6
+        scale_marker_font = "normal 14px serif"
+        get_font_metrics_fn = self.__get_font_metrics_fn
+        if dimensional_calibration:  # display scale marker?
             with drawing_context.saver():
-                for graphic_index, graphic in enumerate(self.__graphics):
-                    if isinstance(graphic, (Graphics.PointTypeGraphic, Graphics.LineTypeGraphic, Graphics.RectangleTypeGraphic, Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
-                        try:
-                            graphic.draw(drawing_context, self.__ui_settings, widget_mapping, self.__graphic_selection.contains(graphic_index))
-                        except Exception as e:
-                            import traceback
-                            logging.debug("Graphic Repaint Error: %s", e)
-                            traceback.print_exc()
-                            traceback.print_stack()
+                drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
+                if screen_pixel_per_image_pixel and screen_pixel_per_image_pixel > 0.0:
+                    scale_marker_image_width = scale_marker_width / screen_pixel_per_image_pixel
+                    calibrated_scale_marker_width = Geometry.make_pretty2(scale_marker_image_width * dimensional_calibration.scale, True)
+                    # update the scale marker width
+                    scale_marker_image_width = calibrated_scale_marker_width / dimensional_calibration.scale
+                    scale_marker_calculated_width = scale_marker_image_width * screen_pixel_per_image_pixel
+                    baseline = canvas_bounds.height
+                    drawing_context.begin_path()
+                    drawing_context.move_to(0, baseline)
+                    drawing_context.line_to(0 + scale_marker_calculated_width, baseline)
+                    drawing_context.line_to(0 + scale_marker_calculated_width, baseline - scale_marker_height)
+                    drawing_context.line_to(0, baseline - scale_marker_height)
+                    drawing_context.close_path()
+                    drawing_context.fill_style = "#448"
+                    drawing_context.fill()
+                    drawing_context.stroke_style = "#000"
+                    drawing_context.stroke()
+                    drawing_context.font = scale_marker_font
+                    drawing_context.text_baseline = "bottom"
+                    drawing_context.fill_style = "#FFF"
+                    text1 = dimensional_calibration.convert_to_calibrated_size_str(scale_marker_image_width)
+                    text2 = info_text
+                    fm1 = get_font_metrics_fn(scale_marker_font, text1)
+                    drawing_context.fill_text(text1, 0, baseline - scale_marker_height - 4)
+                    drawing_context.fill_text(text2, 0, baseline - scale_marker_height - 4 - fm1.height)
 
 
 class ScaleMarkerCanvasItem(CanvasItem.AbstractCanvasItem):
@@ -263,37 +332,8 @@ class ScaleMarkerCanvasItem(CanvasItem.AbstractCanvasItem):
             self.__update_sizing()
             self.update()
 
-    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
-        canvas_size = self.canvas_size
-        dimensional_calibration = self.__dimensional_calibration
-        if canvas_size and dimensional_calibration:  # display scale marker?
-            screen_pixel_per_image_pixel = self.__screen_pixel_per_image_pixel_stream.value
-            if screen_pixel_per_image_pixel and screen_pixel_per_image_pixel > 0.0:
-                scale_marker_image_width = self.__scale_marker_width / screen_pixel_per_image_pixel
-                calibrated_scale_marker_width = Geometry.make_pretty2(scale_marker_image_width * dimensional_calibration.scale, True)
-                # update the scale marker width
-                scale_marker_image_width = calibrated_scale_marker_width / dimensional_calibration.scale
-                scale_marker_width = scale_marker_image_width * screen_pixel_per_image_pixel
-                baseline = canvas_size.height
-                with drawing_context.saver():
-                    drawing_context.begin_path()
-                    drawing_context.move_to(0, baseline)
-                    drawing_context.line_to(0 + scale_marker_width, baseline)
-                    drawing_context.line_to(0 + scale_marker_width, baseline - self.scale_marker_height)
-                    drawing_context.line_to(0, baseline - self.scale_marker_height)
-                    drawing_context.close_path()
-                    drawing_context.fill_style = "#448"
-                    drawing_context.fill()
-                    drawing_context.stroke_style = "#000"
-                    drawing_context.stroke()
-                    drawing_context.font = self.scale_marker_font
-                    drawing_context.text_baseline = "bottom"
-                    drawing_context.fill_style = "#FFF"
-                    text1 = dimensional_calibration.convert_to_calibrated_size_str(scale_marker_image_width)
-                    text2 = self.__info_text
-                    fm1 = self.__get_font_metrics_fn(self.scale_marker_font, text1)
-                    drawing_context.fill_text(text1, 0, baseline - self.scale_marker_height - 4)
-                    drawing_context.fill_text(text2, 0, baseline - self.scale_marker_height - 4 - fm1.height)
+    def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> typing.Optional[CanvasItem.BaseComposer]:
+        return ScaleMarkerCanvasItemComposer(self, self.sizing, composer_cache, self.__dimensional_calibration, self.__info_text, self.__screen_pixel_per_image_pixel_stream.value, self.__get_font_metrics_fn)
 
 
 def calculate_origin_and_size(canvas_size: Geometry.IntSize, data_shape: DataAndMetadata.Shape2dType, image_canvas_mode: str, image_zoom: float, image_position: Geometry.FloatPoint) -> Geometry.IntRect:
@@ -329,12 +369,47 @@ def calculate_origin_and_size(canvas_size: Geometry.IntSize, data_shape: DataAnd
 
 
 class ImageAreaCanvasItemLayout(CanvasItem.CanvasItemLayout):
-    def __init__(self) -> None:
+    def __init__(self, data_shape: typing.Optional[DataAndMetadata.Shape2dType] = None, image_zoom: float = 1.0, image_position: Geometry.FloatPoint = Geometry.FloatPoint(0.5, 0.5), image_canvas_mode: str = "fit") -> None:
         super().__init__()
-        self._data_shape: typing.Optional[DataAndMetadata.Shape2dType] = None
-        self._image_zoom = 1.0
-        self._image_position = Geometry.FloatPoint(0.5, 0.5)
-        self._image_canvas_mode = "fit"
+        self.__data_shape: typing.Optional[DataAndMetadata.Shape2dType] = data_shape
+        self.__image_zoom = image_zoom
+        self.__image_position = image_position
+        self.__image_canvas_mode = image_canvas_mode
+
+    def copy(self) -> ImageAreaCanvasItemLayout:
+        return ImageAreaCanvasItemLayout(self.__data_shape, self.__image_zoom, self.__image_position, self.__image_canvas_mode)
+
+    @property
+    def data_shape(self) -> typing.Optional[DataAndMetadata.Shape2dType]:
+        return self.__data_shape
+
+    @data_shape.setter
+    def data_shape(self, value: typing.Optional[DataAndMetadata.Shape2dType]) -> None:
+        self.__data_shape = value
+
+    @property
+    def image_zoom(self) -> float:
+        return self.__image_zoom
+
+    @image_zoom.setter
+    def image_zoom(self, value: float) -> None:
+        self.__image_zoom = value
+
+    @property
+    def image_position(self) -> Geometry.FloatPoint:
+        return self.__image_position
+
+    @image_position.setter
+    def image_position(self, value: Geometry.FloatPoint) -> None:
+        self.__image_position = value
+
+    @property
+    def image_canvas_mode(self) -> str:
+        return self.__image_canvas_mode
+
+    @image_canvas_mode.setter
+    def image_canvas_mode(self, value: str) -> None:
+        self.__image_canvas_mode = value
 
     def layout(self, canvas_origin: Geometry.IntPoint, canvas_size: Geometry.IntSize, canvas_items: typing.Sequence[CanvasItem.LayoutItem], *, immediate: bool = False) -> None:
         content = canvas_items[0] if canvas_items else None
@@ -343,9 +418,9 @@ class ImageAreaCanvasItemLayout(CanvasItem.CanvasItemLayout):
                 # if the content has not layout yet, always update it.
                 self.update_canvas_item_layout(canvas_origin, canvas_size, content)
             if canvas_size:
-                widget_mapping = ImageCanvasItemMapping.make(self._data_shape, Geometry.IntRect(canvas_origin, canvas_size), list())
+                widget_mapping = ImageCanvasItemMapping.make(self.__data_shape, Geometry.IntRect(canvas_origin, canvas_size), list())
                 if widget_mapping:
-                    image_canvas_rect = calculate_origin_and_size(canvas_size, widget_mapping.data_shape, self._image_canvas_mode, self._image_zoom, self._image_position)
+                    image_canvas_rect = calculate_origin_and_size(canvas_size, widget_mapping.data_shape, self.__image_canvas_mode, self.__image_zoom, self.__image_position)
                     content.update_layout(image_canvas_rect.origin, image_canvas_rect.size)
 
 
@@ -371,8 +446,10 @@ class ImageAreaCompositeCanvasItem(CanvasItem.CanvasItemComposition):
 
     @_data_shape.setter
     def _data_shape(self, value: typing.Optional[DataAndMetadata.Shape2dType]) -> None:
-        self.__data_shape = value
-        self.__update_screen_pixel_per_image()
+        if self.__data_shape != value:
+            self.__data_shape = value
+            self.__update_screen_pixel_per_image()
+            self.update()
 
     def __update_screen_pixel_per_image(self) -> None:
         screen_pixel_per_image_pixel = 0.0
@@ -385,24 +462,76 @@ class ImageAreaCompositeCanvasItem(CanvasItem.CanvasItemComposition):
             self.screen_pixel_per_image_pixel_stream.value = screen_pixel_per_image_pixel
 
 
+class ImageAreaCanvasItemComposer(CanvasItem.CanvasItemCompositionComposer):
+    def __init__(self,
+                 canvas_item: CanvasItem.AbstractCanvasItem,
+                 layout_sizing: CanvasItem.Sizing,
+                 composer_cache: CanvasItem.ComposerCache,
+                 layout: CanvasItem.CanvasItemAbstractLayout,
+                 child_composers: typing.Sequence[CanvasItem.BaseComposer],
+                 background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]],
+                 border_color: typing.Optional[str]) -> None:
+        super().__init__(canvas_item, layout_sizing, composer_cache, layout, child_composers, background_color, border_color)
+        self.__child_composers = child_composers
+
+    def _repaint_children(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, child_composers: typing.Sequence[CanvasItem.BaseComposer]) -> None:
+        with drawing_context.saver():
+            drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
+            drawing_context.clip_rect(0, 0, canvas_bounds.width, canvas_bounds.height)
+            # TODO: add visible rect
+            child_composer = self.__child_composers[0]
+            child_composer.repaint(drawing_context, child_composer._canvas_bounds)
+
+
 class ImageAreaCanvasItem(CanvasItem.CanvasItemComposition):
     def __init__(self, content: CanvasItem.AbstractCanvasItem) -> None:
         super().__init__()
+        self.__scroll_area_layout = ImageAreaCanvasItemLayout()
+        self.layout = self.__scroll_area_layout
         self.add_canvas_item(content)
 
-    def _repaint_children(self, drawing_context: DrawingContext.DrawingContext, *, immediate: bool = False) -> None:
-        # paint the children with the content origin and a clip rect.
-        with drawing_context.saver():
-            canvas_origin = self.canvas_origin
-            canvas_size = self.canvas_size
-            if canvas_origin and canvas_size:
-                drawing_context.clip_rect(canvas_origin.x, canvas_origin.y, canvas_size.width, canvas_size.height)
-                content = self.canvas_items[0]
-                content_canvas_origin = content.canvas_origin
-                if content_canvas_origin:
-                    drawing_context.translate(content_canvas_origin.x, content_canvas_origin.y)
-                    visible_rect = Geometry.IntRect(origin=-content_canvas_origin, size=canvas_size)
-                    content._repaint_visible(drawing_context, visible_rect)
+    @property
+    def _data_shape(self) -> typing.Optional[DataAndMetadata.Shape2dType]:
+        return self.__scroll_area_layout.data_shape
+
+    @_data_shape.setter
+    def _data_shape(self, value: typing.Optional[DataAndMetadata.Shape2dType]) -> None:
+        if self.__scroll_area_layout.data_shape != value:
+            self.__scroll_area_layout.data_shape = value
+            self.update()
+
+    @property
+    def _image_zoom(self) -> float:
+        return self.__scroll_area_layout.image_zoom
+
+    @_image_zoom.setter
+    def _image_zoom(self, value: float) -> None:
+        if self.__scroll_area_layout.image_zoom != value:
+            self.__scroll_area_layout.image_zoom = value
+            self.update()
+
+    @property
+    def _image_position(self) -> Geometry.FloatPoint:
+        return self.__scroll_area_layout.image_position
+
+    @_image_position.setter
+    def _image_position(self, value: Geometry.FloatPoint) -> None:
+        if self.__scroll_area_layout.image_position != value:
+            self.__scroll_area_layout.image_position = value
+            self.update()
+
+    @property
+    def _image_canvas_mode(self) -> str:
+        return self.__scroll_area_layout.image_canvas_mode
+
+    @_image_canvas_mode.setter
+    def _image_canvas_mode(self, value: str) -> None:
+        if self.__scroll_area_layout.image_canvas_mode != value:
+            self.__scroll_area_layout.image_canvas_mode = value
+            self.update()
+
+    def _get_composition_composer(self, child_composers: typing.Sequence[CanvasItem.BaseComposer], composer_cache: CanvasItem.ComposerCache) -> CanvasItem.BaseComposer:
+        return ImageAreaCanvasItemComposer(self, self.layout_sizing, composer_cache, self.__scroll_area_layout.copy(), child_composers, self.background_color, self.border_color)
 
     def canvas_items_at_point(self, x: int, y: int) -> typing.List[CanvasItem.AbstractCanvasItem]:
         canvas_items: typing.List[CanvasItem.AbstractCanvasItem] = []
@@ -435,6 +564,38 @@ class ImageAreaCanvasItem(CanvasItem.CanvasItemComposition):
                 content.update()
             return True
         return False
+
+
+class ImageBitmapCanvasItemComposer(CanvasItem.CellCanvasItemComposer):
+    def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing, cache: CanvasItem.ComposerCache, cell: CanvasItem.CellLike, style: typing.Set[str], display_frame_rate_id: typing.Optional[str]) -> None:
+        super().__init__(canvas_item, layout_sizing, cache, cell, style)
+        self.__display_frame_rate_id = display_frame_rate_id
+
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> None:
+        super()._repaint(drawing_context, canvas_bounds, composer_cache)
+        if self.__display_frame_rate_id:
+            Utility.fps_tick("display_" + self.__display_frame_rate_id)
+
+
+
+class ImageBitmapCanvasItem(CanvasItem.BitmapCanvasItem):
+    def __init__(self, draw_background: bool = True) -> None:
+        super().__init__(background_color="#888" if draw_background else "transparent")
+        self.__display_frame_rate_id: typing.Optional[str] = None
+
+    @property
+    def display_frame_rate_id(self) -> typing.Optional[str]:
+        return self.__display_frame_rate_id
+
+    @display_frame_rate_id.setter
+    def display_frame_rate_id(self, value: typing.Optional[str]) -> None:
+        self.__display_frame_rate_id = value
+        self.update()
+
+    def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> typing.Optional[CanvasItem.BaseComposer]:
+        if cell := self.cell:
+            return ImageBitmapCanvasItemComposer(self, self.layout_sizing, composer_cache, cell, self.style, self.__display_frame_rate_id)
+        return None
 
 
 MousePositionAndModifiers = typing.Tuple[Geometry.IntPoint, "UserInterface.KeyboardModifiers"]
@@ -836,16 +997,14 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         # create the child canvas items
         # the background
         # next the zoom-able items
-        self.__bitmap_canvas_item = CanvasItem.BitmapCanvasItem(background_color="#888" if draw_background else "transparent")
+        self.__bitmap_canvas_item = ImageBitmapCanvasItem(draw_background)
         self.__graphics_canvas_item = GraphicsCanvasItem(ui_settings)
         # put the zoom-able items into a composition
         self.__composite_canvas_item = ImageAreaCompositeCanvasItem()
         self.__composite_canvas_item.add_canvas_item(self.__bitmap_canvas_item)
         self.__composite_canvas_item.add_canvas_item(self.__graphics_canvas_item)
         # and put the composition into a scroll area
-        self.__scroll_area_layout = ImageAreaCanvasItemLayout()
         self.scroll_area_canvas_item = ImageAreaCanvasItem(self.__composite_canvas_item)
-        self.scroll_area_canvas_item.layout = self.__scroll_area_layout
         # info overlay (scale marker, etc.)
         self.__scale_marker_canvas_item = ScaleMarkerCanvasItem(self.__composite_canvas_item.screen_pixel_per_image_pixel_stream, ui_settings.get_font_metrics)
         info_overlay_row = CanvasItem.CanvasItemComposition()
@@ -859,12 +1018,14 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.__overlay_canvas_item.add_stretch()
         self.__overlay_canvas_item.add_canvas_item(info_overlay_row)
         self.__overlay_canvas_item.add_spacing(8)
+        self.__frame_rate_canvas_item = DisplayCanvasItem.FrameRateCanvasItem()
         # canvas items get added back to front
         if draw_background:
             self.add_canvas_item(CanvasItem.BackgroundCanvasItem())
         self.add_canvas_item(self.scroll_area_canvas_item)
         self.add_canvas_item(self.__overlay_canvas_item)
         self.add_canvas_item(self.__timestamp_canvas_item)
+        self.add_canvas_item(self.__frame_rate_canvas_item)
 
         self.__display_values_dirty = False
         self.__display_values: typing.Optional[DisplayItem.DisplayValues] = None
@@ -879,8 +1040,6 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.__mouse_handler: typing.Optional[MouseHandler] = None
 
         # frame rate and latency
-        self.__display_frame_rate_id: typing.Optional[str] = None
-        self.__display_frame_rate_last_index = 0
         self.__display_latency = False
 
     def close(self) -> None:
@@ -948,13 +1107,13 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                 if self.__image_zoom != image_zoom or self.__image_position != image_position or self.__image_canvas_mode != image_canvas_mode:
                     if image_zoom is not None:
                         self.__image_zoom = image_zoom
-                        self.__scroll_area_layout._image_zoom = self.__image_zoom
+                        self.scroll_area_canvas_item._image_zoom = self.__image_zoom
                     if image_position is not None:
                         self.__image_position = image_position
-                        self.__scroll_area_layout._image_position = self.__image_position
+                        self.scroll_area_canvas_item._image_position = self.__image_position
                     if image_canvas_mode is not None:
                         self.__image_canvas_mode = image_canvas_mode
-                        self.__scroll_area_layout._image_canvas_mode = self.__image_canvas_mode
+                        self.scroll_area_canvas_item._image_canvas_mode = self.__image_canvas_mode
 
                 # if the data changes, update the display.
                 data_shape = display_calibration_info.display_data_shape
@@ -963,14 +1122,10 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                     self.__display_properties_dirty = False
                     self.__display_calibration_info_dirty = False
                     self.__data_shape = data_shape[0], data_shape[1]
-                    self.__scroll_area_layout._data_shape = self.__data_shape
+                    self.scroll_area_canvas_item._data_shape = self.__data_shape
                     self.__composite_canvas_item._data_shape = self.__data_shape
                     self.__coordinate_system = display_calibration_info.datum_calibrations
-                    if self.__display_frame_rate_id:
-                        if frame_info.frame_index != self.__display_frame_rate_last_index:
-                            Utility.fps_tick("frame_"+self.__display_frame_rate_id)
-                            self.__display_frame_rate_last_index = frame_info.frame_index
-                        Utility.fps_tick("update_"+self.__display_frame_rate_id)
+                    self.__frame_rate_canvas_item.frame_tick(frame_info.frame_index)
                     # update the cursor info
                     self.__update_cursor_info()
 
@@ -1231,10 +1386,8 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         return key_contexts
 
     def toggle_frame_rate(self) -> None:
-        if self.__display_frame_rate_id is None:
-            self.__display_frame_rate_id = str(id(self))
-        else:
-            self.__display_frame_rate_id = None
+        self.__frame_rate_canvas_item.toggle_display(str(id(self)))
+        self.__bitmap_canvas_item.display_frame_rate_id = self.__frame_rate_canvas_item.display_frame_rate_id
 
     def toggle_latency(self) -> None:
         self.__display_latency = not self.__display_latency
@@ -1280,34 +1433,6 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                 if image_size is not None and len(image_size) > 1:
                     pos_2d = self.map_widget_to_image(self.__last_mouse)
                 delegate.cursor_changed(pos_2d)
-
-    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
-        super()._repaint(drawing_context)
-        canvas_bounds = self.canvas_bounds
-        if canvas_bounds and self.__display_frame_rate_id:
-            Utility.fps_tick("display_"+self.__display_frame_rate_id)
-            fps = Utility.fps_get("display_"+self.__display_frame_rate_id)
-            fps2 = Utility.fps_get("frame_"+self.__display_frame_rate_id)
-            fps3 = Utility.fps_get("update_"+self.__display_frame_rate_id)
-            with drawing_context.saver():
-                font = "normal 11px serif"
-                text_pos = canvas_bounds.top_left
-                drawing_context.begin_path()
-                drawing_context.move_to(text_pos.x, text_pos.y)
-                drawing_context.line_to(text_pos.x + 200, text_pos.y)
-                drawing_context.line_to(text_pos.x + 200, text_pos.y + 60)
-                drawing_context.line_to(text_pos.x, text_pos.y + 60)
-                drawing_context.close_path()
-                drawing_context.fill_style = "rgba(255, 255, 255, 0.6)"
-                drawing_context.fill()
-                drawing_context.font = font
-                drawing_context.text_baseline = "middle"
-                drawing_context.text_align = "left"
-                drawing_context.fill_style = "#000"
-                drawing_context.fill_text("display:" + fps, text_pos.x + 8, text_pos.y + 10)
-                drawing_context.fill_text("frame:" + fps2, text_pos.x + 8, text_pos.y + 30)
-                drawing_context.fill_text("update:" + fps3, text_pos.x + 8, text_pos.y + 50)
-                drawing_context.statistics("display")
 
     @property
     def image_canvas_mode(self) -> str:

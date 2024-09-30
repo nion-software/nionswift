@@ -1126,7 +1126,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         width, height = 640, 480
         display_panel = TestDisplayPanel()
         def get_font_metrics(a, b): return UserInterface.FontMetrics(0, 0, 0, 0, 0)
-        overlay = DisplayPanel.DisplayPanelOverlayCanvasItem(get_font_metrics)
+        overlay = DisplayPanel.DisplayPanelOverlayCanvasItemComposition(get_font_metrics)
         overlay.on_drag_enter = display_panel.handle_drag_enter
         overlay.on_drag_move = display_panel.handle_drag_move
         overlay.on_drop = display_panel.handle_drop
@@ -1150,7 +1150,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         width, height = 640, 480
         display_panel = TestDisplayPanel()
         def get_font_metrics(a, b): return UserInterface.FontMetrics(0, 0, 0, 0, 0)
-        overlay = DisplayPanel.DisplayPanelOverlayCanvasItem(get_font_metrics)
+        overlay = DisplayPanel.DisplayPanelOverlayCanvasItemComposition(get_font_metrics)
         overlay.on_drag_enter = display_panel.handle_drag_enter
         overlay.on_drag_move = display_panel.handle_drag_move
         overlay.on_drop = display_panel.handle_drop
@@ -1168,7 +1168,7 @@ class TestDisplayPanelClass(unittest.TestCase):
     def test_1d_data_with_zero_dimensions_display_fails_without_exception(self):
         self.data_item.set_data(numpy.zeros((0, )))
         # display panel should not have any display_canvas_item now since data is not valid
-        self.assertIsInstance(self.display_panel.display_canvas_item, DisplayPanel.MissingDataCanvasItem)
+        self.assertIsInstance(self.display_panel.display_canvas_item, DisplayPanel.MissingDisplayCanvasItem)
         # thumbnails and processors
         thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.document_controller.ui, self.display_item)
         with thumbnail_source.ref():
@@ -1180,7 +1180,7 @@ class TestDisplayPanelClass(unittest.TestCase):
     def test_2d_data_with_zero_dimensions_display_fails_without_exception(self):
         self.data_item.set_data(numpy.zeros((0, 0)))
         # display panel should not have any display_canvas_item now since data is not valid
-        self.assertIsInstance(self.display_panel.display_canvas_item, DisplayPanel.MissingDataCanvasItem)
+        self.assertIsInstance(self.display_panel.display_canvas_item, DisplayPanel.MissingDisplayCanvasItem)
         # thumbnails and processors
         thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.document_controller.ui, self.display_item)
         with thumbnail_source.ref():
@@ -1240,7 +1240,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_panel.set_display_panel_display_item(display_item)
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
             header_height = self.display_panel.header_canvas_item.header_height
-            root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=1000, height=1000 + header_height))
+            root_canvas_item.update_layout_immediate(Geometry.IntPoint(), Geometry.IntSize(width=1000, height=1000 + header_height))
             # drag to make line
             display_panel.display_canvas_item.simulate_drag((100,125), (200,250))
             document_controller.periodic()
@@ -1270,7 +1270,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_panel.set_display_panel_display_item(display_item)
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
             header_height = self.display_panel.header_canvas_item.header_height
-            root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=1000, height=1000 + header_height))
+            root_canvas_item.update_layout_immediate(Geometry.IntPoint(), Geometry.IntSize(width=1000, height=1000 + header_height))
             # drag for the line profile
             display_panel.display_canvas_item.simulate_drag((100,125), (200,250))
             self.document_controller.periodic()
@@ -1296,7 +1296,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_panel.set_display_panel_display_item(display_item)
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
             header_height = self.display_panel.header_canvas_item.header_height
-            root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=1000, height=1000 + header_height))
+            root_canvas_item.update_layout_immediate(Geometry.IntPoint(), Geometry.IntSize(width=1000, height=1000 + header_height))
             # drag and check transactions
             self.assertFalse(data_item.in_transaction_state)
             self.assertFalse(display_item.in_transaction_state)
@@ -1334,7 +1334,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel.set_display_panel_display_item(display_item)
             self.assertIsNotNone(display_panel.display_canvas_item)
-            root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=1000, height=500 + header_height))
+            root_canvas_item.update_layout_immediate(Geometry.IntPoint(), Geometry.IntSize(width=1000, height=500 + header_height))
             document_controller.set_filter("none")
             document_controller.tool_mode = "line-profile"
             display_panel.display_canvas_item.simulate_drag((100,125), (200,250))
