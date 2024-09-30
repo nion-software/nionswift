@@ -1260,7 +1260,10 @@ class DisplayDataChannel(Persistence.PersistentObject):
             return False
         if data_item.collection_dimension_count == 2 and data_item.datum_dimension_count == 1:
             return False
-        return data_item.datum_dimension_count == 1 or (data_item.datum_dimension_count == 2 and data_item.datum_dimension_shape[0] == 1)
+        return data_item.datum_dimension_count == 1 or (data_item.datum_dimension_count == 2
+                                                        and (data_item.datum_dimension_shape[0] == 1
+                                                             or (data_item.datum_dimension_shape[0] <= 5 and
+                                                                 data_item.datum_dimension_shape[1] > 5)))
 
     @property
     def is_display_2d_preferred(self) -> bool:
