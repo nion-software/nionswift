@@ -818,7 +818,7 @@ class ZoomMouseHandler(MouseHandler):
         image_position: typing.Optional[Geometry.FloatPoint] = None
         mouse_pos, modifiers = value_change_value
 
-        if modifiers.control:
+        if modifiers.alt:
             is_zooming_in = False
         else:
             is_zooming_in = True
@@ -1276,19 +1276,20 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             if widget_mapping:
                 mapped = self.map_widget_to_image(coord)
                 if (mapped is not None) and (self.__data_shape is not None):
-                    norm_coord = tuple(ele1 / ele2 for ele1, ele2 in zip(iter(mapped), iter(self.__data_shape)))
+                    norm_coord = tuple(mapped_coord / shape_dim for mapped_coord, shape_dim in zip(iter(mapped), iter(self.__data_shape)))
                     return Geometry.FloatPoint(norm_coord[0], norm_coord[1])  # y,x
         return Geometry.FloatPoint(-1, -1)
 
-    # Apply a zoom factor to the widget, optionally focussed on a specific point
+    # Apply a zoom factor to the widget, optionally focused on a specific point
     def apply_fixed_zoom(self, zoom_in: bool, coord: typing.Optional[Geometry.IntPoint]) -> None:
         zoom_factor = 0.25
-        if coord:
+        self.set_custom_mode() # Put us into custom canvas mode
+        if coord and zoom_in:
             # Coordinate specified, so needing to recenter to that point before we adjust zoom levels
             widget_mapping = ImageCanvasItemMapping.make(self.__data_shape, self.__composite_canvas_item.canvas_bounds, list())
             if widget_mapping:
-                # coord is (x,y)
-                mapped = self.map_widget_to_image(coord)  # mapped is (y,x)
+                # coord is (y,x) IntPoint
+                mapped = self.map_widget_to_image(coord)  # mapped is (y,x) IntPoint
                 if mapped is not None and self.__data_shape is not None and self.scroll_area_canvas_item.canvas_size is not None:
                     mapped_center = self.map_widget_to_image(Geometry.IntPoint(self.scroll_area_canvas_item.canvas_size.height // 2, self.scroll_area_canvas_item.canvas_size.width // 2))
                     if mapped_center is not None:
@@ -1304,14 +1305,14 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                         else:
                             new_mapped_center = (mapped_center[0] + scaled_mapped_vector[0], mapped_center[1] + scaled_mapped_vector[1])
 
-                        norm_coord = tuple(ele1 / ele2 for ele1, ele2 in zip(iter(new_mapped_center), iter(self.__data_shape)))
+                        norm_coord = tuple(new_mapped_coord / shape_dim for new_mapped_coord, shape_dim in zip(iter(new_mapped_center), iter(self.__data_shape)))
                         self._set_image_canvas_position(Geometry.FloatPoint(norm_coord[0], norm_coord[1]))
 
                         # ensure that at least half of the image is always visible
-                        new_image_norm_center_0 = max(min(norm_coord[0], 1.0), 0.0)
-                        new_image_norm_center_1 = max(min(norm_coord[1], 1.0), 0.0)
+                        new_image_norm_center_y = max(min(norm_coord[0], 1.0), 0.0)
+                        new_image_norm_center_x = max(min(norm_coord[1], 1.0), 0.0)
                         # save the new image norm center
-                        new_image_canvas_position = Geometry.FloatPoint(new_image_norm_center_0, new_image_norm_center_1)
+                        new_image_canvas_position = Geometry.FloatPoint(new_image_norm_center_y, new_image_norm_center_x)
                         self._set_image_canvas_position(new_image_canvas_position)
         if zoom_in:
             self.zoom_in(1 + zoom_factor)
@@ -1381,7 +1382,6 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             self.__mouse_handler.mouse_released(Geometry.IntPoint(y, x), modifiers)
             self.__mouse_handler = None
 
-        # Should probably wrap this into a function of 'Non-Toggle' UI elements
         if delegate.tool_mode == "hand":
             pass
         elif delegate.tool_mode == "zoom":
@@ -1578,6 +1578,33 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
     def set_two_to_one_mode(self) -> None:
         self.__apply_display_properties_command({"image_zoom": 0.5, "image_position": (0.5, 0.5), "image_canvas_mode": "2:1"})
+
+    def set_custom_mode(self) -> None:
+        if self.image_canvas_mode != "custom":
+            new_zoom = 1.0
+            if self.image_canvas_mode == "fit":
+                # defaults to zoom of 1
+                pass
+            elif self.image_canvas_mode == "fill":
+                # needs to be zoomed in a bit
+                x_zoom = self.canvas_bounds.width / self.__data_shape[1]
+                y_zoom = self.canvas_bounds.height / self.__data_shape[0]
+                new_zoom = max(y_zoom, x_zoom)
+                pass
+            elif self.image_canvas_mode == "1:1":
+                # noticably less than 1.0, zoomed out a bit
+                x_zoom = self.__data_shape[1] / self.canvas_bounds.width
+                y_zoom = self.__data_shape[0] / self.canvas_bounds.height
+                new_zoom = max(y_zoom, x_zoom)
+            elif self.image_canvas_mode == "2:1":
+                # zoomed out a lot
+                x_zoom = self.canvas_bounds.width / self.__data_shape[1]
+                y_zoom = self.canvas_bounds.height / self.__data_shape[0]
+                new_zoom = max(y_zoom, x_zoom)
+                new_zoom /= 2
+
+            self.__apply_display_properties_command({"image_zoom": new_zoom, "image_canvas_mode": "custom"})
+
 
     def zoom_in(self, factor: float) -> None:
         self.__apply_display_properties_command({"image_zoom": self.__image_zoom * factor,
