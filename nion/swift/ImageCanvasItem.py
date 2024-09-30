@@ -1580,7 +1580,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.__apply_display_properties_command({"image_zoom": 0.5, "image_position": (0.5, 0.5), "image_canvas_mode": "2:1"})
 
     def set_custom_mode(self) -> None:
-        if self.image_canvas_mode != "custom":
+        if self.image_canvas_mode != "custom" and self.canvas_bounds and self.__data_shape:
             new_zoom = 1.0
             if self.image_canvas_mode == "fit":
                 # defaults to zoom of 1
