@@ -130,79 +130,155 @@ _test_log_exceptions = True
 # tbd
 
 
-class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
-    """
-        An overlay for image panels to draw and handle focus, selection, and drop targets.
+class DisplayPanelOverlayCanvasItemComposer(CanvasItem.BaseComposer):
+    def __init__(self,
+                 canvas_item: CanvasItem.AbstractCanvasItem,
+                 layout_sizing: CanvasItem.Sizing,
+                 cache: CanvasItem.ComposerCache,
+                 drop_regions_map: _DropRegionsDictType,
+                 drop_region: str,
+                 is_focused: bool,
+                 is_selected: bool,
+                 focused_style: str,
+                 selected_style: str,
+                 line_dash: typing.Optional[int],
+                 selection_number: typing.Optional[int],
+                 get_font_metrics_fn: typing.Callable[[str, str], UISettings.FontMetrics]) -> None:
+        super().__init__(canvas_item, layout_sizing, cache)
+        self.__drop_regions_map = drop_regions_map
+        self.__drop_region = drop_region
+        self.__is_focused = is_focused
+        self.__is_selected = is_selected
+        self.__focused_style = focused_style
+        self.__selected_style = selected_style
+        self.__line_dash = line_dash
+        self.__selection_number = selection_number
+        self.__get_font_metrics_fn = get_font_metrics_fn
 
-        The overlay has a focused property, but this is not the same as the canvas focused_item.
-        The focused property here is just a flag to indicate whether to draw the focus ring.
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> None:
+        drop_regions_map = self.__drop_regions_map
+        drop_region = self.__drop_region
+        is_focused = self.__is_focused
+        is_selected = self.__is_selected
+        focused_style = self.__focused_style
+        selected_style = self.__selected_style
+        line_dash = self.__line_dash
+        selection_number = self.__selection_number
+        get_font_metrics_fn = self.__get_font_metrics_fn
 
-        Clients can connect to the following messages:
-            on_context_menu_event(x, y, gx, gy)
-            on_drag_enter(mime_data)
-            on_drag_leave()
-            on_drag_move(mime_data, x, y)
-            on_drop(mime_data, drop_region, x, y)
-            on_key_pressed(key)
-            on_key_released(key)
-    """
+        with drawing_context.saver():
+            drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
 
+            # draw the border
+            with drawing_context.saver():
+                drawing_context.begin_path()
+                drawing_context.rect(0, 0, canvas_bounds.width, canvas_bounds.height)
+                drawing_context.line_join = "miter"
+                drawing_context.stroke_style = "#AAA"
+                drawing_context.line_width = 0.5
+                drawing_context.stroke()
+
+            if drop_region != "none":
+                with drawing_context.saver():
+                    drawing_context.begin_path()
+                    if drop_region in drop_regions_map:
+                        drop_region_hit_rect, drop_region_draw_rect = drop_regions_map[drop_region]
+                        drawing_context.rect(drop_region_draw_rect.left, drop_region_draw_rect.top, drop_region_draw_rect.width, drop_region_draw_rect.height)
+                    elif drop_region == "left":
+                        drawing_context.rect(0, 0, int(canvas_bounds.width * 0.10), canvas_bounds.height)
+                    elif drop_region == "right":
+                        drawing_context.rect(int(canvas_bounds.width * 0.90), 0, int(canvas_bounds.width - canvas_bounds.width * 0.90), canvas_bounds.height)
+                    elif drop_region == "top":
+                        drawing_context.rect(0, 0, canvas_bounds.width, int(canvas_bounds.height * 0.10))
+                    elif drop_region == "bottom":
+                        drawing_context.rect(0, int(canvas_bounds.height * 0.90), canvas_bounds.width, int(canvas_bounds.height - canvas_bounds.height * 0.90))
+                    else:
+                        drawing_context.rect(0, 0, canvas_bounds.width, canvas_bounds.height)
+                    drawing_context.fill_style = "rgba(255, 0, 0, 0.10)"
+                    drawing_context.fill()
+
+            if is_selected:
+                stroke_style = focused_style if is_focused else selected_style
+                if stroke_style:
+                    with drawing_context.saver():
+                        drawing_context.begin_path()
+                        drawing_context.rect(2, 2, canvas_bounds.width - 4, canvas_bounds.height - 4)
+                        drawing_context.line_join = "miter"
+                        drawing_context.stroke_style = stroke_style
+                        drawing_context.line_width = 4.0
+                        if line_dash:
+                            with drawing_context.saver():
+                                drawing_context.stroke_style = "#CCC"
+                                drawing_context.stroke()
+                            drawing_context.line_dash = line_dash
+                        drawing_context.stroke()
+                    if selection_number:
+                        with drawing_context.saver():
+                            font = "bold 12px serif"
+                            selection_number_text = "+" + str(selection_number)
+                            font_metrics = get_font_metrics_fn(font, selection_number_text)
+                            with drawing_context.saver():
+                                drawing_context.fill_style = "rgba(192, 192, 192, 0.75)"
+                                drawing_context.begin_path()
+                                drawing_context.rect(6, 6, font_metrics.width + 4, font_metrics.height + 4)
+                                drawing_context.fill()
+                            drawing_context.font = font
+                            drawing_context.fill_style = stroke_style
+                            drawing_context.fill_text(selection_number_text, 6, 4 + font_metrics.height)
+
+
+class DisplayPanelOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
     def __init__(self, get_font_metrics_fn: typing.Callable[[str, str], UISettings.FontMetrics]) -> None:
         super().__init__()
-        self.wants_drag_events = True
-        self.__get_font_metrics = get_font_metrics_fn
-        self.__is_dragging = False
-        self.__drop_region = "none"
-        self.__focused = False
-        self.__selected = False
-        self.__selected_style = "#CCC"  # TODO: platform dependent
-        self.__focused_style = "#4682B4"  # steel blue. TODO: platform dependent
-        self.__selection_number: typing.Optional[int] = None
-        self.__line_dash: typing.Optional[int] = None
         self.__drop_regions_map: _DropRegionsDictType = dict()
-        self.on_context_menu_event: typing.Optional[typing.Callable[[int, int, int, int], bool]] = None
-        self.on_drag_enter: typing.Optional[typing.Callable[[UserInterface.MimeData], str]] = None
-        self.on_drag_leave: typing.Optional[typing.Callable[[], str]] = None
-        self.on_drag_move: typing.Optional[typing.Callable[[UserInterface.MimeData, int, int], str]] = None
-        self.on_wants_drag_event: typing.Optional[typing.Callable[[UserInterface.MimeData], bool]] = None
-        self.on_drop: typing.Optional[typing.Callable[[UserInterface.MimeData, str, int, int], str]] = None
-        self.on_key_pressed: typing.Optional[typing.Callable[[UserInterface.Key], bool]] = None
-        self.on_key_released: typing.Optional[typing.Callable[[UserInterface.Key], bool]] = None
-        self.on_mouse_clicked_event: typing.Optional[typing.Callable[[int, int, UserInterface.KeyboardModifiers], bool]] = None
-        self.on_adjust_secondary_focus: typing.Optional[typing.Callable[[UserInterface.KeyboardModifiers], None]] = None
-        self.on_select_all: typing.Optional[typing.Callable[[], bool]] = None
-
-    def close(self) -> None:
-        self.on_context_menu_event = None
-        self.on_drag_enter = None
-        self.on_drag_leave = None
-        self.on_drag_move = None
-        self.on_drop = None
-        self.on_key_pressed = None
-        self.on_key_released = None
-        self.on_mouse_clicked_event = None
-        self.on_adjust_secondary_focus = None
-        self.on_select_all = None
-        super().close()
+        self.__drop_region = "none"
+        self.__is_focused = False
+        self.__is_selected = False
+        self.__focused_style = "#4682B4"  # steel blue. TODO: platform dependent
+        self.__selected_style = "#CCC"  # TODO: platform dependent
+        self.__line_dash: typing.Optional[int] = None
+        self.__selection_number: typing.Optional[int] = None
+        self.__get_font_metrics_fn = get_font_metrics_fn
 
     @property
-    def focused(self) -> bool:
-        return self.__focused
+    def drop_regions_map(self) -> _DropRegionsMapType:
+        return self.__drop_regions_map
 
-    @focused.setter
-    def focused(self, value: bool) -> None:
-        if self.__focused != value:
-            self.__focused = value
+    @drop_regions_map.setter
+    def drop_regions_map(self, value: _DropRegionsMapType) -> None:
+        new_value = dict(value) if value else dict()
+        if self.__drop_regions_map != new_value:
+            self.__drop_regions_map = new_value
+        self.update()
+
+    @property
+    def drop_region(self) -> str:
+        return self.__drop_region
+
+    @drop_region.setter
+    def drop_region(self, drop_region: str) -> None:
+        if self.__drop_region != drop_region:
+            self.__drop_region = drop_region
             self.update()
 
     @property
-    def selected(self) -> bool:
-        return self.__selected
+    def is_selected(self) -> bool:
+        return self.__is_selected
 
-    @selected.setter
-    def selected(self, selected: bool) -> None:
-        if self.__selected != selected:
-            self.__selected = selected
+    @is_selected.setter
+    def is_selected(self, is_selected: bool) -> None:
+        if self.__is_selected != is_selected:
+            self.__is_selected = is_selected
+            self.update()
+
+    @property
+    def is_focused(self) -> bool:
+        return self.__is_focused
+
+    @is_focused.setter
+    def is_focused(self, value: bool) -> None:
+        if self.__is_focused != value:
+            self.__is_focused = value
             self.update()
 
     @property
@@ -245,86 +321,123 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
             self.__selection_number = value
             self.update()
 
+    def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> typing.Optional[CanvasItem.BaseComposer]:
+        return DisplayPanelOverlayCanvasItemComposer(self, self.layout_sizing, composer_cache,
+                                                     self.__drop_regions_map, self.__drop_region,
+                                                     self.__is_focused, self.__is_selected,
+                                                     self.__focused_style, self.__selected_style,
+                                                     self.__line_dash, self.__selection_number,
+                                                     self.__get_font_metrics_fn)
+
+
+class DisplayPanelOverlayCanvasItemComposition(CanvasItem.CanvasItemComposition):
+    """
+        An overlay for image panels to draw and handle focus, selection, and drop targets.
+
+        The overlay has a focused property, but this is not the same as the canvas focused_item.
+        The focused property here is just a flag to indicate whether to draw the focus ring.
+
+        Clients can connect to the following messages:
+            on_context_menu_event(x, y, gx, gy)
+            on_drag_enter(mime_data)
+            on_drag_leave()
+            on_drag_move(mime_data, x, y)
+            on_drop(mime_data, drop_region, x, y)
+            on_key_pressed(key)
+            on_key_released(key)
+    """
+
+    def __init__(self, get_font_metrics_fn: typing.Callable[[str, str], UISettings.FontMetrics]) -> None:
+        super().__init__()
+        self.wants_drag_events = True
+        self.__display_panel_overlay_canvas_item = DisplayPanelOverlayCanvasItem(get_font_metrics_fn)
+        self.on_context_menu_event: typing.Optional[typing.Callable[[int, int, int, int], bool]] = None
+        self.on_drag_enter: typing.Optional[typing.Callable[[UserInterface.MimeData], str]] = None
+        self.on_drag_leave: typing.Optional[typing.Callable[[], str]] = None
+        self.on_drag_move: typing.Optional[typing.Callable[[UserInterface.MimeData, int, int], str]] = None
+        self.on_wants_drag_event: typing.Optional[typing.Callable[[UserInterface.MimeData], bool]] = None
+        self.on_drop: typing.Optional[typing.Callable[[UserInterface.MimeData, str, int, int], str]] = None
+        self.on_key_pressed: typing.Optional[typing.Callable[[UserInterface.Key], bool]] = None
+        self.on_key_released: typing.Optional[typing.Callable[[UserInterface.Key], bool]] = None
+        self.on_mouse_clicked_event: typing.Optional[typing.Callable[[int, int, UserInterface.KeyboardModifiers], bool]] = None
+        self.on_adjust_secondary_focus: typing.Optional[typing.Callable[[UserInterface.KeyboardModifiers], None]] = None
+        self.on_select_all: typing.Optional[typing.Callable[[], bool]] = None
+        self.add_canvas_item(self.__display_panel_overlay_canvas_item)
+
+    def close(self) -> None:
+        self.on_context_menu_event = None
+        self.on_drag_enter = None
+        self.on_drag_leave = None
+        self.on_drag_move = None
+        self.on_drop = None
+        self.on_key_pressed = None
+        self.on_key_released = None
+        self.on_mouse_clicked_event = None
+        self.on_adjust_secondary_focus = None
+        self.on_select_all = None
+        super().close()
+
+    @property
+    def focused(self) -> bool:
+        return self.__display_panel_overlay_canvas_item.is_focused
+
+    @focused.setter
+    def focused(self, value: bool) -> None:
+        self.__display_panel_overlay_canvas_item.is_focused = value
+
+    @property
+    def selected(self) -> bool:
+        return self.__display_panel_overlay_canvas_item.is_selected
+
+    @selected.setter
+    def selected(self, selected: bool) -> None:
+        self.__display_panel_overlay_canvas_item.is_selected = selected
+
+    @property
+    def selected_style(self) -> str:
+        return self.__display_panel_overlay_canvas_item.selected_style
+
+    @selected_style.setter
+    def selected_style(self, selected_style: str) -> None:
+        self.__display_panel_overlay_canvas_item.selected_style = selected_style
+
+    @property
+    def focused_style(self) -> str:
+        return self.__display_panel_overlay_canvas_item.focused_style
+
+    @focused_style.setter
+    def focused_style(self, focused_style: str) -> None:
+        self.__display_panel_overlay_canvas_item.focused_style = focused_style
+
+    @property
+    def line_dash(self) -> typing.Optional[int]:
+        return self.__display_panel_overlay_canvas_item.line_dash
+
+    @line_dash.setter
+    def line_dash(self, value: typing.Optional[int]) -> None:
+        self.__display_panel_overlay_canvas_item.line_dash = value
+
+    @property
+    def selection_number(self) -> typing.Optional[int]:
+        return self.__display_panel_overlay_canvas_item.selection_number
+
+    @selection_number.setter
+    def selection_number(self, value: typing.Optional[int]) -> None:
+        self.__display_panel_overlay_canvas_item.selection_number = value
+
     @property
     def drop_regions_map(self) -> _DropRegionsMapType:
-        return self.__drop_regions_map
+        return self.__display_panel_overlay_canvas_item.drop_regions_map
 
     @drop_regions_map.setter
     def drop_regions_map(self, value: _DropRegionsMapType) -> None:
-        self.__drop_regions_map = dict(value) if value else dict()
+        self.__display_panel_overlay_canvas_item.drop_regions_map = value
 
     def __set_drop_region(self, drop_region: str) -> None:
-        if self.__drop_region != drop_region:
-            self.__drop_region = drop_region
-            self.update()
+        self.__display_panel_overlay_canvas_item.drop_region = drop_region
 
     def _set_drop_region(self, drop_region: str) -> None:
         self.__set_drop_region(drop_region)
-
-    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
-        super()._repaint(drawing_context)
-
-        # canvas size
-        canvas_size = self.canvas_size
-        if canvas_size:
-            # draw the border
-            with drawing_context.saver():
-                drawing_context.begin_path()
-                drawing_context.rect(0, 0, canvas_size.width, canvas_size.height)
-                drawing_context.line_join = "miter"
-                drawing_context.stroke_style = "#AAA"
-                drawing_context.line_width = 0.5
-                drawing_context.stroke()
-    
-            drop_regions_map = self.__drop_regions_map
-    
-            if self.__drop_region != "none":
-                with drawing_context.saver():
-                    drawing_context.begin_path()
-                    if self.__drop_region in drop_regions_map:
-                        drop_region_hit_rect, drop_region_draw_rect = drop_regions_map[self.__drop_region]
-                        drawing_context.rect(drop_region_draw_rect.left, drop_region_draw_rect.top, drop_region_draw_rect.width, drop_region_draw_rect.height)
-                    elif self.__drop_region == "left":
-                        drawing_context.rect(0, 0, int(canvas_size.width * 0.10), canvas_size.height)
-                    elif self.__drop_region == "right":
-                        drawing_context.rect(int(canvas_size.width * 0.90), 0, int(canvas_size.width - canvas_size.width * 0.90), canvas_size.height)
-                    elif self.__drop_region == "top":
-                        drawing_context.rect(0, 0, canvas_size.width, int(canvas_size.height * 0.10))
-                    elif self.__drop_region == "bottom":
-                        drawing_context.rect(0, int(canvas_size.height * 0.90), canvas_size.width, int(canvas_size.height - canvas_size.height * 0.90))
-                    else:
-                        drawing_context.rect(0, 0, canvas_size.width, canvas_size.height)
-                    drawing_context.fill_style = "rgba(255, 0, 0, 0.10)"
-                    drawing_context.fill()
-    
-            if self.selected:
-                stroke_style = self.__focused_style if self.focused else self.__selected_style
-                if stroke_style:
-                    with drawing_context.saver():
-                        drawing_context.begin_path()
-                        drawing_context.rect(2, 2, canvas_size.width - 4, canvas_size.height - 4)
-                        drawing_context.line_join = "miter"
-                        drawing_context.stroke_style = stroke_style
-                        drawing_context.line_width = 4.0
-                        if self.__line_dash:
-                            with drawing_context.saver():
-                                drawing_context.stroke_style = "#CCC"
-                                drawing_context.stroke()
-                            drawing_context.line_dash = self.__line_dash
-                        drawing_context.stroke()
-                    if self.__selection_number:
-                        with drawing_context.saver():
-                            font = "bold 12px serif"
-                            selection_number_text = "+" + str(self.__selection_number)
-                            font_metrics = self.__get_font_metrics(font, selection_number_text)
-                            with drawing_context.saver():
-                                drawing_context.fill_style = "rgba(192, 192, 192, 0.75)"
-                                drawing_context.begin_path()
-                                drawing_context.rect(6, 6, font_metrics.width + 4, font_metrics.height + 4)
-                                drawing_context.fill()
-                            drawing_context.font = font
-                            drawing_context.fill_style = stroke_style
-                            drawing_context.fill_text(selection_number_text, 6, 4 + font_metrics.height)
 
     def mouse_clicked(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         if super().mouse_clicked(x, y, modifiers):
@@ -346,14 +459,12 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
         return False
 
     def drag_enter(self, mime_data: UserInterface.MimeData) -> str:
-        self.__is_dragging = True
         self.__set_drop_region("none")
         if self.on_drag_enter:
             self.on_drag_enter(mime_data)
         return "ignore"
 
     def drag_leave(self) -> str:
-        self.__is_dragging = False
         self.__set_drop_region("none")
         if self.on_drag_leave:
             self.on_drag_leave()
@@ -366,7 +477,7 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
                 canvas_size = self.canvas_size
                 if canvas_size:
                     p = Geometry.IntPoint(y=y, x=x)
-                    for drop_region, (drop_region_hit_rect, drop_region_draw_rect) in self.__drop_regions_map.items():
+                    for drop_region, (drop_region_hit_rect, drop_region_draw_rect) in self.__display_panel_overlay_canvas_item.drop_regions_map.items():
                         if drop_region_hit_rect.contains_point(p):
                             self.__set_drop_region(drop_region)
                             return result
@@ -385,8 +496,7 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
         return "ignore"
 
     def drop(self, mime_data: UserInterface.MimeData, x: int, y: int) -> str:
-        drop_region = self.__drop_region
-        self.__is_dragging = False
+        drop_region = self.__display_panel_overlay_canvas_item.drop_region
         self.__set_drop_region("none")
         if self.on_drop:
             return self.on_drop(mime_data, drop_region, x, y)
@@ -425,9 +535,9 @@ def create_display_canvas_item(display_item: DisplayItem.DisplayItem, ui_setting
     elif display_type == "image":
         return ImageCanvasItem.ImageCanvasItem(ui_settings, delegate, event_loop, draw_background)
     elif display_type == "display_script":
-        return DisplayScriptCanvasItem.DisplayScriptCanvasItem(ui_settings, delegate)
+        return DisplayScriptCanvasItem.ScriptDisplayCanvasItem(ui_settings, delegate)
     else:
-        return MissingDataCanvasItem(delegate)
+        return MissingDisplayCanvasItem(delegate)
 
 
 def is_valid_display_type(display_type: str) -> bool:
@@ -901,11 +1011,41 @@ class RelatedIconsCanvasItem(CanvasItem.CanvasItemComposition):
                 self.__dependent_display_items.append(dependent_display_item)
 
 
-class MissingDataCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
+class MissingCanvasItemComposer(CanvasItem.BaseComposer):
+    def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing, cache: CanvasItem.ComposerCache) -> None:
+        super().__init__(canvas_item, layout_sizing, cache)
+
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> None:
+        with drawing_context.saver():
+            drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
+            drawing_context.begin_path()
+            drawing_context.rect(0, 0, canvas_bounds.width, canvas_bounds.height)
+            drawing_context.fill_style = "#CCC"
+            drawing_context.fill()
+            drawing_context.begin_path()
+            drawing_context.rect(0, 0, canvas_bounds.width, canvas_bounds.height)
+            drawing_context.move_to(0, 0)
+            drawing_context.line_to(canvas_bounds.width, canvas_bounds.height)
+            drawing_context.move_to(0, canvas_bounds.height)
+            drawing_context.line_to(canvas_bounds.width, 0)
+            drawing_context.stroke_style = "#444"
+            drawing_context.stroke()
+
+
+class MissingCanvasItem(CanvasItem.AbstractCanvasItem):
+    def __init__(self) -> None:
+        super().__init__()
+
+    def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> typing.Optional[CanvasItem.BaseComposer]:
+        return MissingCanvasItemComposer(self, self.sizing, composer_cache)
+
+
+class MissingDisplayCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
     """ Canvas item to draw background_color. """
     def __init__(self, delegate: typing.Optional[DisplayCanvasItem.DisplayCanvasItemDelegate]) -> None:
         super().__init__()
         self.__delegate = delegate
+        self.add_canvas_item(MissingCanvasItem())
 
     def context_menu_event(self, x: int, y: int, gx: int, gy: int) -> bool:
         return self.__delegate.show_display_context_menu(gx, gy) if self.__delegate else False
@@ -920,24 +1060,6 @@ class MissingDataCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
     def handle_auto_display(self) -> bool:
         # enter key has been pressed
         return False
-
-    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
-        # canvas size
-        canvas_size = self.canvas_size
-        if canvas_size:
-            with drawing_context.saver():
-                drawing_context.begin_path()
-                drawing_context.rect(0, 0, canvas_size.width, canvas_size.height)
-                drawing_context.fill_style = "#CCC"
-                drawing_context.fill()
-                drawing_context.begin_path()
-                drawing_context.rect(0, 0, canvas_size.width, canvas_size.height)
-                drawing_context.move_to(0, 0)
-                drawing_context.line_to(canvas_size.width, canvas_size.height)
-                drawing_context.move_to(0, canvas_size.height)
-                drawing_context.line_to(canvas_size.width, 0)
-                drawing_context.stroke_style = "#444"
-                drawing_context.stroke()
 
 
 class DisplayTracker:
@@ -1772,7 +1894,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
 
         self.__playback_controller = PlaybackController(document_controller.event_loop)
 
-        self.__content_canvas_item = DisplayPanelOverlayCanvasItem(typing.cast(typing.Callable[[str, str], UISettings.FontMetrics], self.ui.get_font_metrics))
+        self.__content_canvas_item = DisplayPanelOverlayCanvasItemComposition(typing.cast(typing.Callable[[str, str], UISettings.FontMetrics], self.ui.get_font_metrics))
         self.__content_canvas_item.wants_mouse_events = True  # only when display_canvas_item is None
         self.__content_canvas_item.focusable = True
         self.__content_canvas_item.on_focus_changed = self.set_focused
@@ -1799,9 +1921,15 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         self.__footer_canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
         self.__footer_canvas_item.update_sizing(self.__footer_canvas_item.sizing.with_collapsible(True))
 
+        background_composition_canvas_item = CanvasItem.CanvasItemComposition()
+        empty_canvas_item = CanvasItem.EmptyCanvasItem(background_color="#ECECEC")
+        empty_canvas_item.update_sizing(empty_canvas_item.sizing.with_minimum_width(0).with_minimum_height(0))
+        background_composition_canvas_item.add_canvas_item(empty_canvas_item)
+        background_composition_canvas_item.add_canvas_item(self.__content_canvas_item)
+
         self.layout = CanvasItem.CanvasItemColumnLayout()
         self.add_canvas_item(self.__header_canvas_item)
-        self.add_canvas_item(self.__content_canvas_item)
+        self.add_canvas_item(background_composition_canvas_item)
         self.add_canvas_item(self.__footer_canvas_item)
 
         self.__display_panel_id: typing.Optional[str] = None
@@ -1948,7 +2076,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         def delete_display_item_adapters(display_item_adapters: typing.Sequence[DataPanel.DisplayItemAdapter]) -> None:
             document_controller.delete_display_items([display_item_adapter.display_item for display_item_adapter in display_item_adapters])
 
-        self.__horizontal_data_grid_controller = DataPanel.DataGridController(document_controller.event_loop, document_controller.ui, self.__filtered_display_item_adapters_model, self.__selection, direction=GridCanvasItem.Direction.Row, wrap=False)
+        self.__horizontal_data_grid_controller = DataPanel.DataGridController(document_controller.ui, self.__filtered_display_item_adapters_model, self.__selection, direction=GridCanvasItem.Direction.Row, wrap=False)
         self.__horizontal_data_grid_controller.on_context_menu_event = self.__handle_context_menu_for_display
         self.__horizontal_data_grid_controller.on_display_item_adapter_double_clicked = double_clicked
         self.__horizontal_data_grid_controller.on_focus_changed = focus_changed
@@ -1956,7 +2084,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         self.__horizontal_data_grid_controller.on_drag_started = data_list_drag_started
         self.__horizontal_data_grid_controller.on_key_pressed = key_pressed
 
-        self.__grid_data_grid_controller = DataPanel.DataGridController(document_controller.event_loop, document_controller.ui, self.__filtered_display_item_adapters_model, self.__selection)
+        self.__grid_data_grid_controller = DataPanel.DataGridController(document_controller.ui, self.__filtered_display_item_adapters_model, self.__selection)
         self.__grid_data_grid_controller.on_context_menu_event = self.__handle_context_menu_for_display
         self.__grid_data_grid_controller.on_display_item_adapter_double_clicked = double_clicked
         self.__grid_data_grid_controller.on_focus_changed = focus_changed
@@ -1979,7 +2107,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         self.__browser_composition_canvas_item.add_canvas_item(self.__horizontal_browser_canvas_item)
         self.__browser_composition_canvas_item.add_canvas_item(self.__grid_browser_canvas_item)
 
-        self.__content_canvas_item.add_canvas_item(self.__browser_composition_canvas_item)
+        self.__content_canvas_item.insert_canvas_item(0, self.__browser_composition_canvas_item)
 
         self.__display_changed = False  # put this at end of init to avoid transient initialization states
 
@@ -2071,7 +2199,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         return self.__header_canvas_item
 
     @property
-    def content_canvas_item(self) -> DisplayPanelOverlayCanvasItem:
+    def content_canvas_item(self) -> DisplayPanelOverlayCanvasItemComposition:
         return self.__content_canvas_item
 
     @property
