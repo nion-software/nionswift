@@ -219,16 +219,25 @@ class ObjectSpecifier:
         return None
 
 
-class CanvasItem(CanvasItemModule.AbstractCanvasItem):
+class CanvasItemComposer(CanvasItemModule.BaseComposer):
+    def __init__(self, canvas_item: CanvasItemModule.AbstractCanvasItem, layout_sizing: CanvasItemModule.Sizing, cache: CanvasItemModule.ComposerCache, on_repaint: typing.Optional[typing.Callable[[DrawingContext.DrawingContext, Geometry.IntSize], None]]) -> None:
+        super().__init__(canvas_item, layout_sizing, cache)
+        self.__on_repaint = on_repaint
 
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItemModule.ComposerCache) -> None:
+        with drawing_context.saver():
+            drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
+            if self.__on_repaint:
+                self.__on_repaint(drawing_context, canvas_bounds.size)
+
+
+class CanvasItem(CanvasItemModule.AbstractCanvasItem):
     def __init__(self) -> None:
         super().__init__()
-        self.on_repaint: typing.Optional[typing.Callable[[DrawingContext.DrawingContext, Geometry.IntSize], None]] = None
+        self.__on_repaint: typing.Optional[typing.Callable[[DrawingContext.DrawingContext, Geometry.IntSize], None]] = None
 
-    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
-        canvas_size = self.canvas_size
-        if self.on_repaint and canvas_size:
-            self.on_repaint(drawing_context, canvas_size)
+    def _get_composer(self, composer_cache: CanvasItemModule.ComposerCache) -> typing.Optional[CanvasItemModule.BaseComposer]:
+        return CanvasItemComposer(self, self.sizing, composer_cache, self.__on_repaint)
 
 
 class WidgetLike(typing.Protocol):
@@ -1341,7 +1350,8 @@ class DataItem(metaclass=SharedInstance):
 
     def data_item_to_svg(self) -> str:
         if self.__display_item:
-            drawing_context, shape = DisplayPanelModule.preview(DisplayPanelModule.FixedUISettings(), self.__display_item, 320, 240)
+            shape = Geometry.IntSize(height=240, width=320)
+            drawing_context = DisplayPanelModule.preview(DisplayPanelModule.FixedUISettings(), self.__display_item, shape)
             view_box = Geometry.IntRect(Geometry.IntPoint(), shape)
             return drawing_context.to_svg(shape, view_box)
         return str()
@@ -2722,15 +2732,15 @@ class Library(metaclass=SharedInstance):
         computation = self.__document_model.create_computation()
         for name, item in inputs.items():
             if isinstance(item, str):
-                computation.create_variable(name, value_type="string", value=item)
+                computation.create_variable(name, value_type=Symbolic.ComputationVariableType.STRING, value=item)
             elif isinstance(item, bool):
-                computation.create_variable(name, value_type="boolean", value=item)
+                computation.create_variable(name, value_type=Symbolic.ComputationVariableType.BOOLEAN, value=item)
             elif isinstance(item, numbers.Integral):
-                computation.create_variable(name, value_type="integral", value=item)
+                computation.create_variable(name, value_type=Symbolic.ComputationVariableType.INTEGRAL, value=item)
             elif isinstance(item, numbers.Real):
-                computation.create_variable(name, value_type="real", value=item)
+                computation.create_variable(name, value_type=Symbolic.ComputationVariableType.REAL, value=item)
             elif isinstance(item, numbers.Complex):
-                computation.create_variable(name, value_type="complex", value=item)
+                computation.create_variable(name, value_type=Symbolic.ComputationVariableType.COMPLEX, value=item)
             elif isinstance(item, dict) and item.get("object"):
                 object = item.get("object")
                 object_type = item.get("type")

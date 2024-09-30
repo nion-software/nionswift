@@ -76,10 +76,14 @@ class DisplayItemAdapter:
     def __init__(self, display_item: DisplayItem.DisplayItem, ui: UserInterface.UserInterface):
         self.ui = ui
         self.needs_update_event = Event.Event()
+        self.__list_item_drawing_context: typing.Optional[DrawingContext.DrawingContext] = None
+        self.__grid_item_drawing_context: typing.Optional[DrawingContext.DrawingContext] = None
 
         self.__display_item = display_item
 
         def display_item_changed() -> None:
+            self.__list_item_drawing_context = None
+            self.__grid_item_drawing_context = None
             self.needs_update_event.fire()
 
         self.__display_changed_event_listener = display_item.item_changed_event.listen(display_item_changed) if display_item else None
@@ -174,6 +178,8 @@ class DisplayItemAdapter:
             self.__thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.ui, self.__display_item).add_ref()
 
             def thumbnail_updated() -> None:
+                self.__list_item_drawing_context = None
+                self.__grid_item_drawing_context = None
                 self.needs_update_event.fire()
 
             assert self.__thumbnail_source  # type checker
@@ -182,22 +188,36 @@ class DisplayItemAdapter:
         return self.__thumbnail_source.thumbnail_data if self.__thumbnail_source else None
 
     def draw_list_item(self, drawing_context: DrawingContext.DrawingContext, rect: Geometry.IntRect) -> None:
+        if not self.__list_item_drawing_context:
+            list_item_drawing_context = DrawingContext.DrawingContext()
+            with list_item_drawing_context.saver():
+                item_rect = Geometry.IntRect(Geometry.IntPoint(), size=rect.size)
+                draw_rect = Geometry.IntRect(origin=item_rect.top_left + Geometry.IntPoint(y=4, x=4), size=Geometry.IntSize(h=72, w=72))
+                list_item_drawing_context.add(self.__create_thumbnail(draw_rect))
+                list_item_drawing_context.fill_style = "#000"
+                list_item_drawing_context.font = "11px serif"
+                list_item_drawing_context.fill_text(self.title_str, item_rect.left + 4 + 72 + 4, item_rect.top + 4 + 12)
+                list_item_drawing_context.fill_text(self.format_str, item_rect.left + 4 + 72 + 4, item_rect.top + 4 + 12 + 15)
+                list_item_drawing_context.fill_text(self.datetime_str, item_rect.left + 4 + 72 + 4, item_rect.top + 4 + 12 + 15 + 15)
+                if status_str := self.status_str:
+                    list_item_drawing_context.fill_text(status_str, item_rect.left + 4 + 72 + 4, item_rect.top + 4 + 12 + 15 + 15 + 15)
+                else:
+                    list_item_drawing_context.fill_style = "#888"
+                    list_item_drawing_context.fill_text(self.project_str, item_rect.left + 4 + 72 + 4, item_rect.top + 4 + 12 + 15 + 15 + 15)
+            self.__list_item_drawing_context = list_item_drawing_context
         with drawing_context.saver():
-            draw_rect = Geometry.IntRect(origin=rect.top_left + Geometry.IntPoint(y=4, x=4), size=Geometry.IntSize(h=72, w=72))
-            drawing_context.add(self.__create_thumbnail(draw_rect))
-            drawing_context.fill_style = "#000"
-            drawing_context.font = "11px serif"
-            drawing_context.fill_text(self.title_str, rect.left + 4 + 72 + 4, rect.top + 4 + 12)
-            drawing_context.fill_text(self.format_str, rect.left + 4 + 72 + 4, rect.top + 4 + 12 + 15)
-            drawing_context.fill_text(self.datetime_str, rect.left + 4 + 72 + 4, rect.top + 4 + 12 + 15 + 15)
-            if self.status_str:
-                drawing_context.fill_text(self.status_str, rect.left + 4 + 72 + 4, rect.top + 4 + 12 + 15 + 15 + 15)
-            else:
-                drawing_context.fill_style = "#888"
-                drawing_context.fill_text(self.project_str, rect.left + 4 + 72 + 4, rect.top + 4 + 12 + 15 + 15 + 15)
+            drawing_context.translate(rect.left, rect.top)
+            drawing_context.add(self.__list_item_drawing_context)
 
     def draw_grid_item(self, drawing_context: DrawingContext.DrawingContext, rect: Geometry.IntRect) -> None:
-        drawing_context.add(self.__create_thumbnail(rect.inset(6)))
+        if not self.__grid_item_drawing_context:
+            grid_item_drawing_context = DrawingContext.DrawingContext()
+            item_rect = Geometry.IntRect(Geometry.IntPoint(), size=rect.size)
+            grid_item_drawing_context.add(self.__create_thumbnail(item_rect.inset(6)))
+            self.__grid_item_drawing_context = grid_item_drawing_context
+        with drawing_context.saver():
+            drawing_context.translate(rect.left, rect.top)
+            drawing_context.add(self.__grid_item_drawing_context)
 
 
 class ItemExplorerCanvasItemLike(typing.Protocol):
@@ -229,12 +249,10 @@ class ThreadHelper:
 
 
 class ItemExplorerController:
-    def __init__(self, event_loop: asyncio.AbstractEventLoop, ui: UserInterface.UserInterface,
+    def __init__(self, ui: UserInterface.UserInterface,
                  canvas_item: CanvasItem.AbstractCanvasItem,
                  display_item_adapters_model: ListModel.MappedListModel, selection: Selection.IndexedSelection,
                  direction: GridCanvasItem.Direction = GridCanvasItem.Direction.Row, wrap: bool = True) -> None:
-        self.__event_loop = event_loop
-        self.__thread_helper = ThreadHelper(event_loop)
         self.__pending_tasks: typing.List[asyncio.Task[None]] = list()
         self.ui = ui
         self.__selection = selection
@@ -301,8 +319,6 @@ class ItemExplorerController:
 
     def close(self) -> None:
         assert not self.__closed
-        self.__thread_helper.close()
-        self.__thread_helper = typing.cast(typing.Any, None)
         for pending_task in self.__pending_tasks:
             pending_task.cancel()
         self.__pending_tasks = typing.cast(typing.Any, None)
@@ -405,7 +421,7 @@ class ItemExplorerController:
         return self.__display_item_adapters[index]
 
     def __display_item_adapter_needs_update(self) -> None:
-        self.__thread_helper.call_on_main_thread("list_canvas_item.update", self.__list_canvas_item.update)
+        self.__list_canvas_item.update()
 
     # call this method to insert a display item
     # not thread safe
@@ -425,7 +441,8 @@ class ItemExplorerController:
     def __display_item_adapter_end_changes(self, key: str) -> None:
         if key == "display_item_adapters":
             if self.canvas_item.visible:
-                self.__list_canvas_item.refresh_layout()
+                # note: layout is not needed here since only an individual adapter has changed
+                # self.__list_canvas_item.refresh_layout()
                 self.__list_canvas_item.update()
 
 
@@ -505,18 +522,18 @@ class GridCanvasItemDelegate(GridCanvasItem.GridCanvasItemDelegate):
 
 
 class DataListController(ItemExplorerController):
-    def __init__(self, event_loop: asyncio.AbstractEventLoop, ui: UserInterface.UserInterface,
-                 display_item_adapters_model: ListModel.MappedListModel, selection: Selection.IndexedSelection) -> None:
+    def __init__(self, ui: UserInterface.UserInterface, display_item_adapters_model: ListModel.MappedListModel,
+                 selection: Selection.IndexedSelection) -> None:
         canvas_item = ListCanvasItem.ListCanvasItem(ListCanvasItemDelegate(self), selection)
-        super().__init__(event_loop, ui, canvas_item, display_item_adapters_model, selection, GridCanvasItem.Direction.Row, True)
+        super().__init__(ui, canvas_item, display_item_adapters_model, selection, GridCanvasItem.Direction.Row, True)
 
 
 class DataGridController(ItemExplorerController):
-    def __init__(self, event_loop: asyncio.AbstractEventLoop, ui: UserInterface.UserInterface,
-                 display_item_adapters_model: ListModel.MappedListModel, selection: Selection.IndexedSelection,
+    def __init__(self, ui: UserInterface.UserInterface, display_item_adapters_model: ListModel.MappedListModel,
+                 selection: Selection.IndexedSelection,
                  direction: GridCanvasItem.Direction = GridCanvasItem.Direction.Row, wrap: bool = True) -> None:
         canvas_item = GridCanvasItem.GridCanvasItem(GridCanvasItemDelegate(self), selection, direction, wrap)
-        super().__init__(event_loop, ui, canvas_item, display_item_adapters_model, selection, direction, wrap)
+        super().__init__(ui, canvas_item, display_item_adapters_model, selection, direction, wrap)
 
 
 class ItemExplorerWidget(Widgets.CompositeWidgetBase):
@@ -584,12 +601,12 @@ class DataPanel(Panel.Panel):
         def delete_display_item_adapters(display_item_adapters: typing.List[DisplayItemAdapter]) -> None:
             document_controller.delete_display_items([display_item_adapter.display_item for display_item_adapter in display_item_adapters if display_item_adapter.display_item])
 
-        self.data_list_controller = DataListController(document_controller.event_loop, ui, self.__filtered_display_item_adapters_model, self.__selection)
+        self.data_list_controller = DataListController(ui, self.__filtered_display_item_adapters_model, self.__selection)
         self.data_list_controller.on_context_menu_event = show_context_menu
         self.data_list_controller.on_focus_changed = focus_changed
         self.data_list_controller.on_delete_display_item_adapters = delete_display_item_adapters
 
-        self.data_grid_controller = DataGridController(document_controller.event_loop, ui, self.__filtered_display_item_adapters_model, self.__selection)
+        self.data_grid_controller = DataGridController(ui, self.__filtered_display_item_adapters_model, self.__selection)
         self.data_grid_controller.on_context_menu_event = show_context_menu
         self.data_grid_controller.on_focus_changed = focus_changed
         self.data_grid_controller.on_delete_display_item_adapters = delete_display_item_adapters

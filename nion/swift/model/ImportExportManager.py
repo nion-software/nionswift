@@ -575,8 +575,7 @@ class StandardImportExportHandler(ImportExportHandler):
         assert display_values
         data = display_values.display_rgba  # export the display rather than the data for these types
         assert data is not None
-        # TODO: fix typing when imageio gets their numpy typing correct.
-        imageio.imwrite(path, Image.get_rgb_view(data), extension="." + extension)
+        imageio.imwrite(path, numpy.flip(Image.get_rgb_view(data), 2), extension="." + extension)
 
 
 class CSVImportExportHandler(ImportExportHandler):
@@ -593,13 +592,14 @@ class CSVImportExportHandler(ImportExportHandler):
         return list()
 
     def can_write(self, data_metadata: DataAndMetadata.DataMetadata, extension: str) -> bool:
-        return True
+        return 0 < len(data_metadata.dimensional_shape) <= 2
 
     def write_display_item(self, display_item: DisplayItem.DisplayItem, path: pathlib.Path, extension: str) -> None:
         data_item = display_item.data_item
         assert data_item
+        assert data_item.data_metadata
         data = data_item.data
-        if data is not None:
+        if data is not None and self.can_write(data_item.data_metadata, 'csv'):
             numpy.savetxt(path, data, delimiter=', ')
 
 

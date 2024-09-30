@@ -36,6 +36,7 @@ from nion.swift.model import Schema
 from nion.swift.model import Symbolic
 from nion.ui import CanvasItem
 from nion.ui import Declarative
+from nion.ui import DrawingContext
 from nion.ui import UserInterface
 from nion.ui import Widgets
 from nion.ui import Window
@@ -263,7 +264,18 @@ class InspectorSection(Widgets.CompositeWidgetBase):
 
     def __init__(self, ui: UserInterface.UserInterface, section_id: str, section_title: str) -> None:
         self.__section_content_column = ui.create_column_widget()
-        super().__init__(Widgets.SectionWidget(ui, section_title, self.__section_content_column, "inspector/" + section_id + "/open"))
+        section_widget = Widgets.SectionWidget(ui, section_title, self.__section_content_column, "inspector/" + section_id + "/open")
+
+        # create a persistent bool model to store the expanded state of the section.
+        # this is used to remember the state of the section when the inspector is closed and reopened.
+        # the section id is used to create a unique key for the persistent bool model.
+        # the default state is expanded.
+        # bind the expanded state to the section widget expanded property.
+        self.__persistent_expanded_state = ui.create_persistent_bool_model("inspector-section-expanded." + section_id, True)
+        self.__expanded_state_binding = Binding.PropertyBinding(self.__persistent_expanded_state, "value")
+        section_widget.bind_expanded(self.__expanded_state_binding)
+
+        super().__init__(section_widget)
         self.ui = ui  # for use in subclasses
         self._unbinder = Unbinder()
 
@@ -498,28 +510,112 @@ class ChangeGraphicPropertyBinding(Binding.PropertyBinding):
                 self.__document_controller.push_undo_command(command)
 
 
-class DisplayDataChannelPropertyCommandModel(Model.PropertyModel[typing.Any]):
+class DisplayDataChannelPropertyCommandModel(Model.PropertyChangedPropertyModel[typing.Any]):
+    """Display data channel property command model.
+
+    This model makes undoable changes to a display data channel property.
+
+    The value of the display data channel property appears as the 'value' property of this model.
+    """
 
     def __init__(self, document_controller: DocumentController.DocumentController,
                  display_data_channel: DisplayItem.DisplayDataChannel, property_name: str, title: str,
                  command_id: str) -> None:
-        super().__init__(getattr(display_data_channel, property_name))
+        super().__init__(display_data_channel, property_name)
+        self.__document_controller = document_controller
+        self.__title = title
+        self.__command_id = command_id
+
+    def _set_property_value(self, value: typing.Optional[typing.Any]) -> None:
+        if value != self._get_property_value():
+            document_controller = self.__document_controller
+            display_data_channel = typing.cast(DisplayItem.DisplayDataChannel, self._observable)
+            property_name = self._property_name
+            title = self.__title
+            command_id = self.__command_id
+            command = DisplayPanel.ChangeDisplayDataChannelCommand(document_controller.document_model, display_data_channel,
+                                                                   title=title, command_id=command_id, is_mergeable=True,
+                                                                   **{property_name: value})
+            command.perform()
+            document_controller.push_undo_command(command)
+
+
+class DisplayDataChannelAdjustmentPropertyCommandModel(Model.PropertyChangedPropertyModel[typing.Any]):
+    """Display data channel property command model.
+
+    This model makes undoable changes to a display data channel property.
+
+    The value of the display data channel property appears as the 'value' property of this model.
+    """
+
+    def __init__(self, document_controller: DocumentController.DocumentController,
+                 display_data_channel: DisplayItem.DisplayDataChannel, property_name: str, default_value: typing.Any = None) -> None:
+        super().__init__(display_data_channel, "adjustments")
+        self.__document_controller = document_controller
+        self.__default_value = default_value
+        self.__adjustment_name = property_name
+
+    def _set_property_value(self, value: typing.Optional[typing.Any]) -> None:
+        document_controller = self.__document_controller
+        display_data_channel = typing.cast(DisplayItem.DisplayDataChannel, self._observable)
+        property_name = self.__adjustment_name
+        if value != display_data_channel.adjustments[0].get(property_name, None):
+            adjustment = display_data_channel.adjustments[0]
+            adjustment[property_name] = value
+            command = DisplayPanel.ChangeDisplayDataChannelCommand(document_controller.document_model, display_data_channel, title=_("Change Display"), command_id="change_display_" + property_name, is_mergeable=True, adjustments=[adjustment])
+            command.perform()
+            document_controller.push_undo_command(command)
+
+    def _get_property_value(self) -> typing.Optional[typing.Any]:
+        display_data_channel = typing.cast(DisplayItem.DisplayDataChannel, self._observable)
+        property_name = self.__adjustment_name
+        if len(display_data_channel.adjustments) == 1:
+            return display_data_channel.adjustments[0].get(property_name, self.__default_value)
+        return self.__default_value
+
+
+class DisplayItemPropertyCommandModel(Model.PropertyChangedPropertyModel[typing.Any]):
+    def __init__(self, document_controller: DocumentController.DocumentController,
+                 display_item: DisplayItem.DisplayItem, property_name: str) -> None:
+        super().__init__(display_item, property_name)
+        self.__display_item = display_item
+        self.__document_controller = document_controller
         self.__property_name = property_name
-        self.__display_data_channel = display_data_channel
 
-        def property_changed_from_user(value: typing.Any) -> None:
-            if value != getattr(display_data_channel, property_name):
-                command = DisplayPanel.ChangeDisplayDataChannelCommand(document_controller.document_model, display_data_channel, title=title, command_id=command_id, is_mergeable=True, **{property_name: value})
-                command.perform()
-                document_controller.push_undo_command(command)
+    def _set_property_value(self, value: typing.Optional[typing.Any]) -> None:
+        if value != self._get_property_value():
+            command = ChangeDisplayItemPropertyCommand(self.__document_controller.document_model, self.__display_item, self.__property_name, value)
+            command.perform()
+            self.__document_controller.push_undo_command(command)
 
-        self.on_value_changed = property_changed_from_user
+    def _get_property_value(self) -> typing.Optional[typing.Any]:
+        return getattr(self.__display_item, self.__property_name)
 
-        self.__changed_listener = display_data_channel.property_changed_event.listen(ReferenceCounting.weak_partial(DisplayDataChannelPropertyCommandModel.__property_changed_from_display, self))
 
-    def __property_changed_from_display(self, name: str) -> None:
-        if name == self.__property_name:
-            self.value = getattr(self.__display_data_channel, self.__property_name)
+class DisplayItemDisplayPropertyCommandModel(Model.PropertyChangedPropertyModel[typing.Any]):
+    """Display item channel property command model.
+
+    This model makes undoable changes to a display item property.
+    """
+
+    def __init__(self, document_controller: DocumentController.DocumentController,
+                 display_item: DisplayItem.DisplayItem, property_name: str) -> None:
+        super().__init__(display_item, property_name)
+        self.__display_item = display_item
+        self.__document_controller = document_controller
+        self.__property_name = property_name
+
+    def _set_property_value(self, value: typing.Optional[typing.Any]) -> None:
+        if value != self._get_property_value():
+            command = DisplayPanel.ChangeDisplayCommand(self.__document_controller.document_model, self.__display_item,
+                                                        title=_("Change Display"),
+                                                        command_id="change_display_" + self.__property_name, is_mergeable=True,
+                                                        **{self.__property_name: value})
+            command.perform()
+            self.__document_controller.push_undo_command(command)
+
+    def _get_property_value(self) -> typing.Optional[typing.Any]:
+        return self.__display_item.get_display_property(self.__property_name)
 
 
 class GraphicPropertyCommandModel(Model.PropertyModel[typing.Any]):
@@ -546,134 +642,130 @@ class GraphicPropertyCommandModel(Model.PropertyModel[typing.Any]):
             self.value = getattr(self.__graphic, self.__property_name)
 
 
+class InfoInspectorHandler(Declarative.Handler):
+    def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem):
+        super().__init__()
+        self._display_item = display_item
+        self._title_model = DisplayItemPropertyCommandModel(document_controller, display_item, "title")
+        self._placeholder_title_model = DisplayItemPropertyCommandModel(document_controller, display_item, "placeholder_title")
+        self._caption_model = DisplayItemPropertyCommandModel(document_controller, display_item, "caption")
+        self._editable_caption_model = Model.PropertyModel[str](display_item.caption)
+        self._caption_current_index = Model.PropertyModel[int](0)
+        self._session_id_model = Model.PropertyChangedPropertyModel[str](display_item, "session_id")
+        self._created_local_as_string_model = DisplayItemPropertyCommandModel(document_controller, display_item, "created_local_as_string")
+        self.info_title_label: typing.Optional[UserInterface.Widget] = None
+
+        u = Declarative.DeclarativeUI()
+
+        TOOL_TIP_STR = _("Use empty field for automatic title.")
+
+        self.ui_view = u.create_column(
+            u.create_row(
+                u.create_label(text=_("Title"), width=60, tooltip=TOOL_TIP_STR),
+                u.create_line_edit(name="info_title_label", text="@binding(_title_model.value)", placeholder_text="@binding(_placeholder_title_model.value)", tooltip=TOOL_TIP_STR),
+                u.create_spacing(8)
+            ),
+            u.create_row(
+                u.create_column(
+                    u.create_label(text=_("Caption"), width=60),
+                    u.create_stretch()
+                ),
+                u.create_stack(
+                    u.create_column(
+                        u.create_text_edit(height=60, editable=False, text="@binding(_caption_model.value)"),
+                        u.create_row(
+                            u.create_push_button(text=_("Edit"), on_clicked="_begin_caption_edit"),
+                            u.create_stretch()
+                        ),
+                    ),
+                    u.create_column(
+                        u.create_text_edit(height=60, text="@binding(_editable_caption_model.value)"),
+                        u.create_row(
+                            u.create_push_button(text=_("Save"), on_clicked="_save_caption_edit"),
+                            u.create_push_button(text=_("Cancel"), on_clicked="_end_caption_edit"),
+                            u.create_stretch()
+                        )
+                    ),
+                    current_index="@binding(_caption_current_index.value)"
+                ),
+                u.create_spacing(8)
+            ),
+            u.create_row(
+                u.create_label(text=_("Session"), width=60),
+                u.create_label(text="@binding(_session_id_model.value)", width=240),
+                u.create_stretch()
+            ),
+            u.create_row(
+                u.create_label(text=_("Date"), width=60),
+                u.create_label(text="@binding(_created_local_as_string_model.value)"),
+            ),
+            spacing=4
+        )
+
+    def _begin_caption_edit(self, widget: UserInterface.Widget) -> None:
+        self._editable_caption_model.value = self._display_item.caption
+        self._caption_current_index.value = 1
+
+    def _save_caption_edit(self, widget: UserInterface.Widget) -> None:
+        new_caption = self._editable_caption_model.value
+        self._caption_model.value = new_caption if new_caption is not None else str()
+        self._caption_current_index.value = 0
+
+    def _end_caption_edit(self, widget: UserInterface.Widget) -> None:
+        self._editable_caption_model.value = self._display_item.caption
+        self._caption_current_index.value = 0
+
+
 class InfoInspectorSection(InspectorSection):
 
     """
         Subclass InspectorSection to implement info inspector.
     """
 
-    def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem) -> None:
+    def __init__(self, document_controller: DocumentController.DocumentController,
+                 display_item: DisplayItem.DisplayItem) -> None:
         super().__init__(document_controller.ui, "info", _("Info"))
-        ui = document_controller.ui
         self.widget_id = "info_inspector_section"
-        # title
-        TOOL_TIP_STR = _("Use empty field for automatic title.")
-        self.info_section_title_row = self.ui.create_row_widget()
-        title_label_widget = self.ui.create_label_widget(_("Title"), properties={"width": 60})
-        title_label_widget.tool_tip = TOOL_TIP_STR
-        self.info_section_title_row.add(title_label_widget)
-        self.info_title_label = self.ui.create_line_edit_widget()
-        self.info_title_label.bind_text(ChangeDisplayItemPropertyBinding(document_controller, display_item, "title"))
-        self.info_title_label.bind_placeholder_text(Binding.PropertyBinding(display_item, "placeholder_title"))
-        self.info_title_label.tool_tip = TOOL_TIP_STR
-        self.info_section_title_row.add(self.info_title_label)
-        self.info_section_title_row.add_spacing(8)
-        # caption
-        self.caption_row = self.ui.create_row_widget()
 
-        self.caption_label_column = self.ui.create_column_widget()
-        self.caption_label_column.add(self.ui.create_label_widget(_("Caption"), properties={"width": 60}))
-        self.caption_label_column.add_stretch()
+        self._info_section_handler = InfoInspectorHandler(document_controller, display_item)
+        widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop, self._info_section_handler)
+        self.add_widget_to_content(widget)
 
-        self.caption_edit_stack = self.ui.create_stack_widget()
+        self.info_title_label = self._info_section_handler.info_title_label
 
-        self.caption_static_column = self.ui.create_column_widget()
-        self.caption_static_text = self.ui.create_text_edit_widget(properties={"height": 60})
-        self.caption_static_text.editable = False
-        caption_binding = Binding.PropertyBinding(display_item, "caption")
-        caption_binding.source_setter = None
-        self.caption_static_text.bind_text(caption_binding)
-        self.caption_static_button_row = self.ui.create_row_widget()
-        self.caption_static_edit_button = self.ui.create_push_button_widget(_("Edit"))
-        def begin_caption_edit() -> None:
-            self.caption_editable_text.text = display_item.caption
-            self.caption_static_text.unbind_text()
-            self.caption_edit_stack.current_index = 1
-        self.caption_static_edit_button.on_clicked = begin_caption_edit
-        self.caption_static_button_row.add(self.caption_static_edit_button)
-        self.caption_static_button_row.add_stretch()
-        self.caption_static_column.add(self.caption_static_text)
-        self.caption_static_column.add(self.caption_static_button_row)
-        self.caption_static_column.add_stretch()
 
-        self.caption_editable_column = self.ui.create_column_widget()
-        self.caption_editable_text = self.ui.create_text_edit_widget(properties={"height": 60})
-        self.caption_editable_button_row = self.ui.create_row_widget()
-        self.caption_editable_save_button = self.ui.create_push_button_widget(_("Save"))
-        self.caption_editable_cancel_button = self.ui.create_push_button_widget(_("Cancel"))
-        def end_caption_edit() -> None:
-            caption_binding = Binding.PropertyBinding(display_item, "caption")
-            caption_binding.source_setter = None
-            self.caption_static_text.bind_text(caption_binding)
-            self.caption_edit_stack.current_index = 0
-        def save_caption_edit() -> None:
-            command = ChangeDisplayItemPropertyCommand(document_controller.document_model, display_item, "caption", self.caption_editable_text.text)
-            command.perform()
-            document_controller.push_undo_command(command)
-            end_caption_edit()
-        self.caption_editable_button_row.add(self.caption_editable_save_button)
-        self.caption_editable_button_row.add(self.caption_editable_cancel_button)
-        self.caption_editable_button_row.add_stretch()
-        self.caption_editable_save_button.on_clicked = save_caption_edit
-        self.caption_editable_cancel_button.on_clicked = end_caption_edit
-        self.caption_editable_column.add(self.caption_editable_text)
-        self.caption_editable_column.add(self.caption_editable_button_row)
-        self.caption_editable_column.add_stretch()
+class DataInfoInspectorSectionHandler(Declarative.Handler):
+    def __init__(self, document_controller: DocumentController.DocumentController, display_data_channel: DisplayItem.DisplayDataChannel):
+        super().__init__()
 
-        self.caption_edit_stack.add(self.caption_static_column)
-        self.caption_edit_stack.add(self.caption_editable_column)
+        self._created_local_as_string_model = DisplayDataChannelPropertyCommandModel(document_controller, display_data_channel, "created_local_as_string", title=_("Created Local"), command_id="created_local_changed")
+        self._size_and_data_format_as_string = DisplayDataChannelPropertyCommandModel(document_controller, display_data_channel, "size_and_data_format_as_string", title=_("Size And Data Format"), command_id="size_and_data_format_changed")
 
-        self.caption_row.add(self.caption_label_column)
-        self.caption_row.add(self.caption_edit_stack)
-        self.caption_row.add_spacing(8)
+        u = Declarative.DeclarativeUI()
 
-        # session
-        self.info_section_session_row = self.ui.create_row_widget()
-        self.info_section_session_row.add(self.ui.create_label_widget(_("Session"), properties={"width": 60}))
-        self.info_session_label = self.ui.create_label_widget(properties={"width": 240})
-        self.info_session_label.bind_text(Binding.PropertyBinding(display_item, "session_id"))
-        self.info_section_session_row.add(self.info_session_label)
-        self.info_section_session_row.add_stretch()
-        # date
-        self.info_section_datetime_row = self.ui.create_row_widget()
-        self.info_section_datetime_row.add(self.ui.create_label_widget(_("Date"), properties={"width": 60}))
-        self.info_datetime_label = self.ui.create_label_widget(properties={"width": 240})
-        self.info_datetime_label.bind_text(Binding.PropertyBinding(display_item, "created_local_as_string"))
-        self.info_section_datetime_row.add(self.info_datetime_label)
-        self.info_section_datetime_row.add_stretch()
-        # add all of the rows to the section content
-        self.add_widget_to_content(self.info_section_title_row)
-        self.add_widget_to_content(self.caption_row)
-        self.add_widget_to_content(self.info_section_session_row)
-        self.add_widget_to_content(self.info_section_datetime_row)
-        self.finish_widget_content()
-        # add unbinders
-        self._unbinder.add([display_item], [self.info_title_label.unbind_text, self.caption_static_text.unbind_text, self.info_session_label.unbind_text, self.info_datetime_label.unbind_text])
+        self.ui_view = u.create_column(
+            u.create_row(
+                u.create_label(text=_("Date"), width=60),
+                u.create_label(text="@binding(_created_local_as_string_model.value)", width=240),
+                u.create_stretch()
+            ),
+            u.create_row(
+                u.create_label(text=_("Data"), width=60),
+                u.create_label(text="@binding(_size_and_data_format_as_string.value)", width=240),
+                u.create_stretch()
+            ),
+            spacing=4,
+            margin_bottom=4
+        )
 
 
 class DataInfoInspectorSection(InspectorSection):
     def __init__(self, document_controller: DocumentController.DocumentController, display_data_channel: DisplayItem.DisplayDataChannel) -> None:
-        super().__init__(document_controller.ui, "data_info", _("Data Info"))
-        # date
-        self.info_section_datetime_row = self.ui.create_row_widget()
-        self.info_section_datetime_row.add(self.ui.create_label_widget(_("Date"), properties={"width": 60}))
-        self.info_datetime_label = self.ui.create_label_widget(properties={"width": 240})
-        self.info_datetime_label.bind_text(Binding.PropertyBinding(display_data_channel, "created_local_as_string"))
-        self.info_section_datetime_row.add(self.info_datetime_label)
-        self.info_section_datetime_row.add_stretch()
-        # format (size, datatype)
-        self.info_section_format_row = self.ui.create_row_widget()
-        self.info_section_format_row.add(self.ui.create_label_widget(_("Data"), properties={"width": 60}))
-        self.info_format_label = self.ui.create_label_widget(properties={"width": 240})
-        self.info_format_label.bind_text(Binding.PropertyBinding(display_data_channel, "size_and_data_format_as_string"))
-        self.info_section_format_row.add(self.info_format_label)
-        self.info_section_format_row.add_stretch()
-        # add all of the rows to the section content
-        self.add_widget_to_content(self.info_section_datetime_row)
-        self.add_widget_to_content(self.info_section_format_row)
-        self.finish_widget_content()
-        # add unbinders
-        self._unbinder.add([display_data_channel], [self.info_datetime_label.unbind_text, self.info_format_label.unbind_text])
+        super().__init__(document_controller.ui, "data-info", _("Data Info"))
+        self._data_info_handler = DataInfoInspectorSectionHandler(document_controller, display_data_channel)
+        widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop, self._data_info_handler)
+
+        self.add_widget_to_content(widget)
 
 
 class ChangeDisplayLayerPropertyCommand(Undo.UndoableCommand):
@@ -790,7 +882,7 @@ class ChangeDisplayLayerDisplayDataChannelCommand(Undo.UndoableCommand):
 
 class LinePlotDisplayLayersInspectorSection(InspectorSection):
     def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem) -> None:
-        super().__init__(document_controller.ui, "line_plot_display_layer", _("Line Plot Display Layers"))
+        super().__init__(document_controller.ui, "line-plot-display-layer", _("Line Plot Display Layers"))
         ui = self.ui
 
         def change_label(label_edit_widget: UserInterface.LineEditWidget, display_layer: DisplayItem.DisplayLayer, label: str) -> None:
@@ -814,8 +906,8 @@ class LinePlotDisplayLayersInspectorSection(InspectorSection):
                 command.perform()
                 document_controller.push_undo_command(command)
 
-        def add_layer(display_layer: DisplayItem.DisplayLayer) -> None:
-            index = display_item.display_layers.index(display_layer) + 1
+        def add_layer(display_layer: typing.Optional[DisplayItem.DisplayLayer]) -> None:
+            index = display_item.display_layers.index(display_layer) + 1 if display_layer else 0
             command = DisplayPanel.AddDisplayLayerCommand(document_controller.document_model, display_item, index)
             command.perform()
             document_controller.push_undo_command(command)
@@ -1019,7 +1111,7 @@ class LinePlotDisplayLayersInspectorSection(InspectorSection):
         button_row = ui.create_row_widget()
         button_row.add(add_layer_button_widget)
         button_row.add_stretch()
-        add_layer_button_widget.on_clicked = functools.partial(add_layer, 0)
+        add_layer_button_widget.on_clicked = functools.partial(add_layer, None)
         column.add(button_row)
 
         def update_labels() -> None:
@@ -1056,175 +1148,367 @@ class LinePlotDisplayLayersInspectorSection(InspectorSection):
         super().close()
 
 
+class ImageDisplayLimitsModel(Observable.Observable):
+    def __init__(self, display_data_channel: DisplayItem.DisplayDataChannel, display_limits_model: Model.PropertyModel[typing.Tuple[int, ...]], index: int) -> None:
+        super().__init__()
+        data_item = display_data_channel.data_item
+
+        assert data_item
+        self.__display_data_channel = display_data_channel
+        self.__data_item = data_item
+        self.__index = index
+        self.__display_limits_model = display_limits_model
+        self.__display_limits_model_listener = self.__display_limits_model.property_changed_event.listen(
+            ReferenceCounting.weak_partial(ImageDisplayLimitsModel.__handle_limits_changed, self))
+        self.__last_value = self.value
+
+    def __handle_limits_changed(self, property_name: str) -> None:
+        if property_name == "value":
+            if self.value != self.__last_value:
+                self.__last_value = self.value
+                self.notify_property_changed("value")
+
+    @property
+    def display_data_channel(self) -> DisplayItem.DisplayDataChannel:
+        return self.__display_data_channel
+
+    @property
+    def index(self) -> int:
+        return self.__index
+
+    @property
+    def value(self) -> typing.Optional[int]:
+        tuple_value = self.__display_limits_model.value
+        return tuple_value[self.__index] if tuple_value else None
+
+    @value.setter
+    def value(self, value: int) -> None:
+        tuple_value = self.__display_limits_model.value
+        display_limits = list(tuple_value) if tuple_value else []
+        while len(display_limits) <= self.__index:
+            display_limits.append(0)
+        display_limits[self.__index] = value
+        self.__display_limits_model.value = tuple(display_limits)
+        self.__last_value = self.value
+
+
+class ImageDataInspectorModel(Observable.Observable):
+    def __init__(self, document_controller: DocumentController.DocumentController, display_data_channel: DisplayItem.DisplayDataChannel, display_item: DisplayItem.DisplayItem) -> None:
+        super().__init__()
+        self._document_controller = document_controller
+        self._display_data_channel = display_data_channel
+        self._display_item = display_item
+
+        self.info_datetime_model = DisplayDataChannelPropertyCommandModel(document_controller, display_data_channel, "created_local_as_string", title=_("Created Date Time"), command_id="change_created_local_as_string")
+
+        self.size_and_data_format_model = DisplayDataChannelPropertyCommandModel(document_controller, display_data_channel, "size_and_data_format_as_string", title=_("Size and Data Format"), command_id="change_size_and_data_format_as_string")
+
+        self.data_range_low_model = Model.PropertyModel[float]()
+        self.data_range_high_model = Model.PropertyModel[float]()
+        self._update_data_range(self._display_data_channel.get_latest_computed_display_values())
+        self._display_data_channel.subscribe_to_latest_computed_display_values(self._update_data_range)
+
+        display_limits_model = DisplayDataChannelPropertyCommandModel(document_controller, display_data_channel, "display_limits", title=_("Change Display Limits"), command_id="change_display_limits")
+        self.display_limits_low_model = ImageDisplayLimitsModel(display_data_channel, display_limits_model, 0)
+        self.display_limits_high_model = ImageDisplayLimitsModel(display_data_channel, display_limits_model, 1)
+
+        self.color_map_items: typing.List[str] = [_("Default")]
+        self._color_map_flags: typing.List[typing.Optional[str]] = [None]
+        for color_map_key, color_map in ColorMaps.color_maps.items():
+            self.color_map_items.append(color_map.name)
+            self._color_map_flags.append(color_map_key)
+        self._color_map_reverse_map = {p: i for i, p in enumerate(self._color_map_flags)}
+        self.current_colormap_index = Model.PropertyModel[int](self._color_map_reverse_map[self._display_data_channel.color_map_id])
+
+        self.brightness_model = DisplayDataChannelPropertyCommandModel(document_controller, display_data_channel, "brightness", title=_("Change Brightness"), command_id="change_brightness")
+
+        self.contrast_model = DisplayDataChannelPropertyCommandModel(document_controller, display_data_channel, "contrast", title=_("Change Contrast"), command_id="change_contrast")
+
+        self.adjustment_options_items: typing.List[str] = [_("None"), _("Equalized"), _("Gamma"), _("Log")]
+        self._adjustment_options_flags: typing.List[typing.Optional[str]] = [None, "equalized", "gamma", "log"]
+        self._adjustment_options_reverse_map = {p: i for i, p in enumerate(self._adjustment_options_flags)}
+        self.current_adjustment_options_index = Model.PropertyModel[int](self.get_current_adjustment_index())
+        self.show_gamma_controls = Model.PropertyModel[bool](self._get_gamma_visibility())
+
+        self.gamma_model = DisplayDataChannelAdjustmentPropertyCommandModel(document_controller, display_data_channel, "gamma", 1.0)
+
+        self.listener = self._display_data_channel.property_changed_event.listen(ReferenceCounting.weak_partial(ImageDataInspectorModel._property_changed, self))
+
+    def _update_data_range(self, display_values: typing.Optional[DisplayItem.DisplayValues]) -> None:
+        if display_values is not None and display_values.data_range is not None:
+            data_range = display_values.data_range
+            self.data_range_low_model.value = data_range[0]
+            self.data_range_high_model.value = data_range[1]
+
+    def _get_gamma_visibility(self) -> bool:
+        return self.get_current_adjustment_id() == "gamma"
+
+    def _update_gamma_visibility(self) -> None:
+        self.show_gamma_controls.value = self._get_gamma_visibility()
+
+    def get_current_adjustment_id(self) -> typing.Optional[str]:
+        return self._display_data_channel.adjustments[0].get("type") if len(self._display_data_channel.adjustments) == 1 else None
+
+    def get_current_adjustment_index(self) -> int:
+        return self._adjustment_options_reverse_map[self.get_current_adjustment_id()]
+
+    def _property_changed(self, name: str) -> None:
+        if name == "color_map_id":
+            self.current_colormap_index.value = self._color_map_reverse_map[self._display_data_channel.color_map_id]
+        if name == "adjustments":
+            self.current_adjustment_options_index.value = self.get_current_adjustment_index()
+            self._update_gamma_visibility()
+
+    def change_color_map(self, widget: Declarative.UIWidget, current_index: int) -> None:
+        current_color_map = self._color_map_flags[current_index]
+        if self._display_data_channel.color_map_id != current_color_map:
+            command = DisplayPanel.ChangeDisplayDataChannelCommand(self._document_controller.document_model,
+                                                                   self._display_data_channel,
+                                                                   color_map_id=current_color_map,
+                                                                   title=_("Change Color Map"),
+                                                                   command_id="change_color_map", is_mergeable=True)
+            command.perform()
+            self._document_controller.push_undo_command(command)
+
+    def change_adjustment_option(self, widget: Declarative.UIWidget, current_index: int) -> None:
+        adjustment_option = self._adjustment_options_flags[current_index]
+        if self.get_current_adjustment_id() != adjustment_option:
+            adjustments = list() if adjustment_option is None else [{"type": adjustment_option, "uuid": str(uuid.uuid4())}]
+            command = DisplayPanel.ChangeDisplayDataChannelCommand(self._document_controller.document_model,
+                                                                   self._display_data_channel, adjustments=adjustments)
+            command.perform()
+            self._document_controller.push_undo_command(command)
+            self._update_gamma_visibility()
+
+
+class ImageDataInspectorHandler(Declarative.Handler):
+    def __init__(self, document_controller: DocumentController.DocumentController, display_data_channel: DisplayItem.DisplayDataChannel, display_item: DisplayItem.DisplayItem) -> None:
+        super().__init__()
+        self._model = ImageDataInspectorModel(document_controller, display_data_channel, display_item)
+        self._float_point_2_converter = BetterFloatToStringConverter()
+        self._float_point_2_none_converter = BetterFloatToStringConverter(pass_none=True)
+        self._float_to_scaled_integer_converter = Converter.FloatToScaledIntegerConverter(100, -1.0, 1.0)
+        self._float_to_string_converter = Converter.FloatToStringConverter(format="{:.2f}")
+        self._contrast_integer_converter = ContrastIntegerConverter(100)
+        self._contrast_string_converter = ContrastStringConverter()
+        self._gamma_integer_converter = GammaIntegerConverter()
+        self._gamma_string_converter = GammaStringConverter()
+
+        # for test purposes
+        self.display_limits_limit_low: typing.Optional[Declarative.UIWidget] = None
+        self.display_limits_limit_high: typing.Optional[Declarative.UIWidget] = None
+
+        u = Declarative.DeclarativeUI()
+
+        self.ui_view = u.create_column(
+            u.create_row(
+                u.create_label(text=_("Date"), width=60),
+                u.create_label(text="@binding(_model.info_datetime_model.value)", width=240),
+                u.create_stretch()
+            ),
+            u.create_row(
+                u.create_label(text=_("Data"), width=60),
+                u.create_label(text="@binding(_model.size_and_data_format_model.value)", width=240),
+                u.create_stretch()
+            ),
+            u.create_row(
+                u.create_label(text=_("Data Range:"), width=120),
+                u.create_label(text="@binding(_model.data_range_low_model.value, converter=_float_point_2_converter)", fallback=_("N/A"), width=80),
+                u.create_spacing(8),
+                u.create_label(text="@binding(_model.data_range_high_model.value, converter=_float_point_2_converter)", fallback=_("N/A"), width=80),
+                u.create_stretch()
+            ),
+            u.create_row(
+                u.create_label(text=_("Display Limits:"), width=120),
+                u.create_line_edit(text="@binding(_model.display_limits_low_model.value, converter=_float_point_2_none_converter)", placeholder_text=_("Auto"), width=80, name="display_limits_limit_low"),
+                u.create_spacing(8),
+                u.create_line_edit(text="@binding(_model.display_limits_high_model.value, converter=_float_point_2_none_converter)", placeholder_text=_("Auto"), width=80, name="display_limits_limit_high"),
+                u.create_stretch()
+            ),
+            u.create_row(
+                u.create_label(text=_("Color Map:"), width=120),
+                u.create_combo_box(items=self._model.color_map_items, on_current_index_changed="_change_color_map", current_index="@binding(_model.current_colormap_index.value)", width=120),
+                u.create_stretch()
+            ),
+            u.create_row(
+                u.create_label(text=_("Brightness"), width=80),
+                u.create_slider(value="@binding(_model.brightness_model.value, converter=_float_to_scaled_integer_converter)", minimum=0, maximum=100, width=124),
+                u.create_line_edit(text="@binding(_model.brightness_model.value, converter=_float_to_string_converter)", width=60),
+                u.create_stretch(),
+                spacing=8
+            ),
+            u.create_row(
+                u.create_label(text=_("Contrast"), width=80),
+                u.create_slider(value="@binding(_model.contrast_model.value, converter=_contrast_integer_converter)",  minimum=0, maximum=100, width=124),
+                u.create_line_edit(text="@binding(_model.contrast_model.value, converter=_contrast_string_converter)", width=60),
+                u.create_stretch(),
+                spacing=8
+            ),
+            u.create_row(
+                u.create_label(text=_("Adjustment:"), width=120),
+                u.create_combo_box(items=self._model.adjustment_options_items, on_current_index_changed="_change_adjustment_option", current_index="@binding(_model.current_adjustment_options_index.value)", width=120),
+                u.create_stretch(),
+            ),
+            u.create_row(
+                u.create_label(text=_("Gamma"), width=80),
+                u.create_slider(value="@binding(_model.gamma_model.value, converter=_gamma_integer_converter)", minimum=0, maximum=100, width=124),
+                u.create_line_edit(text="@binding(_model.gamma_model.value, converter=_gamma_string_converter)", width=60),
+                u.create_stretch(),
+                spacing=8,
+                visible="@binding(_model.show_gamma_controls.value)"
+            ),
+            spacing=4
+        )
+
+    def _change_color_map(self, widget: Declarative.UIWidget, current_index: int) -> None:
+        self._model.change_color_map(widget, current_index)
+
+    def _change_adjustment_option(self, widget: Declarative.UIWidget, current_index: int) -> None:
+        self._model.change_adjustment_option(widget, current_index)
+
+
+class ComplexDisplayTypeChooserHandler(Declarative.Handler):
+    def __init__(self, document_controller: DocumentController.DocumentController,  display_data_channel: DisplayItem.DisplayDataChannel) -> None:
+        super().__init__()
+        self._document_controller = document_controller
+        self._display_data_channel = display_data_channel
+        self._display_type_items = (_("Log Absolute"), _("Absolute"), _("Phase"), _("Real"), _("Imaginary"))
+        self._display_type_flags = ("log-absolute", "absolute", "phase", "real", "imaginary")
+        self._display_type_reverse_map = {p: i for i, p in enumerate(self._display_type_flags)}
+        self._current_index = self._display_type_reverse_map.get(display_data_channel.complex_display_type or str(), 0)
+
+        u = Declarative.DeclarativeUI()
+
+        self.ui_view = u.create_row(
+            u.create_label(text=_("Complex Display Type:"), width=120),
+            u.create_combo_box(items=self._display_type_items, on_current_index_changed="change_display_type", current_index="@binding(_current_index)")
+        )
+
+    def change_display_type(self,  widget: Declarative.UIWidget, current_index: int) -> None:
+        current_display_type = self._display_type_flags[current_index]
+        if self._display_data_channel.complex_display_type != current_display_type:
+            command = DisplayPanel.ChangeDisplayDataChannelCommand(self._document_controller.document_model,
+                                                                   self._display_data_channel, complex_display_type=current_display_type)
+            command.perform()
+            self._document_controller.push_undo_command(command)
+
+
 class ImageDataInspectorSection(InspectorSection):
     def __init__(self, document_controller: DocumentController.DocumentController, display_data_channel: DisplayItem.DisplayDataChannel, display_item: DisplayItem.DisplayItem) -> None:
-        super().__init__(document_controller.ui, "display-limits", _("Image Data"))
+        super().__init__(document_controller.ui, "image-data", _("Image Data"))
         ui = document_controller.ui
 
         self.widget_id = "image_data_inspector_section"
 
-        # color map
-        color_map_row, self.__color_map_changed_listener = make_color_map_chooser(document_controller, display_data_channel)
+        self.image_data_inspector_handler = ImageDataInspectorHandler(document_controller, display_data_channel, display_item)
+        image_data_inspector_widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop, self.image_data_inspector_handler)
 
-        # brightness, contrast, gamma
-        brightness_row = make_brightness_control(document_controller, display_data_channel)
-        contrast_row = make_contrast_control(document_controller, display_data_channel)
-        adjustment_row, self.__adjustment_changed_listener = make_adjustment_chooser(document_controller, display_data_channel)
+        self.add_widget_to_content(image_data_inspector_widget)
 
-        # complex display type
-        complex_display_type_row, self.__complex_display_type_changed_listener = make_complex_display_type_chooser(document_controller, display_data_channel)
-
-        # data_range model
-        self.__data_range_model = Model.PropertyModel[typing.Any]()
-
-        # date
-        self.info_section_datetime_row = self.ui.create_row_widget()
-        self.info_section_datetime_row.add(self.ui.create_label_widget(_("Date"), properties={"width": 60}))
-        self.info_datetime_label = self.ui.create_label_widget(properties={"width": 240})
-        self.info_datetime_label.bind_text(Binding.PropertyBinding(display_data_channel, "created_local_as_string"))
-        self.info_section_datetime_row.add(self.info_datetime_label)
-        self.info_section_datetime_row.add_stretch()
-
-        # format (size, datatype)
-        self.info_section_format_row = self.ui.create_row_widget()
-        self.info_section_format_row.add(self.ui.create_label_widget(_("Data"), properties={"width": 60}))
-        self.info_format_label = self.ui.create_label_widget(properties={"width": 240})
-        self.info_format_label.bind_text(Binding.PropertyBinding(display_data_channel, "size_and_data_format_as_string"))
-        self.info_section_format_row.add(self.info_format_label)
-        self.info_section_format_row.add_stretch()
-
-        # configure the display limit editor
-        self.display_limits_range_row = ui.create_row_widget()
-        self.display_limits_range_low = ui.create_label_widget(properties={"width": 80})
-        self.display_limits_range_high = ui.create_label_widget(properties={"width": 80})
-        float_point_2_converter = BetterFloatToStringConverter()
-        float_point_2_none_converter = BetterFloatToStringConverter(pass_none=True)
-        self.display_limits_range_low.bind_text(Binding.TuplePropertyBinding(self.__data_range_model, "value", 0, converter=float_point_2_converter, fallback=_("N/A")))
-        self.display_limits_range_high.bind_text(Binding.TuplePropertyBinding(self.__data_range_model, "value", 1, converter=float_point_2_converter, fallback=_("N/A")))
-        self.display_limits_range_row.add(ui.create_label_widget(_("Data Range:"), properties={"width": 120}))
-        self.display_limits_range_row.add(self.display_limits_range_low)
-        self.display_limits_range_row.add_spacing(8)
-        self.display_limits_range_row.add(self.display_limits_range_high)
-        self.display_limits_range_row.add_stretch()
-        self.display_limits_limit_row = ui.create_row_widget()
-        self.display_limits_limit_low = ui.create_line_edit_widget(properties={"width": 80})
-        self.display_limits_limit_high = ui.create_line_edit_widget(properties={"width": 80})
-        self.display_limits_limit_low.placeholder_text = _("Auto")
-        self.display_limits_limit_high.placeholder_text = _("Auto")
-
-        self.__display_limits_model = DisplayDataChannelPropertyCommandModel(document_controller, display_data_channel, "display_limits", title=_("Change Display Limits"), command_id="change_display_limits")
-
-        self.display_limits_limit_low.bind_text(Binding.TuplePropertyBinding(self.__display_limits_model, "value", 0, converter=float_point_2_none_converter))
-        self.display_limits_limit_high.bind_text(Binding.TuplePropertyBinding(self.__display_limits_model, "value", 1, converter=float_point_2_none_converter))
-        self.display_limits_limit_row.add(ui.create_label_widget(_("Display Limits:"), properties={"width": 120}))
-        self.display_limits_limit_row.add(self.display_limits_limit_low)
-        self.display_limits_limit_row.add_spacing(8)
-        self.display_limits_limit_row.add(self.display_limits_limit_high)
-        self.display_limits_limit_row.add_stretch()
-
-        self.add_widget_to_content(self.info_section_datetime_row)
-        self.add_widget_to_content(self.info_section_format_row)
-        self.add_widget_to_content(self.display_limits_range_row)
-        self.add_widget_to_content(self.display_limits_limit_row)
-        self.add_widget_to_content(color_map_row)
-        self.add_widget_to_content(brightness_row)
-        self.add_widget_to_content(contrast_row)
-        self.add_widget_to_content(adjustment_row)
-        if complex_display_type_row:
-            self.add_widget_to_content(complex_display_type_row)
+        if display_data_channel.data_item and display_data_channel.data_item.is_data_complex_type:
+            complex_display_widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop, ComplexDisplayTypeChooserHandler(document_controller, display_data_channel))
+            self.add_widget_to_content(complex_display_widget)
 
         self.finish_widget_content()
 
-        def handle_display_values(display_values: typing.Optional[DisplayItem.DisplayValues]) -> None:
-            if display_values:
-                self.__data_range_model.value = display_values.data_range
 
-        self.__display_values_subscription = display_data_channel.subscribe_to_latest_computed_display_values(handle_display_values)
+class SessionInspectorModel(Observable.Observable):
+    def __init__(self, document_controller: DocumentController.DocumentController, data_item: DataItem.DataItem) -> None:
+        super().__init__()
+        self.__document_controller = document_controller
+        self.__data_item = data_item
 
-        handle_display_values(display_data_channel.get_latest_computed_display_values())
+        self.site_model = Model.PropertyModel[str](self.__data_item.session.get("site", str()))
+        self.site_model.on_value_changed = functools.partial(self._update_metadata, "site")
+        self.instrument_model = Model.PropertyModel[str](self.__data_item.session.get("instrument", str()))
+        self.instrument_model.on_value_changed = functools.partial(self._update_metadata, "instrument")
+        self.task_model = Model.PropertyModel[str](self.__data_item.session.get("task", str()))
+        self.task_model.on_value_changed = functools.partial(self._update_metadata, "task")
+        self.microscopist_model = Model.PropertyModel[str](self.__data_item.session.get("microscopist", str()))
+        self.microscopist_model.on_value_changed = functools.partial(self._update_metadata, "microscopist")
+        self.sample_model = Model.PropertyModel[str](self.__data_item.session.get("sample", str()))
+        self.sample_model.on_value_changed = functools.partial(self._update_metadata, "sample")
+        self.sample_area_model = Model.PropertyModel[str](self.__data_item.session.get("sample_area", str()))
+        self.sample_area_model.on_value_changed = functools.partial(self._update_metadata, "sample_area")
+        self.label_model = Model.PropertyModel[str](self.__data_item.session.get("label", str()))
+        self.label_model.on_value_changed = functools.partial(self._update_metadata, "label")
 
-        # add unbinders
-        self._unbinder.add([display_item, display_data_channel], [self.info_datetime_label.unbind_text, self.info_format_label.unbind_text, self.display_limits_range_low.unbind_text, self.display_limits_range_high.unbind_text, self.display_limits_limit_low.unbind_text, self.display_limits_limit_high.unbind_text])
+        self.__property_changed_listener = data_item.property_changed_event.listen(ReferenceCounting.weak_partial(SessionInspectorModel.__fields_changed, self)) if data_item else None
 
-    def close(self) -> None:
-        self.__display_limits_model.close()
-        self.__display_limits_model = typing.cast(typing.Any, None)
-        self.__color_map_changed_listener.close()
-        self.__color_map_changed_listener = typing.cast(typing.Any, None)
-        if self.__complex_display_type_changed_listener:
-            self.__complex_display_type_changed_listener.close()
-            self.__complex_display_type_changed_listener = None
-        self.__adjustment_changed_listener.close()
-        self.__adjustment_changed_listener = typing.cast(typing.Any, None)
-        self.__display_values_subscription = typing.cast(typing.Any, None)
-        self.__data_range_model.close()
-        self.__data_range_model = typing.cast(typing.Any, None)
-        super().close()
+    def _update_metadata(self, field_id: str, new_value: typing.Optional[str]) -> None:
+        session_metadata = dict(self.__data_item.session_metadata)
+        session_metadata[field_id] = new_value
+        command = ChangePropertyCommand(self.__document_controller.document_model, self.__data_item, "session_metadata",
+                                        session_metadata)
+        command.perform()
+        self.__document_controller.push_undo_command(command)
+
+    def __fields_changed(self, key: str) -> None:
+        if key == "session_metadata":
+            self.site_model.value = self.__data_item.session.get("site", str())
+            self.instrument_model.value = self.__data_item.session.get("instrument", str())
+            self.task_model.value = self.__data_item.session.get("task", str())
+            self.microscopist_model.value = self.__data_item.session.get("microscopist", str())
+            self.sample_model.value = self.__data_item.session.get("sample", str())
+            self.sample_area_model.value = self.__data_item.session.get("sample_area", str())
+            self.label_model.value = self.__data_item.session.get("label", str())
+
+
+class SessionInspectorHandler(Declarative.Handler):
+    def __init__(self, document_controller: DocumentController.DocumentController, data_item: DataItem.DataItem) -> None:
+        super().__init__()
+        self._session_model = SessionInspectorModel(document_controller, data_item)
+        u = Declarative.DeclarativeUI()
+
+        self.ui_view = u.create_column(
+            u.create_row(
+                u.create_label(text=_("Site"), width=100),
+                u.create_line_edit(text="@binding(_session_model.site_model.value)", placeholder_text=_("Site Description"))
+            ),
+            u.create_spacing(4),
+            u.create_row(
+                u.create_label(text=_("Instrument"), width=100),
+                u.create_line_edit(text="@binding(_session_model.instrument_model.value)", placeholder_text=_("Instrument Description"))
+            ),
+            u.create_spacing(4),
+            u.create_row(
+                u.create_label(text=_("Task"), width=100),
+                u.create_line_edit(text="@binding(_session_model.task_model.value)", placeholder_text=_("Task Description"))
+            ),
+            u.create_spacing(4),
+            u.create_row(
+                u.create_label(text=_("Microscopist"), width=100),
+                u.create_line_edit(text="@binding(_session_model.microscopist_model.value)", placeholder_text=_("Microscopist Name(s)"))
+            ),
+            u.create_spacing(4),
+            u.create_row(
+                u.create_label(text=_("Sample"), width=100),
+                u.create_line_edit(text="@binding(_session_model.sample_model.value)", placeholder_text=_("Sample Description"))
+            ),
+            u.create_spacing(4),
+            u.create_row(
+                u.create_label(text=_("Sample Area"), width=100),
+                u.create_line_edit(text="@binding(_session_model.sample_area_model.value)", placeholder_text=_("Sample Area Description"))
+            ),
+            u.create_spacing(4),
+            u.create_row(
+                u.create_label(text=_("Label"), width=100),
+                u.create_line_edit(text="@binding(_session_model.label_model.value)", placeholder_text=_("Brief Label"))
+            )
+        )
 
 
 class SessionInspectorSection(InspectorSection):
-
     def __init__(self, document_controller: DocumentController.DocumentController, data_item: DataItem.DataItem) -> None:
         super().__init__(document_controller.ui, "session", _("Session"))
 
-        ui = document_controller.ui
-
-        field_descriptions = [
-            [_("Site"), _("Site Description"), "site"],
-            [_("Instrument"), _("Instrument Description"), "instrument"],
-            [_("Task"), _("Task Description"), "task"],
-            [_("Microscopist"), _("Microscopist Name(s)"), "microscopist"],
-            [_("Sample"), _("Sample Description"), "sample"],
-            [_("Sample Area"), _("Sample Area Description"), "sample_area"],
-            [_("Label"), _("Brief Label"), "label"],
-        ]
-
-        widget = self.ui.create_column_widget()
-
-        def line_edit_changed(line_edit_widget: UserInterface.LineEditWidget, field_id: str, text: str) -> None:
-            session_metadata = dict(data_item.session_metadata)
-            session_metadata[field_id] = str(text)
-            command = ChangePropertyCommand(document_controller.document_model, data_item, "session_metadata", session_metadata)
-            command.perform()
-            document_controller.push_undo_command(command)
-            line_edit_widget.request_refocus()
-
-        field_line_edit_widget_map = dict()
-
-        first_field = True
-        for field_description in field_descriptions:
-            title, placeholder, field_id = field_description
-            row = self.ui.create_row_widget()
-            row.add(self.ui.create_label_widget(title, properties={"width": 100}))
-            line_edit_widget = self.ui.create_line_edit_widget()
-            line_edit_widget.placeholder_text = placeholder
-            line_edit_widget.on_editing_finished = functools.partial(line_edit_changed, line_edit_widget, field_id)
-            field_line_edit_widget_map[field_id] = line_edit_widget
-            row.add(line_edit_widget)
-            if not first_field:
-                widget.add_spacing(4)
-            first_field = False
-            widget.add(row)
-
-        def update_fields(fields: typing.Mapping[str, str]) -> None:
-            for field_id, line_edit_widget in field_line_edit_widget_map.items():
-                line_edit_widget.text = fields.get(field_id)
-
-        def fields_changed(key: str) -> None:
-            if key == 'session_metadata':
-                widget.add_task("update_fields", functools.partial(update_fields, data_item.session_metadata))
-        self.__property_changed_listener = data_item.property_changed_event.listen(fields_changed) if data_item else None
-
-        if data_item:
-            update_fields(data_item.session_metadata)
-
+        self._session_inspector_handler = SessionInspectorHandler(document_controller, data_item)
+        widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop, self._session_inspector_handler)
         self.add_widget_to_content(widget)
         self.finish_widget_content()
 
     def close(self) -> None:
-        if self.__property_changed_listener:
-            self.__property_changed_listener.close()
-            self.__property_changed_listener = typing.cast(typing.Any, None)
+        self._session_inspector_handler.close()
         super().close()
 
 
@@ -1822,11 +2106,37 @@ class ChangeDisplayTypeCommand(Undo.UndoableCommand):
         return isinstance(command, self.__class__) and bool(self.command_id) and self.command_id == command.command_id and self.__display_item_uuid == command.__display_item_uuid
 
 
+class DisplayTypeChooserHandler(Declarative.Handler):
+    def __init__(self, display_item: DisplayItem.DisplayItem, document_controller: DocumentController.DocumentController) -> None:
+        super().__init__()
+        self._document_controller = document_controller
+        self._display_item = display_item
+        self._display_type_items = (_("Default"), _("Line Plot"), _("Image"))
+        self._display_type_flags = (None, "line_plot", "image")
+        self._display_type_reverse_map = {None: 0, "line_plot": 1, "image": 2}
+        self._current_index = self._display_type_reverse_map[self._display_item.display_type]
+
+        u = Declarative.DeclarativeUI()
+
+        self.ui_view = u.create_row(
+            u.create_label(text=_("Display Type:"), width=120),
+            u.create_combo_box(items=self._display_type_items, on_current_index_changed="change_display_type", current_index="@binding(_current_index)"),
+            u.create_stretch()
+        )
+
+    def change_display_type(self,  widget: Declarative.UIWidget, current_index: int) -> None:
+        current_display_type = self._display_type_flags[current_index]
+        if self._display_item.display_type != current_display_type:
+            command = ChangeDisplayTypeCommand(self._document_controller.document_model, self._display_item, display_type=current_display_type)
+            command.perform()
+            self._document_controller.push_undo_command(command)
+
+
 def make_display_type_chooser(document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem) -> typing.Tuple[UserInterface.BoxWidget, Event.EventListener]:
     ui = document_controller.ui
     display_type_row = ui.create_row_widget()
-    display_type_items = ((_("Default"), None), (_("Line Plot"), "line_plot"), (_("Image"), "image"), (_("Display Script"), "display_script"))
-    display_type_reverse_map = {None: 0, "line_plot": 1, "image": 2, "display_script": 3}
+    display_type_items = ((_("Default"), None), (_("Line Plot"), "line_plot"), (_("Image"), "image"))
+    display_type_reverse_map = {None: 0, "line_plot": 1, "image": 2}
     display_type_chooser = ui.create_combo_box_widget(items=display_type_items, item_getter=operator.itemgetter(0))
 
     def property_changed(name: str) -> None:
@@ -1847,54 +2157,6 @@ def make_display_type_chooser(document_controller: DocumentController.DocumentCo
     display_type_row.add(display_type_chooser)
     display_type_row.add_stretch()
     return display_type_row, listener
-
-
-def make_color_map_chooser(document_controller: DocumentController.DocumentController, display_data_channel: DisplayItem.DisplayDataChannel) -> typing.Tuple[UserInterface.BoxWidget, Event.EventListener]:
-    ui = document_controller.ui
-    color_map_row = ui.create_row_widget()
-    color_map_options: typing.List[typing.Tuple[str, typing.Optional[str]]] = [(_("Default"), None)]
-    for color_map_key, color_map in ColorMaps.color_maps.items():
-        color_map_options.append((color_map.name, color_map_key))
-    color_map_reverse_map = {p[1]: i for i, p in enumerate(color_map_options)}
-    color_map_chooser = ui.create_combo_box_widget(items=color_map_options, item_getter=operator.itemgetter(0))
-
-    def property_changed(name: str) -> None:
-        if name == "color_map_id":
-            color_map_chooser.current_index = color_map_reverse_map[display_data_channel.color_map_id]
-
-    listener = display_data_channel.property_changed_event.listen(property_changed)
-
-    def change_color_map(item: typing.Tuple[str, str]) -> None:
-        if display_data_channel.color_map_id != item[1]:
-            command = DisplayPanel.ChangeDisplayDataChannelCommand(document_controller.document_model, display_data_channel, color_map_id=item[1], title=_("Change Color Map"), command_id="change_color_map", is_mergeable=True)
-            command.perform()
-            document_controller.push_undo_command(command)
-
-    color_map_chooser.on_current_item_changed = change_color_map
-    color_map_chooser.current_index = color_map_reverse_map.get(display_data_channel.color_map_id, 0)
-    color_map_row.add(ui.create_label_widget(_("Color Map:"), properties={"width": 120}))
-    color_map_row.add(color_map_chooser)
-    color_map_row.add_stretch()
-    return color_map_row, listener
-
-
-def make_brightness_control(document_controller: DocumentController.DocumentController, display_data_channel: DisplayItem.DisplayDataChannel) -> UserInterface.Widget:
-    ui = document_controller.ui
-    row_widget = ui.create_row_widget()  # use 280 pixels in row
-    label_widget = ui.create_label_widget(_("Brightness"), properties={"width": 80})
-    line_edit_widget = ui.create_line_edit_widget(properties={"width": 60})
-    slider_widget = ui.create_slider_widget(properties={"width": 124})
-    slider_widget.minimum = 0
-    slider_widget.maximum = 100
-    slider_widget.bind_value(ChangeDisplayDataChannelPropertyBinding(document_controller, display_data_channel, "brightness", converter=Converter.FloatToScaledIntegerConverter(100, -1.0, 1.0)))
-    line_edit_widget.bind_text(ChangeDisplayDataChannelPropertyBinding(document_controller, display_data_channel, "brightness", converter=Converter.FloatToStringConverter(format="{:.2f}")))
-    row_widget.add(label_widget)
-    row_widget.add_spacing(8)
-    row_widget.add(slider_widget)
-    row_widget.add_spacing(8)
-    row_widget.add(line_edit_widget)
-    row_widget.add_stretch()
-    return row_widget
 
 
 class ContrastStringConverter(Converter.ConverterLike[float, str]):
@@ -1930,25 +2192,6 @@ class ContrastIntegerConverter(Converter.ConverterLike[float, int]):
         return None
 
 
-def make_contrast_control(document_controller: DocumentController.DocumentController, display_data_channel: DisplayItem.DisplayDataChannel) -> UserInterface.Widget:
-    ui = document_controller.ui
-    row_widget = ui.create_row_widget()  # use 280 pixels in row
-    label_widget = ui.create_label_widget(_("Contrast"), properties={"width": 80})
-    line_edit_widget = ui.create_line_edit_widget(properties={"width": 60})
-    slider_widget = ui.create_slider_widget(properties={"width": 124})
-    slider_widget.minimum = 0
-    slider_widget.maximum = 100
-    slider_widget.bind_value(ChangeDisplayDataChannelPropertyBinding(document_controller, display_data_channel, "contrast", converter=ContrastIntegerConverter(100)))
-    line_edit_widget.bind_text(ChangeDisplayDataChannelPropertyBinding(document_controller, display_data_channel, "contrast", converter=ContrastStringConverter()))
-    row_widget.add(label_widget)
-    row_widget.add_spacing(8)
-    row_widget.add(slider_widget)
-    row_widget.add_spacing(8)
-    row_widget.add(line_edit_widget)
-    row_widget.add_stretch()
-    return row_widget
-
-
 class GammaStringConverter(Converter.ConverterLike[float, str]):
 
     def convert(self, value: typing.Optional[float]) -> typing.Optional[str]:
@@ -1973,102 +2216,12 @@ class GammaIntegerConverter(Converter.ConverterLike[float, int]):
     def convert(self, value: typing.Optional[float]) -> typing.Optional[int]:
         if value is not None:
             return 100 - int(math.log(value, 10) * 50 + 50) if value > 0 else 0
-        return None
+        return 0
 
     def convert_back(self, value_int: typing.Optional[int]) -> typing.Optional[float]:
         if value_int is not None:
             return math.pow(10, ((100 - value_int) - 50) / 50)
         return None
-
-
-class ChangeDisplayDataChannelAdjustmentPropertyBinding(Binding.PropertyBinding):
-    def __init__(self, document_controller: DocumentController.DocumentController,
-                 display_data_channel: DisplayItem.DisplayDataChannel, property_name: str,
-                 converter: Converter.ConverterLike[typing.Any, typing.Any],
-                 default_value: typing.Any = None) -> None:
-        super().__init__(display_data_channel, "adjustments")
-
-        def set_value(value: typing.Any) -> typing.Any:
-            if converter.convert_back(value) != display_data_channel.adjustments[0].get(property_name, None):
-                adjustment = display_data_channel.adjustments[0]
-                adjustment[property_name] = converter.convert_back(value)
-                command = DisplayPanel.ChangeDisplayDataChannelCommand(document_controller.document_model, display_data_channel, title=_("Change Display"), command_id="change_display_" + property_name, is_mergeable=True, adjustments=[adjustment])
-                command.perform()
-                document_controller.push_undo_command(command)
-
-        def get_value() -> typing.Any:
-            if len(display_data_channel.adjustments) == 1:
-                return converter.convert(display_data_channel.adjustments[0].get(property_name, default_value))
-            return converter.convert(default_value)
-
-        self.source_setter = set_value
-        self.source_getter = get_value
-
-
-def make_gamma_control(document_controller: DocumentController.DocumentController, display_data_channel: DisplayItem.DisplayDataChannel) -> UserInterface.Widget:
-    ui = document_controller.ui
-    row_widget = ui.create_row_widget()  # use 280 pixels in row
-    label_widget = ui.create_label_widget(_("Gamma"), properties={"width": 80})
-    line_edit_widget = ui.create_line_edit_widget(properties={"width": 60})
-    slider_widget = ui.create_slider_widget(properties={"width": 124})
-    slider_widget.minimum = 0
-    slider_widget.maximum = 100
-    slider_widget.bind_value(ChangeDisplayDataChannelAdjustmentPropertyBinding(document_controller, display_data_channel, "gamma", GammaIntegerConverter(), 1.0))
-    line_edit_widget.bind_text(ChangeDisplayDataChannelAdjustmentPropertyBinding(document_controller, display_data_channel, "gamma", GammaStringConverter(), 1.0))
-    row_widget.add(label_widget)
-    row_widget.add_spacing(8)
-    row_widget.add(slider_widget)
-    row_widget.add_spacing(8)
-    row_widget.add(line_edit_widget)
-    row_widget.add_stretch()
-    return row_widget
-
-
-def make_adjustment_chooser(document_controller: DocumentController.DocumentController, display_data_channel: DisplayItem.DisplayDataChannel) -> typing.Tuple[UserInterface.Widget, typing.Any]:
-    ui = document_controller.ui
-
-    adjustment_column = ui.create_column_widget()
-
-    adjustment_row = ui.create_row_widget()
-    adjustment_options = [(_("None"), None), (_("Equalized"), "equalized"), (_("Gamma"), "gamma"), (_("Log"), "log")]
-    adjustment_reverse_map = {p[1]: i for i, p in enumerate(adjustment_options)}
-    adjustment_chooser = ui.create_combo_box_widget(items=adjustment_options, item_getter=operator.itemgetter(0))
-
-    def get_current_adjustment_id() -> typing.Optional[str]:
-        return display_data_channel.adjustments[0].get("type") if len(display_data_channel.adjustments) == 1 else None
-
-    def get_current_index() -> int:
-        return adjustment_reverse_map[get_current_adjustment_id()]
-
-    def update_controls() -> None:
-        adjustment_column.children[1].visible = get_current_adjustment_id() == "gamma"
-
-    def property_changed(name: str) -> None:
-        if name == "adjustments":
-            adjustment_chooser.current_index = get_current_index()
-            update_controls()
-
-    listener = display_data_channel.property_changed_event.listen(property_changed)
-
-    def change_adjustment(item: typing.Tuple[str, typing.Optional[str]]) -> None:
-        if get_current_adjustment_id() != item[1]:
-            adjustments = list() if item[1] is None else [{"type": item[1], "uuid": str(uuid.uuid4())}]
-            command = DisplayPanel.ChangeDisplayDataChannelCommand(document_controller.document_model, display_data_channel, adjustments=adjustments)
-            command.perform()
-            document_controller.push_undo_command(command)
-
-    adjustment_chooser.on_current_item_changed = change_adjustment
-    adjustment_chooser.current_index = get_current_index()
-    adjustment_row.add(ui.create_label_widget(_("Adjustment:"), properties={"width": 120}))
-    adjustment_row.add(adjustment_chooser)
-    adjustment_row.add_stretch()
-
-    adjustment_column.add(adjustment_row)
-    adjustment_column.add(make_gamma_control(document_controller, display_data_channel))
-
-    update_controls()
-
-    return adjustment_column, listener
 
 
 def make_complex_display_type_chooser(document_controller: DocumentController.DocumentController,
@@ -2109,46 +2262,89 @@ class ImageDisplayInspectorSection(InspectorSection):
     def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem) -> None:
         super().__init__(document_controller.ui, "display-limits", _("Image Display"))
 
-        # display type
-        display_type_row, self.__display_type_changed_listener = make_display_type_chooser(document_controller, display_item)
+        self._image_diaplay_handler = DisplayTypeChooserHandler(display_item, document_controller)
+        widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop,
+                                               self._image_diaplay_handler)
 
-        self.add_widget_to_content(display_type_row)
-
-        self.finish_widget_content()
-
-    def close(self) -> None:
-        self.__display_type_changed_listener.close()
-        self.__display_type_changed_listener = typing.cast(typing.Any, None)
-        super().close()
+        self.add_widget_to_content(widget)
 
 
-def make_legend_position(document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem) -> typing.Tuple[UserInterface.BoxWidget, Event.EventListener]:
-    # This function is currently only utilized by line plots
-    ui = document_controller.ui
-    legend_position_row = ui.create_row_widget()
-    legend_position_options = [(_("None"), None), (_("Top Left"), "top-left"), (_("Top Right"), "top-right"), (_("Outer Left"), "outer-left"), (_("Outer Right"), "outer-right")]
-    legend_position_reverse_map = {p[1]: i for i, p in enumerate(legend_position_options)}
-    legend_position_chooser = ui.create_combo_box_widget(items=legend_position_options, item_getter=operator.itemgetter(0))
+class LegendPositionChooserHandler(Declarative.Handler):
+    def __init__(self, display_item: DisplayItem.DisplayItem, document_controller: DocumentController.DocumentController) -> None:
+        super().__init__()
+        self._document_controller = document_controller
+        self._display_item = display_item
+        self._legend_position_items = (_("None"), _("Top Left"), _("Top Right"), _("Outer Left"), _("Outer Right"))
+        self._legend_position_flags = (None, "top-left", "top-right", "outer-left", "outer-right")
+        self._legend_position_reverse_map = {p: i for i, p in enumerate(self._legend_position_flags)}
+        self._current_index = self._legend_position_reverse_map.get(display_item.get_display_property("legend_position", None), 0)
 
-    def property_changed(name: str) -> None:
-        if name == "legend_position":
-            legend_position_chooser.current_index = legend_position_reverse_map.get(display_item.get_display_property("legend_position", None), 0)
+        u = Declarative.DeclarativeUI()
 
-    listener = display_item.display_property_changed_event.listen(property_changed)
+        self.ui_view = u.create_row(
+            u.create_label(text=_("Legend Position:"), width=120),
+            u.create_combo_box(items=self._legend_position_items, on_current_index_changed="change_legend_position", current_index="@binding(_current_index)"),
+            u.create_stretch()
+        )
 
-    def change_legend_position(item: typing.Tuple[str, typing.Optional[str]]) -> None:
-        if display_item.get_display_property("legend_position", None) != item[1]:
-            command = DisplayPanel.ChangeDisplayCommand(document_controller.document_model, display_item, title=_("Legend Position"), command_id="change_legend_position", is_mergeable=True, legend_position=item[1])
+    def change_legend_position(self,  widget: Declarative.UIWidget, current_index: int) -> None:
+        current_legend_position = self._legend_position_flags[current_index]
+        old_legend_position = self._display_item.get_display_property("legend_position", None)
+        if old_legend_position != current_legend_position:
+            command = DisplayPanel.ChangeDisplayCommand(self._document_controller.document_model, self._display_item,
+                                                        title=_("Legend Position"), command_id="change_legend_position",
+                                                        is_mergeable=True, legend_position=current_legend_position)
             command.perform()
-            document_controller.push_undo_command(command)
+            self._document_controller.push_undo_command(command)
 
-    legend_position_chooser.on_current_item_changed = change_legend_position
-    legend_position_chooser.current_index = legend_position_reverse_map.get(display_item.get_display_property("legend_position", None), 0)
-    legend_position_row.add(ui.create_label_widget(_("Legend Position:"), properties={"width": 120}))
-    legend_position_row.add(legend_position_chooser)
-    legend_position_row.add_stretch()
 
-    return legend_position_row, listener
+class LinePlotDisplaySectionHandler(Declarative.Handler):
+    def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem):
+        super().__init__()
+
+        self._y_min_model = DisplayItemDisplayPropertyCommandModel(document_controller, display_item, "y_min")
+        self._y_max_model = DisplayItemDisplayPropertyCommandModel(document_controller, display_item, "y_max")
+        self._left_channel_model = DisplayItemDisplayPropertyCommandModel(document_controller, display_item, "left_channel")
+        self._right_channel_model = DisplayItemDisplayPropertyCommandModel(document_controller, display_item, "right_channel")
+        self._y_style_model = DisplayItemDisplayPropertyCommandModel(document_controller, display_item, "y_style")
+
+        self._float_to_string_converter = BetterFloatToStringConverter(pass_none=True)
+
+        class LogCheckedToCheckStateConverter(Converter.ConverterLike[str, bool]):
+            """ Convert between bool and checked/unchecked strings. """
+
+            def convert(self, value: typing.Optional[str]) -> typing.Optional[bool]:
+                """ Convert bool to checked or unchecked string """
+                return value == "log"
+
+            def convert_back(self, value: typing.Optional[bool]) -> typing.Optional[str]:
+                """ Convert checked or unchecked string to bool """
+                return "log" if value else "linear"
+
+        self._log_checked_to_check_state_converter = LogCheckedToCheckStateConverter()
+
+        u = Declarative.DeclarativeUI()
+
+        self.ui_view = u.create_column(
+            u.create_row(
+                u.create_label(text=_("Display:"), width=120),
+                u.create_line_edit(text="@binding(_y_min_model.value, converter=_float_to_string_converter)", width=72, placeholder_text=_("Auto")),
+                u.create_spacing(8),
+                u.create_line_edit(text="@binding(_y_max_model.value, converter=_float_to_string_converter)", width=72, placeholder_text=_("Auto")),
+                u.create_stretch()
+            ),
+            u.create_row(
+                u.create_label(text=_("Channels:"), width=120),
+                u.create_line_edit(text="@binding(_left_channel_model.value, converter=_float_to_string_converter)", width=72, placeholder_text=_("Auto")),
+                u.create_spacing(8),
+                u.create_line_edit(text="@binding(_right_channel_model.value, converter=_float_to_string_converter)", width=72, placeholder_text=_("Auto")),
+                u.create_stretch()
+            ),
+            u.create_row(
+                u.create_check_box(text=_("Log Scale (Y)"), checked="@binding(_y_style_model.value, converter=_log_checked_to_check_state_converter)"),
+                u.create_stretch()
+            )
+        )
 
 
 class LinePlotDisplayInspectorSection(InspectorSection):
@@ -2160,73 +2356,44 @@ class LinePlotDisplayInspectorSection(InspectorSection):
     def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem) -> None:
         super().__init__(document_controller.ui, "line-plot", _("Line Plot Display"))
 
-        # display type
-        display_type_row, self.__display_type_changed_listener = make_display_type_chooser(document_controller, display_item)
+        self._display_type_chooser = DisplayTypeChooserHandler(display_item, document_controller)
+        display_type_chooser_widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop, self._display_type_chooser)
 
-        float_point_2_none_converter = BetterFloatToStringConverter(pass_none=True)
+        self._line_plot_display_section_handler = LinePlotDisplaySectionHandler(document_controller, display_item)
+        widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop, self._line_plot_display_section_handler)
 
-        self.display_limits_limit_row = self.ui.create_row_widget()
-        self.display_limits_limit_low = self.ui.create_line_edit_widget(properties={"width": 80})
-        self.display_limits_limit_high = self.ui.create_line_edit_widget(properties={"width": 80})
-        self.display_limits_limit_low.bind_text(ChangeDisplayPropertyBinding(document_controller, display_item, "y_min", converter=float_point_2_none_converter))
-        self.display_limits_limit_high.bind_text(ChangeDisplayPropertyBinding(document_controller, display_item, "y_max", converter=float_point_2_none_converter))
-        self.display_limits_limit_low.placeholder_text = _("Auto")
-        self.display_limits_limit_high.placeholder_text = _("Auto")
-        self.display_limits_limit_row.add(self.ui.create_label_widget(_("Display:"), properties={"width": 120}))
-        self.display_limits_limit_row.add(self.display_limits_limit_low)
-        self.display_limits_limit_row.add_spacing(8)
-        self.display_limits_limit_row.add(self.display_limits_limit_high)
-        self.display_limits_limit_row.add_stretch()
+        self._legend_position_chooser = LegendPositionChooserHandler(display_item, document_controller)
+        legend_position_chooser_widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop, self._legend_position_chooser)
 
-        self.channels_row = self.ui.create_row_widget()
-        self.channels_left = self.ui.create_line_edit_widget(properties={"width": 80})
-        self.channels_right = self.ui.create_line_edit_widget(properties={"width": 80})
-        self.channels_left.bind_text(ChangeDisplayPropertyBinding(document_controller, display_item, "left_channel", converter=float_point_2_none_converter))
-        self.channels_right.bind_text(ChangeDisplayPropertyBinding(document_controller, display_item, "right_channel", converter=float_point_2_none_converter))
-        self.channels_left.placeholder_text = _("Auto")
-        self.channels_right.placeholder_text = _("Auto")
-        self.channels_row.add(self.ui.create_label_widget(_("Channels:"), properties={"width": 120}))
-        self.channels_row.add(self.channels_left)
-        self.channels_row.add_spacing(8)
-        self.channels_row.add(self.channels_right)
-        self.channels_row.add_stretch()
-
-        class LogCheckedToCheckStateConverter(Converter.ConverterLike[str, str]):
-            """ Convert between bool and checked/unchecked strings. """
-
-            def convert(self, value: typing.Optional[str]) -> typing.Optional[str]:
-                """ Convert bool to checked or unchecked string """
-                return "checked" if value == "log" else "unchecked"
-
-            def convert_back(self, value: typing.Optional[str]) -> typing.Optional[str]:
-                """ Convert checked or unchecked string to bool """
-                return "log" if value == "checked" else "linear"
-
-        self.style_row = self.ui.create_row_widget()
-        self.style_y_log = self.ui.create_check_box_widget(_("Log Scale (Y)"))
-        self.style_y_log.bind_check_state(ChangeDisplayPropertyBinding(document_controller, display_item, "y_style", converter=LogCheckedToCheckStateConverter()))
-        self.style_row.add(self.style_y_log)
-        self.style_row.add_stretch()
-
-        legend_position_row, self.__legend_position_changed_listener = make_legend_position(document_controller, display_item)
-
-        self.add_widget_to_content(display_type_row)
-        self.add_widget_to_content(self.display_limits_limit_row)
-        self.add_widget_to_content(self.channels_row)
-        self.add_widget_to_content(self.style_row)
-        self.add_widget_to_content(legend_position_row)
+        self.add_widget_to_content(display_type_chooser_widget)
+        self.add_widget_to_content(widget)
+        self.add_widget_to_content(legend_position_chooser_widget)
 
         self.finish_widget_content()
 
-        # add unbinders
-        self._unbinder.add([display_item], [self.display_limits_limit_low.unbind_text, self.display_limits_limit_high.unbind_text, self.channels_left.unbind_text, self.channels_right.unbind_text, self.style_y_log.unbind_check_state])
 
-    def close(self) -> None:
-        self.__legend_position_changed_listener.close()
-        self.__legend_position_changed_listener = typing.cast(typing.Any, None)
-        self.__display_type_changed_listener.close()
-        self.__display_type_changed_listener = typing.cast(typing.Any, None)
-        super().close()
+class SequenceSectionHandler(Declarative.Handler):
+    def __init__(self, document_controller: DocumentController.DocumentController, display_data_channel: DisplayItem.DisplayDataChannel) -> None:
+        super().__init__()
+
+        data_item = display_data_channel.data_item
+        assert data_item
+
+        self.sequence_index_model = DisplayDataChannelPropertyCommandModel(document_controller, display_data_channel, "sequence_index", title=_("Change Sequence Index"), command_id="change_sequence_index")
+        self.sequence_index_maximum = data_item.dimensional_shape[0] -1  if display_data_channel.data_item else 0
+
+        u = Declarative.DeclarativeUI()
+
+        self._int_to_string_converter = Converter.IntegerToStringConverter()
+
+        self.ui_view = u.create_row(
+            u.create_label(text="Index", width=60),
+            u.create_spacing(8),
+            u.create_slider(value="@binding(sequence_index_model.value)", maximum=self.sequence_index_maximum, width=144),
+            u.create_spacing(8),
+            u.create_line_edit(text="@binding(sequence_index_model.value, converter=_int_to_string_converter)", width=60),
+            u.create_stretch()
+        )
 
 
 class SequenceInspectorSection(InspectorSection):
@@ -2238,75 +2405,127 @@ class SequenceInspectorSection(InspectorSection):
     def __init__(self, document_controller: DocumentController.DocumentController, display_data_channel: DisplayItem.DisplayDataChannel) -> None:
         super().__init__(document_controller.ui, "sequence", _("Sequence"))
 
+        self._sequence_section_handler = SequenceSectionHandler(document_controller, display_data_channel)
+
+        widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop,
+                                               self._sequence_section_handler)
+        self.add_widget_to_content(widget)
+
+
+class CollectionIndexModel(Observable.Observable):
+    def __init__(self, display_data_channel: DisplayItem.DisplayDataChannel, collection_index_model: Model.PropertyModel[typing.Tuple[int, ...]], index: int) -> None:
+        super().__init__()
+
         data_item = display_data_channel.data_item
+
         assert data_item
+        self.__display_data_channel = display_data_channel
+        self.__data_item = data_item
+        self.__index = index
+        self.__collection_index_base = 1 if self.__data_item.is_sequence else 0
+        self.__collection_index_model = collection_index_model
+        self.__collection_index_model_listener = self.__collection_index_model.property_changed_event.listen(
+            ReferenceCounting.weak_partial(CollectionIndexModel.__handle_collection_index_changed, self))
+        self.__last_value = self.value
 
-        sequence_index_row_widget = self.ui.create_row_widget()  # use 280 pixels in row
-        sequence_index_label_widget = self.ui.create_label_widget(_("Index"), properties={"width": 60})
-        sequence_index_line_edit_widget = self.ui.create_line_edit_widget(properties={"width": 60})
-        sequence_index_slider_widget = self.ui.create_slider_widget(properties={"width": 144})
-        sequence_index_slider_widget.maximum = data_item.dimensional_shape[0] - 1  # sequence_index
-        sequence_index_slider_widget.bind_value(ChangeDisplayDataChannelPropertyBinding(document_controller, display_data_channel, "sequence_index"))
-        sequence_index_line_edit_widget.bind_text(ChangeDisplayDataChannelPropertyBinding(document_controller, display_data_channel, "sequence_index", converter=Converter.IntegerToStringConverter()))
-        sequence_index_row_widget.add(sequence_index_label_widget)
-        sequence_index_row_widget.add_spacing(8)
-        sequence_index_row_widget.add(sequence_index_slider_widget)
-        sequence_index_row_widget.add_spacing(8)
-        sequence_index_row_widget.add(sequence_index_line_edit_widget)
-        sequence_index_row_widget.add_stretch()
+    def __handle_collection_index_changed(self, property_name: str) -> None:
+        if property_name == "value":
+            if self.value != self.__last_value:
+                self.__last_value = self.value
+                self.notify_property_changed("value")
 
-        self.add_widget_to_content(sequence_index_row_widget)
-        self.finish_widget_content()
+    @property
+    def display_data_channel(self) -> DisplayItem.DisplayDataChannel:
+        return self.__display_data_channel
 
-        # for testing
-        self._sequence_index_slider_widget = sequence_index_slider_widget
-        self._sequence_index_line_edit_widget = sequence_index_line_edit_widget
+    @property
+    def index_maximum(self) -> int:
+        return self.__data_item.dimensional_shape[self.__collection_index_base + self.__index] - 1
 
-        # add unbinders
-        self._unbinder.add([display_data_channel], [sequence_index_slider_widget.unbind_value, sequence_index_line_edit_widget.unbind_text])
+    @property
+    def index(self) -> int:
+        return self.__index
+
+    @property
+    def value(self) -> int:
+        tuple_value = self.__collection_index_model.value
+        return tuple_value[self.__index] if tuple_value else 0
+
+    @value.setter
+    def value(self, value: int) -> None:
+        tuple_value = self.__collection_index_model.value
+        collection_index = list(tuple_value) if tuple_value else []
+        collection_index[self.__index] = value
+        self.__collection_index_model.value = tuple(collection_index)
+        self.__last_value = self.value
+
+
+class CollectionIndexHandler(Declarative.Handler):
+    def __init__(self, collection_model: CollectionIndexModel) -> None:
+        super().__init__()
+
+        self._collection_model = collection_model
+        self._int_to_string_converter = Converter.IntegerToStringConverter()
+
+        u = Declarative.DeclarativeUI()
+        self.ui_view = u.create_row(
+                u.create_label(text="{}: {}".format(_("Index"), self._collection_model.index), width=60),
+                u.create_spacing(8),
+                u.create_line_edit(text="@binding(_collection_model.value, converter=_int_to_string_converter)", width=60),
+                u.create_spacing(8),
+                u.create_slider(value="@binding(_collection_model.value)", maximum=self._collection_model.index_maximum, width=144),
+                u.create_stretch()
+            )
+
+
+class CollectionIndexSectionHandler(Declarative.Handler):
+    def __init__(self, collections_models: typing.Sequence[CollectionIndexModel]) -> None:
+        super().__init__()
+
+        self._collection_index_models = collections_models
+        u = Declarative.DeclarativeUI()
+
+        self.ui_view = u.create_column(items=f"_collection_index_models", item_component_id="collection_index", spacing=4)
+
+    def create_handler(self, component_id: str, container: typing.Optional[Symbolic.ComputationVariable] = None, item: typing.Any = None, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
+        collection_index_model = typing.cast(CollectionIndexModel, item)
+        return CollectionIndexHandler(collection_index_model)
 
 
 class CollectionIndexInspectorSection(InspectorSection):
-
-    """
-        Subclass InspectorSection to implement slice inspector.
-    """
-
     def __init__(self, document_controller: DocumentController.DocumentController, display_data_channel: DisplayItem.DisplayDataChannel) -> None:
         super().__init__(document_controller.ui, "collection-index", _("Index"))
+        self.__document_controller = document_controller
+        self.__display_data_channel = display_data_channel
+        self.__event_loop = document_controller.event_loop
+        self.__pending_call: typing.Optional[asyncio.Handle] = None
+        self.__enable_ref: list[bool] = [False]
 
         data_item = display_data_channel.data_item
         assert data_item
 
-        column_widget = self.ui.create_column_widget()
-        collection_index_base = 1 if data_item.is_sequence else 0
+        self.__collection_index_models: list[CollectionIndexModel] = []
+
+        self.__collection_index_model = DisplayDataChannelPropertyCommandModel(document_controller,
+                                                                               display_data_channel, "collection_index",
+                                                                               title=_("Change Collection Index"),
+                                                                               command_id="change_collection_index")
+
         for index in range(data_item.collection_dimension_count):
-            index_row_widget = self.ui.create_row_widget()  # use 280 pixels in row
-            index_label_widget = self.ui.create_label_widget("{}: {}".format(_("Index"), index), properties={"width": 60})
-            index_line_edit_widget = self.ui.create_line_edit_widget(properties={"width": 60})
-            index_slider_widget = self.ui.create_slider_widget(properties={"width": 144})
-            index_slider_widget.maximum = data_item.dimensional_shape[collection_index_base + index] - 1
+            self.__collection_index_models.append(CollectionIndexModel(display_data_channel, self.__collection_index_model, index))
 
-            self.__collection_index_model = DisplayDataChannelPropertyCommandModel(document_controller, display_data_channel, "collection_index", title=_("Change Collection Index"), command_id="change_collection_index")
+        widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop,
+                                               CollectionIndexSectionHandler(self.__collection_index_models))
+        self.__data_item_changed_event_listener = data_item.data_item_changed_event.listen(
+            ReferenceCounting.weak_partial(CollectionIndexInspectorSection.__handle_data_item_changed,
+                                           self)) if data_item else None
+        self.__handle_data_item_changed()
+        self.add_widget_to_content(widget)
 
-            index_slider_widget.bind_value(Binding.TuplePropertyBinding(self.__collection_index_model, "value", index))
-            index_line_edit_widget.bind_text(Binding.TuplePropertyBinding(self.__collection_index_model, "value", index, converter=Converter.IntegerToStringConverter()))
-            index_row_widget.add(index_label_widget)
-            index_row_widget.add_spacing(8)
-            index_row_widget.add(index_slider_widget)
-            index_row_widget.add_spacing(8)
-            index_row_widget.add(index_line_edit_widget)
-            index_row_widget.add_stretch()
-            column_widget.add(index_row_widget)
-
-            # add unbinders
-            self._unbinder.add([display_data_channel], [index_slider_widget.unbind_value, index_line_edit_widget.unbind_text])
-
-        self.add_widget_to_content(column_widget)
-        self.finish_widget_content()
-
-        # for testing
-        self._column_widget = column_widget
+    def __handle_data_item_changed(self) -> None:
+        if threading.current_thread() != threading.main_thread():
+            if self.__pending_call:
+                self.__pending_call.cancel()
 
     def close(self) -> None:
         self.__collection_index_model.close()
@@ -2314,58 +2533,66 @@ class CollectionIndexInspectorSection(InspectorSection):
         super().close()
 
 
+class SliceSectionHandler(Declarative.Handler):
+    def __init__(self, document_controller: DocumentController.DocumentController, display_data_channel: DisplayItem.DisplayDataChannel):
+        super().__init__()
+
+        self.slice_center_model = DisplayDataChannelPropertyCommandModel(document_controller, display_data_channel, "slice_center", title=_("Change Slice"), command_id="change_slice_center")
+        self.slice_width_model = DisplayDataChannelPropertyCommandModel(document_controller, display_data_channel, "slice_width", title=_("Change Slice"), command_id="change_slice_width")
+
+        self.slice_center_maximum = display_data_channel.data_item.dimensional_shape[-1] - 1 if display_data_channel.data_item else 0
+        self.slice_width_maximum = display_data_channel.data_item.dimensional_shape[-1] if display_data_channel.data_item else 0
+
+        self._int_to_string_converter = Converter.IntegerToStringConverter()
+
+        u = Declarative.DeclarativeUI()
+        self.ui_view = u.create_column(
+            u.create_row(
+                u.create_label(text=_("Slice"), width=60),
+                u.create_spacing(8),
+                u.create_line_edit(width=60,
+                                   text="@binding(slice_center_model.value, converter=_int_to_string_converter)"),
+                u.create_spacing(8),
+                u.create_slider(width=144, maximum=self.slice_center_maximum,
+                                value="@binding(slice_center_model.value)"),
+                u.create_stretch()
+            ),
+            u.create_row(
+                u.create_label(text=_("Width"), width=60),
+                u.create_spacing(8),
+                u.create_line_edit(width=60,
+                                   text="@binding(slice_width_model.value, converter=_int_to_string_converter)"),
+                u.create_spacing(8),
+                u.create_slider(width=144, minimum=1, maximum=self.slice_width_maximum,
+                                value="@binding(slice_width_model.value)"),
+                u.create_stretch()
+            )
+        )
+
+
 class SliceInspectorSection(InspectorSection):
-
-    """
-        Subclass InspectorSection to implement slice inspector.
-    """
-
     def __init__(self, document_controller: DocumentController.DocumentController, display_data_channel: DisplayItem.DisplayDataChannel) -> None:
         super().__init__(document_controller.ui, "slice", _("Slice"))
+        self.__document_controller = document_controller
+        self.__display_data_channel = display_data_channel
+        self.__event_loop = document_controller.event_loop
+        self.__pending_call: typing.Optional[asyncio.Handle] = None
+        self.__enable_ref: list[bool] = [False]
 
         data_item = display_data_channel.data_item
         assert data_item
 
-        slice_center_row_widget = self.ui.create_row_widget()  # use 280 pixels in row
-        slice_center_label_widget = self.ui.create_label_widget(_("Slice"), properties={"width": 60})
-        slice_center_line_edit_widget = self.ui.create_line_edit_widget(properties={"width": 60})
-        slice_center_slider_widget = self.ui.create_slider_widget(properties={"width": 144})
-        slice_center_slider_widget.maximum = data_item.dimensional_shape[-1] - 1  # signal_index
-        slice_center_slider_widget.bind_value(ChangeDisplayDataChannelPropertyBinding(document_controller, display_data_channel, "slice_center"))
-        slice_center_line_edit_widget.bind_text(ChangeDisplayDataChannelPropertyBinding(document_controller, display_data_channel, "slice_center", converter=Converter.IntegerToStringConverter()))
-        slice_center_row_widget.add(slice_center_label_widget)
-        slice_center_row_widget.add_spacing(8)
-        slice_center_row_widget.add(slice_center_slider_widget)
-        slice_center_row_widget.add_spacing(8)
-        slice_center_row_widget.add(slice_center_line_edit_widget)
-        slice_center_row_widget.add_stretch()
+        self._slice_section_handler = SliceSectionHandler(document_controller, display_data_channel)
 
-        slice_width_row_widget = self.ui.create_row_widget()  # use 280 pixels in row
-        slice_width_label_widget = self.ui.create_label_widget(_("Width"), properties={"width": 60})
-        slice_width_line_edit_widget = self.ui.create_line_edit_widget(properties={"width": 60})
-        slice_width_slider_widget = self.ui.create_slider_widget(properties={"width": 144})
-        slice_width_slider_widget.maximum = data_item.dimensional_shape[-1] - 1  # signal_index
-        slice_width_slider_widget.bind_value(ChangeDisplayDataChannelPropertyBinding(document_controller, display_data_channel, "slice_width"))
-        slice_width_line_edit_widget.bind_text(ChangeDisplayDataChannelPropertyBinding(document_controller, display_data_channel, "slice_width", converter=Converter.IntegerToStringConverter()))
-        slice_width_row_widget.add(slice_width_label_widget)
-        slice_width_row_widget.add_spacing(8)
-        slice_width_row_widget.add(slice_width_slider_widget)
-        slice_width_row_widget.add_spacing(8)
-        slice_width_row_widget.add(slice_width_line_edit_widget)
-        slice_width_row_widget.add_stretch()
+        widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop, self._slice_section_handler)
+        self.__data_item_changed_event_listener = data_item.data_item_changed_event.listen(ReferenceCounting.weak_partial(SliceInspectorSection.__handle_data_item_changed, self)) if data_item else None
+        self.__handle_data_item_changed()
+        self.add_widget_to_content(widget)
 
-        # add unbinders
-        self._unbinder.add([display_data_channel], [slice_center_slider_widget.unbind_value, slice_center_line_edit_widget.unbind_text, slice_width_slider_widget.unbind_value, slice_width_line_edit_widget.unbind_text])
-
-        self.add_widget_to_content(slice_center_row_widget)
-        self.add_widget_to_content(slice_width_row_widget)
-        self.finish_widget_content()
-
-        # for testing
-        self._slice_center_slider_widget = slice_center_slider_widget
-        self._slice_width_slider_widget = slice_width_slider_widget
-        self._slice_center_line_edit_widget = slice_center_line_edit_widget
-        self._slice_width_line_edit_widget = slice_width_line_edit_widget
+    def __handle_data_item_changed(self) -> None:
+        if threading.current_thread() != threading.main_thread():
+            if self.__pending_call:
+                self.__pending_call.cancel()
 
 
 class RadianToDegreeStringConverter(Converter.ConverterLike[float, str]):
@@ -2655,6 +2882,63 @@ class CalibratedAngleBinding(Binding.Binding):
         return RadianToDegreeStringConverter().convert(-math.atan2(calibrated_dy, calibrated_dx))
 
 
+class DisplayItemCalibratedValueModel(Model.PropertyModel[typing.Any]):
+    """ Model to catch the property changed event for the calibration changing that can trigger a UI update """
+    def __init__(self, property_model: Model.PropertyModel[typing.Any],
+                 converter: Converter.ConverterLike[typing.Any, typing.Any],
+                 display_item: DisplayItem.DisplayItem):
+        super().__init__()
+        self.__property_model = property_model
+        self.__converter = converter
+        self.__display_item = display_item
+
+        self.__display_item_listener = self.__display_item.display_property_changed_event.listen(
+            ReferenceCounting.weak_partial(DisplayItemCalibratedValueModel.__on_calibration_changed, self))
+        self.__property_listener = self.__property_model.property_changed_event.listen(
+            ReferenceCounting.weak_partial(DisplayItemCalibratedValueModel.__on_value_changed, self))
+
+    def __on_calibration_changed(self, property: str) -> None:
+        if property == "displayed_dimensional_calibrations":
+            self.notify_property_changed("value")
+
+    def __on_value_changed(self, property: str) -> None:
+        self.notify_property_changed("value")
+
+    @property
+    def value(self) -> typing.Any:
+        return self.__converter.convert(self.__property_model.value)
+
+    @value.setter
+    def value(self, value: typing.Any) -> None:
+        self.__property_model.value = self.__converter.convert_back(value)
+
+
+class TuplePropertyElementModel(Model.PropertyModel[typing.Any]):
+    def __init__(self, source: Model.PropertyModel[tuple[typing.Any]], index: int):
+        super().__init__()
+        self.__source = source
+        self.__index = index
+        self.__listener = self.__source.property_changed_event.listen(
+            ReferenceCounting.weak_partial(TuplePropertyElementModel.__on_tuple_changed, self))
+
+    @property
+    def value(self) -> typing.Any:
+        tuple_value = self.__source.value
+        return tuple_value[self.__index] if tuple_value else None
+
+    @value.setter
+    def value(self, new_value: typing.Any) -> None:
+        if self.value != new_value:
+            tuple_value = self.__source.value
+            tuple_as_list = list(tuple_value) if tuple_value else []
+            tuple_as_list[self.__index] = new_value
+            self.__source.value = tuple(tuple_as_list)
+
+    def __on_tuple_changed(self, property_name: str) -> None:
+        if property_name == "value":
+            self.notify_property_changed("value")
+
+
 def make_point_type_inspector(document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem, graphic: Graphics.Graphic) -> InspectorSectionWidget:
     ui = document_controller.ui
     graphic_widget = InspectorSectionWidget(ui)
@@ -2685,8 +2969,14 @@ def make_point_type_inspector(document_controller: DocumentController.DocumentCo
     if display_data_shape and len(display_data_shape) > 1:
         # calculate values from rectangle type graphic
         # signal_index
-        position_x_binding = CalibratedValueBinding(1, display_item, Binding.TuplePropertyBinding(position_model, "value", 1))
-        position_y_binding = CalibratedValueBinding(0, display_item, Binding.TuplePropertyBinding(position_model, "value", 0))
+        position_x_model = DisplayItemCalibratedValueModel(TuplePropertyElementModel(position_model, 1),
+                                                           CalibratedValueFloatToStringConverter(display_item, 1),
+                                                           display_item)
+        position_y_model = DisplayItemCalibratedValueModel(TuplePropertyElementModel(position_model, 0),
+                                                           CalibratedValueFloatToStringConverter(display_item, 0),
+                                                           display_item)
+        position_x_binding = Binding.PropertyBinding(position_x_model, 'value')
+        position_y_binding = Binding.PropertyBinding(position_y_model, 'value')
         graphic_position_x_line_edit.bind_text(position_x_binding)
         graphic_position_y_line_edit.bind_text(position_y_binding)
     else:
@@ -3544,6 +3834,10 @@ class DataSourceVariableHandler(Declarative.Handler):
         self.computation = computation
         self.variable = variable
         self.variable_model = variable_model
+        self.is_croppable = False
+        if processor_description := computation._processor_description:
+            if source_description := processor_description.get_source(variable.name):
+                self.is_croppable = source_description.is_croppable
         u = Declarative.DeclarativeUI()
         label = u.create_label(text="@binding(variable.display_label)")
         data_source_chooser = {
@@ -3553,6 +3847,9 @@ class DataSourceVariableHandler(Declarative.Handler):
             "on_delete": "data_item_delete",
             "min_width": 80,
             "min_height": 80,
+            "is_croppable": "@binding(is_croppable)",
+            "crop_enabled": "@binding(crop_enabled)",
+            "on_crop_enabled_clicked": "handle_toggle_crop_enabled"
         }
         self.ui_view = u.create_column(label, data_source_chooser, spacing=8)
         self.__property_changed_listener = variable.property_changed_event.listen(self.__property_changed)
@@ -3564,6 +3861,93 @@ class DataSourceVariableHandler(Declarative.Handler):
     def __property_changed(self, property_name: str) -> None:
         if property_name in ("specified_object", "secondary_specified_object"):
             self.property_changed_event.fire("display_item")
+        if property_name in ("secondary_specified_object",):
+            self.property_changed_event.fire("crop_enabled")
+
+    def handle_toggle_crop_enabled(self, widget: Declarative.UIWidget) -> None:
+        display_item = self.display_item
+        selected_graphic = display_item.selected_graphic if display_item else None
+        selected_crop_graphic = selected_graphic if isinstance(selected_graphic, Graphics.RectangleTypeGraphic) else None
+        all_graphics = display_item.graphics if display_item else list()
+        all_rect_graphics = (graphic for graphic in all_graphics if isinstance(graphic, Graphics.RectangleTypeGraphic))
+        first_rect_graphic = next(all_rect_graphics, None)
+        selected_crop_graphic = selected_crop_graphic if selected_crop_graphic else first_rect_graphic
+        # implement the toggle logic.
+        # if there is a selected crop graphic, and it is not already assigned rectangle, assign it, replacing the old one.
+        # otherwise, if there is a selected crop graphic, and it is already assigned rectangle, remove it. (toggle)
+        # otherwise, if there is no selected crop graphic, add a new crop rectangle and assign it.
+        # this behavior allows the user to toggle the selected rectangle on/off, select a new rectangle and assign it,
+        # or add a new rectangle or use the first known rectangle and assign it.
+        if selected_crop_graphic and selected_crop_graphic != self.variable.secondary_specified_object:
+            self.assign_crop_rectangle(selected_crop_graphic)
+        elif self.variable.secondary_specified_object:
+            self.remove_crop_rectangle()
+        else:
+            self.add_crop_rectangle()
+
+    def handle_new_crop(self, widget: Declarative.UIWidget) -> None:
+        self.add_crop_rectangle()
+
+    def handle_remove_crop(self, widget: Declarative.UIWidget) -> None:
+        self.remove_crop_rectangle()
+
+    def handle_assign_crop(self, widget: Declarative.UIWidget) -> None:
+        display_item = self.display_item
+        selected_graphic = display_item.selected_graphic if display_item else None
+        selected_crop_graphic = selected_graphic if isinstance(selected_graphic, Graphics.RectangleTypeGraphic) else None
+        if selected_crop_graphic:
+            self.assign_crop_rectangle(selected_crop_graphic)
+
+    def remove_crop_rectangle(self) -> None:
+        document_controller = self.document_controller
+        computation = self.computation
+        variable = self.variable
+        display_item = self.display_item
+        data_item = display_item.data_item if display_item else None
+        if data_item and display_item:
+            properties = {"variable_type": "data_source", "secondary_specified_object": None,
+                          "specified_object": display_item.get_display_data_channel_for_data_item(data_item)}
+            command = ChangeComputationVariableCommand(document_controller.document_model, computation,
+                                                       variable, title=_("Set Input Data Source"),
+                                                       **properties)  # type: ignore
+            command.perform()
+            document_controller.push_undo_command(command)
+
+    def add_crop_rectangle(self) -> None:
+        document_controller = self.document_controller
+        computation = self.computation
+        variable = self.variable
+        display_item = self.display_item
+        data_item = display_item.data_item if display_item else None
+        if data_item and display_item:
+            graphic = Graphics.RectangleGraphic()
+            graphic.bounds = Geometry.FloatRect(Geometry.FloatPoint(0.25, 0.25), Geometry.FloatSize(0.5, 0.5))
+            command = DisplayPanel.InsertGraphicsCommand(document_controller, display_item, [graphic])
+            command.perform()
+            document_controller.push_undo_command(command)
+            display_item.graphic_selection.set(display_item.graphics.index(graphic))
+            properties = {"variable_type": "data_source", "secondary_specified_object": graphic,
+                          "specified_object": display_item.get_display_data_channel_for_data_item(data_item)}
+            command = ChangeComputationVariableCommand(document_controller.document_model, computation,
+                                                       variable, title=_("Set Input Data Source"),
+                                                       **properties)  # type: ignore
+            command.perform()
+            document_controller.push_undo_command(command)
+
+    def assign_crop_rectangle(self, crop_graphic: Graphics.RectangleTypeGraphic) -> None:
+        document_controller = self.document_controller
+        computation = self.computation
+        variable = self.variable
+        display_item = self.display_item
+        data_item = display_item.data_item if display_item else None
+        if data_item and display_item:
+            properties = {"variable_type": "data_source", "secondary_specified_object": crop_graphic,
+                          "specified_object": display_item.get_display_data_channel_for_data_item(data_item)}
+            command = ChangeComputationVariableCommand(document_controller.document_model, computation,
+                                                       variable, title=_("Set Input Data Source"),
+                                                       **properties)  # type: ignore
+            command.perform()
+            document_controller.push_undo_command(command)
 
     @property
     def display_item(self) -> typing.Optional[DisplayItem.DisplayItem]:
@@ -3582,6 +3966,14 @@ class DataSourceVariableHandler(Declarative.Handler):
     @display_item.setter
     def display_item(self, value: DisplayItem.DisplayItem) -> None:
         pass  # handled separately
+
+    @property
+    def crop_enabled(self) -> bool:
+        return self.variable.secondary_specified_object is not None
+
+    @crop_enabled.setter
+    def crop_enabled(self, value: bool) -> None:
+        pass
 
     def drop_mime_data(self, mime_data: UserInterface.MimeData, x: int, y: int) -> typing.Optional[str]:
         # return drop_mime_data(self.document_controller, self.computation, self.variable, mime_data, x, y)
@@ -3904,7 +4296,11 @@ class DataStructurePropertyVariableHandler(Declarative.Handler):
         self.ui_view = u.create_column(u.create_row(label, *([link] if computation_inspector_context.do_references else []), u.create_stretch()), line_edit, u.create_stretch(), spacing=8)
         self.__variable_listener = variable.property_changed_event.listen(ReferenceCounting.weak_partial(DataStructurePropertyVariableHandler.__property_changed, self))
         if variable.bound_item:
-            self.__bound_item_listener = variable.changed_event.listen(ReferenceCounting.weak_partial(DataStructurePropertyVariableHandler.__changed, self))
+            def handle_variable_event(handler: DataStructurePropertyVariableHandler, event_type: Symbolic.BoundDataEventType) -> None:
+                handler.__changed()
+
+            self.__bound_item_listener = variable.data_event.listen(
+                ReferenceCounting.weak_partial(handle_variable_event, self))
 
     @property
     def variable_value(self) -> str:
@@ -4342,8 +4738,9 @@ class DisplayInspector(Widgets.CompositeWidgetBase):
             if len(display_item.graphics) > 0:
                 inspector_sections.append(GraphicsInspectorSection(document_controller, display_item))
             def focus_default() -> None:
-                info_inspector_section.info_title_label.focused = True
-                info_inspector_section.info_title_label.request_refocus()
+                if info_inspector_section.info_title_label is not None:
+                    info_inspector_section.info_title_label.focused = True
+                    info_inspector_section.info_title_label.request_refocus()
             self.__focus_default = focus_default
         elif display_item and display_item.used_display_type == "image":
             info_inspector_section = InfoInspectorSection(document_controller, display_item)
@@ -4365,8 +4762,9 @@ class DisplayInspector(Widgets.CompositeWidgetBase):
             if len(display_item.graphics) > 0:
                 inspector_sections.append(GraphicsInspectorSection(document_controller, display_item))
             def focus_default() -> None:
-                info_inspector_section.info_title_label.focused = True
-                info_inspector_section.info_title_label.request_refocus()
+                if info_inspector_section.info_title_label is not None:
+                    info_inspector_section.info_title_label.focused = True
+                    info_inspector_section.info_title_label.request_refocus()
             self.__focus_default = focus_default
         elif display_item:
             info_inspector_section = InfoInspectorSection(document_controller, display_item)
@@ -4377,8 +4775,9 @@ class DisplayInspector(Widgets.CompositeWidgetBase):
                 if data_item:
                     inspector_sections.append(SessionInspectorSection(document_controller, data_item))
             def focus_default() -> None:
-                info_inspector_section.info_title_label.focused = True
-                info_inspector_section.info_title_label.request_refocus()
+                if info_inspector_section.info_title_label is not None:
+                    info_inspector_section.info_title_label.focused = True
+                    info_inspector_section.info_title_label.request_refocus()
             self.__focus_default = focus_default
 
         for inspector_section in inspector_sections:
@@ -4437,6 +4836,126 @@ class DeclarativeImageChooserConstructor:
         return None
 
 
+class CroppedOverlayGraphicCanvasItemComposer(CanvasItem.BaseComposer):
+    def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing, cache: CanvasItem.ComposerCache, is_crop_enabled: bool) -> None:
+        super().__init__(canvas_item, layout_sizing, cache)
+        self.__crop_enabled = is_crop_enabled
+
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> None:
+        is_crop_enabled = self.__crop_enabled
+        with drawing_context.saver():
+            drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
+            drawing_context.rect(canvas_bounds.left, canvas_bounds.top, canvas_bounds.width, canvas_bounds.height)
+            drawing_context.line_join = "miter"
+            drawing_context.fill_style = "gray"
+            drawing_context.fill()
+            drawing_context.stroke_style = "white"
+            drawing_context.line_width = 1.2
+            drawing_context.stroke()
+            if is_crop_enabled:
+                drawing_context.rect(canvas_bounds.center.x - 1, canvas_bounds.center.y - 1, canvas_bounds.width / 2, canvas_bounds.height / 2)
+                drawing_context.line_width = 1.2
+                drawing_context.stroke_style = "white"
+                drawing_context.stroke()
+
+
+class CroppedOverlayGraphicCanvasItem(CanvasItem.AbstractCanvasItem):
+    def __init__(self, handle_clicked: typing.Callable[[], None]) -> None:
+        super().__init__()
+        self.wants_mouse_events = True
+        self.update_sizing(self.sizing.with_fixed_size(Geometry.IntSize(11, 11)))
+        self.__is_croppable = False
+        self.__crop_enabled = False
+        self.__handle_clicked = handle_clicked
+        self.__update_tool_tip()
+
+    @property
+    def is_croppable(self) -> bool:
+        return self.__is_croppable
+
+    @is_croppable.setter
+    def is_croppable(self, value: bool) -> None:
+        self.__is_croppable = value
+        self.__update_tool_tip()
+
+    def set_crop_enabled(self, crop_enabled: bool) -> None:
+        self.__crop_enabled = crop_enabled
+        self.update()
+        self.__update_tool_tip()
+
+    def __update_tool_tip(self) -> None:
+        if self.is_croppable:
+            if self.__crop_enabled:
+                self.tool_tip = _("Cropped. Click to remove or assign selected rectangle as crop.")
+            else:
+                self.tool_tip = _("Uncropped. Click to auto create or assign selected rectangle as crop.")
+        else:
+            self.tool_tip = str()
+
+    def mouse_clicked(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        self.__handle_clicked()
+        return False
+
+    def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> typing.Optional[CanvasItem.BaseComposer]:
+        return CroppedOverlayGraphicCanvasItemComposer(self, self.sizing, composer_cache, self.__crop_enabled)
+
+
+class CroppedOverlayCanvasItem(CanvasItem.CanvasItemComposition):
+    def __init__(self) -> None:
+        super().__init__()
+        self.__crop_enabled = False
+
+        self.on_crop_enabled_clicked: typing.Optional[typing.Callable[[], None]] = None
+
+        def get_crop_enabled() -> bool:
+            return self.__crop_enabled
+
+        def set_crop_enabled(value: bool) -> None:
+            if value != self.__crop_enabled:
+                self.__crop_enabled = value
+                self.__graphic_canvas_item.set_crop_enabled(value)
+
+        self.__crop_enabled_binding_helper = UserInterface.BindablePropertyHelper[bool](get_crop_enabled, set_crop_enabled)
+
+        def handle_clicked() -> None:
+            if callable(self.on_crop_enabled_clicked):
+                self.on_crop_enabled_clicked()
+
+        self.__graphic_canvas_item = CroppedOverlayGraphicCanvasItem(handle_clicked)
+
+        self.layout = CanvasItem.CanvasItemRowLayout()
+        composition = CanvasItem.CanvasItemComposition()
+        composition.layout = CanvasItem.CanvasItemColumnLayout()
+        composition.add_stretch()
+        composition.add_canvas_item(self.__graphic_canvas_item)
+        composition.add_spacing(4)
+        self.add_stretch()
+        self.add_canvas_item(composition)
+        self.add_spacing(4)
+
+    @property
+    def is_croppable(self) -> bool:
+        return self.__graphic_canvas_item.is_croppable
+
+    @is_croppable.setter
+    def is_croppable(self, value: bool) -> None:
+        self.__graphic_canvas_item.is_croppable = value
+
+    @property
+    def crop_enabled(self) -> bool:
+        return self.__crop_enabled_binding_helper.value
+
+    @crop_enabled.setter
+    def crop_enabled(self, value: bool) -> None:
+        self.__crop_enabled_binding_helper.value = value
+
+    def bind_crop_enabled(self, binding: Binding.Binding) -> None:
+        self.__crop_enabled_binding_helper.bind_value(binding)
+
+    def unbind_crop_enabled(self) -> None:
+        self.__crop_enabled_binding_helper.unbind_value()
+
+
 class DeclarativeDataSourceChooserConstructor:
 
     def __init__(self, app: Application.Application) -> None:
@@ -4445,7 +4964,8 @@ class DeclarativeDataSourceChooserConstructor:
     def construct(self, d_type: str, ui: UserInterface.UserInterface, window: typing.Optional[Window.Window], d: Declarative.UIDescription, handler: Declarative.HandlerLike, finishes: typing.List[typing.Callable[[], None]]) -> typing.Optional[UserInterface.Widget]:
         if d_type == "data_source_chooser":
             properties = Declarative.construct_sizing_properties(d)
-            thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(ui, window=window)
+            cropped_overlay = CroppedOverlayCanvasItem()
+            thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(ui, window=window, overlay_canvas_items=[cropped_overlay])
 
             def drop_mime_data(mime_data: UserInterface.MimeData, x: int, y: int) -> str:
                 on_drop_mime_data_method = typing.cast(typing.Optional[str], d.get("on_drop_mime_data"))
@@ -4466,6 +4986,9 @@ class DeclarativeDataSourceChooserConstructor:
             if handler:
                 Declarative.connect_name(widget, d, handler)
                 Declarative.connect_reference_value(thumbnail_source, d, handler, "display_item", finishes)
+                Declarative.connect_reference_value(cropped_overlay, d, handler, "is_croppable", finishes, value_type=bool)
+                Declarative.connect_reference_value(cropped_overlay, d, handler, "crop_enabled", finishes, value_type=bool)
+                Declarative.connect_event(widget, cropped_overlay, d, handler, "on_crop_enabled_clicked", [])
                 Declarative.connect_attributes(widget, d, handler, finishes)
 
             return widget

@@ -8,6 +8,7 @@ import logging
 import math
 import threading
 import time
+import typing
 import unittest
 import weakref
 
@@ -29,6 +30,7 @@ from nion.swift.model import Symbolic
 from nion.swift.model import Utility
 from nion.swift.test import TestContext
 from nion.ui import TestUI
+from nion.utils import Geometry
 from nion.utils import Recorder
 
 
@@ -1504,6 +1506,45 @@ class TestDataItemClass(unittest.TestCase):
             data_item.title = "source2"
             self.assertEqual("source2 (Negate)", data_item2.title)
 
+    class GenerateTwoOutputs:
+        computation_id = "gen2outputs"
+        label = "2Out"
+        inputs = {"src": {"label": "Input Data Item"}}
+        outputs = {"a": {"label": "A"}, "b": {"label": "B"}}
+
+        def __init__(self, computation: Facade.Computation, **kwargs: typing.Any) -> None:
+            self.computation = computation
+
+        def execute(self) -> None:
+            pass
+
+        def commit(self) -> None:
+            self.computation.set_referenced_xdata('a', DataAndMetadata.new_data_and_metadata(numpy.random.randn(4,4)))
+            self.computation.set_referenced_xdata('b', DataAndMetadata.new_data_and_metadata(numpy.random.randn(4,4)))
+
+    def test_computed_data_item_title_with_multiple_outputs(self):
+        # requirement: dynamic_titles
+        Symbolic.register_computation_type("gen2outputs", self.GenerateTwoOutputs)
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            data_item = DataItem.DataItem()
+            data_item.title = "source"
+            document_model.append_data_item(data_item)
+            data_item_a = DataItem.DataItem()
+            document_model.append_data_item(data_item_a)
+            data_item_b = DataItem.DataItem()
+            document_model.append_data_item(data_item_b)
+
+            computation = document_model.create_computation()
+            computation.create_input_item("src", Symbolic.make_item(data_item))
+            computation.create_output_item("a", Symbolic.make_item(data_item_a))
+            computation.create_output_item("b", Symbolic.make_item(data_item_b))
+            computation.processing_id = "gen2outputs"
+            document_model.append_computation(computation)
+
+            self.assertEqual("source (2Out - A)", data_item_a.title)
+            self.assertEqual("source (2Out - B)", data_item_b.title)
+
     def test_setting_dynamic_title_immediately_updates_title_stream(self):
         # requirement: dynamic_titles
         with TestContext.create_memory_context() as test_context:
@@ -1541,6 +1582,40 @@ class TestDataItemClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             data_item.metadata = {"_slug_test": "green"}
             self.assertEqual("green", data_item.title)
+
+    def test_update_partial_uses_timestamp_from_xdata_on_first_update_only(self):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            data_item = DataItem.DataItem()
+            document_model.append_data_item(data_item)
+            data_shape_and_dtype = (4, 4), float
+            intensity_calibration = Calibration.Calibration()
+            dimensional_calibrations = [Calibration.Calibration(), Calibration.Calibration()]
+            data_descriptor = DataAndMetadata.DataDescriptor(False, 0, 2)
+            data_metadata = DataAndMetadata.DataMetadata(data_shape_and_dtype,
+                                                         intensity_calibration,
+                                                         dimensional_calibrations,
+                                                         data_descriptor=data_descriptor,
+                                                         timestamp=datetime.datetime(2000, 1, 1))
+            data_and_metadata = DataAndMetadata.new_data_and_metadata(numpy.ones((2, 4), data_shape_and_dtype[1]))
+            data_item.reserve_data(data_shape=(4, 4), data_dtype=float, data_descriptor=DataAndMetadata.DataDescriptor(False, 0, 2))
+            document_model.update_data_item_partial(data_item, data_metadata, data_and_metadata, [slice(0, 2), slice(None)], [slice(0, 2), slice(None)])
+            document_model.perform_data_item_updates()
+            self.assertEqual(data_item.xdata.timestamp, datetime.datetime(2000, 1, 1))
+            data_metadata._set_timestamp(datetime.datetime(2000, 1, 2))
+            document_model.update_data_item_partial(data_item, data_metadata, data_and_metadata, [slice(0, 2), slice(None)], [slice(2, 4), slice(None)])
+            document_model.perform_data_item_updates()
+            self.assertEqual(data_item.xdata.timestamp, datetime.datetime(2000, 1, 1))
+
+    def test_queue_update_uses_timestamp_from_xdata(self):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            data_item = DataItem.DataItem(numpy.zeros((4, 4), float))
+            document_model.append_data_item(data_item)
+            data_and_metadata = DataAndMetadata.new_data_and_metadata(numpy.ones((4, 4), float), timestamp=datetime.datetime(2000, 1, 1))
+            document_model._queue_data_item_update(data_item, data_and_metadata)
+            document_model.perform_data_item_updates()
+            self.assertEqual(data_item.xdata.timestamp, datetime.datetime(2000, 1, 1))
 
     # modify property/item/relationship on data source, display, region, etc.
     # copy or snapshot

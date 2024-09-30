@@ -219,6 +219,7 @@ class DataItem(Persistence.PersistentObject):
         self.__data: typing.Optional[_ImageDataType] = None
         self.__data_metadata: typing.Optional[DataAndMetadata.DataMetadata] = None
         self.__data_and_metadata_unloadable = False
+        self.__data_and_metadata_first_update_after_reserve = False
         self.__data_and_metadata_lock = threading.RLock()
         self.__intensity_calibration: typing.Optional[Calibration.Calibration] = None
         self.__dimensional_calibrations: typing.List[Calibration.Calibration] = list()
@@ -934,9 +935,11 @@ class DataItem(Persistence.PersistentObject):
                 # it is an error to have both pending xdata and a pending queue
                 assert not pending_xdata or not pending_queue
                 if pending_xdata:
-                    self.set_xdata(pending_xdata)
+                    self.set_xdata(pending_xdata, data_modified=pending_xdata.timestamp)
                 for partial_xdata, partial_src_slice, partial_dst_slice, partial_metadata in pending_queue:
-                    self.set_data_and_metadata_partial(partial_metadata, partial_xdata, partial_src_slice, partial_dst_slice, update_metadata=True)
+                    # note: data_modified is only used in case that the data has not been updated yet. subsequent
+                    # updates use the timestamp of the existing data.
+                    self.set_data_and_metadata_partial(partial_metadata, partial_xdata, partial_src_slice, partial_dst_slice, update_metadata=True, data_modified=partial_metadata.timestamp)
 
     _data_count = 0
 
@@ -1011,8 +1014,9 @@ class DataItem(Persistence.PersistentObject):
         self.set_xdata(DataAndMetadata.new_data_and_metadata(data, timestamp=data_modified, timezone=timezone, timezone_offset=timezone_offset))
 
     def set_xdata(self, xdata: typing.Optional[DataAndMetadata.DataAndMetadata], data_modified: typing.Optional[datetime.datetime] = None) -> None:
-        with self.data_source_changes():
-            self.set_data_and_metadata(xdata, data_modified)
+        if not self._closed:
+            with self.data_source_changes():
+                self.set_data_and_metadata(xdata, data_modified)
 
     class DataAccessor:
         def __init__(self, data_item: DataItem, get_data: typing.Callable[[], typing.Optional[_ImageDataType]], set_data: typing.Callable[[typing.Optional[_ImageDataType]], None]) -> None:
@@ -1277,6 +1281,7 @@ class DataItem(Persistence.PersistentObject):
                 self.__set_data_metadata_direct(data_metadata, data_modified)
                 self.__load_data()
                 self.__data_and_metadata_unloadable = True
+                self.__data_and_metadata_first_update_after_reserve = True
         finally:
             self.decrement_data_ref_count()
 
@@ -1306,8 +1311,10 @@ class DataItem(Persistence.PersistentObject):
                                                                             timezone_offset)
                     self.__set_data_and_metadata_direct(new_data_and_metadata, data_modified)
                 if self.__data is not None:
-                    if update_metadata:
-                        self.__set_data_metadata_direct(data_metadata)
+                    date_modified = data_metadata.timestamp if self.__data_and_metadata_first_update_after_reserve else self.__data_metadata.timestamp if self.__data_metadata else None
+                    self.__data_and_metadata_first_update_after_reserve = False
+                    if update_metadata or date_modified:
+                        self.__set_data_metadata_direct(data_metadata, date_modified)
                     assert self.data_shape == data_metadata.data_shape
                     assert self.data_dtype == data_metadata.data_dtype
                     assert self.data_dtype == data_and_metadata.data_dtype, f"{self.data_dtype=} == {data_and_metadata.data_dtype=}"

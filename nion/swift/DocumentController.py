@@ -58,6 +58,7 @@ from nion.swift.model import Utility
 from nion.swift.model import WorkspaceLayout
 from nion.ui import CanvasItem
 from nion.ui import Dialog
+from nion.ui import DrawingContext
 from nion.ui import PreferencesDialog
 from nion.ui import Window
 from nion.ui import UserInterface
@@ -352,7 +353,10 @@ class DocumentController(Window.Window):
     def _register_ui_activity(self) -> None:
         self.__last_activity = time.time()
 
-    def about_to_show(self) -> None:
+    def restore_ui_state_and_geometry(self) -> None:
+        # this is done only when the project is first loaded. it used to be done anytime the window was shown (via
+        # about_to_show), which included times when it was restored from a minimized state. this led to quirky behavior
+        # when restoring from minimized state. doing this only once at document load fixes that issue.
         workspace_controller = self.workspace_controller
         if workspace_controller:
             geometry, state = workspace_controller.restore_geometry_state()
@@ -903,10 +907,10 @@ class DocumentController(Window.Window):
             display_properties["image_canvas_mode"] = "fit"
             display_item_snapshot.display_properties = display_properties
             # create the drawing context and shape for the preview
-            drawing_context, shape = DisplayPanel.preview(ui_settings, display_item_snapshot, display_shape.width, display_shape.height)
+            drawing_context = DisplayPanel.preview(ui_settings, display_item_snapshot, display_shape)
             # set up the SVG
-            view_box = Geometry.IntRect(Geometry.IntPoint(), shape)
-            svg = drawing_context.to_svg(shape, view_box)
+            view_box = Geometry.IntRect(Geometry.IntPoint(), display_shape)
+            svg = drawing_context.to_svg(display_shape, view_box)
             # write the file
             with Utility.AtomicFileWriter(path.with_suffix(".svg")) as fp:
                 fp.write(svg)
@@ -1646,12 +1650,11 @@ class DocumentController(Window.Window):
             else:
                 display_shape = Geometry.IntSize(height=600, width=800)
 
-            drawing_context, shape = DisplayPanel.preview(DisplayPanel.FixedUISettings(), display_item, display_shape.width,
-                                                          display_shape.height)
+            drawing_context = DisplayPanel.preview(DisplayPanel.FixedUISettings(), display_item, display_shape)
 
-            view_box = Geometry.IntRect(Geometry.IntPoint(), shape)
+            view_box = Geometry.IntRect(Geometry.IntPoint(), display_shape)
 
-            svg = drawing_context.to_svg(shape, view_box)
+            svg = drawing_context.to_svg(display_shape, view_box)
 
             mime_data.set_data_as_string(MimeTypes.SVG_MIME_TYPE, svg)
 
@@ -1979,7 +1982,7 @@ class DocumentController(Window.Window):
         selected_display_panel = self.selected_display_panel
         display_item = selected_display_panel.display_item if selected_display_panel else None
         data_item = display_item.data_item if display_item else None
-        if data_item:
+        if display_item and data_item:
 
             def describe_data_descriptor(data_descriptor: DataAndMetadata.DataDescriptor, data_shape: typing.Sequence[int]) -> str:
                 if data_descriptor.is_sequence:

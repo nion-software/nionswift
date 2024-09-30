@@ -549,12 +549,10 @@ class TestInspectorClass(unittest.TestCase):
             display_data_channel.slice_width = 4
             slice_inspector_section = Inspector.SliceInspectorSection(document_controller, display_item.display_data_channels[0])
             with contextlib.closing(slice_inspector_section):
-                self.assertEqual(slice_inspector_section._slice_center_slider_widget.value, 16)
-                self.assertEqual(slice_inspector_section._slice_center_slider_widget.maximum, 31)
-                self.assertEqual(slice_inspector_section._slice_width_slider_widget.value, 4)
-                self.assertEqual(slice_inspector_section._slice_width_slider_widget.maximum, 31)
-                self.assertEqual(slice_inspector_section._slice_center_line_edit_widget.text, "16")
-                self.assertEqual(slice_inspector_section._slice_width_line_edit_widget.text, "4")
+                self.assertEqual(slice_inspector_section._slice_section_handler.slice_center_model.value, 16)
+                self.assertEqual(slice_inspector_section._slice_section_handler.slice_center_maximum, 31)
+                self.assertEqual(slice_inspector_section._slice_section_handler.slice_width_model.value, 4)
+                self.assertEqual(slice_inspector_section._slice_section_handler.slice_width_maximum, 32)
 
     def test_image_display_inspector_shows_empty_fields_for_none_display_limits(self):
         with TestContext.create_memory_context() as test_context:
@@ -572,24 +570,24 @@ class TestInspectorClass(unittest.TestCase):
             inspector_section = inspector_panel.widget.find_widget_by_id("image_data_inspector_section")
             display_data_channel.display_limits = None
             document_controller.periodic()  # needed to update the inspector
-            self.assertEqual(inspector_section.display_limits_limit_low.text, None)
-            self.assertEqual(inspector_section.display_limits_limit_high.text, None)
+            self.assertEqual(inspector_section.image_data_inspector_handler.display_limits_limit_low.text, None)
+            self.assertEqual(inspector_section.image_data_inspector_handler.display_limits_limit_high.text, None)
             display_data_channel.display_limits = (None, None)
             document_controller.periodic()  # needed to update the inspector
-            self.assertEqual(inspector_section.display_limits_limit_low.text, None)
-            self.assertEqual(inspector_section.display_limits_limit_high.text, None)
+            self.assertEqual(inspector_section.image_data_inspector_handler.display_limits_limit_low.text, None)
+            self.assertEqual(inspector_section.image_data_inspector_handler.display_limits_limit_high.text, None)
             display_data_channel.display_limits = (1, None)
             document_controller.periodic()  # needed to update the inspector
-            self.assertEqual(inspector_section.display_limits_limit_low.text, "1.0")
-            self.assertEqual(inspector_section.display_limits_limit_high.text, None)
+            self.assertEqual(inspector_section.image_data_inspector_handler.display_limits_limit_low.text, "1.0")
+            self.assertEqual(inspector_section.image_data_inspector_handler.display_limits_limit_high.text, None)
             display_data_channel.display_limits = (None, 2)
             document_controller.periodic()  # needed to update the inspector
-            self.assertEqual(inspector_section.display_limits_limit_low.text, None)
-            self.assertEqual(inspector_section.display_limits_limit_high.text, "2.0")
+            self.assertEqual(inspector_section.image_data_inspector_handler.display_limits_limit_low.text, None)
+            self.assertEqual(inspector_section.image_data_inspector_handler.display_limits_limit_high.text, "2.0")
             display_data_channel.display_limits = (1, 2)
             document_controller.periodic()  # needed to update the inspector
-            self.assertEqual(inspector_section.display_limits_limit_low.text, "1.0")
-            self.assertEqual(inspector_section.display_limits_limit_high.text, "2.0")
+            self.assertEqual(inspector_section.image_data_inspector_handler.display_limits_limit_low.text, "1.0")
+            self.assertEqual(inspector_section.image_data_inspector_handler.display_limits_limit_high.text, "2.0")
 
     def test_image_display_inspector_sets_display_limits_when_text_is_changed(self):
         with TestContext.create_memory_context() as test_context:
@@ -606,13 +604,13 @@ class TestInspectorClass(unittest.TestCase):
             inspector_panel = document_controller.find_dock_panel("inspector-panel")
             inspector_section = inspector_panel.widget.find_widget_by_id("image_data_inspector_section")
             self.assertEqual(display_data_channel.display_limits, None)
-            inspector_section.display_limits_limit_low.editing_finished("1")
+            inspector_section.image_data_inspector_handler.display_limits_limit_low.editing_finished("1")
             self.assertEqual(display_data_channel.display_limits, (1.0, None))
-            inspector_section.display_limits_limit_high.editing_finished("2")
+            inspector_section.image_data_inspector_handler.display_limits_limit_high.editing_finished("2")
             self.assertEqual(display_data_channel.display_limits, (1.0, 2.0))
-            inspector_section.display_limits_limit_low.editing_finished("")
+            inspector_section.image_data_inspector_handler.display_limits_limit_low.editing_finished("")
             self.assertEqual(display_data_channel.display_limits, (None, 2.0))
-            inspector_section.display_limits_limit_high.editing_finished("")
+            inspector_section.image_data_inspector_handler.display_limits_limit_high.editing_finished("")
             self.assertEqual(display_data_channel.display_limits, None)
 
     def test_inspector_handles_deleted_data(self):
@@ -1593,6 +1591,22 @@ class TestInspectorClass(unittest.TestCase):
                 dimensional_calibration_model = calibration_section._dimensional_calibrations_model.items[1]
                 dimensional_calibration_model.units = "y"
                 self.assertEqual("y", data_item.dimensional_calibrations[1].units)
+
+    def test_session_inspector_model_closes_properly(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((32,)))
+            document_model.append_data_item(data_item)
+            session_inspector_model = Inspector.SessionInspectorModel(document_controller, data_item)
+            self.assertFalse(hasattr(session_inspector_model, "close"))
+            # session_inspector_model.close()  # failed it old style code.
+            session_inspector_model = None
+            # nothing should be printed when this is run, since the model has been closed and no python
+            # reference to it remains. in the failing code, the close does nothing other than mark the event
+            # as not accepting events anymore. the change to data below would trigger a log message if this
+            # isn't working properly.
+            data_item.set_intensity_calibration(Calibration.Calibration(units="miles"))
 
 
 if __name__ == '__main__':

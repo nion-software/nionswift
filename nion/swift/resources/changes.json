@@ -3,8 +3,29 @@
     "version": "UNRELEASED",
     "notes": [
       {
+        "summary": "Retain state of inspector section twist downs when switching contexts or restarting."
+      },
+      {
+        "issues": ["https://github.com/nion-software/nionswift/issues/749"],
+        "summary": "Add export result dialog to show final export status after exporting."
+      },
+      {
         "issues": ["https://github.com/nion-software/nionswift/issues/932"],
         "summary": "Export single data items with same naming options as exporting multiple items."
+      },
+      {
+        "issues": ["https://github.com/nion-software/nionswift/issues/591"],
+        "summary": "Sanitize file names during export to eliminate illegal characters,"
+      },
+      {
+        "issues": ["https://github.com/nion-software/nionswift/issues/245"],
+        "summary": "Exporting to CSV only allows 1D or 2D data."
+      },
+      {
+        "summary": "Fix issue of swapped color channels when exporting to PNG, JPEG, GIF, and BMP."
+      },
+      {
+        "summary": "Allow user to assign/unassign rectangle used for cropping computation data source inputs using icon overlay."
       }
     ]
   },

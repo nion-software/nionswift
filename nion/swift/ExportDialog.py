@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 # standard libraries
+import dataclasses
+import enum
 import functools
 import gettext
 import logging
 import os
 import pathlib
+import platform
 import re
+import subprocess
 import traceback
 import typing
 import unicodedata
@@ -16,6 +20,7 @@ import unicodedata
 
 # local libraries
 from nion.swift.model import ImportExportManager
+from nion.swift.model import Utility
 from nion.swift import DocumentController
 from nion.swift import DisplayPanel
 from nion.ui import Declarative
@@ -24,6 +29,7 @@ from nion.ui import UserInterface
 from nion.utils import Converter
 from nion.utils import Geometry
 from nion.utils import Model
+from nion.utils import Observable
 
 if typing.TYPE_CHECKING:
     from nion.swift.model import DisplayItem
@@ -72,22 +78,25 @@ class ExportDialog(Declarative.Handler):
         def handle_export_clicked() -> bool:
             selected_writer = self.viewmodel.writer.value
             writer_id = selected_writer.io_handler_id if selected_writer else "png-io-handler"
-            self.export_clicked(display_items, self.viewmodel)
+            self.export_clicked(display_items, self.viewmodel, ui, document_controller)
             self.ui.set_persistent_string("export_io_handler_id", writer_id)
             return True
 
         # create the dialog and show it.
-        dialog = typing.cast(Dialog.ActionDialog, Declarative.construct(document_controller.ui, document_controller, u.create_modeless_dialog(self.ui_view, title=_("Export")), self))
+        export_text = _("Export")
+        items_text = _("Items")
+        title_text = f"{export_text} ({len(display_items)} {items_text})"
+        dialog = typing.cast(Dialog.ActionDialog, Declarative.construct(document_controller.ui, document_controller, u.create_modeless_dialog(self.ui_view, title=title_text), self))
         dialog.add_button(_("Cancel"), self.cancel)
         dialog.add_button(_("Export"), handle_export_clicked)
         dialog.show()
 
     def choose_directory(self, widget: Declarative.UIWidget) -> None:
         directory = self.viewmodel.directory.value or str()
-        existing_directory, directory = self.ui.get_existing_directory_dialog(_("Choose Export Directory"), directory)
-        if existing_directory:
-            self.viewmodel.directory.value = directory
-            self.ui.set_persistent_string("export_directory", directory)
+        selected_directory, directory = self.ui.get_existing_directory_dialog(_("Choose Export Directory"), directory)
+        if selected_directory:
+            self.viewmodel.directory.value = selected_directory
+            self.ui.set_persistent_string("export_directory", selected_directory)
 
     def on_writer_changed(self, widget: Declarative.UIWidget, current_index: int) -> None:
         writer = self.__writers[current_index]
@@ -98,7 +107,7 @@ class ExportDialog(Declarative.Handler):
 
         # Export Folder
         directory_label = u.create_row(u.create_label(text="Location:", font='bold'))
-        directory_text = u.create_row(u.create_column(u.create_label(text=f"@binding(viewmodel.directory.value)", min_width=280, height=48, word_wrap=True, size_policy_horizontal='min-expanding')))
+        directory_text = u.create_row(u.create_column(u.create_label(text=f"@binding(viewmodel.directory.value)", min_width=280, height=48, word_wrap=True, size_policy_horizontal='min-expanding', text_alignment_vertical='top')))
         self.directory_text_label = directory_text
         directory_button = u.create_row(u.create_push_button(text=_("Select Path..."), on_clicked="choose_directory"), u.create_stretch())
 
@@ -161,8 +170,10 @@ class ExportDialog(Declarative.Handler):
         filename = "_".join(s for s in components if s)
         filename.replace(".", "_")
 
+        filename = Utility.simplify_filename(str(pathlib.Path(filename).with_suffix(extension)))
+
         # check to see if filename is available, if so return that
-        test_filepath = directory_path / pathlib.Path(filename).with_suffix(extension)
+        test_filepath = directory_path / pathlib.Path(filename)
         if not test_filepath.exists():
             return test_filepath
 
@@ -171,7 +182,8 @@ class ExportDialog(Declarative.Handler):
         max_index = 9999
         last_test_filepath: typing.Optional[pathlib.Path] = None
         while next_index <= max_index:
-            test_filepath = directory_path / pathlib.Path(f"{filename} {next_index}").with_suffix(extension)
+            filename_stem = pathlib.Path(filename).stem
+            test_filepath = directory_path / pathlib.Path(f"{filename_stem} {next_index}").with_suffix(extension)
             if not test_filepath.exists():
                 return test_filepath
             if test_filepath == last_test_filepath:
@@ -184,13 +196,16 @@ class ExportDialog(Declarative.Handler):
         return test_filepath
 
     @staticmethod
-    def export_clicked(display_items: typing.Sequence[DisplayItem.DisplayItem], viewmodel: ExportDialogViewModel) -> None:
+    def export_clicked(display_items: typing.Sequence[DisplayItem.DisplayItem], viewmodel: ExportDialogViewModel,
+                       ui: UserInterface.UserInterface, document_controller: DocumentController.DocumentController) -> None:
         directory_path = pathlib.Path(viewmodel.directory.value or str())
         writer = viewmodel.writer
         if directory_path.is_dir() and writer and writer.value:
+            export_results = list()
             for index, display_item in enumerate(display_items):
                 data_item = display_item.data_item
                 if data_item:
+                    file_name: str = ''
                     try:
                         components = list()
                         if viewmodel.prefix.value is not None and viewmodel.prefix.value != '':
@@ -208,73 +223,335 @@ class ExportDialog(Declarative.Handler):
                         if viewmodel.include_sequence.value:
                             components.append(str(index))
                         filepath = ExportDialog.build_filepath(components, writer.value.extensions[0], directory_path=directory_path)
-                        ImportExportManager.ImportExportManager().write_display_item_with_writer(writer.value, display_item, filepath)
+
+                        file_name = filepath.name
+                        data_metadata = data_item.data_metadata if data_item else None
+                        if data_metadata is not None and writer.value.can_write(data_metadata, filepath.suffix[1:].lower()):
+                            ImportExportManager.ImportExportManager().write_display_item_with_writer(writer.value, display_item, filepath)
+                            export_results.append(ExportResult(file_name))
+                        else:
+                            error_message = _("Cannot export this data to file format")
+                            export_results.append(ExportResult(file_name, f"{error_message} {writer.value.name}"))
                     except Exception as e:
                         logging.debug("Could not export image %s / %s", str(data_item), str(e))
                         traceback.print_exc()
                         traceback.print_stack()
+                        export_results.append(ExportResult(file_name, str(e)))
+                else:
+                    export_results.append(ExportResult(display_item.displayed_title, _("Cannot export items with multiple data items")))
+
+            if any(e.error for e in export_results):
+                ExportResultDialog(ui, document_controller, export_results, directory_path)
 
     def cancel(self) -> bool:
         return True
 
 
-class ExportSVGHandler:
-    def __init__(self, display_size: Geometry.IntSize) -> None:
-        self.width_model = Model.PropertyModel(display_size.width)
-        self.height_model = Model.PropertyModel(display_size.height)
+class UnitType(enum.Enum):
+    PIXELS = 0
+    INCHES = 1
+    CENTIMETERS = 2
 
-        self.int_converter = Converter.IntegerToStringConverter()
 
+ConversionUnits = {
+    UnitType.PIXELS: 1.0,
+    UnitType.CENTIMETERS: 37.795275591,
+    UnitType.INCHES: 96.0
+}
+
+
+class ExportSizeModel(Observable.Observable):
+    def __init__(self, display_item: DisplayItem.DisplayItem) -> None:
+        super().__init__()
+        display_size = self.__calculate_display_size_in_pixels(display_item)
+        self.__last_input_value: float = display_size.width
+        self.__aspect_ratio = display_size.width / display_size.height
+        self.__units = UnitType.PIXELS
+        self.__float_to_string_converter = Converter.FloatToStringConverter()
+        self.__primary_field = 'width'
+        self.__last_input_units = self.__units
+        self.__enforce_width_height_constraints()
+
+    def __calculate_display_size_in_pixels(self, display_item: DisplayItem.DisplayItem) -> Geometry.IntSize:
+        if display_item.display_data_shape and len(display_item.display_data_shape) == 2:
+            return Geometry.IntSize(height=display_item.display_data_shape[0], width=display_item.display_data_shape[1])
+        return Geometry.IntSize(height=288, width=480)
+
+    def __enforce_width_height_constraints(self) -> None:
+        min_size_in_inches = 3.0
+        max_size_in_inches = 12.0
+        min_size_in_current_units = min_size_in_inches * ConversionUnits[UnitType.INCHES] / ConversionUnits[self.__units]
+        max_size_in_current_units = max_size_in_inches * ConversionUnits[UnitType.INCHES] / ConversionUnits[self.__units]
+        if self.__primary_field == 'width':
+            if self.width < min_size_in_current_units:
+                self.__last_input_value = min_size_in_current_units * ConversionUnits[self.__units] / ConversionUnits[self.__last_input_units]
+            elif self.width > max_size_in_current_units:
+                self.__last_input_value = max_size_in_current_units * ConversionUnits[self.__units] / ConversionUnits[self.__last_input_units]
+        elif self.__primary_field == 'height':
+            if self.height < min_size_in_current_units:
+                self.__last_input_value = min_size_in_current_units * ConversionUnits[self.__units] / ConversionUnits[self.__last_input_units]
+            elif self.height > max_size_in_current_units:
+                self.__last_input_value = max_size_in_current_units * ConversionUnits[self.__units] / ConversionUnits[self.__last_input_units]
+        self.notify_property_changed("width")
+        self.notify_property_changed("height")
+        self.notify_property_changed("width_text")
+        self.notify_property_changed("height_text")
+
+    @property
+    def width(self) -> float:
+        if self.__primary_field == 'width':
+            if self.__units == UnitType.PIXELS:
+                return round((self.__last_input_value * ConversionUnits[self.__last_input_units]) / ConversionUnits[self.__units])
+            else:
+                return (self.__last_input_value * ConversionUnits[self.__last_input_units]) / ConversionUnits[self.__units]
+        else:
+            if self.__units == UnitType.PIXELS:
+                return round(((self.__last_input_value * ConversionUnits[self.__last_input_units]) / ConversionUnits[self.__units]) * self.__aspect_ratio)
+            else:
+                return ((self.__last_input_value * ConversionUnits[self.__last_input_units]) / ConversionUnits[self.__units]) * self.__aspect_ratio
+
+    @property
+    def width_text(self) -> typing.Optional[str]:
+        if self.__primary_field == 'width':
+            return self.__float_to_string_converter.convert(self.width)
+        return None
+
+    @width_text.setter
+    def width_text(self, new_width: typing.Optional[str]) -> None:
+        if new_width and new_width != "":
+            self.__last_input_value = self.__float_to_string_converter.convert_back(new_width) or 0.0
+            self.__last_input_units = self.__units
+            self.__primary_field = 'width'
+            self.notify_property_changed("width")
+            self.notify_property_changed("height")
+        self.notify_property_changed("width_text")
+        self.notify_property_changed("height_text")
+
+    @property
+    def height(self) -> float:
+        if self.__primary_field == 'height':
+            if self.__units == UnitType.PIXELS:
+                return round((self.__last_input_value * ConversionUnits[self.__last_input_units]) / ConversionUnits[self.__units])
+            else:
+                return (self.__last_input_value * ConversionUnits[self.__last_input_units]) / ConversionUnits[self.__units]
+        else:
+            if self.__units == UnitType.PIXELS:
+                return round(((self.__last_input_value * ConversionUnits[self.__last_input_units]) / ConversionUnits[self.__units]) / self.__aspect_ratio)
+            else:
+                return ((self.__last_input_value * ConversionUnits[self.__last_input_units]) / ConversionUnits[self.__units]) / self.__aspect_ratio
+
+    @property
+    def height_text(self) -> typing.Optional[str]:
+        if self.__primary_field == 'height':
+            return self.__float_to_string_converter.convert(self.height)
+        return None
+
+    @height_text.setter
+    def height_text(self, new_height: typing.Optional[str]) -> None:
+        if new_height is not None and new_height != "":
+            self.__last_input_value = self.__float_to_string_converter.convert_back(new_height) or 0.0
+            self.__last_input_units = self.__units
+            self.__primary_field = 'height'
+            self.notify_property_changed("width")
+            self.notify_property_changed("height")
+        self.notify_property_changed("width_text")
+        self.notify_property_changed("height_text")
+
+    @property
+    def units(self) -> int:
+        return self.__units.value
+
+    @units.setter
+    def units(self, new_units: int) -> None:
+        new_enum = UnitType(new_units)
+        if self.__units != new_enum:
+            self.__units = new_enum
+            self.notify_property_changed("width")
+            self.notify_property_changed("height")
+            self.notify_property_changed("width_text")
+            self.notify_property_changed("height_text")
+
+    @property
+    def pixel_shape(self) -> Geometry.IntSize:
+        width = round(self.__last_input_value * ConversionUnits[self.__last_input_units]) if self.__primary_field == 'width' else round((self.__last_input_value * ConversionUnits[self.__last_input_units]) * self.__aspect_ratio)
+        height = round(self.__last_input_value * ConversionUnits[self.__last_input_units]) if self.__primary_field == 'height' else round((self.__last_input_value * ConversionUnits[self.__last_input_units]) / self.__aspect_ratio)
+        return Geometry.IntSize(height=height, width=width)
+
+
+class ExportSVGHandler(Declarative.Handler):
+    width_value_line_edit: UserInterface.LineEditWidget
+    height_value_line_edit: UserInterface.LineEditWidget
+
+    def __init__(self, model: ExportSizeModel) -> None:
+        super().__init__()
+        self.model = model
         u = Declarative.DeclarativeUI()
-        width_row = u.create_row(u.create_label(text=_("Width (in)"), width=80), u.create_line_edit(text="@binding(width_model.value, converter=int_converter)"), spacing=12)
-        height_row = u.create_row(u.create_label(text=_("Height (in)"), width=80), u.create_line_edit(text="@binding(height_model.value, converter=int_converter)"), spacing=12)
-        main_page = u.create_column(width_row, height_row, spacing=12, margin=12)
-
-        self.ui_view = main_page
-
-    def close(self) -> None:
-        pass
+        self._float_to_string_converter = Converter.FloatToStringConverter()
+        self.ui_view = u.create_column(
+            u.create_row(
+                u.create_label(text=_("Width:"), width=80),
+                u.create_line_edit(
+                    placeholder_text="@binding(model.width, converter=_float_to_string_converter)",
+                    text="@binding(model.width_text)"
+                ),
+                spacing=12
+            ),
+            u.create_row(
+                u.create_label(text=_("Height:"), width=80),
+                u.create_line_edit(
+                    placeholder_text="@binding(model.height, converter=_float_to_string_converter)",
+                    text="@binding(model.height_text)"
+                ),
+                spacing=12
+            ),
+            u.create_row(
+                u.create_label(text=_("Units:"), width=80),
+                u.create_combo_box(
+                    items=[_("Pixels"), _("Inches"), _("Centimeters")],
+                    current_index="@binding(model.units)",
+                ),
+                spacing=12
+            ),
+            spacing=12,
+            margin=12
+        )
 
 
 class ExportSVGDialog:
+    def __init__(self, document_controller: DocumentController.DocumentController,
+                 display_item: DisplayItem.DisplayItem) -> None:
+        super().__init__()
+        self.__document_controller = document_controller
+        self.__display_item = display_item
+        self.__model = ExportSizeModel(display_item)
+        self.__handler = ExportSVGHandler(self.__model)
+        self.__init_ui()
 
-    def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem) -> None:
+    def __init_ui(self) -> None:
+        u = Declarative.DeclarativeUI()
+        dialog = typing.cast(Dialog.ActionDialog, Declarative.construct(
+            self.__document_controller.ui,
+            self.__document_controller,
+            u.create_modeless_dialog(
+                self.__handler.ui_view, title=_("Export SVG")
+            ),
+            self.__handler
+        ))
+        dialog.add_button(_("Cancel"), self.__cancel_clicked)
+        dialog.add_button(_("Export"), self.__ok_clicked)
+        dialog.show()
+
+    def __ok_clicked(self) -> bool:
+        pixel_shape = self.__model.pixel_shape
+        ui = self.__document_controller.ui
+        filter = "SVG File (*.svg);;All Files (*.*)"
+        export_dir = ui.get_persistent_string("export_directory", ui.get_document_location())
+        export_dir = os.path.join(export_dir, self.__display_item.displayed_title)
+        path, selected_filter, selected_directory = self.__document_controller.get_save_file_path(
+            _("Export File"), export_dir, filter, None
+        )
+        if path and not os.path.splitext(path)[1]:
+            path = path + os.path.extsep + "svg"
+        if path:
+            ui.set_persistent_string("export_directory", selected_directory)
+            self.__document_controller.export_svg_file(
+                DisplayPanel.DisplayPanelUISettings(ui),
+                self.__display_item,
+                pixel_shape,
+                pathlib.Path(path)
+            )
+        return True
+
+    def __cancel_clicked(self) -> bool:
+        return True
+
+
+@dataclasses.dataclass
+class ExportResult:
+    file: str
+    error: typing.Optional[str] = None
+
+
+class ExportResultDialog(Declarative.Handler):
+    def __init__(self, ui: UserInterface.UserInterface, document_controller: DocumentController.DocumentController,
+                 exports: typing.Sequence[ExportResult], export_folder: pathlib.Path):
         super().__init__()
 
+        self.ui = ui
         self.__document_controller = document_controller
+        self.exports = exports
+        self.export_folder = export_folder
 
+        # build the UI
         u = Declarative.DeclarativeUI()
+        self._build_ui(u)
 
-        if display_item.display_data_shape and len(display_item.display_data_shape) == 2:
-            display_size = Geometry.IntSize(height=4, width=4)
-        else:
-            display_size = Geometry.IntSize(height=3, width=4)
+        # create the dialog and show it.
+        export_result_text = _("Export Results")
+        items_text = _("Items")
+        title_text = f"{export_result_text} ({len(exports)} {items_text})"
+        dialog = typing.cast(Dialog.ActionDialog, Declarative.construct(document_controller.ui, document_controller,
+                                                                        u.create_modeless_dialog(self.ui_view,
+                                                                                                 title=title_text),
+                                                                        self))
 
-        handler = ExportSVGHandler(display_size)
-
-        def ok_clicked() -> bool:
-            dpi = 96
-            width_px = (handler.width_model.value or display_size.width) * dpi
-            height_px = (handler.height_model.value or display_size.height) * dpi
-
-            ui = document_controller.ui
-            filter = "SVG File (*.svg);;All Files (*.*)"
-            export_dir = ui.get_persistent_string("export_directory", ui.get_document_location())
-            export_dir = os.path.join(export_dir, display_item.displayed_title)
-            path, selected_filter, selected_directory = document_controller.get_save_file_path(_("Export File"), export_dir, filter, None)
-            if path and not os.path.splitext(path)[1]:
-                path = path + os.path.extsep + "svg"
-            if path:
-                ui.set_persistent_string("export_directory", selected_directory)
-                display_shape = Geometry.IntSize(height=height_px, width=width_px)
-                document_controller.export_svg_file(DisplayPanel.DisplayPanelUISettings(ui), display_item, display_shape, pathlib.Path(path))
-            return True
-
-        def cancel_clicked() -> bool:
-            return True
-
-        dialog = typing.cast(Dialog.ActionDialog, Declarative.construct(document_controller.ui, document_controller, u.create_modeless_dialog(handler.ui_view, title=_("Export SVG")), handler))
-        dialog.add_button(_("Cancel"), cancel_clicked)
-        dialog.add_button(_("Export"), ok_clicked)
-
+        dialog.add_button(_("OK"), self.ok_click)
         dialog.show()
+
+    def open_export_folder(self, widget: Declarative.UIWidget) -> bool:
+        if platform.system() == 'Windows':
+            subprocess.run(['explorer', self.export_folder])
+        elif platform.system() == 'Darwin':
+            subprocess.Popen(['open', self.export_folder])
+        elif platform.system() == 'linux':
+            subprocess.Popen(['xdg-open', self.export_folder])
+        return True
+
+    def _build_ui(self, u: Declarative.DeclarativeUI) -> None:
+        FILE_FIELD_WIDTH = 320
+        STATUS_FIELD_WIDTH = 280
+        COLUMN_SPACING = 12
+
+        header_labels = [
+            u.create_label(text=_('File'), font='bold', width=FILE_FIELD_WIDTH),
+            u.create_label(text=_('Status'), font='bold', width=STATUS_FIELD_WIDTH),
+        ]
+
+        file_name_labels = list()
+        status_labels = list()
+
+        for export in self.exports:
+            status_text = _("Succeeded") if not export.error else f"\N{WARNING SIGN} {export.error}"
+            color = 'green' if not export.error else 'red'
+            file_name_labels.append(u.create_label(text=export.file, tool_tip=export.file, width=FILE_FIELD_WIDTH))
+            status_labels.append(u.create_label(text=status_text, tool_tip=export.error, color=color, width=STATUS_FIELD_WIDTH))
+
+        header_row = u.create_row(*header_labels, u.create_stretch(), spacing=COLUMN_SPACING)
+
+        scroll_area_width = FILE_FIELD_WIDTH + STATUS_FIELD_WIDTH + COLUMN_SPACING * 2 + 24  # 24 is the estimated width of the scrollbar
+        scroll_area_height = min(200, 28 + 28 * len(self.exports))  # 28 is the estimated height of a row
+
+        data_row = u.create_scroll_area(
+            u.create_column(
+                u.create_row(
+                    u.create_column(*file_name_labels, u.create_stretch(), spacing=8),
+                    u.create_column(*status_labels, u.create_stretch(), spacing=8),
+                    u.create_stretch(),
+                    spacing=COLUMN_SPACING
+                )
+            ),
+            min_width=scroll_area_width, min_height=scroll_area_height, max_height=240
+        )
+
+        path_title = u.create_label(text=_('Directory:'), font='bold')
+
+        path_directory = u.create_label(text=str(self.export_folder), min_width=280, height=48, word_wrap=True, size_policy_horizontal='min-expanding', text_alignment_vertical='top')
+
+        path_goto = u.create_row(u.create_push_button(text='Open Directory', on_clicked='open_export_folder'),
+                                 u.create_stretch())
+
+        self.ui_view = u.create_column(path_title, path_directory, path_goto, header_row, data_row, spacing=8,
+                                       margin=12)
+
+    def ok_click(self) -> bool:
+        return True

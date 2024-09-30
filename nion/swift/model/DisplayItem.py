@@ -77,8 +77,7 @@ class GraphicSelection:
     @property
     def current_index(self) -> typing.Optional[int]:
         if len(self.__indexes) == 1:
-            for index in self.__indexes:
-                return index
+            return next(iter(self.__indexes))
         return None
 
     @property
@@ -512,10 +511,18 @@ class DisplayRangeProcessor(ProcessorBase):
     def _execute(self) -> None:
         element_data_and_metadata = self._get_data_and_metadata_like("element_data")
         display_limits = typing.cast(typing.Optional[DisplayLimitsType], self._get_parameter("display_limits"))
-        data_range = typing.cast(typing.Optional[typing.Tuple[float, float]], self._get_parameter("data_range"))
-        data_sample = typing.cast(typing.Optional[_ImageDataType], self._get_parameter("data_sample"))
-        complex_display_type = self._get_optional_string("complex_display_type")
-        display_range = calculate_display_range(display_limits, data_range, data_sample, element_data_and_metadata, complex_display_type)
+        # data range is expensive; avoid it if possible
+        display_range: typing.Optional[typing.Tuple[float, float]]
+        if display_limits is not None and display_limits[0] is not None and display_limits[1] is not None:
+            display_range = display_limits[0], display_limits[1]
+        else:
+            data_range = typing.cast(typing.Optional[typing.Tuple[float, float]], self._get_parameter("data_range"))
+            data_sample = typing.cast(typing.Optional[_ImageDataType], self._get_parameter("data_sample"))
+            complex_display_type = self._get_optional_string("complex_display_type")
+            display_range = calculate_display_range(display_limits, data_range, data_sample, element_data_and_metadata, complex_display_type)
+        # double check for cases where one or the other display limit is specified and the other is calculated.
+        if display_range is not None and display_range[0] is not None and display_range[1] is not None:
+            display_range = min(display_range[0], display_range[1]), max(display_range[0], display_range[1])
         self.set_result("display_range", display_range)
 
 
@@ -1067,6 +1074,7 @@ class DisplayDataChannel(Persistence.PersistentObject):
 
     def __deepcopy__(self, memo: typing.Dict[typing.Any, typing.Any]) -> DisplayDataChannel:
         display_data_channel = self.__class__()
+        display_data_channel._is_reading = True  # enable to avoid validating with no data
         display_data_channel._set_persistent_property_value("complex_display_type", self._get_persistent_property_value("complex_display_type"))
         display_data_channel._set_persistent_property_value("display_limits", self._get_persistent_property_value("display_limits"))
         display_data_channel._set_persistent_property_value("color_map_id", self._get_persistent_property_value("color_map_id"))
@@ -1078,6 +1086,7 @@ class DisplayDataChannel(Persistence.PersistentObject):
         display_data_channel._set_persistent_property_value("slice_center", self._get_persistent_property_value("slice_center"))
         display_data_channel._set_persistent_property_value("slice_width", self._get_persistent_property_value("slice_width"))
         display_data_channel._set_persistent_property_value("data_item_reference", self._get_persistent_property_value("data_item_reference"))
+        display_data_channel._is_reading = False
         if self.__data_item and self.__data_item.uuid == uuid.UUID(self._get_persistent_property_value("data_item_reference")):
             # setting the item here allows it to be used to determine the project
             # so that the new item can be added to the same project. however, it
@@ -2819,7 +2828,7 @@ class DisplayItem(Persistence.PersistentObject):
         self.notify_property_changed("description")
         self.notify_property_changed("session_id")
 
-    def source_display_items_changed(self, source_display_items: typing.Sequence[DisplayItem], is_loading: bool) -> None:
+    def finish_project_read(self) -> None:
         # the line below is a hack to resend the display data delta. this is required because of an architectural
         # problem: the display layer may not initially have a correct display_data_channel until the whole project is
         # read. the display_data_channel will only return the correct value once the data items are read; and that
@@ -2992,6 +3001,12 @@ class DisplayItem(Persistence.PersistentObject):
     @property
     def selected_graphics(self) -> typing.Sequence[Graphics.Graphic]:
         return [self.graphics[i] for i in self.graphic_selection.indexes]
+
+    @property
+    def selected_graphic(self) -> typing.Optional[Graphics.Graphic]:
+        if selected_graphic_index := self.graphic_selection.current_index:
+            return self.graphics[selected_graphic_index]
+        return None
 
     def __insert_graphic(self, name: str, before_index: int, graphic: Graphics.Graphic) -> None:
         graphic_changed_listener = graphic.property_changed_event.listen(lambda p: self.__graphic_changed(graphic))
@@ -3169,16 +3184,13 @@ class DisplayItem(Persistence.PersistentObject):
     @property
     def used_display_type(self) -> typing.Optional[str]:
         display_type = self.display_type
-        if not display_type in ("line_plot", "image", "display_script"):
+        if not display_type in ("line_plot", "image"):
             for display_data_channel in self.display_data_channels:
                 if display_data_channel.has_valid_data:
                     if display_data_channel.is_display_1d_preferred:
                         display_type = "line_plot"
                     elif display_data_channel.is_display_2d_preferred:
                         display_type = "image"
-                    # override
-                    if self.get_display_property("display_script"):
-                        display_type = "display_script"
                     if display_type:
                         break
         return display_type
