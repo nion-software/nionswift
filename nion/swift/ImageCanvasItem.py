@@ -1606,11 +1606,15 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             self.__apply_display_properties_command({"image_zoom": new_zoom, "image_canvas_mode": "custom"})
 
 
-    def zoom_in(self, factor: float) -> None:
+    def zoom_in(self, factor: typing.Optional[float] = None) -> None:
+        if factor is None:
+            factor = 1.25
         self.__apply_display_properties_command({"image_zoom": self.__image_zoom * factor,
                                                  "image_canvas_mode": "custom"})
 
-    def zoom_out(self, factor: float) -> None:
+    def zoom_out(self, factor: typing.Optional[float] = None) -> None:
+        if factor is None:
+            factor = 1.25
         self.__apply_display_properties_command({"image_zoom": self.__image_zoom / factor,
                                                  "image_canvas_mode": "custom"})
 
