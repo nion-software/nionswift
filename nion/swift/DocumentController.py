@@ -2638,8 +2638,8 @@ class DocumentController(Window.Window):
 
     def populate_context_menu(self, menu: UserInterface.Menu, action_context: DocumentController.ActionContext) -> None:
         self.add_action_to_menu_if_enabled(menu, "display.reveal", action_context)
-        self.add_action_to_menu_if_enabled(menu, "file.export", action_context)
-
+        self.add_action_to_menu_if_enabled(menu, "export.export", action_context)
+        self.add_action_to_menu_if_enabled(menu, "export.export_batch", action_context)
         data_item = action_context.data_item
         if data_item:
             source_data_items = self.document_model.get_source_data_items(data_item)
@@ -3012,8 +3012,8 @@ class DeleteDataItemAction(Window.Action):
         return self.action_name
 
 
-class SingleExportAction(Window.Action):
-    action_id = "export.single_export"
+class ExportAction(Window.Action):
+    action_id = "export.export"
     action_name = _("Single Export...")
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
@@ -3032,8 +3032,8 @@ class SingleExportAction(Window.Action):
         return len(context.display_items) == 1 and context.display_item is not None
 
 
-class BatchExportAction(Window.Action):
-    action_id = "export.batch_export"
+class ExportBatchAction(Window.Action):
+    action_id = "export.export_batch"
     action_name = _("Batch Export...")
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
@@ -3099,8 +3099,8 @@ class ImportFolderAction(Window.Action):
 
 Window.register_action(DeleteItemAction())
 Window.register_action(DeleteDataItemAction())
-Window.register_action(SingleExportAction())
-Window.register_action(BatchExportAction())
+Window.register_action(ExportAction())
+Window.register_action(ExportBatchAction())
 Window.register_action(ExportSVGAction())
 Window.register_action(ImportDataAction())
 Window.register_action(ImportFolderAction())

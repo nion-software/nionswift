@@ -47,11 +47,11 @@
                 "items":[
                     {
                         "type": "item",
-                        "action_id":"export.single_export"
+                        "action_id":"export.export"
                     },
                      {
                         "type": "item",
-                        "action_id":"export.batch_export"
+                        "action_id":"export.export_batch"
                     },
                      {
                         "type": "item",
