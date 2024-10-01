@@ -16,6 +16,7 @@ from nion.swift.model import DocumentModel
 from nion.ui import CanvasItem
 from nion.ui import UserInterface
 from nion.ui import Widgets
+from nion.ui import CanvasItem
 from nion.utils import Geometry
 from nion.utils import Process
 from nion.utils import ReferenceCounting
@@ -52,20 +53,96 @@ class AbstractThumbnailSource:
         return False, None
 
 
-class BitmapOverlayCanvasItem(CanvasItem.CanvasItemComposition):
+class BitmapOverlayCanvasItemComposer(CanvasItem.BaseComposer):
+    def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing, cache: CanvasItem.ComposerCache, is_active: bool, is_dropping: bool, is_focused: bool) -> None:
+        super().__init__(canvas_item, layout_sizing, cache)
+        self.__is_active = is_active
+        self.__is_dropping = is_dropping
+        self.__is_focused = is_focused
+
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> None:
+        is_active = self.__is_active
+        is_dropping = self.__is_dropping
+        is_focused = self.__is_focused
+        focused_style = "#3876D6"  # TODO: platform dependent
+        with drawing_context.saver():
+            drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
+            if is_active:
+                with drawing_context.saver():
+                    drawing_context.begin_path()
+                    drawing_context.round_rect(2, 2, 6, 6, 3)
+                    drawing_context.fill_style = "rgba(0, 255, 0, 0.80)"
+                    drawing_context.fill()
+            if is_dropping:
+                with drawing_context.saver():
+                    drawing_context.begin_path()
+                    drawing_context.rect(0, 0, canvas_bounds.width, canvas_bounds.height)
+                    drawing_context.fill_style = "rgba(255, 0, 0, 0.10)"
+                    drawing_context.fill()
+            if is_focused:
+                stroke_style = focused_style
+                drawing_context.begin_path()
+                drawing_context.rect(2, 2, canvas_bounds.width - 4, canvas_bounds.height - 4)
+                drawing_context.line_join = "miter"
+                drawing_context.stroke_style = stroke_style
+                drawing_context.line_width = 4.0
+                drawing_context.stroke()
+
+
+class BitmapOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
+    def __init__(self) -> None:
+        super().__init__()
+        self.__is_active = False
+        self.__is_focused = False
+        self.__is_dropping = False
+
+    @property
+    def is_active(self) -> bool:
+        return self.__is_active
+
+    @is_active.setter
+    def is_active(self, value: bool) -> None:
+        if value != self.__is_active:
+            self.__is_active = value
+            self.update()
+
+    @property
+    def is_focused(self) -> bool:
+        return self.__is_focused
+
+    @is_focused.setter
+    def is_focused(self, value: bool) -> None:
+        if value != self.__is_focused:
+            self.__is_focused = value
+            self.update()
+
+    @property
+    def is_dropping(self) -> bool:
+        return self.__is_dropping
+
+    @is_dropping.setter
+    def is_dropping(self, value: bool) -> None:
+        if value != self.__is_dropping:
+            self.__is_dropping = value
+            self.update()
+
+    def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> typing.Optional[CanvasItem.BaseComposer]:
+        return BitmapOverlayCanvasItemComposer(self, self.layout_sizing, composer_cache, self.__is_active, self.__is_dropping, self.__is_focused)
+
+
+class BitmapOverlayCanvasItemComposition(CanvasItem.CanvasItemComposition):
 
     def __init__(self) -> None:
         super().__init__()
         self.focusable = True
-        self.__dropping = False
-        self.__focused = False
         self.wants_drag_events = True
         self.wants_mouse_events = True
         self.__drag_start: typing.Optional[Geometry.IntPoint] = None
         self.on_drop_mime_data: typing.Optional[typing.Callable[[UserInterface.MimeData, int, int], str]] = None
         self.on_delete: typing.Optional[typing.Callable[[], None]] = None
         self.on_drag_pressed: typing.Optional[typing.Callable[[int, int, UserInterface.KeyboardModifiers], None]] = None
-        self.active = False
+        self.__overlay_canvas_item = BitmapOverlayCanvasItem()
+        self.add_canvas_item(self.__overlay_canvas_item)
 
     def close(self) -> None:
         self.on_drop_mime_data = None
@@ -74,49 +151,30 @@ class BitmapOverlayCanvasItem(CanvasItem.CanvasItemComposition):
         super().close()
 
     @property
+    def active(self) -> bool:
+        return self.__overlay_canvas_item.is_active
+
+    @active.setter
+    def active(self, value: bool) -> None:
+        self.__overlay_canvas_item.is_active = value
+
+    @property
     def focused(self) -> bool:
-        return self.__focused
+        return self.__overlay_canvas_item.focused
 
     def _set_focused(self, focused: bool) -> None:
-        if self.__focused != focused:
-            self.__focused = focused
-            self.update()
+        self.__overlay_canvas_item.is_focused = focused
 
-    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
-        super()._repaint(drawing_context)
-        # canvas size
-        canvas_size = self.canvas_size
-        if canvas_size:
-            focused_style = "#3876D6"  # TODO: platform dependent
-            if self.active:
-                with drawing_context.saver():
-                    drawing_context.begin_path()
-                    drawing_context.round_rect(2, 2, 6, 6, 3)
-                    drawing_context.fill_style = "rgba(0, 255, 0, 0.80)"
-                    drawing_context.fill()
-            if self.__dropping:
-                with drawing_context.saver():
-                    drawing_context.begin_path()
-                    drawing_context.rect(0, 0, canvas_size.width, canvas_size.height)
-                    drawing_context.fill_style = "rgba(255, 0, 0, 0.10)"
-                    drawing_context.fill()
-            if self.focused:
-                stroke_style = focused_style
-                drawing_context.begin_path()
-                drawing_context.rect(2, 2, canvas_size.width - 4, canvas_size.height - 4)
-                drawing_context.line_join = "miter"
-                drawing_context.stroke_style = stroke_style
-                drawing_context.line_width = 4.0
-                drawing_context.stroke()
+    def update_sizing(self, new_sizing: CanvasItem.Sizing) -> None:
+        super().update_sizing(new_sizing)
+        self.__overlay_canvas_item.update_sizing(new_sizing)
 
     def drag_enter(self, mime_data: UserInterface.MimeData) -> str:
-        self.__dropping = True
-        self.update()
+        self.__overlay_canvas_item.is_dropping = True
         return "ignore"
 
     def drag_leave(self) -> str:
-        self.__dropping = False
-        self.update()
+        self.__overlay_canvas_item.is_dropping = False
         return "ignore"
 
     def drop(self, mime_data: UserInterface.MimeData, x: int, y: int) -> str:
@@ -174,15 +232,16 @@ class ThumbnailCanvasItem(CanvasItem.CanvasItemComposition):
         self.on_delete: typing.Optional[typing.Callable[[], None]] = None
 
         # set up the initial bitmap and overlay canvas items.
-        bitmap_overlay_canvas_item = BitmapOverlayCanvasItem()
+        bitmap_overlay_canvas_item = BitmapOverlayCanvasItemComposition()
         bitmap_canvas_item = CanvasItem.BitmapCanvasItem(background_color="#CCC", border_color="#444")
-        bitmap_overlay_canvas_item.add_canvas_item(bitmap_canvas_item)
+        bitmap_overlay_canvas_item.insert_canvas_item(bitmap_overlay_canvas_item.canvas_items_count - 1, bitmap_canvas_item)
         if size is not None:
             bitmap_canvas_item.update_sizing(bitmap_canvas_item.sizing.with_fixed_size(size))
+            bitmap_overlay_canvas_item.update_sizing(bitmap_overlay_canvas_item.sizing.with_fixed_size(size))
             for overlay_canvas_item in thumbnail_source.overlay_canvas_items:
                 overlay_canvas_item.update_sizing(overlay_canvas_item.sizing.with_fixed_size(size))
         for overlay_canvas_item in thumbnail_source.overlay_canvas_items:
-            bitmap_overlay_canvas_item.add_canvas_item(overlay_canvas_item)
+            bitmap_overlay_canvas_item.insert_canvas_item(bitmap_overlay_canvas_item.canvas_items_count - 1, overlay_canvas_item)
 
         # handle overlay drop callback by forwarding to the callback set by the caller.
         def drop_mime_data(mime_data: UserInterface.MimeData, x: int, y: int) -> str:
@@ -236,9 +295,10 @@ class ThumbnailCanvasItem(CanvasItem.CanvasItemComposition):
         if self.__thumbnail_size is not None:
             for overlay_canvas_item in thumbnail_source.overlay_canvas_items:
                 overlay_canvas_item.update_sizing(overlay_canvas_item.sizing.with_fixed_size(self.__thumbnail_size))
-        self.__bitmap_overlay_canvas_item.remove_all_canvas_items()
+        while self.__bitmap_overlay_canvas_item.canvas_items_count > 1:
+            self.__bitmap_overlay_canvas_item.remove_canvas_item(self.__bitmap_overlay_canvas_item.canvas_items[0])
         for overlay_canvas_item in thumbnail_source.overlay_canvas_items:
-            self.__bitmap_overlay_canvas_item.add_canvas_item(overlay_canvas_item)
+            self.__bitmap_overlay_canvas_item.insert_canvas_item(self.__bitmap_overlay_canvas_item.canvas_items_count - 1, overlay_canvas_item)
         self.__thumbnail_source.on_thumbnail_data_changed = ReferenceCounting.weak_partial(ThumbnailCanvasItem.__thumbnail_data_changed, self)
         self.__thumbnail_data_changed(self.__thumbnail_source.thumbnail_data)
 
@@ -310,6 +370,23 @@ class ThumbnailWidget(Widgets.CompositeWidgetBase):
         super().close()
 
 
+class IsLiveOverlayCanvasItemComposer(CanvasItem.BaseComposer):
+    def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing, cache: CanvasItem.ComposerCache, is_active: bool) -> None:
+        super().__init__(canvas_item, layout_sizing, cache)
+        self.__is_active = is_active
+
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> None:
+        is_active = self.__is_active
+        with drawing_context.saver():
+            drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
+            if is_active:
+                with drawing_context.saver():
+                    drawing_context.begin_path()
+                    drawing_context.round_rect(2, 2, 6, 6, 3)
+                    drawing_context.fill_style = "rgba(0, 255, 0, 0.80)"
+                    drawing_context.fill()
+
+
 class IsLiveOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
     def __init__(self) -> None:
         super().__init__()
@@ -325,14 +402,8 @@ class IsLiveOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
             self.__active = value
             self.update()
 
-    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
-        super()._repaint(drawing_context)
-        if self.active:
-            with drawing_context.saver():
-                drawing_context.begin_path()
-                drawing_context.round_rect(2, 2, 6, 6, 3)
-                drawing_context.fill_style = "rgba(0, 255, 0, 0.80)"
-                drawing_context.fill()
+    def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> typing.Optional[CanvasItem.BaseComposer]:
+        return IsLiveOverlayCanvasItemComposer(self, self.layout_sizing, composer_cache, self.__active)
 
 
 class DataItemThumbnailSource(AbstractThumbnailSource):
