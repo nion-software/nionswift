@@ -817,13 +817,9 @@ class ZoomMouseHandler(MouseHandler):
         assert value_change_value is not None
         image_position: typing.Optional[Geometry.FloatPoint] = None
         mouse_pos, modifiers = value_change_value
+        is_zooming_in = not modifiers.alt
 
-        if modifiers.alt:
-            is_zooming_in = False
-        else:
-            is_zooming_in = True
-
-        with (delegate.create_change_display_properties_task() as change_display_properties_task):
+        with delegate.create_change_display_properties_task() as change_display_properties_task:
             # mouse tracking loop. wait for values and update the image position.
             while True:
                 value_change = await r.next_value_change()
