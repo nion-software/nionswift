@@ -13,9 +13,11 @@ from nion.swift import Application
 from nion.swift.model import DataItem
 from nion.swift.model import Graphics
 from nion.swift.test import TestContext
+from nion.ui import CanvasItem
 from nion.ui import DrawingContext
 from nion.ui import TestUI
 from nion.ui.UserInterface import KeyboardModifiers
+from nion.utils import Geometry
 
 
 class TestImageCanvasItemClass(unittest.TestCase):
@@ -26,6 +28,16 @@ class TestImageCanvasItemClass(unittest.TestCase):
 
     def tearDown(self):
         TestContext.end_leaks(self)
+
+    def assertTupleAlmostEqual(self, tuple1, tuple2, delta=None, places=None):
+        self.assertEqual(len(tuple1), len(tuple2), "Tuples are of different lengths.")
+        for a, b in zip(tuple1, tuple2):
+            if delta is not None:
+                self.assertAlmostEqual(a, b, delta=delta)
+            elif places is not None:
+                self.assertAlmostEqual(a, b, places=places)
+            else:
+                self.assertAlmostEqual(a, b)
 
     def test_mapping_widget_to_image_on_2d_data_stack_uses_signal_dimensions(self):
         with TestContext.create_memory_context() as test_context:
@@ -293,26 +305,46 @@ class TestImageCanvasItemClass(unittest.TestCase):
             display_panel.display_canvas_item.simulate_press((100,125))
 
     def test_zoom_tool_in_and_out_around_clicked_point(self):
-        # setup
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
             document_model = document_controller.document_model
             display_panel = document_controller.selected_display_panel
-            data_item = DataItem.DataItem(numpy.zeros((10, 10)))
+            data_item = DataItem.DataItem(numpy.zeros((50, 50)))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            copy_display_item = document_model.get_display_item_copy_new(display_item)
-            display_panel.set_display_panel_display_item(copy_display_item)
+            display_panel.set_display_panel_display_item(display_item)
             header_height = display_panel.header_canvas_item.header_height
-            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
-            # run test
+            display_panel.root_container.layout_immediate((100 + header_height, 100))
+            display_panel.perform_action("set_fit_mode")
+            # run test. each data pixel will be spanned by two display pixels. clicking at an odd value
+            # will be a click in the center of a data pixel. zoom should expand and contract around that
+            # pixel. there is also a check to make sure zooming is not just ending up with the same exact
+            # zoom, which would also succeed.
+            self.assertEqual((25, 25),
+                             display_panel.display_canvas_item.map_widget_to_image(Geometry.IntPoint(51, 51)))
+            self.assertEqual((30, 30),
+                             display_panel.display_canvas_item.map_widget_to_image(Geometry.IntPoint(61, 61)))
             document_controller.tool_mode = "zoom"
-            display_panel.display_canvas_item.simulate_press((100, 125))
-            display_panel.display_canvas_item.simulate_release((100, 125))
-
-            document_controller.tool_mode = "zoom"
-            display_panel.display_canvas_item.simulate_press((125, 100), KeyboardModifiers.control)
-            display_panel.display_canvas_item.simulate_release((125, 100), KeyboardModifiers.control)
+            display_panel.display_canvas_item.simulate_click((26, 26))
+            # the zoom tool runs asynchronously, so give it a slice of async time.
+            document_controller.periodic()
+            # check results
+            self.assertTupleAlmostEqual((25, 25),
+                             display_panel.display_canvas_item.map_widget_to_image(Geometry.IntPoint(51, 51)),
+                             delta=math.ceil((25*0.1)+1))
+            self.assertTupleAlmostEqual((30, 30),
+                                display_panel.display_canvas_item.map_widget_to_image(Geometry.IntPoint(61, 61)),
+                                delta=math.ceil((30*0.1)+1))
+            # zoom out is done by passing the alt key to the canvas item.
+            display_panel.display_canvas_item.simulate_click((26, 26), CanvasItem.KeyboardModifiers(alt=True))
+            document_controller.periodic()
+            # zoom in at the center of a data pixel followed by zoom out in the same spot should end up in the same original mapping.
+            self.assertTupleAlmostEqual((25, 25),
+                             display_panel.display_canvas_item.map_widget_to_image(Geometry.IntPoint(51, 51)),
+                             delta=math.ceil((25*0.1)+1))
+            self.assertTupleAlmostEqual((30, 30),
+                             display_panel.display_canvas_item.map_widget_to_image(Geometry.IntPoint(61, 61)),
+                             delta=math.ceil((30*0.1)+1))
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
