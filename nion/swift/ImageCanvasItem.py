@@ -1507,10 +1507,6 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
     def set_two_to_one_mode(self) -> None:
         self.__apply_display_properties_command({"image_zoom": 0.5, "image_position": (0.5, 0.5), "image_canvas_mode": "2:1"})
 
-    def set_custom_mode(self) -> None:
-        new_zoom = self.calculate_baseline_zoom()
-        self.__apply_display_properties_command({"image_zoom": new_zoom, "image_canvas_mode": "custom"})
-
     def get_current_zoom(self) -> float:
         if self.image_canvas_mode == "custom":
             # Already in custom, just return current zoom
@@ -1550,26 +1546,24 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         else:
             display_properties["image_zoom"] = self.__image_zoom * factor
 
-        if focused_position:
+        if focused_position and self.scroll_area_canvas_item.canvas_size and self.__data_shape:
             # Position to focus the zoom on here, so need to keep that position under the cursor
-            # widget_mapping = ImageCanvasItemMapping.make(self.__data_shape, self.__composite_canvas_item.canvas_bounds,
-            #                                              list())
-            # if widget_mapping:
             mapped = self.map_widget_to_image(focused_position)
-            mapped_center = self.map_widget_to_image(
-                Geometry.IntPoint(self.scroll_area_canvas_item.canvas_size.height // 2,
-                                  self.scroll_area_canvas_item.canvas_size.width // 2))
-            if mapped_center is not None:
-                # Vector from clicked position to image center
-                mapped_vector = (mapped_center[0] - mapped[0], mapped_center[1] - mapped[1])
-                # Scale by the inverse of the zoom factor to get the vector from
-                # Click point to what the new center needs to be
-                scaled_mapped_vector = (mapped_vector[0] / factor, mapped_vector[1] / factor)
-                new_image_center = (mapped[0] + scaled_mapped_vector[0],
-                                    mapped[1] + scaled_mapped_vector[1])
-                norm_coord = tuple(new_mapped_coord / shape_dim for new_mapped_coord, shape_dim in
-                                   zip(iter(new_image_center), iter(self.__data_shape)))
-                display_properties["image_position"] = list(Geometry.FloatPoint(norm_coord[0], norm_coord[1]))
+            if mapped:
+                mapped_center = self.map_widget_to_image(
+                    Geometry.IntPoint(self.scroll_area_canvas_item.canvas_size.height // 2,
+                                      self.scroll_area_canvas_item.canvas_size.width // 2))
+                if mapped_center is not None:
+                    # Vector from clicked position to image center
+                    mapped_vector = (mapped_center[0] - mapped[0], mapped_center[1] - mapped[1])
+                    # Scale by the inverse of the zoom factor to get the vector from
+                    # Click point to what the new center needs to be
+                    scaled_mapped_vector = (mapped_vector[0] / factor, mapped_vector[1] / factor)
+                    new_image_center = (mapped[0] + scaled_mapped_vector[0],
+                                        mapped[1] + scaled_mapped_vector[1])
+                    norm_coord = tuple(new_mapped_coord / shape_dim for new_mapped_coord, shape_dim in
+                                       zip(iter(new_image_center), iter(self.__data_shape)))
+                    display_properties["image_position"] = list(Geometry.FloatPoint(norm_coord[0], norm_coord[1]))
 
         self.__apply_display_properties_command(display_properties)
 
