@@ -3285,6 +3285,7 @@ class SetToolModeAction(Window.Action):
 
 Window.register_action(SetToolModeAction("pointer", _("Pointer"), "pointer_icon.png", _("Pointer tool for selecting graphics")))
 Window.register_action(SetToolModeAction("hand", _("Hand"), "hand_icon.png", _("Hand tool for dragging images within panel")))
+Window.register_action(SetToolModeAction("zoom", _("Zoom"), "zoom.png", _("Zoom in/out on image")))
 Window.register_action(SetToolModeAction("line", _("Line"), "line_icon.png", _("Line tool for making line regions on images")))
 Window.register_action(SetToolModeAction("ellipse", _("Ellipse"), "ellipse_icon.png", _("Ellipse tool for making ellipse regions on images")))
 Window.register_action(SetToolModeAction("rectangle", _("Rectangle"), "rectangle_icon.png", _("Rectangle tool for making rectangle regions on images")))
