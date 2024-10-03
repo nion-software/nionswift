@@ -887,7 +887,7 @@ class ColorChooserHandler(Declarative.Handler):
         self.__display_item = display_item
         self.__display_layer = display_layer
         self._color_model = color_model
-        color_chooser = {"type": "color_chooser",
+        color_chooser = {"type": "nionswift.color_chooser",
                          "color": "@binding(_color_model.value)"}
         u = Declarative.DeclarativeUI()
         self.ui_view = u.create_row(
@@ -5022,7 +5022,7 @@ class DeclarativeColorChooserConstructor:
         self.__app = app
 
     def construct(self, d_type: str, ui: UserInterface.UserInterface, window: typing.Optional[Window.Window], d: Declarative.UIDescription, handler: Declarative.HandlerLike, finishes: typing.List[typing.Callable[[], None]]) -> typing.Optional[UserInterface.Widget]:
-        if d_type == "color_chooser":
+        if d_type == "nionswift.color_chooser":
             widget = Widgets.ColorPushButtonWidget(ui)
 
             if handler:
