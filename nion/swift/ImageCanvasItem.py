@@ -1293,6 +1293,20 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             self.__mouse_handler.mouse_pressed(Geometry.IntPoint(y=y, x=x), modifiers)
         return True
 
+    def mouse_double_clicked(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        # NOTE: clicking quickly to zoom in/out will be treated as double clicks. as a temporary solution, handle
+        # double clicks here by zooming. in the future, we may add support for handling mouse releases that occur
+        # not as part of double-clicking.
+        if super().mouse_double_clicked(x, y, modifiers):
+            return True
+        delegate = self.delegate
+        widget_mapping = self.mouse_mapping
+        if not delegate or not widget_mapping:
+            return False
+        if delegate.tool_mode == "zoom":
+            self.apply_fixed_zoom(not modifiers.alt, Geometry.IntPoint(y=y, x=x))
+        return True
+
     def mouse_released(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         if super().mouse_released(x, y, modifiers):
             return True
