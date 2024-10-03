@@ -801,39 +801,6 @@ class HandMouseHandler(MouseHandler):
                 change_display_properties_task.commit()
 
 
-class ZoomMouseHandler(MouseHandler):
-    def __init__(self, image_canvas_item: ImageCanvasItem, event_loop: asyncio.AbstractEventLoop) -> None:
-        super().__init__(image_canvas_item, event_loop)
-
-    async def _reactor_loop(self, r: Stream.ValueChangeStreamReactorInterface[MousePositionAndModifiers],
-                            image_canvas_item: ImageCanvasItem) -> None:
-        delegate = image_canvas_item.delegate
-        assert delegate
-
-        # get the beginning mouse position
-        value_change = await r.next_value_change()
-        value_change_value = value_change.value
-        assert value_change.is_begin
-        assert value_change_value is not None
-        image_position: typing.Optional[Geometry.FloatPoint] = None
-        mouse_pos, modifiers = value_change_value
-        is_zooming_in = not modifiers.alt
-
-        with delegate.create_change_display_properties_task() as change_display_properties_task:
-            # mouse tracking loop. wait for values and update the image position.
-            while True:
-                value_change = await r.next_value_change()
-                if value_change.is_end:
-                    if value_change.value is not None:
-                        mouse_pos, modifiers = value_change.value
-                        image_canvas_item.apply_fixed_zoom(is_zooming_in, mouse_pos)
-                    break
-
-            # if the image position was set, it means the user moved the image. perform the task.
-            if image_position:
-                change_display_properties_task.commit()
-
-
 class CreateGraphicMouseHandler(MouseHandler):
     def __init__(self, image_canvas_item: ImageCanvasItem, event_loop: asyncio.AbstractEventLoop, graphic_type: str) -> None:
         super().__init__(image_canvas_item, event_loop)
@@ -1278,42 +1245,10 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
     # Apply a zoom factor to the widget, optionally focused on a specific point
     def apply_fixed_zoom(self, zoom_in: bool, coord: typing.Optional[Geometry.IntPoint]) -> None:
-        zoom_factor = 0.25
-        self.set_custom_mode() # Put us into custom canvas mode
-        if coord and zoom_in:
-            # Coordinate specified, so needing to recenter to that point before we adjust zoom levels
-            widget_mapping = ImageCanvasItemMapping.make(self.__data_shape, self.__composite_canvas_item.canvas_bounds, list())
-            if widget_mapping:
-                # coord is (y,x) IntPoint
-                mapped = self.map_widget_to_image(coord)  # mapped is (y,x) IntPoint
-                if mapped is not None and self.__data_shape is not None and self.scroll_area_canvas_item.canvas_size is not None:
-                    mapped_center = self.map_widget_to_image(Geometry.IntPoint(self.scroll_area_canvas_item.canvas_size.height // 2, self.scroll_area_canvas_item.canvas_size.width // 2))
-                    if mapped_center is not None:
-                        mapped_vector = (mapped_center[0] - mapped[0], mapped_center[1] - mapped[1])
-                        if zoom_in:
-                            vector_scaling = zoom_factor / (1 + zoom_factor)
-                        else:
-                            vector_scaling = zoom_factor
-
-                        scaled_mapped_vector = (mapped_vector[0] * vector_scaling, mapped_vector[1] * vector_scaling)
-                        if zoom_in:
-                            new_mapped_center = (mapped_center[0] - scaled_mapped_vector[0], mapped_center[1] - scaled_mapped_vector[1])
-                        else:
-                            new_mapped_center = (mapped_center[0] + scaled_mapped_vector[0], mapped_center[1] + scaled_mapped_vector[1])
-
-                        norm_coord = tuple(new_mapped_coord / shape_dim for new_mapped_coord, shape_dim in zip(iter(new_mapped_center), iter(self.__data_shape)))
-                        self._set_image_canvas_position(Geometry.FloatPoint(norm_coord[0], norm_coord[1]))
-
-                        # ensure that at least half of the image is always visible
-                        new_image_norm_center_y = max(min(norm_coord[0], 1.0), 0.0)
-                        new_image_norm_center_x = max(min(norm_coord[1], 1.0), 0.0)
-                        # save the new image norm center
-                        new_image_canvas_position = Geometry.FloatPoint(new_image_norm_center_y, new_image_norm_center_x)
-                        self._set_image_canvas_position(new_image_canvas_position)
         if zoom_in:
-            self.zoom_in(1 + zoom_factor)
+            self.zoom_in(focused_position=coord)
         else:
-            self.zoom_out(1 + zoom_factor)
+            self.zoom_out(focused_position=coord)
 
     def mouse_clicked(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         if super().mouse_clicked(x, y, modifiers):
@@ -1350,10 +1285,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             self.__mouse_handler = HandMouseHandler(self, self.__event_loop)
             self.__mouse_handler.mouse_pressed(Geometry.IntPoint(y=y, x=x), modifiers)
         elif delegate.tool_mode == "zoom":
-            assert not self.__mouse_handler
-            assert self.__event_loop
-            self.__mouse_handler = ZoomMouseHandler(self, self.__event_loop)
-            self.__mouse_handler.mouse_pressed(Geometry.IntPoint(y=y, x=x), modifiers)
+            self.apply_fixed_zoom(not modifiers.alt, Geometry.IntPoint(y=y, x=x))
         elif delegate.tool_mode in graphic_type_map.keys():
             assert not self.__mouse_handler
             assert self.__event_loop
@@ -1576,43 +1508,76 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.__apply_display_properties_command({"image_zoom": 0.5, "image_position": (0.5, 0.5), "image_canvas_mode": "2:1"})
 
     def set_custom_mode(self) -> None:
-        if self.image_canvas_mode != "custom" and self.canvas_bounds and self.__data_shape:
+        new_zoom = self.calculate_baseline_zoom()
+        self.__apply_display_properties_command({"image_zoom": new_zoom, "image_canvas_mode": "custom"})
+
+    def get_current_zoom(self) -> float:
+        if self.image_canvas_mode == "custom":
+            # Already in custom, just return current zoom
+            return self.__image_zoom
+
+        if self.canvas_bounds and self.__data_shape:
             new_zoom = 1.0
             if self.image_canvas_mode == "fit":
                 # defaults to zoom of 1
                 pass
             elif self.image_canvas_mode == "fill":
-                # needs to be zoomed in a bit
                 x_zoom = self.canvas_bounds.width / self.__data_shape[1]
                 y_zoom = self.canvas_bounds.height / self.__data_shape[0]
-                new_zoom = max(y_zoom, x_zoom)
+                new_zoom = max(y_zoom, x_zoom) / min(y_zoom, x_zoom)
                 pass
             elif self.image_canvas_mode == "1:1":
-                # noticably less than 1.0, zoomed out a bit
                 x_zoom = self.__data_shape[1] / self.canvas_bounds.width
                 y_zoom = self.__data_shape[0] / self.canvas_bounds.height
                 new_zoom = max(y_zoom, x_zoom)
             elif self.image_canvas_mode == "2:1":
-                # zoomed out a lot
-                x_zoom = self.canvas_bounds.width / self.__data_shape[1]
-                y_zoom = self.canvas_bounds.height / self.__data_shape[0]
+                x_zoom = self.__data_shape[1] / self.canvas_bounds.width
+                y_zoom = self.__data_shape[0] / self.canvas_bounds.height
                 new_zoom = max(y_zoom, x_zoom)
                 new_zoom /= 2
+            return new_zoom
+        return float("nan")  # No defined canvas or data sizes, zoom is undefined
 
-            self.__apply_display_properties_command({"image_zoom": new_zoom, "image_canvas_mode": "custom"})
+    def zoom(self, factor: float, focused_position: typing.Optional[Geometry.IntPoint] = None) -> None:
+        display_properties: dict[str, float | str | list[float]] = {}
 
+        # Image zoom appears undefined in some non-custom modes
+        if self.__image_canvas_mode != "custom":
+            previous_zoom = self.get_current_zoom()
+            new_zoom = previous_zoom * factor
+            display_properties["image_zoom"] = new_zoom
+            display_properties["image_canvas_mode"] = "custom"
+        else:
+            display_properties["image_zoom"] = self.__image_zoom * factor
 
-    def zoom_in(self, factor: typing.Optional[float] = None) -> None:
-        if factor is None:
-            factor = 1.25
-        self.__apply_display_properties_command({"image_zoom": self.__image_zoom * factor,
-                                                 "image_canvas_mode": "custom"})
+        if focused_position:
+            # Position to focus the zoom on here, so need to keep that position under the cursor
+            # widget_mapping = ImageCanvasItemMapping.make(self.__data_shape, self.__composite_canvas_item.canvas_bounds,
+            #                                              list())
+            # if widget_mapping:
+            mapped = self.map_widget_to_image(focused_position)
+            mapped_center = self.map_widget_to_image(
+                Geometry.IntPoint(self.scroll_area_canvas_item.canvas_size.height // 2,
+                                  self.scroll_area_canvas_item.canvas_size.width // 2))
+            if mapped_center is not None:
+                # Vector from clicked position to image center
+                mapped_vector = (mapped_center[0] - mapped[0], mapped_center[1] - mapped[1])
+                # Scale by the inverse of the zoom factor to get the vector from
+                # Click point to what the new center needs to be
+                scaled_mapped_vector = (mapped_vector[0] / factor, mapped_vector[1] / factor)
+                new_image_center = (mapped[0] + scaled_mapped_vector[0],
+                                    mapped[1] + scaled_mapped_vector[1])
+                norm_coord = tuple(new_mapped_coord / shape_dim for new_mapped_coord, shape_dim in
+                                   zip(iter(new_image_center), iter(self.__data_shape)))
+                display_properties["image_position"] = list(Geometry.FloatPoint(norm_coord[0], norm_coord[1]))
 
-    def zoom_out(self, factor: typing.Optional[float] = None) -> None:
-        if factor is None:
-            factor = 1.25
-        self.__apply_display_properties_command({"image_zoom": self.__image_zoom / factor,
-                                                 "image_canvas_mode": "custom"})
+        self.__apply_display_properties_command(display_properties)
+
+    def zoom_in(self, factor: float = 1.25, focused_position: typing.Optional[Geometry.IntPoint] = None) -> None:
+        self.zoom(factor, focused_position)
+
+    def zoom_out(self, factor: float = 1.25, focused_position: typing.Optional[Geometry.IntPoint] = None) -> None:
+        self.zoom(1 / factor, focused_position)
 
     def move_left(self, amount: float = 10.0) -> None:
         self.apply_move_command(Geometry.FloatSize(0.0, amount))
