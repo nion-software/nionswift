@@ -2955,8 +2955,12 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
 
     def update_display_properties(self, display_properties: Persistence.PersistentDictType) -> None:
         if self.__display_item:
-            for key, value in iter(display_properties.items()):
-                self.__display_item.set_display_property(key, value)
+            # use a batch update to avoid repainting in between setting individual properties.
+            # this is not a perfect solution since another thread may trigger an update; but this
+            # should cover most cases.
+            with self.batch_update():
+                for key, value in iter(display_properties.items()):
+                    self.__display_item.set_display_property(key, value)
 
     def update_display_data_channel_properties(self, display_data_channel_properties: Persistence.PersistentDictType) -> None:
         display_data_channel = self.__display_item.display_data_channel if self.__display_item else None
