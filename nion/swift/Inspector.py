@@ -3547,7 +3547,7 @@ class GraphicsInspectorSection(InspectorSection):
             locked_row.add_stretch()
 
             def move_to_center_clicked() -> None:
-                action_context = self.__document_controller._get_action_context()
+                action_context = self.__document_controller._get_action_context_for_display_items([self.__display_item], None, graphics=[graphic])
                 self.__document_controller.perform_action_in_context("display_panel.center_graphics", action_context)
 
             canvas_item = CanvasItem.TextButtonCanvasItem("\N{BULLSEYE}")
