@@ -167,6 +167,9 @@
     "window.set_tool_mode.hand": {
         "display_panel": "h"
     },
+    "window.set_tool_mode.zoom": {
+        "display_panel": "z"
+    },    
     "window.set_tool_mode.line": {
         "display_panel": "n"
     },
