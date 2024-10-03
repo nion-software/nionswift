@@ -5007,19 +5007,23 @@ class LinePlotDisplayLayerButtonRowHandler(Declarative.Handler):
         u = Declarative.DeclarativeUI()
 
         self.ui_view = u.create_row(
-            {"type": "text_push_button",
+            {"type": "nionswift.text_push_button",
              "text": "\N{UPWARDS WHITE ARROW}",
-             "on_button_clicked": "_on_forward_button_clicked"},
-            {"type": "text_push_button",
+             "on_button_clicked": "_on_forward_button_clicked",
+             "tool_tip": _("Move layer up.")},
+            {"type": "nionswift.text_push_button",
              "text": "\N{DOWNWARDS WHITE ARROW}",
-             "on_button_clicked": "_on_backward_button_clicked"},
+             "on_button_clicked": "_on_backward_button_clicked",
+             "tool_tip": _("Move layer down.")},
             u.create_stretch(),
-            {"type": "text_push_button",
+            {"type": "nionswift.text_push_button",
              "text": "\N{PLUS SIGN}",
-             "on_button_clicked": "_on_add_button_clicked"},
-            {"type": "text_push_button",
+             "on_button_clicked": "_on_add_button_clicked",
+             "tool_tip": _("Add layer.")},
+            {"type": "nionswift.text_push_button",
              "text": "\N{MINUS SIGN}",
-             "on_button_clicked": "_on_remove_button_clicked"},
+             "on_button_clicked": "_on_remove_button_clicked",
+             "tool_tip": _("Remove layer.")},
             u.create_spacing(12)
         )
 
@@ -5029,7 +5033,7 @@ class DeclarativeTextPushButtonWidgetConstructor:
         self.__app = app
 
     def construct(self, d_type: str, ui: UserInterface.UserInterface, window: typing.Optional[Window.Window], d: Declarative.UIDescription, handler: Declarative.HandlerLike, finishes: typing.List[typing.Callable[[], None]]) -> typing.Optional[UserInterface.Widget]:
-        if d_type == "text_push_button":
+        if d_type == "nionswift.text_push_button":
             text = d.get("text", "")
             widget = Widgets.TextPushButtonWidget(ui, text)
 
