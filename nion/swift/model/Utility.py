@@ -342,7 +342,7 @@ def fps_get(fps_id: str) -> str:
     m = v.last_window_frame_mean
     r = 1 / m if m != 0.0 else 0.0
     s = v.last_window_frame_std
-    return str(round(r * 10) / 10.0) + "fps / " + str(int(m * 1000)) + "ms / " + str(int(s * 1000)) + "ms"
+    return str(int(r * 10) / 10.0) + "fps / " + str(int(m * 1000)) + "ms / " + str(int(s * 1000)) + "ms"
 
 
 Trace = collections.namedtuple("Trace", ["start_time", "last_time_ref", "min_elapsed", "discard", "all"])

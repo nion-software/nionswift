@@ -1031,11 +1031,14 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 source_display_items = self.get_source_display_items(display_item) if display_item else list()
                 dependent_display_items = self.get_dependent_display_items(display_item) if display_item else list()
                 self.related_items_changed.fire(display_item, source_display_items, dependent_display_items)
+                display_item.source_display_items_changed(source_display_items, self.__is_loading)
 
         self.__display_item_item_inserted_listeners[display_item] = display_item.item_inserted_event.listen(functools.partial(item_changed, display_item))
         self.__display_item_item_removed_listeners[display_item] = display_item.item_removed_event.listen(functools.partial(item_changed, display_item))
         # send notifications
         self.notify_insert_item("display_items", display_item, before_index)
+        # update source items
+        display_item.source_display_items_changed(self.get_source_display_items(display_item), self.__is_loading)
 
     def __handle_display_item_removed(self, display_item: DisplayItem.DisplayItem) -> None:
         # remove it from the persistent_storage
@@ -1054,7 +1057,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         for data_item in self.__data_items:
             data_item.source_data_items_changed(self.get_source_data_items(data_item))
         for display_item in self.__display_items:
-            display_item.finish_project_read()
+            display_item.source_display_items_changed(self.get_source_display_items(display_item), self.__is_loading)
         self.project_loaded_event.fire()
         self.__is_loading = False
 
@@ -1340,6 +1343,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         # send the source changes to the target display item
         if isinstance(source_item, DataItem.DataItem) and isinstance(target_item, DataItem.DataItem):
             target_item.source_data_items_changed(self.get_source_data_items(target_item))
+            for display_item in self.get_display_items_for_data_item(target_item):
+                source_display_items = self.get_source_display_items(display_item) if display_item else list()
+                display_item.source_display_items_changed(source_display_items, self.__is_loading)
 
     def __add_dependency(self, source_item: Persistence.PersistentObject, target_item: Persistence.PersistentObject) -> None:
         # print(f"add dependency {source_item} {target_item}")
@@ -1360,6 +1366,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         # send the source changes to the target display item
         if isinstance(source_item, DataItem.DataItem) and isinstance(target_item, DataItem.DataItem):
             target_item.source_data_items_changed(self.get_source_data_items(target_item))
+            for display_item in self.get_display_items_for_data_item(target_item):
+                source_display_items = self.get_source_display_items(display_item) if display_item else list()
+                display_item.source_display_items_changed(source_display_items, self.__is_loading)
 
     def __computation_needs_update(self, computation: Symbolic.Computation) -> None:
         # When the computation for a data item is set or mutated, this function will be called.

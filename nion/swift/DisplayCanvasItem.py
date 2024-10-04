@@ -9,10 +9,9 @@ from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.swift.model import Persistence
-from nion.swift.model import Utility
 from nion.ui import CanvasItem
-from nion.ui import DrawingContext
 from nion.ui import UserInterface
+from nion.ui import Window
 from nion.utils import Geometry
 
 
@@ -117,84 +116,3 @@ class DisplayCanvasItem(CanvasItem.CanvasItemComposition):
     def handle_auto_display(self) -> bool: ...
 
     def update_display_data_delta(self, display_data_delta: DisplayItem.DisplayDataDelta) -> None: ...
-
-
-class FrameRateCanvasItemComposer(CanvasItem.BaseComposer):
-    def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing, cache: CanvasItem.ComposerCache, fps: str, fps2: str, fps3: str) -> None:
-        super().__init__(canvas_item, layout_sizing, cache)
-        self.__fps = fps
-        self.__fps2 = fps2
-        self.__fps3 = fps3
-
-    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> None:
-        fps = self.__fps
-        fps2 = self.__fps2
-        fps3 = self.__fps3
-        with drawing_context.saver():
-            drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
-            font = "normal 11px serif"
-            text_pos = canvas_bounds.top_left
-            drawing_context.begin_path()
-            drawing_context.move_to(text_pos.x, text_pos.y)
-            drawing_context.line_to(text_pos.x + 200, text_pos.y)
-            drawing_context.line_to(text_pos.x + 200, text_pos.y + 60)
-            drawing_context.line_to(text_pos.x, text_pos.y + 60)
-            drawing_context.close_path()
-            drawing_context.fill_style = "rgba(255, 255, 255, 0.6)"
-            drawing_context.fill()
-            drawing_context.font = font
-            drawing_context.text_baseline = "middle"
-            drawing_context.text_align = "left"
-            drawing_context.fill_style = "#000"
-            drawing_context.fill_text("display:" + fps, text_pos.x + 8, text_pos.y + 10)
-            drawing_context.fill_text("frame:" + fps2, text_pos.x + 8, text_pos.y + 30)
-            drawing_context.fill_text("update:" + fps3, text_pos.x + 8, text_pos.y + 50)
-            drawing_context.statistics("display")
-
-
-class FrameRateCanvasItem(CanvasItem.AbstractCanvasItem):
-    """Display frame rate in the display canvas item.
-
-    There are three rates that are tracked. The "display" rate is the rate at which the display is updated and is
-    "ticked" when low level repaint occurs, which generally happens once per update. The "frame" rate is the rate at
-    the frame index changes. The "update" rate is the rate at which the display is updated and is "ticked" when the
-    display is updated. It is different from the "display" since it is just a request to update; whereas the "display"
-    is the actual repaint being performed.
-    """
-    def __init__(self) -> None:
-        super().__init__()
-        self.__display_frame_rate_id: typing.Optional[str] = None
-        self.__display_frame_rate_last_index = 0
-
-    @property
-    def display_frame_rate_id(self) -> typing.Optional[str]:
-        return self.__display_frame_rate_id
-
-    @display_frame_rate_id.setter
-    def display_frame_rate_id(self, value: typing.Optional[str]) -> None:
-        self.__display_frame_rate_id = value
-        self.update()
-
-    def toggle_display(self, display_frame_rate_id: str) -> None:
-        if self.__display_frame_rate_id is None:
-            self.__display_frame_rate_id = display_frame_rate_id
-        else:
-            self.__display_frame_rate_id = None
-        self.update()
-
-    def frame_tick(self, frame_index: int) -> None:
-        if self.__display_frame_rate_id:
-            if frame_index != self.__display_frame_rate_last_index:
-                Utility.fps_tick("frame_" + self.__display_frame_rate_id)
-                self.__display_frame_rate_last_index = frame_index
-            Utility.fps_tick("update_" + self.__display_frame_rate_id)
-            self.update()
-
-    def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> typing.Optional[CanvasItem.BaseComposer]:
-        if self.__display_frame_rate_id:
-            fps = Utility.fps_get("display_" + self.__display_frame_rate_id)
-            fps2 = Utility.fps_get("frame_" + self.__display_frame_rate_id)
-            fps3 = Utility.fps_get("update_" + self.__display_frame_rate_id)
-            return FrameRateCanvasItemComposer(self, self.sizing, composer_cache, fps, fps2, fps3)
-        return CanvasItem.EmptyCanvasItemComposer(self, self.sizing, composer_cache)
-

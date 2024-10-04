@@ -828,10 +828,6 @@ class Graphic(Persistence.PersistentObject):
         return constraints
 
     def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool = False) -> None:
-        if not self._closed:
-            self._draw(ctx, ui_settings, mapping, is_selected)
-
-    def _draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool = False) -> None:
         raise NotImplementedError()
 
     def test(self, mapping: CoordinateMappingLike, ui_settings: UISettings.UISettings, p: Geometry.FloatPoint, move_only: bool) -> typing.Tuple[typing.Optional[str], bool]:
@@ -902,7 +898,7 @@ class MissingGraphic(Graphic):
     def __init__(self, type: str) -> None:
         super().__init__(type)
 
-    def _draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool = False) -> None:
+    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool = False) -> None:
         pass
 
 
@@ -1093,7 +1089,7 @@ class RectangleTypeGraphic(Graphic):
         current = original + delta
         self.adjust_part(mapping, original, current, ("all", ) + self.begin_drag(), NullModifiers())
 
-    def _draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool = False) -> None:
+    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool = False) -> None:
         raise NotImplementedError()
 
 
@@ -1112,7 +1108,7 @@ class RectangleGraphic(RectangleTypeGraphic):
         if rotation != self.rotation:
             self.rotation = rotation
 
-    def _draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool = False) -> None:
+    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool = False) -> None:
         # origin is top left
         origin = mapping.map_point_image_norm_to_widget(self.bounds.origin)
         size = mapping.map_size_image_norm_to_widget(self.bounds.size)
@@ -1213,7 +1209,7 @@ class EllipseGraphic(RectangleTypeGraphic):
         if rotation != self.rotation:
             self.rotation = rotation
 
-    def _draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool = False) -> None:
+    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool = False) -> None:
         # origin is top left
         rotation = self.rotation
         stroke_style = self.used_stroke_style
@@ -1509,7 +1505,7 @@ class LineTypeGraphic(Graphic):
         current = original + delta
         self.adjust_part(mapping, original, current, ("all",) + self.begin_drag(), NullModifiers())
 
-    def _draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool = False) -> None:
+    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool = False) -> None:
         raise NotImplementedError()
 
 
@@ -1517,7 +1513,7 @@ class LineGraphic(LineTypeGraphic):
     def __init__(self) -> None:
         super().__init__("line-graphic", _("Line"))
 
-    def _draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool = False) -> None:
+    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool = False) -> None:
         p1 = mapping.map_point_image_norm_to_widget(self.start)
         p2 = mapping.map_point_image_norm_to_widget(self.end)
         with ctx.saver():
@@ -1574,7 +1570,7 @@ class LineProfileGraphic(LineTypeGraphic):
         super().read_from_mime_data(graphic_dict)
         self.width = graphic_dict.get("line_width", self.width)
 
-    def _draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool = False) -> None:
+    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool = False) -> None:
         p1 = mapping.map_point_image_norm_to_widget(self.start)
         p2 = mapping.map_point_image_norm_to_widget(self.end)
         w = mapping.map_size_image_to_widget(Geometry.FloatSize(width=self.width)).width
@@ -1713,7 +1709,7 @@ class PointTypeGraphic(Graphic):
         current = original + delta
         self.adjust_part(mapping, original, current, ("all",) + self.begin_drag(), NullModifiers())
 
-    def _draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool = False) -> None:
+    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool = False) -> None:
         raise NotImplementedError()
 
     @property
@@ -1730,7 +1726,7 @@ class PointGraphic(PointTypeGraphic):
         super().__init__("point-graphic", _("Point"))
         self.cross_hair_size = 12
 
-    def _draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool = False) -> None:
+    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool = False) -> None:
         p = mapping.map_point_image_norm_to_widget(self.position)
         with ctx.saver():
             ctx.begin_path()
@@ -2131,7 +2127,7 @@ class SpotGraphic(Graphic):
         current = original + delta
         self.adjust_part(mapping, original, current, ("all",) + self.begin_drag(), NullModifiers())
 
-    def _draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool = False) -> None:
+    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool = False) -> None:
         # origin is top left
         stroke_style = self.used_stroke_style
         fill_style = self.used_fill_style
@@ -2335,7 +2331,7 @@ class WedgeGraphic(Graphic):
                     numpy.where(-y * s_sign <= numpy.tan(-s) * -x * s_sign, 1, 0) &
                     numpy.where(-y * e_sign <= numpy.tan(-e) * -x * e_sign, 0, 1))
 
-    def _draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool = False) -> None:
+    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool = False) -> None:
         center = mapping.calibrated_origin_widget
         size = mapping.map_size_image_norm_to_widget(Geometry.FloatSize(1.0, 1.0))
         bounds = Geometry.FloatRect(Geometry.FloatPoint(), size) + mapping.map_point_image_norm_to_widget(Geometry.FloatPoint())
@@ -2531,7 +2527,7 @@ class RingGraphic(Graphic):
             mask = numpy.ones(data_shape)
         return mask
 
-    def _draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool = False) -> None:
+    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool = False) -> None:
         # origin is top left
         center = mapping.calibrated_origin_widget
         bounds0 = mapping.map_point_image_norm_to_widget(Geometry.FloatPoint(0.0, 0.0))
@@ -2870,7 +2866,7 @@ class LatticeGraphic(Graphic):
 
         return mask
 
-    def _draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool = False) -> None:
+    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool = False) -> None:
         start = mapping.calibrated_origin_image_norm
         u_pos = Geometry.FloatSize.make(self.u_pos)
         v_pos = Geometry.FloatSize.make(self.v_pos)
