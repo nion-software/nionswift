@@ -40,25 +40,20 @@
                 "type": "item",
                 "action_id": "file.import_data"
             },
+
             {
-                "type": "sub_menu",
-                "menu_id": "file_export",
-                "title": "Export...",
-                "items":[
-                    {
-                        "type": "item",
-                        "action_id":"export.export"
-                    },
-                     {
-                        "type": "item",
-                        "action_id":"export.export_batch"
-                    },
-                     {
-                        "type": "item",
-                        "action_id": "file.export_svg"
-                    }
-                ]
+                "type": "item",
+                "action_id":"file.export"
             },
+             {
+                "type": "item",
+                "action_id":"file.export_batch"
+            },
+             {
+                "type": "item",
+                "action_id": "file.export_svg"
+            },
+
             {
                 "type": "separator"
             },

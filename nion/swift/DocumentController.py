@@ -2638,8 +2638,8 @@ class DocumentController(Window.Window):
 
     def populate_context_menu(self, menu: UserInterface.Menu, action_context: DocumentController.ActionContext) -> None:
         self.add_action_to_menu_if_enabled(menu, "display.reveal", action_context)
-        self.add_action_to_menu_if_enabled(menu, "export.export", action_context)
-        self.add_action_to_menu_if_enabled(menu, "export.export_batch", action_context)
+        self.add_action_to_menu_if_enabled(menu, "file.export", action_context)
+        self.add_action_to_menu_if_enabled(menu, "file.export_batch", action_context)
         data_item = action_context.data_item
         if data_item:
             source_data_items = self.document_model.get_source_data_items(data_item)
@@ -3013,7 +3013,7 @@ class DeleteDataItemAction(Window.Action):
 
 
 class ExportAction(Window.Action):
-    action_id = "export.export"
+    action_id = "file.export"
     action_name = _("Single Export...")
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
@@ -3033,7 +3033,7 @@ class ExportAction(Window.Action):
 
 
 class ExportBatchAction(Window.Action):
-    action_id = "export.export_batch"
+    action_id = "file.export_batch"
     action_name = _("Batch Export...")
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
