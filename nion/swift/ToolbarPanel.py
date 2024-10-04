@@ -68,6 +68,9 @@ class ToolModeToolbarWidget(Declarative.Handler):
             else:
                 bottom_row_items.append(radio_button)
 
+        if len(tool_actions) % 2 == 1:
+            bottom_row_items.append(u.create_spacing(32))
+
         top_row = u.create_row(*top_row_items)
         bottom_row = u.create_row(*bottom_row_items)
 

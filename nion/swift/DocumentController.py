@@ -2731,7 +2731,12 @@ class DocumentController(Window.Window):
                                                 display_item, display_items, crop_graphic, selected_graphics, data_item,
                                                 data_items)
 
-    def _get_action_context_for_display_items(self, display_items: typing.Sequence[DisplayItem.DisplayItem], display_panel: typing.Optional[DisplayPanel.DisplayPanel]) -> ActionContext:
+    def _get_action_context_for_display_items(
+            self,
+            display_items: typing.Sequence[DisplayItem.DisplayItem],
+            display_panel: typing.Optional[DisplayPanel.DisplayPanel],
+            *, graphics: typing.Optional[typing.Sequence[Graphics.Graphic]] = None
+    ) -> ActionContext:
         focus_widget = self.focus_widget
         model = self.document_model
         # the logic here is if a single display panel is focused and the user context clicks on another one, then use
@@ -2768,7 +2773,7 @@ class DocumentController(Window.Window):
             for data_item_1 in display_item_1.data_items:
                 if not data_item_1 in used_data_items:
                     used_data_items.append(data_item_1)
-        selected_graphics = used_display_item.selected_graphics if used_display_item else list()
+        selected_graphics = graphics if graphics is not None else (used_display_item.selected_graphics if used_display_item else list())
         selected_display_panel = selected_display_panel or (display_panel if len(used_display_panels) == 1 else None)
         return DocumentController.ActionContext(typing.cast("Application.Application", self.app), self, focus_widget,
                                                 used_display_panel, used_display_panels, selected_display_panel, model,
@@ -3285,6 +3290,7 @@ class SetToolModeAction(Window.Action):
 
 Window.register_action(SetToolModeAction("pointer", _("Pointer"), "pointer_icon.png", _("Pointer tool for selecting graphics")))
 Window.register_action(SetToolModeAction("hand", _("Hand"), "hand_icon.png", _("Hand tool for dragging images within panel")))
+Window.register_action(SetToolModeAction("zoom", _("Zoom"), "zoom.png", _("Zoom in/out on image")))
 Window.register_action(SetToolModeAction("line", _("Line"), "line_icon.png", _("Line tool for making line regions on images")))
 Window.register_action(SetToolModeAction("ellipse", _("Ellipse"), "ellipse_icon.png", _("Ellipse tool for making ellipse regions on images")))
 Window.register_action(SetToolModeAction("rectangle", _("Rectangle"), "rectangle_icon.png", _("Rectangle tool for making rectangle regions on images")))
@@ -3682,21 +3688,19 @@ class DisplayPanelCenterGraphicsAction(Window.Action):
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
         window = typing.cast(DocumentController, context.window)
-        display_item = window.selected_display_item
-        if display_item:
-            if display_item.graphic_selection.has_selection:
-                graphics = [display_item.graphics[index] for index in display_item.graphic_selection.indexes]
-                if graphics:
-                    def reset_position(graphic: Graphics.Graphic) -> None:
-                        graphic.reset_position()
+        display_item = context.display_item
+        graphics = context.selected_graphics
+        if display_item and graphics:
+            def reset_position(graphic: Graphics.Graphic) -> None:
+                graphic.reset_position()
 
-                    command = DisplayPanel.ChangeGraphicsCommand(window.document_model,
-                                                                 display_item, graphics,
-                                                                 title=DisplayPanelCenterGraphicsAction.action_name,
-                                                                 command_id="move_graphic_to_center", is_mergeable=True,
-                                                                 modify_fn=reset_position)
-                    command.perform()
-                    window.push_undo_command(command)
+            command = DisplayPanel.ChangeGraphicsCommand(window.document_model,
+                                                         display_item, graphics,
+                                                         title=DisplayPanelCenterGraphicsAction.action_name,
+                                                         command_id="move_graphic_to_center", is_mergeable=True,
+                                                         modify_fn=reset_position)
+            command.perform()
+            window.push_undo_command(command)
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
     def is_enabled(self, context: Window.ActionContext) -> bool:

@@ -880,6 +880,44 @@ class ChangeDisplayLayerDisplayDataChannelCommand(Undo.UndoableCommand):
         return isinstance(command, self.__class__) and bool(self.command_id) and self.command_id == command.command_id and self.__display_item_uuid == command.__display_item_uuid
 
 
+class ColorChooserHandler(Declarative.Handler):
+    def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem, display_layer: DisplayItem.DisplayLayer, color_model: Model.PropertyModel[typing.Any]):
+        super().__init__()
+        self.__document_controller = document_controller
+        self.__display_item = display_item
+        self.__display_layer = display_layer
+        self._color_model = color_model
+        color_chooser = {"type": "nionswift.color_chooser",
+                         "color": "@binding(_color_model.value)"}
+        u = Declarative.DeclarativeUI()
+        self.ui_view = u.create_row(
+            color_chooser,
+            u.create_line_edit(text="@binding(_color_model.value)", placeholder_text="None", width=80),
+            u.create_stretch(),
+            spacing=8,
+        )
+
+
+class DisplayLayerPropertyCommandModel(Model.PropertyChangedPropertyModel[typing.Any]):
+    def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem, display_layer: DisplayItem.DisplayLayer, property_name: str):
+        super().__init__(display_layer, property_name)
+        self.__document_controller = document_controller
+        self.__display_item = display_item
+        self.__display_layer = display_layer
+        self.__property_name = property_name
+
+    def _get_property_value(self) -> typing.Any:
+        return getattr(self.__display_layer, self.__property_name)
+
+    def _set_property_value(self, property_value: typing.Any) -> None:
+        if property_value != self._get_property_value():
+            index = self.__display_item.display_layers.index(self.__display_layer)
+            command = ChangeDisplayLayerPropertyCommand(self.__document_controller.document_model, self.__display_item, index,
+                                                        self.__property_name, property_value)
+            command.perform()
+            self.__document_controller.push_undo_command(command)
+
+
 class LinePlotDisplayLayersInspectorSection(InspectorSection):
     def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem) -> None:
         super().__init__(document_controller.ui, "line-plot-display-layer", _("Line Plot Display Layers"))
@@ -976,21 +1014,11 @@ class LinePlotDisplayLayersInspectorSection(InspectorSection):
                 label_row.add_spacing(12)
                 label_edit_widget.on_editing_finished = functools.partial(change_label, label_edit_widget, display_layer)
                 # move up, move down, add layer, remove layer
-                move_forward_button_widget = Widgets.TextPushButtonWidget(ui, "\N{UPWARDS WHITE ARROW}")
-                move_backward_button_widget = Widgets.TextPushButtonWidget(ui, "\N{DOWNWARDS WHITE ARROW}")
-                add_layer_button_widget = Widgets.TextPushButtonWidget(ui, "\N{PLUS SIGN}")
-                remove_layer_button_widget = Widgets.TextPushButtonWidget(ui, "\N{MINUS SIGN}")
-                button_row = ui.create_row_widget()
-                button_row.add(move_forward_button_widget)
-                button_row.add(move_backward_button_widget)
-                button_row.add_stretch()
-                button_row.add(add_layer_button_widget)
-                button_row.add(remove_layer_button_widget)
-                button_row.add_spacing(12)
-                move_forward_button_widget.on_button_clicked = functools.partial(move_layer_forward, display_layer)
-                move_backward_button_widget.on_button_clicked = functools.partial(move_layer_backward, display_layer)
-                add_layer_button_widget.on_button_clicked = functools.partial(add_layer, display_layer)
-                remove_layer_button_widget.on_button_clicked = functools.partial(remove_layer, display_layer)
+                button_row = make_line_plot_display_layer_button_row(document_controller,
+                                                                     functools.partial(move_layer_forward, display_layer),
+                                                                     functools.partial(move_layer_backward, display_layer),
+                                                                     functools.partial(add_layer, display_layer),
+                                                                     functools.partial(remove_layer, display_layer))
                 # content: display data channel, row
                 display_data_channel_index_widget = ui.create_line_edit_widget(properties={"width": 36})
                 display_data_channel_index_widget.widget_id = "display_data_channel_index_widget"
@@ -1004,26 +1032,18 @@ class LinePlotDisplayLayersInspectorSection(InspectorSection):
                 display_data_channel_index_widget.on_editing_finished = functools.partial(change_data_index, display_data_channel_index_widget, display_layer)
                 display_data_channel_row_widget.on_editing_finished = functools.partial(change_data_row, display_data_channel_row_widget, display_layer)
                 # display: fill color, stroke color, label
-                fill_color_widget = Widgets.ColorPushButtonWidget(ui)
-                fill_color_edit = ui.create_line_edit_widget(properties={"width": 80})
-                fill_color_edit.placeholder_text = _("None")
+                self.__fill_color_model = DisplayLayerPropertyCommandModel(document_controller, display_item, display_layer, "fill_color")
+                fill_color_widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop, ColorChooserHandler(document_controller, display_item, display_layer, self.__fill_color_model))
                 fill_color_row = ui.create_row_widget(properties={"spacing": 8})
                 fill_color_row.add(ui.create_label_widget(_("Fill Color"), properties={"width": 80}))
                 fill_color_row.add(fill_color_widget)
-                fill_color_row.add(fill_color_edit)
                 fill_color_row.add_stretch()
-                fill_color_widget.on_color_changed = functools.partial(change_fill_color, fill_color_widget, fill_color_edit, display_layer)
-                fill_color_edit.on_editing_finished = functools.partial(change_fill_color, fill_color_widget, fill_color_edit, display_layer)
-                stroke_color_widget = Widgets.ColorPushButtonWidget(ui)
-                stroke_color_edit = ui.create_line_edit_widget(properties={"width": 80})
-                stroke_color_edit.placeholder_text = _("None")
+                self.__stroke_color_model = DisplayLayerPropertyCommandModel(document_controller, display_item, display_layer, "stroke_color")
+                stroke_color_widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop, ColorChooserHandler(document_controller, display_item, display_layer, self.__stroke_color_model))
                 stroke_color_row = ui.create_row_widget(properties={"spacing": 8})
                 stroke_color_row.add(ui.create_label_widget(_("Stroke Color"), properties={"width": 80}))
                 stroke_color_row.add(stroke_color_widget)
-                stroke_color_row.add(stroke_color_edit)
                 stroke_color_row.add_stretch()
-                stroke_color_widget.on_color_changed = functools.partial(change_stroke_color, stroke_color_widget, stroke_color_edit, display_layer)
-                stroke_color_edit.on_editing_finished = functools.partial(change_stroke_color, stroke_color_widget, stroke_color_edit, display_layer)
                 stroke_width_edit = ui.create_line_edit_widget(properties={"width": 36})
                 stroke_width_edit.text = str(display_layer.stroke_width) if display_layer.stroke_width is not None else None
                 stroke_width_row = ui.create_row_widget(properties={"spacing": 8})
@@ -1051,10 +1071,7 @@ class LinePlotDisplayLayersInspectorSection(InspectorSection):
                 self.__label_edit_widget = label_edit_widget
                 self.__display_data_channel_index_widget = display_data_channel_index_widget
                 self.__display_data_channel_row_widget = display_data_channel_row_widget
-                self.__fill_color_widget = fill_color_widget
-                self.__fill_color_edit = fill_color_edit
                 self.__stroke_color_widget = stroke_color_widget
-                self.__stroke_color_edit = stroke_color_edit
                 self.__stroke_width_edit = stroke_width_edit
 
                 def display_layer_property_changed(name: str) -> None:
@@ -1065,12 +1082,6 @@ class LinePlotDisplayLayersInspectorSection(InspectorSection):
                         self.__display_data_channel_index_widget.text = str(data_index) if data_index is not None else str()
                     elif name == "label":
                         self.__label_edit_widget.text = display_layer.label
-                    elif name == "stroke_color":
-                        self.__stroke_color_widget.color = display_layer.stroke_color
-                        self.__stroke_color_edit.text = display_layer.stroke_color
-                    elif name == "fill_color":
-                        self.__fill_color_widget.color = display_layer.fill_color
-                        self.__fill_color_edit.text = display_layer.fill_color
                     elif name == "data_row":
                         self.__display_data_channel_row_widget.text = str(display_layer.data_row) if display_layer.data_row is not None else None
                     elif name == "stroke_width":
@@ -3064,7 +3075,10 @@ class GraphicsInspectorHandler(Declarative.Handler):
             u.create_spacing(12),
             u.create_check_box(text=_("Shape"), checked="@binding(_lock_shape_model.value)", text_alignment_vertical="center"),
             u.create_stretch(),
-            u.create_push_button(text="\N{BULLSEYE}", on_clicked="_move_to_center_clicked", width=26, text_alignment_horizontal="center"),
+            {"type": "nionswift.text_push_button",
+             "text": "\N{BULLSEYE}",
+             "on_button_clicked": "_move_to_center_clicked",
+             "tool_tip": "Center graphic."},
             u.create_spacing(4)
         )
 
@@ -3383,8 +3397,8 @@ class GraphicsInspectorHandler(Declarative.Handler):
             spacing=4
         )
 
-    def _move_to_center_clicked(self, widget: typing.Any) -> None:
-        action_context = self.__document_controller._get_action_context()
+    def _move_to_center_clicked(self) -> None:
+        action_context = self.__document_controller._get_action_context_for_display_items([self.__display_item], None, graphics=[self.__graphic])
         self.__document_controller.perform_action_in_context("display_panel.center_graphics", action_context)
 
     def __create_position_and_shape_ui(self) -> Declarative.UIDescriptionResult:
@@ -4860,6 +4874,86 @@ class DeclarativeDataSourceChooserConstructor:
                 Declarative.connect_reference_value(cropped_overlay, d, handler, "is_croppable", finishes, value_type=bool)
                 Declarative.connect_reference_value(cropped_overlay, d, handler, "crop_enabled", finishes, value_type=bool)
                 Declarative.connect_event(widget, cropped_overlay, d, handler, "on_crop_enabled_clicked", [])
+                Declarative.connect_attributes(widget, d, handler, finishes)
+
+            return widget
+
+        return None
+
+
+def make_line_plot_display_layer_button_row(document_controller: DocumentController.DocumentController,
+                                            on_forward_button_clicked: typing.Optional[typing.Callable[[], None]],
+                                            on_backward_button_clicked: typing.Optional[typing.Callable[[], None]],
+                                            on_add_button_clicked: typing.Optional[typing.Callable[[], None]],
+                                            on_remove_button_clicked: typing.Optional[typing.Callable[[], None]]) -> Declarative.DeclarativeWidget:
+    handler = LinePlotDisplayLayerButtonRowHandler(on_forward_button_clicked, on_backward_button_clicked, on_add_button_clicked, on_remove_button_clicked)
+    return Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop, handler)
+
+
+class LinePlotDisplayLayerButtonRowHandler(Declarative.Handler):
+    def __init__(self, on_forward_button_clicked: typing.Optional[typing.Callable[[], None]],
+                 on_backward_button_clicked: typing.Optional[typing.Callable[[], None]],
+                 on_add_button_clicked: typing.Optional[typing.Callable[[], None]],
+                 on_remove_button_clicked: typing.Optional[typing.Callable[[], None]]) -> None:
+        self._on_forward_button_clicked = on_forward_button_clicked
+        self._on_backward_button_clicked = on_backward_button_clicked
+        self._on_add_button_clicked = on_add_button_clicked
+        self._on_remove_button_clicked = on_remove_button_clicked
+        u = Declarative.DeclarativeUI()
+
+        self.ui_view = u.create_row(
+            {"type": "nionswift.text_push_button",
+             "text": "\N{UPWARDS WHITE ARROW}",
+             "on_button_clicked": "_on_forward_button_clicked",
+             "tool_tip": _("Move layer up.")},
+            {"type": "nionswift.text_push_button",
+             "text": "\N{DOWNWARDS WHITE ARROW}",
+             "on_button_clicked": "_on_backward_button_clicked",
+             "tool_tip": _("Move layer down.")},
+            u.create_stretch(),
+            {"type": "nionswift.text_push_button",
+             "text": "\N{PLUS SIGN}",
+             "on_button_clicked": "_on_add_button_clicked",
+             "tool_tip": _("Add layer.")},
+            {"type": "nionswift.text_push_button",
+             "text": "\N{MINUS SIGN}",
+             "on_button_clicked": "_on_remove_button_clicked",
+             "tool_tip": _("Remove layer.")},
+            u.create_spacing(12)
+        )
+
+
+class DeclarativeTextPushButtonWidgetConstructor:
+    def __init__(self, app: Application.Application) -> None:
+        self.__app = app
+
+    def construct(self, d_type: str, ui: UserInterface.UserInterface, window: typing.Optional[Window.Window], d: Declarative.UIDescription, handler: Declarative.HandlerLike, finishes: typing.List[typing.Callable[[], None]]) -> typing.Optional[UserInterface.Widget]:
+        if d_type == "nionswift.text_push_button":
+            text = d.get("text", "")
+            widget = Widgets.TextPushButtonWidget(ui, text)
+
+            if handler:
+                Declarative.connect_name(widget, d, handler)
+                Declarative.connect_reference_value(widget, d, handler, "on_button_clicked", finishes)
+                Declarative.connect_attributes(widget, d, handler, finishes)
+
+            return widget
+
+        return None
+
+
+class DeclarativeColorChooserConstructor:
+    def __init__(self, app: Application.Application) -> None:
+        self.__app = app
+
+    def construct(self, d_type: str, ui: UserInterface.UserInterface, window: typing.Optional[Window.Window], d: Declarative.UIDescription, handler: Declarative.HandlerLike, finishes: typing.List[typing.Callable[[], None]]) -> typing.Optional[UserInterface.Widget]:
+        if d_type == "nionswift.color_chooser":
+            widget = Widgets.ColorPushButtonWidget(ui)
+
+            if handler:
+                Declarative.connect_name(widget, d, handler)
+                Declarative.connect_reference_value(widget, d, handler, "color", finishes)
+                Declarative.connect_reference_value(widget, d, handler, "on_color_changed", finishes)
                 Declarative.connect_attributes(widget, d, handler, finishes)
 
             return widget

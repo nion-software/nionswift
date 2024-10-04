@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<svg width="24" height="24"
+     viewPort="0 0 24 24" version="1.1"
+     xmlns="http://www.w3.org/2000/svg">
+
+    <!-- Cursor -->
+    <g transform="scale(0.8333,0.8333) translate(1, 4)">
+    <circle cx="9" cy="9" r="6" stroke="black" fill="none" stroke-width="2"/>
+    <path d="M 22,20 L 20,22 L 14,16 L 14,15 L 13,14 L 14,13 L 15,14 L 16,14 z" fill="black" stroke-linejoin="round"/>
+    </g>
+    <!-- <rect x="0" y="0" width="24" height="24" fill="none" stroke="green" stroke-width="0.5"/> -->
+
+</svg>
