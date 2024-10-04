@@ -546,13 +546,13 @@ class CollectionsWidget(Widgets.CompositeWidgetBase):
         self.__document_model_item_inserted_listener = document_model.item_inserted_event.listen(document_model_item_inserted)
         self.__document_model_item_removed_listener = document_model.item_removed_event.listen(document_model_item_removed)
 
-        data_group, filter_id = document_controller.get_data_group_and_filter_id()
-        filter_changed(data_group, filter_id)
-
         for index, data_group in enumerate(document_model.data_groups):
             document_model_item_inserted("data_groups", data_group, index)
 
         collections_changed(str())
+
+        data_group_, filter_id = document_controller.get_data_group_and_filter_id()
+        filter_changed(data_group_, filter_id)
 
         def collections_selection_changed(indexes: typing.AbstractSet[int]) -> None:
             if len(indexes) == 0:
@@ -561,8 +561,8 @@ class CollectionsWidget(Widgets.CompositeWidgetBase):
             elif len(indexes) == 1:
                 controller = collections_list_widget.items[list(indexes)[0]]
                 if controller.is_smart_collection:
-                    document_controller.set_filter(controller.filter_id)
                     document_controller.set_data_group(None)
+                    document_controller.set_filter(controller.filter_id)
                 else:
                     document_controller.set_filter(None)
                     document_controller.set_data_group(controller.data_group)

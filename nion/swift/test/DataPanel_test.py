@@ -590,7 +590,7 @@ class TestDataPanelClass(unittest.TestCase):
             # now select the first group in the data panel
             document_controller.select_data_group_in_data_panel(data_group=data_group1)
             self.assertEqual(len(document_controller.filtered_display_items_model.items), 1)
-            document_controller.select_filter_in_data_panel(filter_id="all")
+            document_controller.set_filter(filter_id="all")
             self.assertEqual(len(document_controller.filtered_display_items_model.items), 2)
 
     def test_change_from_filter_to_group_and_back_and_forth_updates_without_recursion(self):
@@ -605,7 +605,7 @@ class TestDataPanelClass(unittest.TestCase):
             data_group2.title = "data_group1"
             document_model.append_data_group(data_group2)
             # now select the first group in the data panel
-            document_controller.select_filter_in_data_panel(filter_id="all")
+            document_controller.set_filter(filter_id="all")
             document_controller.select_data_group_in_data_panel(data_group=data_group2)
 
     def test_data_panel_list_contents_resize_properly(self):
@@ -806,9 +806,44 @@ class TestDataPanelClass(unittest.TestCase):
             document_model.append_data_item(DataItem.DataItem(numpy.zeros((16, 16))))
             document_controller.select_data_items_in_data_panel(document_model.data_items[1:])
             self.assertEqual({0, 1}, document_controller.selection.indexes)  # items are ordered newest to oldest
-            document_controller.select_filter_in_data_panel(filter_id="none")
+            document_controller.set_filter(filter_id="none")
             self.assertEqual(list(), document_controller.selected_display_items)
             self.assertEqual(set(), document_controller.selection.indexes)  # items are ordered newest to oldest
+
+    def test_collections_filter_is_persistent(self):
+        with TestContext.MemoryProfileContext() as profile_context:
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            document_model = document_controller.document_model
+            with contextlib.closing(document_controller):
+                data_group = DataGroup.DataGroup()
+                document_model.append_data_group(data_group)
+                data_item = DataItem.DataItem(numpy.zeros((256, 256)))
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                data_group.append_display_item(display_item)
+                document_controller.set_data_group(data_group)
+                document_controller.set_filter(filter_id="persistent")
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            with contextlib.closing(document_controller):
+                self.assertEqual((None, "persistent"), document_controller.get_data_group_and_filter_id())
+
+    def test_collections_data_group_is_persistent(self):
+        with TestContext.MemoryProfileContext() as profile_context:
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            document_model = document_controller.document_model
+            with contextlib.closing(document_controller):
+                data_group = DataGroup.DataGroup()
+                document_model.append_data_group(data_group)
+                data_item = DataItem.DataItem(numpy.zeros((256, 256)))
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                data_group.append_display_item(display_item)
+                document_controller.set_filter(filter_id="persistent")
+                document_controller.set_data_group(data_group)
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            with contextlib.closing(document_controller):
+                data_group = document_controller.document_model.data_groups[0]
+                self.assertEqual((data_group, None), document_controller.get_data_group_and_filter_id())
 
 
 if __name__ == '__main__':

@@ -56,6 +56,8 @@ class Project(Persistence.PersistentObject):
         self.define_property("workspace_uuid", converter=Converter.UuidToStringConverter(), hidden=True)
         self.define_property("data_item_references", dict(), changed=self.__property_changed, hidden=True)  # map string key to data item, used for data acquisition channels
         self.define_property("mapped_items", list(), changed=self.__property_changed, hidden=True)  # list of item references, used for shortcut variables in scripts
+        self.define_property("filter_id", hidden=True)
+        self.define_property("data_group_uuid", converter=Converter.UuidToStringConverter(), hidden=True)
 
         self.handle_start_read: typing.Optional[typing.Callable[[], None]] = None
         self.handle_insert_model_item: typing.Optional[typing.Callable[[Persistence.PersistentContainerType, str, int, Persistence.PersistentObject], None]] = None
@@ -104,6 +106,29 @@ class Project(Persistence.PersistentObject):
     @workspace_uuid.setter
     def workspace_uuid(self, value: typing.Optional[uuid.UUID]) -> None:
         self._set_persistent_property_value("workspace_uuid", str(value) if value else None)
+
+    @property
+    def filter_id(self) -> typing.Optional[str]:
+        return typing.cast(typing.Optional[str], self._get_persistent_property_value("filter_id"))
+
+    @filter_id.setter
+    def filter_id(self, filter_id: typing.Optional[str]) -> None:
+        if filter_id != self.filter_id:
+            self._set_persistent_property_value("filter_id", str(filter_id) if filter_id else None)
+
+    @property
+    def data_group(self) -> typing.Optional[DataGroup.DataGroup]:
+        uuid_str = typing.cast(typing.Optional[str], self._get_persistent_property_value("data_group_uuid"))
+        data_group_uuid = uuid.UUID(uuid_str) if uuid_str else None
+        for data_group in self.data_groups:
+            if data_group.uuid == data_group_uuid:
+                return data_group
+        return None
+
+    @data_group.setter
+    def data_group(self, data_group: typing.Optional[DataGroup.DataGroup]) -> None:
+        if data_group != self.data_group:
+            self._set_persistent_property_value("data_group_uuid", str(data_group.uuid) if data_group else None)
 
     @property
     def mapped_items(self) -> typing.List[Persistence._SpecifierType]:
@@ -352,6 +377,12 @@ class Project(Persistence.PersistentObject):
                 existing_workspace_uuid = self._get_persistent_property_value("workspace_uuid", None)
                 if workspace_uuid and existing_workspace_uuid != workspace_uuid:
                     self._get_persistent_property("workspace_uuid").set_value(str(workspace_uuid))
+                data_group_uuid_str = properties.get("data_group_uuid", None)
+                data_group_uuid = uuid.UUID(data_group_uuid_str) if data_group_uuid_str else None
+                existing_data_group_uuid = self._get_persistent_property_value("data_group_uuid", None)
+                if data_group_uuid and existing_data_group_uuid != data_group_uuid:
+                    self._get_persistent_property("data_group_uuid").set_value(str(data_group_uuid))
+                self._get_persistent_property("filter_id").set_value(properties.get("filter_id", None))
                 self._get_persistent_property("data_item_references").set_value(properties.get("data_item_references", dict()))
                 self._get_persistent_property("mapped_items").set_value(properties.get("mapped_items", list()))
                 self.__has_been_read = True
