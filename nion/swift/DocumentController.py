@@ -285,6 +285,12 @@ class DocumentController(Window.Window):
         self.__consoles: typing.List[ConsoleDialog.ConsoleDialog] = list()
 
         self._create_menus()
+
+        if data_group := self.project.data_group:
+            self.set_data_group(data_group)
+        elif filter_id := self.project.filter_id:
+            self.set_filter(filter_id)
+
         if workspace_id:  # used only when testing reference counting
             self.__workspace_controller = Workspace.Workspace(self, workspace_id)
             self.__workspace_controller.restore(self.project.workspace_uuid)
@@ -557,26 +563,28 @@ class DocumentController(Window.Window):
             return ListModel.Filter(True)
 
     def set_data_group(self, data_group: typing.Optional[DataGroup.DataGroup]) -> None:
-        if self.__display_items_model is not None:
-            container = data_group if data_group else self.document_model
-            if container != self.__display_items_model.container:
-                with self.__display_items_model.changes():  # change filter and sort together
-                    self.__display_items_model.container = data_group
-                    self.__display_items_model.filter = self.project_filter
-                    self.__display_items_model.sort_key = None
-                    typing.cast(typing.Any, self.__display_items_model).filter_id = None
-                self.filter_changed_event.fire(data_group, self.__display_items_model.filter_id)
+        container = data_group if data_group else self.document_model
+        if container != self.__display_items_model.container:
+            with self.__display_items_model.changes():  # change filter and sort together
+                self.__display_items_model.container = data_group
+                self.__display_items_model.filter = self.project_filter
+                self.__display_items_model.sort_key = None
+                typing.cast(typing.Any, self.__display_items_model).filter_id = None
+            self.filter_changed_event.fire(data_group, self.__display_items_model.filter_id)
+            self.project.data_group = data_group
+            self.project.filter_id = self.__display_items_model.filter_id
 
     def set_filter(self, filter_id: typing.Optional[str]) -> None:
-        if self.__display_items_model is not None:
-            if filter_id != self.__display_items_model.filter_id:
-                with self.__display_items_model.changes():  # change filter and sort together
-                    self.__display_items_model.container = self.document_model
-                    self.__display_items_model.filter = ListModel.AndFilter((self.project_filter, self.get_filter_predicate(filter_id)))
-                    self.__display_items_model.sort_key = DisplayItem.sort_by_date_key
-                    self.__display_items_model.sort_reverse = True
-                    typing.cast(typing.Any, self.__display_items_model).filter_id = filter_id
-                self.filter_changed_event.fire(None, filter_id)
+        if filter_id != self.__display_items_model.filter_id:
+            with self.__display_items_model.changes():  # change filter and sort together
+                self.__display_items_model.container = self.document_model
+                self.__display_items_model.filter = ListModel.AndFilter((self.project_filter, self.get_filter_predicate(filter_id)))
+                self.__display_items_model.sort_key = DisplayItem.sort_by_date_key
+                self.__display_items_model.sort_reverse = True
+                typing.cast(typing.Any, self.__display_items_model).filter_id = filter_id
+            self.filter_changed_event.fire(None, filter_id)
+            self.project.data_group = None
+            self.project.filter_id = filter_id
 
     def get_data_group_and_filter_id(self) -> typing.Tuple[typing.Optional[DataGroup.DataGroup], typing.Optional[str]]:
         # used for display panel initialization
@@ -693,10 +701,6 @@ class DocumentController(Window.Window):
         # used for testing only
         self.set_data_group(data_group)
         self.select_data_item_in_data_panel(data_item)
-
-    def select_filter_in_data_panel(self, filter_id: str) -> None:
-        # used for testing only
-        self.set_filter(filter_id)
 
     def delete_display_items(self, display_items: typing.Sequence[DisplayItem.DisplayItem], container: typing.Optional[Observable.Observable] = None) -> None:
         container = container if container else self.__display_items_model.container
