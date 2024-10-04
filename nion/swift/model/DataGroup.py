@@ -114,7 +114,8 @@ class DataGroup(Persistence.PersistentObject):
 
     @property
     def display_item_specifiers(self) -> typing.List[_SpecifierType]:
-        return typing.cast(typing.List[_SpecifierType], self._get_persistent_property_value("display_item_specifiers"))
+        # return a copy so the version in the persistent dict doesn't get modified by the caller.
+        return list(typing.cast(typing.List[_SpecifierType], self._get_persistent_property_value("display_item_specifiers")))
 
     @display_item_specifiers.setter
     def display_item_specifiers(self, value: typing.Sequence[_SpecifierType]) -> None:
