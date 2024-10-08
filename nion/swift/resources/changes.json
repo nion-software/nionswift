@@ -3,7 +3,32 @@
     "version": "UNRELEASED",
     "notes": [
       {
+        "issues": ["https://github.com/nion-software/nionswift/issues/21"],
+        "summary": "Add zoom tool in toolbar. Also add zoom shortcut 'z'."
+      },
+      {
+        "summary": "Display performance improvements and other drawing improvements."
+      },
+      {
+        "issues": ["https://github.com/nion-software/nionswift/issues/44"],
+        "summary": "Display snapshot now includes display range, color table, etc."
+      },
+      {
+        "summary": "Allow export to SVG to specify size in pixels, inches, or centimeters."
+      },
+      {
+        "summary": "Keep sizing of surrounding display panels when removing one."
+      },
+      {
         "summary": "Retain state of inspector section twist downs when switching contexts or restarting."
+      },
+      {
+        "issues": ["https://github.com/nion-software/nionswift/issues/1189"],
+        "summary": "Fix issue with custom data group not retaining data items added to it."
+      },
+      {
+        "issues": ["https://github.com/nion-software/nionswift/issues/1158"],
+        "summary": "Fix issue when clicking on graphic center in inspector."
       },
       {
         "issues": ["https://github.com/nion-software/nionswift/issues/749"],
@@ -26,6 +51,9 @@
       },
       {
         "summary": "Allow user to assign/unassign rectangle used for cropping computation data source inputs using icon overlay."
+      },
+      {
+        "summary": "Runs with Python 3.13 and Numpy 2.x. Drop Python 3.9 and 3.10 support."
       }
     ]
   },
