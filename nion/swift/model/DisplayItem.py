@@ -2131,6 +2131,31 @@ class DisplayDataDeltaStream(Stream.ValueStream[DisplayDataDelta]):
         return [Calibration.Calibration() for c in self.dimensional_calibrations] if self.dimensional_calibrations else [Calibration.Calibration()]
 
     @property
+    def calibrated_dimensional_calibrations(self) -> typing.Optional[typing.Sequence[Calibration.Calibration]]:
+        """Returns dimensional calibrations that are actually calibrated with units.
+
+        First checks the users displayed calibration style; if no units are present, checks the other calibration styles.
+        """
+        dimensional_calibrations = self.dimensional_calibrations
+        dimensional_shape = self.dimensional_shape
+        if dimensional_calibrations and dimensional_shape:
+            potential_dimensional_calibrations = self.calibration_style.get_dimensional_calibrations(dimensional_shape,
+                                                                                                     dimensional_calibrations,
+                                                                                                     self.metadata)
+            if potential_dimensional_calibrations:
+                if any(dimensional_calibration.units for dimensional_calibration in potential_dimensional_calibrations):
+                    return potential_dimensional_calibrations
+            for calibration_style in self.calibration_styles:
+                potential_dimensional_calibrations = calibration_style.get_dimensional_calibrations(dimensional_shape,
+                                                                                                    dimensional_calibrations,
+                                                                                                    self.metadata)
+                if potential_dimensional_calibrations:
+                    if any(dimensional_calibration.units for dimensional_calibration in
+                           potential_dimensional_calibrations):
+                        return potential_dimensional_calibrations
+        return None
+
+    @property
     def displayed_intensity_calibration(self) -> Calibration.Calibration:
         if self.intensity_calibration:
             return self.intensity_calibration_style.get_intensity_calibration(self.intensity_calibration)
@@ -3089,6 +3114,11 @@ class DisplayItem(Persistence.PersistentObject):
     def displayed_dimensional_calibrations(self) -> typing.Sequence[Calibration.Calibration]:
         """The calibrations for all data dimensions in the displayed calibration style."""
         return self.__display_data_delta_stream.displayed_dimensional_calibrations
+
+    @property
+    def calibrated_dimensional_calibrations(self) -> typing.Optional[typing.Sequence[Calibration.Calibration]]:
+        """The calibrations for all data dimensions in a calibrated style if possible or None."""
+        return self.__display_data_delta_stream.calibrated_dimensional_calibrations
 
     @property
     def displayed_datum_calibrations(self) -> typing.Sequence[Calibration.Calibration]:
