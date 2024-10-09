@@ -1440,12 +1440,12 @@ class TestInspectorClass(unittest.TestCase):
             display_panel.set_display_panel_display_item(display_item)
             document_controller.periodic()
             inspector_panel = document_controller.find_dock_panel("inspector-panel")
-            display_data_channel_index_widget = inspector_panel.widget.find_widget_by_id("display_data_channel_index_widget")
-            display_data_channel_index_widget.on_editing_finished(None)
-            display_data_channel_index_widget.on_editing_finished(0)
-            display_data_channel_index_widget.on_editing_finished("")
-            display_data_channel_index_widget.on_editing_finished("A")
-            display_data_channel_index_widget.on_editing_finished(0)
+            line_plot_display_layers_section = typing.cast(Inspector.LinePlotDisplayLayersInspectorSection, inspector_panel.widget.find_widget_by_id("line_plot_display_layers_inspector_section"))
+            line_plot_display_layer_model = line_plot_display_layers_section._handler._line_plot_display_layer_handlers[0]._line_plot_display_layer_model
+            line_plot_display_layer_model.data_index_model.value = None
+            line_plot_display_layer_model.data_index_model.value = 0
+            line_plot_display_layer_model.data_index_model.value = None
+            line_plot_display_layer_model.data_index_model.value = 0
 
     def test_graphic_property_binding_handles_removed_graphic(self):
         with TestContext.create_memory_context() as test_context:

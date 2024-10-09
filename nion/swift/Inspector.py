@@ -49,6 +49,7 @@ from nion.utils import Model
 from nion.utils import Observable
 from nion.utils import ReferenceCounting
 from nion.utils import Registry
+from nion.utils import Stream
 from nion.utils import Validator
 
 if typing.TYPE_CHECKING:
@@ -918,245 +919,229 @@ class DisplayLayerPropertyCommandModel(Model.PropertyChangedPropertyModel[typing
             self.__document_controller.push_undo_command(command)
 
 
+class LinePlotDisplayLayerHandler(Declarative.Handler):
+    def __init__(self, line_plot_display_layer_model: LinePlotDisplayLayerModel):
+        super().__init__()
+        self._line_plot_display_layer_model = line_plot_display_layer_model
+        self.integer_to_string_converter = Converter.IntegerToStringConverter()
+        self.float_to_string_converter = Converter.FloatToStringConverter()
+
+        u = Declarative.DeclarativeUI()
+        self.ui_view = u.create_column(
+            u.create_row(
+                u.create_label(text=_("Layer:")),
+                u.create_line_edit(text="@binding(_line_plot_display_layer_model.label_model.value)"),
+                u.create_spacing(12),
+                spacing=12
+            ),
+            u.create_row(
+                {"type": "nionswift.text_push_button",
+                 "text": "\N{UPWARDS WHITE ARROW}",
+                 "on_button_clicked": "_move_layer_forward",
+                 "tool_tip": _("Move layer up.")},
+                {"type": "nionswift.text_push_button",
+                 "text": "\N{DOWNWARDS WHITE ARROW}",
+                 "on_button_clicked": "_move_layer_backward",
+                 "tool_tip": _("Move layer down.")},
+                u.create_stretch(),
+                {"type": "nionswift.text_push_button",
+                 "text": "\N{PLUS SIGN}",
+                 "on_button_clicked": "_add_layer",
+                 "tool_tip": _("Add layer.")},
+                {"type": "nionswift.text_push_button",
+                 "text": "\N{MINUS SIGN}",
+                 "on_button_clicked": "_remove_layer",
+                 "tool_tip": _("Remove layer.")},
+                u.create_spacing(12)
+            ),
+            u.create_row(
+                u.create_label(text=_("Data Index")),
+                u.create_line_edit(text="@binding(_line_plot_display_layer_model.data_index_model.value, converter=integer_to_string_converter)"),
+                u.create_label(text=_("Row")),
+                u.create_line_edit(text="@binding(_line_plot_display_layer_model.data_row_model.value, converter=integer_to_string_converter)"),
+                u.create_stretch(),
+                spacing=12
+            ),
+            u.create_row(
+                u.create_label(text=_("Fill Color"), width=80),
+                {"type": "nionswift.color_chooser", "color": "@binding(_line_plot_display_layer_model.fill_color_model.value)"},
+                u.create_line_edit(text="@binding(_line_plot_display_layer_model.fill_color_model.value)", placeholder_text="None", width=80),
+                u.create_stretch(),
+                spacing=8
+            ),
+            u.create_row(
+                u.create_label(text=_("Stroke Color"), width=80),
+                {"type": "nionswift.color_chooser", "color": "@binding(_line_plot_display_layer_model.stroke_color_model.value)"},
+                u.create_line_edit(text="@binding(_line_plot_display_layer_model.stroke_color_model.value)", placeholder_text="None", width=80),
+                u.create_stretch(),
+                spacing=8
+            ),
+            u.create_row(
+                u.create_label(text=_("Stroke Width"), width=80, height=30),
+                u.create_spacing(44 + 8),  # color push button width + spacing to avoid collapse
+                u.create_line_edit(text="@binding(_line_plot_display_layer_model.stroke_width_model.value, converter=float_to_string_converter)", width=36),
+                u.create_stretch(),
+                spacing=8
+            ),
+            u.create_row(
+                u.create_label(text=_("Complex Display Type:"), width=120),
+                u.create_combo_box(items=self._line_plot_display_layer_model.display_type_items,
+                                   current_index="@binding(_line_plot_display_layer_model.current_display_type_index_model.value)"),
+                u.create_stretch(),
+                visible="@binding(_line_plot_display_layer_model.is_data_complex)"
+            )
+        )
+
+    def _move_layer_forward(self) -> None:
+        index = self._line_plot_display_layer_model.display_item.display_layers.index(self._line_plot_display_layer_model.display_layer)
+        if index > 0:
+            command = DisplayPanel.MoveDisplayLayerCommand(self._line_plot_display_layer_model.document_controller.document_model,
+                                                           self._line_plot_display_layer_model.display_item,
+                                                           index,
+                                                           self._line_plot_display_layer_model.display_item,
+                                                           index - 1)
+            command.perform()
+            self._line_plot_display_layer_model.document_controller.push_undo_command(command)
+
+    def _move_layer_backward(self) -> None:
+        index = self._line_plot_display_layer_model.display_item.display_layers.index(self._line_plot_display_layer_model.display_layer)
+        if index < len(self._line_plot_display_layer_model.display_item.display_layers) - 1:
+            command = DisplayPanel.MoveDisplayLayerCommand(self._line_plot_display_layer_model.document_controller.document_model,
+                                                           self._line_plot_display_layer_model.display_item,
+                                                           index,
+                                                           self._line_plot_display_layer_model.display_item,
+                                                           index + 1)
+            command.perform()
+            self._line_plot_display_layer_model.document_controller.push_undo_command(command)
+
+    def _add_layer(self) -> None:
+        # add new layer after current layer
+        index = self._line_plot_display_layer_model.display_item.display_layers.index(self._line_plot_display_layer_model.display_layer) + 1
+        command = DisplayPanel.AddDisplayLayerCommand(self._line_plot_display_layer_model.document_controller.document_model,
+                                                      self._line_plot_display_layer_model.display_item,
+                                                      index)
+        command.perform()
+        self._line_plot_display_layer_model.document_controller.push_undo_command(command)
+
+    def _remove_layer(self) -> None:
+        index = self._line_plot_display_layer_model.display_item.display_layers.index(self._line_plot_display_layer_model.display_layer)
+        command = DisplayPanel.RemoveDisplayLayerCommand(self._line_plot_display_layer_model.document_controller.document_model,
+                                                         self._line_plot_display_layer_model.display_item,
+                                                         index)
+        command.perform()
+        self._line_plot_display_layer_model.document_controller.push_undo_command(command)
+
+
+class LinePlotDisplayLayerModel(Observable.Observable):
+    def __init__(self, document_controller: DocumentController.DocumentController,
+                 display_item: DisplayItem.DisplayItem, display_layer: DisplayItem.DisplayLayer) -> None:
+        super().__init__()
+        self.document_controller = document_controller
+        self.display_item = display_item
+        self.display_layer = display_layer
+        self.label_model = DisplayLayerPropertyCommandModel(document_controller, display_item, display_layer, "label")
+
+        index = display_item.display_layers.index(display_layer)
+        display_data_channel = display_item.get_display_layer_display_data_channel(index)
+        data_index = display_item.display_data_channels.index(display_data_channel) if display_data_channel else None
+        self.data_index_model = Model.PropertyModel(data_index)
+
+        self.data_row_model = DisplayLayerPropertyCommandModel(document_controller, display_item, display_layer, "data_row")
+        self.fill_color_model = DisplayLayerPropertyCommandModel(document_controller, display_item, display_layer, "fill_color")
+        self.stroke_color_model = DisplayLayerPropertyCommandModel(document_controller, display_item, display_layer, "stroke_color")
+        self.stroke_width_model = DisplayLayerPropertyCommandModel(document_controller, display_item, display_layer, "stroke_width")
+
+        self.display_type_items = [_("Log Absolute"), _("Absolute"), _("Phase"), _("Real"), _("Imaginary")]
+        self._display_type_flags = ["log-absolute", "absolute", "phase", "real", "imaginary"]
+        self._display_type_reverse_map = {p: i for i, p in enumerate(self._display_type_flags)}
+
+        current_flag = display_data_channel.complex_display_type if display_data_channel and display_data_channel.complex_display_type else str()
+        self.current_display_type_index_model = Model.PropertyModel[int](self._display_type_reverse_map.get(current_flag, 0))
+
+        self.__data_index_listener = self.data_index_model.property_changed_event.listen(
+            ReferenceCounting.weak_partial(LinePlotDisplayLayerModel.__on_data_index_changed, self))
+        self.__display_type_index_listener_model = self.current_display_type_index_model.property_changed_event.listen(
+            ReferenceCounting.weak_partial(LinePlotDisplayLayerModel.__on_display_type_index_changed, self))
+
+    @property
+    def is_data_complex(self) -> bool:
+        if self.display_layer.display_data_channel and self.display_layer.display_data_channel.data_item:
+            return self.display_layer.display_data_channel.data_item.is_data_complex_type
+        return False
+
+    def __on_data_index_changed(self, property: str) -> None:
+        if property == "value":
+            display_data_channel = self.display_item.display_data_channels[self.data_index_model.value] if self.data_index_model.value is not None else None
+            if display_data_channel:
+                index = self.display_item.display_layers.index(self.display_layer)
+                command = ChangeDisplayLayerDisplayDataChannelCommand(self.document_controller.document_model,
+                                                                      self.display_item,
+                                                                      index,
+                                                                      display_data_channel)
+                command.perform()
+                self.document_controller.push_undo_command(command)
+
+    def __on_display_type_index_changed(self, property: str) -> None:
+        if property == "value":
+            new_type = self._display_type_flags[self.current_display_type_index_model.value or 0]
+            assert self.display_layer.display_data_channel
+            command = DisplayPanel.ChangeDisplayDataChannelCommand(self.document_controller.document_model,
+                                                                   self.display_layer.display_data_channel,
+                                                                   complex_display_type=new_type)
+            command.perform()
+            self.document_controller.push_undo_command(command)
+
+    def __on_display_layer_list_changed(self, key: str, value: typing.Any, index: int) -> None:
+        # changes affect all indices after index of change
+        if key == "items":
+            self.notify_property_changed("index")
+
+
+class LinePlotDisplayLayersSectionHandler(Declarative.Handler):
+    def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem, display_layer_list_model: ListModel.ObservedListModel[DisplayItem.DisplayLayer]) -> None:
+        super().__init__()
+        self.__document_controller = document_controller
+        self.__display_item = display_item
+        self._line_plot_display_layer_models = display_layer_list_model
+        self._line_plot_display_layer_handlers: list[LinePlotDisplayLayerHandler] = []
+        self._show_no_layers_model = Stream.MapStream(Stream.ValueStream(ListModel.ListPropertyModel(self._line_plot_display_layer_models)), lambda x: not x)
+
+        u = Declarative.DeclarativeUI()
+        self.ui_view = u.create_column(
+            u.create_column(items="_line_plot_display_layer_models.items", item_component_id="line_plot_display_layer", spacing=4),
+            u.create_row(
+                u.create_push_button(text=_("Add Layer")),
+                u.create_stretch(),
+                visible="@binding(_show_no_layers_model.value)"
+            )
+        )
+
+    def create_handler(self, component_id: str, container: typing.Optional[Symbolic.ComputationVariable] = None, item: typing.Any = None, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
+        if component_id == "line_plot_display_layer":
+            line_plot_display_layer_model = LinePlotDisplayLayerModel(self.__document_controller, self.__display_item, typing.cast(DisplayItem.DisplayLayer, item))
+            handler = LinePlotDisplayLayerHandler(line_plot_display_layer_model)
+            self._line_plot_display_layer_handlers.append(handler)
+            return handler
+        return None
+
+    def add_layer(self) -> None:
+        command = DisplayPanel.AddDisplayLayerCommand(self.__document_controller.document_model,
+                                                      self.__display_item,
+                                                      0)
+        command.perform()
+        self.__document_controller.push_undo_command(command)
+
+
 class LinePlotDisplayLayersInspectorSection(InspectorSection):
     def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem) -> None:
         super().__init__(document_controller.ui, "line-plot-display-layer", _("Line Plot Display Layers"))
-        ui = self.ui
-
-        def change_label(label_edit_widget: UserInterface.LineEditWidget, display_layer: DisplayItem.DisplayLayer, label: str) -> None:
-            index = display_item.display_layers.index(display_layer)
-            command = ChangeDisplayLayerPropertyCommand(document_controller.document_model, display_item, index, "label", label)
-            command.perform()
-            document_controller.push_undo_command(command)
-            label_edit_widget.select_all()
-
-        def move_layer_forward(display_layer: DisplayItem.DisplayLayer) -> None:
-            index = display_item.display_layers.index(display_layer)
-            if index > 0:
-                command = DisplayPanel.MoveDisplayLayerCommand(document_controller.document_model, display_item, index, display_item, index - 1)
-                command.perform()
-                document_controller.push_undo_command(command)
-
-        def move_layer_backward(display_layer: DisplayItem.DisplayLayer) -> None:
-            index = display_item.display_layers.index(display_layer)
-            if index < len(display_item.display_layers) - 1:
-                command = DisplayPanel.MoveDisplayLayerCommand(document_controller.document_model, display_item, index, display_item, index + 1)
-                command.perform()
-                document_controller.push_undo_command(command)
-
-        def add_layer(display_layer: typing.Optional[DisplayItem.DisplayLayer]) -> None:
-            index = display_item.display_layers.index(display_layer) + 1 if display_layer else 0
-            command = DisplayPanel.AddDisplayLayerCommand(document_controller.document_model, display_item, index)
-            command.perform()
-            document_controller.push_undo_command(command)
-
-        def remove_layer(display_layer: DisplayItem.DisplayLayer) -> None:
-            index = display_item.display_layers.index(display_layer)
-            command = DisplayPanel.RemoveDisplayLayerCommand(document_controller.document_model, display_item, index)
-            command.perform()
-            document_controller.push_undo_command(command)
-
-        def change_data_index(data_index_widget: UserInterface.LineEditWidget, display_layer: DisplayItem.DisplayLayer, data_index_str: str) -> None:
-            data_index = Converter.IntegerToStringConverter(pass_none=True).convert_back(data_index_str)
-            display_data_channel = display_item.display_data_channels[data_index] if data_index is not None else None
-            if display_data_channel:
-                index = display_item.display_layers.index(display_layer)
-                command = ChangeDisplayLayerDisplayDataChannelCommand(document_controller.document_model, display_item, index, display_data_channel)
-                command.perform()
-                document_controller.push_undo_command(command)
-                data_index_widget.select_all()
-
-        def change_data_row(data_row_widget: UserInterface.LineEditWidget, display_layer: DisplayItem.DisplayLayer, data_row_str: str) -> None:
-            data_row = Converter.IntegerToStringConverter().convert_back(data_row_str)
-            index = display_item.display_layers.index(display_layer)
-            command = ChangeDisplayLayerPropertyCommand(document_controller.document_model, display_item, index, "data_row", data_row)
-            command.perform()
-            document_controller.push_undo_command(command)
-            data_row_widget.select_all()
-
-        def change_fill_color(color_widget: Widgets.ColorPushButtonWidget, color_edit: UserInterface.LineEditWidget, display_layer: DisplayItem.DisplayLayer, color: str) -> None:
-            index = display_item.display_layers.index(display_layer)
-            command = ChangeDisplayLayerPropertyCommand(document_controller.document_model, display_item, index, "fill_color", color)
-            command.perform()
-            document_controller.push_undo_command(command)
-            color_widget.color = color
-            color_edit.text = color
-            color_edit.select_all()
-
-        def change_stroke_color(color_widget: Widgets.ColorPushButtonWidget, color_edit: UserInterface.LineEditWidget, display_layer: DisplayItem.DisplayLayer, color: str) -> None:
-            index = display_item.display_layers.index(display_layer)
-            command = ChangeDisplayLayerPropertyCommand(document_controller.document_model, display_item, index, "stroke_color", color)
-            command.perform()
-            document_controller.push_undo_command(command)
-            color_widget.color = color
-            color_edit.text = color
-            color_edit.select_all()
-
-        def change_stroke_width(width_widget: UserInterface.LineEditWidget, display_layer: DisplayItem.DisplayLayer, width_str: str) -> None:
-            width = Converter.FloatToStringConverter(pass_none=True).convert_back(width_str)
-            index = display_item.display_layers.index(display_layer)
-            command = ChangeDisplayLayerPropertyCommand(document_controller.document_model, display_item, index, "stroke_width", width)
-            command.perform()
-            document_controller.push_undo_command(command)
-            width_widget.select_all()
-
-        class DisplayLayerWidget(Widgets.CompositeWidgetBase):
-            def __init__(self, display_layer: DisplayItem.DisplayLayer) -> None:
-                content_widget = document_controller.ui.create_column_widget()
-                super().__init__(content_widget)
-                # label
-                label_edit_widget = ui.create_line_edit_widget()
-                label_row = ui.create_row_widget(properties={"spacing": 12})
-                self.__label_widget = ui.create_label_widget()
-                self.update_label_widget(display_layer)
-                label_row.add(self.__label_widget)
-                label_row.add(label_edit_widget)
-                label_row.add_spacing(12)
-                label_edit_widget.on_editing_finished = functools.partial(change_label, label_edit_widget, display_layer)
-                # move up, move down, add layer, remove layer
-                button_row = make_line_plot_display_layer_button_row(document_controller,
-                                                                     functools.partial(move_layer_forward, display_layer),
-                                                                     functools.partial(move_layer_backward, display_layer),
-                                                                     functools.partial(add_layer, display_layer),
-                                                                     functools.partial(remove_layer, display_layer))
-                # content: display data channel, row
-                display_data_channel_index_widget = ui.create_line_edit_widget(properties={"width": 36})
-                display_data_channel_index_widget.widget_id = "display_data_channel_index_widget"
-                display_data_channel_row_widget = ui.create_line_edit_widget(properties={"width": 36})
-                content_row = ui.create_row_widget(properties={"spacing": 12})
-                content_row.add(ui.create_label_widget(_("Data Index")))
-                content_row.add(display_data_channel_index_widget)
-                content_row.add(ui.create_label_widget(_("Row")))
-                content_row.add(display_data_channel_row_widget)
-                content_row.add_stretch()
-                display_data_channel_index_widget.on_editing_finished = functools.partial(change_data_index, display_data_channel_index_widget, display_layer)
-                display_data_channel_row_widget.on_editing_finished = functools.partial(change_data_row, display_data_channel_row_widget, display_layer)
-                # display: fill color, stroke color, label
-                self.__fill_color_model = DisplayLayerPropertyCommandModel(document_controller, display_item, display_layer, "fill_color")
-                fill_color_widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop, ColorChooserHandler(document_controller, display_item, display_layer, self.__fill_color_model))
-                fill_color_row = ui.create_row_widget(properties={"spacing": 8})
-                fill_color_row.add(ui.create_label_widget(_("Fill Color"), properties={"width": 80}))
-                fill_color_row.add(fill_color_widget)
-                fill_color_row.add_stretch()
-                self.__stroke_color_model = DisplayLayerPropertyCommandModel(document_controller, display_item, display_layer, "stroke_color")
-                stroke_color_widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop, ColorChooserHandler(document_controller, display_item, display_layer, self.__stroke_color_model))
-                stroke_color_row = ui.create_row_widget(properties={"spacing": 8})
-                stroke_color_row.add(ui.create_label_widget(_("Stroke Color"), properties={"width": 80}))
-                stroke_color_row.add(stroke_color_widget)
-                stroke_color_row.add_stretch()
-                stroke_width_edit = ui.create_line_edit_widget(properties={"width": 36})
-                stroke_width_edit.text = str(display_layer.stroke_width) if display_layer.stroke_width is not None else None
-                stroke_width_row = ui.create_row_widget(properties={"spacing": 8})
-                stroke_width_row.add(ui.create_label_widget(_("Stroke Width"), properties={"width": 80, "height": 30}))
-                stroke_width_row.add_spacing(44 + 8)  # color push button width + spacing to avoid collapse
-                stroke_width_row.add(stroke_width_edit)
-                stroke_width_row.add_stretch()
-                stroke_width_edit.on_editing_finished = functools.partial(change_stroke_width, stroke_width_edit, display_layer)
-                # build the inner column
-                content_widget.add(label_row)
-                content_widget.add(button_row)
-                content_widget.add(content_row)
-                content_widget.add(fill_color_row)
-                content_widget.add(stroke_color_row)
-                content_widget.add(stroke_width_row)
-                # complex display type
-                display_data_channel = display_layer.display_data_channel
-                if display_data_channel:
-                    complex_display_type_row, self.__complex_display_type_changed_listener = make_complex_display_type_chooser(document_controller, display_data_channel)
-                else:
-                    complex_display_type_row, self.__complex_display_type_changed_listener = None, None
-                if complex_display_type_row:
-                    content_widget.add(complex_display_type_row)
-                # save for populate
-                self.__label_edit_widget = label_edit_widget
-                self.__display_data_channel_index_widget = display_data_channel_index_widget
-                self.__display_data_channel_row_widget = display_data_channel_row_widget
-                self.__stroke_color_widget = stroke_color_widget
-                self.__stroke_width_edit = stroke_width_edit
-
-                def display_layer_property_changed(name: str) -> None:
-                    if name == "display_data_channel":
-                        index = display_item.display_layers.index(display_layer)
-                        display_data_channel = display_item.get_display_layer_display_data_channel(index)
-                        data_index = display_item.display_data_channels.index(display_data_channel) if display_data_channel else None
-                        self.__display_data_channel_index_widget.text = str(data_index) if data_index is not None else str()
-                    elif name == "label":
-                        self.__label_edit_widget.text = display_layer.label
-                    elif name == "data_row":
-                        self.__display_data_channel_row_widget.text = str(display_layer.data_row) if display_layer.data_row is not None else None
-                    elif name == "stroke_width":
-                        self.__stroke_width_edit.text = str(display_layer.stroke_width) if display_layer.stroke_width is not None else None
-
-                self.__display_layer_property_changed_listener = display_layer.property_changed_event.listen(display_layer_property_changed)
-
-                display_layer_property_changed("display_data_channel")
-                display_layer_property_changed("label")
-                display_layer_property_changed("stroke_color")
-                display_layer_property_changed("fill_color")
-                display_layer_property_changed("data_row")
-
-            def close(self) -> None:
-                self.__label_edit_widget = typing.cast(typing.Any, None)
-                self.__display_data_channel_index_widget = typing.cast(typing.Any, None)
-                self.__display_data_channel_row_widget = typing.cast(typing.Any, None)
-                self.__fill_color_widget = typing.cast(typing.Any, None)
-                self.__fill_color_edit = typing.cast(typing.Any, None)
-                self.__stroke_color_widget = typing.cast(typing.Any, None)
-                self.__stroke_color_edit = typing.cast(typing.Any, None)
-                self.__stroke_width_edit = typing.cast(typing.Any, None)
-                self.__display_layer_property_changed_listener.close()
-                self.__display_layer_property_changed_listener = typing.cast(typing.Any, None)
-                if self.__complex_display_type_changed_listener:
-                    self.__complex_display_type_changed_listener.close()
-                    self.__complex_display_type_changed_listener = None
-                super().close()
-
-            def update_label_widget(self, display_layer: DisplayItem.DisplayLayer) -> None:
-                index = display_item.display_layers.index(display_layer)
-                self.__label_widget.text = _("Layer") + " " + str(index) + ":"
-
-        column = ui.create_column_widget(properties={"spacing": 12})
-
-        # button to be used when there are no display layers
-        add_layer_button_widget = ui.create_push_button_widget(_("Add Layer"))
-        button_row = ui.create_row_widget()
-        button_row.add(add_layer_button_widget)
-        button_row.add_stretch()
-        add_layer_button_widget.on_clicked = functools.partial(add_layer, None)
-        column.add(button_row)
-
-        def update_labels() -> None:
-            button_row.visible = len(display_item.display_layers) == 0
-            for index, display_layer in enumerate(display_item.display_layers):
-                if index + 1 < len(column.children):  # test is necessary during initial construction
-                    typing.cast(DisplayLayerWidget, column.children[index + 1]).update_label_widget(display_layer)
-
-        def display_layer_inserted(name: str, display_layer: DisplayItem.DisplayLayer, index: int) -> None:
-            if name == "display_layers":
-                display_layer_widget = DisplayLayerWidget(display_layer)
-                column.insert(display_layer_widget, index + 1)
-                update_labels()
-
-        def display_layer_removed(name: str, value: DisplayItem.DisplayLayer, index: int) -> None:
-            if name == "display_layers":
-                column.remove(index + 1)
-                update_labels()
-
-        self.__display_layer_inserted_listener = display_item.item_inserted_event.listen(display_layer_inserted)
-        self.__display_layer_removed_listener = display_item.item_removed_event.listen(display_layer_removed)
-
-        for index, display_layer in enumerate(display_item.display_layers):
-            display_layer_inserted("display_layers", display_layer, index)
-
-        self.add_widget_to_content(column)
-        self.finish_widget_content()
-
-    def close(self) -> None:
-        self.__display_layer_inserted_listener.close()
-        self.__display_layer_inserted_listener = typing.cast(typing.Any, None)
-        self.__display_layer_removed_listener.close()
-        self.__display_layer_removed_listener = typing.cast(typing.Any, None)
-        super().close()
+        self.widget_id = "line_plot_display_layers_inspector_section"
+        self.__document_controller = document_controller
+        self.__display_item = display_item
+        display_layer_list_model = ListModel.ObservedListModel[DisplayItem.DisplayLayer](self.__display_item, "display_layers")
+        self._handler = LinePlotDisplayLayersSectionHandler(self.__document_controller, self.__display_item, display_layer_list_model)
+        self.__widget = Declarative.DeclarativeWidget(self.__document_controller.ui, self.__document_controller.event_loop, self._handler)
+        self.add_widget_to_content(self.__widget)
 
 
 class ImageDisplayLimitsModel(Observable.Observable):
@@ -1350,7 +1335,7 @@ class ImageDataInspectorHandler(Declarative.Handler):
             ),
             u.create_row(
                 u.create_label(text=_("Contrast"), width=80),
-                u.create_slider(value="@binding(_model.contrast_model.value, converter=_contrast_integer_converter)",  minimum=0, maximum=100, width=124),
+                u.create_slider(value="@binding(_model.contrast_model.value, converter=_contrast_integer_converter)", minimum=0, maximum=100, width=124),
                 u.create_line_edit(text="@binding(_model.contrast_model.value, converter=_contrast_string_converter)", width=60),
                 u.create_stretch(),
                 spacing=8
@@ -1379,7 +1364,7 @@ class ImageDataInspectorHandler(Declarative.Handler):
 
 
 class ComplexDisplayTypeChooserHandler(Declarative.Handler):
-    def __init__(self, document_controller: DocumentController.DocumentController,  display_data_channel: DisplayItem.DisplayDataChannel) -> None:
+    def __init__(self, document_controller: DocumentController.DocumentController, display_data_channel: DisplayItem.DisplayDataChannel) -> None:
         super().__init__()
         self._document_controller = document_controller
         self._display_data_channel = display_data_channel
@@ -1395,7 +1380,7 @@ class ComplexDisplayTypeChooserHandler(Declarative.Handler):
             u.create_combo_box(items=self._display_type_items, on_current_index_changed="change_display_type", current_index="@binding(_current_index)")
         )
 
-    def change_display_type(self,  widget: Declarative.UIWidget, current_index: int) -> None:
+    def change_display_type(self, widget: Declarative.UIWidget, current_index: int) -> None:
         current_display_type = self._display_type_flags[current_index]
         if self._display_data_channel.complex_display_type != current_display_type:
             command = DisplayPanel.ChangeDisplayDataChannelCommand(self._document_controller.document_model,
