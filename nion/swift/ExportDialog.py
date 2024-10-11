@@ -281,22 +281,9 @@ class ExportSizeModel(Observable.Observable):
 
     @property
     def image_info(self) -> typing.Optional[str]:
-        data_information = self.__display_item.displayed_title + "\n"
-        converter_x = Inspector.CalibratedValueFloatToStringConverter(self.__display_item, -1, uniform=False)
-        if self.__display_item.used_display_type != "line_plot":
-            assert self.__display_item.displayed_dimensional_calibrations and self.__display_item.dimensional_shape
-            calibrated_image_size = (self.__display_item.dimensional_shape[-2] * self.__display_item.displayed_dimensional_calibrations[-2].scale,
-                                     self.__display_item.dimensional_shape[-1] * self.__display_item.displayed_dimensional_calibrations[-1].scale)
-            converter_y = Inspector.CalibratedValueFloatToStringConverter(self.__display_item, -2, uniform=False)
-            data_information += "Image Size " + str(self.__display_item.dimensional_shape) + "\n"
-
-            data_information += ("(" + converter_y.convert_calibrated_value_to_str(calibrated_image_size[-2]) + "," +
-                                 converter_x.convert_calibrated_value_to_str(calibrated_image_size[-1]) + ")")
-        else:
-            assert self.__display_item.displayed_dimensional_calibrations and self.__display_item.dimensional_shape
-            data_information += "Line Plot Size " + str(self.__display_item.dimensional_shape[0])
-            calibrated_line_plot_size = converter_x.convert_calibrated_value_to_str(self.__display_item.dimensional_shape[-1] * self.__display_item.displayed_dimensional_calibrations[-1].scale)
-            data_information += ("(" + str(calibrated_line_plot_size) + " " + ")")
+        data_information = self.__display_item.displayed_title + "\nDatashape: "
+        data_information += " ("+self.__display_item.data_info.data_shape_str+")\nCalibrated units: "
+        data_information += " ("+self.__display_item.data_info.data_shape_str+")"
         return data_information
 
     def __enforce_width_height_constraints(self) -> None:
