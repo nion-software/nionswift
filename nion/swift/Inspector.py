@@ -1015,7 +1015,7 @@ class LinePlotDisplayLayerHandler(Declarative.Handler):
             self.__update_layer_list()
 
     def _add_layer(self) -> None:
-        index = self._line_plot_display_layer_model.index
+        index = self._line_plot_display_layer_model.index + 1  # add new layer after current layer
         command = DisplayPanel.AddDisplayLayerCommand(self._line_plot_display_layer_model.document_controller.document_model,
                                                       self._line_plot_display_layer_model.display_item,
                                                       index)
