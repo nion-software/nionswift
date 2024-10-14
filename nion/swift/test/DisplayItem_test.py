@@ -612,6 +612,50 @@ class TestDisplayItemClass(unittest.TestCase):
                 display_item2.title = None
                 self.assertEqual("green (Negate)", display_item2.placeholder_title)
 
+    def test_calibrated_dimensional_calibrations(self):
+        with create_memory_profile_context() as profile_context:
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                data_item = DataItem.DataItem(numpy.zeros((8, ), numpy.uint32))
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                self.assertIsNone(display_item.calibrated_dimensional_calibrations)
+                data_item.dimensional_calibrations = [Calibration.Calibration(0.0, 1.0, "nm")]
+                self.assertEqual(1, len(display_item.calibrated_dimensional_calibrations))
+                self.assertEqual("nm", display_item.calibrated_dimensional_calibrations[0].units)
+                display_item.calibration_style_id = "pixels-center"
+                self.assertEqual("nm", display_item.calibrated_dimensional_calibrations[0].units)
+
+    def test_data_info_for_composite_display(self):
+        with create_memory_profile_context() as profile_context:
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                data_item = DataItem.DataItem(numpy.zeros((8, ), numpy.uint32))
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                data_info = display_item.data_info
+                self.assertEqual("8", data_info.data_shape_str)
+                self.assertIsNone(None, data_info.calibrated_dimensional_calibrations_str)
+                data_item.set_dimensional_calibration(0, Calibration.Calibration(0.0, 1.0, "nm"))
+                data_info = display_item.data_info
+                self.assertEqual("8", data_info.data_shape_str)
+                self.assertEqual("8 nm", data_info.calibrated_dimensional_calibrations_str)
+                data_item2 = DataItem.DataItem(numpy.zeros((8, ), numpy.uint32))
+                document_model.append_data_item(data_item2)
+                display_item.append_display_data_channel_for_data_item(data_item2)
+                data_item2.set_dimensional_calibration(0, Calibration.Calibration(4.0, 2.0, "nm"))
+                data_info = display_item.data_info
+                self.assertEqual("20", data_info.data_shape_str)
+                self.assertEqual("20 nm", data_info.calibrated_dimensional_calibrations_str)
+                data_item3 = DataItem.DataItem(numpy.zeros((4, 4), numpy.uint32))
+                document_model.append_data_item(data_item3)
+                data_item3.set_dimensional_calibration(0, Calibration.Calibration(0.0, 1.0, "nm"))
+                data_item3.set_dimensional_calibration(1, Calibration.Calibration(0.0, 1.0, "nm"))
+                display_item3 = document_model.get_display_item_for_data_item(data_item3)
+                data_info = display_item3.data_info
+                self.assertEqual("4, 4", data_info.data_shape_str)
+                self.assertEqual("4 nm, 4 nm", data_info.calibrated_dimensional_calibrations_str)
+
     # test_transaction_does_not_cascade_to_data_item_refs
     # test_increment_data_ref_counts_cascades_to_data_item_refs
     # test_adding_data_item_twice_to_composite_item_fails

@@ -90,9 +90,9 @@ class TestInspectorClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            converter = Inspector.CalibratedValueFloatToStringConverter(display_item, 0)
+            converter = DisplayItem.CalibratedValueFloatToStringConverter(display_item, 0)
             converter.convert(0.5)
-            converter = Inspector.CalibratedSizeFloatToStringConverter(display_item, 0)
+            converter = DisplayItem.CalibratedSizeFloatToStringConverter(display_item, 0)
             converter.convert(0.5)
 
     def test_adjusting_rectangle_width_should_keep_center_constant(self):
@@ -395,7 +395,7 @@ class TestInspectorClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_item.calibration_style_id = "pixels-top-left"
-            converter = Inspector.CalibratedValueFloatToStringConverter(display_item, 0)
+            converter = DisplayItem.CalibratedValueFloatToStringConverter(display_item, 0)
             locale.setlocale(locale.LC_ALL, '')
             self.assertAlmostEqual(converter.convert_back("0.5"), 0.5 / 256)
             self.assertAlmostEqual(converter.convert_back(".5"), 0.5 / 256)

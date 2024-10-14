@@ -36,6 +36,7 @@ from nion.swift.model import Persistence
 from nion.swift.model import Schema
 from nion.swift.model import Utility
 from nion.utils import Color
+from nion.utils import Converter
 from nion.utils import DateTime
 from nion.utils import Event
 from nion.utils import Geometry
@@ -280,6 +281,140 @@ class IntensityCalibrationStyleUncalibrated(CalibrationStyle):
 
     def get_intensity_calibration(self, calibration: Calibration.Calibration) -> Calibration.Calibration:
         return Calibration.Calibration()
+
+
+class CalibratedValueFloatToStringConverter(Converter.ConverterLike[float, str]):
+    """Converter object to convert from calibrated value to string and back.
+
+    If uniform is true, the converter will fall back to uncalibrated value if the calibrations have
+    different units.
+    """
+    def __init__(self, display_item: DisplayItem, index: int, uniform: bool = False) -> None:
+        self.__display_item = display_item
+        self.__index = index
+        self.__uniform = uniform
+
+    def __get_calibration(self) -> Calibration.Calibration:
+        index = self.__index
+        calibrations = self.__display_item.displayed_datum_calibrations
+        if self.__uniform:
+            unit_set = set(calibration.units if calibration.units else '' for calibration in calibrations)
+            if len(unit_set) > 1:
+                return Calibration.Calibration()
+        dimension_count = len(calibrations)
+        if index < 0:
+            index = dimension_count + index
+        if index >= 0 and index < dimension_count:
+            return calibrations[index]
+        else:
+            return Calibration.Calibration()
+
+    def get_units(self) -> str:
+        return self.__get_calibration().units
+
+    def __get_data_size(self) -> int:
+        index = self.__index
+        display_data_shape = self.__display_item.display_data_shape
+        dimension_count = len(display_data_shape) if display_data_shape is not None else 0
+        if index < 0:
+            index = dimension_count + index
+        if index >= 0 and index < dimension_count and display_data_shape is not None:
+            return display_data_shape[index]
+        else:
+            return 1
+
+    def convert_calibrated_value_to_str(self, calibrated_value: float) -> str:
+        calibration = self.__get_calibration()
+        return calibration.convert_calibrated_value_to_str(calibrated_value)
+
+    def convert_to_calibrated_value(self, value: float) -> float:
+        calibration = self.__get_calibration()
+        data_size = self.__get_data_size()
+        return calibration.convert_to_calibrated_value(data_size * value)
+
+    def convert_from_calibrated_value(self, calibrated_value: float) -> float:
+        calibration = self.__get_calibration()
+        data_size = self.__get_data_size()
+        return calibration.convert_from_calibrated_value(calibrated_value) / data_size
+
+    def convert(self, value: typing.Optional[float]) -> typing.Optional[str]:
+        if value is not None:
+            calibration = self.__get_calibration()
+            data_size = self.__get_data_size()
+            return calibration.convert_to_calibrated_value_str(data_size * value, value_range=(0, data_size), samples=data_size)
+        return None
+
+    def convert_back(self, value_str: typing.Optional[str]) -> typing.Optional[float]:
+        if value_str is not None:
+            calibration = self.__get_calibration()
+            data_size = self.__get_data_size()
+            value = Converter.FloatToStringConverter().convert_back(value_str)
+            if value is not None:
+                return calibration.convert_from_calibrated_value(value) / data_size
+        return None
+
+
+class CalibratedSizeFloatToStringConverter(Converter.ConverterLike[float, str]):
+    """
+        Converter object to convert from calibrated size to string and back.
+        """
+
+    def __init__(self, display_item: DisplayItem, index: int, factor: float = 1.0, uniform: bool = False) -> None:
+        self.__display_item = display_item
+        self.__index = index
+        self.__factor = factor
+        self.__uniform = uniform
+
+    def __get_calibration(self) -> Calibration.Calibration:
+        index = self.__index
+        calibrations = self.__display_item.displayed_datum_calibrations
+        if self.__uniform:
+            unit_set = set(calibration.units if calibration.units else '' for calibration in calibrations)
+            if len(unit_set) > 1:
+                return Calibration.Calibration()
+        dimension_count = len(calibrations)
+        if index < 0:
+            index = dimension_count + index
+        if index >= 0 and index < dimension_count:
+            return self.__display_item.displayed_datum_calibrations[index]
+        else:
+            return Calibration.Calibration()
+
+    def __get_data_size(self) -> int:
+        index = self.__index
+        display_data_shape = self.__display_item.display_data_shape
+        dimension_count = len(display_data_shape) if display_data_shape else 0
+        if index < 0:
+            index = dimension_count + index
+        if index >= 0 and index < dimension_count and display_data_shape is not None:
+            return display_data_shape[index]
+        else:
+            return 1
+
+    def convert_calibrated_value_to_str(self, calibrated_value: float) -> str:
+        calibration = self.__get_calibration()
+        return calibration.convert_calibrated_size_to_str(calibrated_value)
+
+    def convert_to_calibrated_value(self, size: float) -> float:
+        calibration = self.__get_calibration()
+        data_size = self.__get_data_size()
+        return calibration.convert_to_calibrated_size(data_size * size * self.__factor)
+
+    def convert(self, value: typing.Optional[float]) -> typing.Optional[str]:
+        if value is not None:
+            calibration = self.__get_calibration()
+            data_size = self.__get_data_size()
+            return calibration.convert_to_calibrated_size_str(data_size * value * self.__factor, value_range=(0, data_size), samples=data_size)
+        return None
+
+    def convert_back(self, value_str: typing.Optional[str]) -> typing.Optional[float]:
+        if value_str is not None:
+            calibration = self.__get_calibration()
+            data_size = self.__get_data_size()
+            value = Converter.FloatToStringConverter().convert_back(value_str)
+            if value is not None:
+                return calibration.convert_from_calibrated_size(value) / data_size / self.__factor
+        return None
 
 
 class AdjustmentType(typing.Protocol):
@@ -2131,6 +2266,31 @@ class DisplayDataDeltaStream(Stream.ValueStream[DisplayDataDelta]):
         return [Calibration.Calibration() for c in self.dimensional_calibrations] if self.dimensional_calibrations else [Calibration.Calibration()]
 
     @property
+    def calibrated_dimensional_calibrations(self) -> typing.Optional[typing.Sequence[Calibration.Calibration]]:
+        """Returns dimensional calibrations that are actually calibrated with units.
+
+        First checks the users displayed calibration style; if no units are present, checks the other calibration styles.
+        """
+        dimensional_calibrations = self.dimensional_calibrations
+        dimensional_shape = self.dimensional_shape
+        if dimensional_calibrations and dimensional_shape:
+            potential_dimensional_calibrations = self.calibration_style.get_dimensional_calibrations(dimensional_shape,
+                                                                                                     dimensional_calibrations,
+                                                                                                     self.metadata)
+            if potential_dimensional_calibrations:
+                if any(dimensional_calibration.units for dimensional_calibration in potential_dimensional_calibrations):
+                    return potential_dimensional_calibrations
+            for calibration_style in self.calibration_styles:
+                potential_dimensional_calibrations = calibration_style.get_dimensional_calibrations(dimensional_shape,
+                                                                                                    dimensional_calibrations,
+                                                                                                    self.metadata)
+                if potential_dimensional_calibrations:
+                    if any(dimensional_calibration.units for dimensional_calibration in
+                           potential_dimensional_calibrations):
+                        return potential_dimensional_calibrations
+        return None
+
+    @property
     def displayed_intensity_calibration(self) -> Calibration.Calibration:
         if self.intensity_calibration:
             return self.intensity_calibration_style.get_intensity_calibration(self.intensity_calibration)
@@ -3091,6 +3251,11 @@ class DisplayItem(Persistence.PersistentObject):
         return self.__display_data_delta_stream.displayed_dimensional_calibrations
 
     @property
+    def calibrated_dimensional_calibrations(self) -> typing.Optional[typing.Sequence[Calibration.Calibration]]:
+        """The calibrations for all data dimensions in a calibrated style if possible or None."""
+        return self.__display_data_delta_stream.calibrated_dimensional_calibrations
+
+    @property
     def displayed_datum_calibrations(self) -> typing.Sequence[Calibration.Calibration]:
         """The calibrations for only datum dimensions, in the displayed calibration style."""
         return self.__display_data_delta_stream.displayed_datum_calibrations
@@ -3118,6 +3283,30 @@ class DisplayItem(Persistence.PersistentObject):
     @property
     def intensity_calibration_styles(self) -> typing.Sequence[CalibrationStyle]:
         return self.__display_data_delta_stream.intensity_calibration_styles
+
+    @dataclasses.dataclass
+    class DataInfo:
+        data_shape: typing.Tuple[int, ...]
+        calibrated_dimensional_calibrations: typing.Optional[typing.Sequence[Calibration.Calibration]]
+        data_shape_str: str
+        calibrated_dimensional_calibrations_str: typing.Optional[str]
+
+    @property
+    def data_info(self) -> DisplayItem.DataInfo:
+        display_data_shape = self.display_data_shape
+        assert display_data_shape is not None
+        calibrated_dimensional_calibrations = self.calibrated_dimensional_calibrations
+        calibrated_dimensional_calibration_str_list = list[str]()
+        for index, dimensional_calibration in enumerate(calibrated_dimensional_calibrations or list()):
+            converter = CalibratedSizeFloatToStringConverter(self, index, uniform=False)
+            calibrated_dimensional_calibration_str_list.append(converter.convert_calibrated_value_to_str(display_data_shape[index]))
+        calibrated_dimensional_calibrations_str = ", ".join(calibrated_dimensional_calibration_str_list) if calibrated_dimensional_calibration_str_list else None
+        return DisplayItem.DataInfo(
+            data_shape=display_data_shape,
+            calibrated_dimensional_calibrations=calibrated_dimensional_calibrations,
+            data_shape_str=", ".join(str(d) for d in display_data_shape),
+            calibrated_dimensional_calibrations_str=calibrated_dimensional_calibrations_str
+        )
 
     @property
     def size_and_data_format_as_string(self) -> str:
