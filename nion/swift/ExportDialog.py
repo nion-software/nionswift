@@ -282,8 +282,9 @@ class ExportSizeModel(Observable.Observable):
     @property
     def image_info(self) -> typing.Optional[str]:
         data_information = self.__display_item.displayed_title + "\nDatashape: "
-        data_information += " ("+self.__display_item.data_info.data_shape_str+")\nCalibrated units:\n"
-        data_information += "("+self.__display_item.data_info.calibrated_dimensional_calibrations_str+")"
+        data_information += "("+self.__display_item.data_info.data_shape_str+")"
+        if self.__display_item.data_info.calibrated_dimensional_calibrations_str is not None:
+            data_information += "\nCalibrated units:\n("+self.__display_item.data_info.calibrated_dimensional_calibrations_str+")"
         return data_information
 
     def __enforce_width_height_constraints(self) -> None:
