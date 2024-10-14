@@ -639,14 +639,14 @@ class TestDisplayItemClass(unittest.TestCase):
                 data_item.set_dimensional_calibration(0, Calibration.Calibration(0.0, 1.0, "nm"))
                 data_info = display_item.data_info
                 self.assertEqual("8", data_info.data_shape_str)
-                self.assertEqual("8 nm", data_info.calibrated_dimensional_calibrations_str)
+                self.assertEqual("8.0 nm", data_info.calibrated_dimensional_calibrations_str)
                 data_item2 = DataItem.DataItem(numpy.zeros((8, ), numpy.uint32))
                 document_model.append_data_item(data_item2)
                 display_item.append_display_data_channel_for_data_item(data_item2)
                 data_item2.set_dimensional_calibration(0, Calibration.Calibration(4.0, 2.0, "nm"))
                 data_info = display_item.data_info
                 self.assertEqual("20", data_info.data_shape_str)
-                self.assertEqual("20 nm", data_info.calibrated_dimensional_calibrations_str)
+                self.assertEqual("20.0 nm", data_info.calibrated_dimensional_calibrations_str)
                 data_item3 = DataItem.DataItem(numpy.zeros((4, 4), numpy.uint32))
                 document_model.append_data_item(data_item3)
                 data_item3.set_dimensional_calibration(0, Calibration.Calibration(0.0, 1.0, "nm"))
@@ -654,7 +654,7 @@ class TestDisplayItemClass(unittest.TestCase):
                 display_item3 = document_model.get_display_item_for_data_item(data_item3)
                 data_info = display_item3.data_info
                 self.assertEqual("4, 4", data_info.data_shape_str)
-                self.assertEqual("4 nm, 4 nm", data_info.calibrated_dimensional_calibrations_str)
+                self.assertEqual("4.0 nm, 4.0 nm", data_info.calibrated_dimensional_calibrations_str)
 
     # test_transaction_does_not_cascade_to_data_item_refs
     # test_increment_data_ref_counts_cascades_to_data_item_refs
