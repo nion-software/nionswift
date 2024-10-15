@@ -2626,6 +2626,9 @@ class CalibratedValueFloatToStringConverter(Converter.ConverterLike[float, str])
 
     If uniform is true, the converter will fall back to uncalibrated value if the calibrations have
     different units.
+
+    This class does the conversion based on the display item, which may change (i.e. calibration style).
+    No attempt is made to keep this class up to date, and it must be recreated or updated when the display item changes.
     """
     def __init__(self, display_item: DisplayItem.DisplayItem, index: int, uniform: bool = False) -> None:
         self.__display_item = display_item
@@ -2693,9 +2696,14 @@ class CalibratedValueFloatToStringConverter(Converter.ConverterLike[float, str])
 
 
 class CalibratedSizeFloatToStringConverter(Converter.ConverterLike[float, str]):
+    """Converter object to convert from calibrated size to string and back.
+
+    If uniform is true, the converter will fall back to uncalibrated value if the calibrations have
+    different units.
+
+    This class does the conversion based on the display item, which may change (i.e. calibration style).
+    No attempt is made to keep this class up to date, and it must be recreated or updated when the display item changes.
     """
-        Converter object to convert from calibrated size to string and back.
-        """
 
     def __init__(self, display_item: DisplayItem.DisplayItem, index: int, factor: float = 1.0, uniform: bool = False) -> None:
         self.__display_item = display_item
