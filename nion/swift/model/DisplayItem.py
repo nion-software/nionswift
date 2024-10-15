@@ -3298,8 +3298,10 @@ class DisplayItem(Persistence.PersistentObject):
         calibrated_dimensional_calibrations = self.calibrated_dimensional_calibrations
         calibrated_dimensional_calibration_str_list = list[str]()
         for index, dimensional_calibration in enumerate(calibrated_dimensional_calibrations or list()):
-            converter = CalibratedSizeFloatToStringConverter(self, index, uniform=False)
-            calibrated_dimensional_calibration_str_list.append(converter.convert_calibrated_value_to_str(display_data_shape[index]))
+            converter = CalibratedSizeFloatToStringConverter(self, index, uniform=True)
+            calibrated_value = converter.convert(1)
+            if calibrated_value is not None:
+                calibrated_dimensional_calibration_str_list.append(calibrated_value) #passing in 1 as the converter expects fractional units
         calibrated_dimensional_calibrations_str = ", ".join(calibrated_dimensional_calibration_str_list) if calibrated_dimensional_calibration_str_list else None
         return DisplayItem.DataInfo(
             data_shape=display_data_shape,
