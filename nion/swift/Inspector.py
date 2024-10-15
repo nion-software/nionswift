@@ -4062,8 +4062,9 @@ class GraphicHandler(Declarative.Handler):
 class GraphicVariableHandlerFactory(VariableHandlerComponentFactory2):
     def make_variable_handler(self, computation_inspector_context: ComputationInspectorContext, computation: Symbolic.Computation, computation_variable: Symbolic.ComputationVariable, variable_model: VariableValueModel, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
         if computation_variable.variable_type == Symbolic.ComputationVariableType.GRAPHIC:
-            graphic = computation_variable.bound_item.value if computation_variable.bound_item else None
-            return GraphicHandler(computation_inspector_context.window, computation, computation_variable, graphic)
+            graphic = typing.cast(typing.Optional[Graphics.Graphic], computation_variable.bound_item.value if computation_variable.bound_item else None)
+            if graphic:
+                return GraphicHandler(computation_inspector_context.window, computation, computation_variable, graphic)
         return None
 
 
@@ -4223,7 +4224,7 @@ class DataStructureVariableHandlerFactory(VariableHandlerComponentFactory2):
 
 
 class GraphicListVariableHandler(Declarative.Handler):
-    def __init__(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable, variable_model: VariableValueModel) -> None:
+    def __init__(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable) -> None:
         super().__init__()
         self.document_controller = document_controller
         self.computation = computation
@@ -4241,8 +4242,7 @@ class GraphicListVariableHandler(Declarative.Handler):
 class GraphicListVariableHandlerFactory(VariableHandlerComponentFactory2):
     def make_variable_handler(self, computation_inspector_context: ComputationInspectorContext, computation: Symbolic.Computation, computation_variable: Symbolic.ComputationVariable, variable_model: VariableValueModel, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
         if computation_variable.is_list:
-            graphic = computation_variable.bound_item.value if computation_variable.bound_item else None
-            return GraphicListVariableHandler(computation_inspector_context.window, computation, computation_variable, graphic)
+            return GraphicListVariableHandler(computation_inspector_context.window, computation, computation_variable)
         return None
 
 
