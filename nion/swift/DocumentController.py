@@ -435,7 +435,8 @@ class DocumentController(Window.Window):
         assert menu_id.endswith("_menu")
         assert before_menu_id.endswith("_menu") if before_menu_id is not None else True
         if not hasattr(self, "_" + menu_id):
-            before_menu = getattr(self, "_" + before_menu_id) if before_menu_id is not None else None
+            before_menu = typing.cast(typing.Optional[UserInterface.Menu], getattr(self, "_" + before_menu_id) if before_menu_id is not None else None)
+            assert before_menu
             menu = self.insert_menu(menu_title, before_menu)
             setattr(self, "_" + menu_id, menu)
         return typing.cast(UserInterface.Menu, getattr(self, "_" + menu_id))

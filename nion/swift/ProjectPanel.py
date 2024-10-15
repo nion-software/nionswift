@@ -464,10 +464,9 @@ class CollectionListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
 
     def delete_pressed(self) -> None:
         index = self.__collection_selection.current_index
-        list_display_item = self.items[index] if index is not None else None
-        data_group = list_display_item.data_group
-        if data_group:
-            list_display_item.document_controller.remove_data_group_from_container(data_group, list_display_item.document_controller.document_model._project)
+        if list_display_item := (self.items[index] if index is not None else None):
+            if data_group := (list_display_item.data_group if list_display_item is not None else None):
+                list_display_item.document_controller.remove_data_group_from_container(data_group, list_display_item.document_controller.document_model._project)
 
 
 class CollectionsWidget(Widgets.CompositeWidgetBase):
