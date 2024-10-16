@@ -1161,10 +1161,6 @@ class InsertGraphicsCommand(Undo.UndoableCommand):
         self.__document_controller = document_controller
         self.__display_item_proxy = display_item.create_proxy()
         self.__graphics = graphics  # only used for perform
-        workspace_controller = self.__document_controller.workspace_controller
-        assert workspace_controller
-        self.__old_workspace_layout: typing.Optional[Persistence.PersistentDictType] = workspace_controller.deconstruct()
-        self.__new_workspace_layout: typing.Optional[Persistence.PersistentDictType] = None
         self.__graphics_properties = None
         self.__graphic_proxies = [graphic.create_proxy() for graphic in existing_graphics or list()]
         self.__undelete_logs: typing.List[Changes.UndeleteLog] = list()
@@ -1173,8 +1169,6 @@ class InsertGraphicsCommand(Undo.UndoableCommand):
     def close(self) -> None:
         self.__graphics_properties = None
         self.__document_controller = typing.cast(typing.Any, None)
-        self.__old_workspace_layout = None
-        self.__new_workspace_layout = None
         for undelete_log in self.__undelete_logs:
             undelete_log.close()
         self.__undelete_logs = typing.cast(typing.Any, None)
@@ -1198,39 +1192,26 @@ class InsertGraphicsCommand(Undo.UndoableCommand):
     def _get_modified_state(self) -> typing.Any:
         display_item = self.__display_item_proxy.item
         display_item_modified_state = display_item.modified_state if display_item else None
-        workspace_controller = self.__document_controller.workspace_controller
-        document_model_modified_state = workspace_controller.document_model.modified_state if workspace_controller else None
-        return display_item_modified_state, document_model_modified_state
+        return display_item_modified_state
 
     def _set_modified_state(self, modified_state: typing.Any) -> None:
         display_item = self.__display_item_proxy.item
         if display_item:
-            display_item.modified_state = modified_state[0]
-        workspace_controller = self.__document_controller.workspace_controller
-        if workspace_controller:
-            workspace_controller.document_model.modified_state = modified_state[1]
+            display_item.modified_state = modified_state
 
     def _redo(self) -> None:
         for undelete_log in reversed(self.__undelete_logs):
             self.__document_controller.document_model.undelete_all(undelete_log)
             undelete_log.close()
         self.__undelete_logs.clear()
-        workspace_controller = self.__document_controller.workspace_controller
-        if workspace_controller and self.__new_workspace_layout is not None:
-            workspace_controller.reconstruct(self.__new_workspace_layout)
 
     def _undo(self) -> None:
         display_item = self.__display_item_proxy.item
         if display_item:
             graphics = [graphic_proxy.item for graphic_proxy in self.__graphic_proxies]
-            workspace_controller = self.__document_controller.workspace_controller
-            if workspace_controller:
-                self.__new_workspace_layout = workspace_controller.deconstruct()
-                for graphic in graphics:
-                    if graphic:
-                        self.__undelete_logs.append(display_item.remove_graphic(graphic, safe=True))
-                if self.__old_workspace_layout is not None:
-                    workspace_controller.reconstruct(self.__old_workspace_layout)
+            for graphic in graphics:
+                if graphic:
+                    self.__undelete_logs.append(display_item.remove_graphic(graphic, safe=True))
 
 
 class AppendDisplayDataChannelCommand(Undo.UndoableCommand):
