@@ -126,26 +126,38 @@ def generate_lookup_array_hsv() -> _RGBA8ImageDataType:
 
 @dataclasses.dataclass
 class ColorMap:
+    color_map_id: str
     name: str
     data: _RGBA8ImageDataType
 
 
 color_maps: typing.Dict[str, ColorMap] = dict()
 
-color_maps["grayscale"] = ColorMap(_("Grayscale"), generate_lookup_array_grayscale())
-color_maps["magma"] = ColorMap(_("Magma"), generate_lookup_array('magma'))
-color_maps["hsv"] = ColorMap(_("HSV"), generate_lookup_array_hsv())
-color_maps["viridis"] = ColorMap(_("Viridis"), generate_lookup_array('viridis'))
-color_maps["plasma"] = ColorMap(_("Plasma"), generate_lookup_array('plasma'))
-color_maps["ice"] = ColorMap(_("Ice"), generate_lookup_array('ice'))
+def add_color_map(color_map: ColorMap) -> None:
+    color_maps[color_map.color_map_id] = color_map
+
+add_color_map(ColorMap("grayscale", _("Grayscale"), generate_lookup_array_grayscale()))
+add_color_map(ColorMap("magma", _("Magma"), generate_lookup_array('magma')))
+add_color_map(ColorMap("hsv", _("HSV"), generate_lookup_array_hsv()))
+add_color_map(ColorMap("viridis", _("Viridis"), generate_lookup_array('viridis')))
+add_color_map(ColorMap("plasma", _("Plasma"), generate_lookup_array('plasma')))
+add_color_map(ColorMap("ice", _("Ice"), generate_lookup_array('ice')))
+
+
+def get_color_map_id_from_name(name: str) -> str:
+    color_map_id = name.lower()
+    color_map_id = re.sub(r"[^\w\s]", '', color_map_id)
+    color_map_id = re.sub(r"\s+", '-', color_map_id)
+    return color_map_id
 
 
 def load_color_map_json_str(color_map_json_str: str) -> None:
     color_map_json = json.loads(color_map_json_str)
-    color_maps[color_map_json["id"]] = ColorMap(color_map_json["name"], generate_lookup_array_from_points(color_map_json["points"], 256))
+    color_map_id = color_map_json["id"]
+    add_color_map(ColorMap(color_map_id, color_map_json["name"], generate_lookup_array_from_points(color_map_json["points"], 256)))
 
 
-def load_color_map_xml_str(color_map_xml_str: str, name: str) -> None:
+def load_color_map_xml_str(color_map_xml_str: str, name: str, color_map_id: str) -> None:
     tree_root = xml.etree.ElementTree.fromstring(color_map_xml_str)
     assert tree_root.tag == "ColorMaps"
     color_map_tree = list(tree_root)[0]
@@ -156,10 +168,7 @@ def load_color_map_xml_str(color_map_xml_str: str, name: str) -> None:
         if "x" in raw_point:
             points.append({"x": float(raw_point['x']), "r": float(raw_point['r']), "g": float(raw_point['g']),
                            "b": float(raw_point['b'])})
-    color_map_id = name.lower()
-    color_map_id = re.sub(r"[^\w\s]", '', color_map_id)
-    color_map_id = re.sub(r"\s+", '-', color_map_id)
-    color_maps[color_map_id] = ColorMap(name, generate_lookup_array_from_points(points, 256))
+    add_color_map(ColorMap(color_map_id, name, generate_lookup_array_from_points(points, 256)))
     """
     # this section can be used to generate .json from .xml color tables
     points2 = [{"x": point['x'], "rgb": [round(point['r'] * 255), round(point['g'] * 255), round(point['b'] * 255)]} for point in points]
@@ -195,14 +204,17 @@ def load_color_maps(color_maps_dir: pathlib.Path) -> None:
                     elif color_map_file_extension == ".xml":
                         with open(color_map_path, "r") as f:
                             xml_str = f.read()
-                            load_color_map_xml_str(xml_str, color_map_path.stem)
+                            load_color_map_xml_str(xml_str, color_map_path.stem, get_color_map_id_from_name(color_map_path.stem))
                 except Exception as e:
                     import traceback
                     traceback.print_exc()
 
 
 def load_color_map_from_dict(d: typing.Mapping[str, typing.Any]) -> None:
-    color_maps[d["id"]] = ColorMap(d["name"], generate_lookup_array_from_points(d["points"], 256))
+    color_map_id = d["id"]
+    color_map_name = d["name"]
+    color_map_points = d["points"]
+    add_color_map(ColorMap(color_map_id, color_map_name, generate_lookup_array_from_points(color_map_points, 256)))
 
 
 def load_color_map_resource(resource_path: str) -> None:
@@ -221,23 +233,27 @@ def get_color_map_data_by_id(color_map_id: str) -> _RGBA8ImageDataType:
     return color_maps.get(color_map_id, color_maps["grayscale"]).data
 
 
+class ColorMapProtocol(typing.Protocol):
+    color_map_id: str
+    name: str
+    data: typing.Optional[_RGBA8ImageDataType] = None
+    json_str: typing.Optional[str] = None
+    xml_str: typing.Optional[str] = None
+
+
 def component_registered(component: Registry._ComponentType, component_types: typing.Set[str]) -> None:
-    if "color-map-dict" in component_types:
-        color_map_dict = typing.cast(typing.Mapping[str, typing.Any], component)
-        load_color_map_from_dict(color_map_dict)
-    elif "color-map-json-str" in component_types:
-        load_color_map_json_str(typing.cast(str, component))
-    elif "color-map-xml-str" in component_types:
-        color_map_xml_str, color_map_name = typing.cast(typing.Tuple[str, str], component)
-        load_color_map_xml_str(color_map_xml_str, color_map_name)
+    if "color-map-description" in component_types:
+        color_map_description = typing.cast(ColorMapProtocol, component)
+        if hasattr(color_map_description, "data") and color_map_description.data is not None:
+            add_color_map(ColorMap(color_map_description.color_map_id, color_map_description.name, color_map_description.data))
+        elif hasattr(color_map_description, "json_str") and color_map_description.json_str is not None:
+            load_color_map_json_str(color_map_description.json_str)
+        elif hasattr(color_map_description, "xml_str") and color_map_description.xml_str is not None:
+            load_color_map_xml_str(color_map_description.xml_str, color_map_description.name, color_map_description.color_map_id)
 
 
 def component_unregistered(component: Registry._ComponentType, component_types: typing.Set[str]) -> None:
-    if "color-map-dict" in component_types:
-        pass
-    elif "color-map-json-str" in component_types:
-        pass
-    elif "color-map-xml-str" in component_types:
+    if "color-map-description" in component_types:
         pass
 
 
