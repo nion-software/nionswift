@@ -1004,9 +1004,11 @@ class DocumentController(Window.Window):
     def __deep_copy(self) -> None:
         self._dispatch_any_to_focus_widget("handle_deep_copy")
 
-    def handle_undo(self) -> None:
+    def handle_undo(self) -> bool:
         if self.__undo_stack.can_undo:
             self.__undo_stack.undo()
+            return True
+        return False
 
     def get_undo_menu_item_state(self) -> UserInterface.MenuItemState:
         self.__undo_stack.validate()
