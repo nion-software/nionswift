@@ -1229,7 +1229,8 @@ class ImageDataInspectorModel(Observable.Observable):
             self.color_map_items.append(color_map.name)
             self._color_map_flags.append(color_map_key)
         self._color_map_reverse_map = {p: i for i, p in enumerate(self._color_map_flags)}
-        self.current_colormap_index = Model.PropertyModel[int](self._color_map_reverse_map[self._display_data_channel.color_map_id])
+        color_map_index = self._color_map_reverse_map.get(self._display_data_channel.color_map_id, 0)
+        self.current_colormap_index = Model.PropertyModel[int](color_map_index)
 
         self.brightness_model = DisplayDataChannelPropertyCommandModel(document_controller, display_data_channel, "brightness", title=_("Change Brightness"), command_id="change_brightness")
 
