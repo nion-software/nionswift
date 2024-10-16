@@ -3220,6 +3220,44 @@ class TestDisplayPanelClass(unittest.TestCase):
             # undo
             document_controller.perform_action("window.redo")
             self.assertEqual(1, len(display_item.graphics))
+            # clean up by clearing out the periodic queue
+            document_controller.periodic()
+
+    def test_adding_fourier_filter_to_data_item_with_computation_is_undoable_via_menu_items(self):
+        with TestContext.create_memory_context() as test_context:
+            # set up the layout
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            # add data item
+            data_item = DataItem.DataItem(numpy.zeros((10, 10)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            # add computation
+            document_model.get_fft_new(display_item, display_item.data_item)
+            # put data item in display panel
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            display_panel.root_container.layout_immediate(Geometry.IntSize(1000 + display_panel.header_canvas_item.header_height, 1000))
+            document_controller.periodic()
+            # focus click
+            display_panel.root_container.canvas_widget.simulate_mouse_click(500, 500, CanvasItem.KeyboardModifiers())
+            # recompute initial
+            document_controller.periodic()
+            document_controller.document_model.recompute_all()
+            # add fourier graphic
+            document_controller.perform_action("graphics.add_spot_graphic")
+            self.assertEqual(1, len(display_item.graphics))
+            # recompute after filter
+            document_controller.periodic()
+            document_controller.document_model.recompute_all()
+            # undo
+            document_controller.perform_action("window.undo")
+            self.assertEqual(0, len(display_item.graphics))
+            # undo
+            document_controller.perform_action("window.redo")
+            self.assertEqual(1, len(display_item.graphics))
+            # clean up by clearing out the periodic queue
+            document_controller.periodic()
 
 
 if __name__ == '__main__':
