@@ -49,6 +49,7 @@ from nion.utils import Model
 from nion.utils import Observable
 from nion.utils import ReferenceCounting
 from nion.utils import Registry
+from nion.utils import Stream
 from nion.utils import Validator
 
 if typing.TYPE_CHECKING:
@@ -925,16 +926,19 @@ class DisplayLayerPropertyCommandModel(Model.PropertyChangedPropertyModel[typing
             self.__document_controller.push_undo_command(command)
 
 
+
 class LinePlotDisplayLayerHandler(Declarative.Handler):
-    def __init__(self, line_plot_display_layer_model: LinePlotDisplayLayerModel, update_layer_list: typing.Callable[[], None]):
+    def __init__(self, line_plot_display_layer_model: LinePlotDisplayLayerModel):
         super().__init__()
         self._line_plot_display_layer_model = line_plot_display_layer_model
-        self.__update_layer_list = update_layer_list
+        self.integer_to_string_converter = Converter.IntegerToStringConverter()
 
         u = Declarative.DeclarativeUI()
         self.ui_view = u.create_column(
             u.create_row(
-                u.create_label(text=_("Layer") + f" {self._line_plot_display_layer_model.index}:"),
+                u.create_label(text=_("Layer ")),
+                u.create_label(text="@binding(_line_plot_display_layer_model.index)"),
+                u.create_label(text=":"),
                 u.create_line_edit(text="@binding(_line_plot_display_layer_model.label_model.value)"),
                 u.create_spacing(12),
                 spacing=12
@@ -961,9 +965,9 @@ class LinePlotDisplayLayerHandler(Declarative.Handler):
             ),
             u.create_row(
                 u.create_label(text=_("Data Index")),
-                u.create_line_edit(text="@binding(_line_plot_display_layer_model.data_index_model.value)"),
+                u.create_line_edit(text="@binding(_line_plot_display_layer_model.data_index_model.value, converter=integer_to_string_converter)"),
                 u.create_label(text=_("Row")),
-                u.create_line_edit(text="@binding(_line_plot_display_layer_model.data_row_model.value)"),
+                u.create_line_edit(text="@binding(_line_plot_display_layer_model.data_row_model.value, converter=integer_to_string_converter)"),
                 u.create_stretch(),
                 spacing=12
             ),
@@ -984,9 +988,16 @@ class LinePlotDisplayLayerHandler(Declarative.Handler):
             u.create_row(
                 u.create_label(text=_("Stroke Width"), width=80, height=30),
                 u.create_spacing(44 + 8),  # color push button width + spacing to avoid collapse
-                u.create_line_edit(text="@binding(_line_plot_display_layer_model.stroke_width_model.value)", width=36),
+                u.create_line_edit(text="@binding(_line_plot_display_layer_model.stroke_width_model.value, converter=integer_to_string_converter)", width=36),
                 u.create_stretch(),
                 spacing=8
+            ),
+            u.create_row(
+                u.create_label(text=_("Complex Display Type:"), width=120),
+                u.create_combo_box(items=self._line_plot_display_layer_model.display_type_items,
+                                   current_index="@binding(_line_plot_display_layer_model.current_display_type_index_model.value)"),
+                u.create_stretch(),
+                visible="@binding(_line_plot_display_layer_model.is_data_complex)"
             )
         )
 
@@ -1000,7 +1011,6 @@ class LinePlotDisplayLayerHandler(Declarative.Handler):
                                                            index - 1)
             command.perform()
             self._line_plot_display_layer_model.document_controller.push_undo_command(command)
-            self.__update_layer_list()
 
     def _move_layer_backward(self) -> None:
         index = self._line_plot_display_layer_model.index
@@ -1012,7 +1022,6 @@ class LinePlotDisplayLayerHandler(Declarative.Handler):
                                                            index + 1)
             command.perform()
             self._line_plot_display_layer_model.document_controller.push_undo_command(command)
-            self.__update_layer_list()
 
     def _add_layer(self) -> None:
         index = self._line_plot_display_layer_model.index + 1  # add new layer after current layer
@@ -1021,7 +1030,6 @@ class LinePlotDisplayLayerHandler(Declarative.Handler):
                                                       index)
         command.perform()
         self._line_plot_display_layer_model.document_controller.push_undo_command(command)
-        self.__update_layer_list()
 
     def _remove_layer(self) -> None:
         index = self._line_plot_display_layer_model.index
@@ -1030,17 +1038,16 @@ class LinePlotDisplayLayerHandler(Declarative.Handler):
                                                          index)
         command.perform()
         self._line_plot_display_layer_model.document_controller.push_undo_command(command)
-        self.__update_layer_list()
 
 
 class LinePlotDisplayLayerModel(Observable.Observable):
     def __init__(self, document_controller: DocumentController.DocumentController,
-                 display_item: DisplayItem.DisplayItem, display_layer: DisplayItem.DisplayLayer, index: int):
+                 display_item: DisplayItem.DisplayItem, display_layer: DisplayItem.DisplayLayer,
+                 display_layers_list_model: ListModel.ObservedListModel[DisplayItem.DisplayLayer]) -> None:
         super().__init__()
         self.document_controller = document_controller
         self.display_item = display_item
         self.display_layer = display_layer
-        self.index = index
         self.label_model = DisplayLayerPropertyCommandModel(document_controller, display_item, display_layer, "label")
 
         index = display_item.display_layers.index(display_layer)
@@ -1067,47 +1074,64 @@ class LinePlotDisplayLayerModel(Observable.Observable):
             ReferenceCounting.weak_partial(LinePlotDisplayLayerModel.__on_data_index_changed, self))
         self.__display_type_index_listener_model = self.current_display_type_index_model.property_changed_event.listen(
             ReferenceCounting.weak_partial(LinePlotDisplayLayerModel.__on_display_type_index_changed, self))
+        self.__display_layer_list_added_listener = display_layers_list_model.item_added_event.listen(
+            ReferenceCounting.weak_partial(LinePlotDisplayLayerModel.__on_display_layer_list_changed, self))
+        self.__display_layer_list_removed_listener = display_layers_list_model.item_removed_event.listen(
+            ReferenceCounting.weak_partial(LinePlotDisplayLayerModel.__on_display_layer_list_changed, self))
 
-    def __on_data_index_changed(self) -> None:
-        display_data_channel = self.display_item.display_data_channels[self.data_index_model.value] if self.data_index_model.value is not None else None
-        if display_data_channel:
-            command = ChangeDisplayLayerDisplayDataChannelCommand(self.document_controller.document_model,
-                                                                  self.display_item,
-                                                                  self.index,
-                                                                  display_data_channel)
+    @property
+    def index(self) -> int:
+        if self.display_layer in self.display_item.display_layers:
+            return self.display_item.display_layers.index(self.display_layer)
+        else:
+            # we occasionally get an old LinePlotDisplayLayerModel that is not in the list
+            return 0
+
+    @property
+    def is_data_complex(self) -> bool:
+        if self.display_layer.display_data_channel and self.display_layer.display_data_channel.data_item:
+                return self.display_layer.display_data_channel.data_item.is_data_complex_type
+        return False
+
+    def __on_data_index_changed(self, property: str) -> None:
+        if property == "value":
+            display_data_channel = self.display_item.display_data_channels[self.data_index_model.value] if self.data_index_model.value is not None else None
+            if display_data_channel:
+                command = ChangeDisplayLayerDisplayDataChannelCommand(self.document_controller.document_model,
+                                                                      self.display_item,
+                                                                      self.index,
+                                                                      display_data_channel)
+                command.perform()
+                self.document_controller.push_undo_command(command)
+
+    def __on_display_type_index_changed(self, property: str) -> None:
+        if property == "value":
+            new_type = self._display_type_flags[self.current_display_type_index_model.value or 0]
+            assert self.display_layer.display_data_channel
+            command = DisplayPanel.ChangeDisplayDataChannelCommand(self.document_controller.document_model,
+                                                                   self.display_layer.display_data_channel,
+                                                                   complex_display_type=new_type)
             command.perform()
             self.document_controller.push_undo_command(command)
 
-    def __on_display_type_index_changed(self) -> None:
-        new_type = self._display_type_flags[self.current_display_type_index_model.value or 0]
-        assert self.display_layer.display_data_channel
-        command = DisplayPanel.ChangeDisplayDataChannelCommand(self.document_controller.document_model,
-                                                               self.display_layer.display_data_channel,
-                                                               complex_display_type=new_type)
-        command.perform()
-        self.document_controller.push_undo_command(command)
+    def __on_display_layer_list_changed(self, key: str, value: typing.Any, index: int) -> None:
+        # changes affect all indices after index of change
+        if key == "items":
+            self.notify_property_changed("index")
 
 
 class LinePlotDisplayLayersSectionHandler(Declarative.Handler):
-    def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem, update_layer_list: typing.Callable[[], None]) -> None:
+    def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem, display_layer_list_model: ListModel.ObservedListModel[DisplayItem.DisplayLayer]) -> None:
         super().__init__()
         self.__document_controller = document_controller
         self.__display_item = display_item
-        self._line_plot_display_layer_models: list[LinePlotDisplayLayerModel] = []
+        self._line_plot_display_layer_models = display_layer_list_model
         self._line_plot_display_layer_handlers: list[LinePlotDisplayLayerHandler] = []
-        self._show_no_layers_model = Model.PropertyModel[bool](True)
-        self._update_layer_list = update_layer_list
-
-        self._line_plot_display_layer_models.clear()
-        for index, display_layer in enumerate(self.__display_item.display_layers):
-            self._line_plot_display_layer_models.append(
-                LinePlotDisplayLayerModel(self.__document_controller, self.__display_item, display_layer, index))
-
-        self._show_no_layers_model.value = not self._line_plot_display_layer_models
+        self._show_no_layers_model = Stream.MapStream(Stream.ValueStream(ListModel.ListPropertyModel(self._line_plot_display_layer_models)), lambda x: not x)
 
         u = Declarative.DeclarativeUI()
         self.ui_view = u.create_column(
-            u.create_column(items="_line_plot_display_layer_models", item_component_id="line_plot_display_layer", spacing=4),
+            u.create_column(items="_line_plot_display_layer_models.items", item_component_id="line_plot_display_layer", spacing=4),
             u.create_row(
                 u.create_push_button(text=_("Add Layer")),
                 u.create_stretch(),
@@ -1116,10 +1140,12 @@ class LinePlotDisplayLayersSectionHandler(Declarative.Handler):
         )
 
     def create_handler(self, component_id: str, container: typing.Optional[Symbolic.ComputationVariable] = None, item: typing.Any = None, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
-        line_plot_display_layer_model = typing.cast(LinePlotDisplayLayerModel, item)
-        handler = LinePlotDisplayLayerHandler(line_plot_display_layer_model, self._update_layer_list)
-        self._line_plot_display_layer_handlers.append(handler)
-        return handler
+        if component_id == "line_plot_display_layer":
+            line_plot_display_layer_model = LinePlotDisplayLayerModel(self.__document_controller, self.__display_item, typing.cast(DisplayItem.DisplayLayer, item), self._line_plot_display_layer_models)
+            handler = LinePlotDisplayLayerHandler(line_plot_display_layer_model)
+            self._line_plot_display_layer_handlers.append(handler)
+            return handler
+        return None
 
     def add_layer(self) -> None:
         command = DisplayPanel.AddDisplayLayerCommand(self.__document_controller.document_model,
@@ -1135,17 +1161,11 @@ class LinePlotDisplayLayersInspectorSection(InspectorSection):
         self.widget_id = "line_plot_display_layers_inspector_section"
         self.__document_controller = document_controller
         self.__display_item = display_item
-        self._handler: typing.Optional[LinePlotDisplayLayersSectionHandler] = None
-        self.__create_ui()
-
-    def __create_ui(self) -> None:
-        self._handler = LinePlotDisplayLayersSectionHandler(self.__document_controller, self.__display_item, self.__update_ui)
+        display_layer_list_model = ListModel.ObservedListModel[DisplayItem.DisplayLayer](self.__display_item, "display_layers")
+        self._handler = LinePlotDisplayLayersSectionHandler(self.__document_controller, self.__display_item, display_layer_list_model)
         self.__widget = Declarative.DeclarativeWidget(self.__document_controller.ui, self.__document_controller.event_loop, self._handler)
         self.add_widget_to_content(self.__widget)
 
-    def __update_ui(self) -> None:
-        self.remove_widget_from_content(self.__widget)
-        self.__create_ui()
 
 
 class ImageDisplayLimitsModel(Observable.Observable):
