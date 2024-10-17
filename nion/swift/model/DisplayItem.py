@@ -284,19 +284,24 @@ class IntensityCalibrationStyleUncalibrated(CalibrationStyle):
 
 
 class CalibratedValueFloatToStringConverter(Converter.ConverterLike[float, str]):
-    """Converter object to convert from calibrated value to string and back.
+    """Convert a value in a specific dimension of a shape/calibration combination to a string.
 
-    If uniform is true, the converter will fall back to uncalibrated value if the calibrations have
-    different units.
+    Factor can be used to multiply each converted value and used to scale units in special cases.
+
+    Uniform can be set to only use calibrated values if all units match.
+
+    Note: a 'value' includes the calibrated offset; a 'size' doesn't.
     """
-    def __init__(self, display_item: DisplayItem, index: int, uniform: bool = False) -> None:
-        self.__display_item = display_item
+
+    def __init__(self, display_data_shape: typing.Optional[DataAndMetadata.ShapeType], calibrations: typing.Sequence[Calibration.Calibration], index: int, uniform: bool = False) -> None:
+        self.__display_data_shape = display_data_shape
+        self.__calibrations = list(calibrations)
         self.__index = index
         self.__uniform = uniform
 
     def __get_calibration(self) -> Calibration.Calibration:
         index = self.__index
-        calibrations = self.__display_item.displayed_datum_calibrations
+        calibrations = self.__calibrations
         if self.__uniform:
             unit_set = set(calibration.units if calibration.units else '' for calibration in calibrations)
             if len(unit_set) > 1:
@@ -314,7 +319,7 @@ class CalibratedValueFloatToStringConverter(Converter.ConverterLike[float, str])
 
     def __get_data_size(self) -> int:
         index = self.__index
-        display_data_shape = self.__display_item.display_data_shape
+        display_data_shape = self.__display_data_shape
         dimension_count = len(display_data_shape) if display_data_shape is not None else 0
         if index < 0:
             index = dimension_count + index
@@ -355,19 +360,25 @@ class CalibratedValueFloatToStringConverter(Converter.ConverterLike[float, str])
 
 
 class CalibratedSizeFloatToStringConverter(Converter.ConverterLike[float, str]):
-    """
-        Converter object to convert from calibrated size to string and back.
-        """
+    """Convert a size in a specific dimension of a shape/calibration combination to a string.
 
-    def __init__(self, display_item: DisplayItem, index: int, factor: float = 1.0, uniform: bool = False) -> None:
-        self.__display_item = display_item
+    Factor can be used to multiply each converted value and used to scale units in special cases.
+
+    Uniform can be set to only use calibrated values if all units match.
+
+    Note: a 'value' includes the calibrated offset; a 'size' doesn't.
+    """
+
+    def __init__(self, display_data_shape: typing.Optional[DataAndMetadata.ShapeType], calibrations: typing.Sequence[Calibration.Calibration], index: int, factor: float = 1.0, uniform: bool = False) -> None:
+        self.__display_data_shape = display_data_shape
+        self.__calibrations = list(calibrations)
         self.__index = index
         self.__factor = factor
         self.__uniform = uniform
 
     def __get_calibration(self) -> Calibration.Calibration:
         index = self.__index
-        calibrations = self.__display_item.displayed_datum_calibrations
+        calibrations = self.__calibrations
         if self.__uniform:
             unit_set = set(calibration.units if calibration.units else '' for calibration in calibrations)
             if len(unit_set) > 1:
@@ -376,13 +387,13 @@ class CalibratedSizeFloatToStringConverter(Converter.ConverterLike[float, str]):
         if index < 0:
             index = dimension_count + index
         if index >= 0 and index < dimension_count:
-            return self.__display_item.displayed_datum_calibrations[index]
+            return calibrations[index]
         else:
             return Calibration.Calibration()
 
     def __get_data_size(self) -> int:
         index = self.__index
-        display_data_shape = self.__display_item.display_data_shape
+        display_data_shape = self.__display_data_shape
         dimension_count = len(display_data_shape) if display_data_shape else 0
         if index < 0:
             index = dimension_count + index
@@ -3297,9 +3308,10 @@ class DisplayItem(Persistence.PersistentObject):
         assert display_data_shape is not None
         calibrated_dimensional_calibrations = self.calibrated_dimensional_calibrations
         calibrated_dimensional_calibration_str_list = list[str]()
-        for index, dimensional_calibration in enumerate(calibrated_dimensional_calibrations or list()):
-            converter = CalibratedSizeFloatToStringConverter(self, index, uniform=False)
-            calibrated_dimensional_calibration_str_list.append(converter.convert_calibrated_value_to_str(display_data_shape[index]))
+        if calibrated_dimensional_calibrations:
+            for index, dimensional_calibration in enumerate(calibrated_dimensional_calibrations):
+                converter = CalibratedSizeFloatToStringConverter(self.display_data_shape, calibrated_dimensional_calibrations, index, uniform=False)
+                calibrated_dimensional_calibration_str_list.append(converter.convert_calibrated_value_to_str(display_data_shape[index]))
         calibrated_dimensional_calibrations_str = ", ".join(calibrated_dimensional_calibration_str_list) if calibrated_dimensional_calibration_str_list else None
         return DisplayItem.DataInfo(
             data_shape=display_data_shape,

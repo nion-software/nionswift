@@ -25,6 +25,7 @@ from nion.ui import CanvasItem
 from nion.utils import Geometry
 from nion.utils import Registry
 from nion.utils import Stream
+from nion.utils import ReferenceCounting
 
 if typing.TYPE_CHECKING:
     from nion.swift.model import Persistence
@@ -435,9 +436,9 @@ class ImageAreaCompositeCanvasItem(CanvasItem.CanvasItemComposition):
         self.__data_shape: typing.Optional[DataAndMetadata.Shape2dType] = None
         self.__lock = threading.RLock()
         self.screen_pixel_per_image_pixel_stream = Stream.ValueStream(0.0)
+        self.__listener = self._canvas_size_stream.value_stream.listen(ReferenceCounting.weak_partial(ImageAreaCompositeCanvasItem.__on_canvas_size_changed, self))
 
-    def _set_canvas_size(self, canvas_size: typing.Optional[Geometry.IntSizeTuple]) -> None:
-        super()._set_canvas_size(canvas_size)
+    def __on_canvas_size_changed(self, canvas_size: typing.Optional[Geometry.IntSize]) -> None:
         self.__update_screen_pixel_per_image()
 
     @property

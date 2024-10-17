@@ -50,6 +50,10 @@
         "summary": "Exporting to CSV only allows 1D or 2D data."
       },
       {
+        "issues": ["https://github.com/nion-software/nionswift/issues/707"],
+        "summary": "Improve handling of color table files and allow packages to register custom color tables."
+      },
+      {
         "summary": "Fix issue of swapped color channels when exporting to PNG, JPEG, GIF, and BMP."
       },
       {

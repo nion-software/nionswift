@@ -626,6 +626,53 @@ class TestDisplayItemClass(unittest.TestCase):
                 display_item.calibration_style_id = "pixels-center"
                 self.assertEqual("nm", display_item.calibrated_dimensional_calibrations[0].units)
 
+    def test_data_info_for_calibrated_image(self):
+        with create_memory_profile_context() as profile_context:
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                data_item = DataItem.DataItem(numpy.zeros((4, 4), numpy.uint32))
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                data_info = display_item.data_info
+                self.assertEqual("4, 4", data_info.data_shape_str)
+                self.assertIsNone(None, data_info.calibrated_dimensional_calibrations_str)
+                data_item.set_dimensional_calibration(0, Calibration.Calibration(0.0, 1.0, "nm"))
+                data_info = display_item.data_info
+                self.assertEqual("4, 4", data_info.data_shape_str)
+                self.assertEqual("4 nm, 4", data_info.calibrated_dimensional_calibrations_str)
+                data_item.set_dimensional_calibration(1, Calibration.Calibration(0.0, 1.0, "nm"))
+                data_info = display_item.data_info
+                self.assertEqual("4, 4", data_info.data_shape_str)
+                self.assertEqual("4 nm, 4 nm", data_info.calibrated_dimensional_calibrations_str)
+                data_item.set_dimensional_calibration(0, Calibration.Calibration())
+                data_info = display_item.data_info
+                self.assertEqual("4, 4", data_info.data_shape_str)
+                self.assertEqual("4, 4 nm", data_info.calibrated_dimensional_calibrations_str)
+                data_item.set_dimensional_calibration(0, Calibration.Calibration(0.0, 1.0, "nm"))
+                display_item.calibration_style_id = "pixels-center"
+                data_info = display_item.data_info
+                self.assertEqual("4, 4", data_info.data_shape_str)
+                self.assertEqual("4 nm, 4 nm", data_info.calibrated_dimensional_calibrations_str)
+
+    def test_data_info_for_calibrated_line_plot(self):
+        with create_memory_profile_context() as profile_context:
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                data_item = DataItem.DataItem(numpy.zeros((8,), numpy.uint32))
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                data_info = display_item.data_info
+                self.assertEqual("8", data_info.data_shape_str)
+                self.assertIsNone(None, data_info.calibrated_dimensional_calibrations_str)
+                data_item.set_dimensional_calibration(0, Calibration.Calibration(0.0, 1.0, "nm"))
+                data_info = display_item.data_info
+                self.assertEqual("8", data_info.data_shape_str)
+                self.assertEqual("8 nm", data_info.calibrated_dimensional_calibrations_str)
+                display_item.calibration_style_id = "pixels-center"
+                data_info = display_item.data_info
+                self.assertEqual("8", data_info.data_shape_str)
+                self.assertEqual("8 nm", data_info.calibrated_dimensional_calibrations_str)
+
     def test_data_info_for_composite_display(self):
         with create_memory_profile_context() as profile_context:
             document_model = profile_context.create_document_model(auto_close=False)
@@ -635,7 +682,7 @@ class TestDisplayItemClass(unittest.TestCase):
                 display_item = document_model.get_display_item_for_data_item(data_item)
                 data_info = display_item.data_info
                 self.assertEqual("8", data_info.data_shape_str)
-                self.assertIsNone(None, data_info.calibrated_dimensional_calibrations_str)
+                self.assertIsNone(data_info.calibrated_dimensional_calibrations_str)
                 data_item.set_dimensional_calibration(0, Calibration.Calibration(0.0, 1.0, "nm"))
                 data_info = display_item.data_info
                 self.assertEqual("8", data_info.data_shape_str)

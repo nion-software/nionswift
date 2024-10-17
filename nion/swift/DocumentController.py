@@ -435,7 +435,8 @@ class DocumentController(Window.Window):
         assert menu_id.endswith("_menu")
         assert before_menu_id.endswith("_menu") if before_menu_id is not None else True
         if not hasattr(self, "_" + menu_id):
-            before_menu = getattr(self, "_" + before_menu_id) if before_menu_id is not None else None
+            before_menu = typing.cast(typing.Optional[UserInterface.Menu], getattr(self, "_" + before_menu_id) if before_menu_id is not None else None)
+            assert before_menu
             menu = self.insert_menu(menu_title, before_menu)
             setattr(self, "_" + menu_id, menu)
         return typing.cast(UserInterface.Menu, getattr(self, "_" + menu_id))
@@ -1003,9 +1004,11 @@ class DocumentController(Window.Window):
     def __deep_copy(self) -> None:
         self._dispatch_any_to_focus_widget("handle_deep_copy")
 
-    def handle_undo(self) -> None:
+    def handle_undo(self) -> bool:
         if self.__undo_stack.can_undo:
             self.__undo_stack.undo()
+            return True
+        return False
 
     def get_undo_menu_item_state(self) -> UserInterface.MenuItemState:
         self.__undo_stack.validate()

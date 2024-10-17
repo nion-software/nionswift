@@ -2610,6 +2610,148 @@ class RadianToDegreeStringConverter(Converter.ConverterLike[float, str]):
         return None
 
 
+class CalibratedValueFloatToStringConverter(Converter.ConverterLike[float, str]):
+    """Converter object to convert from calibrated value to string and back.
+
+    If uniform is true, the converter will fall back to uncalibrated value if the calibrations have
+    different units.
+
+    This class does the conversion based on the display item, which may change (i.e. calibration style).
+    No attempt is made to keep this class up to date, and it must be recreated or updated when the display item changes.
+    """
+    def __init__(self, display_item: DisplayItem.DisplayItem, index: int, uniform: bool = False) -> None:
+        self.__display_item = display_item
+        self.__index = index
+        self.__uniform = uniform
+
+    def __get_calibration(self) -> Calibration.Calibration:
+        index = self.__index
+        calibrations = self.__display_item.displayed_datum_calibrations
+        if self.__uniform:
+            unit_set = set(calibration.units if calibration.units else '' for calibration in calibrations)
+            if len(unit_set) > 1:
+                return Calibration.Calibration()
+        dimension_count = len(calibrations)
+        if index < 0:
+            index = dimension_count + index
+        if index >= 0 and index < dimension_count:
+            return calibrations[index]
+        else:
+            return Calibration.Calibration()
+
+    def get_units(self) -> str:
+        return self.__get_calibration().units
+
+    def __get_data_size(self) -> int:
+        index = self.__index
+        display_data_shape = self.__display_item.display_data_shape
+        dimension_count = len(display_data_shape) if display_data_shape is not None else 0
+        if index < 0:
+            index = dimension_count + index
+        if index >= 0 and index < dimension_count and display_data_shape is not None:
+            return display_data_shape[index]
+        else:
+            return 1
+
+    def convert_calibrated_value_to_str(self, calibrated_value: float) -> str:
+        calibration = self.__get_calibration()
+        return calibration.convert_calibrated_value_to_str(calibrated_value)
+
+    def convert_to_calibrated_value(self, value: float) -> float:
+        calibration = self.__get_calibration()
+        data_size = self.__get_data_size()
+        return calibration.convert_to_calibrated_value(data_size * value)
+
+    def convert_from_calibrated_value(self, calibrated_value: float) -> float:
+        calibration = self.__get_calibration()
+        data_size = self.__get_data_size()
+        return calibration.convert_from_calibrated_value(calibrated_value) / data_size
+
+    def convert(self, value: typing.Optional[float]) -> typing.Optional[str]:
+        if value is not None:
+            calibration = self.__get_calibration()
+            data_size = self.__get_data_size()
+            return calibration.convert_to_calibrated_value_str(data_size * value, value_range=(0, data_size), samples=data_size)
+        return None
+
+    def convert_back(self, value_str: typing.Optional[str]) -> typing.Optional[float]:
+        if value_str is not None:
+            calibration = self.__get_calibration()
+            data_size = self.__get_data_size()
+            value = Converter.FloatToStringConverter().convert_back(value_str)
+            if value is not None:
+                return calibration.convert_from_calibrated_value(value) / data_size
+        return None
+
+
+class CalibratedSizeFloatToStringConverter(Converter.ConverterLike[float, str]):
+    """Converter object to convert from calibrated size to string and back.
+
+    If uniform is true, the converter will fall back to uncalibrated value if the calibrations have
+    different units.
+
+    This class does the conversion based on the display item, which may change (i.e. calibration style).
+    No attempt is made to keep this class up to date, and it must be recreated or updated when the display item changes.
+    """
+
+    def __init__(self, display_item: DisplayItem.DisplayItem, index: int, factor: float = 1.0, uniform: bool = False) -> None:
+        self.__display_item = display_item
+        self.__index = index
+        self.__factor = factor
+        self.__uniform = uniform
+
+    def __get_calibration(self) -> Calibration.Calibration:
+        index = self.__index
+        calibrations = self.__display_item.displayed_datum_calibrations
+        if self.__uniform:
+            unit_set = set(calibration.units if calibration.units else '' for calibration in calibrations)
+            if len(unit_set) > 1:
+                return Calibration.Calibration()
+        dimension_count = len(calibrations)
+        if index < 0:
+            index = dimension_count + index
+        if index >= 0 and index < dimension_count:
+            return self.__display_item.displayed_datum_calibrations[index]
+        else:
+            return Calibration.Calibration()
+
+    def __get_data_size(self) -> int:
+        index = self.__index
+        display_data_shape = self.__display_item.display_data_shape
+        dimension_count = len(display_data_shape) if display_data_shape else 0
+        if index < 0:
+            index = dimension_count + index
+        if index >= 0 and index < dimension_count and display_data_shape is not None:
+            return display_data_shape[index]
+        else:
+            return 1
+
+    def convert_calibrated_value_to_str(self, calibrated_value: float) -> str:
+        calibration = self.__get_calibration()
+        return calibration.convert_calibrated_size_to_str(calibrated_value)
+
+    def convert_to_calibrated_value(self, size: float) -> float:
+        calibration = self.__get_calibration()
+        data_size = self.__get_data_size()
+        return calibration.convert_to_calibrated_size(data_size * size * self.__factor)
+
+    def convert(self, value: typing.Optional[float]) -> typing.Optional[str]:
+        if value is not None:
+            calibration = self.__get_calibration()
+            data_size = self.__get_data_size()
+            return calibration.convert_to_calibrated_size_str(data_size * value * self.__factor, value_range=(0, data_size), samples=data_size)
+        return None
+
+    def convert_back(self, value_str: typing.Optional[str]) -> typing.Optional[float]:
+        if value_str is not None:
+            calibration = self.__get_calibration()
+            data_size = self.__get_data_size()
+            value = Converter.FloatToStringConverter().convert_back(value_str)
+            if value is not None:
+                return calibration.convert_from_calibrated_size(value) / data_size / self.__factor
+        return None
+
+
 class CalibratedBinding(Binding.Binding):
     def __init__(self, display_item: DisplayItem.DisplayItem, value_binding: Binding.Binding, converter: Converter.ConverterLike[float, str]) -> None:
         super().__init__(None, converter=converter)
@@ -2642,13 +2784,13 @@ class CalibratedBinding(Binding.Binding):
 
 class CalibratedValueBinding(CalibratedBinding):
     def __init__(self, index: int, display_item: DisplayItem.DisplayItem, value_binding: Binding.Binding) -> None:
-        converter = DisplayItem.CalibratedValueFloatToStringConverter(display_item, index)
+        converter = CalibratedValueFloatToStringConverter(display_item, index)
         super().__init__(display_item, value_binding, converter)
 
 
 class CalibratedSizeBinding(CalibratedBinding):
     def __init__(self, index: int, display_item: DisplayItem.DisplayItem, value_binding: Binding.Binding) -> None:
-        converter = DisplayItem.CalibratedSizeFloatToStringConverter(display_item, index)
+        converter = CalibratedSizeFloatToStringConverter(display_item, index)
         super().__init__(display_item, value_binding, converter)
 
 
@@ -2656,7 +2798,7 @@ class CalibratedWidthBinding(CalibratedBinding):
     def __init__(self, display_item: DisplayItem.DisplayItem, value_binding: Binding.Binding) -> None:
         display_data_shape = display_item.display_data_shape
         factor = 1.0 / (display_data_shape[0] if display_data_shape is not None else 1)
-        converter = DisplayItem.CalibratedSizeFloatToStringConverter(display_item, 0, factor)  # width is stored in pixels. argh.
+        converter = CalibratedSizeFloatToStringConverter(display_item, 0, factor)  # width is stored in pixels. argh.
         super().__init__(display_item, value_binding, converter)
 
 
@@ -2664,9 +2806,9 @@ class CalibratedLengthBinding(Binding.Binding):
     def __init__(self, display_item: DisplayItem.DisplayItem, start_binding: Binding.Binding, end_binding: Binding.Binding) -> None:
         super().__init__(None)
         self.__display_item = display_item
-        self.__x_converter = DisplayItem.CalibratedValueFloatToStringConverter(display_item, 1, uniform=True)
-        self.__y_converter = DisplayItem.CalibratedValueFloatToStringConverter(display_item, 0, uniform=True)
-        self.__size_converter = DisplayItem.CalibratedSizeFloatToStringConverter(display_item, 0, uniform=True)
+        self.__x_converter = CalibratedValueFloatToStringConverter(display_item, 1, uniform=True)
+        self.__y_converter = CalibratedValueFloatToStringConverter(display_item, 0, uniform=True)
+        self.__size_converter = CalibratedSizeFloatToStringConverter(display_item, 0, uniform=True)
         self.__start_binding = start_binding
         self.__end_binding = end_binding
         self.__start_binding.target_setter = ReferenceCounting.weak_partial(CalibratedLengthBinding.__update_target, self)
@@ -2707,9 +2849,9 @@ class CalibratedAngleBinding(Binding.Binding):
     def __init__(self, display_item: DisplayItem.DisplayItem, start_binding: Binding.Binding, end_binding: Binding.Binding) -> None:
         super().__init__(None)
         self.__display_item = display_item
-        self.__x_converter = DisplayItem.CalibratedValueFloatToStringConverter(display_item, 1, uniform=True)
-        self.__y_converter = DisplayItem.CalibratedValueFloatToStringConverter(display_item, 0, uniform=True)
-        self.__size_converter = DisplayItem.CalibratedSizeFloatToStringConverter(display_item, 0, uniform=True)
+        self.__x_converter = CalibratedValueFloatToStringConverter(display_item, 1, uniform=True)
+        self.__y_converter = CalibratedValueFloatToStringConverter(display_item, 0, uniform=True)
+        self.__size_converter = CalibratedSizeFloatToStringConverter(display_item, 0, uniform=True)
         self.__start_binding = start_binding
         self.__end_binding = end_binding
         self.__start_binding.target_setter = ReferenceCounting.weak_partial(CalibratedAngleBinding.__update_target, self)
@@ -2836,10 +2978,10 @@ def make_point_type_inspector(document_controller: DocumentController.DocumentCo
         # calculate values from rectangle type graphic
         # signal_index
         position_x_model = DisplayItemCalibratedValueModel(TuplePropertyElementModel(position_model, 1),
-                                                           DisplayItem.CalibratedValueFloatToStringConverter(display_item, 1),
+                                                           CalibratedValueFloatToStringConverter(display_item, 1),
                                                            display_item)
         position_y_model = DisplayItemCalibratedValueModel(TuplePropertyElementModel(position_model, 0),
-                                                           DisplayItem.CalibratedValueFloatToStringConverter(display_item, 0),
+                                                           CalibratedValueFloatToStringConverter(display_item, 0),
                                                            display_item)
         position_x_binding = Binding.PropertyBinding(position_x_model, 'value')
         position_y_binding = Binding.PropertyBinding(position_y_model, 'value')
@@ -4051,8 +4193,9 @@ class GraphicHandler(Declarative.Handler):
 class GraphicVariableHandlerFactory(VariableHandlerComponentFactory2):
     def make_variable_handler(self, computation_inspector_context: ComputationInspectorContext, computation: Symbolic.Computation, computation_variable: Symbolic.ComputationVariable, variable_model: VariableValueModel, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
         if computation_variable.variable_type == Symbolic.ComputationVariableType.GRAPHIC:
-            graphic = computation_variable.bound_item.value if computation_variable.bound_item else None
-            return GraphicHandler(computation_inspector_context.window, computation, computation_variable, graphic)
+            graphic = typing.cast(typing.Optional[Graphics.Graphic], computation_variable.bound_item.value if computation_variable.bound_item else None)
+            if graphic:
+                return GraphicHandler(computation_inspector_context.window, computation, computation_variable, graphic)
         return None
 
 
@@ -4212,7 +4355,7 @@ class DataStructureVariableHandlerFactory(VariableHandlerComponentFactory2):
 
 
 class GraphicListVariableHandler(Declarative.Handler):
-    def __init__(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable, variable_model: VariableValueModel) -> None:
+    def __init__(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable) -> None:
         super().__init__()
         self.document_controller = document_controller
         self.computation = computation
@@ -4230,8 +4373,7 @@ class GraphicListVariableHandler(Declarative.Handler):
 class GraphicListVariableHandlerFactory(VariableHandlerComponentFactory2):
     def make_variable_handler(self, computation_inspector_context: ComputationInspectorContext, computation: Symbolic.Computation, computation_variable: Symbolic.ComputationVariable, variable_model: VariableValueModel, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
         if computation_variable.is_list:
-            graphic = computation_variable.bound_item.value if computation_variable.bound_item else None
-            return GraphicListVariableHandler(computation_inspector_context.window, computation, computation_variable, graphic)
+            return GraphicListVariableHandler(computation_inspector_context.window, computation, computation_variable)
         return None
 
 
