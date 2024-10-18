@@ -830,11 +830,11 @@ class ChangeDisplayLayerPropertyCommand(Undo.UndoableCommand):
 
 
 class ChangeDisplayLayerDisplayDataChannelCommand(Undo.UndoableCommand):
-    def __init__(self, document_model: DocumentModel.DocumentModel, display_item: DisplayItem.DisplayItem, display_layer_index: int, display_data_channel: DisplayItem.DisplayDataChannel) -> None:
+    def __init__(self, document_model: DocumentModel.DocumentModel, display_item: DisplayItem.DisplayItem, display_layer: DisplayItem.DisplayLayer, display_data_channel: DisplayItem.DisplayDataChannel) -> None:
         super().__init__(_("Change Display Layer Data"), command_id="change_display_layer_data", is_mergeable=True)
         self.__document_model = document_model
         self.__display_item_proxy = display_item.create_proxy()
-        self.__display_layer_index = display_layer_index
+        self.__display_layer_index = display_item.display_layers.index(display_layer)
         self.__display_data_channel_proxy = display_data_channel.create_proxy() if display_data_channel else None
         self.initialize()
 
@@ -926,7 +926,6 @@ class DisplayLayerPropertyCommandModel(Model.PropertyChangedPropertyModel[typing
             self.__document_controller.push_undo_command(command)
 
 
-
 class LinePlotDisplayLayerHandler(Declarative.Handler):
     def __init__(self, line_plot_display_layer_model: LinePlotDisplayLayerModel):
         super().__init__()
@@ -936,9 +935,7 @@ class LinePlotDisplayLayerHandler(Declarative.Handler):
         u = Declarative.DeclarativeUI()
         self.ui_view = u.create_column(
             u.create_row(
-                u.create_label(text=_("Layer ")),
-                u.create_label(text="@binding(_line_plot_display_layer_model.index)"),
-                u.create_label(text=":"),
+                u.create_label(text=_("Layer:")),
                 u.create_line_edit(text="@binding(_line_plot_display_layer_model.label_model.value)"),
                 u.create_spacing(12),
                 spacing=12
@@ -1002,7 +999,7 @@ class LinePlotDisplayLayerHandler(Declarative.Handler):
         )
 
     def _move_layer_forward(self) -> None:
-        index = self._line_plot_display_layer_model.index
+        index = self._line_plot_display_layer_model.display_item.display_layers.index(self._line_plot_display_layer_model.display_layer)
         if index > 0:
             command = DisplayPanel.MoveDisplayLayerCommand(self._line_plot_display_layer_model.document_controller.document_model,
                                                            self._line_plot_display_layer_model.display_item,
@@ -1013,7 +1010,7 @@ class LinePlotDisplayLayerHandler(Declarative.Handler):
             self._line_plot_display_layer_model.document_controller.push_undo_command(command)
 
     def _move_layer_backward(self) -> None:
-        index = self._line_plot_display_layer_model.index
+        index = self._line_plot_display_layer_model.display_item.display_layers.index(self._line_plot_display_layer_model.display_layer)
         if index < len(self._line_plot_display_layer_model.display_item.display_layers) - 1:
             command = DisplayPanel.MoveDisplayLayerCommand(self._line_plot_display_layer_model.document_controller.document_model,
                                                            self._line_plot_display_layer_model.display_item,
@@ -1024,7 +1021,8 @@ class LinePlotDisplayLayerHandler(Declarative.Handler):
             self._line_plot_display_layer_model.document_controller.push_undo_command(command)
 
     def _add_layer(self) -> None:
-        index = self._line_plot_display_layer_model.index + 1  # add new layer after current layer
+        # add new layer after current layer
+        index = self._line_plot_display_layer_model.display_item.display_layers.index(self._line_plot_display_layer_model.display_layer) + 1
         command = DisplayPanel.AddDisplayLayerCommand(self._line_plot_display_layer_model.document_controller.document_model,
                                                       self._line_plot_display_layer_model.display_item,
                                                       index)
@@ -1032,7 +1030,7 @@ class LinePlotDisplayLayerHandler(Declarative.Handler):
         self._line_plot_display_layer_model.document_controller.push_undo_command(command)
 
     def _remove_layer(self) -> None:
-        index = self._line_plot_display_layer_model.index
+        index = self._line_plot_display_layer_model.display_item.display_layers.index(self._line_plot_display_layer_model.display_layer)
         command = DisplayPanel.RemoveDisplayLayerCommand(self._line_plot_display_layer_model.document_controller.document_model,
                                                          self._line_plot_display_layer_model.display_item,
                                                          index)
@@ -1060,9 +1058,6 @@ class LinePlotDisplayLayerModel(Observable.Observable):
         self.stroke_color_model = DisplayLayerPropertyCommandModel(document_controller, display_item, display_layer, "stroke_color")
         self.stroke_width_model = DisplayLayerPropertyCommandModel(document_controller, display_item, display_layer, "stroke_width")
 
-        self.show_display_type_chooser = (self.display_layer.display_data_channel
-                                          and self.display_layer.display_data_channel.data_item
-                                          and self.display_layer.display_data_channel.data_item.is_data_complex_type)
         self.display_type_items = [_("Log Absolute"), _("Absolute"), _("Phase"), _("Real"), _("Imaginary")]
         self._display_type_flags = ["log-absolute", "absolute", "phase", "real", "imaginary"]
         self._display_type_reverse_map = {p: i for i, p in enumerate(self._display_type_flags)}
@@ -1074,23 +1069,11 @@ class LinePlotDisplayLayerModel(Observable.Observable):
             ReferenceCounting.weak_partial(LinePlotDisplayLayerModel.__on_data_index_changed, self))
         self.__display_type_index_listener_model = self.current_display_type_index_model.property_changed_event.listen(
             ReferenceCounting.weak_partial(LinePlotDisplayLayerModel.__on_display_type_index_changed, self))
-        self.__display_layer_list_added_listener = display_layers_list_model.item_added_event.listen(
-            ReferenceCounting.weak_partial(LinePlotDisplayLayerModel.__on_display_layer_list_changed, self))
-        self.__display_layer_list_removed_listener = display_layers_list_model.item_removed_event.listen(
-            ReferenceCounting.weak_partial(LinePlotDisplayLayerModel.__on_display_layer_list_changed, self))
-
-    @property
-    def index(self) -> int:
-        if self.display_layer in self.display_item.display_layers:
-            return self.display_item.display_layers.index(self.display_layer)
-        else:
-            # we occasionally get an old LinePlotDisplayLayerModel that is not in the list
-            return 0
 
     @property
     def is_data_complex(self) -> bool:
         if self.display_layer.display_data_channel and self.display_layer.display_data_channel.data_item:
-                return self.display_layer.display_data_channel.data_item.is_data_complex_type
+            return self.display_layer.display_data_channel.data_item.is_data_complex_type
         return False
 
     def __on_data_index_changed(self, property: str) -> None:
@@ -1099,7 +1082,7 @@ class LinePlotDisplayLayerModel(Observable.Observable):
             if display_data_channel:
                 command = ChangeDisplayLayerDisplayDataChannelCommand(self.document_controller.document_model,
                                                                       self.display_item,
-                                                                      self.index,
+                                                                      self.display_layer,
                                                                       display_data_channel)
                 command.perform()
                 self.document_controller.push_undo_command(command)
@@ -1165,7 +1148,6 @@ class LinePlotDisplayLayersInspectorSection(InspectorSection):
         self._handler = LinePlotDisplayLayersSectionHandler(self.__document_controller, self.__display_item, display_layer_list_model)
         self.__widget = Declarative.DeclarativeWidget(self.__document_controller.ui, self.__document_controller.event_loop, self._handler)
         self.add_widget_to_content(self.__widget)
-
 
 
 class ImageDisplayLimitsModel(Observable.Observable):
@@ -1359,7 +1341,7 @@ class ImageDataInspectorHandler(Declarative.Handler):
             ),
             u.create_row(
                 u.create_label(text=_("Contrast"), width=80),
-                u.create_slider(value="@binding(_model.contrast_model.value, converter=_contrast_integer_converter)",  minimum=0, maximum=100, width=124),
+                u.create_slider(value="@binding(_model.contrast_model.value, converter=_contrast_integer_converter)", minimum=0, maximum=100, width=124),
                 u.create_line_edit(text="@binding(_model.contrast_model.value, converter=_contrast_string_converter)", width=60),
                 u.create_stretch(),
                 spacing=8
@@ -1388,7 +1370,7 @@ class ImageDataInspectorHandler(Declarative.Handler):
 
 
 class ComplexDisplayTypeChooserHandler(Declarative.Handler):
-    def __init__(self, document_controller: DocumentController.DocumentController,  display_data_channel: DisplayItem.DisplayDataChannel) -> None:
+    def __init__(self, document_controller: DocumentController.DocumentController, display_data_channel: DisplayItem.DisplayDataChannel) -> None:
         super().__init__()
         self._document_controller = document_controller
         self._display_data_channel = display_data_channel
@@ -1404,7 +1386,7 @@ class ComplexDisplayTypeChooserHandler(Declarative.Handler):
             u.create_combo_box(items=self._display_type_items, on_current_index_changed="change_display_type", current_index="@binding(_current_index)")
         )
 
-    def change_display_type(self,  widget: Declarative.UIWidget, current_index: int) -> None:
+    def change_display_type(self, widget: Declarative.UIWidget, current_index: int) -> None:
         current_display_type = self._display_type_flags[current_index]
         if self._display_data_channel.complex_display_type != current_display_type:
             command = DisplayPanel.ChangeDisplayDataChannelCommand(self._document_controller.document_model,
