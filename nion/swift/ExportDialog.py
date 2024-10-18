@@ -280,12 +280,22 @@ class ExportSizeModel(Observable.Observable):
         return Geometry.IntSize(height=288, width=480)
 
     @property
-    def image_info(self) -> typing.Optional[str]:
-        data_information = self.__display_item.displayed_title + "\nDatashape: "
-        data_information += "("+self.__display_item.data_info.data_shape_str+")"
-        if self.__display_item.data_info.calibrated_dimensional_calibrations_str is not None:
-            data_information += "\nCalibrated units:\n("+self.__display_item.data_info.calibrated_dimensional_calibrations_str+")"
-        return data_information
+    def title(self) -> typing.Optional[str]:
+        title_str = self.__display_item.displayed_title
+        return title_str
+
+    @property
+    def shape(self) -> typing.Optional[str]:
+        shape_str = "Data shape (Pixels) " + "(" + self.__display_item.data_info.data_shape_str + ")"
+        return shape_str
+
+    @property
+    def calibration(self) -> typing.Optional[str]:
+        if self.__display_item.data_info.calibrated_dimensional_calibrations_str:
+            calibration_str = "Shape (calibrated units) (" + self.__display_item.data_info.calibrated_dimensional_calibrations_str + ")"
+            return calibration_str
+        else:
+            return ""
 
     def __enforce_width_height_constraints(self) -> None:
         min_size_in_inches = 3.0
@@ -398,33 +408,51 @@ class ExportSVGHandler(Declarative.Handler):
         u = Declarative.DeclarativeUI()
         self._float_to_string_converter = Converter.FloatToStringConverter()
         self.ui_view = u.create_column(
-            u.create_label(text="@binding(model.image_info)", word_wrap=True),
             u.create_row(
-                u.create_label(text=_("Width:"), width=80),
+                    u.create_label(text="Title", width=80),
+                    u.create_label(text="@binding(model.title)"),
+                    u.create_stretch(),
+                    spacing=8
+                ),
+            u.create_row(
+                u.create_label(text="Shape", width=80),
+                u.create_label(text="@binding(model.shape)"),
+                u.create_stretch(),
+                spacing=8
+            ),
+            u.create_row(
+                u.create_label(text="Title", width=80),
+                u.create_label(text="@binding(model.calibration)"),
+                u.create_stretch(),
+                spacing=8
+            ),
+            u.create_row(
+                u.create_label(text=_("Width"), width=80),
                 u.create_line_edit(
                     placeholder_text="@binding(model.width, converter=_float_to_string_converter)",
                     text="@binding(model.width_text)"
                 ),
-                spacing=12
+                spacing=8
             ),
             u.create_row(
-                u.create_label(text=_("Height:"), width=80),
+                u.create_label(text=_("Height"), width=80),
                 u.create_line_edit(
                     placeholder_text="@binding(model.height, converter=_float_to_string_converter)",
                     text="@binding(model.height_text)"
                 ),
-                spacing=12
+                spacing=8
             ),
             u.create_row(
-                u.create_label(text=_("Units:"), width=80),
+                u.create_label(text=_("Units"), width=80),
                 u.create_combo_box(
                     items=[_("Pixels"), _("Inches"), _("Centimeters")],
                     current_index="@binding(model.units)",
                 ),
-                spacing=12
+                spacing=8
             ),
-            spacing=12,
-            margin=12
+            spacing=8,
+            margin=12,
+            width=390
         )
 
 
@@ -475,7 +503,6 @@ class ExportSVGDialog:
 
     def __cancel_clicked(self) -> bool:
         return True
-
 
 
 @dataclasses.dataclass
