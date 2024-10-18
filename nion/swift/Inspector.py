@@ -293,13 +293,6 @@ class InspectorSection(Widgets.CompositeWidgetBase):
         """Subclasses should all this after calls to add_widget_content."""
         pass
 
-    def remove_widget_from_content(self, widget: UserInterface.Widget) -> None:
-        # need to remove widget and spacing from before the widget
-        index = self.__section_content_column.children.index(widget)
-        spacing = self.__section_content_column.children[index - 1]
-        self.__section_content_column.remove(widget)
-        self.__section_content_column.remove(spacing)
-
     @property
     def _section_content_for_test(self) -> UserInterface.BoxWidget:
         return self.__section_content_column
