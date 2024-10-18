@@ -931,6 +931,7 @@ class LinePlotDisplayLayerHandler(Declarative.Handler):
         super().__init__()
         self._line_plot_display_layer_model = line_plot_display_layer_model
         self.integer_to_string_converter = Converter.IntegerToStringConverter()
+        self.float_to_string_converter = Converter.FloatToStringConverter()
 
         u = Declarative.DeclarativeUI()
         self.ui_view = u.create_column(
@@ -985,7 +986,7 @@ class LinePlotDisplayLayerHandler(Declarative.Handler):
             u.create_row(
                 u.create_label(text=_("Stroke Width"), width=80, height=30),
                 u.create_spacing(44 + 8),  # color push button width + spacing to avoid collapse
-                u.create_line_edit(text="@binding(_line_plot_display_layer_model.stroke_width_model.value, converter=integer_to_string_converter)", width=36),
+                u.create_line_edit(text="@binding(_line_plot_display_layer_model.stroke_width_model.value, converter=float_to_string_converter)", width=36),
                 u.create_stretch(),
                 spacing=8
             ),
