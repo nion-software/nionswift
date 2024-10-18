@@ -1418,7 +1418,7 @@ class TestInspectorClass(unittest.TestCase):
             self.assertEqual(3, len(display_item.display_data_channels))
             self.assertEqual(2, len(display_item.display_layers))
             self.assertEqual(display_item.display_data_channels[1], display_item.get_display_layer_display_data_channel(1))
-            command = Inspector.ChangeDisplayLayerDisplayDataChannelCommand(document_model, display_item, 1, display_item.display_data_channels[2])
+            command = Inspector.ChangeDisplayLayerDisplayDataChannelCommand(document_model, display_item, display_item.display_layers[1], display_item.display_data_channels[2])
             command.perform()
             document_controller.push_undo_command(command)
             self.assertEqual(display_item.display_data_channels[2], display_item.get_display_layer_display_data_channel(1))
