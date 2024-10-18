@@ -754,11 +754,11 @@ class ChangeDisplayLayerPropertyCommand(Undo.UndoableCommand):
 
 
 class ChangeDisplayLayerDisplayDataChannelCommand(Undo.UndoableCommand):
-    def __init__(self, document_model: DocumentModel.DocumentModel, display_item: DisplayItem.DisplayItem, display_layer_index: int, display_data_channel: DisplayItem.DisplayDataChannel) -> None:
+    def __init__(self, document_model: DocumentModel.DocumentModel, display_item: DisplayItem.DisplayItem, display_layer: DisplayItem.DisplayLayer, display_data_channel: DisplayItem.DisplayDataChannel) -> None:
         super().__init__(_("Change Display Layer Data"), command_id="change_display_layer_data", is_mergeable=True)
         self.__document_model = document_model
         self.__display_item_proxy = display_item.create_proxy()
-        self.__display_layer_index = display_layer_index
+        self.__display_layer_uuid = display_layer.uuid
         self.__display_data_channel_proxy = display_data_channel.create_proxy() if display_data_channel else None
         self.initialize()
 
@@ -775,8 +775,11 @@ class ChangeDisplayLayerDisplayDataChannelCommand(Undo.UndoableCommand):
         display_item = self.__display_item_proxy.item
         display_data_channel = self.__display_data_channel_proxy.item if self.__display_data_channel_proxy else None
         if display_item:
-            old_display_data_channel = display_item.get_display_layer_display_data_channel(self.__display_layer_index)
-            display_item.set_display_layer_display_data_channel(self.__display_layer_index, display_data_channel)
+            display_layer = display_item.get_display_layer_by_uuid(self.__display_layer_uuid)
+            assert display_layer
+            old_display_data_channel = display_layer.display_data_channel
+            assert display_data_channel is None or display_data_channel in display_item.display_data_channels
+            display_layer.display_data_channel = display_data_channel
             if old_display_data_channel:
                 if not self.__display_data_channel_proxy:
                     self.__display_data_channel_proxy = old_display_data_channel.create_proxy() if old_display_data_channel else None
@@ -986,10 +989,9 @@ class LinePlotDisplayLayerModel(Observable.Observable):
         if property == "value":
             display_data_channel = self.display_item.display_data_channels[self.data_index_model.value] if self.data_index_model.value is not None else None
             if display_data_channel:
-                index = self.display_item.display_layers.index(self.display_layer)
                 command = ChangeDisplayLayerDisplayDataChannelCommand(self.document_controller.document_model,
                                                                       self.display_item,
-                                                                      index,
+                                                                      self.display_layer,
                                                                       display_data_channel)
                 command.perform()
                 self.document_controller.push_undo_command(command)

@@ -2861,6 +2861,12 @@ class DisplayItem(Persistence.PersistentObject):
         display_data_channel = self.display_data_channels[self.data_items.index(data_item)]
         self.add_display_layer_for_display_data_channel(display_data_channel, **kwargs)
 
+    def get_display_layer_by_uuid(self, display_layer_uuid: uuid.UUID) -> typing.Optional[DisplayLayer]:
+        for display_layer in self.display_layers:
+            if display_layer.uuid == display_layer_uuid:
+                return display_layer
+        return None
+
     def get_display_layer_display_data_channel(self, index: int) -> typing.Optional[DisplayDataChannel]:
         assert 0 <= index < len(self.display_layers)
         return self.display_layers[index].display_data_channel
