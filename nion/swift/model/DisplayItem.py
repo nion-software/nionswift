@@ -3309,9 +3309,21 @@ class DisplayItem(Persistence.PersistentObject):
         calibrated_dimensional_calibrations = self.calibrated_dimensional_calibrations
         calibrated_dimensional_calibration_str_list = list[str]()
         if calibrated_dimensional_calibrations:
-            for index, dimensional_calibration in enumerate(calibrated_dimensional_calibrations):
-                converter = CalibratedSizeFloatToStringConverter(self.display_data_shape, calibrated_dimensional_calibrations, index, uniform=False)
-                calibrated_dimensional_calibration_str_list.append(converter.convert_calibrated_value_to_str(display_data_shape[index]))
+            # make the assumption that the display data is the last dimensions of the data. generate a negative index
+            # for each entry in the display data shape, then use that index to get the calibrated value from the list
+            # of calibrated dimensional calibrations.
+            # but... handle special case of spectrum image where the last dimension is the spectrum and the rest are
+            # the image. in this case, the data is displayed as an image where the last dimension is the spectrum and
+            # integrated over the slice.
+            data_item = self.data_item
+            if len(display_data_shape) == 2 and data_item and data_item.is_datum_1d:
+                for index in range(-len(display_data_shape), 0):
+                    converter = CalibratedSizeFloatToStringConverter(self.display_data_shape, calibrated_dimensional_calibrations, index - 1, uniform=False)
+                    calibrated_dimensional_calibration_str_list.append(converter.convert_calibrated_value_to_str(display_data_shape[index]))
+            else:
+                for index in range(-len(display_data_shape), 0):
+                    converter = CalibratedSizeFloatToStringConverter(self.display_data_shape, calibrated_dimensional_calibrations, index, uniform=False)
+                    calibrated_dimensional_calibration_str_list.append(converter.convert_calibrated_value_to_str(display_data_shape[index]))
         calibrated_dimensional_calibrations_str = ", ".join(calibrated_dimensional_calibration_str_list) if calibrated_dimensional_calibration_str_list else None
         return DisplayItem.DataInfo(
             data_shape=display_data_shape,
