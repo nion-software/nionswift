@@ -703,6 +703,50 @@ class TestDisplayItemClass(unittest.TestCase):
                 self.assertEqual("4, 4", data_info.data_shape_str)
                 self.assertEqual("4 nm, 4 nm", data_info.calibrated_dimensional_calibrations_str)
 
+    def test_data_info_compound_data_items(self):
+        with create_memory_profile_context() as profile_context:
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                # test non-sequence of spectrum image data
+                data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(numpy.ones((3, 3, 4)),
+                                                                                         data_descriptor=DataAndMetadata.DataDescriptor(
+                                                                                             False, 2, 1)))
+                data_item.set_dimensional_calibration(0, Calibration.Calibration(0.0, 1.0, "nm"))
+                data_item.set_dimensional_calibration(1, Calibration.Calibration(0.0, 1.0, "nm"))
+                data_item.set_dimensional_calibration(2, Calibration.Calibration(0.0, 1.0, "eV"))
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                data_info = display_item.data_info
+                self.assertEqual("3, 3", data_info.data_shape_str)
+                self.assertEqual("3 nm, 3 nm", data_info.calibrated_dimensional_calibrations_str)
+                # test non-sequence of compound data
+                data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(numpy.ones((3, 3, 4, 4)),
+                                                                                         data_descriptor=DataAndMetadata.DataDescriptor(
+                                                                                             False, 2, 2)))
+                data_item.set_dimensional_calibration(0, Calibration.Calibration(0.0, 1.0, "nm"))
+                data_item.set_dimensional_calibration(1, Calibration.Calibration(0.0, 1.0, "nm"))
+                data_item.set_dimensional_calibration(2, Calibration.Calibration(0.0, 1.0, "rad"))
+                data_item.set_dimensional_calibration(3, Calibration.Calibration(0.0, 1.0, "rad"))
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                data_info = display_item.data_info
+                self.assertEqual("4, 4", data_info.data_shape_str)
+                self.assertEqual("4 rad, 4 rad", data_info.calibrated_dimensional_calibrations_str)
+                # test sequence of compound data
+                data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(numpy.ones((2, 3, 3, 4, 4)),
+                                                                                         data_descriptor=DataAndMetadata.DataDescriptor(
+                                                                                             True, 2, 2)))
+                data_item.set_dimensional_calibration(0, Calibration.Calibration(0.0, 1.0, "s"))
+                data_item.set_dimensional_calibration(1, Calibration.Calibration(0.0, 1.0, "nm"))
+                data_item.set_dimensional_calibration(2, Calibration.Calibration(0.0, 1.0, "nm"))
+                data_item.set_dimensional_calibration(3, Calibration.Calibration(0.0, 1.0, "rad"))
+                data_item.set_dimensional_calibration(4, Calibration.Calibration(0.0, 1.0, "rad"))
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                data_info = display_item.data_info
+                self.assertEqual("4, 4", data_info.data_shape_str)
+                self.assertEqual("4 rad, 4 rad", data_info.calibrated_dimensional_calibrations_str)
+
     # test_transaction_does_not_cascade_to_data_item_refs
     # test_increment_data_ref_counts_cascades_to_data_item_refs
     # test_adding_data_item_twice_to_composite_item_fails
