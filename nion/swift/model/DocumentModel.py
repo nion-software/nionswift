@@ -895,6 +895,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         return self.session_id
 
     def copy_data_item(self, data_item: DataItem.DataItem) -> DataItem.DataItem:
+        display_item = self.get_display_item_for_data_item(data_item)
+        assert display_item
+        displayed_title = display_item.displayed_title  # take this here to avoid title manager disambiguation after copy
         computation_copy = copy.deepcopy(self.get_data_item_computation(data_item))
         data_item_copy = copy.deepcopy(data_item)
         self.append_data_item(data_item_copy)
@@ -903,9 +906,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             computation_copy._clear_referenced_object("target")
             self.set_data_item_computation(data_item_copy, computation_copy)
         data_item_copy.category = data_item.category
-        display_item = self.get_display_item_for_data_item(data_item_copy)
-        assert display_item
-        data_item_copy.title = display_item.displayed_title + " (" + _("Copy") + ")"
+        data_item_copy.title = displayed_title + " (" + _("Copy") + ")"
         return data_item_copy
 
     def __handle_data_item_inserted(self, data_item: DataItem.DataItem) -> None:
@@ -1903,6 +1904,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         data_item.update_session(self.session_id)
 
     def get_display_item_snapshot_new(self, display_item: DisplayItem.DisplayItem) -> DisplayItem.DisplayItem:
+        displayed_title = display_item.displayed_title  # take this here to avoid title manager disambiguation after copy
         data_item_copy: typing.Optional[DataItem.DataItem]
         display_item_copy = display_item.snapshot()
         try:
@@ -1927,7 +1929,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             for i in range(len(display_item.display_layers)):
                 data_index = display_item.display_data_channels.index(display_item.get_display_layer_display_data_channel(i))
                 display_item_copy.add_display_layer_for_display_data_channel(display_item_copy.display_data_channels[data_index], **display_item.get_display_layer_properties(i))
-            display_item_copy.title = display_item.displayed_title + " (" + _("Snapshot") + ")"
+            display_item_copy.title = displayed_title + " (" + _("Snapshot") + ")"
         except Exception:
             display_item_copy.close()
             raise
@@ -1940,6 +1942,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         return display_item_copy
 
     def get_display_snapshot_new(self, display_item: DisplayItem.DisplayItem) -> DisplayItem.DisplayItem:
+        displayed_title = display_item.displayed_title  # take this here to avoid title manager disambiguation after copy
         display_item_copy = display_item.snapshot()
         display_data_channels: typing.List[DisplayItem.DisplayDataChannel] = list()
         for display_data_channel in display_item_copy.display_data_channels:
@@ -1966,7 +1969,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         for i in range(len(display_item.display_layers)):
             data_index = display_item.display_data_channels.index(display_item.get_display_layer_display_data_channel(i))
             display_item_copy.add_display_layer_for_display_data_channel(display_item_copy.display_data_channels[data_index], **display_item.get_display_layer_properties(i))
-        display_item_copy.title = display_item.displayed_title + " (" + _("Display Snapshot") + ")"
+        display_item_copy.title = displayed_title + " (" + _("Display Snapshot") + ")"
         self.append_display_item(display_item_copy)
         return display_item_copy
 

@@ -3,6 +3,10 @@
     "version": "UNRELEASED",
     "notes": [
       {
+        "issues": ["https://github.com/nion-software/nionswift/issues/651"],
+        "summary": "Ensure display items have unique, quasi-stable displayed titles."
+      },
+      {
         "issues": ["https://github.com/nion-software/nionswift/issues/21"],
         "summary": "Add zoom tool in toolbar. Also add zoom shortcut 'z'."
       },
