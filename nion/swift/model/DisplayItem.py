@@ -2098,14 +2098,14 @@ class DisplayDataDeltaStream(Stream.ValueStream[DisplayDataDelta]):
             self.__send_delta()
         elif key == "graphics":
             self.__graphics.insert(index, item)
-            self.__graphic_changed_listeners.append(item.property_changed_event.listen(ReferenceCounting.weak_partial(DisplayDataDeltaStream.__graphic_changed, self)))
+            self.__graphic_changed_listeners.insert(index, item.property_changed_event.listen(ReferenceCounting.weak_partial(DisplayDataDeltaStream.__graphic_changed, self)))
             self.__update()
             self.__send_delta()
         elif key == "display_layers":
             display_item = self.__display_item
             self.__display_layers.insert(index, item)
             self.__display_layers_list = display_item.display_layers_list
-            self.__display_layer_changed_listeners.append(item.property_changed_event.listen(ReferenceCounting.weak_partial(DisplayDataDeltaStream.__display_layer_changed, self)))
+            self.__display_layer_changed_listeners.insert(index, item.property_changed_event.listen(ReferenceCounting.weak_partial(DisplayDataDeltaStream.__display_layer_changed, self)))
             self.__update()
             self.__send_delta()
 
@@ -2156,8 +2156,9 @@ class DisplayDataDeltaStream(Stream.ValueStream[DisplayDataDelta]):
         self.__send_delta()
 
     def __graphics_changed(self, graphic_selection: GraphicSelection) -> None:
-        self.__graphic_selection = copy.copy(graphic_selection)
-        self.__send_delta()
+        if self.__graphic_selection !=  graphic_selection:
+            self.__graphic_selection = copy.copy(graphic_selection)
+            self.__send_delta()
 
     def __display_item_properties_changed(self, property_name: str) -> None:
         if property_name == "display_properties":

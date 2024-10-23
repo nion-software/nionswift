@@ -26,6 +26,10 @@
         "summary": "Retain state of inspector section twist downs when switching contexts or restarting."
       },
       {
+        "issues": ["https://github.com/nion-software/nionswift/issues/1212"],
+        "summary": "Fix issues with display layers and graphics becoming disconnected in inspector after insert/delete/move."
+      },
+      {
         "issues": ["https://github.com/nion-software/nionswift/issues/1189"],
         "summary": "Fix issue with custom data group not retaining data items added to it."
       },
