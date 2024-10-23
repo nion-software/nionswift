@@ -2,6 +2,7 @@ from __future__ import annotations
 
 # standard libraries
 import asyncio
+import collections
 import concurrent.futures
 import contextlib
 import copy
@@ -29,7 +30,6 @@ from nion.swift.model import Cache
 from nion.swift.model import Changes
 from nion.swift.model import ColorMaps
 from nion.swift.model import DataItem
-from nion.swift.model import DynamicString
 from nion.swift.model import Graphics
 from nion.swift.model import Model
 from nion.swift.model import Persistence
@@ -2346,6 +2346,73 @@ class DisplayDataDeltaStream(Stream.ValueStream[DisplayDataDelta]):
         return [Calibration.Calibration() for c in dimensional_calibrations] if dimensional_calibrations else [Calibration.Calibration()]
 
 
+class DisplayItemTitleManager:
+    """Display item title manager.
+
+    Manage display item titles to ensure they are unique.
+
+    Titles are disambiguated by adding a suffix to the title. The suffix is a short string that is unique among all
+    display items with the same title. The suffix is generated from the display item's UUID. The UUID is used instead
+    of a simple counter to ensure that the suffix is unique even if another display item with lower index is deleted.
+    """
+    def __init__(self) -> None:
+        self.__display_item_title_streams = dict[weakref.ReferenceType["DisplayItem"], Stream.ValueStream[str]]()
+        self.__display_item_title_stream_actions = dict[weakref.ReferenceType["DisplayItem"], Stream.ValueStreamAction[str]]()
+        self.__display_item_suffix_streams = dict[weakref.ReferenceType["DisplayItem"], Stream.ValueStream[str]]()
+
+    def displayed_title_stream_for_display_item(self, display_item: DisplayItem, base_title_stream: Stream.ValueStream[str]) -> Stream.ValueStream[str]:
+        self.__display_item_title_streams[weakref.ref(display_item)] = base_title_stream
+        self.__display_item_title_stream_actions[weakref.ref(display_item)] = Stream.ValueStreamAction(base_title_stream, ReferenceCounting.weak_partial(DisplayItemTitleManager.__displayed_title_changed, self, display_item))
+        self.__display_item_suffix_streams[weakref.ref(display_item)] = Stream.ValueStream[str]()
+
+        def combine_title(base_title: typing.Optional[str], suffix: typing.Optional[str]) -> str:
+            return (base_title or str()) + (" " + suffix if suffix else str())
+
+        return typing.cast(Stream.ValueStream[str], Stream.CombineLatestStream([base_title_stream, self.__display_item_suffix_streams[weakref.ref(display_item)]], combine_title))
+
+    def close_display_item(self, display_item: DisplayItem) -> None:
+        self.__display_item_title_streams.pop(weakref.ref(display_item), None)
+        self.__display_item_title_stream_actions.pop(weakref.ref(display_item), None)
+        self.__display_item_suffix_streams.pop(weakref.ref(display_item), None)
+
+    def __displayed_title_changed(self, display_item: DisplayItem, title: str) -> None:
+        # first make a mapping from the title to the display items with that title.
+        map_title_to_display_items = dict[str, list[weakref.ReferenceType["DisplayItem"]]]()
+        for display_item_ref in self.__display_item_title_stream_actions.keys():
+            display_item_title_stream = self.__display_item_title_streams[display_item_ref]
+            display_item_title = display_item_title_stream.value
+            if display_item_title:
+                map_title_to_display_items[display_item_title] = map_title_to_display_items.get(display_item_title, list()) + [display_item_ref]
+        # next, for any title that has more than one display item, generate a suffix for each display item.
+        for title, display_item_ref_list in map_title_to_display_items.items():
+            if len(display_item_ref_list) > 1:
+                # search for a prefix of the UUID that is unique among all display items with the same title.
+                # start with length 2 and increase until all display items in the subset have a unique prefix.
+                length = 2
+                while length < 32:
+                    uuid_fragments = set[str]()
+                    for display_item_ref in display_item_ref_list:
+                        display_item_ = display_item_ref()
+                        if display_item_:
+                            uuid_fragments.add(display_item_.uuid.hex[:length])
+                    if len(uuid_fragments) < len(display_item_ref_list):
+                        length += 1
+                    else:
+                        break
+                for display_item_ref in display_item_ref_list:
+                    display_item_ = display_item_ref()
+                    if display_item_:
+                        self.__display_item_suffix_streams[display_item_ref].value = "#" + (display_item_.uuid.hex[:length]).upper()
+                # possible implementation of suffixes as indexes; but indexes are not stable during deletions.
+                # for i, display_item_ref in enumerate(display_item_ref_list):
+                #     self.__display_item_suffix_streams[display_item_ref].value = str(i + 1)
+            else:
+                self.__display_item_suffix_streams[display_item_ref_list[0]].value = None
+
+
+display_item_title_manager = DisplayItemTitleManager()
+
+
 class DisplayItem(Persistence.PersistentObject):
     DEFAULT_COLORS = ("#1E90FF", "#FF0000", "#00FF00", "#0000FF", "#FFFF00", "#00FFFF", "#FF00FF", "#888888", "#880000", "#008800", "#000088", "#CCCCCC", "#888800", "#008888", "#880088", "#964B00")
 
@@ -2412,7 +2479,8 @@ class DisplayItem(Persistence.PersistentObject):
                 return data_item_title
             return _("Multiple Data Items")
 
-        self.displayed_title_stream = Stream.CombineLatestStream([self.__specified_title_stream, self.__single_data_item_title_stream], combine_display_title)
+        base_title_stream = Stream.CombineLatestStream([self.__specified_title_stream, self.__single_data_item_title_stream], combine_display_title)
+        self.displayed_title_stream = display_item_title_manager.displayed_title_stream_for_display_item(self, typing.cast(Stream.ValueStream[str], base_title_stream))
 
         def displayed_titled_changed(display_item: DisplayItem, displayed_title: typing.Optional[str]) -> None:
             if not display_item._is_reading:
@@ -2451,6 +2519,7 @@ class DisplayItem(Persistence.PersistentObject):
         with self.__outstanding_condition:
             while self.__outstanding_thread_count:
                 self.__outstanding_condition.wait()
+        display_item_title_manager.close_display_item(self)
         self.__single_data_item_title_stream = typing.cast(typing.Any, None)
         self.__single_data_item_placeholder_title_stream = typing.cast(typing.Any, None)
         self.displayed_title_stream = typing.cast(typing.Any, None)
