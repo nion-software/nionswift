@@ -17,6 +17,7 @@ from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
 from nion.swift.model import DynamicString
 from nion.swift.model import ImportExportManager
+from nion.swift.model import Graphics
 from nion.swift.test import TestContext
 from nion.ui import TestUI
 
@@ -492,6 +493,59 @@ class TestDisplayItemClass(unittest.TestCase):
                 data_item = document_model.data_items[0]
                 display_item = document_model.get_display_item_for_data_item(data_item)
                 self.assertEqual(1, len(display_item.display_layers))
+
+    def test_display_layer_delta_stream_updates_after_inserting_removing_layers(self):
+        with create_memory_profile_context() as profile_context:
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                data_item = DataItem.DataItem(numpy.zeros((8,)))
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                # add a new layer
+                display_item.add_display_layer_for_display_data_channel(display_item.display_data_channels[0])
+                self.assertEqual(2, len(display_item.display_layers))
+                # now insert/remove
+                display_item.insert_display_layer_for_display_data_channel(0, display_item.display_data_channels[0])
+                display_item.remove_display_layer(2).close()
+
+                change_count = 0
+
+                def handle_display_data_delta_stream_change(display_data_delta: DisplayItem.DisplayDataDelta) -> None:
+                    nonlocal change_count
+                    change_count += 1
+
+                with display_item.display_data_delta_stream.value_stream.listen(handle_display_data_delta_stream_change):
+                    display_item.display_layers[0].stroke_width = 2
+                    display_item.display_layers[1].stroke_width = 2
+
+                self.assertEqual(2, change_count)
+
+    def test_display_layer_delta_stream_updates_after_inserting_removing_graphics(self):
+        with create_memory_profile_context() as profile_context:
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                data_item = DataItem.DataItem(numpy.zeros((8,)))
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                display_item.add_graphic(Graphics.PointGraphic())
+                display_item.add_graphic(Graphics.PointGraphic())
+                self.assertEqual(2, len(display_item.graphics))
+                # now insert/remove
+                display_item.insert_graphic(0, Graphics.PointGraphic())
+                display_item.remove_graphic(display_item.graphics[-1]).close()
+                self.assertEqual(2, len(display_item.graphics))
+
+                change_count = 0
+
+                def handle_display_data_delta_stream_change(display_data_delta: DisplayItem.DisplayDataDelta) -> None:
+                    nonlocal change_count
+                    change_count += 1
+
+                with display_item.display_data_delta_stream.value_stream.listen(handle_display_data_delta_stream_change):
+                    display_item.graphics[0].label = "label"
+                    display_item.graphics[1].label = "label"
+
+                self.assertEqual(2, change_count)
 
     def test_displayed_title_is_inherited_from_source(self):
         with create_memory_profile_context() as profile_context:
