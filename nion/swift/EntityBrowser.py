@@ -156,7 +156,7 @@ class EntityTupleModel(Observable.Observable):
                 items = typing.cast(typing.List[typing.Any], value_model.value)
                 for index, item in enumerate(items or tuple()):
                     tuple_model.items.append((index, item))
-                    tuple_model.notify_insert_item("items", tuple_model.items[-1], len(tuple_model.items))
+                    tuple_model.notify_insert_item("items", tuple_model.items[-1], len(tuple_model.items) - 1)
 
         self.__listener = value_model.property_changed_event.listen(weak_partial(property_changed, self))
 
