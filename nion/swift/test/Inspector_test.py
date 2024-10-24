@@ -90,9 +90,9 @@ class TestInspectorClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            converter = DisplayItem.CalibratedValueFloatToStringConverter(display_item, 0)
+            converter = Inspector.CalibratedValueFloatToStringConverter(display_item, 0)
             converter.convert(0.5)
-            converter = DisplayItem.CalibratedSizeFloatToStringConverter(display_item, 0)
+            converter = Inspector.CalibratedSizeFloatToStringConverter(display_item, 0)
             converter.convert(0.5)
 
     def test_adjusting_rectangle_width_should_keep_center_constant(self):
@@ -395,7 +395,7 @@ class TestInspectorClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_item.calibration_style_id = "pixels-top-left"
-            converter = DisplayItem.CalibratedValueFloatToStringConverter(display_item, 0)
+            converter = Inspector.CalibratedValueFloatToStringConverter(display_item, 0)
             locale.setlocale(locale.LC_ALL, '')
             self.assertAlmostEqual(converter.convert_back("0.5"), 0.5 / 256)
             self.assertAlmostEqual(converter.convert_back(".5"), 0.5 / 256)
@@ -612,6 +612,17 @@ class TestInspectorClass(unittest.TestCase):
             self.assertEqual(display_data_channel.display_limits, (None, 2.0))
             inspector_section.image_data_inspector_handler.display_limits_limit_high.editing_finished("")
             self.assertEqual(display_data_channel.display_limits, None)
+
+    def test_image_data_inspector_handles_missing_color_table(self) -> None:
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((4, 4), numpy.uint32))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_data_channel = display_item.display_data_channels[0]
+            display_data_channel.color_map_id = "__missing__"
+            Inspector.ImageDataInspectorModel(document_controller, display_data_channel, display_item)
 
     def test_inspector_handles_deleted_data(self):
         with TestContext.create_memory_context() as test_context:
@@ -1440,12 +1451,12 @@ class TestInspectorClass(unittest.TestCase):
             display_panel.set_display_panel_display_item(display_item)
             document_controller.periodic()
             inspector_panel = document_controller.find_dock_panel("inspector-panel")
-            display_data_channel_index_widget = inspector_panel.widget.find_widget_by_id("display_data_channel_index_widget")
-            display_data_channel_index_widget.on_editing_finished(None)
-            display_data_channel_index_widget.on_editing_finished(0)
-            display_data_channel_index_widget.on_editing_finished("")
-            display_data_channel_index_widget.on_editing_finished("A")
-            display_data_channel_index_widget.on_editing_finished(0)
+            line_plot_display_layers_section = typing.cast(Inspector.LinePlotDisplayLayersInspectorSection, inspector_panel.widget.find_widget_by_id("line_plot_display_layers_inspector_section"))
+            line_plot_display_layer_model = line_plot_display_layers_section._handler._line_plot_display_layer_handlers[0]._line_plot_display_layer_model
+            line_plot_display_layer_model.data_index_model.value = None
+            line_plot_display_layer_model.data_index_model.value = 0
+            line_plot_display_layer_model.data_index_model.value = None
+            line_plot_display_layer_model.data_index_model.value = 0
 
     def test_graphic_property_binding_handles_removed_graphic(self):
         with TestContext.create_memory_context() as test_context:

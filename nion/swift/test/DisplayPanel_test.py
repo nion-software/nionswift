@@ -3171,6 +3171,94 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             DisplayPanel.preview(DisplayPanel.DisplayPanelUISettings(document_controller.ui), display_item, Geometry.IntSize(128, 128))
 
+    def test_adding_fourier_filter_is_undoable(self):
+        with TestContext.create_memory_context() as test_context:
+            # set up the layout
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            # add data item
+            data_item = DataItem.DataItem(numpy.zeros((10, 10)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            # create graphic
+            graphic = Graphics.SpotGraphic()
+            graphic.bounds = Geometry.FloatRect.from_center_and_size((0.25, 0.25), (0.25, 0.25))
+            command = DisplayPanel.InsertGraphicsCommand(document_controller, display_item, [graphic])
+            command.perform()
+            document_controller.push_undo_command(command)
+            display_item.graphic_selection.set(display_item.graphics.index(graphic))
+            # confirm graphic was added
+            self.assertEqual(1, len(display_item.graphics))
+            self.assertEqual("spot-graphic", display_item.graphics[0].type)
+            # check undo/redo
+            document_controller.handle_undo()
+            self.assertEqual(0, len(display_item.graphics))
+            document_controller.handle_redo()
+            self.assertEqual(1, len(display_item.graphics))
+
+    def test_adding_fourier_filter_is_undoable_via_menu_items(self):
+        with TestContext.create_memory_context() as test_context:
+            # set up the layout
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            # add data item
+            data_item = DataItem.DataItem(numpy.zeros((10, 10)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            # put data item in display panel
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            display_panel.root_container.layout_immediate(Geometry.IntSize(1000 + display_panel.header_canvas_item.header_height, 1000))
+            # focus click
+            display_panel.root_container.canvas_widget.simulate_mouse_click(500, 500, CanvasItem.KeyboardModifiers())
+            # add fourier graphic
+            document_controller.perform_action("graphics.add_spot_graphic")
+            self.assertEqual(1, len(display_item.graphics))
+            # undo
+            document_controller.perform_action("window.undo")
+            self.assertEqual(0, len(display_item.graphics))
+            # undo
+            document_controller.perform_action("window.redo")
+            self.assertEqual(1, len(display_item.graphics))
+            # clean up by clearing out the periodic queue
+            document_controller.periodic()
+
+    def test_adding_fourier_filter_to_data_item_with_computation_is_undoable_via_menu_items(self):
+        with TestContext.create_memory_context() as test_context:
+            # set up the layout
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            # add data item
+            data_item = DataItem.DataItem(numpy.zeros((10, 10)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            # add computation
+            document_model.get_fft_new(display_item, display_item.data_item)
+            # put data item in display panel
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            display_panel.root_container.layout_immediate(Geometry.IntSize(1000 + display_panel.header_canvas_item.header_height, 1000))
+            document_controller.periodic()
+            # focus click
+            display_panel.root_container.canvas_widget.simulate_mouse_click(500, 500, CanvasItem.KeyboardModifiers())
+            # recompute initial
+            document_controller.periodic()
+            document_controller.document_model.recompute_all()
+            # add fourier graphic
+            document_controller.perform_action("graphics.add_spot_graphic")
+            self.assertEqual(1, len(display_item.graphics))
+            # recompute after filter
+            document_controller.periodic()
+            document_controller.document_model.recompute_all()
+            # undo
+            document_controller.perform_action("window.undo")
+            self.assertEqual(0, len(display_item.graphics))
+            # undo
+            document_controller.perform_action("window.redo")
+            self.assertEqual(1, len(display_item.graphics))
+            # clean up by clearing out the periodic queue
+            document_controller.periodic()
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
