@@ -285,7 +285,12 @@ class MaybePropertyChangedPropertyModel(Model.PropertyModel[typing.Any]):
         super()._set_value(value)
         # set the property on the observed object. this will trigger a property changed, but will be ignored since
         # the value doesn't change.
-        setattr(self.__observable, self.__property_name, value)
+        try:
+            setattr(self.__observable, self.__property_name, value)
+        except AttributeError as e:
+            # as a convenience for handling dependent read-only fields, such as data_shape on a data item, ignore
+            # attributes that can't be set. it's not clear if this is the right solution...
+            pass
 
 
 class DummyHandler(Declarative.HandlerLike):
