@@ -3319,12 +3319,14 @@ class DisplayItem(Persistence.PersistentObject):
             data_item = self.data_item
             if len(display_data_shape) == 2 and data_item and data_item.is_datum_1d:
                 for index in range(-len(display_data_shape), 0):
-                    converter = CalibratedSizeFloatToStringConverter(self.display_data_shape, calibrated_dimensional_calibrations, index - 1, uniform=False)
-                    calibrated_dimensional_calibration_str_list.append(converter.convert_calibrated_value_to_str(display_data_shape[index]))
+                    converter = CalibratedSizeFloatToStringConverter(self.display_data_shape, calibrated_dimensional_calibrations[:-1], index, uniform=False)
+                    calibrated_value = converter.convert_to_calibrated_value(1.0)
+                    calibrated_dimensional_calibration_str_list.append(converter.convert_calibrated_value_to_str(calibrated_value))
             else:
                 for index in range(-len(display_data_shape), 0):
                     converter = CalibratedSizeFloatToStringConverter(self.display_data_shape, calibrated_dimensional_calibrations, index, uniform=False)
-                    calibrated_dimensional_calibration_str_list.append(converter.convert_calibrated_value_to_str(display_data_shape[index]))
+                    calibrated_value = converter.convert_to_calibrated_value(1.0)
+                    calibrated_dimensional_calibration_str_list.append(converter.convert_calibrated_value_to_str(calibrated_value))
         calibrated_dimensional_calibrations_str = ", ".join(calibrated_dimensional_calibration_str_list) if calibrated_dimensional_calibration_str_list else None
         return DisplayItem.DataInfo(
             data_shape=display_data_shape,
