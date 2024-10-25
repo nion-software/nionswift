@@ -22,7 +22,6 @@ from nion.swift.model import ImportExportManager
 from nion.swift.model import Utility
 from nion.swift import DocumentController
 from nion.swift import DisplayPanel
-from nion.swift.model import UISettings
 from nion.ui import Declarative
 from nion.ui import Dialog
 from nion.ui import UserInterface
@@ -398,7 +397,7 @@ class ExportSizeModel(Observable.Observable):
 
 
 class ExportSVGHandler(Declarative.Handler):
-    def __init__(self, model: ExportSizeModel, get_font_metrics_fn: typing.Callable[[str, str], UISettings.FontMetrics]) -> None:
+    def __init__(self, model: ExportSizeModel, get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> None:
         super().__init__()
         self.model = model  # Ensure model is an attribute of the handler
         u = Declarative.DeclarativeUI()
@@ -407,7 +406,7 @@ class ExportSVGHandler(Declarative.Handler):
         left_column_width = get_font_metrics_fn("normal", "Shape (calibrated units)").width + 20
 
         right_column_strings = [model.title, model.shape_str, model.calibrated_shape_str]
-        right_column_width = max(get_font_metrics_fn("normal", s).width for s in right_column_strings) + 20
+        right_column_width = max(get_font_metrics_fn("normal", s or str()).width for s in right_column_strings) + 20
         right_column_width = max(right_column_width, left_column_width)
 
         self.has_calibrated_shape_str = bool(model.calibrated_shape_str)
