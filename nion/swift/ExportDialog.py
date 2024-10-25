@@ -3,7 +3,6 @@ from __future__ import annotations
 # standard libraries
 import dataclasses
 import enum
-import functools
 import gettext
 import logging
 import os
@@ -23,7 +22,7 @@ from nion.swift.model import ImportExportManager
 from nion.swift.model import Utility
 from nion.swift import DocumentController
 from nion.swift import DisplayPanel
-from nion.swift import Inspector
+from nion.swift.model import UISettings
 from nion.ui import Declarative
 from nion.ui import Dialog
 from nion.ui import UserInterface
@@ -285,12 +284,12 @@ class ExportSizeModel(Observable.Observable):
         return title_str
 
     @property
-    def shape(self) -> typing.Optional[str]:
+    def shape_str(self) -> typing.Optional[str]:
         shape_str = "(" + self.__display_item.data_info.data_shape_str + ")"
         return shape_str
 
     @property
-    def calibration(self) -> typing.Optional[str]:
+    def calibrated_shape_str(self) -> typing.Optional[str]:
         if self.__display_item.data_info.calibrated_dimensional_calibrations_str:
             calibration_str = "(" + self.__display_item.data_info.calibrated_dimensional_calibrations_str + ")"
             return calibration_str
@@ -399,35 +398,42 @@ class ExportSizeModel(Observable.Observable):
 
 
 class ExportSVGHandler(Declarative.Handler):
-    width_value_line_edit: UserInterface.LineEditWidget
-    height_value_line_edit: UserInterface.LineEditWidget
-
-    def __init__(self, model: ExportSizeModel) -> None:
+    def __init__(self, model: ExportSizeModel, get_font_metrics_fn: typing.Callable[[str, str], UISettings.FontMetrics]) -> None:
         super().__init__()
         self.model = model  # Ensure model is an attribute of the handler
         u = Declarative.DeclarativeUI()
         self._float_to_string_converter = Converter.FloatToStringConverter()
+
+        left_column_width = get_font_metrics_fn("normal", "Shape (calibrated units)").width + 20
+
+        right_column_strings = [model.title, model.shape_str, model.calibrated_shape_str]
+        right_column_width = max(get_font_metrics_fn("normal", s).width for s in right_column_strings) + 20
+        right_column_width = max(right_column_width, left_column_width)
+
+        self.has_calibrated_shape_str = bool(model.calibrated_shape_str)
+
         self.ui_view = u.create_column(
             u.create_row(
-                    u.create_label(text="Title", width=130),
-                    u.create_label(text="@binding(model.title)"),
+                    u.create_label(text="Title", width=left_column_width),
+                    u.create_label(text="@binding(model.title)", width=right_column_width),
                     u.create_stretch(),
                     spacing=8
                 ),
             u.create_row(
-                u.create_label(text="Data shape (Pixels) ", width=130),
-                u.create_label(text="@binding(model.shape)"),
+                u.create_label(text="Data shape (Pixels) ", width=left_column_width),
+                u.create_label(text="@binding(model.shape_str)", width=right_column_width),
                 u.create_stretch(),
                 spacing=8
             ),
             u.create_row(
-                u.create_label(text="Shape (calibrated units) ", width=130),
-                u.create_label(text="@binding(model.calibration)"),
+                u.create_label(text="Shape (calibrated units) ", width=left_column_width),
+                u.create_label(text="@binding(model.calibrated_shape_str)", width=right_column_width),
                 u.create_stretch(),
-                spacing=8
+                spacing=8,
+                visible="@binding(has_calibrated_shape_str)"
             ),
             u.create_row(
-                u.create_label(text=_("Width"), width=130),
+                u.create_label(text=_("Width"), width=left_column_width),
                 u.create_line_edit(
                     placeholder_text="@binding(model.width, converter=_float_to_string_converter)",
                     text="@binding(model.width_text)",
@@ -437,7 +443,7 @@ class ExportSVGHandler(Declarative.Handler):
                 spacing=8
             ),
             u.create_row(
-                u.create_label(text=_("Height"), width=130),
+                u.create_label(text=_("Height"), width=left_column_width),
                 u.create_line_edit(
                     placeholder_text="@binding(model.height, converter=_float_to_string_converter)",
                     text="@binding(model.height_text)",
@@ -447,7 +453,7 @@ class ExportSVGHandler(Declarative.Handler):
                 spacing=8
             ),
             u.create_row(
-                u.create_label(text=_("Units"), width=130),
+                u.create_label(text=_("Units"), width=left_column_width),
                 u.create_combo_box(
                     items=[_("Pixels"), _("Inches"), _("Centimeters")],
                     current_index="@binding(model.units)",
@@ -458,7 +464,6 @@ class ExportSVGHandler(Declarative.Handler):
             ),
             spacing=8,
             margin=12,
-            width=300
         )
 
 
@@ -469,7 +474,7 @@ class ExportSVGDialog:
         self.__document_controller = document_controller
         self.__display_item = display_item
         self.__model = ExportSizeModel(display_item)
-        self.__handler = ExportSVGHandler(self.__model)
+        self.__handler = ExportSVGHandler(self.__model, document_controller.ui.get_font_metrics)
         self.__init_ui()
 
     def __init_ui(self) -> None:
