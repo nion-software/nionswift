@@ -20,7 +20,6 @@ from nion.swift import MimeTypes
 from nion.swift.model import DisplayItem
 from nion.swift.model import Graphics
 from nion.swift.model import UISettings
-from nion.swift.model import Utility
 from nion.ui import CanvasItem
 from nion.utils import Color
 from nion.utils import Geometry
