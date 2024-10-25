@@ -888,6 +888,7 @@ class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
                 index = region.index
                 level = canvas_size.height - canvas_size.height * 0.8 + index * 8
                 with drawing_context.saver():
+                    drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
                     drawing_context.clip_rect(0, 0, canvas_size.width, canvas_size.height)
                     drawing_context.begin_path()
 
@@ -1013,6 +1014,7 @@ class LineGraphHorizontalAxisTicksCanvasItemComposer(CanvasItem.BaseComposer):
             x_ticks = axes.calculate_x_ticks(plot_width)
             # draw the tick marks
             with drawing_context.saver():
+                drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
                 for x, _ in x_ticks:
                     drawing_context.begin_path()
                     drawing_context.move_to(x, 0)
@@ -1055,6 +1057,7 @@ class LineGraphHorizontalAxisScaleCanvasItemComposer(CanvasItem.BaseComposer):
             x_ticks = axes.calculate_x_ticks(canvas_size.width - 1)
             # draw the tick marks
             with drawing_context.saver():
+                drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
                 drawing_context.font = "{0:d}px".format(self.__font_size)
                 for x, label in x_ticks:
                     drawing_context.text_align = "center"
@@ -1096,6 +1099,7 @@ class LineGraphHorizontalAxisLabelCanvasItemComposer(CanvasItem.BaseComposer):
             if axes.x_calibration and axes.x_calibration.units:
                 plot_width = canvas_size.width - 1
                 with drawing_context.saver():
+                    drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
                     drawing_context.text_align = "center"
                     drawing_context.text_baseline = "middle"
                     drawing_context.fill_style = "#000"
@@ -1150,6 +1154,7 @@ class LineGraphVerticalAxisTicksCanvasItemComposer(CanvasItem.BaseComposer):
             y_ticks = axes.calculate_y_ticks(canvas_size.height - 1)
             # draw the y_ticks and labels
             with drawing_context.saver():
+                drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
                 for y, _, _ in y_ticks:
                     drawing_context.begin_path()
                     drawing_context.move_to(canvas_size.width, y)
@@ -1265,6 +1270,7 @@ class LineGraphVerticalAxisScaleCanvasItemComposer(CanvasItem.BaseComposer):
 
             # draw the y_ticks and labels
             with drawing_context.saver():
+                drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
                 drawing_context.text_baseline = "middle"
                 drawing_context.font = "{0:d}px".format(self.__font_size)
                 for y, label, is_minor in y_ticks:
@@ -1333,6 +1339,7 @@ class LineGraphVerticalAxisLabelCanvasItemComposer(CanvasItem.BaseComposer):
         if axes:
             if axes.y_calibration and axes.y_calibration.units:
                 with drawing_context.saver():
+                    drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
                     drawing_context.font = "{0:d}px".format(self.__font_size)
                     drawing_context.text_align = "center"
                     drawing_context.text_baseline = "middle"
@@ -1443,41 +1450,44 @@ class LineGraphLegendCanvasItemComposer(CanvasItem.BaseComposer):
         legend_height = len(effective_entries_and_foreign) * line_height
 
         with drawing_context.saver():
-            drawing_context.begin_path()
-            drawing_context.rect(0,
-                                 0,
-                                 legend_width + border * 2 + line_height,
-                                 legend_height + border * 2)
-            drawing_context.fill_style = "rgba(192, 192, 192, 0.5)"
-            drawing_context.fill()
+            drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
 
-        if mouse_pressed_for_dragging or foreign_legend_entry is not None:
             with drawing_context.saver():
                 drawing_context.begin_path()
-                entry_to_insert = entry_to_insert or 0  # for type checking
                 drawing_context.rect(0,
-                                     entry_to_insert * line_height + border,
+                                     0,
                                      legend_width + border * 2 + line_height,
-                                     line_height)
+                                     legend_height + border * 2)
                 drawing_context.fill_style = "rgba(192, 192, 192, 0.5)"
                 drawing_context.fill()
 
-        for index, legend_entry in enumerate(effective_entries_and_foreign):
-            with drawing_context.saver():
-                drawing_context.font = font
-                drawing_context.text_align = "right"
-                drawing_context.text_baseline = "bottom"
-                drawing_context.fill_style = "#000"
-                drawing_context.fill_text(legend_entry.label, legend_width + border, line_height * (index + 1) - 4 + border)
-
-                drawing_context.begin_path()
-                drawing_context.rect(legend_width + border + 3, line_height * index + 3 + border, line_height - 6, line_height - 6)
-                if legend_entry.fill_color:
-                    drawing_context.fill_style = legend_entry.fill_color
+            if mouse_pressed_for_dragging or foreign_legend_entry is not None:
+                with drawing_context.saver():
+                    drawing_context.begin_path()
+                    entry_to_insert = entry_to_insert or 0  # for type checking
+                    drawing_context.rect(0,
+                                         entry_to_insert * line_height + border,
+                                         legend_width + border * 2 + line_height,
+                                         line_height)
+                    drawing_context.fill_style = "rgba(192, 192, 192, 0.5)"
                     drawing_context.fill()
-                if legend_entry.stroke_color:
-                    drawing_context.stroke_style = legend_entry.stroke_color
-                    drawing_context.stroke()
+
+            for index, legend_entry in enumerate(effective_entries_and_foreign):
+                with drawing_context.saver():
+                    drawing_context.font = font
+                    drawing_context.text_align = "right"
+                    drawing_context.text_baseline = "bottom"
+                    drawing_context.fill_style = "#000"
+                    drawing_context.fill_text(legend_entry.label, legend_width + border, line_height * (index + 1) - 4 + border)
+
+                    drawing_context.begin_path()
+                    drawing_context.rect(legend_width + border + 3, line_height * index + 3 + border, line_height - 6, line_height - 6)
+                    if legend_entry.fill_color:
+                        drawing_context.fill_style = legend_entry.fill_color
+                        drawing_context.fill()
+                    if legend_entry.stroke_color:
+                        drawing_context.stroke_style = legend_entry.stroke_color
+                        drawing_context.stroke()
 
 
 class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
