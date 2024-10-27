@@ -1,6 +1,6 @@
 [
   {
-    "version": "UNRELEASED",
+    "version": "16.12.0",
     "notes": [
       {
         "issues": ["https://github.com/nion-software/nionswift/issues/21"],
