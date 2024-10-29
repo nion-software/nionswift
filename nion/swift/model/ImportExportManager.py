@@ -63,7 +63,7 @@ class ImportExportHandler:
         data_elements = self.read_data_elements(extension, file_path)
         for data_element in data_elements:
             if "data" in data_element:
-                if not "title" in data_element:
+                if not data_element.get("title", None):
                     title = file_path.stem
                     data_element["title"] = title
                 data_element["filepath"] = file_path
