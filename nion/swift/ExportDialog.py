@@ -261,13 +261,13 @@ ConversionUnits = {
 
 
 class ExportSizeModel(Observable.Observable):
-    unit_to_str_map = {
+    unit_to_unit_identifier_map = {
         UnitType.PIXELS: "pixels",
         UnitType.INCHES: "inches",
         UnitType.CENTIMETERS: "centimeters"
     }
 
-    str_to_unit_map = {
+    unit_identifier_to_unit_map = {
         "pixels": UnitType.PIXELS,
         "inches": UnitType.INCHES,
         "centimeters": UnitType.CENTIMETERS
@@ -278,13 +278,11 @@ class ExportSizeModel(Observable.Observable):
         self.__display_item = display_item
         self.__units_model = units_model
         display_size = self.__calculate_display_size_in_pixels(display_item)
-        self.__last_input_value: float = display_size.width
         self.__aspect_ratio = display_size.width / display_size.height
         self.__float_to_string_converter = Converter.FloatToStringConverter()
         self.__primary_field = 'width'
-        units_str: str = str(self.__units_model.value)
-        self.__units = self.str_to_unit_map.get(units_str, UnitType.PIXELS)
-        self.__last_input_units = self.__units
+        self.__last_input_units = self.unit_identifier_to_unit_map.get(self.__units_model.value or str() or str(), UnitType.PIXELS)
+        self.__last_input_value: float = display_size.width / ConversionUnits[self.__last_input_units]
         self.__enforce_width_height_constraints()
 
     def __calculate_display_size_in_pixels(self, display_item: DisplayItem.DisplayItem) -> Geometry.IntSize:
@@ -313,18 +311,24 @@ class ExportSizeModel(Observable.Observable):
     def __enforce_width_height_constraints(self) -> None:
         min_size_in_inches = 3.0
         max_size_in_inches = 12.0
-        min_size_in_current_units = min_size_in_inches * ConversionUnits[UnitType.INCHES] / ConversionUnits[self.__units]
-        max_size_in_current_units = max_size_in_inches * ConversionUnits[UnitType.INCHES] / ConversionUnits[self.__units]
+        min_size_in_current_units = (min_size_in_inches * ConversionUnits[UnitType.INCHES] /
+                                     ConversionUnits[self.unit_identifier_to_unit_map.get(self.__units_model.value or str(), UnitType.PIXELS)])
+        max_size_in_current_units = (max_size_in_inches * ConversionUnits[UnitType.INCHES] /
+                                     ConversionUnits[self.unit_identifier_to_unit_map.get(self.__units_model.value or str(), UnitType.PIXELS)])
         if self.__primary_field == 'width':
             if self.width < min_size_in_current_units:
-                self.__last_input_value = min_size_in_current_units * ConversionUnits[self.__units] / ConversionUnits[self.__last_input_units]
+                self.__last_input_value = (min_size_in_current_units * ConversionUnits[self.unit_identifier_to_unit_map.get(self.__units_model.value or str(), UnitType.PIXELS)]
+                                           / ConversionUnits[self.__last_input_units])
             elif self.width > max_size_in_current_units:
-                self.__last_input_value = max_size_in_current_units * ConversionUnits[self.__units] / ConversionUnits[self.__last_input_units]
+                self.__last_input_value = (max_size_in_current_units * ConversionUnits[self.unit_identifier_to_unit_map.get(self.__units_model.value or str(), UnitType.PIXELS)]
+                                           / ConversionUnits[self.__last_input_units])
         elif self.__primary_field == 'height':
             if self.height < min_size_in_current_units:
-                self.__last_input_value = min_size_in_current_units * ConversionUnits[self.__units] / ConversionUnits[self.__last_input_units]
+                self.__last_input_value = (min_size_in_current_units * ConversionUnits[self.unit_identifier_to_unit_map.get(self.__units_model.value or str(), UnitType.PIXELS)]
+                                           / ConversionUnits[self.__last_input_units])
             elif self.height > max_size_in_current_units:
-                self.__last_input_value = max_size_in_current_units * ConversionUnits[self.__units] / ConversionUnits[self.__last_input_units]
+                self.__last_input_value = (max_size_in_current_units * ConversionUnits[self.unit_identifier_to_unit_map.get(self.__units_model.value or str(), UnitType.PIXELS)]
+                                           / ConversionUnits[self.__last_input_units])
         self.notify_property_changed("width")
         self.notify_property_changed("height")
         self.notify_property_changed("width_text")
@@ -333,15 +337,15 @@ class ExportSizeModel(Observable.Observable):
     @property
     def width(self) -> float:
         if self.__primary_field == 'width':
-            if self.__units == UnitType.PIXELS:
-                return round((self.__last_input_value * ConversionUnits[self.__last_input_units]) / ConversionUnits[self.__units])
+            if self.unit_identifier_to_unit_map.get(self.__units_model.value or str(), UnitType.PIXELS) == UnitType.PIXELS:
+                return round((self.__last_input_value * ConversionUnits[self.__last_input_units]) / ConversionUnits[self.unit_identifier_to_unit_map.get(self.__units_model.value or str(), UnitType.PIXELS)])
             else:
-                return (self.__last_input_value * ConversionUnits[self.__last_input_units]) / ConversionUnits[self.__units]
+                return (self.__last_input_value * ConversionUnits[self.__last_input_units]) / ConversionUnits[self.unit_identifier_to_unit_map.get(self.__units_model.value or str(), UnitType.PIXELS)]
         else:
-            if self.__units == UnitType.PIXELS:
-                return round(((self.__last_input_value * ConversionUnits[self.__last_input_units]) / ConversionUnits[self.__units]) * self.__aspect_ratio)
+            if self.unit_identifier_to_unit_map.get(self.__units_model.value or str(), UnitType.PIXELS) == UnitType.PIXELS:
+                return round(((self.__last_input_value * ConversionUnits[self.__last_input_units]) / ConversionUnits[self.unit_identifier_to_unit_map.get(self.__units_model.value or str(), UnitType.PIXELS)]) * self.__aspect_ratio)
             else:
-                return ((self.__last_input_value * ConversionUnits[self.__last_input_units]) / ConversionUnits[self.__units]) * self.__aspect_ratio
+                return ((self.__last_input_value * ConversionUnits[self.__last_input_units]) / ConversionUnits[self.unit_identifier_to_unit_map.get(self.__units_model.value or str(), UnitType.PIXELS)]) * self.__aspect_ratio
 
     @property
     def width_text(self) -> typing.Optional[str]:
@@ -353,7 +357,7 @@ class ExportSizeModel(Observable.Observable):
     def width_text(self, new_width: typing.Optional[str]) -> None:
         if new_width and new_width != "":
             self.__last_input_value = self.__float_to_string_converter.convert_back(new_width) or 0.0
-            self.__last_input_units = self.__units
+            self.__last_input_units = self.unit_identifier_to_unit_map.get(self.__units_model.value or str(), UnitType.PIXELS)
             self.__primary_field = 'width'
             self.notify_property_changed("width")
             self.notify_property_changed("height")
@@ -363,15 +367,15 @@ class ExportSizeModel(Observable.Observable):
     @property
     def height(self) -> float:
         if self.__primary_field == 'height':
-            if self.__units == UnitType.PIXELS:
-                return round((self.__last_input_value * ConversionUnits[self.__last_input_units]) / ConversionUnits[self.__units])
+            if self.unit_identifier_to_unit_map.get(self.__units_model.value or str(), UnitType.PIXELS) == UnitType.PIXELS:
+                return round((self.__last_input_value * ConversionUnits[self.__last_input_units]) / ConversionUnits[self.unit_identifier_to_unit_map.get(self.__units_model.value or str(), UnitType.PIXELS)])
             else:
-                return (self.__last_input_value * ConversionUnits[self.__last_input_units]) / ConversionUnits[self.__units]
+                return (self.__last_input_value * ConversionUnits[self.__last_input_units]) / ConversionUnits[self.unit_identifier_to_unit_map.get(self.__units_model.value or str(), UnitType.PIXELS)]
         else:
-            if self.__units == UnitType.PIXELS:
-                return round(((self.__last_input_value * ConversionUnits[self.__last_input_units]) / ConversionUnits[self.__units]) / self.__aspect_ratio)
+            if self.unit_identifier_to_unit_map.get(self.__units_model.value or str(), UnitType.PIXELS) == UnitType.PIXELS:
+                return round(((self.__last_input_value * ConversionUnits[self.__last_input_units]) / ConversionUnits[self.unit_identifier_to_unit_map.get(self.__units_model.value or str(), UnitType.PIXELS)]) / self.__aspect_ratio)
             else:
-                return ((self.__last_input_value * ConversionUnits[self.__last_input_units]) / ConversionUnits[self.__units]) / self.__aspect_ratio
+                return ((self.__last_input_value * ConversionUnits[self.__last_input_units]) / ConversionUnits[self.unit_identifier_to_unit_map.get(self.__units_model.value or str(), UnitType.PIXELS)]) / self.__aspect_ratio
 
     @property
     def height_text(self) -> typing.Optional[str]:
@@ -383,7 +387,7 @@ class ExportSizeModel(Observable.Observable):
     def height_text(self, new_height: typing.Optional[str]) -> None:
         if new_height is not None and new_height != "":
             self.__last_input_value = self.__float_to_string_converter.convert_back(new_height) or 0.0
-            self.__last_input_units = self.__units
+            self.__last_input_units = self.unit_identifier_to_unit_map.get(self.__units_model.value or str(), UnitType.PIXELS)
             self.__primary_field = 'height'
             self.notify_property_changed("width")
             self.notify_property_changed("height")
@@ -392,14 +396,13 @@ class ExportSizeModel(Observable.Observable):
 
     @property
     def units(self) -> int:
-        return self.__units.value
+        return self.unit_identifier_to_unit_map.get(self.__units_model.value or str(), UnitType.PIXELS).value
 
     @units.setter
     def units(self, new_units: int) -> None:
         new_enum = UnitType(new_units)
-        if self.__units != new_enum:
-            self.__units = new_enum
-            self.__units_model.value = self.unit_to_str_map[self.__units]
+        if self.unit_identifier_to_unit_map.get(self.__units_model.value or str()) != new_enum:
+            self.__units_model.value = self.unit_to_unit_identifier_map[new_enum]
             self.notify_property_changed("width")
             self.notify_property_changed("height")
             self.notify_property_changed("width_text")
