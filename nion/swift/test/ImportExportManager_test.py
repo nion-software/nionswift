@@ -105,12 +105,14 @@ class TestImportExportManagerClass(unittest.TestCase):
             file_path_json = os.path.join(current_working_directory, "__file.json")
             numpy.save(file_path_npy, numpy.zeros((16, 16)))
             with open(file_path_json, "w") as f:
-                json.dump({"version": 1}, f)
+                json.dump({"version": 1, "title": ""}, f)
             handler = ImportExportManager.NumPyImportExportHandler("numpy-io-handler", "npy", ["npy"])
             try:
                 data_items = handler.read_data_items("npy", pathlib.Path(file_path_npy))
                 self.assertEqual(len(data_items), 1)
                 data_item = data_items[0]
+                # check special case of empty title too.
+                self.assertEqual("__file", data_item.title)
                 for data_item in data_items:
                     data_item.close()
             finally:
