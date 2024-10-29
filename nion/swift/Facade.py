@@ -219,16 +219,25 @@ class ObjectSpecifier:
         return None
 
 
-class CanvasItem(CanvasItemModule.AbstractCanvasItem):
+class CanvasItemComposer(CanvasItemModule.BaseComposer):
+    def __init__(self, canvas_item: CanvasItemModule.AbstractCanvasItem, layout_sizing: CanvasItemModule.Sizing, cache: CanvasItemModule.ComposerCache, on_repaint: typing.Optional[typing.Callable[[DrawingContext.DrawingContext, Geometry.IntSize], None]]) -> None:
+        super().__init__(canvas_item, layout_sizing, cache)
+        self.__on_repaint = on_repaint
 
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItemModule.ComposerCache) -> None:
+        with drawing_context.saver():
+            drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
+            if self.__on_repaint:
+                self.__on_repaint(drawing_context, canvas_bounds.size)
+
+
+class CanvasItem(CanvasItemModule.AbstractCanvasItem):
     def __init__(self) -> None:
         super().__init__()
-        self.on_repaint: typing.Optional[typing.Callable[[DrawingContext.DrawingContext, Geometry.IntSize], None]] = None
+        self.__on_repaint: typing.Optional[typing.Callable[[DrawingContext.DrawingContext, Geometry.IntSize], None]] = None
 
-    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
-        canvas_size = self.canvas_size
-        if self.on_repaint and canvas_size:
-            self.on_repaint(drawing_context, canvas_size)
+    def _get_composer(self, composer_cache: CanvasItemModule.ComposerCache) -> typing.Optional[CanvasItemModule.BaseComposer]:
+        return CanvasItemComposer(self, self.sizing, composer_cache, self.__on_repaint)
 
 
 class WidgetLike(typing.Protocol):

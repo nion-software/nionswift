@@ -789,7 +789,7 @@ def make_image_chooser(document_controller: DocumentController.DocumentControlle
         if key == "specified_object":
             computation_input = computation.get_input(variable.name)
             data_item = computation_input.data_item if computation_input else None
-            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item) if data_item else None
             if display_item:
                 data_item_thumbnail_source.set_display_item(display_item)
 

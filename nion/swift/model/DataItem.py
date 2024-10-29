@@ -1014,8 +1014,9 @@ class DataItem(Persistence.PersistentObject):
         self.set_xdata(DataAndMetadata.new_data_and_metadata(data, timestamp=data_modified, timezone=timezone, timezone_offset=timezone_offset))
 
     def set_xdata(self, xdata: typing.Optional[DataAndMetadata.DataAndMetadata], data_modified: typing.Optional[datetime.datetime] = None) -> None:
-        with self.data_source_changes():
-            self.set_data_and_metadata(xdata, data_modified)
+        if not self._closed:
+            with self.data_source_changes():
+                self.set_data_and_metadata(xdata, data_modified)
 
     class DataAccessor:
         def __init__(self, data_item: DataItem, get_data: typing.Callable[[], typing.Optional[_ImageDataType]], set_data: typing.Callable[[typing.Optional[_ImageDataType]], None]) -> None:

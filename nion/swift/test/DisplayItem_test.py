@@ -17,6 +17,7 @@ from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
 from nion.swift.model import DynamicString
 from nion.swift.model import ImportExportManager
+from nion.swift.model import Graphics
 from nion.swift.test import TestContext
 from nion.ui import TestUI
 
@@ -493,6 +494,59 @@ class TestDisplayItemClass(unittest.TestCase):
                 display_item = document_model.get_display_item_for_data_item(data_item)
                 self.assertEqual(1, len(display_item.display_layers))
 
+    def test_display_layer_delta_stream_updates_after_inserting_removing_layers(self):
+        with create_memory_profile_context() as profile_context:
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                data_item = DataItem.DataItem(numpy.zeros((8,)))
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                # add a new layer
+                display_item.add_display_layer_for_display_data_channel(display_item.display_data_channels[0])
+                self.assertEqual(2, len(display_item.display_layers))
+                # now insert/remove
+                display_item.insert_display_layer_for_display_data_channel(0, display_item.display_data_channels[0])
+                display_item.remove_display_layer(2).close()
+
+                change_count = 0
+
+                def handle_display_data_delta_stream_change(display_data_delta: DisplayItem.DisplayDataDelta) -> None:
+                    nonlocal change_count
+                    change_count += 1
+
+                with display_item.display_data_delta_stream.value_stream.listen(handle_display_data_delta_stream_change):
+                    display_item.display_layers[0].stroke_width = 2
+                    display_item.display_layers[1].stroke_width = 2
+
+                self.assertEqual(2, change_count)
+
+    def test_display_layer_delta_stream_updates_after_inserting_removing_graphics(self):
+        with create_memory_profile_context() as profile_context:
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                data_item = DataItem.DataItem(numpy.zeros((8,)))
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                display_item.add_graphic(Graphics.PointGraphic())
+                display_item.add_graphic(Graphics.PointGraphic())
+                self.assertEqual(2, len(display_item.graphics))
+                # now insert/remove
+                display_item.insert_graphic(0, Graphics.PointGraphic())
+                display_item.remove_graphic(display_item.graphics[-1]).close()
+                self.assertEqual(2, len(display_item.graphics))
+
+                change_count = 0
+
+                def handle_display_data_delta_stream_change(display_data_delta: DisplayItem.DisplayDataDelta) -> None:
+                    nonlocal change_count
+                    change_count += 1
+
+                with display_item.display_data_delta_stream.value_stream.listen(handle_display_data_delta_stream_change):
+                    display_item.graphics[0].label = "label"
+                    display_item.graphics[1].label = "label"
+
+                self.assertEqual(2, change_count)
+
     def test_displayed_title_is_inherited_from_source(self):
         with create_memory_profile_context() as profile_context:
             document_model = profile_context.create_document_model(auto_close=False)
@@ -611,6 +665,141 @@ class TestDisplayItemClass(unittest.TestCase):
                 self.assertEqual("green (Negate)", display_item2.placeholder_title)
                 display_item2.title = None
                 self.assertEqual("green (Negate)", display_item2.placeholder_title)
+
+    def test_calibrated_dimensional_calibrations(self):
+        with create_memory_profile_context() as profile_context:
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                data_item = DataItem.DataItem(numpy.zeros((8, ), numpy.uint32))
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                self.assertIsNone(display_item.calibrated_dimensional_calibrations)
+                data_item.dimensional_calibrations = [Calibration.Calibration(3.0, 0.5, "nm")]
+                self.assertEqual(1, len(display_item.calibrated_dimensional_calibrations))
+                self.assertEqual("nm", display_item.calibrated_dimensional_calibrations[0].units)
+                display_item.calibration_style_id = "pixels-center"
+                self.assertEqual("nm", display_item.calibrated_dimensional_calibrations[0].units)
+
+    def test_data_info_for_calibrated_image(self):
+        with create_memory_profile_context() as profile_context:
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                data_item = DataItem.DataItem(numpy.zeros((4, 4), numpy.uint32))
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                data_info = display_item.data_info
+                self.assertEqual("4, 4", data_info.data_shape_str)
+                self.assertIsNone(None, data_info.calibrated_dimensional_calibrations_str)
+                data_item.set_dimensional_calibration(0, Calibration.Calibration(3.0, 0.5, "nm"))
+                data_info = display_item.data_info
+                self.assertEqual("4, 4", data_info.data_shape_str)
+                self.assertEqual("2 nm, 4", data_info.calibrated_dimensional_calibrations_str)
+                data_item.set_dimensional_calibration(1, Calibration.Calibration(3.0, 0.5, "nm"))
+                data_info = display_item.data_info
+                self.assertEqual("4, 4", data_info.data_shape_str)
+                self.assertEqual("2 nm, 2 nm", data_info.calibrated_dimensional_calibrations_str)
+                data_item.set_dimensional_calibration(0, Calibration.Calibration())
+                data_info = display_item.data_info
+                self.assertEqual("4, 4", data_info.data_shape_str)
+                self.assertEqual("4, 2 nm", data_info.calibrated_dimensional_calibrations_str)
+                data_item.set_dimensional_calibration(0, Calibration.Calibration(3.0, 0.5, "nm"))
+                display_item.calibration_style_id = "pixels-center"
+                data_info = display_item.data_info
+                self.assertEqual("4, 4", data_info.data_shape_str)
+                self.assertEqual("2 nm, 2 nm", data_info.calibrated_dimensional_calibrations_str)
+
+    def test_data_info_for_calibrated_line_plot(self):
+        with create_memory_profile_context() as profile_context:
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                data_item = DataItem.DataItem(numpy.zeros((8,), numpy.uint32))
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                data_info = display_item.data_info
+                self.assertEqual("8", data_info.data_shape_str)
+                self.assertIsNone(None, data_info.calibrated_dimensional_calibrations_str)
+                data_item.set_dimensional_calibration(0, Calibration.Calibration(3.0, 0.5, "nm"))
+                data_info = display_item.data_info
+                self.assertEqual("8", data_info.data_shape_str)
+                self.assertEqual("4 nm", data_info.calibrated_dimensional_calibrations_str)
+                display_item.calibration_style_id = "pixels-center"
+                data_info = display_item.data_info
+                self.assertEqual("8", data_info.data_shape_str)
+                self.assertEqual("4 nm", data_info.calibrated_dimensional_calibrations_str)
+
+    def test_data_info_for_composite_display(self):
+        with create_memory_profile_context() as profile_context:
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                data_item = DataItem.DataItem(numpy.zeros((8, ), numpy.uint32))
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                data_info = display_item.data_info
+                self.assertEqual("8", data_info.data_shape_str)
+                self.assertIsNone(data_info.calibrated_dimensional_calibrations_str)
+                data_item.set_dimensional_calibration(0, Calibration.Calibration(0.0, 2.0, "nm"))
+                data_info = display_item.data_info
+                self.assertEqual("8", data_info.data_shape_str)
+                self.assertEqual("16 nm", data_info.calibrated_dimensional_calibrations_str)
+                data_item2 = DataItem.DataItem(numpy.zeros((8, ), numpy.uint32))
+                document_model.append_data_item(data_item2)
+                display_item.append_display_data_channel_for_data_item(data_item2)
+                data_item2.set_dimensional_calibration(0, Calibration.Calibration(8.0, 4.0, "nm"))
+                data_info = display_item.data_info
+                self.assertEqual("20", data_info.data_shape_str)
+                self.assertEqual("40 nm", data_info.calibrated_dimensional_calibrations_str)
+                data_item3 = DataItem.DataItem(numpy.zeros((4, 4), numpy.uint32))
+                document_model.append_data_item(data_item3)
+                data_item3.set_dimensional_calibration(0, Calibration.Calibration(0.0, 1.0, "nm"))
+                data_item3.set_dimensional_calibration(1, Calibration.Calibration(0.0, 1.0, "nm"))
+                display_item3 = document_model.get_display_item_for_data_item(data_item3)
+                data_info = display_item3.data_info
+                self.assertEqual("4, 4", data_info.data_shape_str)
+                self.assertEqual("4 nm, 4 nm", data_info.calibrated_dimensional_calibrations_str)
+
+    def test_data_info_compound_data_items(self):
+        with create_memory_profile_context() as profile_context:
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                # test non-sequence of spectrum image data
+                data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(numpy.ones((3, 3, 4)),
+                                                                                         data_descriptor=DataAndMetadata.DataDescriptor(
+                                                                                             False, 2, 1)))
+                data_item.set_dimensional_calibration(0, Calibration.Calibration(3.0, 0.5, "nm"))
+                data_item.set_dimensional_calibration(1, Calibration.Calibration(3.0, 0.5, "nm"))
+                data_item.set_dimensional_calibration(2, Calibration.Calibration(3.0, 0.5, "eV"))
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                data_info = display_item.data_info
+                self.assertEqual("3, 3", data_info.data_shape_str)
+                self.assertEqual("1.5 nm, 1.5 nm", data_info.calibrated_dimensional_calibrations_str)
+                # test non-sequence of compound data
+                data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(numpy.ones((3, 3, 4, 4)),
+                                                                                         data_descriptor=DataAndMetadata.DataDescriptor(
+                                                                                             False, 2, 2)))
+                data_item.set_dimensional_calibration(0, Calibration.Calibration(3.0, 0.5, "nm"))
+                data_item.set_dimensional_calibration(1, Calibration.Calibration(3.0, 0.5, "nm"))
+                data_item.set_dimensional_calibration(2, Calibration.Calibration(3.0, 0.5, "rad"))
+                data_item.set_dimensional_calibration(3, Calibration.Calibration(3.0, 0.5, "rad"))
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                data_info = display_item.data_info
+                self.assertEqual("4, 4", data_info.data_shape_str)
+                self.assertEqual("2 rad, 2 rad", data_info.calibrated_dimensional_calibrations_str)
+                # test sequence of compound data
+                data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(numpy.ones((2, 3, 3, 4, 4)),
+                                                                                         data_descriptor=DataAndMetadata.DataDescriptor(
+                                                                                             True, 2, 2)))
+                data_item.set_dimensional_calibration(0, Calibration.Calibration(3.0, 0.5, "s"))
+                data_item.set_dimensional_calibration(1, Calibration.Calibration(3.0, 0.5, "nm"))
+                data_item.set_dimensional_calibration(2, Calibration.Calibration(3.0, 0.5, "nm"))
+                data_item.set_dimensional_calibration(3, Calibration.Calibration(3.0, 0.5, "rad"))
+                data_item.set_dimensional_calibration(4, Calibration.Calibration(3.0, 0.5, "rad"))
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                data_info = display_item.data_info
+                self.assertEqual("4, 4", data_info.data_shape_str)
+                self.assertEqual("2 rad, 2 rad", data_info.calibrated_dimensional_calibrations_str)
 
     # test_transaction_does_not_cascade_to_data_item_refs
     # test_increment_data_ref_counts_cascades_to_data_item_refs

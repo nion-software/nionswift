@@ -285,6 +285,12 @@ class DocumentController(Window.Window):
         self.__consoles: typing.List[ConsoleDialog.ConsoleDialog] = list()
 
         self._create_menus()
+
+        if data_group := self.project.data_group:
+            self.set_data_group(data_group)
+        elif filter_id := self.project.filter_id:
+            self.set_filter(filter_id)
+
         if workspace_id:  # used only when testing reference counting
             self.__workspace_controller = Workspace.Workspace(self, workspace_id)
             self.__workspace_controller.restore(self.project.workspace_uuid)
@@ -429,7 +435,8 @@ class DocumentController(Window.Window):
         assert menu_id.endswith("_menu")
         assert before_menu_id.endswith("_menu") if before_menu_id is not None else True
         if not hasattr(self, "_" + menu_id):
-            before_menu = getattr(self, "_" + before_menu_id) if before_menu_id is not None else None
+            before_menu = typing.cast(typing.Optional[UserInterface.Menu], getattr(self, "_" + before_menu_id) if before_menu_id is not None else None)
+            assert before_menu
             menu = self.insert_menu(menu_title, before_menu)
             setattr(self, "_" + menu_id, menu)
         return typing.cast(UserInterface.Menu, getattr(self, "_" + menu_id))
@@ -557,26 +564,28 @@ class DocumentController(Window.Window):
             return ListModel.Filter(True)
 
     def set_data_group(self, data_group: typing.Optional[DataGroup.DataGroup]) -> None:
-        if self.__display_items_model is not None:
-            container = data_group if data_group else self.document_model
-            if container != self.__display_items_model.container:
-                with self.__display_items_model.changes():  # change filter and sort together
-                    self.__display_items_model.container = data_group
-                    self.__display_items_model.filter = self.project_filter
-                    self.__display_items_model.sort_key = None
-                    typing.cast(typing.Any, self.__display_items_model).filter_id = None
-                self.filter_changed_event.fire(data_group, self.__display_items_model.filter_id)
+        container = data_group if data_group else self.document_model
+        if container != self.__display_items_model.container:
+            with self.__display_items_model.changes():  # change filter and sort together
+                self.__display_items_model.container = data_group
+                self.__display_items_model.filter = self.project_filter
+                self.__display_items_model.sort_key = None
+                typing.cast(typing.Any, self.__display_items_model).filter_id = None
+            self.filter_changed_event.fire(data_group, self.__display_items_model.filter_id)
+            self.project.data_group = data_group
+            self.project.filter_id = self.__display_items_model.filter_id
 
     def set_filter(self, filter_id: typing.Optional[str]) -> None:
-        if self.__display_items_model is not None:
-            if filter_id != self.__display_items_model.filter_id:
-                with self.__display_items_model.changes():  # change filter and sort together
-                    self.__display_items_model.container = self.document_model
-                    self.__display_items_model.filter = ListModel.AndFilter((self.project_filter, self.get_filter_predicate(filter_id)))
-                    self.__display_items_model.sort_key = DisplayItem.sort_by_date_key
-                    self.__display_items_model.sort_reverse = True
-                    typing.cast(typing.Any, self.__display_items_model).filter_id = filter_id
-                self.filter_changed_event.fire(None, filter_id)
+        if filter_id != self.__display_items_model.filter_id:
+            with self.__display_items_model.changes():  # change filter and sort together
+                self.__display_items_model.container = self.document_model
+                self.__display_items_model.filter = ListModel.AndFilter((self.project_filter, self.get_filter_predicate(filter_id)))
+                self.__display_items_model.sort_key = DisplayItem.sort_by_date_key
+                self.__display_items_model.sort_reverse = True
+                typing.cast(typing.Any, self.__display_items_model).filter_id = filter_id
+            self.filter_changed_event.fire(None, filter_id)
+            self.project.data_group = None
+            self.project.filter_id = filter_id
 
     def get_data_group_and_filter_id(self) -> typing.Tuple[typing.Optional[DataGroup.DataGroup], typing.Optional[str]]:
         # used for display panel initialization
@@ -693,10 +702,6 @@ class DocumentController(Window.Window):
         # used for testing only
         self.set_data_group(data_group)
         self.select_data_item_in_data_panel(data_item)
-
-    def select_filter_in_data_panel(self, filter_id: str) -> None:
-        # used for testing only
-        self.set_filter(filter_id)
 
     def delete_display_items(self, display_items: typing.Sequence[DisplayItem.DisplayItem], container: typing.Optional[Observable.Observable] = None) -> None:
         container = container if container else self.__display_items_model.container
@@ -999,9 +1004,11 @@ class DocumentController(Window.Window):
     def __deep_copy(self) -> None:
         self._dispatch_any_to_focus_widget("handle_deep_copy")
 
-    def handle_undo(self) -> None:
+    def handle_undo(self) -> bool:
         if self.__undo_stack.can_undo:
             self.__undo_stack.undo()
+            return True
+        return False
 
     def get_undo_menu_item_state(self) -> UserInterface.MenuItemState:
         self.__undo_stack.validate()
@@ -2639,7 +2646,7 @@ class DocumentController(Window.Window):
     def populate_context_menu(self, menu: UserInterface.Menu, action_context: DocumentController.ActionContext) -> None:
         self.add_action_to_menu_if_enabled(menu, "display.reveal", action_context)
         self.add_action_to_menu_if_enabled(menu, "file.export", action_context)
-
+        self.add_action_to_menu_if_enabled(menu, "file.export_batch", action_context)
         data_item = action_context.data_item
         if data_item:
             source_data_items = self.document_model.get_source_data_items(data_item)
@@ -2731,7 +2738,12 @@ class DocumentController(Window.Window):
                                                 display_item, display_items, crop_graphic, selected_graphics, data_item,
                                                 data_items)
 
-    def _get_action_context_for_display_items(self, display_items: typing.Sequence[DisplayItem.DisplayItem], display_panel: typing.Optional[DisplayPanel.DisplayPanel]) -> ActionContext:
+    def _get_action_context_for_display_items(
+            self,
+            display_items: typing.Sequence[DisplayItem.DisplayItem],
+            display_panel: typing.Optional[DisplayPanel.DisplayPanel],
+            *, graphics: typing.Optional[typing.Sequence[Graphics.Graphic]] = None
+    ) -> ActionContext:
         focus_widget = self.focus_widget
         model = self.document_model
         # the logic here is if a single display panel is focused and the user context clicks on another one, then use
@@ -2768,7 +2780,7 @@ class DocumentController(Window.Window):
             for data_item_1 in display_item_1.data_items:
                 if not data_item_1 in used_data_items:
                     used_data_items.append(data_item_1)
-        selected_graphics = used_display_item.selected_graphics if used_display_item else list()
+        selected_graphics = graphics if graphics is not None else (used_display_item.selected_graphics if used_display_item else list())
         selected_display_panel = selected_display_panel or (display_panel if len(used_display_panels) == 1 else None)
         return DocumentController.ActionContext(typing.cast("Application.Application", self.app), self, focus_widget,
                                                 used_display_panel, used_display_panels, selected_display_panel, model,
@@ -3014,7 +3026,7 @@ class DeleteDataItemAction(Window.Action):
 
 class ExportAction(Window.Action):
     action_id = "file.export"
-    action_name = _("Export...")
+    action_name = _("Export Single...")
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         raise NotImplementedError()
@@ -3023,6 +3035,25 @@ class ExportAction(Window.Action):
         context = typing.cast(DocumentController.ActionContext, context)
         window = typing.cast(DocumentController, context.window)
         selected_display_item = context.display_item
+        if selected_display_item:
+            window.export_file(selected_display_item)
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return len(context.display_items) == 1 and context.display_item is not None
+
+
+class ExportBatchAction(Window.Action):
+    action_id = "file.export_batch"
+    action_name = _("Export Multiple...")
+
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        raise NotImplementedError()
+
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
         selected_display_items = context.display_items
         if len(selected_display_items) > 0:
             window.export_files(selected_display_items)
@@ -3049,7 +3080,7 @@ class ExportSVGAction(Window.Action):
 
     def is_enabled(self, context: Window.ActionContext) -> bool:
         context = typing.cast(DocumentController.ActionContext, context)
-        return len(context.display_items) > 0 or context.display_item is not None
+        return len(context.display_items) == 1 and context.display_item is not None
 
 
 class ImportDataAction(Window.Action):
@@ -3081,10 +3112,10 @@ class ImportFolderAction(Window.Action):
 Window.register_action(DeleteItemAction())
 Window.register_action(DeleteDataItemAction())
 Window.register_action(ExportAction())
+Window.register_action(ExportBatchAction())
 Window.register_action(ExportSVGAction())
 Window.register_action(ImportDataAction())
 Window.register_action(ImportFolderAction())
-
 
 
 class DataItemRecorderAction(Window.Action):
@@ -3285,6 +3316,7 @@ class SetToolModeAction(Window.Action):
 
 Window.register_action(SetToolModeAction("pointer", _("Pointer"), "pointer_icon.png", _("Pointer tool for selecting graphics")))
 Window.register_action(SetToolModeAction("hand", _("Hand"), "hand_icon.png", _("Hand tool for dragging images within panel")))
+Window.register_action(SetToolModeAction("zoom", _("Zoom"), "zoom.png", _("Zoom in/out on image")))
 Window.register_action(SetToolModeAction("line", _("Line"), "line_icon.png", _("Line tool for making line regions on images")))
 Window.register_action(SetToolModeAction("ellipse", _("Ellipse"), "ellipse_icon.png", _("Ellipse tool for making ellipse regions on images")))
 Window.register_action(SetToolModeAction("rectangle", _("Rectangle"), "rectangle_icon.png", _("Rectangle tool for making rectangle regions on images")))
@@ -3682,21 +3714,19 @@ class DisplayPanelCenterGraphicsAction(Window.Action):
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
         window = typing.cast(DocumentController, context.window)
-        display_item = window.selected_display_item
-        if display_item:
-            if display_item.graphic_selection.has_selection:
-                graphics = [display_item.graphics[index] for index in display_item.graphic_selection.indexes]
-                if graphics:
-                    def reset_position(graphic: Graphics.Graphic) -> None:
-                        graphic.reset_position()
+        display_item = context.display_item
+        graphics = context.selected_graphics
+        if display_item and graphics:
+            def reset_position(graphic: Graphics.Graphic) -> None:
+                graphic.reset_position()
 
-                    command = DisplayPanel.ChangeGraphicsCommand(window.document_model,
-                                                                 display_item, graphics,
-                                                                 title=DisplayPanelCenterGraphicsAction.action_name,
-                                                                 command_id="move_graphic_to_center", is_mergeable=True,
-                                                                 modify_fn=reset_position)
-                    command.perform()
-                    window.push_undo_command(command)
+            command = DisplayPanel.ChangeGraphicsCommand(window.document_model,
+                                                         display_item, graphics,
+                                                         title=DisplayPanelCenterGraphicsAction.action_name,
+                                                         command_id="move_graphic_to_center", is_mergeable=True,
+                                                         modify_fn=reset_position)
+            command.perform()
+            window.push_undo_command(command)
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
     def is_enabled(self, context: Window.ActionContext) -> bool:

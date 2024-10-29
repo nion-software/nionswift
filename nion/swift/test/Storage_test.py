@@ -625,10 +625,26 @@ class TestStorageClass(unittest.TestCase):
             # make sure indexes are in sequence still
             self.assertEqual(len(profile_context.project_properties["data_groups"][0]["data_groups"]), 4)
 
+    def test_storage_data_group_contents_are_persistent(self):
+        with create_temp_profile_context() as profile_context:
+            data = numpy.random.randn(16, 16)
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                data_group = DataGroup.DataGroup()
+                document_model.append_data_group(data_group)
+                data_item = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
+                document_model.append_data_item(data_item)
+                data_group.append_display_item(document_model.get_display_item_for_data_item(data_item))
+            # read it back
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                read_data_item = document_model.data_items[0]
+                read_display_item = document_model.get_display_item_for_data_item(read_data_item)
+                self.assertEqual(document_model.data_groups[0].display_items[0].uuid, read_display_item.uuid)
+
     def test_copy_data_group(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
-            document_model = document_controller.document_model
             data_group1 = DataGroup.DataGroup()
             document_controller.document_model.append_data_group(data_group1)
             data_group1a = DataGroup.DataGroup()

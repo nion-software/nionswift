@@ -12,6 +12,27 @@ them for evaluation and feedback. If you encounter an issue or have feedback abo
 please contact us or `file issues
 <https://github.com/nion-software/nionswift/issues>`_.
 
+Version 16.12.0 (2024-10-27)
+----------------------------
+* Add zoom tool in toolbar. Also add zoom shortcut ‘z’. (`#21 <https://github.com/nion-software/nionswift/issues/21>`_)
+* Display performance improvements and other drawing improvements.
+* Display snapshot now includes display range, color table, etc. (`#44 <https://github.com/nion-software/nionswift/issues/44>`_)
+* Export and copy to SVG uses sans-serif fonts now.
+* Allow export to SVG to specify size in pixels, inches, or centimeters.
+* Keep sizing of surrounding display panels when removing one.
+* Retain state of inspector section twist downs when switching contexts or restarting.
+* Fix issues with display layers and graphics becoming disconnected in inspector after insert/delete/move. (`#1212 <https://github.com/nion-software/nionswift/issues/1212>`_)
+* Fix issue with custom data group not retaining data items added to it. (`#1189 <https://github.com/nion-software/nionswift/issues/1189>`_)
+* Fix issue when clicking on graphic center in inspector. (`#1158 <https://github.com/nion-software/nionswift/issues/1158>`_)
+* Add export result dialog to show final export status after exporting. (`#749 <https://github.com/nion-software/nionswift/issues/749>`_)
+* Export single data items with same naming options as exporting multiple items. (`#932 <https://github.com/nion-software/nionswift/issues/932>`_)
+* Sanitize file names during export to eliminate illegal characters, (`#591 <https://github.com/nion-software/nionswift/issues/591>`_)
+* Exporting to CSV only allows 1D or 2D data. (`#245 <https://github.com/nion-software/nionswift/issues/245>`_)
+* Improve handling of color table files and allow packages to register custom color tables. (`#707 <https://github.com/nion-software/nionswift/issues/707>`_)
+* Fix issue of swapped color channels when exporting to PNG, JPEG, GIF, and BMP.
+* Allow user to assign/unassign rectangle used for cropping computation data source inputs using icon overlay.
+* Runs with Python 3.13 and Numpy 2.x. Drop Python 3.9 and 3.10 support.
+
 Version 16.11.0 (2024-06-13)
 ----------------------------
 * Computed data items titles update automatically when changing source title. (`#32 <https://github.com/nion-software/nionswift/issues/32>`_)

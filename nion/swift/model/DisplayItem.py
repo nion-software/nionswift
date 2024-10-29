@@ -36,6 +36,7 @@ from nion.swift.model import Persistence
 from nion.swift.model import Schema
 from nion.swift.model import Utility
 from nion.utils import Color
+from nion.utils import Converter
 from nion.utils import DateTime
 from nion.utils import Event
 from nion.utils import Geometry
@@ -280,6 +281,151 @@ class IntensityCalibrationStyleUncalibrated(CalibrationStyle):
 
     def get_intensity_calibration(self, calibration: Calibration.Calibration) -> Calibration.Calibration:
         return Calibration.Calibration()
+
+
+class CalibratedValueFloatToStringConverter(Converter.ConverterLike[float, str]):
+    """Convert a value in a specific dimension of a shape/calibration combination to a string.
+
+    Factor can be used to multiply each converted value and used to scale units in special cases.
+
+    Uniform can be set to only use calibrated values if all units match.
+
+    Note: a 'value' includes the calibrated offset; a 'size' doesn't.
+    """
+
+    def __init__(self, display_data_shape: typing.Optional[DataAndMetadata.ShapeType], calibrations: typing.Sequence[Calibration.Calibration], index: int, uniform: bool = False) -> None:
+        self.__display_data_shape = display_data_shape
+        self.__calibrations = list(calibrations)
+        self.__index = index
+        self.__uniform = uniform
+
+    def __get_calibration(self) -> Calibration.Calibration:
+        index = self.__index
+        calibrations = self.__calibrations
+        if self.__uniform:
+            unit_set = set(calibration.units if calibration.units else '' for calibration in calibrations)
+            if len(unit_set) > 1:
+                return Calibration.Calibration()
+        dimension_count = len(calibrations)
+        if index < 0:
+            index = dimension_count + index
+        if index >= 0 and index < dimension_count:
+            return calibrations[index]
+        else:
+            return Calibration.Calibration()
+
+    def get_units(self) -> str:
+        return self.__get_calibration().units
+
+    def __get_data_size(self) -> int:
+        index = self.__index
+        display_data_shape = self.__display_data_shape
+        dimension_count = len(display_data_shape) if display_data_shape is not None else 0
+        if index < 0:
+            index = dimension_count + index
+        if index >= 0 and index < dimension_count and display_data_shape is not None:
+            return display_data_shape[index]
+        else:
+            return 1
+
+    def convert_calibrated_value_to_str(self, calibrated_value: float) -> str:
+        calibration = self.__get_calibration()
+        return calibration.convert_calibrated_value_to_str(calibrated_value)
+
+    def convert_to_calibrated_value(self, value: float) -> float:
+        calibration = self.__get_calibration()
+        data_size = self.__get_data_size()
+        return calibration.convert_to_calibrated_value(data_size * value)
+
+    def convert_from_calibrated_value(self, calibrated_value: float) -> float:
+        calibration = self.__get_calibration()
+        data_size = self.__get_data_size()
+        return calibration.convert_from_calibrated_value(calibrated_value) / data_size
+
+    def convert(self, value: typing.Optional[float]) -> typing.Optional[str]:
+        if value is not None:
+            calibration = self.__get_calibration()
+            data_size = self.__get_data_size()
+            return calibration.convert_to_calibrated_value_str(data_size * value, value_range=(0, data_size), samples=data_size)
+        return None
+
+    def convert_back(self, value_str: typing.Optional[str]) -> typing.Optional[float]:
+        if value_str is not None:
+            calibration = self.__get_calibration()
+            data_size = self.__get_data_size()
+            value = Converter.FloatToStringConverter().convert_back(value_str)
+            if value is not None:
+                return calibration.convert_from_calibrated_value(value) / data_size
+        return None
+
+
+class CalibratedSizeFloatToStringConverter(Converter.ConverterLike[float, str]):
+    """Convert a size in a specific dimension of a shape/calibration combination to a string.
+
+    Factor can be used to multiply each converted value and used to scale units in special cases.
+
+    Uniform can be set to only use calibrated values if all units match.
+
+    Note: a 'value' includes the calibrated offset; a 'size' doesn't.
+    """
+
+    def __init__(self, display_data_shape: typing.Optional[DataAndMetadata.ShapeType], calibrations: typing.Sequence[Calibration.Calibration], index: int, factor: float = 1.0, uniform: bool = False) -> None:
+        self.__display_data_shape = display_data_shape
+        self.__calibrations = list(calibrations)
+        self.__index = index
+        self.__factor = factor
+        self.__uniform = uniform
+
+    def __get_calibration(self) -> Calibration.Calibration:
+        index = self.__index
+        calibrations = self.__calibrations
+        if self.__uniform:
+            unit_set = set(calibration.units if calibration.units else '' for calibration in calibrations)
+            if len(unit_set) > 1:
+                return Calibration.Calibration()
+        dimension_count = len(calibrations)
+        if index < 0:
+            index = dimension_count + index
+        if index >= 0 and index < dimension_count:
+            return calibrations[index]
+        else:
+            return Calibration.Calibration()
+
+    def __get_data_size(self) -> int:
+        index = self.__index
+        display_data_shape = self.__display_data_shape
+        dimension_count = len(display_data_shape) if display_data_shape else 0
+        if index < 0:
+            index = dimension_count + index
+        if index >= 0 and index < dimension_count and display_data_shape is not None:
+            return display_data_shape[index]
+        else:
+            return 1
+
+    def convert_calibrated_value_to_str(self, calibrated_value: float) -> str:
+        calibration = self.__get_calibration()
+        return calibration.convert_calibrated_size_to_str(calibrated_value)
+
+    def convert_to_calibrated_value(self, size: float) -> float:
+        calibration = self.__get_calibration()
+        data_size = self.__get_data_size()
+        return calibration.convert_to_calibrated_size(data_size * size * self.__factor)
+
+    def convert(self, value: typing.Optional[float]) -> typing.Optional[str]:
+        if value is not None:
+            calibration = self.__get_calibration()
+            data_size = self.__get_data_size()
+            return calibration.convert_to_calibrated_size_str(data_size * value * self.__factor, value_range=(0, data_size), samples=data_size)
+        return None
+
+    def convert_back(self, value_str: typing.Optional[str]) -> typing.Optional[float]:
+        if value_str is not None:
+            calibration = self.__get_calibration()
+            data_size = self.__get_data_size()
+            value = Converter.FloatToStringConverter().convert_back(value_str)
+            if value is not None:
+                return calibration.convert_from_calibrated_size(value) / data_size / self.__factor
+        return None
 
 
 class AdjustmentType(typing.Protocol):
@@ -1952,14 +2098,14 @@ class DisplayDataDeltaStream(Stream.ValueStream[DisplayDataDelta]):
             self.__send_delta()
         elif key == "graphics":
             self.__graphics.insert(index, item)
-            self.__graphic_changed_listeners.append(item.property_changed_event.listen(ReferenceCounting.weak_partial(DisplayDataDeltaStream.__graphic_changed, self)))
+            self.__graphic_changed_listeners.insert(index, item.property_changed_event.listen(ReferenceCounting.weak_partial(DisplayDataDeltaStream.__graphic_changed, self)))
             self.__update()
             self.__send_delta()
         elif key == "display_layers":
             display_item = self.__display_item
             self.__display_layers.insert(index, item)
             self.__display_layers_list = display_item.display_layers_list
-            self.__display_layer_changed_listeners.append(item.property_changed_event.listen(ReferenceCounting.weak_partial(DisplayDataDeltaStream.__display_layer_changed, self)))
+            self.__display_layer_changed_listeners.insert(index, item.property_changed_event.listen(ReferenceCounting.weak_partial(DisplayDataDeltaStream.__display_layer_changed, self)))
             self.__update()
             self.__send_delta()
 
@@ -2010,8 +2156,9 @@ class DisplayDataDeltaStream(Stream.ValueStream[DisplayDataDelta]):
         self.__send_delta()
 
     def __graphics_changed(self, graphic_selection: GraphicSelection) -> None:
-        self.__graphic_selection = copy.copy(graphic_selection)
-        self.__send_delta()
+        if self.__graphic_selection !=  graphic_selection:
+            self.__graphic_selection = copy.copy(graphic_selection)
+            self.__send_delta()
 
     def __display_item_properties_changed(self, property_name: str) -> None:
         if property_name == "display_properties":
@@ -2129,6 +2276,31 @@ class DisplayDataDeltaStream(Stream.ValueStream[DisplayDataDelta]):
         if self.dimensional_calibrations and self.dimensional_shape:
             return self.calibration_style.get_dimensional_calibrations(self.dimensional_shape, self.dimensional_calibrations, self.metadata)
         return [Calibration.Calibration() for c in self.dimensional_calibrations] if self.dimensional_calibrations else [Calibration.Calibration()]
+
+    @property
+    def calibrated_dimensional_calibrations(self) -> typing.Optional[typing.Sequence[Calibration.Calibration]]:
+        """Returns dimensional calibrations that are actually calibrated with units.
+
+        First checks the users displayed calibration style; if no units are present, checks the other calibration styles.
+        """
+        dimensional_calibrations = self.dimensional_calibrations
+        dimensional_shape = self.dimensional_shape
+        if dimensional_calibrations and dimensional_shape:
+            potential_dimensional_calibrations = self.calibration_style.get_dimensional_calibrations(dimensional_shape,
+                                                                                                     dimensional_calibrations,
+                                                                                                     self.metadata)
+            if potential_dimensional_calibrations:
+                if any(dimensional_calibration.units for dimensional_calibration in potential_dimensional_calibrations):
+                    return potential_dimensional_calibrations
+            for calibration_style in self.calibration_styles:
+                potential_dimensional_calibrations = calibration_style.get_dimensional_calibrations(dimensional_shape,
+                                                                                                    dimensional_calibrations,
+                                                                                                    self.metadata)
+                if potential_dimensional_calibrations:
+                    if any(dimensional_calibration.units for dimensional_calibration in
+                           potential_dimensional_calibrations):
+                        return potential_dimensional_calibrations
+        return None
 
     @property
     def displayed_intensity_calibration(self) -> Calibration.Calibration:
@@ -2828,7 +3000,7 @@ class DisplayItem(Persistence.PersistentObject):
         self.notify_property_changed("description")
         self.notify_property_changed("session_id")
 
-    def source_display_items_changed(self, source_display_items: typing.Sequence[DisplayItem], is_loading: bool) -> None:
+    def finish_project_read(self) -> None:
         # the line below is a hack to resend the display data delta. this is required because of an architectural
         # problem: the display layer may not initially have a correct display_data_channel until the whole project is
         # read. the display_data_channel will only return the correct value once the data items are read; and that
@@ -3091,6 +3263,11 @@ class DisplayItem(Persistence.PersistentObject):
         return self.__display_data_delta_stream.displayed_dimensional_calibrations
 
     @property
+    def calibrated_dimensional_calibrations(self) -> typing.Optional[typing.Sequence[Calibration.Calibration]]:
+        """The calibrations for all data dimensions in a calibrated style if possible or None."""
+        return self.__display_data_delta_stream.calibrated_dimensional_calibrations
+
+    @property
     def displayed_datum_calibrations(self) -> typing.Sequence[Calibration.Calibration]:
         """The calibrations for only datum dimensions, in the displayed calibration style."""
         return self.__display_data_delta_stream.displayed_datum_calibrations
@@ -3118,6 +3295,45 @@ class DisplayItem(Persistence.PersistentObject):
     @property
     def intensity_calibration_styles(self) -> typing.Sequence[CalibrationStyle]:
         return self.__display_data_delta_stream.intensity_calibration_styles
+
+    @dataclasses.dataclass
+    class DataInfo:
+        data_shape: typing.Tuple[int, ...]
+        calibrated_dimensional_calibrations: typing.Optional[typing.Sequence[Calibration.Calibration]]
+        data_shape_str: str
+        calibrated_dimensional_calibrations_str: typing.Optional[str]
+
+    @property
+    def data_info(self) -> DisplayItem.DataInfo:
+        display_data_shape = self.display_data_shape
+        assert display_data_shape is not None
+        calibrated_dimensional_calibrations = self.calibrated_dimensional_calibrations
+        calibrated_dimensional_calibration_str_list = list[str]()
+        if calibrated_dimensional_calibrations:
+            # make the assumption that the display data is the last dimensions of the data. generate a negative index
+            # for each entry in the display data shape, then use that index to get the calibrated value from the list
+            # of calibrated dimensional calibrations.
+            # but... handle special case of spectrum image where the last dimension is the spectrum and the rest are
+            # the image. in this case, the data is displayed as an image where the last dimension is the spectrum and
+            # integrated over the slice.
+            data_item = self.data_item
+            if len(display_data_shape) == 2 and data_item and data_item.is_datum_1d:
+                for index in range(-len(display_data_shape), 0):
+                    converter = CalibratedSizeFloatToStringConverter(self.display_data_shape, calibrated_dimensional_calibrations[:-1], index, uniform=False)
+                    calibrated_value = converter.convert_to_calibrated_value(1.0)
+                    calibrated_dimensional_calibration_str_list.append(converter.convert_calibrated_value_to_str(calibrated_value))
+            else:
+                for index in range(-len(display_data_shape), 0):
+                    converter = CalibratedSizeFloatToStringConverter(self.display_data_shape, calibrated_dimensional_calibrations, index, uniform=False)
+                    calibrated_value = converter.convert_to_calibrated_value(1.0)
+                    calibrated_dimensional_calibration_str_list.append(converter.convert_calibrated_value_to_str(calibrated_value))
+        calibrated_dimensional_calibrations_str = ", ".join(calibrated_dimensional_calibration_str_list) if calibrated_dimensional_calibration_str_list else None
+        return DisplayItem.DataInfo(
+            data_shape=display_data_shape,
+            calibrated_dimensional_calibrations=calibrated_dimensional_calibrations,
+            data_shape_str=", ".join(str(d) for d in display_data_shape),
+            calibrated_dimensional_calibrations_str=calibrated_dimensional_calibrations_str
+        )
 
     @property
     def size_and_data_format_as_string(self) -> str:

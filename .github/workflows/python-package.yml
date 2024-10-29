@@ -17,7 +17,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        python-version: ["3.11", "3.12"]
+        python-version: ["3.11", "3.12", "3.13"]
 
     steps:
     - uses: actions/checkout@v4
@@ -73,5 +73,5 @@ jobs:
         conda update -n base --all -y
         conda update --all -y
         conda install conda-build anaconda-client -y
-        conda-build -q -c nion --skip-existing --user nion --token ${{ secrets.anaconda_token }} ..
+        conda build -q --python ${{ matrix.python-version }} -c nion -c conda-forge --override-channels --skip-existing --user nion --token ${{ secrets.anaconda_token }} ..
         popd

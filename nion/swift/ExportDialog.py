@@ -275,21 +275,40 @@ class ExportSizeModel(Observable.Observable):
 
     def __init__(self, display_item: DisplayItem.DisplayItem, units_model: Model.PropertyModel[str]) -> None:
         super().__init__()
+        self.__display_item = display_item
         self.__units_model = units_model
         display_size = self.__calculate_display_size_in_pixels(display_item)
+        self.__last_input_value: float = display_size.width
         self.__aspect_ratio = display_size.width / display_size.height
         self.__float_to_string_converter = Converter.FloatToStringConverter()
         self.__primary_field = 'width'
         units_str: str = str(self.__units_model.value)
         self.__units = self.str_to_unit_map.get(units_str, UnitType.PIXELS)
         self.__last_input_units = self.__units
-        self.__last_input_value: float = display_size.width/ConversionUnits[self.__last_input_units]
         self.__enforce_width_height_constraints()
 
     def __calculate_display_size_in_pixels(self, display_item: DisplayItem.DisplayItem) -> Geometry.IntSize:
-        if display_item.display_data_shape and len(display_item.display_data_shape) == 2:
-            return Geometry.IntSize(height=display_item.display_data_shape[0], width=display_item.display_data_shape[1])
+        if display_item.display_data_shape and self.__display_item.used_display_type != "line_plot":
+            return Geometry.IntSize(height=display_item.display_data_shape[-2], width=display_item.display_data_shape[-1])
         return Geometry.IntSize(height=288, width=480)
+
+    @property
+    def title(self) -> typing.Optional[str]:
+        title_str = self.__display_item.displayed_title
+        return title_str
+
+    @property
+    def shape_str(self) -> typing.Optional[str]:
+        shape_str = "(" + self.__display_item.data_info.data_shape_str + ")"
+        return shape_str
+
+    @property
+    def calibrated_shape_str(self) -> typing.Optional[str]:
+        if self.__display_item.data_info.calibrated_dimensional_calibrations_str:
+            calibration_str = "(" + self.__display_item.data_info.calibrated_dimensional_calibrations_str + ")"
+            return calibration_str
+        else:
+            return ""
 
     def __enforce_width_height_constraints(self) -> None:
         min_size_in_inches = 3.0
@@ -394,41 +413,72 @@ class ExportSizeModel(Observable.Observable):
 
 
 class ExportSVGHandler(Declarative.Handler):
-    width_value_line_edit: UserInterface.LineEditWidget
-    height_value_line_edit: UserInterface.LineEditWidget
-
-    def __init__(self, model: ExportSizeModel) -> None:
+    def __init__(self, model: ExportSizeModel, get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> None:
         super().__init__()
         self.model = model
         u = Declarative.DeclarativeUI()
         self._float_to_string_converter = Converter.FloatToStringConverter()
+
+        left_column_width = get_font_metrics_fn("normal", "Shape (calibrated units)").width + 20
+
+        right_column_strings = [model.title, model.shape_str, model.calibrated_shape_str]
+        right_column_width = max(get_font_metrics_fn("normal", s or str()).width for s in right_column_strings) + 20
+        right_column_width = max(right_column_width, left_column_width)
+
+        self.has_calibrated_shape_str = bool(model.calibrated_shape_str)
+
         self.ui_view = u.create_column(
             u.create_row(
-                u.create_label(text=_("Width:"), width=80),
+                    u.create_label(text="Title", width=left_column_width),
+                    u.create_label(text="@binding(model.title)", width=right_column_width),
+                    u.create_stretch(),
+                    spacing=8
+                ),
+            u.create_row(
+                u.create_label(text="Data shape (Pixels) ", width=left_column_width),
+                u.create_label(text="@binding(model.shape_str)", width=right_column_width),
+                u.create_stretch(),
+                spacing=8
+            ),
+            u.create_row(
+                u.create_label(text="Shape (calibrated units) ", width=left_column_width),
+                u.create_label(text="@binding(model.calibrated_shape_str)", width=right_column_width),
+                u.create_stretch(),
+                spacing=8,
+                visible="@binding(has_calibrated_shape_str)"
+            ),
+            u.create_row(
+                u.create_label(text=_("Width"), width=left_column_width),
                 u.create_line_edit(
                     placeholder_text="@binding(model.width, converter=_float_to_string_converter)",
-                    text="@binding(model.width_text)"
+                    text="@binding(model.width_text)",
+                    width=100
                 ),
-                spacing=12
+                u.create_stretch(),
+                spacing=8
             ),
             u.create_row(
-                u.create_label(text=_("Height:"), width=80),
+                u.create_label(text=_("Height"), width=left_column_width),
                 u.create_line_edit(
                     placeholder_text="@binding(model.height, converter=_float_to_string_converter)",
-                    text="@binding(model.height_text)"
+                    text="@binding(model.height_text)",
+                    width=100
                 ),
-                spacing=12
+                u.create_stretch(),
+                spacing=8
             ),
             u.create_row(
-                u.create_label(text=_("Units:"), width=80),
+                u.create_label(text=_("Units"), width=left_column_width),
                 u.create_combo_box(
                     items=[_("Pixels"), _("Inches"), _("Centimeters")],
                     current_index="@binding(model.units)",
+                    width=100
                 ),
-                spacing=12
+                u.create_stretch(),
+                spacing=8
             ),
-            spacing=12,
-            margin=12
+            spacing=8,
+            margin=12,
         )
 
 
@@ -444,7 +494,7 @@ class ExportSVGDialog:
             value=UnitType.PIXELS.name
         )
         self.__model = ExportSizeModel(display_item, self.__units_model)
-        self.__handler = ExportSVGHandler(self.__model)
+        self.__handler = ExportSVGHandler(self.__model, document_controller.ui.get_font_metrics)
         self.__init_ui()
 
     def __init_ui(self) -> None:

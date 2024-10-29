@@ -130,6 +130,103 @@ _test_log_exceptions = True
 # tbd
 
 
+class DisplayPanelOverlayCanvasItemComposer(CanvasItem.BaseComposer):
+    def __init__(self,
+                 canvas_item: CanvasItem.AbstractCanvasItem,
+                 layout_sizing: CanvasItem.Sizing,
+                 cache: CanvasItem.ComposerCache,
+                 drop_regions_map: _DropRegionsDictType,
+                 drop_region: str,
+                 is_focused: bool,
+                 is_selected: bool,
+                 focused_style: str,
+                 selected_style: str,
+                 line_dash: typing.Optional[int],
+                 selection_number: typing.Optional[int],
+                 get_font_metrics_fn: typing.Callable[[str, str], UISettings.FontMetrics]) -> None:
+        super().__init__(canvas_item, layout_sizing, cache)
+        self.__drop_regions_map = drop_regions_map
+        self.__drop_region = drop_region
+        self.__is_focused = is_focused
+        self.__is_selected = is_selected
+        self.__focused_style = focused_style
+        self.__selected_style = selected_style
+        self.__line_dash = line_dash
+        self.__selection_number = selection_number
+        self.__get_font_metrics_fn = get_font_metrics_fn
+
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> None:
+        drop_regions_map = self.__drop_regions_map
+        drop_region = self.__drop_region
+        is_focused = self.__is_focused
+        is_selected = self.__is_selected
+        focused_style = self.__focused_style
+        selected_style = self.__selected_style
+        line_dash = self.__line_dash
+        selection_number = self.__selection_number
+        get_font_metrics_fn = self.__get_font_metrics_fn
+
+        with drawing_context.saver():
+            drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
+
+            # draw the border
+            with drawing_context.saver():
+                drawing_context.begin_path()
+                drawing_context.rect(0, 0, canvas_bounds.width, canvas_bounds.height)
+                drawing_context.line_join = "miter"
+                drawing_context.stroke_style = "#AAA"
+                drawing_context.line_width = 0.5
+                drawing_context.stroke()
+
+            if drop_region != "none":
+                with drawing_context.saver():
+                    drawing_context.begin_path()
+                    if drop_region in drop_regions_map:
+                        drop_region_hit_rect, drop_region_draw_rect = drop_regions_map[drop_region]
+                        drawing_context.rect(drop_region_draw_rect.left, drop_region_draw_rect.top, drop_region_draw_rect.width, drop_region_draw_rect.height)
+                    elif drop_region == "left":
+                        drawing_context.rect(0, 0, int(canvas_bounds.width * 0.10), canvas_bounds.height)
+                    elif drop_region == "right":
+                        drawing_context.rect(int(canvas_bounds.width * 0.90), 0, int(canvas_bounds.width - canvas_bounds.width * 0.90), canvas_bounds.height)
+                    elif drop_region == "top":
+                        drawing_context.rect(0, 0, canvas_bounds.width, int(canvas_bounds.height * 0.10))
+                    elif drop_region == "bottom":
+                        drawing_context.rect(0, int(canvas_bounds.height * 0.90), canvas_bounds.width, int(canvas_bounds.height - canvas_bounds.height * 0.90))
+                    else:
+                        drawing_context.rect(0, 0, canvas_bounds.width, canvas_bounds.height)
+                    drawing_context.fill_style = "rgba(255, 0, 0, 0.10)"
+                    drawing_context.fill()
+
+            if is_selected:
+                stroke_style = focused_style if is_focused else selected_style
+                if stroke_style:
+                    with drawing_context.saver():
+                        drawing_context.begin_path()
+                        drawing_context.rect(2, 2, canvas_bounds.width - 4, canvas_bounds.height - 4)
+                        drawing_context.line_join = "miter"
+                        drawing_context.stroke_style = stroke_style
+                        drawing_context.line_width = 4.0
+                        if line_dash:
+                            with drawing_context.saver():
+                                drawing_context.stroke_style = "#CCC"
+                                drawing_context.stroke()
+                            drawing_context.line_dash = line_dash
+                        drawing_context.stroke()
+                    if selection_number:
+                        with drawing_context.saver():
+                            font = "bold 12px serif"
+                            selection_number_text = "+" + str(selection_number)
+                            font_metrics = get_font_metrics_fn(font, selection_number_text)
+                            with drawing_context.saver():
+                                drawing_context.fill_style = "rgba(192, 192, 192, 0.75)"
+                                drawing_context.begin_path()
+                                drawing_context.rect(6, 6, font_metrics.width + 4, font_metrics.height + 4)
+                                drawing_context.fill()
+                            drawing_context.font = font
+                            drawing_context.fill_style = stroke_style
+                            drawing_context.fill_text(selection_number_text, 6, 4 + font_metrics.height)
+
+
 class DisplayPanelOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
     def __init__(self, get_font_metrics_fn: typing.Callable[[str, str], UISettings.FontMetrics]) -> None:
         super().__init__()
@@ -224,78 +321,13 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
             self.__selection_number = value
             self.update()
 
-    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
-        super()._repaint(drawing_context)
-
-        drop_regions_map = self.__drop_regions_map
-        drop_region = self.__drop_region
-        is_focused = self.__is_focused
-        is_selected = self.__is_selected
-        focused_style = self.__focused_style
-        selected_style = self.__selected_style
-        line_dash = self.__line_dash
-        selection_number = self.__selection_number
-        get_font_metrics_fn = self.__get_font_metrics_fn
-
-        # canvas size
-        canvas_size = self.canvas_size
-        if canvas_size:
-            # draw the border
-            with drawing_context.saver():
-                drawing_context.begin_path()
-                drawing_context.rect(0, 0, canvas_size.width, canvas_size.height)
-                drawing_context.line_join = "miter"
-                drawing_context.stroke_style = "#AAA"
-                drawing_context.line_width = 0.5
-                drawing_context.stroke()
-
-            if drop_region != "none":
-                with drawing_context.saver():
-                    drawing_context.begin_path()
-                    if drop_region in drop_regions_map:
-                        drop_region_hit_rect, drop_region_draw_rect = drop_regions_map[drop_region]
-                        drawing_context.rect(drop_region_draw_rect.left, drop_region_draw_rect.top, drop_region_draw_rect.width, drop_region_draw_rect.height)
-                    elif drop_region == "left":
-                        drawing_context.rect(0, 0, int(canvas_size.width * 0.10), canvas_size.height)
-                    elif drop_region == "right":
-                        drawing_context.rect(int(canvas_size.width * 0.90), 0, int(canvas_size.width - canvas_size.width * 0.90), canvas_size.height)
-                    elif drop_region == "top":
-                        drawing_context.rect(0, 0, canvas_size.width, int(canvas_size.height * 0.10))
-                    elif drop_region == "bottom":
-                        drawing_context.rect(0, int(canvas_size.height * 0.90), canvas_size.width, int(canvas_size.height - canvas_size.height * 0.90))
-                    else:
-                        drawing_context.rect(0, 0, canvas_size.width, canvas_size.height)
-                    drawing_context.fill_style = "rgba(255, 0, 0, 0.10)"
-                    drawing_context.fill()
-
-            if is_selected:
-                stroke_style = focused_style if is_focused else selected_style
-                if stroke_style:
-                    with drawing_context.saver():
-                        drawing_context.begin_path()
-                        drawing_context.rect(2, 2, canvas_size.width - 4, canvas_size.height - 4)
-                        drawing_context.line_join = "miter"
-                        drawing_context.stroke_style = stroke_style
-                        drawing_context.line_width = 4.0
-                        if line_dash:
-                            with drawing_context.saver():
-                                drawing_context.stroke_style = "#CCC"
-                                drawing_context.stroke()
-                            drawing_context.line_dash = line_dash
-                        drawing_context.stroke()
-                    if selection_number:
-                        with drawing_context.saver():
-                            font = "bold 12px serif"
-                            selection_number_text = "+" + str(selection_number)
-                            font_metrics = get_font_metrics_fn(font, selection_number_text)
-                            with drawing_context.saver():
-                                drawing_context.fill_style = "rgba(192, 192, 192, 0.75)"
-                                drawing_context.begin_path()
-                                drawing_context.rect(6, 6, font_metrics.width + 4, font_metrics.height + 4)
-                                drawing_context.fill()
-                            drawing_context.font = font
-                            drawing_context.fill_style = stroke_style
-                            drawing_context.fill_text(selection_number_text, 6, 4 + font_metrics.height)
+    def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> typing.Optional[CanvasItem.BaseComposer]:
+        return DisplayPanelOverlayCanvasItemComposer(self, self.layout_sizing, composer_cache,
+                                                     self.__drop_regions_map, self.__drop_region,
+                                                     self.__is_focused, self.__is_selected,
+                                                     self.__focused_style, self.__selected_style,
+                                                     self.__line_dash, self.__selection_number,
+                                                     self.__get_font_metrics_fn)
 
 
 class DisplayPanelOverlayCanvasItemComposition(CanvasItem.CanvasItemComposition):
@@ -979,27 +1011,33 @@ class RelatedIconsCanvasItem(CanvasItem.CanvasItemComposition):
                 self.__dependent_display_items.append(dependent_display_item)
 
 
+class MissingCanvasItemComposer(CanvasItem.BaseComposer):
+    def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing, cache: CanvasItem.ComposerCache) -> None:
+        super().__init__(canvas_item, layout_sizing, cache)
+
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> None:
+        with drawing_context.saver():
+            drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
+            drawing_context.begin_path()
+            drawing_context.rect(0, 0, canvas_bounds.width, canvas_bounds.height)
+            drawing_context.fill_style = "#CCC"
+            drawing_context.fill()
+            drawing_context.begin_path()
+            drawing_context.rect(0, 0, canvas_bounds.width, canvas_bounds.height)
+            drawing_context.move_to(0, 0)
+            drawing_context.line_to(canvas_bounds.width, canvas_bounds.height)
+            drawing_context.move_to(0, canvas_bounds.height)
+            drawing_context.line_to(canvas_bounds.width, 0)
+            drawing_context.stroke_style = "#444"
+            drawing_context.stroke()
+
+
 class MissingCanvasItem(CanvasItem.AbstractCanvasItem):
     def __init__(self) -> None:
         super().__init__()
 
-    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
-        # canvas size
-        canvas_size = self.canvas_size
-        if canvas_size:
-            with drawing_context.saver():
-                drawing_context.begin_path()
-                drawing_context.rect(0, 0, canvas_size.width, canvas_size.height)
-                drawing_context.fill_style = "#CCC"
-                drawing_context.fill()
-                drawing_context.begin_path()
-                drawing_context.rect(0, 0, canvas_size.width, canvas_size.height)
-                drawing_context.move_to(0, 0)
-                drawing_context.line_to(canvas_size.width, canvas_size.height)
-                drawing_context.move_to(0, canvas_size.height)
-                drawing_context.line_to(canvas_size.width, 0)
-                drawing_context.stroke_style = "#444"
-                drawing_context.stroke()
+    def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> typing.Optional[CanvasItem.BaseComposer]:
+        return MissingCanvasItemComposer(self, self.sizing, composer_cache)
 
 
 class MissingDisplayCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
@@ -1123,10 +1161,6 @@ class InsertGraphicsCommand(Undo.UndoableCommand):
         self.__document_controller = document_controller
         self.__display_item_proxy = display_item.create_proxy()
         self.__graphics = graphics  # only used for perform
-        workspace_controller = self.__document_controller.workspace_controller
-        assert workspace_controller
-        self.__old_workspace_layout: typing.Optional[Persistence.PersistentDictType] = workspace_controller.deconstruct()
-        self.__new_workspace_layout: typing.Optional[Persistence.PersistentDictType] = None
         self.__graphics_properties = None
         self.__graphic_proxies = [graphic.create_proxy() for graphic in existing_graphics or list()]
         self.__undelete_logs: typing.List[Changes.UndeleteLog] = list()
@@ -1135,8 +1169,6 @@ class InsertGraphicsCommand(Undo.UndoableCommand):
     def close(self) -> None:
         self.__graphics_properties = None
         self.__document_controller = typing.cast(typing.Any, None)
-        self.__old_workspace_layout = None
-        self.__new_workspace_layout = None
         for undelete_log in self.__undelete_logs:
             undelete_log.close()
         self.__undelete_logs = typing.cast(typing.Any, None)
@@ -1160,39 +1192,26 @@ class InsertGraphicsCommand(Undo.UndoableCommand):
     def _get_modified_state(self) -> typing.Any:
         display_item = self.__display_item_proxy.item
         display_item_modified_state = display_item.modified_state if display_item else None
-        workspace_controller = self.__document_controller.workspace_controller
-        document_model_modified_state = workspace_controller.document_model.modified_state if workspace_controller else None
-        return display_item_modified_state, document_model_modified_state
+        return display_item_modified_state
 
     def _set_modified_state(self, modified_state: typing.Any) -> None:
         display_item = self.__display_item_proxy.item
         if display_item:
-            display_item.modified_state = modified_state[0]
-        workspace_controller = self.__document_controller.workspace_controller
-        if workspace_controller:
-            workspace_controller.document_model.modified_state = modified_state[1]
+            display_item.modified_state = modified_state
 
     def _redo(self) -> None:
         for undelete_log in reversed(self.__undelete_logs):
             self.__document_controller.document_model.undelete_all(undelete_log)
             undelete_log.close()
         self.__undelete_logs.clear()
-        workspace_controller = self.__document_controller.workspace_controller
-        if workspace_controller and self.__new_workspace_layout is not None:
-            workspace_controller.reconstruct(self.__new_workspace_layout)
 
     def _undo(self) -> None:
         display_item = self.__display_item_proxy.item
         if display_item:
             graphics = [graphic_proxy.item for graphic_proxy in self.__graphic_proxies]
-            workspace_controller = self.__document_controller.workspace_controller
-            if workspace_controller:
-                self.__new_workspace_layout = workspace_controller.deconstruct()
-                for graphic in graphics:
-                    if graphic:
-                        self.__undelete_logs.append(display_item.remove_graphic(graphic, safe=True))
-                if self.__old_workspace_layout is not None:
-                    workspace_controller.reconstruct(self.__old_workspace_layout)
+            for graphic in graphics:
+                if graphic:
+                    self.__undelete_logs.append(display_item.remove_graphic(graphic, safe=True))
 
 
 class AppendDisplayDataChannelCommand(Undo.UndoableCommand):
@@ -2917,8 +2936,12 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
 
     def update_display_properties(self, display_properties: Persistence.PersistentDictType) -> None:
         if self.__display_item:
-            for key, value in iter(display_properties.items()):
-                self.__display_item.set_display_property(key, value)
+            # use a batch update to avoid repainting in between setting individual properties.
+            # this is not a perfect solution since another thread may trigger an update; but this
+            # should cover most cases.
+            with self.batch_update():
+                for key, value in iter(display_properties.items()):
+                    self.__display_item.set_display_property(key, value)
 
     def update_display_data_channel_properties(self, display_data_channel_properties: Persistence.PersistentDictType) -> None:
         display_data_channel = self.__display_item.display_data_channel if self.__display_item else None

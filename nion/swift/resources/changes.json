@@ -1,9 +1,41 @@
 [
   {
-    "version": "UNRELEASED",
+    "version": "16.12.0",
     "notes": [
       {
+        "issues": ["https://github.com/nion-software/nionswift/issues/21"],
+        "summary": "Add zoom tool in toolbar. Also add zoom shortcut 'z'."
+      },
+      {
+        "summary": "Display performance improvements and other drawing improvements."
+      },
+      {
+        "issues": ["https://github.com/nion-software/nionswift/issues/44"],
+        "summary": "Display snapshot now includes display range, color table, etc."
+      },
+      {
+        "summary": "Export and copy to SVG uses sans-serif fonts now."
+      },
+      {
+        "summary": "Allow export to SVG to specify size in pixels, inches, or centimeters."
+      },
+      {
+        "summary": "Keep sizing of surrounding display panels when removing one."
+      },
+      {
         "summary": "Retain state of inspector section twist downs when switching contexts or restarting."
+      },
+      {
+        "issues": ["https://github.com/nion-software/nionswift/issues/1212"],
+        "summary": "Fix issues with display layers and graphics becoming disconnected in inspector after insert/delete/move."
+      },
+      {
+        "issues": ["https://github.com/nion-software/nionswift/issues/1189"],
+        "summary": "Fix issue with custom data group not retaining data items added to it."
+      },
+      {
+        "issues": ["https://github.com/nion-software/nionswift/issues/1158"],
+        "summary": "Fix issue when clicking on graphic center in inspector."
       },
       {
         "issues": ["https://github.com/nion-software/nionswift/issues/749"],
@@ -22,10 +54,17 @@
         "summary": "Exporting to CSV only allows 1D or 2D data."
       },
       {
+        "issues": ["https://github.com/nion-software/nionswift/issues/707"],
+        "summary": "Improve handling of color table files and allow packages to register custom color tables."
+      },
+      {
         "summary": "Fix issue of swapped color channels when exporting to PNG, JPEG, GIF, and BMP."
       },
       {
         "summary": "Allow user to assign/unassign rectangle used for cropping computation data source inputs using icon overlay."
+      },
+      {
+        "summary": "Runs with Python 3.13 and Numpy 2.x. Drop Python 3.9 and 3.10 support."
       }
     ]
   },

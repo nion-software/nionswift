@@ -20,7 +20,6 @@ from nion.swift import MimeTypes
 from nion.swift.model import DisplayItem
 from nion.swift.model import Graphics
 from nion.swift.model import UISettings
-from nion.swift.model import Utility
 from nion.ui import CanvasItem
 from nion.utils import Color
 from nion.utils import Geometry
@@ -335,6 +334,8 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.__closing_lock = threading.RLock()
         self.__closed = False
 
+        self.__update_lock = threading.RLock()
+
         self.__last_xdata_list: typing.List[typing.Optional[DataAndMetadata.DataAndMetadata]] = list()
 
         self.__line_graph_area_stack = CanvasItem.CanvasItemComposition()
@@ -508,16 +509,19 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             self.__display_controls.add_canvas_item(display_control_canvas_item)
 
     def update_display_data_delta(self, display_data_delta: DisplayItem.DisplayDataDelta) -> None:
-        if display_data_delta.display_values_list_changed:
-            self.__update_display_values(display_data_delta.display_values_list)
-        if display_data_delta.display_values_list_changed or display_data_delta.display_calibration_info_changed or display_data_delta.display_layers_list_changed or display_data_delta.display_properties_changed:
-            self.__update_display_properties_and_layers(display_data_delta.display_calibration_info,
-                                                        display_data_delta.display_properties,
-                                                        display_data_delta.display_layers_list)
-        if display_data_delta.graphics_changed or display_data_delta.graphic_selection_changed or display_data_delta.display_calibration_info_changed:
-            self.__update_graphics_coordinate_system(display_data_delta.graphics,
-                                                     display_data_delta.graphic_selection,
-                                                     display_data_delta.display_calibration_info)
+        # ensure that this method is only entered once and updates are done in a batch to avoid repainting
+        # intermediate states.
+        with self.__update_lock, self.batch_update():
+            if display_data_delta.display_values_list_changed:
+                self.__update_display_values(display_data_delta.display_values_list)
+            if display_data_delta.display_values_list_changed or display_data_delta.display_calibration_info_changed or display_data_delta.display_layers_list_changed or display_data_delta.display_properties_changed:
+                self.__update_display_properties_and_layers(display_data_delta.display_calibration_info,
+                                                            display_data_delta.display_properties,
+                                                            display_data_delta.display_layers_list)
+            if display_data_delta.graphics_changed or display_data_delta.graphic_selection_changed or display_data_delta.display_calibration_info_changed:
+                self.__update_graphics_coordinate_system(display_data_delta.graphics,
+                                                         display_data_delta.graphic_selection,
+                                                         display_data_delta.display_calibration_info)
 
     def __update_display_values(self, display_values_list: typing.Sequence[typing.Optional[DisplayItem.DisplayValues]]) -> None:
         self.__display_values_list = list(display_values_list)
@@ -582,7 +586,6 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                 self.__line_graph_horizontal_axis_scale_canvas_item.set_axes(axes)
                 self.__line_graph_horizontal_axis_ticks_canvas_item.set_axes(axes)
 
-            # mark for update. prepare display will mark children for update if necesssary.
             self.update()
 
     def __update_frame(self, metadata: DataAndMetadata.MetadataType) -> None:
@@ -917,6 +920,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
     def toggle_frame_rate(self) -> None:
         self.__frame_rate_canvas_item.toggle_display(str(id(self)))
+        self.__line_graph_layers_canvas_item.display_frame_rate_id = self.__frame_rate_canvas_item.display_frame_rate_id
 
     def key_released(self, key: UserInterface.Key) -> bool:
         if super().key_released(key):

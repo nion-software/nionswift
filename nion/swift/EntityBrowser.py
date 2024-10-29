@@ -156,7 +156,7 @@ class EntityTupleModel(Observable.Observable):
                 items = typing.cast(typing.List[typing.Any], value_model.value)
                 for index, item in enumerate(items or tuple()):
                     tuple_model.items.append((index, item))
-                    tuple_model.notify_insert_item("items", tuple_model.items[-1], len(tuple_model.items))
+                    tuple_model.notify_insert_item("items", tuple_model.items[-1], len(tuple_model.items) - 1)
 
         self.__listener = value_model.property_changed_event.listen(weak_partial(property_changed, self))
 
@@ -285,7 +285,12 @@ class MaybePropertyChangedPropertyModel(Model.PropertyModel[typing.Any]):
         super()._set_value(value)
         # set the property on the observed object. this will trigger a property changed, but will be ignored since
         # the value doesn't change.
-        setattr(self.__observable, self.__property_name, value)
+        try:
+            setattr(self.__observable, self.__property_name, value)
+        except AttributeError as e:
+            # as a convenience for handling dependent read-only fields, such as data_shape on a data item, ignore
+            # attributes that can't be set. it's not clear if this is the right solution...
+            pass
 
 
 class DummyHandler(Declarative.HandlerLike):
