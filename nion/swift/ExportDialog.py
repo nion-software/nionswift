@@ -246,162 +246,275 @@ class ExportDialog(Declarative.Handler):
         return True
 
 
-class UnitType(enum.Enum):
-    PIXELS = 0
-    INCHES = 1
-    CENTIMETERS = 2
+class UnitDescription:
+    """A description of a unit. Read only."""
+
+    def __init__(self, unit_id: str, title: str, conversion_factor: float) -> None:
+        self.__unit_id = unit_id
+        self.__title = title
+        self.__conversion_factor = conversion_factor
+
+    @property
+    def unit_id(self) -> str:
+        return self.__unit_id
+
+    @property
+    def title(self) -> str:
+        return self.__title
+
+    @property
+    def conversion_factor(self) -> float:
+        return self.__conversion_factor
+
+    def convert_value_to_pixels(self, value: float) -> float:
+        return value * self.__conversion_factor
+
+    def convert_value_from_pixels(self, value: float) -> float:
+        return value / self.__conversion_factor
 
 
-ConversionUnits = {
-    UnitType.PIXELS: 1.0,
-    UnitType.CENTIMETERS: 37.795275591,
-    UnitType.INCHES: 96.0
-}
+class Quantity:
+    """A quantity with a value and a unit description. Read only."""
+
+    def __init__(self, value: float, unit_description: UnitDescription) -> None:
+        self.__value = value
+        self.__unit_description = unit_description
+
+    def __str__(self) -> str:
+        return f"{self.__value} {self.__unit_description.title}"
+
+    def with_value(self, value: float) -> Quantity:
+        return Quantity(value, self.__unit_description)
+
+    def with_unit_description(self, unit_description: UnitDescription) -> Quantity:
+        return Quantity(unit_description.convert_value_from_pixels(self.pixels), unit_description)
+
+    @property
+    def value(self) -> float:
+        return self.__value
+
+    @property
+    def is_pixels(self) -> bool:
+        return self.__unit_description.unit_id == "pixels"
+
+    @property
+    def pixels(self) -> float:
+        return self.__value * self.__unit_description.conversion_factor
+
+
+def get_quantity_from_pixels(pixels: float, unit_description: UnitDescription) -> Quantity:
+    """Return a quantity from pixels and a unit description."""
+    return Quantity(unit_description.convert_value_from_pixels(pixels), unit_description)
+
+
+# define the units. the conversion factor is the number of pixels per unit.
+pixel_unit_description = UnitDescription("pixels", _("Pixels"), 1.0)
+inch_unit_description = UnitDescription("inches", _("Inches"), 96.0)
+centimeter_unit_description = UnitDescription("centimeters", _("Centimeters"), 37.795275591)
+
+
+# the list of available units for SVG export
+svg_export_unit_descriptions = [
+    pixel_unit_description,
+    inch_unit_description,
+    centimeter_unit_description
+]
+
+
+def calculate_display_size_in_pixels(display_item: DisplayItem.DisplayItem) -> Geometry.IntSize:
+    """Return the display size in pixels.
+
+    If the display item is a line plot, use the hardcoded value of 5x3 inches.
+    """
+    if display_item.display_data_shape and display_item.used_display_type != "line_plot":
+        return Geometry.IntSize(height=display_item.display_data_shape[-2], width=display_item.display_data_shape[-1])
+    return Geometry.IntSize(
+        height=round(inch_unit_description.convert_value_to_pixels(3.0)),
+        width=round(inch_unit_description.convert_value_to_pixels(5.0))
+    )
 
 
 class ExportSizeModel(Observable.Observable):
-    def __init__(self, display_item: DisplayItem.DisplayItem) -> None:
+    def __init__(self, display_item: DisplayItem.DisplayItem, unit_id_model: Model.PropertyModel[str]) -> None:
         super().__init__()
         self.__display_item = display_item
-        display_size = self.__calculate_display_size_in_pixels(display_item)
-        self.__last_input_value: float = display_size.width
-        self.__aspect_ratio = display_size.width / display_size.height
-        self.__units = UnitType.PIXELS
+        self.__unit_id_model = unit_id_model
+        display_size = calculate_display_size_in_pixels(display_item)
+        self.__aspect_ratio = (display_size.width / display_size.height if display_size.height > 0 else 1.0) if display_size.width > 0 else 1.0
         self.__float_to_string_converter = Converter.FloatToStringConverter()
         self.__primary_field = 'width'
-        self.__last_input_units = self.__units
-        self.__enforce_width_height_constraints()
-
-    def __calculate_display_size_in_pixels(self, display_item: DisplayItem.DisplayItem) -> Geometry.IntSize:
-        if display_item.display_data_shape and self.__display_item.used_display_type != "line_plot":
-            return Geometry.IntSize(height=display_item.display_data_shape[-2], width=display_item.display_data_shape[-1])
-        return Geometry.IntSize(height=288, width=480)
+        unit_description = pixel_unit_description
+        for unit_description_ in svg_export_unit_descriptions:
+            if unit_description_.unit_id == unit_id_model.value:
+                unit_description = unit_description_
+                break
+        min_pixels = inch_unit_description.convert_value_to_pixels(3.0)
+        max_pixels = inch_unit_description.convert_value_to_pixels(12.0)
+        self.__last_quantity = get_quantity_from_pixels(max(min_pixels, min(max_pixels, display_size.width)), unit_description)
 
     @property
     def title(self) -> typing.Optional[str]:
+        """Return the display item title."""
         title_str = self.__display_item.displayed_title
         return title_str
 
     @property
     def shape_str(self) -> typing.Optional[str]:
+        """Return the pixel shape as a string."""
         shape_str = "(" + self.__display_item.data_info.data_shape_str + ")"
         return shape_str
 
     @property
     def calibrated_shape_str(self) -> typing.Optional[str]:
+        """Return the calculated shape as a string."""
         if self.__display_item.data_info.calibrated_dimensional_calibrations_str:
             calibration_str = "(" + self.__display_item.data_info.calibrated_dimensional_calibrations_str + ")"
             return calibration_str
         else:
             return ""
 
-    def __enforce_width_height_constraints(self) -> None:
-        min_size_in_inches = 3.0
-        max_size_in_inches = 12.0
-        min_size_in_current_units = min_size_in_inches * ConversionUnits[UnitType.INCHES] / ConversionUnits[self.__units]
-        max_size_in_current_units = max_size_in_inches * ConversionUnits[UnitType.INCHES] / ConversionUnits[self.__units]
-        if self.__primary_field == 'width':
-            if self.width < min_size_in_current_units:
-                self.__last_input_value = min_size_in_current_units * ConversionUnits[self.__units] / ConversionUnits[self.__last_input_units]
-            elif self.width > max_size_in_current_units:
-                self.__last_input_value = max_size_in_current_units * ConversionUnits[self.__units] / ConversionUnits[self.__last_input_units]
-        elif self.__primary_field == 'height':
-            if self.height < min_size_in_current_units:
-                self.__last_input_value = min_size_in_current_units * ConversionUnits[self.__units] / ConversionUnits[self.__last_input_units]
-            elif self.height > max_size_in_current_units:
-                self.__last_input_value = max_size_in_current_units * ConversionUnits[self.__units] / ConversionUnits[self.__last_input_units]
-        self.notify_property_changed("width")
-        self.notify_property_changed("height")
-        self.notify_property_changed("width_text")
-        self.notify_property_changed("height_text")
+    @property
+    def _width(self) -> float:
+        """Return the width in pixels.
+
+        If the primary field is width, return the last quantity value directly.
+
+        Otherwise, calculated the width from the last quantity value and the aspect ratio.
+
+        If the last quantity is in pixels, round the value.
+        """
+        if self.__last_quantity.is_pixels:
+            if self.__primary_field == 'width':
+                return round(self.__last_quantity.value)
+            else:
+                return round(self.__last_quantity.value * self.__aspect_ratio)
+        else:
+            if self.__primary_field == 'width':
+                return self.__last_quantity.value
+            else:
+                return self.__last_quantity.value * self.__aspect_ratio
 
     @property
-    def width(self) -> float:
-        if self.__primary_field == 'width':
-            if self.__units == UnitType.PIXELS:
-                return round((self.__last_input_value * ConversionUnits[self.__last_input_units]) / ConversionUnits[self.__units])
+    def _height(self) -> float:
+        """Return the height in pixels.
+
+        If the primary field is height, return the last quantity value directly.
+
+        Otherwise, calculated the height from the last quantity value and the aspect ratio.
+
+        If the last quantity is in pixels, round the value.
+        """
+        if self.__last_quantity.is_pixels:
+            if self.__primary_field == 'height':
+                return round(self.__last_quantity.value)
             else:
-                return (self.__last_input_value * ConversionUnits[self.__last_input_units]) / ConversionUnits[self.__units]
+                return round(self.__last_quantity.value / self.__aspect_ratio)
         else:
-            if self.__units == UnitType.PIXELS:
-                return round(((self.__last_input_value * ConversionUnits[self.__last_input_units]) / ConversionUnits[self.__units]) * self.__aspect_ratio)
+            if self.__primary_field == 'height':
+                return self.__last_quantity.value
             else:
-                return ((self.__last_input_value * ConversionUnits[self.__last_input_units]) / ConversionUnits[self.__units]) * self.__aspect_ratio
+                return self.__last_quantity.value / self.__aspect_ratio
 
     @property
     def width_text(self) -> typing.Optional[str]:
+        """Return the width as a string if the primary field is width, otherwise None."""
         if self.__primary_field == 'width':
-            return self.__float_to_string_converter.convert(self.width)
+            return self.__float_to_string_converter.convert(self._width)
         return None
 
     @width_text.setter
-    def width_text(self, new_width: typing.Optional[str]) -> None:
-        if new_width and new_width != "":
-            self.__last_input_value = self.__float_to_string_converter.convert_back(new_width) or 0.0
-            self.__last_input_units = self.__units
+    def width_text(self, value_str: typing.Optional[str]) -> None:
+        """Sets the width from a string and sets the primary field to width.
+
+        Also updates the last quantity and signals that all the text fields have changed.
+        """
+        if value_str:
+            value = self.__float_to_string_converter.convert_back(value_str) or 0.0
+            self.__last_quantity = self.__last_quantity.with_value(value)
             self.__primary_field = 'width'
-            self.notify_property_changed("width")
-            self.notify_property_changed("height")
         self.notify_property_changed("width_text")
         self.notify_property_changed("height_text")
+        self.notify_property_changed("placeholder_width_text")
+        self.notify_property_changed("placeholder_height_text")
 
     @property
-    def height(self) -> float:
-        if self.__primary_field == 'height':
-            if self.__units == UnitType.PIXELS:
-                return round((self.__last_input_value * ConversionUnits[self.__last_input_units]) / ConversionUnits[self.__units])
-            else:
-                return (self.__last_input_value * ConversionUnits[self.__last_input_units]) / ConversionUnits[self.__units]
-        else:
-            if self.__units == UnitType.PIXELS:
-                return round(((self.__last_input_value * ConversionUnits[self.__last_input_units]) / ConversionUnits[self.__units]) / self.__aspect_ratio)
-            else:
-                return ((self.__last_input_value * ConversionUnits[self.__last_input_units]) / ConversionUnits[self.__units]) / self.__aspect_ratio
+    def placeholder_width_text(self) -> str | None:
+        """Return the width as a string."""
+        return self.__float_to_string_converter.convert(self._width)
 
     @property
     def height_text(self) -> typing.Optional[str]:
+        """Return the height as a string if the primary field is height, otherwise None."""
         if self.__primary_field == 'height':
-            return self.__float_to_string_converter.convert(self.height)
+            return self.__float_to_string_converter.convert(self._height)
         return None
 
     @height_text.setter
-    def height_text(self, new_height: typing.Optional[str]) -> None:
-        if new_height is not None and new_height != "":
-            self.__last_input_value = self.__float_to_string_converter.convert_back(new_height) or 0.0
-            self.__last_input_units = self.__units
+    def height_text(self, value_str: typing.Optional[str]) -> None:
+        """Sets the height from a string and sets the primary field to height.
+
+        Also updates the last quantity and signals that all the text fields have changed.
+        """
+        if value_str:
+            value = self.__float_to_string_converter.convert_back(value_str) or 0.0
+            self.__last_quantity = self.__last_quantity.with_value(value)
             self.__primary_field = 'height'
-            self.notify_property_changed("width")
-            self.notify_property_changed("height")
         self.notify_property_changed("width_text")
         self.notify_property_changed("height_text")
+        self.notify_property_changed("placeholder_width_text")
+        self.notify_property_changed("placeholder_height_text")
 
     @property
-    def units(self) -> int:
-        return self.__units.value
+    def placeholder_height_text(self) -> str | None:
+        """Return the height as a string."""
+        return self.__float_to_string_converter.convert(self._height)
 
-    @units.setter
-    def units(self, new_units: int) -> None:
-        new_enum = UnitType(new_units)
-        if self.__units != new_enum:
-            self.__units = new_enum
-            self.notify_property_changed("width")
-            self.notify_property_changed("height")
-            self.notify_property_changed("width_text")
-            self.notify_property_changed("height_text")
+    @property
+    def unit_description(self) -> UnitDescription:
+        """Return the unit description for the current unit id."""
+        for unit_description in svg_export_unit_descriptions:
+            if unit_description.unit_id == self.__unit_id_model.value:
+                return unit_description
+        return pixel_unit_description
+
+    @property
+    def unit_index(self) -> int:
+        """Return the unit index for the current unit description."""
+        return svg_export_unit_descriptions.index(self.unit_description)
+
+    @unit_index.setter
+    def unit_index(self, unit_index: int) -> None:
+        """Set the unit index.
+
+        Saves the unit index to the unit_id_model.
+
+        Then converts the current quantity to the new unit description.
+
+        Then signals that all the text fields have changed.
+        """
+        if 0 <= unit_index < len(svg_export_unit_descriptions):
+            self.__unit_id_model.value = svg_export_unit_descriptions[unit_index].unit_id
+        else:
+            self.__unit_id_model.value = pixel_unit_description.unit_id
+        self.__last_quantity = self.__last_quantity.with_unit_description(self.unit_description)
+        self.notify_property_changed("width_text")
+        self.notify_property_changed("height_text")
+        self.notify_property_changed("placeholder_width_text")
+        self.notify_property_changed("placeholder_height_text")
 
     @property
     def pixel_shape(self) -> Geometry.IntSize:
-        width = round(self.__last_input_value * ConversionUnits[self.__last_input_units]) if self.__primary_field == 'width' else round((self.__last_input_value * ConversionUnits[self.__last_input_units]) * self.__aspect_ratio)
-        height = round(self.__last_input_value * ConversionUnits[self.__last_input_units]) if self.__primary_field == 'height' else round((self.__last_input_value * ConversionUnits[self.__last_input_units]) / self.__aspect_ratio)
-        return Geometry.IntSize(height=height, width=width)
+        if self.__primary_field == 'width':
+            return Geometry.IntSize(h=round(self.__last_quantity.pixels / self.__aspect_ratio), w=round(self.__last_quantity.pixels))
+        else:
+            return Geometry.IntSize(h=round(self.__last_quantity.pixels), w=round(self.__last_quantity.pixels * self.__aspect_ratio))
 
 
 class ExportSVGHandler(Declarative.Handler):
     def __init__(self, model: ExportSizeModel, get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> None:
         super().__init__()
-        self.model = model  # Ensure model is an attribute of the handler
+        self.model = model
         u = Declarative.DeclarativeUI()
-        self._float_to_string_converter = Converter.FloatToStringConverter()
 
         left_column_width = get_font_metrics_fn("normal", "Shape (calibrated units)").width + 20
 
@@ -410,6 +523,9 @@ class ExportSVGHandler(Declarative.Handler):
         right_column_width = max(right_column_width, left_column_width)
 
         self.has_calibrated_shape_str = bool(model.calibrated_shape_str)
+
+        unit_titles = [unit_description.title for unit_description in svg_export_unit_descriptions]
+        unit_combo_box_width = max(get_font_metrics_fn("normal", s).width for s in unit_titles) + 72
 
         self.ui_view = u.create_column(
             u.create_row(
@@ -434,7 +550,7 @@ class ExportSVGHandler(Declarative.Handler):
             u.create_row(
                 u.create_label(text=_("Width"), width=left_column_width),
                 u.create_line_edit(
-                    placeholder_text="@binding(model.width, converter=_float_to_string_converter)",
+                    placeholder_text="@binding(model.placeholder_width_text)",
                     text="@binding(model.width_text)",
                     width=100
                 ),
@@ -444,7 +560,7 @@ class ExportSVGHandler(Declarative.Handler):
             u.create_row(
                 u.create_label(text=_("Height"), width=left_column_width),
                 u.create_line_edit(
-                    placeholder_text="@binding(model.height, converter=_float_to_string_converter)",
+                    placeholder_text="@binding(model.placeholder_height_text)",
                     text="@binding(model.height_text)",
                     width=100
                 ),
@@ -454,9 +570,9 @@ class ExportSVGHandler(Declarative.Handler):
             u.create_row(
                 u.create_label(text=_("Units"), width=left_column_width),
                 u.create_combo_box(
-                    items=[_("Pixels"), _("Inches"), _("Centimeters")],
-                    current_index="@binding(model.units)",
-                    width=100
+                    items=unit_titles,
+                    current_index="@binding(model.unit_index)",
+                    width=unit_combo_box_width
                 ),
                 u.create_stretch(),
                 spacing=8
@@ -472,7 +588,12 @@ class ExportSVGDialog:
         super().__init__()
         self.__document_controller = document_controller
         self.__display_item = display_item
-        self.__model = ExportSizeModel(display_item)
+        self.__units_model = UserInterface.StringPersistentModel(
+            ui=document_controller.ui,
+            storage_key="export_units",
+            value=pixel_unit_description.unit_id
+        )
+        self.__model = ExportSizeModel(display_item, self.__units_model)
         self.__handler = ExportSVGHandler(self.__model, document_controller.ui.get_font_metrics)
         self.__init_ui()
 
