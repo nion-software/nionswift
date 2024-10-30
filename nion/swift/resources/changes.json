@@ -4,6 +4,10 @@
     "notes": [
       {
         "summary": "Use filename when title is empty or missing on import (was only when missing)."
+      },
+      {
+        "issues": ["https://github.com/nion-software/nionswift/issues/1125"],
+        "summary": "Change Export SVG dialog to remember units."
       }
     ]
   },
