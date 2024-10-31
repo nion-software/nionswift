@@ -198,46 +198,44 @@ class ExportDialog(Declarative.Handler):
     def export_clicked(display_items: typing.Sequence[DisplayItem.DisplayItem], viewmodel: ExportDialogViewModel,
                        ui: UserInterface.UserInterface, document_controller: DocumentController.DocumentController) -> None:
         directory_path = pathlib.Path(viewmodel.directory.value or str())
-        writer = viewmodel.writer
-        if directory_path.is_dir() and writer and writer.value:
+        writer_model = viewmodel.writer
+        writer = writer_model.value
+        if directory_path.is_dir() and writer:
             export_results = list()
             for index, display_item in enumerate(display_items):
                 data_item = display_item.data_item
-                if data_item:
-                    file_name: str = ''
-                    try:
-                        components = list()
-                        if viewmodel.prefix.value is not None and viewmodel.prefix.value != '':
-                            components.append(str(viewmodel.prefix.value))
-                        if viewmodel.include_title.value:
-                            title = unicodedata.normalize('NFKC', data_item.title)
-                            title = re.sub(r'[^\w\s-]', '', title, flags=re.U).strip()
-                            title = re.sub(r'[-\s]+', '-', title, flags=re.U)
-                            components.append(title)
-                        if viewmodel.include_date.value:
-                            components.append(data_item.created_local.isoformat().replace(':', '').replace('.', '_'))
-                        if viewmodel.include_dimensions.value:
-                            components.append(
-                                "x".join([str(shape_n) for shape_n in data_item.dimensional_shape]))
-                        if viewmodel.include_sequence.value:
-                            components.append(str(index))
-                        filepath = ExportDialog.build_filepath(components, writer.value.extensions[0], directory_path=directory_path)
-
-                        file_name = filepath.name
-                        data_metadata = data_item.data_metadata if data_item else None
-                        if data_metadata is not None and writer.value.can_write(data_metadata, filepath.suffix[1:].lower()):
-                            ImportExportManager.ImportExportManager().write_display_item_with_writer(writer.value, display_item, filepath)
-                            export_results.append(ExportResult(file_name))
-                        else:
-                            error_message = _("Cannot export this data to file format")
-                            export_results.append(ExportResult(file_name, f"{error_message} {writer.value.name}"))
-                    except Exception as e:
-                        logging.debug("Could not export image %s / %s", str(data_item), str(e))
-                        traceback.print_exc()
-                        traceback.print_stack()
-                        export_results.append(ExportResult(file_name, str(e)))
-                else:
-                    export_results.append(ExportResult(display_item.displayed_title, _("Cannot export items with multiple data items")))
+                file_name: str = ''
+                try:
+                    components = list()
+                    if viewmodel.prefix.value is not None and viewmodel.prefix.value != '':
+                        components.append(str(viewmodel.prefix.value))
+                    if viewmodel.include_title.value:
+                        title = unicodedata.normalize('NFKC', display_item.displayed_title)
+                        title = re.sub(r'[^\w\s-]', '', title, flags=re.U).strip()
+                        title = re.sub(r'[-\s]+', '-', title, flags=re.U)
+                        components.append(title)
+                    if viewmodel.include_date.value:
+                        # prefer the data item created date, but fall back to the display item created date.
+                        created_local = data_item.created_local if data_item else display_item.created_local
+                        components.append(created_local.isoformat().replace(':', '').replace('.', '_'))
+                    if viewmodel.include_dimensions.value and data_item:
+                        components.append("x".join([str(shape_n) for shape_n in data_item.dimensional_shape]))
+                    if viewmodel.include_sequence.value:
+                        components.append(str(index))
+                    filepath = ExportDialog.build_filepath(components, writer.extensions[0], directory_path=directory_path)
+                    file_name = filepath.name
+                    file_extension = filepath.suffix[1:].lower()
+                    if writer.can_write_display_item(display_item, file_extension):
+                        ImportExportManager.ImportExportManager().write_display_item_with_writer(writer, display_item, filepath)
+                        export_results.append(ExportResult(file_name))
+                    else:
+                        error_message = _("Cannot export this data to file format")
+                        export_results.append(ExportResult(file_name, f"{error_message} {writer.name}"))
+                except Exception as e:
+                    logging.debug("Could not export image %s / %s", str(data_item), str(e))
+                    traceback.print_exc()
+                    traceback.print_stack()
+                    export_results.append(ExportResult(file_name, str(e)))
 
             if any(e.error for e in export_results):
                 ExportResultDialog(ui, document_controller, export_results, directory_path)

@@ -199,15 +199,21 @@ class TestImportExportManagerClass(unittest.TestCase):
                 os.remove(file_path_bgr)
 
     def test_get_writers_for_empty_data_item_returns_valid_list(self):
-        data_item = DataItem.DataItem()
-        with contextlib.closing(data_item):
-            writers = ImportExportManager.ImportExportManager().get_writers_for_data_item(data_item)
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            data_item = DataItem.DataItem()
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            writers = ImportExportManager.ImportExportManager().get_writers_for_display_item(display_item)
             self.assertEqual(len(writers), 0)
 
     def test_get_writers_for_float_2d_data_item_returns_valid_list(self):
-        data_item = DataItem.DataItem(numpy.zeros((8, 8), float))
-        with contextlib.closing(data_item):
-            writers = ImportExportManager.ImportExportManager().get_writers_for_data_item(data_item)
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), float))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            writers = ImportExportManager.ImportExportManager().get_writers_for_display_item(display_item)
             self.assertTrue(len(writers) > 0)
 
     def test_data_element_date_gets_set_as_data_item_created_date(self):
