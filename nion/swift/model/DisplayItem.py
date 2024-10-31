@@ -3080,9 +3080,17 @@ class DisplayItem(Persistence.PersistentObject):
 
     @property
     def tool_tip_str(self) -> str:
-        lines = [self.displayed_title, self.size_and_data_format_as_string, self.date_for_sorting_local_as_string, self.status_str, self.project_str]
+        lines = [self.displayed_title, self.size_and_data_format_as_string, self.storage_string, self.date_for_sorting_local_as_string, self.status_str, self.project_str]
         lines = [line for line in lines if line]
         return "\n".join(lines)
+
+    @property
+    def list_tool_tip_str(self) -> str:
+        return self.tool_tip_str
+
+    @property
+    def grid_tool_tip_str(self) -> str:
+        return self.tool_tip_str
 
     def __insert_display_data_channel(self, name: str, before_index: int, display_data_channel: DisplayDataChannel) -> None:
         display_data_channel.increment_display_ref_count(self._display_ref_count)
@@ -3339,6 +3347,16 @@ class DisplayItem(Persistence.PersistentObject):
     def size_and_data_format_as_string(self) -> str:
         data_item = self.data_item
         return data_item.size_and_data_format_as_string if data_item else str()
+
+    @property
+    def storage_space_string(self) -> str:
+        data_item = self.data_item
+        return data_item.storage_space_string if data_item else str()
+
+    @property
+    def storage_string(self) -> str:
+        data_item = self.data_item
+        return data_item.storage_string if data_item else str()
 
     @property
     def date_for_sorting(self) -> datetime.datetime:

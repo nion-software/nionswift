@@ -574,9 +574,12 @@ class DataItem(Persistence.PersistentObject):
         else:
             self.__data_and_metadata_unloadable = self.persistent_object_context is not None and not self.is_write_delayed
 
-    def _test_get_file_path(self) -> str:
-        # hack for test function
+    def __get_file_path(self) -> str:
         return typing.cast(str, getattr(self.persistent_storage, "get_storage_property")(self, "file_path")) if self.persistent_storage else str()
+
+    def _test_get_file_path(self) -> str:
+        # hack for test function. not a public method.
+        return self.__get_file_path()
 
     def read_from_dict(self, properties: Persistence.PersistentDictType) -> None:
         self.large_format = properties.get("__large_format", self.large_format)
@@ -1420,6 +1423,49 @@ class DataItem(Persistence.PersistentObject):
     @property
     def size_and_data_format_as_string(self) -> str:
         return self.__data_metadata.size_and_data_format_as_string if self.__data_metadata else _("No Data")
+
+    @property
+    def storage_space_string(self) -> str:
+        dimensional_shape = self.dimensional_shape
+        data_dtype = self.data_dtype
+        if dimensional_shape is not None and data_dtype is not None:
+
+            # see https://stackoverflow.com/questions/12523586/python-format-size-application-converting-b-to-kb-mb-gb-tb
+            def humanbytes(b: int) -> str:
+                """Return the given bytes as a human friendly KB, MB, GB, or TB string."""
+                B = float(b)
+                KB = float(1024)
+                MB = float(KB ** 2)  # 1,048,576
+                GB = float(KB ** 3)  # 1,073,741,824
+                TB = float(KB ** 4)  # 1,099,511,627,776
+
+                if B < KB:
+                    return '{0} {1}'.format(B, 'Bytes' if 0 == B > 1 else 'Byte')
+                elif KB <= B < MB:
+                    return '{0:.2f} KB'.format(B / KB)
+                elif MB <= B < GB:
+                    return '{0:.2f} MB'.format(B / MB)
+                elif GB <= B < TB:
+                    return '{0:.2f} GB'.format(B / GB)
+                elif TB <= B:
+                    return '{0:.2f} TB'.format(B / TB)
+                else:
+                    return "{0} Bytes".format(B)
+
+            total_bytes = typing.cast(int, numpy.prod(dimensional_shape + (numpy.dtype(data_dtype).itemsize,), dtype=numpy.int64))
+
+            return humanbytes(total_bytes)
+        return str()
+
+    @property
+    def storage_string(self) -> str:
+        storage_space_str = self.storage_space_string
+        file_path = self.__get_file_path()
+        path_suffix = pathlib.Path(file_path).suffix.lower() if file_path else None
+        if path_suffix:
+            return f"{storage_space_str} ({path_suffix[1:]})"
+        else:
+            return f"{storage_space_str}"
 
     def has_metadata_value(self, key: str) -> bool:
         return Metadata.has_metadata_value(self, key)

@@ -142,7 +142,9 @@ class DisplayItemAdapter:
 
     @property
     def format_str(self) -> str:
-        return self.__display_item.size_and_data_format_as_string if self.__display_item else str()
+        format_str = self.__display_item.size_and_data_format_as_string if self.__display_item else str()
+        storage_space_string = self.__display_item.storage_space_string if self.__display_item else str()
+        return " ".join([format_str, storage_space_string])
 
     @property
     def datetime_str(self) -> str:
@@ -157,8 +159,12 @@ class DisplayItemAdapter:
         return self.__display_item.project_str if self.__display_item else str()
 
     @property
-    def tool_tip(self) -> str:
-        return self.__display_item.tool_tip_str if self.__display_item else str()
+    def list_tool_tip(self) -> str:
+        return self.__display_item.list_tool_tip_str if self.__display_item else str()
+
+    @property
+    def grid_tool_tip(self) -> str:
+        return self.__display_item.grid_tool_tip_str if self.__display_item else str()
 
     def drag_started(self, ui: UserInterface.UserInterface, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> typing.Tuple[typing.Optional[UserInterface.MimeData], typing.Optional[_NDArray]]:
         if self.__display_item:
@@ -457,12 +463,18 @@ class ListCanvasItemDelegate(ListCanvasItem.ListCanvasItemDelegate):
         return self.__data_list_controller.display_item_adapter_count
 
     @property
-    def items(self) -> typing.Sequence[typing.Any]:
+    def items(self) -> typing.Sequence[DisplayItemAdapter]:
         return self.__data_list_controller.display_item_adapters
 
     @items.setter
-    def items(self, value: typing.Sequence[typing.Any]) -> None:
+    def items(self, value: typing.Sequence[DisplayItemAdapter]) -> None:
         raise NotImplementedError()
+
+    def item_tool_tip(self, index: int) -> typing.Optional[str]:
+        items = self.items
+        if 0 <= index < len(items):
+            return items[index].list_tool_tip
+        return None
 
     def paint_item(self, drawing_context: DrawingContext.DrawingContext, display_item_adapter: DisplayItemAdapter, rect: Geometry.IntRect, is_selected: bool) -> None:
         display_item_adapter.draw_list_item(drawing_context, rect)
@@ -499,7 +511,7 @@ class GridCanvasItemDelegate(GridCanvasItem.GridCanvasItemDelegate):
     def item_tool_tip(self, index: int) -> typing.Optional[str]:
         items = self.items
         if 0 <= index < len(items):
-            return items[index].tool_tip
+            return items[index].grid_tool_tip
         return None
 
     def paint_item(self, drawing_context: DrawingContext.DrawingContext, display_item_adapter: DisplayItemAdapter, rect: Geometry.IntRect, is_selected: bool) -> None:
