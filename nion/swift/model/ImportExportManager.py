@@ -46,7 +46,6 @@ class ImportExportHandler:
         self.io_handler_id = io_handler_id
         self.name = name
         self.extensions = list(extensions)
-        self.supports_composite_data = False
 
     def can_read(self) -> bool:
         return True
@@ -77,6 +76,11 @@ class ImportExportHandler:
 
     def can_write(self, data_metadata: DataAndMetadata.DataMetadata, extension: str) -> bool:
         return False
+
+    def can_write_display_item(self, display_item: DisplayItem.DisplayItem, extension: str) -> bool:
+        data_item = display_item.data_item
+        data_metadata = data_item.data_metadata if data_item else None
+        return data_metadata is not None and self.can_write(data_metadata, extension)
 
     def write_display_item(self, display_item: DisplayItem.DisplayItem, path: pathlib.Path, extension: str) -> None:
         data_item = display_item.data_item
@@ -125,24 +129,12 @@ class ImportExportManager(metaclass=Utility.Singleton):
                 return io_handler
         return None
 
-    def get_writers_for_data_item(self, data_item: DataItem.DataItem) -> typing.Sequence[ImportExportHandler]:
-        writers = []
-        data_metadata = data_item.data_metadata
-        if data_metadata:
-            for io_handler in self.__io_handlers:
-                for extension in io_handler.extensions:
-                    if io_handler.can_write(data_metadata, extension.lower()):
-                        writers.append(io_handler)
-        return writers
-
     def get_writers_for_display_item(self, display_item: DisplayItem.DisplayItem) -> typing.Sequence[ImportExportHandler]:
-        writers = self.get_writers_for_data_item(display_item.data_items[0]) if display_item.data_items else list()
-        if len(display_item.data_items) > 1:
-            composite_writers = list()
-            for writer in writers:
-                if writer.supports_composite_data:
-                    composite_writers.append(writer)
-            writers = composite_writers
+        writers = []
+        for io_handler in self.__io_handlers:
+            for extension in io_handler.extensions:
+                if io_handler.can_write_display_item(display_item, extension.lower()):
+                    writers.append(io_handler)
         return writers
 
     # read file, return data items
@@ -164,22 +156,16 @@ class ImportExportManager(metaclass=Utility.Singleton):
     def write_display_item_with_writer(self, writer: ImportExportHandler, display_item: DisplayItem.DisplayItem, path: pathlib.Path) -> None:
         extension = path.suffix
         if extension:
-            extension = extension[1:]  # remove the leading "."
-            extension = extension.lower()
-            data_metadata = display_item.data_items[0].data_metadata if display_item.data_items else None
-            if extension in writer.extensions and data_metadata and writer.can_write(data_metadata, extension):
+            extension = extension[1:].lower()  # remove the leading "."
+            if extension in writer.extensions and writer.can_write_display_item(display_item, extension):
                 writer.write_display_item(display_item, path, extension)
 
     def write_display_item(self, display_item: DisplayItem.DisplayItem, path: pathlib.Path) -> None:
         extension = path.suffix
         if extension:
-            extension = extension[1:]  # remove the leading "."
-            extension = extension.lower()
+            extension = extension[1:].lower()  # remove the leading "."
             for io_handler in self.__io_handlers:
-                data_item = display_item.data_item
-                assert data_item
-                data_metadata = data_item.data_metadata
-                if extension in io_handler.extensions and data_metadata and io_handler.can_write(data_metadata, extension):
+                if extension in io_handler.extensions and io_handler.can_write_display_item(display_item, extension):
                     io_handler.write_display_item(display_item, path, extension)
 
 
@@ -650,13 +636,12 @@ class CSV1ImportExportHandler(ImportExportHandler):
 
     def __init__(self, io_handler_id: str, name: str, extensions: typing.Sequence[str]) -> None:
         super().__init__(io_handler_id, name, extensions)
-        self.supports_composite_data = True
 
     def read_data_elements(self, extension: str, path: pathlib.Path) -> typing.List[DataElementType]:
         return list()
 
-    def can_write(self, data_metadata: DataAndMetadata.DataMetadata, extension: str) -> bool:
-        return data_metadata.is_data_1d
+    def can_write_display_item(self, display_item: DisplayItem.DisplayItem, extension: str) -> bool:
+        return all(data_item.is_data_1d for data_item in display_item.data_items)
 
     def write_display_item(self, display_item: DisplayItem.DisplayItem, path: pathlib.Path, extension: str) -> None:
         headers, data_list = build_table(display_item)
