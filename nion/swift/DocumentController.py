@@ -58,7 +58,6 @@ from nion.swift.model import Utility
 from nion.swift.model import WorkspaceLayout
 from nion.ui import CanvasItem
 from nion.ui import Dialog
-from nion.ui import DrawingContext
 from nion.ui import PreferencesDialog
 from nion.ui import Window
 from nion.ui import UserInterface
@@ -863,7 +862,7 @@ class DocumentController(Window.Window):
         paths, selected_filter, selected_directory = self.get_file_paths_dialog(_("Import File(s)"), import_dir, filter)
         if len(paths) > 0:
             self.ui.set_persistent_string("import_directory", selected_directory)
-            self.receive_files(paths, display_panel=self.next_result_display_panel())
+            self.receive_files(paths)
 
     def export_file(self, display_item: DisplayItem.DisplayItem) -> None:
         # present a loadfile dialog to the user
@@ -2540,99 +2539,33 @@ class DocumentController(Window.Window):
             assert self.__old_workspace_layout is not None
             workspace_controller.reconstruct(self.__old_workspace_layout)
 
-    def receive_project_files(self, file_paths: typing.Sequence[pathlib.Path], project: Project.Project, index: int = -1, threaded: bool = True) -> None:
-        def receive_files_complete(received_data_items: typing.Sequence[DataItem.DataItem]) -> None:
-            def select_library_all() -> None:
-                self.select_data_items_in_data_panel([received_data_items[0]])
-
-            if len(received_data_items) > 0:
-                self.queue_task(select_library_all)
-
-        self.__receive_files(file_paths, index=index, threaded=threaded, completion_fn=receive_files_complete, project=project)
-
     # receive files into the document model. data_group and index can optionally
     # be specified. if data_group is specified, the item is added to an arbitrary
     # position in the document model (the end) and at the group at the position
     # specified by the index. if the data group is not specified, the item is added
     # at the index within the document model.
-    def receive_files(self, files: typing.Sequence[str],
-                      data_group: typing.Optional[DataGroup.DataGroup] = None,
-                      index: int = -1,
-                      threaded: bool = True,
-                      completion_fn: typing.Optional[typing.Callable[[typing.Sequence[DataItem.DataItem]], None]] = None,
-                      display_panel: typing.Optional[DisplayPanel.DisplayPanel] = None,
-                      project: typing.Optional[Project.Project] = None) -> typing.Optional[typing.Sequence[DataItem.DataItem]]:
+    def receive_files(self, files: typing.Sequence[str], data_group: typing.Optional[DataGroup.DataGroup] = None, index: int = -1) -> None:
+        display_items = list[DisplayItem.DisplayItem]()
         file_paths = [pathlib.Path(file_path) for file_path in files]
-        return self.__receive_files(file_paths, data_group, index, threaded, completion_fn, display_panel, project=project)
-
-    def __receive_files(self, file_paths: typing.Sequence[pathlib.Path],
-                        data_group: typing.Optional[DataGroup.DataGroup] = None,
-                        index: int = -1,
-                        threaded: bool = True,
-                        completion_fn: typing.Optional[typing.Callable[[typing.Sequence[DataItem.DataItem]], None]] = None,
-                        display_panel: typing.Optional[DisplayPanel.DisplayPanel] = None, *,
-                        project: typing.Optional[Project.Project] = None) -> typing.Optional[typing.Sequence[DataItem.DataItem]]:
-        assert index is not None
-
-        # this function will be called on a thread to receive files in the background.
-        def receive_files_on_thread(file_paths: typing.Sequence[pathlib.Path],
-                                    data_group: typing.Optional[DataGroup.DataGroup], index: int,
-                                    completion_fn: typing.Optional[typing.Callable[[typing.Sequence[DataItem.DataItem]], None]]) -> typing.Sequence[DataItem.DataItem]:
-
-            received_data_items: typing.List[DataItem.DataItem] = list()
-
-            with self.create_task_context_manager(_("Import Data Items"), "table", logging=threaded) as task:
-                task.update_progress(_("Starting import."), (0, len(file_paths)))
-                task_data: typing.Dict[str, typing.Any] = {"headers": ["Number", "File"]}
-
-                for file_index, file_path in enumerate(file_paths):
-                    data: typing.List[typing.List[str]] = task_data.setdefault("data", list())
-                    file_name = file_path.name
-                    task_data_entry = [str(file_index + 1), file_name]
-                    data.append(task_data_entry)
-                    task.update_progress(_("Importing item {}.").format(file_index + 1), (file_index + 1, len(file_paths)), task_data)
-                    try:
-                        data_items = ImportExportManager.ImportExportManager().read_data_items(file_path)
-                        if data_items:
-                            received_data_items.extend(data_items)
-                    except Exception as e:
-                        logging.debug(f"Could not read image {file_path} / {e}")
-                        traceback.print_exc()
-                        traceback.print_stack()
-
-                task.update_progress(_("Finishing importing."), (len(file_paths), len(file_paths)))
-
-                if completion_fn:
-                    completion_fn(received_data_items)
-
-                return received_data_items
-
-        def receive_files_complete(index: int, data_items: typing.Sequence[DataItem.DataItem]) -> None:
-            command: Undo.UndoableCommand
-
-            for data_item in data_items:
-                data_item.uuid = uuid.uuid4()
-
-            if data_group and isinstance(data_group, DataGroup.DataGroup):
-                command = DocumentController.InsertDataGroupDataItemsCommand(self, data_group, data_items, index)
-                command.perform()
-                self.push_undo_command(command)
-            else:
-                index = index if index >= 0 else len(self.document_model.data_items)
-                command = DocumentController.InsertDataItemsCommand(self, data_items, index, display_panel, project=project)
-                command.perform()
-                self.push_undo_command(command)
-            if callable(completion_fn):
-                completion_fn(data_items)
-
-        if threaded:
-            def threaded_receive_files_complete(index: int, data_items: typing.Sequence[DataItem.DataItem]) -> None:
-                self.queue_task(functools.partial(receive_files_complete, index, data_items))
-
-            threading.Thread(target=receive_files_on_thread, args=(file_paths, data_group, index, functools.partial(threaded_receive_files_complete, index))).start()
-            return None
-        else:
-            return receive_files_on_thread(file_paths, data_group, index, functools.partial(receive_files_complete, index))
+        for file_index, file_path in enumerate(file_paths):
+            try:
+                data_items = ImportExportManager.ImportExportManager().read_data_items(file_path)
+                if data_items:
+                    for data_item in data_items:
+                        data_item.uuid = uuid.uuid4()
+                        self.document_model.append_data_item(data_item)
+                        display_item = self.document_model.get_display_item_for_data_item(data_item)
+                        assert display_item
+                        if data_group:
+                            data_group.insert_display_item(index, display_item)
+                            index += 1
+                        else:
+                            display_items.append(display_item)
+            except Exception as e:
+                logging.debug(f"Could not read image {file_path} / {e}")
+                traceback.print_exc()
+                traceback.print_stack()
+        self.select_display_items_in_data_panel(display_items)
 
     def create_context_menu_for_display(self, display_items: typing.List[DisplayItem.DisplayItem]) -> UserInterface.Menu:
         # only used in tests
