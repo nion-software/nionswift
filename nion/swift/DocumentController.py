@@ -45,6 +45,7 @@ from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
+from nion.swift.model import FileStorageSystem
 from nion.swift.model import Graphics
 from nion.swift.model import ImportExportManager
 from nion.swift.model import Notification
@@ -52,6 +53,7 @@ from nion.swift.model import Persistence
 from nion.swift.model import Processing
 from nion.swift.model import Profile
 from nion.swift.model import Project
+from nion.swift.model import StorageHandler
 from nion.swift.model import Symbolic
 from nion.swift.model import UISettings
 from nion.swift.model import Utility
@@ -2549,18 +2551,58 @@ class DocumentController(Window.Window):
         file_paths = [pathlib.Path(file_path) for file_path in files]
         for file_index, file_path in enumerate(file_paths):
             try:
-                data_items = ImportExportManager.ImportExportManager().read_data_items(file_path)
-                if data_items:
-                    for data_item in data_items:
-                        data_item.uuid = uuid.uuid4()
-                        self.document_model.append_data_item(data_item)
-                        display_item = self.document_model.get_display_item_for_data_item(data_item)
-                        assert display_item
-                        if data_group:
-                            data_group.insert_display_item(index, display_item)
-                            index += 1
-                        else:
-                            display_items.append(display_item)
+                document_model = self.document_model
+                project = document_model._project
+                # first ask the import system to return the import data, which contains the data items in the form of
+                # storage handlers, the display items in the form of dictionaries, and a map of old uuid's to new
+                # ones. the storage handlers are created from the project storage system of the document model for
+                # this document controller. all imported objects are guaranteed to be fully independent of existing
+                # objects with new uuid's. all source properties are cleared.
+                import_data = ImportExportManager.ImportExportManager().read_import_data(file_path, project.project_storage_system)
+                # keep a list of data items for bookkeeping.
+                data_items = list[DataItem.DataItem]()
+                # make a copy of the uuid_map so it can be modified as needed.
+                uuid_map = dict(import_data.uuid_map)
+                # iterate over the storage handlers and read the properties from each one. then register the storage
+                # handler with the project storage system and load the data item from the properties. if the data item
+                # is successfully loaded, add it to the list of data items.
+                for storage_handler in import_data.storage_handlers:
+                    data_item_properties = storage_handler.read_properties()
+                    project.project_storage_system.register_storage_handler(storage_handler, data_item_properties)
+                    loaded_data_item = project._load_data_item(data_item_properties)
+                    if loaded_data_item:
+                        data_items.append(loaded_data_item)
+                # keep a list of display items for bookkeeping.
+                display_items = list[DisplayItem.DisplayItem]()
+                for item_d in import_data.items:
+                    if item_d.get("type") == "display_item":
+                        # create a new display item and read it from the dictionary.
+                        display_item_ = DisplayItem.DisplayItem()
+                        display_item_.begin_reading()
+                        display_item_.read_from_dict(item_d)
+                        display_item_.finish_reading()
+                        # update the uuids for the display item.
+                        display_item_.update_uuids(uuid_map)
+                        # add the display item to the document model.
+                        document_model.append_display_item(display_item_)
+                        display_items.append(display_item_)
+                # after loading, ensure the title gets updated properly.
+                for data_item in data_items:
+                    data_item.source_data_items_changed(document_model.get_source_data_items(data_item))
+                # after loading, ensure the display data stream gets updated properly.
+                for display_item_ in display_items:
+                    display_item_.finish_project_read()
+                # after loading, any data items without a display get one. also add to the group, if desired.
+                for data_item in data_items:
+                    display_item = document_model.get_display_item_for_data_item(data_item)
+                    if not display_item:
+                        display_item = DisplayItem.DisplayItem(data_item=data_item)
+                        document_model.append_display_item(display_item)
+                    if data_group:
+                        data_group.insert_display_item(index, display_item)
+                        index += 1
+                    else:
+                        display_items.append(display_item)
             except Exception as e:
                 logging.debug(f"Could not read image {file_path} / {e}")
                 traceback.print_exc()
