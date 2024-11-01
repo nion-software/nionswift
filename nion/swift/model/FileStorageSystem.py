@@ -637,6 +637,12 @@ class ProjectStorageSystem(PersistentStorageSystem):
                 return typing.cast(PersistentDictType, item_d)
         assert False
 
+    def register_storage_handler(self, storage_handler: StorageHandler.StorageHandler, properties: PersistentDictType) -> None:
+        data_item_uuid = uuid.UUID(properties["uuid"])
+        assert data_item_uuid not in self.__storage_adapter_map
+        storage_adapter = DataItemStorageAdapter(storage_handler, properties)
+        self.__storage_adapter_map[data_item_uuid] = storage_adapter
+
     def read_project_properties(self) -> typing.Tuple[PersistentDictType, typing.Sequence[Persistence.ReaderError]]:
         """Read data items from the data reference handler and return as a dict.
 

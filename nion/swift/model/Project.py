@@ -305,73 +305,19 @@ class Project(Persistence.PersistentObject):
             project_version = properties.get("version", None)
             if project_version is not None and project_version == FileStorageSystem.PROJECT_VERSION:
                 for item_d in properties.get("data_items", list()):
-                    data_item = DataItem.DataItem()
-                    data_item.begin_reading()
-                    data_item.read_from_dict(item_d)
-                    data_item.finish_reading()
-                    if not self.get_item_by_uuid("data_items", data_item.uuid):
-                        self.load_item("data_items", len(self.data_items), data_item)
-                    else:
-                        data_item.close()
+                    self._load_data_item(item_d)
                 for item_d in properties.get("display_items", list()):
-                    display_item = DisplayItem.DisplayItem()
-                    display_item.begin_reading()
-                    display_item.read_from_dict(item_d)
-                    display_item.finish_reading()
-                    if not self.get_item_by_uuid("display_items", display_item.uuid):
-                        self.load_item("display_items", len(self.display_items), display_item)
-                    else:
-                        display_item.close()
+                    self._load_display_item(item_d)
                 for item_d in properties.get("data_structures", list()):
-                    data_structure = DataStructure.DataStructure()
-                    data_structure.begin_reading()
-                    data_structure.read_from_dict(item_d)
-                    data_structure.finish_reading()
-                    if not self.get_item_by_uuid("data_structures", data_structure.uuid):
-                        self.load_item("data_structures", len(self.data_structures), data_structure)
-                    else:
-                        data_structure.close()
+                    self._load_data_structure(item_d)
                 for item_d in properties.get("computations", list()):
-                    computation = Symbolic.Computation()
-                    computation.begin_reading()
-                    computation.read_from_dict(item_d)
-                    computation.finish_reading()
-                    if not self.get_item_by_uuid("computations", computation.uuid):
-                        self.load_item("computations", len(self.computations), computation)
-                        # TODO: handle update script and bind after reload in document model
-                        computation.update_script()
-                        computation.reset()
-                    else:
-                        computation.close()
+                    self._load_computation(item_d)
                 for item_d in properties.get("connections", list()):
-                    connection = Connection.connection_factory(item_d.get)
-                    if connection:
-                        connection.begin_reading()
-                        connection.read_from_dict(item_d)
-                        connection.finish_reading()
-                        if not self.get_item_by_uuid("connections", connection.uuid):
-                            self.load_item("connections", len(self.connections), connection)
-                        else:
-                            connection.close()
+                    self._load_connection(item_d)
                 for item_d in properties.get("data_groups", list()):
-                    data_group = DataGroup.data_group_factory(item_d.get)
-                    if data_group:
-                        data_group.begin_reading()
-                        data_group.read_from_dict(item_d)
-                        data_group.finish_reading()
-                        if not self.get_item_by_uuid("data_groups", data_group.uuid):
-                            self.load_item("data_groups", len(self.data_groups), data_group)
-                        else:
-                            data_group.close()
+                    self._load_data_group(item_d)
                 for item_d in properties.get("workspaces", list()):
-                    workspace = WorkspaceLayout.factory(item_d.get)
-                    workspace.begin_reading()
-                    workspace.read_from_dict(item_d)
-                    workspace.finish_reading()
-                    if not self.get_item_by_uuid("workspaces", workspace.uuid):
-                        self.load_item("workspaces", len(self.workspaces), workspace)
-                    else:
-                        workspace.close()
+                    self._load_workspace(item_d)
                 workspace_uuid_str = properties.get("workspace_uuid", None)
                 workspace_uuid = uuid.UUID(workspace_uuid_str) if workspace_uuid_str else None
                 existing_workspace_uuid = self._get_persistent_property_value("workspace_uuid", None)
@@ -390,6 +336,83 @@ class Project(Persistence.PersistentObject):
             self.handle_finish_read()
         elapsed_s = int(time.time() - self.__project_load_start_time)
         logging.getLogger("loader").info(f"Loaded project {elapsed_s}s (data items: {len(self.data_items)}, display items: {len(self.display_items)}, data structures: {len(self.data_structures)}, computations: {len(self.computations)}, connections: {len(self.connections)}, data groups: {len(self.data_groups)}, workspaces: {len(self.workspaces)})")
+
+    def _load_data_item(self, item_d: PersistentDictType) -> typing.Optional[DataItem.DataItem]:
+        data_item = DataItem.DataItem()
+        data_item.begin_reading()
+        data_item.read_from_dict(item_d)
+        data_item.finish_reading()
+        if not self.get_item_by_uuid("data_items", data_item.uuid):
+            self.load_item("data_items", len(self.data_items), data_item)
+            return data_item
+        else:
+            data_item.close()
+        return None
+
+    def _load_display_item(self, item_d: PersistentDictType) -> None:
+        display_item = DisplayItem.DisplayItem()
+        display_item.begin_reading()
+        display_item.read_from_dict(item_d)
+        display_item.finish_reading()
+        if not self.get_item_by_uuid("display_items", display_item.uuid):
+            self.load_item("display_items", len(self.display_items), display_item)
+        else:
+            display_item.close()
+
+    def _load_data_structure(self, item_d: PersistentDictType) -> None:
+        data_structure = DataStructure.DataStructure()
+        data_structure.begin_reading()
+        data_structure.read_from_dict(item_d)
+        data_structure.finish_reading()
+        if not self.get_item_by_uuid("data_structures", data_structure.uuid):
+            self.load_item("data_structures", len(self.data_structures), data_structure)
+        else:
+            data_structure.close()
+
+    def _load_computation(self, item_d: PersistentDictType) -> None:
+        computation = Symbolic.Computation()
+        computation.begin_reading()
+        computation.read_from_dict(item_d)
+        computation.finish_reading()
+        if not self.get_item_by_uuid("computations", computation.uuid):
+            self.load_item("computations", len(self.computations), computation)
+            # TODO: handle update script and bind after reload in document model
+            computation.update_script()
+            computation.reset()
+        else:
+            computation.close()
+
+    def _load_connection(self, item_d: PersistentDictType) -> None:
+        connection = Connection.connection_factory(typing.cast(typing.Callable[[str], str], item_d.get))
+        if connection:
+            connection.begin_reading()
+            connection.read_from_dict(item_d)
+            connection.finish_reading()
+            if not self.get_item_by_uuid("connections", connection.uuid):
+                self.load_item("connections", len(self.connections), connection)
+            else:
+                connection.close()
+
+    def _load_data_group(self, item_d: PersistentDictType) -> None:
+        data_group = DataGroup.data_group_factory(typing.cast(typing.Callable[[str], str], item_d.get))
+        if data_group:
+            data_group.begin_reading()
+            data_group.read_from_dict(item_d)
+            data_group.finish_reading()
+            if not self.get_item_by_uuid("data_groups", data_group.uuid):
+                self.load_item("data_groups", len(self.data_groups), data_group)
+            else:
+                data_group.close()
+
+    def _load_workspace(self, item_d: PersistentDictType) -> None:
+        workspace = WorkspaceLayout.factory(typing.cast(typing.Callable[[str], str], item_d.get))
+        workspace.begin_reading()
+        workspace.read_from_dict(item_d)
+        workspace.finish_reading()
+        if not self.get_item_by_uuid("workspaces", workspace.uuid):
+            self.load_item("workspaces", len(self.workspaces), workspace)
+        else:
+            workspace.close()
 
     def __property_changed(self, name: str, value: typing.Any) -> None:
         self.notify_property_changed(name)
