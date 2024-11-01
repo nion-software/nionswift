@@ -126,7 +126,7 @@ class ProjectReference(Persistence.PersistentObject):
     def project_reference_parts(self) -> typing.Sequence[str]:
         raise NotImplementedError()
 
-    def make_storage(self, profile_context: typing.Optional[ProfileContext]) -> typing.Optional[Persistence.PersistentStorageInterface]:
+    def make_storage(self, profile_context: typing.Optional[ProfileContext]) -> typing.Optional[FileStorageSystem.ProjectStorageSystem]:
         raise NotImplementedError()
 
     def read_project_info(self, profile_context: typing.Optional[ProfileContext]) -> None:
@@ -249,7 +249,7 @@ class IndexProjectReference(ProjectReference):
         project_path = self.project_path
         return project_path.parts if project_path else tuple()
 
-    def make_storage(self, profile_context: typing.Optional[ProfileContext]) -> typing.Optional[Persistence.PersistentStorageInterface]:
+    def make_storage(self, profile_context: typing.Optional[ProfileContext]) -> typing.Optional[FileStorageSystem.ProjectStorageSystem]:
         project_path = self.project_path
         if project_path:
             return FileStorageSystem.make_index_project_storage_system(project_path)
@@ -295,7 +295,7 @@ class FolderProjectReference(ProjectReference):
     def project_reference_parts(self) -> typing.Sequence[str]:
         return self.project_folder_path.parts if self.project_folder_path else tuple()
 
-    def make_storage(self, profile_context: typing.Optional[ProfileContext]) -> typing.Optional[Persistence.PersistentStorageInterface]:
+    def make_storage(self, profile_context: typing.Optional[ProfileContext]) -> typing.Optional[FileStorageSystem.ProjectStorageSystem]:
         if self.project_folder_path:
             return FileStorageSystem.make_folder_project_storage_system(self.project_folder_path)
         return None
@@ -348,7 +348,7 @@ class PlaceholderProjectReference(ProjectReference):
     def project_reference_parts(self) -> typing.Sequence[str]:
         return (self.type, str(self.project_uuid or uuid.UUID()))
 
-    def make_storage(self, profile_context: typing.Optional[ProfileContext]) -> typing.Optional[Persistence.PersistentStorageInterface]:
+    def make_storage(self, profile_context: typing.Optional[ProfileContext]) -> typing.Optional[FileStorageSystem.ProjectStorageSystem]:
         return None
 
 

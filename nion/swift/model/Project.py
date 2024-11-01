@@ -41,7 +41,7 @@ class Project(Persistence.PersistentObject):
 
     PROJECT_VERSION = 3
 
-    def __init__(self, storage_system: Persistence.PersistentStorageInterface, cache_factory: typing.Optional[Cache.CacheFactory] = None) -> None:
+    def __init__(self, storage_system: FileStorageSystem.ProjectStorageSystem, cache_factory: typing.Optional[Cache.CacheFactory] = None) -> None:
         super().__init__()
 
         self.define_type("project")
@@ -242,7 +242,7 @@ class Project(Persistence.PersistentObject):
         return ListModel.PredicateFilter(functools.partial(is_display_item_active, weakref.ref(self)))
 
     @property
-    def project_storage_system(self) -> Persistence.PersistentStorageInterface:
+    def project_storage_system(self) -> FileStorageSystem.ProjectStorageSystem:
         return self.__storage_system
 
     def __data_item_inserted(self, name: str, before_index: int, data_item: DataItem.DataItem) -> None:
