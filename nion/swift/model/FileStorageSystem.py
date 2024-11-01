@@ -1123,7 +1123,7 @@ class MemoryStorageHandler(StorageHandler.StorageHandler):
         self.__data_properties_map[self.__uuid] = Utility.clean_dict(properties)
 
     def write_data(self, data: _NDArray, file_datetime: datetime.datetime) -> None:
-        self.__data_map[self.__uuid] = data.copy()
+        self.__data_map[self.__uuid] = numpy.copy(data)
 
     def reserve_data(self, data_shape: typing.Tuple[int, ...], data_dtype: numpy.typing.DTypeLike, file_datetime: datetime.datetime) -> None:
         self.__data_map[self.__uuid] = numpy.zeros(data_shape, data_dtype)
