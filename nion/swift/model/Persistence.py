@@ -1201,6 +1201,12 @@ class PersistentObject(Observable.Observable):
         relationship = self.__relationships[name]
         return relationship.index.get(uuid)
 
+    def change_relationship_item_uuid(self, name: str, old_uuid: uuid.UUID, new_uuid: uuid.UUID) -> None:
+        """Change the uuid of an item."""
+        relationship = self.__relationships[name]
+        item = relationship.index.pop(old_uuid)
+        relationship.index[new_uuid] = item
+
     def get_relationship_items(self, name: str) -> typing.List[PersistentObject]:
         """Return the relationship items without making a copy."""
         return self.__relationships[name].values
