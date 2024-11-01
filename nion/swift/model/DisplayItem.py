@@ -29,7 +29,6 @@ from nion.swift.model import Cache
 from nion.swift.model import Changes
 from nion.swift.model import ColorMaps
 from nion.swift.model import DataItem
-from nion.swift.model import DynamicString
 from nion.swift.model import Graphics
 from nion.swift.model import Model
 from nion.swift.model import Persistence
@@ -1114,6 +1113,14 @@ class DisplayDataChannel(Persistence.PersistentObject):
         self.__current_data_item = None
         super().close()
 
+    def update_uuids(self, uuid_map: dict[uuid.UUID, uuid.UUID]) -> None:
+        assert not self.persistent_object_context
+        item_specifier = self.__data_item_reference.item_specifier
+        data_item_uuid = item_specifier.item_uuid if item_specifier else None
+        if data_item_uuid:
+            self.data_item_reference = str(uuid_map[data_item_uuid])
+        self.uuid = uuid_map.setdefault(self.uuid, uuid.uuid4())
+
     def about_to_be_inserted(self, container: Persistence.PersistentObject) -> None:
         super().about_to_be_inserted(container)
         self.notify_property_changed("display_item")  # used for implicit connections
@@ -1762,6 +1769,14 @@ class DisplayLayer(Schema.Entity):
         display_layer_properties = display_layer_properties or dict()
         for k, v in display_layer_properties.items():
             setattr(self, k, v)
+
+    def update_uuids(self, uuid_map: dict[uuid.UUID, uuid.UUID]) -> None:
+        assert not self.persistent_object_context
+        field = self.get_field("display_data_channel")
+        assert isinstance(field, Schema.ReferenceField)
+        if field.reference_uuid:
+            field._update_reference_uuid(uuid_map.get(field.reference_uuid, None))
+        self.uuid = uuid_map.setdefault(self.uuid, uuid.uuid4())
 
     @property
     def display_item(self) -> DisplayItem:
@@ -2493,6 +2508,22 @@ class DisplayItem(Persistence.PersistentObject):
             display_item_copy.add_graphic(copy.deepcopy(graphic))
         memo[id(self)] = display_item_copy
         return display_item_copy
+
+    def update_uuids(self, uuid_map: dict[uuid.UUID, uuid.UUID]) -> None:
+        assert not self.persistent_object_context
+        for display_data_channel in self.display_data_channels:
+            old_uuid = display_data_channel.uuid
+            display_data_channel.update_uuids(uuid_map)
+            self.change_relationship_item_uuid("display_data_channels", old_uuid, display_data_channel.uuid)
+        for display_layer in self.display_layers:
+            old_uuid = display_layer.uuid
+            display_layer.update_uuids(uuid_map)
+            self.change_relationship_item_uuid("display_layers", old_uuid, display_layer.uuid)
+        for graphic in self.graphics:
+            old_uuid = graphic.uuid
+            graphic.update_uuids(uuid_map)
+            self.change_relationship_item_uuid("graphics", old_uuid, graphic.uuid)
+        self.uuid = uuid_map.setdefault(self.uuid, uuid.uuid4())
 
     @property
     def created(self) -> datetime.datetime:

@@ -662,6 +662,11 @@ class ReferenceField(Field):
     def reference_uuid(self) -> typing.Optional[uuid.UUID]:
         return self.__reference_uuid
 
+    def _update_reference_uuid(self, reference_uuid: typing.Optional[uuid.UUID]) -> None:
+        assert not self.__reference
+        assert not self.__shadow_item
+        self.__reference_uuid = reference_uuid
+
 
 class ComponentField(Field):
     """A component field, references another entity with cascading delete."""

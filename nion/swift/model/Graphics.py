@@ -5,6 +5,7 @@ import contextlib
 import copy
 import gettext
 import math
+import uuid
 
 # third party libraries
 import numpy  # for arange
@@ -648,6 +649,11 @@ class Graphic(Persistence.PersistentObject):
         self.__source_reference = self.create_item_reference()
         self._default_stroke_color = "#F80"
         self._default_drag_part = "all"
+
+    def update_uuids(self, uuid_map: dict[uuid.UUID, uuid.UUID]) -> None:
+        assert not self.persistent_object_context
+        self.__source_reference.item = None
+        self.uuid = uuid_map.setdefault(self.uuid, uuid.uuid4())
 
     @property
     def source_specifier(self) -> typing.Optional[Persistence._SpecifierType]:
