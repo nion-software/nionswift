@@ -1,5 +1,6 @@
 # standard libraries
 import copy
+import dataclasses
 import datetime
 import io
 import json
@@ -20,6 +21,8 @@ from nion.data import DataAndMetadata
 from nion.data import Image
 from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
+from nion.swift.model import FileStorageSystem
+from nion.swift.model import StorageHandler
 from nion.swift.model import Utility
 from nion.utils import DateTime
 
@@ -30,6 +33,13 @@ _DataArrayType = numpy.typing.NDArray[typing.Any]
 
 class ImportExportIncompatibleDataError(Exception):
     pass
+
+
+@dataclasses.dataclass
+class ImportData:
+    storage_handlers: typing.Sequence[StorageHandler.StorageHandler]
+    uuid_map: typing.Mapping[uuid.UUID, uuid.UUID]
+    items: typing.Sequence[DataElementType]
 
 
 class ImportExportHandler:
@@ -49,6 +59,28 @@ class ImportExportHandler:
 
     def can_read(self) -> bool:
         return True
+
+    def read_import_data(self, extension: str, file_path: pathlib.Path, project_storage_system: FileStorageSystem.ProjectStorageSystem) -> ImportData:
+        if file_path.exists() or str(file_path.parent).startswith(":"):
+            return self._read_import_data(extension, file_path, project_storage_system)
+        return ImportData(list(), dict(), list())
+
+    def _read_import_data(self, extension: str, file_path: pathlib.Path, project_storage_system: FileStorageSystem.ProjectStorageSystem) -> ImportData:
+        storage_handlers = list[StorageHandler.StorageHandler]()
+        data_items = self.read_data_items(extension, file_path)
+        for data_item in data_items:
+            data_item.uuid = uuid.uuid4()
+            data_item_metadata = FileStorageSystem.make_data_item_metadata(data_item)
+            storage_handler = project_storage_system._make_storage_handler(data_item_metadata)
+            data_item_data = data_item.data
+            data_item_properties = data_item.write_to_dict()
+            data_item_properties["modified"] = data_item.modified.isoformat()
+            if data_item_data is not None:
+                storage_handler.write_data(data_item_data, data_item.created)
+                storage_handler.write_properties(data_item_properties, data_item.created)
+            storage_handlers.append(storage_handler)
+            data_item.close()
+        return ImportData(storage_handlers, dict(), list())
 
     # return data items
     def read_data_items(self, extension: str, file_path: pathlib.Path) -> typing.Sequence[DataItem.DataItem]:
@@ -137,21 +169,25 @@ class ImportExportManager(metaclass=Utility.Singleton):
                     writers.append(io_handler)
         return writers
 
-    # read file, return data items
-    def read_data_items(self, path: pathlib.Path) -> typing.Sequence[DataItem.DataItem]:
-        root, extension = os.path.splitext(path)
-        if extension:
-            extension = extension[1:]  # remove the leading "."
-            extension = extension.lower()
-            for io_handler in self.__io_handlers:
-                if extension in io_handler.extensions:
-                    return io_handler.read_data_items(extension, path)
-        return list()
+    def __find_io_handler_for_extension(self, extension: str) -> typing.Optional[ImportExportHandler]:
+        for io_handler in self.__io_handlers:
+            if extension and extension in io_handler.extensions:
+                return io_handler
+        return None
+
+    def read_import_data(self, path: pathlib.Path, project_storage_system: FileStorageSystem.ProjectStorageSystem) -> ImportData:
+        extension = path.suffix[1:].lower()  # remove the leading "." and convert to lower case
+        io_handler = self.__find_io_handler_for_extension(extension)
+        return io_handler.read_import_data(extension, path, project_storage_system) if io_handler else ImportData(list(), dict(), list())
 
     # read file, return data
     def read_data(self, path: pathlib.Path) -> typing.Optional[_DataArrayType]:
-        data_items = self.read_data_items(path)
-        return data_items[0].data if data_items else None
+        extension = path.suffix[1:].lower()  # remove the leading "." and convert to lower case
+        io_handler = self.__find_io_handler_for_extension(extension)
+        if io_handler:
+            data_items = io_handler.read_data_items(extension, path)
+            return data_items[0].data if data_items else None
+        return None
 
     def write_display_item_with_writer(self, writer: ImportExportHandler, display_item: DisplayItem.DisplayItem, path: pathlib.Path) -> None:
         extension = path.suffix
