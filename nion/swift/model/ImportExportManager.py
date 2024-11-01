@@ -156,16 +156,10 @@ class ImportExportManager(metaclass=Utility.Singleton):
                     return io_handler.read_data_items(extension, path)
         return list()
 
-    # read file, return data elements
-    def read_data_elements(self, path: pathlib.Path) -> typing.Sequence[DataElementType]:
-        root, extension = os.path.splitext(path)
-        if extension:
-            extension = extension[1:]  # remove the leading "."
-            extension = extension.lower()
-            for io_handler in self.__io_handlers:
-                if extension in io_handler.extensions:
-                    return io_handler.read_data_elements(extension, path)
-        return list()
+    # read file, return data
+    def read_data(self, path: pathlib.Path) -> typing.Optional[_DataArrayType]:
+        data_items = self.read_data_items(path)
+        return data_items[0].data if data_items else None
 
     def write_display_item_with_writer(self, writer: ImportExportHandler, display_item: DisplayItem.DisplayItem, path: pathlib.Path) -> None:
         extension = path.suffix
