@@ -1256,11 +1256,11 @@ def make_memory_persistent_storage_system() -> Persistence.PersistentStorageInte
     return MemoryPersistentStorageSystem()
 
 
-def make_index_project_storage_system(project_path: pathlib.Path) -> Persistence.PersistentStorageInterface:
+def make_index_project_storage_system(project_path: pathlib.Path) -> ProjectStorageSystem:
     return FileProjectStorageSystem(project_path)
 
 
-def make_folder_project_storage_system(project_folder_path: pathlib.Path) -> typing.Optional[Persistence.PersistentStorageInterface]:
+def make_folder_project_storage_system(project_folder_path: pathlib.Path) -> typing.Optional[ProjectStorageSystem]:
     for project_file, project_dir in FileProjectStorageSystem._get_migration_paths(project_folder_path):
         if project_file.exists():
             return FileProjectStorageSystem(project_file, project_dir)
