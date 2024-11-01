@@ -878,7 +878,7 @@ class Workspace:
             return "copy"
         if mime_data.has_format("text/uri-list"):
             index = len(document_model.data_items)
-            self.document_controller.receive_files(mime_data.file_paths, None, index, threaded=True, display_panel=display_panel)
+            self.document_controller.receive_files(mime_data.file_paths, None, index)
             return "copy"
         return "ignore"
 
