@@ -3376,7 +3376,8 @@ class TestStorageClass(unittest.TestCase):
                 profile.read_profile()
                 document_model = profile_context.create_document_model(auto_close=False)
                 with document_model.ref():
-                    with contextlib.closing(document_model._project.project_storage_system._make_storage_handler(data_item)) as handler:
+                    storage_handler_attributes = FileStorageSystem.make_storage_handler_attributes(data_item)
+                    with contextlib.closing(document_model._project.project_storage_system._make_storage_handler(storage_handler_attributes)) as handler:
                         handler.write_properties(data_item.write_to_dict(), DateTime.utcnow())
                         handler.write_data(numpy.zeros((8,8)), DateTime.utcnow())
             # read the document and migrate
