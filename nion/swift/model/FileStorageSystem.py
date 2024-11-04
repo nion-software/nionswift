@@ -545,17 +545,11 @@ class ProjectStorageSystemMigrationStage:
     pass
 
 
-"""Data item metadata for organizing within storage system."""
-@dataclasses.dataclass
-class DataItemMetadata:
-    uuid: uuid.UUID
-    created_local: datetime.datetime
-    session_id: str | None
-    large_format: bool
-
-
-def make_data_item_metadata(data_item: DataItem.DataItem) -> DataItemMetadata:
-    return DataItemMetadata(data_item.uuid, data_item.created_local, data_item.session_id, data_item.large_format)
+def make_storage_handler_attributes(data_item: DataItem.DataItem) -> StorageHandler.StorageHandlerAttributes:
+    dimensional_shape = data_item.dimensional_shape
+    data_dtype = data_item.data_dtype
+    n_bytes = typing.cast(int, numpy.prod(dimensional_shape + (numpy.dtype(data_dtype).itemsize,), dtype=numpy.int64))
+    return StorageHandler.StorageHandlerAttributes(data_item.uuid, data_item.created_local, data_item.session_id, n_bytes, data_item.large_format)
 
 
 class ProjectStorageSystem(PersistentStorageSystem):
@@ -571,7 +565,7 @@ class ProjectStorageSystem(PersistentStorageSystem):
         self.__storage_adapter_map.clear()
 
     @abc.abstractmethod
-    def _make_storage_handler(self, data_item_metadata: DataItemMetadata, file_handler: typing.Optional[StorageHandler.StorageHandlerFactoryLike] = None) -> StorageHandler.StorageHandler: ...
+    def _make_storage_handler(self, storage_handler_attributes: StorageHandler.StorageHandlerAttributes, file_handler: typing.Optional[StorageHandler.StorageHandlerFactoryLike] = None) -> StorageHandler.StorageHandler: ...
 
     @abc.abstractmethod
     def _find_storage_handlers(self) -> typing.Sequence[StorageHandler.StorageHandler]: ...
@@ -713,7 +707,7 @@ class ProjectStorageSystem(PersistentStorageSystem):
     def _insert_item(self, parent: Persistence.PersistentObject, name: str, before_index: int, item: Persistence.PersistentObject) -> None:
         if isinstance(item, DataItem.DataItem):
             item_uuid = item.uuid
-            storage_handler = self._make_storage_handler(make_data_item_metadata(item))
+            storage_handler = self._make_storage_handler(make_storage_handler_attributes(item))
             assert item_uuid not in self.__storage_adapter_map
             persistent_dict = self._get_persistent_dict(item)
             assert persistent_dict is not None
@@ -893,12 +887,13 @@ class FileProjectStorageSystem(ProjectStorageSystem):
     def get_identifier(self) -> str:
         return str(self.__project_path)
 
-    def _make_storage_handler(self, data_item_metadata: DataItemMetadata, file_handler_factory: typing.Optional[StorageHandler.StorageHandlerFactoryLike] = None) -> StorageHandler.StorageHandler:
+    def _make_storage_handler(self, storage_handler_attributes: StorageHandler.StorageHandlerAttributes, file_handler_factory: typing.Optional[StorageHandler.StorageHandlerFactoryLike] = None) -> StorageHandler.StorageHandler:
         # if there are two handlers, first is small, second is large
         # if there is only one handler, it is used in all cases
-        file_handler_factory = file_handler_factory if file_handler_factory else (self._file_handler_factories[-1] if data_item_metadata.large_format else self._file_handler_factories[0])
+        is_large_format = storage_handler_attributes.n_bytes > 16 * 1024 * 1024 or storage_handler_attributes._force_large_format
+        file_handler_factory = file_handler_factory if file_handler_factory else (self._file_handler_factories[-1] if is_large_format else self._file_handler_factories[0])
         assert self.__project_data_path is not None
-        return file_handler_factory.make(self.__project_data_path / self.__get_base_path(data_item_metadata))
+        return file_handler_factory.make(self.__project_data_path / self.__get_base_path(storage_handler_attributes))
 
     def _find_storage_handlers(self) -> typing.Sequence[StorageHandler.StorageHandler]:
         return self.__find_storage_handlers(self.__project_data_path)
@@ -936,11 +931,11 @@ class FileProjectStorageSystem(ProjectStorageSystem):
                         data_item.read_from_dict(properties)
                         data_item.finish_reading()
                         old_file_path = storage_handler.reference
-                        new_file_path = storage_handler.factory.make_path(self.__project_data_path / self.__get_base_path(make_data_item_metadata(data_item)))
+                        new_file_path = storage_handler.factory.make_path(self.__project_data_path / self.__get_base_path(make_storage_handler_attributes(data_item)))
                         if not os.path.exists(new_file_path):
                             os.makedirs(os.path.dirname(new_file_path), exist_ok=True)
                             shutil.move(old_file_path, new_file_path)
-                        self._make_storage_handler(make_data_item_metadata(data_item)).close()  # what's this line for?
+                        self._make_storage_handler(make_storage_handler_attributes(data_item)).close()  # what's this line for?
                         properties["__large_format"] = isinstance(storage_handler, HDF5Handler.HDF5Handler)
                         return properties
         finally:
@@ -978,7 +973,7 @@ class FileProjectStorageSystem(ProjectStorageSystem):
             file_handler_factory = self.__get_file_handler_factory_for_file(str(old_data_item_path))
             # ask the storage system to make a storage handler (an instance of a file handler) for the data item
             # this ensures that the storage handler (file format) is the same as before.
-            with contextlib.closing(self._make_storage_handler(make_data_item_metadata(old_data_item), file_handler_factory)) as target_storage_handler:
+            with contextlib.closing(self._make_storage_handler(make_storage_handler_attributes(old_data_item), file_handler_factory)) as target_storage_handler:
                 if target_storage_handler and storage_handler.reference != target_storage_handler.reference:
                     os.makedirs(os.path.dirname(target_storage_handler.reference), exist_ok=True)
                     target_storage_handler.prepare_move()
@@ -1036,10 +1031,10 @@ class FileProjectStorageSystem(ProjectStorageSystem):
         migration_stage = typing.cast(FileProjectStorageSystemMigrationStage, migration_stage)
         return self.__find_storage_handlers(migration_stage.library_folder)
 
-    def __get_base_path(self, data_item_metadata: DataItemMetadata) -> pathlib.Path:
-        data_item_uuid = data_item_metadata.uuid
-        created_local = data_item_metadata.created_local
-        session_id = data_item_metadata.session_id
+    def __get_base_path(self, storage_handler_attributes: StorageHandler.StorageHandlerAttributes) -> pathlib.Path:
+        data_item_uuid = storage_handler_attributes.uuid
+        created_local = storage_handler_attributes.created_local
+        session_id = storage_handler_attributes.session_id
         # data_item_uuid.bytes.encode('base64').rstrip('=\n').replace('/', '_')
         # and back: data_item_uuid = uuid.UUID(bytes=(slug + '==').replace('_', '/').decode('base64'))
         # also:
@@ -1176,8 +1171,8 @@ class MemoryProjectStorageSystem(ProjectStorageSystem):
     def get_identifier(self) -> str:
         return "memory"
 
-    def _make_storage_handler(self, data_item_metadata: DataItemMetadata, file_handler: typing.Optional[StorageHandler.StorageHandlerFactoryLike] = None) -> MemoryStorageHandler:
-        data_item_uuid_str = str(data_item_metadata.uuid)
+    def _make_storage_handler(self, storage_handler_attributes: StorageHandler.StorageHandlerAttributes, file_handler: typing.Optional[StorageHandler.StorageHandlerFactoryLike] = None) -> MemoryStorageHandler:
+        data_item_uuid_str = str(storage_handler_attributes.uuid)
         return MemoryStorageHandler(data_item_uuid_str, self.__data_properties_map, self.__data_map, self._test_data_read_event)
 
     def _find_storage_handlers(self) -> typing.Sequence[StorageHandler.StorageHandler]:

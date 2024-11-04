@@ -1,13 +1,13 @@
 from __future__ import annotations
 
+import dataclasses
+import datetime
+import pathlib
 import typing
+import uuid
 
 import numpy
 import numpy.typing
-
-if typing.TYPE_CHECKING:
-    import datetime
-    import pathlib
 
 
 PersistentDictType = typing.Dict[str, typing.Any]
@@ -51,3 +51,38 @@ class StorageHandler(typing.Protocol):
     def prepare_move(self) -> None: ...
 
     def remove(self) -> None: ...
+
+
+@dataclasses.dataclass
+class StorageHandlerAttributes:
+    """Attributes for organizing within storage system."""
+    uuid: uuid.UUID
+    created_local: datetime.datetime
+    session_id: str | None
+    n_bytes: int
+    _force_large_format: bool = False
+
+
+class StorageHandlerProvider(typing.Protocol):
+    def make_storage_handler(self, attributes: StorageHandlerAttributes) -> StorageHandler: ...
+
+
+@dataclasses.dataclass
+class StorageHandlerImportData:
+    storage_handlers: typing.Sequence[StorageHandler]
+    uuid_map: typing.Mapping[uuid.UUID, uuid.UUID]
+    items: typing.Sequence[PersistentDictType]
+
+
+class StorageHandlerExportDataItem(typing.Protocol):
+    def write_to_dict(self) -> PersistentDictType: ...
+
+    @property
+    def data(self) -> _NDArray: raise NotImplementedError()
+
+
+class StorageHandlerExportItem(typing.Protocol):
+    def write_to_dict(self) -> PersistentDictType: ...
+
+    @property
+    def data_items(self) -> typing.Sequence[StorageHandlerExportDataItem]: raise NotImplementedError()

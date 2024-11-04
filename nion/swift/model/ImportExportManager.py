@@ -25,6 +25,7 @@ from nion.swift.model import FileStorageSystem
 from nion.swift.model import StorageHandler
 from nion.swift.model import Utility
 from nion.utils import DateTime
+from nion.utils import Registry
 
 
 DataElementType = typing.Dict[str, typing.Any]
@@ -70,8 +71,8 @@ class ImportExportHandler:
         data_items = self.read_data_items(extension, file_path)
         for data_item in data_items:
             data_item.uuid = uuid.uuid4()
-            data_item_metadata = FileStorageSystem.make_data_item_metadata(data_item)
-            storage_handler = project_storage_system._make_storage_handler(data_item_metadata)
+            storage_handler_attributes = FileStorageSystem.make_storage_handler_attributes(data_item)
+            storage_handler = project_storage_system._make_storage_handler(storage_handler_attributes)
             data_item_data = data_item.data
             data_item_properties = data_item.write_to_dict()
             data_item_properties["modified"] = data_item.modified.isoformat()
@@ -738,6 +739,34 @@ class NDataImportExportHandler(ImportExportHandler):
                 os.remove(data_path)
 
 
+class ImportExportDriver(typing.Protocol):
+    def read_data(self, file_path: pathlib.Path, storage_handler_provider: StorageHandler.StorageHandlerProvider) -> StorageHandler.StorageHandlerImportData: ...
+    def write_display_item(self, path: pathlib.Path, items: typing.Sequence[StorageHandler.StorageHandlerExportItem]) -> None: ...
+
+
+class DelegatedImportExportHandler(ImportExportHandler):
+    def __init__(self, driver: ImportExportDriver, io_handler_id: str, name: str, extensions: typing.Sequence[str]) -> None:
+        super().__init__(io_handler_id, name, extensions)
+        self.__driver = driver
+
+    def _read_import_data(self, extension: str, file_path: pathlib.Path, project_storage_system: FileStorageSystem.ProjectStorageSystem) -> ImportData:
+        class StorageHandlerProvider:
+            def __init__(self, project_storage_system: FileStorageSystem.ProjectStorageSystem) -> None:
+                self.__project_storage_system = project_storage_system
+
+            def make_storage_handler(self, attributes: StorageHandler.StorageHandlerAttributes) -> StorageHandler.StorageHandler:
+                return self.__project_storage_system._make_storage_handler(attributes)
+
+        import_data = self.__driver.read_data(file_path, StorageHandlerProvider(project_storage_system))
+        return ImportData(import_data.storage_handlers, import_data.uuid_map, import_data.items)
+
+    def can_write_display_item(self, display_item: DisplayItem.DisplayItem, extension: str) -> bool:
+        return any(data_item.has_data for data_item in display_item.data_items)
+
+    def write_display_item(self, display_item: DisplayItem.DisplayItem, path: pathlib.Path, extension: str) -> None:
+        self.__driver.write_display_item(path, [typing.cast(StorageHandler.StorageHandlerExportItem, display_item)])
+
+
 class NumPyImportExportHandler(ImportExportHandler):
     """A file import/export handler to read/write the npy file type.
 
@@ -801,3 +830,23 @@ ImportExportManager().register_io_handler(CSV1ImportExportHandler("csv1-io-handl
 ImportExportManager().register_io_handler(NDataImportExportHandler("ndata1-io-handler", "NData 1", ["ndata1"]))
 ImportExportManager().register_io_handler(NumPyImportExportHandler("numpy-io-handler", "Raw NumPy", ["npy"]))
 ImportExportManager().register_io_handler(StandardImportExportHandler("webp-io-handler", "WebP", ["webp"]))
+
+
+class ImportExportDriverFactory(typing.Protocol):
+    driver_id: str
+    title: str
+    extensions: typing.Sequence[str]
+
+    def make_import_export_driver(self) -> ImportExportDriver: ...
+
+
+def component_registered(component: Registry._ComponentType, component_types: typing.Set[str]) -> None:
+    if "import-export-driver-factory" in component_types:
+        import_export_driver_factory = typing.cast(ImportExportDriverFactory, component)
+        import_export_driver = import_export_driver_factory.make_import_export_driver()
+        ImportExportManager().register_io_handler(DelegatedImportExportHandler(import_export_driver, import_export_driver_factory.driver_id, import_export_driver_factory.title, import_export_driver_factory.extensions))
+
+
+_component_registered_listener = Registry.listen_component_registered_event(component_registered)
+
+Registry.fire_existing_component_registered_events("import-export-driver-factory")
