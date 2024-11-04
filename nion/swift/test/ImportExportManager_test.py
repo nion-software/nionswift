@@ -16,10 +16,13 @@ import numpy
 # local libraries
 from nion.data import Calibration
 from nion.data import DataAndMetadata
+from nion.swift import Application
 from nion.swift.model import DataItem
+from nion.swift.model import Graphics
 from nion.swift.model import ImportExportManager
 from nion.swift.model import Utility
 from nion.swift.test import TestContext
+from nion.ui import TestUI
 from nion.utils import DateTime
 
 
@@ -27,6 +30,7 @@ class TestImportExportManagerClass(unittest.TestCase):
 
     def setUp(self):
         TestContext.begin_leaks()
+        self.app = Application.Application(TestUI.UserInterface(), set_global=True)
 
     def tearDown(self):
         TestContext.end_leaks(self)
@@ -460,6 +464,117 @@ class TestImportExportManagerClass(unittest.TestCase):
             handler = ImportExportManager.CSVImportExportHandler("csv-io-handler", "CSV Raw", ["csv"])
             handler.write_display_item(display_item, pathlib.Path(file_path), "csv")
             self.assertFalse(os.path.exists(file_path))
+
+    def test_export_nhdf_handles_composite_line_plot_uuids(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            document_model.append_data_item(DataItem.new_data_item(numpy.zeros(8,)))
+            document_model.append_data_item(DataItem.new_data_item(numpy.zeros(8,)))
+            data_item1, data_item2 = document_model.data_items
+            display_item1, display_item2 = document_model.display_items
+            display_item1.append_display_data_channel_for_data_item(data_item2)
+            display_item1.add_graphic(Graphics.IntervalGraphic())
+            current_working_directory = os.getcwd()
+            file_path = os.path.join(current_working_directory, "__file.nhdf")
+            handler = ImportExportManager.ImportExportManager().get_writer_by_id("nhdf-io-handler")
+            handler.write_display_item(display_item1, pathlib.Path(file_path), "nhdf")
+            self.assertEqual(2, len(document_model.data_items))
+            self.assertEqual(2, len(document_model.display_items))
+            self.assertEqual(document_model.data_items[0], document_model.display_items[0].data_items[0])
+            self.assertEqual(document_model.data_items[1], document_model.display_items[0].data_items[1])
+            self.assertEqual(1, len(document_model.display_items[0].graphics))
+            document_controller.receive_files([file_path])
+            # ensure we have the right number of data items and display items
+            self.assertEqual(4, len(document_model.data_items))
+            self.assertEqual(3, len(document_model.display_items))
+            # ensure the display item has two data items, two display layers, and a graphic
+            self.assertEqual(2, len(document_model.display_items[2].data_items))
+            self.assertEqual(2, len(document_model.display_items[2].display_layers))
+            self.assertEqual(1, len(document_model.display_items[2].graphics))
+            # ensure the display data channels (via data items) are in right order and point to the right data items
+            self.assertEqual(document_model.data_items[2], document_model.display_items[2].data_items[0])
+            self.assertEqual(document_model.data_items[3], document_model.display_items[2].data_items[1])
+            # ensure all top level uuid's are different
+            self.assertEqual(4, len({data_item.uuid for data_item in document_model.data_items}))
+            self.assertEqual(3, len({display_item.uuid for display_item in document_model.display_items}))
+            # ensure display data channel and display layer uuid's are different
+            self.assertFalse({d.uuid for d in document_model.display_items[0].display_data_channels}.intersection({d.uuid for d in document_model.display_items[2].display_data_channels}))
+            self.assertFalse({d.uuid for d in document_model.display_items[0].display_layers}.intersection({d.uuid for d in document_model.display_items[2].display_layers}))
+
+    def test_reloading_imported_data(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller(auto_close=False)
+            document_model = document_controller.document_model
+            with contextlib.closing(document_controller):
+                data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.uint32))
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                current_working_directory = os.getcwd()
+                file_path = os.path.join(current_working_directory, "__file.nhdf")
+                handler = ImportExportManager.ImportExportManager().get_writer_by_id("nhdf-io-handler")
+                handler.write_display_item(display_item, pathlib.Path(file_path), "nhdf")
+                document_controller.receive_files([file_path])
+                self.assertEqual(2, len(document_model.data_items))
+                self.assertEqual(2, len(document_model.display_items))
+            # reload and verify
+            document_model = test_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                self.assertEqual(2, len(document_model.data_items))
+                self.assertEqual(2, len(document_model.display_items))
+
+    def test_imported_data_can_be_deleted(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller(auto_close=False)
+            document_model = document_controller.document_model
+            with contextlib.closing(document_controller):
+                data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.uint32))
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                current_working_directory = os.getcwd()
+                file_path = os.path.join(current_working_directory, "__file.nhdf")
+                handler = ImportExportManager.ImportExportManager().get_writer_by_id("nhdf-io-handler")
+                handler.write_display_item(display_item, pathlib.Path(file_path), "nhdf")
+                document_controller.receive_files([file_path])
+                self.assertEqual(2, len(document_model.data_items))
+                self.assertEqual(2, len(document_model.display_items))
+                document_model.remove_display_item(document_model.display_items[1])
+
+    def test_reloading_imported_composite_line_plot(self):
+        with TestContext.create_memory_context() as test_context:
+            current_working_directory = os.getcwd()
+            file_path = os.path.join(current_working_directory, "__file.nhdf")
+            document_controller = test_context.create_document_controller(auto_close=False)
+            document_model = document_controller.document_model
+            with contextlib.closing(document_controller):
+                document_model.append_data_item(DataItem.new_data_item(numpy.zeros(8, )))
+                document_model.append_data_item(DataItem.new_data_item(numpy.zeros(8, )))
+                data_item1, data_item2 = document_model.data_items
+                display_item1, display_item2 = document_model.display_items
+                display_item1.append_display_data_channel_for_data_item(data_item2)
+                display_item1.add_graphic(Graphics.IntervalGraphic())
+                handler = ImportExportManager.ImportExportManager().get_writer_by_id("nhdf-io-handler")
+                handler.write_display_item(display_item1, pathlib.Path(file_path), "nhdf")
+            # reload and verify
+            test_context.reset_profile()
+            document_controller = test_context.create_document_controller(auto_close=False)
+            document_model = document_controller.document_model
+            with contextlib.closing(document_controller):
+                document_controller.receive_files([file_path])
+                self.assertEqual(2, len(document_model.data_items))
+                self.assertEqual(1, len(document_model.display_items))
+            document_model = test_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                self.assertEqual(2, len(document_model.data_items))
+                self.assertEqual(1, len(document_model.display_items))
+                self.assertEqual(2, len(document_model.display_items[0].data_items))
+                self.assertEqual(document_model.data_items[0], document_model.display_items[0].data_items[0])
+                self.assertEqual(document_model.data_items[1], document_model.display_items[0].data_items[1])
+                self.assertEqual(2, len(document_model.display_items[0].display_data_channels))
+                self.assertEqual(2, len(document_model.display_items[0].display_layers))
+                self.assertEqual(document_model.display_items[0].display_data_channels[0], document_model.display_items[0].display_layers[0].display_data_channel)
+                self.assertEqual(document_model.display_items[0].display_data_channels[1], document_model.display_items[0].display_layers[1].display_data_channel)
+                self.assertEqual(1, len(document_model.display_items[0].graphics))
 
 
 if __name__ == '__main__':

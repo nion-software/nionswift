@@ -10,6 +10,7 @@ import os
 import pathlib
 import threading
 import typing
+import uuid
 
 import h5py
 import numpy
@@ -17,7 +18,9 @@ import numpy.typing
 
 from nion.swift.model import StorageHandler
 from nion.swift.model import Utility
+from nion.utils import DateTime
 from nion.utils import Geometry
+from nion.utils import Registry
 
 if typing.TYPE_CHECKING:
     from nion.data import DataAndMetadata
@@ -298,6 +301,69 @@ class HDF5HandlerFactory(StorageHandler.StorageHandlerFactoryLike):
 
     def get_extension(self) -> str:
         return ".h5"
+
+
+class HDFImportExportDriver:
+    def __init__(self) -> None:
+        pass
+
+    def read_data(self, file_path: pathlib.Path, storage_handler_provider: StorageHandler.StorageHandlerProvider) -> StorageHandler.StorageHandlerImportData:
+        storage_handlers = list[StorageHandler.StorageHandler]()
+        uuid_map = dict[uuid.UUID, uuid.UUID]()
+        items = list[PersistentDictType]()
+        fp = h5py.File(file_path, "r")
+        if "data" in fp:
+            data_group = fp["data"]
+            for key in sorted(data_group.keys()):
+                ds = data_group[key]
+                data_item_uuid = uuid.uuid4()
+                data_item_properties = json.loads(ds.attrs["properties"])
+                data_item_data = ds
+                if "uuid" in data_item_properties:
+                    uuid_map[uuid.UUID(data_item_properties["uuid"])] = data_item_uuid
+                data_item_properties["uuid"] = str(data_item_uuid)
+                storage_handler_attributes = StorageHandler.StorageHandlerAttributes(
+                    data_item_uuid,
+                    DateTime.utcnow(),
+                    data_item_properties.get("session_id", None),
+                    ds.nbytes
+                )
+                storage_handler = storage_handler_provider.make_storage_handler(storage_handler_attributes)
+                storage_handler.write_data(data_item_data, storage_handler_attributes.created_local)
+                storage_handler.write_properties(data_item_properties, storage_handler_attributes.created_local)
+                storage_handlers.append(storage_handler)
+        if "index" in fp:
+            index_group = fp["index"]
+            for key in sorted(index_group.attrs.keys()):
+                items.append(json.loads(index_group.attrs[key]))
+        fp.close()
+        return StorageHandler.StorageHandlerImportData(storage_handlers, uuid_map, items)
+
+    def write_display_item(self, path: pathlib.Path, items: typing.Sequence[StorageHandler.StorageHandlerExportItem]) -> None:
+        path.unlink(missing_ok=True)
+        fp = h5py.File(path, "a")
+        index_group = fp.create_group("index")
+        data_group = fp.create_group("data")
+        data_index = 0
+        for index, item in enumerate(items):
+            index_group.attrs["1"] = json.dumps(item.write_to_dict())
+            for data_item in item.data_items:
+                ds = data_group.create_dataset(str(data_index), data=data_item.data)
+                ds.attrs["properties"] = json.dumps(data_item.write_to_dict())
+                data_index += 1
+        fp.close()
+
+
+class HDFImportExportDriverFactory:
+    driver_id = "nhdf-io-handler"
+    title = "NData HDF"
+    extensions = ["nhdf"]
+
+    def make_import_export_driver(self) -> HDFImportExportDriver:
+        return HDFImportExportDriver()
+
+
+Registry.register_component(HDFImportExportDriverFactory(), {"import-export-driver-factory"})
 
 
 """
