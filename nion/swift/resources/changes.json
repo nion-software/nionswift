@@ -3,6 +3,10 @@
     "version": "UNRELEASED",
     "notes": [
       {
+        "issues": ["https://github.com/nion-software/nionswift-io/issues/23"],
+        "summary": "Add support for exporting to HDF5-based 'nhdf' file format."
+      },
+      {
         "issues": ["https://github.com/nion-software/nionswift/issues/1125"],
         "summary": "Change Export SVG dialog to remember units."
       },
