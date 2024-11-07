@@ -3524,6 +3524,19 @@ class DisplayItem(Persistence.PersistentObject):
         position_text = ""
         value_text = ""
         dimensional_shape = display_data_channel.dimensional_shape  # don't include the RGB part of the shape
+        if len(pos) == 5 and dimensional_shape:
+            # 5d image
+            # make sure the position is within the bounds of the image
+            if 0 <= pos[0] < dimensional_shape[0] and 0 <= pos[1] < dimensional_shape[1] and 0 <= pos[2] < \
+                    dimensional_shape[2] and 0 <= pos[3] < dimensional_shape[3]:
+                position_text = u"{0}, {1}, {2}, {3}, {4}".format(
+                    dimensional_calibrations[4].convert_to_calibrated_value_str(pos[4], value_range=(0, dimensional_shape[4]), samples=dimensional_shape[4]),
+                    dimensional_calibrations[3].convert_to_calibrated_value_str(pos[3], value_range=(0, dimensional_shape[3]), samples=dimensional_shape[3]),
+                    dimensional_calibrations[2].convert_to_calibrated_value_str(pos[1], value_range=(0, dimensional_shape[2]), samples=dimensional_shape[2]),
+                    dimensional_calibrations[1].convert_to_calibrated_value_str(pos[0], value_range=(0, dimensional_shape[1]), samples=dimensional_shape[1]),
+                    dimensional_calibrations[0].convert_to_calibrated_value_str(pos[2], value_range=(0, dimensional_shape[0]), samples=dimensional_shape[0]))
+                value_text = self.__get_calibrated_value_text(display_data_channel.get_data_value(pos), intensity_calibration)
+
         if len(pos) == 4 and dimensional_shape:
             # 4d image
             # make sure the position is within the bounds of the image
