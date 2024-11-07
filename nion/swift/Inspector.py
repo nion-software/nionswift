@@ -404,75 +404,6 @@ class ChangePropertyCommand(Undo.UndoableCommand):
         return isinstance(command, self.__class__) and bool(self.command_id) and self.command_id == command.command_id and self.__data_item_uuid == command.__data_item_uuid
 
 
-class ChangeDisplayItemPropertyBinding(Binding.PropertyBinding):
-    def __init__(self, document_controller: DocumentController.DocumentController,
-                 display_item: DisplayItem.DisplayItem, property_name: str,
-                 converter: typing.Optional[Converter.ConverterLike[typing.Any, typing.Any]] = None,
-                 fallback: typing.Any = None) -> None:
-        super().__init__(display_item, property_name, converter=converter, fallback=fallback)
-        self.__document_controller = document_controller
-        self.__display_item = display_item
-        self.__property_name = property_name
-        self.__old_source_setter = self.source_setter
-        self.source_setter = ReferenceCounting.weak_partial(ChangeDisplayItemPropertyBinding.__set_value, self)
-
-    def __set_value(self, value: typing.Any) -> None:
-        if value != getattr(self.__display_item, self.__property_name):
-            command = ChangeDisplayItemPropertyCommand(self.__document_controller.document_model, typing.cast(DisplayItem.DisplayItem, self.source), self.__property_name, value)
-            command.perform()
-            self.__document_controller.push_undo_command(command)
-
-
-class ChangeDisplayPropertyBinding(Binding.Binding):
-    def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem, property_name: str, converter: typing.Optional[Converter.ConverterLike[typing.Any, typing.Any]] = None, fallback: typing.Any = None) -> None:
-        super().__init__(display_item, converter=converter, fallback=fallback)
-
-        self.__display_item = display_item
-        self.__property_name = property_name
-
-        def get_value() -> typing.Any:
-            return display_item.get_display_property(property_name)
-
-        def set_value(value: typing.Any) -> typing.Any:
-            if value != get_value():
-                command = DisplayPanel.ChangeDisplayCommand(document_controller.document_model, display_item, title=_("Change Display"), command_id="change_display_" + property_name, is_mergeable=True, **{property_name: value})
-                command.perform()
-                document_controller.push_undo_command(command)
-
-        self.source_getter = get_value
-        self.source_setter = set_value
-
-        self.__property_changed_listener = display_item.display_property_changed_event.listen(ReferenceCounting.weak_partial(ChangeDisplayPropertyBinding.__property_changed, self))
-
-    # thread safe
-    def __property_changed(self, property_name_: str) -> None:
-        assert not self._closed
-        if property_name_ == self.__property_name:
-            value = self.__display_item.get_display_property(self.__property_name)
-            if value is not None:
-                self.update_target(value)
-            else:
-                self.update_target_direct(self.fallback)
-
-
-class ChangeDisplayDataChannelPropertyBinding(Binding.PropertyBinding):
-    def __init__(self, document_controller: DocumentController.DocumentController,
-                 display_data_channel: DisplayItem.DisplayDataChannel, property_name: str,
-                 converter: typing.Optional[Converter.ConverterLike[typing.Any, typing.Any]] = None,
-                 fallback: typing.Any = None) -> None:
-        super().__init__(display_data_channel, property_name, converter=converter, fallback=fallback)
-        self.__property_name = property_name
-        self.__old_source_setter = self.source_setter
-
-        def set_value(value: typing.Any) -> typing.Any:
-            if value != getattr(display_data_channel, property_name):
-                command = DisplayPanel.ChangeDisplayDataChannelCommand(document_controller.document_model, display_data_channel, title=_("Change Display"), command_id="change_display_" + property_name, is_mergeable=True, **{property_name: value})
-                command.perform()
-                document_controller.push_undo_command(command)
-
-        self.source_setter = set_value
-
-
 class ChangeGraphicPropertyBinding(Binding.PropertyBinding):
     def __init__(self, document_controller: DocumentController.DocumentController,
                  display_item: DisplayItem.DisplayItem, graphic: Graphics.Graphic, property_name: str,
@@ -879,24 +810,6 @@ class ChangeDisplayLayerDisplayDataChannelCommand(Undo.UndoableCommand):
 
     def can_merge(self, command: Undo.UndoableCommand) -> bool:
         return isinstance(command, self.__class__) and bool(self.command_id) and self.command_id == command.command_id and self.__display_item_uuid == command.__display_item_uuid
-
-
-class ColorChooserHandler(Declarative.Handler):
-    def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem, display_layer: DisplayItem.DisplayLayer, color_model: Model.PropertyModel[typing.Any]):
-        super().__init__()
-        self.__document_controller = document_controller
-        self.__display_item = display_item
-        self.__display_layer = display_layer
-        self._color_model = color_model
-        color_chooser = {"type": "nionswift.color_chooser",
-                         "color": "@binding(_color_model.value)"}
-        u = Declarative.DeclarativeUI()
-        self.ui_view = u.create_row(
-            color_chooser,
-            u.create_line_edit(text="@binding(_color_model.value)", placeholder_text="None", width=80),
-            u.create_stretch(),
-            spacing=8,
-        )
 
 
 class DisplayLayerPropertyCommandModel(Model.PropertyChangedPropertyModel[typing.Any]):
@@ -1616,71 +1529,6 @@ class ChangeDimensionalCalibrationsCommand(Undo.UndoableCommand):
         return isinstance(command, self.__class__) and bool(self.command_id) and self.command_id == command.command_id and self.__data_item_uuid == command.__data_item_uuid
 
 
-class InspectorSectionWidget(Widgets.CompositeWidgetBase):
-    def __init__(self, ui: UserInterface.UserInterface) -> None:
-        self.__content_widget = ui.create_column_widget()
-        super().__init__(self.__content_widget)
-        self.__unbinder = Unbinder()
-        self.__closeables: typing.List[DocumentModel.Closeable] = list()
-
-    def close(self) -> None:
-        self.__unbinder.close()
-        for closeable in self.__closeables:
-            closeable.close()
-        self.__closeables = typing.cast(typing.Any, None)
-        super().close()
-
-    def add_closeable(self, closeable: DocumentModel.Closeable) -> None:
-        self.__closeables.append(closeable)
-
-    def add_closeables(self, *closeables: DocumentModel.Closeable) -> None:
-        for closeable in closeables:
-            self.add_closeable(closeable)
-
-    def add_unbinder(self, items: typing.Sequence[Unbindable], unbinders: typing.Sequence[typing.Callable[[], None]]) -> None:
-        self.__unbinder.add(items, unbinders)
-
-    def add(self, widget: UserInterface.Widget) -> None:
-        self.__content_widget.add(widget)
-
-    def add_spacing(self, spacing: int) -> None:
-        self.__content_widget.add_spacing(spacing)
-
-    def find_widget_by_id(self, widget_id: str) -> typing.Optional[UserInterface.Widget]:
-        return self.__content_widget.find_widget_by_id(widget_id)
-
-
-def make_calibration_style_chooser(document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem) -> InspectorSectionWidget:
-    ui = document_controller.ui
-
-    calibration_styles = display_item.calibration_styles
-
-    display_calibration_style_options = [(calibration_style.label, calibration_style.calibration_style_id) for calibration_style in calibration_styles]
-
-    display_calibration_style_reverse_map = {p[1]: i for i, p in enumerate(display_calibration_style_options)}
-
-    class CalibrationStyleIndexConverter(Converter.ConverterLike[str, int]):
-        def convert(self, value: typing.Optional[str]) -> typing.Optional[int]:
-            return display_calibration_style_reverse_map.get(value or str(), 0)
-
-        def convert_back(self, value: typing.Optional[int]) -> typing.Optional[str]:
-            if value is not None and value >= 0 and value < len(display_calibration_style_options):
-                return display_calibration_style_options[value][1]
-            else:
-                return calibration_styles[0].label
-
-    display_calibration_style_chooser = ui.create_combo_box_widget(items=display_calibration_style_options, item_getter=operator.itemgetter(0))
-    display_calibration_style_chooser.bind_current_index(ChangeDisplayItemPropertyBinding(document_controller, display_item, "calibration_style_id", converter=CalibrationStyleIndexConverter(), fallback=0))
-
-    widget = InspectorSectionWidget(ui)
-
-    widget.add(display_calibration_style_chooser)
-
-    widget.add_unbinder([display_item], [display_calibration_style_chooser.unbind_current_index])
-
-    return widget
-
-
 class BetterFloatToStringConverter(Converter.FloatToStringConverter):
     def __init__(self, *, pass_none: bool = False) -> None:
         super().__init__(pass_none=pass_none)
@@ -2129,33 +1977,6 @@ class DisplayTypeChooserHandler(Declarative.Handler):
             self._document_controller.push_undo_command(command)
 
 
-def make_display_type_chooser(document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem) -> typing.Tuple[UserInterface.BoxWidget, Event.EventListener]:
-    ui = document_controller.ui
-    display_type_row = ui.create_row_widget()
-    display_type_items = ((_("Default"), None), (_("Line Plot"), "line_plot"), (_("Image"), "image"))
-    display_type_reverse_map = {None: 0, "line_plot": 1, "image": 2}
-    display_type_chooser = ui.create_combo_box_widget(items=display_type_items, item_getter=operator.itemgetter(0))
-
-    def property_changed(name: str) -> None:
-        if name == "display_type":
-            display_type_chooser.current_index = display_type_reverse_map[display_item.display_type]
-
-    listener = display_item.property_changed_event.listen(property_changed)
-
-    def change_display_type(item: typing.Tuple[str, typing.Optional[str]]) -> None:
-        if display_item.display_type != item[1]:
-            command = ChangeDisplayTypeCommand(document_controller.document_model, display_item, display_type=item[1])
-            command.perform()
-            document_controller.push_undo_command(command)
-
-    display_type_chooser.on_current_item_changed = change_display_type
-    display_type_chooser.current_index = display_type_reverse_map.get(display_item.display_type, 0)
-    display_type_row.add(ui.create_label_widget(_("Display Type:"), properties={"width": 120}))
-    display_type_row.add(display_type_chooser)
-    display_type_row.add_stretch()
-    return display_type_row, listener
-
-
 class ContrastStringConverter(Converter.ConverterLike[float, str]):
 
     def convert(self, value: typing.Optional[float]) -> typing.Optional[str]:
@@ -2219,38 +2040,6 @@ class GammaIntegerConverter(Converter.ConverterLike[float, int]):
         if value_int is not None:
             return math.pow(10, ((100 - value_int) - 50) / 50)
         return None
-
-
-def make_complex_display_type_chooser(document_controller: DocumentController.DocumentController,
-                                      display_data_channel: DisplayItem.DisplayDataChannel,
-                                      include_log_abs: bool = True) -> typing.Tuple[typing.Optional[UserInterface.BoxWidget], typing.Optional[Event.EventListener]]:
-    if not (display_data_channel.data_item and display_data_channel.data_item.is_data_complex_type):
-        return None, None
-    ui = document_controller.ui
-    display_type_row = ui.create_row_widget()
-    display_type_options = [(_("Log Absolute"), "log-absolute")] if include_log_abs else list()
-    display_type_options.extend([(_("Absolute"), "absolute"), (_("Phase"), "phase"), (_("Real"), "real"), (_("Imaginary"), "imaginary")])
-    display_type_reverse_map = {p[1]: i for i, p in enumerate(display_type_options)}
-    display_type_chooser = ui.create_combo_box_widget(items=display_type_options, item_getter=operator.itemgetter(0))
-
-    def property_changed(name: str) -> None:
-        if name == "complex_display_type":
-            display_type_chooser.current_index = display_type_reverse_map.get(display_data_channel.complex_display_type or str(), 0)
-
-    listener = display_data_channel.property_changed_event.listen(property_changed)
-
-    def change_display_type(item: typing.Tuple[str, typing.Optional[str]]) -> None:
-        if display_data_channel.complex_display_type != item[1]:
-            command = DisplayPanel.ChangeDisplayDataChannelCommand(document_controller.document_model, display_data_channel, complex_display_type=item[1])
-            command.perform()
-            document_controller.push_undo_command(command)
-
-    display_type_chooser.on_current_item_changed = change_display_type
-    display_type_chooser.current_index = display_type_reverse_map.get(display_data_channel.complex_display_type or str(), 0)
-    display_type_row.add(ui.create_label_widget(_("Complex Display Type:"), properties={"width": 120}))
-    display_type_row.add(display_type_chooser)
-    display_type_row.add_stretch()
-    return display_type_row, listener
 
 
 class ImageDisplayInspectorSection(InspectorSection):
@@ -4870,48 +4659,6 @@ class DeclarativeDataSourceChooserConstructor:
             return widget
 
         return None
-
-
-def make_line_plot_display_layer_button_row(document_controller: DocumentController.DocumentController,
-                                            on_forward_button_clicked: typing.Optional[typing.Callable[[], None]],
-                                            on_backward_button_clicked: typing.Optional[typing.Callable[[], None]],
-                                            on_add_button_clicked: typing.Optional[typing.Callable[[], None]],
-                                            on_remove_button_clicked: typing.Optional[typing.Callable[[], None]]) -> Declarative.DeclarativeWidget:
-    handler = LinePlotDisplayLayerButtonRowHandler(on_forward_button_clicked, on_backward_button_clicked, on_add_button_clicked, on_remove_button_clicked)
-    return Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop, handler)
-
-
-class LinePlotDisplayLayerButtonRowHandler(Declarative.Handler):
-    def __init__(self, on_forward_button_clicked: typing.Optional[typing.Callable[[], None]],
-                 on_backward_button_clicked: typing.Optional[typing.Callable[[], None]],
-                 on_add_button_clicked: typing.Optional[typing.Callable[[], None]],
-                 on_remove_button_clicked: typing.Optional[typing.Callable[[], None]]) -> None:
-        self._on_forward_button_clicked = on_forward_button_clicked
-        self._on_backward_button_clicked = on_backward_button_clicked
-        self._on_add_button_clicked = on_add_button_clicked
-        self._on_remove_button_clicked = on_remove_button_clicked
-        u = Declarative.DeclarativeUI()
-
-        self.ui_view = u.create_row(
-            {"type": "nionswift.text_push_button",
-             "text": "\N{UPWARDS WHITE ARROW}",
-             "on_button_clicked": "_on_forward_button_clicked",
-             "tool_tip": _("Move layer up.")},
-            {"type": "nionswift.text_push_button",
-             "text": "\N{DOWNWARDS WHITE ARROW}",
-             "on_button_clicked": "_on_backward_button_clicked",
-             "tool_tip": _("Move layer down.")},
-            u.create_stretch(),
-            {"type": "nionswift.text_push_button",
-             "text": "\N{PLUS SIGN}",
-             "on_button_clicked": "_on_add_button_clicked",
-             "tool_tip": _("Add layer.")},
-            {"type": "nionswift.text_push_button",
-             "text": "\N{MINUS SIGN}",
-             "on_button_clicked": "_on_remove_button_clicked",
-             "tool_tip": _("Remove layer.")},
-            u.create_spacing(12)
-        )
 
 
 class DeclarativeTextPushButtonWidgetConstructor:
