@@ -282,82 +282,6 @@ class IntensityCalibrationStyleUncalibrated(CalibrationStyle):
         return Calibration.Calibration()
 
 
-class CalibratedValueFloatToStringConverter(Converter.ConverterLike[float, str]):
-    """Convert a value in a specific dimension of a shape/calibration combination to a string.
-
-    Factor can be used to multiply each converted value and used to scale units in special cases.
-
-    Uniform can be set to only use calibrated values if all units match.
-
-    Note: a 'value' includes the calibrated offset; a 'size' doesn't.
-    """
-
-    def __init__(self, display_data_shape: typing.Optional[DataAndMetadata.ShapeType], calibrations: typing.Sequence[Calibration.Calibration], index: int, uniform: bool = False) -> None:
-        self.__display_data_shape = display_data_shape
-        self.__calibrations = list(calibrations)
-        self.__index = index
-        self.__uniform = uniform
-
-    def __get_calibration(self) -> Calibration.Calibration:
-        index = self.__index
-        calibrations = self.__calibrations
-        if self.__uniform:
-            unit_set = set(calibration.units if calibration.units else '' for calibration in calibrations)
-            if len(unit_set) > 1:
-                return Calibration.Calibration()
-        dimension_count = len(calibrations)
-        if index < 0:
-            index = dimension_count + index
-        if index >= 0 and index < dimension_count:
-            return calibrations[index]
-        else:
-            return Calibration.Calibration()
-
-    def get_units(self) -> str:
-        return self.__get_calibration().units
-
-    def __get_data_size(self) -> int:
-        index = self.__index
-        display_data_shape = self.__display_data_shape
-        dimension_count = len(display_data_shape) if display_data_shape is not None else 0
-        if index < 0:
-            index = dimension_count + index
-        if index >= 0 and index < dimension_count and display_data_shape is not None:
-            return display_data_shape[index]
-        else:
-            return 1
-
-    def convert_calibrated_value_to_str(self, calibrated_value: float) -> str:
-        calibration = self.__get_calibration()
-        return calibration.convert_calibrated_value_to_str(calibrated_value)
-
-    def convert_to_calibrated_value(self, value: float) -> float:
-        calibration = self.__get_calibration()
-        data_size = self.__get_data_size()
-        return calibration.convert_to_calibrated_value(data_size * value)
-
-    def convert_from_calibrated_value(self, calibrated_value: float) -> float:
-        calibration = self.__get_calibration()
-        data_size = self.__get_data_size()
-        return calibration.convert_from_calibrated_value(calibrated_value) / data_size
-
-    def convert(self, value: typing.Optional[float]) -> typing.Optional[str]:
-        if value is not None:
-            calibration = self.__get_calibration()
-            data_size = self.__get_data_size()
-            return calibration.convert_to_calibrated_value_str(data_size * value, value_range=(0, data_size), samples=data_size)
-        return None
-
-    def convert_back(self, value_str: typing.Optional[str]) -> typing.Optional[float]:
-        if value_str is not None:
-            calibration = self.__get_calibration()
-            data_size = self.__get_data_size()
-            value = Converter.FloatToStringConverter().convert_back(value_str)
-            if value is not None:
-                return calibration.convert_from_calibrated_value(value) / data_size
-        return None
-
-
 class CalibratedSizeFloatToStringConverter(Converter.ConverterLike[float, str]):
     """Convert a size in a specific dimension of a shape/calibration combination to a string.
 
@@ -1833,6 +1757,7 @@ class DisplayDataShapeCalculator:
     def __init__(self, data_metadata: typing.Optional[DataAndMetadata.DataMetadata]) -> None:
         self.shape: typing.Optional[DataAndMetadata.ShapeType] = None
         self.calibrations: typing.Optional[typing.Sequence[Calibration.Calibration]] = None
+        self.indexes: typing.Optional[typing.Sequence[int]] = None
 
         if data_metadata:
             dimensional_calibrations = data_metadata.dimensional_calibrations
@@ -1847,12 +1772,15 @@ class DisplayDataShapeCalculator:
                 if collection_dimension_count == 2 and datum_dimension_count == 1:
                     self.shape = tuple(dimensional_shape[next_dimension:next_dimension + collection_dimension_count])
                     self.calibrations = dimensional_calibrations[next_dimension:next_dimension + collection_dimension_count]
+                    self.indexes = tuple(range(next_dimension, next_dimension + collection_dimension_count))
                 else:  # default, "pick"
                     self.shape = tuple(dimensional_shape[next_dimension + collection_dimension_count:next_dimension + collection_dimension_count + datum_dimension_count])
                     self.calibrations = dimensional_calibrations[next_dimension + collection_dimension_count:next_dimension + collection_dimension_count + datum_dimension_count]
+                    self.indexes = tuple(range(next_dimension + collection_dimension_count, next_dimension + collection_dimension_count + datum_dimension_count))
             else:
                 self.shape = tuple(dimensional_shape[next_dimension:])
                 self.calibrations = dimensional_calibrations[next_dimension:]
+                self.indexes = tuple(range(next_dimension, next_dimension + len(dimensional_shape)))
 
 
 class CalibrationDescriptionLike:
@@ -2324,31 +2252,14 @@ class DisplayDataDeltaStream(Stream.ValueStream[DisplayDataDelta]):
         return Calibration.Calibration()
 
     @property
-    def display_data_calibrations(self) -> typing.Sequence[Calibration.Calibration]:
-        """The calibrations for only datum dimensions."""
-        display_data_calibrations: typing.Optional[typing.Sequence[Calibration.Calibration]] = None
+    def displayed_display_data_calibrations(self) -> typing.Optional[typing.Sequence[Calibration.Calibration]]:
+        """The calibrations for only datum dimensions, in the displayed calibration style."""
+        displayed_dimensional_calibrations = self.displayed_dimensional_calibrations
         xdata_list = self.__get_xdata_list()
         if len(xdata_list) == 1 and (d := xdata_list[0]):
-            display_data_calibrations = DisplayDataShapeCalculator(d.data_metadata).calibrations
-        return display_data_calibrations if display_data_calibrations else [Calibration.Calibration()]
-
-    @property
-    def displayed_datum_calibrations(self) -> typing.Sequence[Calibration.Calibration]:
-        """The calibrations for only datum dimensions, in the displayed calibration style."""
-        calibration_style = self.get_calibration_style_for_id(self.__calibration_style_id_stream.value)
-        calibration_style = CalibrationStyleNative() if not calibration_style else calibration_style
-        xdata_list = self.__get_xdata_list()
-        dimensional_shape = self.dimensional_shape
-        dimensional_calibrations = self.dimensional_calibrations
-        if dimensional_calibrations and dimensional_shape and len(xdata_list) == 1:
-            display_data_calibrations = self.display_data_calibrations
-            display_data_calibrations = display_data_calibrations if display_data_calibrations else [Calibration.Calibration() for c in dimensional_calibrations]
-            datum_calibrations = calibration_style.get_dimensional_calibrations(dimensional_shape, display_data_calibrations, self.metadata)
-            if datum_calibrations:
-                return datum_calibrations
-        if self.is_composite_data:
-            return self.displayed_dimensional_calibrations
-        return [Calibration.Calibration() for c in dimensional_calibrations] if dimensional_calibrations else [Calibration.Calibration()]
+            indexes = DisplayDataShapeCalculator(d.data_metadata).indexes
+            return [displayed_dimensional_calibrations[i] for i in indexes] if indexes else None
+        return displayed_dimensional_calibrations if self.is_composite_data else None
 
     @property
     def datum_calibrations(self) -> typing.Sequence[Calibration.Calibration]:
@@ -2763,6 +2674,7 @@ class DisplayItem(Persistence.PersistentObject):
                 self.display_property_changed_event.fire("displayed_dimensional_scales")
                 self.display_property_changed_event.fire("displayed_dimensional_calibrations")
                 self.display_property_changed_event.fire("displayed_intensity_calibration")
+                self.display_property_changed_event.fire("displayed_display_data_calibrations")
                 self.graphics_changed_event.fire(self.graphic_selection)
             self.display_changed_event.fire()
 
@@ -3026,6 +2938,7 @@ class DisplayItem(Persistence.PersistentObject):
         self.display_property_changed_event.fire("displayed_dimensional_scales")
         self.display_property_changed_event.fire("displayed_dimensional_calibrations")
         self.display_property_changed_event.fire("displayed_intensity_calibration")
+        self.display_property_changed_event.fire("displayed_display_data_calibrations")
 
         self.display_changed_event.fire()
 
@@ -3273,6 +3186,10 @@ class DisplayItem(Persistence.PersistentObject):
         return self.__display_data_delta_stream.display_data_shape
 
     @property
+    def displayed_display_data_calibrations(self) -> typing.Optional[typing.Sequence[Calibration.Calibration]]:
+        return self.__display_data_delta_stream.displayed_display_data_calibrations
+
+    @property
     def dimensional_shape(self) -> typing.Optional[DataAndMetadata.ShapeType]:
         """Shape of the underlying data, if only one."""
         return self.display_data_channel.dimensional_shape if self.display_data_channel else None
@@ -3311,11 +3228,6 @@ class DisplayItem(Persistence.PersistentObject):
     def calibrated_dimensional_calibrations(self) -> typing.Optional[typing.Sequence[Calibration.Calibration]]:
         """The calibrations for all data dimensions in a calibrated style if possible or None."""
         return self.__display_data_delta_stream.calibrated_dimensional_calibrations
-
-    @property
-    def displayed_datum_calibrations(self) -> typing.Sequence[Calibration.Calibration]:
-        """The calibrations for only datum dimensions, in the displayed calibration style."""
-        return self.__display_data_delta_stream.displayed_datum_calibrations
 
     def get_displayed_intensity_calibration_with_calibration_style(self, calibration_style: CalibrationStyle) -> Calibration.Calibration:
         intensity_calibration = self.__display_data_delta_stream.intensity_calibration

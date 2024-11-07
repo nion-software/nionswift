@@ -2414,7 +2414,9 @@ class CalibratedValueFloatToStringConverter(Converter.ConverterLike[float, str])
 
     def __get_calibration(self) -> Calibration.Calibration:
         index = self.__index
-        calibrations = self.__display_item.displayed_datum_calibrations
+        calibrations = self.__display_item.displayed_display_data_calibrations
+        if not calibrations:
+            return Calibration.Calibration()
         if self.__uniform:
             unit_set = set(calibration.units if calibration.units else '' for calibration in calibrations)
             if len(unit_set) > 1:
@@ -2490,7 +2492,9 @@ class CalibratedSizeFloatToStringConverter(Converter.ConverterLike[float, str]):
 
     def __get_calibration(self) -> Calibration.Calibration:
         index = self.__index
-        calibrations = self.__display_item.displayed_datum_calibrations
+        calibrations = self.__display_item.displayed_display_data_calibrations
+        if not calibrations:
+            return Calibration.Calibration()
         if self.__uniform:
             unit_set = set(calibration.units if calibration.units else '' for calibration in calibrations)
             if len(unit_set) > 1:
@@ -2499,7 +2503,7 @@ class CalibratedSizeFloatToStringConverter(Converter.ConverterLike[float, str]):
         if index < 0:
             index = dimension_count + index
         if index >= 0 and index < dimension_count:
-            return self.__display_item.displayed_datum_calibrations[index]
+            return calibrations[index]
         else:
             return Calibration.Calibration()
 
@@ -2555,8 +2559,8 @@ class CalibratedBinding(Binding.Binding):
         self.update_target_direct(self.get_target_value())
 
     def __calibrations_changed(self, key: str) -> None:
-        if key == "displayed_dimensional_calibrations":
-            self.__update_target(self.__display_item.displayed_datum_calibrations)
+        if key == "displayed_display_data_calibrations":
+            self.__update_target(self.__display_item.displayed_display_data_calibrations)
 
     # set the model value from the target ui element text.
     def update_source(self, target_value: typing.Any) -> None:
@@ -2607,8 +2611,8 @@ class CalibratedLengthBinding(Binding.Binding):
         self.update_target_direct(self.get_target_value())
 
     def __calibrations_changed(self, key: str) -> None:
-        if key == "displayed_dimensional_calibrations":
-            self.__update_target(self.__display_item.displayed_datum_calibrations)
+        if key == "displayed_display_data_calibrations":
+            self.__update_target(self.__display_item.displayed_display_data_calibrations)
 
     # set the model value from the target ui element text.
     def update_source(self, target_value: typing.Any) -> None:
@@ -2650,8 +2654,8 @@ class CalibratedAngleBinding(Binding.Binding):
         self.update_target_direct(self.get_target_value())
 
     def __calibrations_changed(self, key: str) -> None:
-        if key == "displayed_dimensional_calibrations":
-            self.__update_target(self.__display_item.displayed_datum_calibrations)
+        if key == "displayed_display_data_calibrations":
+            self.__update_target(self.__display_item.displayed_display_data_calibrations)
 
     # set the model value from the target ui element text.
     def update_source(self, target_value: typing.Any) -> None:
@@ -2694,7 +2698,7 @@ class DisplayItemCalibratedValueModel(Model.PropertyModel[typing.Any]):
             ReferenceCounting.weak_partial(DisplayItemCalibratedValueModel.__on_value_changed, self))
 
     def __on_calibration_changed(self, property: str) -> None:
-        if property == "displayed_dimensional_calibrations":
+        if property == "displayed_display_data_calibrations":
             self.notify_property_changed("value")
 
     def __on_value_changed(self, property: str) -> None:
