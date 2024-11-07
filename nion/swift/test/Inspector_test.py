@@ -940,6 +940,51 @@ class TestInspectorClass(unittest.TestCase):
             self.assertEqual("40.0 eV", interval_handler._start_model.value)  # energy
             self.assertEqual("80.0 eV", interval_handler._end_model.value)  # energy
 
+    def test_3d_data_dimensions_show_calibrated(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(numpy.ones((2, 4, 8)), data_descriptor=DataAndMetadata.DataDescriptor(False, 2, 1)))
+            data_item.set_dimensional_calibration(0, Calibration.Calibration(units="nm", scale=1.0))
+            data_item.set_dimensional_calibration(1, Calibration.Calibration(units="nm", scale=1.0))
+            data_item.set_dimensional_calibration(2, Calibration.Calibration(units="eV", scale=1.0))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            point_graphic = Graphics.PointGraphic()
+            point_graphic.position = Geometry.FloatPoint(0.5, 0.5)
+            display_item.add_graphic(point_graphic)
+            display_item.calibration_style_id = "relative-top-left"
+            point_handler = Inspector.GraphicsInspectorHandler(document_controller, display_item, point_graphic)
+            point_handler._point_position_x_model.value = "0.75"
+            point_handler._point_position_y_model.value = "0.25"
+            self.assertEqual(Geometry.FloatPoint(0.25, 0.75), point_graphic.position)
+            display_item.calibration_style_id = "calibrated"
+            self.assertEqual("3.0 nm", point_handler._point_position_x_model.value)
+            self.assertEqual("0.5 nm", point_handler._point_position_y_model.value)
+
+    def test_4d_data_dimensions_show_calibrated(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(numpy.ones((2, 3, 4, 8)), data_descriptor=DataAndMetadata.DataDescriptor(False, 2, 2)))
+            data_item.set_dimensional_calibration(0, Calibration.Calibration(units="nm", scale=1.0))
+            data_item.set_dimensional_calibration(1, Calibration.Calibration(units="nm", scale=1.0))
+            data_item.set_dimensional_calibration(2, Calibration.Calibration(units="cm", scale=1.0))
+            data_item.set_dimensional_calibration(3, Calibration.Calibration(units="cm", scale=1.0))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            point_graphic = Graphics.PointGraphic()
+            point_graphic.position = Geometry.FloatPoint(0.5, 0.5)
+            display_item.add_graphic(point_graphic)
+            display_item.calibration_style_id = "relative-top-left"
+            point_handler = Inspector.GraphicsInspectorHandler(document_controller, display_item, point_graphic)
+            point_handler._point_position_x_model.value = "0.75"
+            point_handler._point_position_y_model.value = "0.25"
+            self.assertEqual(Geometry.FloatPoint(0.25, 0.75), point_graphic.position)
+            display_item.calibration_style_id = "calibrated"
+            self.assertEqual("6.0 cm", point_handler._point_position_x_model.value)
+            self.assertEqual("1.0 cm", point_handler._point_position_y_model.value)
+
     def test_calibration_inspector_updates_for_when_data_shape_changes(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
