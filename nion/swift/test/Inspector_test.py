@@ -13,6 +13,7 @@ import numpy
 from nion.data import Calibration
 from nion.data import DataAndMetadata
 from nion.swift import Application
+from nion.swift import DisplayPanel
 from nion.swift import Facade
 from nion.swift import Inspector
 from nion.swift.model import DataItem
@@ -1631,6 +1632,28 @@ class TestInspectorClass(unittest.TestCase):
             # as not accepting events anymore. the change to data below would trigger a log message if this
             # isn't working properly.
             data_item.set_intensity_calibration(Calibration.Calibration(units="miles"))
+
+    def test_undo_graphic_label(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.random.randn(8))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            interval_graphic = Graphics.IntervalGraphic()
+            display_item.add_graphic(interval_graphic)
+            display_item.graphic_selection.set(0)
+            self.assertEqual(1, len(display_item.graphics))
+            command = DisplayPanel.ChangeGraphicsCommand(document_model, display_item, [interval_graphic])
+            display_item.graphics[0].label = "abc"
+            document_controller.push_undo_command(command)
+            # check the undo status. use full object specifiers since objects may be replaced.
+            self.assertEqual(1, len(display_item.graphics))
+            self.assertEqual("abc", display_item.graphics[0].label)
+            command.undo()
+            self.assertFalse(display_item.graphics[0].label)
+            command.redo()
+            self.assertEqual("abc", display_item.graphics[0].label)
 
 
 if __name__ == '__main__':

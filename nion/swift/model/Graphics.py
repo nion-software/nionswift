@@ -760,6 +760,14 @@ class Graphic(Persistence.PersistentObject):
             "is_bounds_constrained": self.is_bounds_constrained,
         }
 
+    def write_to_dict(self) -> Persistence.PersistentDictType:
+        # when using write_to_dict for undo, make sure everything is written to the dict.
+        # that way when reading back in using read_from_mime_data, the object is fully restored.
+        # otherwise missing fields will use the existing values. instead, they need to be set to None.
+        d = super().write_to_dict()
+        d.update(self.mime_data_dict())
+        return d
+
     def read_from_mime_data(self, graphic_dict: Persistence.PersistentDictType) -> None:
         self.stroke_color = graphic_dict.get("stroke_color", self.stroke_color)
         self.fill_color = graphic_dict.get("fill_color", self.fill_color)
