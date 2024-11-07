@@ -263,3 +263,34 @@ class TestInfoPanelClass(unittest.TestCase):
             p, v = display_item.get_value_and_position_text((2, 2))
             self.assertEqual("2.0, 2.0", p)
             self.assertEqual(v, "0")
+
+    def test_cursor_over_4d_data_sequence_displays_correct_ordering_of_indices(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            display_panel = document_controller.selected_display_panel
+            data = numpy.ones((10, 50, 50, 50, 50), numpy.float64)
+            data[4, 5, 30, 25, 25] = 2
+            data_and_metadata = DataAndMetadata.new_data_and_metadata(data, data_descriptor=DataAndMetadata.DataDescriptor(True, 2, 2))
+            data_item = DataItem.new_data_item(data_and_metadata)
+            data_item.set_dimensional_calibration(0, Calibration.Calibration(scale=1.0, units="a"))
+            data_item.set_dimensional_calibration(1, Calibration.Calibration(scale=1.0, units="b"))
+            data_item.set_dimensional_calibration(2, Calibration.Calibration(scale=1.0, units="c"))
+            data_item.set_dimensional_calibration(3, Calibration.Calibration(scale=1.0, units="d"))
+            data_item.set_dimensional_calibration(4, Calibration.Calibration(scale=1.0, units="e"))
+            data_item.set_intensity_calibration(Calibration.Calibration(scale=1.0, units="f"))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item.display_data_channels[0].sequence_index = 4
+            display_item.display_data_channels[0].collection_index = 5, 30
+            display_panel.set_display_panel_display_item(display_item)
+            header_height = display_panel.header_canvas_item.header_height
+            info_panel = document_controller.find_dock_panel("info-panel")
+            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
+            display_panel.display_canvas_item.mouse_entered()
+            display_panel.display_canvas_item.mouse_position_changed(500, 500, Graphics.NullModifiers())
+            document_controller.periodic()
+            self.assertTrue(self.__wait_for_cursor_position_text(document_controller, info_panel, "Position: 25.0 e, 25.0 d, 30.0 c, 5.0 b, 4.0 a"))
+            self.assertEqual("Value: 2 f", info_panel.label_row_2.text)
+            self.assertIsNone(info_panel.label_row_3.text, None)
+            display_panel.display_canvas_item.mouse_exited()

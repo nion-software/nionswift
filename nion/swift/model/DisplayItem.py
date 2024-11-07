@@ -1367,16 +1367,16 @@ class DisplayDataChannel(Persistence.PersistentObject):
                 is_sequence = data_and_metadata.is_sequence
                 collection_dimension_count = data_and_metadata.collection_dimension_count
                 datum_dimension_count = data_and_metadata.datum_dimension_count
-                if is_sequence:
-                    pos = (self.sequence_index, ) + pos
                 if self.is_sliced:
                     pos = pos + (self.slice_center, )
                 else:
                     # reduce collection dimensions for case where 2 pos dimensions are supplied on 1 pos datum (line plot display as image)
-                    non_collection_dimension_count = datum_dimension_count + (1 if is_sequence else 0)
+                    non_collection_dimension_count = datum_dimension_count
                     collection_dimension_count -= len(pos) - non_collection_dimension_count
                     # adjust position for collection dimensions
                     pos = tuple(self.collection_index[0:collection_dimension_count]) + pos
+                if is_sequence:
+                    pos = (self.sequence_index, ) + pos
                 while len(pos) < data_and_metadata.datum_dimension_count:
                     pos = (0,) + tuple(pos)
                 assert len(pos) == len(data_and_metadata.dimensional_shape)
