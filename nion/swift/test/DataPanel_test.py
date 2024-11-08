@@ -9,14 +9,14 @@ import numpy
 
 # local libraries
 from nion.swift import Application
-from nion.swift import DocumentController
 from nion.swift import DisplayPanel
 from nion.swift import Facade
 from nion.swift import MimeTypes
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
-from nion.swift.model import DocumentModel
 from nion.swift.test import TestContext
+from nion.ui import CanvasItem
+from nion.ui import ListCanvasItem
 from nion.ui import TestUI
 from nion.utils import Geometry
 from nion.utils import ListModel
@@ -43,7 +43,7 @@ class TestDataPanelClass(unittest.TestCase):
             project_panel = document_controller.find_dock_panel("collections-panel")
             document_controller.periodic()
             # data items
-            self.assertEqual(1, data_panel.data_list_controller.display_item_adapter_count)
+            self.assertEqual(1, data_panel._list_canvas_item.canvas_items_count)
             # collections
             self.assertSetEqual({0}, project_panel._collection_selection.indexes)
 
@@ -95,13 +95,13 @@ class TestDataPanelClass(unittest.TestCase):
                 self.assertEqual(len(data_group.display_items), 5)
                 document_controller.select_data_item_in_data_panel(data_item=data_item1a)
                 # document_controller.selection.set(3)  # set above by date_item instead
-                data_panel.data_list_controller._delete_pressed()
+                data_panel._list_canvas_item.handle_delete()
                 self.assertEqual(len(document_model.get_dependent_data_items(data_item1)), 0)
                 # now delete a child of a data group
                 self.assertEqual(len(data_group.display_items), 4)
                 document_controller.select_data_item_in_data_panel(data_item=data_item2)
                 # document_controller.selection.set(2)  # set above by date_item instead
-                data_panel.data_list_controller._delete_pressed()
+                data_panel._list_canvas_item.handle_delete()
                 self.assertEqual(len(data_group.display_items), 2)
 
     def test_data_panel_deletes_all_selected_items(self):
@@ -119,7 +119,7 @@ class TestDataPanelClass(unittest.TestCase):
             self.assertEqual(3, len(document_model.data_items))
             document_controller.selection.set_multiple([0, 1, 2])
             document_controller.periodic()
-            data_panel.data_list_controller._delete_pressed()
+            data_panel._list_canvas_item.handle_delete()
             self.assertEqual(0, len(document_model.data_items))
 
     # make sure switching between two views containing data items from the same group
@@ -398,14 +398,14 @@ class TestDataPanelClass(unittest.TestCase):
             document_controller.periodic()
             data_panel.periodic()
             # verify assumptions
-            self.assertEqual(data_panel.data_list_controller.display_item_adapter_count, 3)
+            self.assertEqual(data_panel._list_canvas_item.canvas_items_count, 3)
             # delete 2nd item
             data_group.remove_display_item(data_group.display_items[1])
             document_controller.periodic()
             data_panel.periodic()
-            self.assertEqual(data_panel.data_list_controller.display_item_adapter_count, 2)
-            self.assertEqual(data_panel.data_list_controller._test_get_display_item_adapter(0).title_str, str(display_item1.title))
-            self.assertEqual(data_panel.data_list_controller._test_get_display_item_adapter(1).title_str, str(display_item3.title))
+            self.assertEqual(data_panel._list_canvas_item.canvas_items_count, 2)
+            self.assertEqual(data_panel._list_canvas_item.canvas_items[0]._canvas_item.title, str(display_item1.title))
+            self.assertEqual(data_panel._list_canvas_item.canvas_items[1]._canvas_item.title, str(display_item3.title))
             # insert new item
             data_item4 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item4)
@@ -414,10 +414,10 @@ class TestDataPanelClass(unittest.TestCase):
             data_group.insert_display_item(1, document_model.get_display_item_for_data_item(data_item4))
             document_controller.periodic()
             data_panel.periodic()
-            self.assertEqual(data_panel.data_list_controller.display_item_adapter_count, 3)
-            self.assertEqual(data_panel.data_list_controller._test_get_display_item_adapter(0).title_str, str(display_item1.title))
-            self.assertEqual(data_panel.data_list_controller._test_get_display_item_adapter(1).title_str, str(display_item4.title))
-            self.assertEqual(data_panel.data_list_controller._test_get_display_item_adapter(2).title_str, str(display_item3.title))
+            self.assertEqual(data_panel._list_canvas_item.canvas_items_count, 3)
+            self.assertEqual(data_panel._list_canvas_item.canvas_items[0]._canvas_item.title, str(display_item1.title))
+            self.assertEqual(data_panel._list_canvas_item.canvas_items[1]._canvas_item.title, str(display_item4.title))
+            self.assertEqual(data_panel._list_canvas_item.canvas_items[2]._canvas_item.title, str(display_item3.title))
 
     def test_select_after_receive_files(self):
         with TestContext.create_memory_context() as test_context:
@@ -482,7 +482,7 @@ class TestDataPanelClass(unittest.TestCase):
             document_controller.select_data_group_in_data_panel(data_group=data_group1, data_item=data_item1)
             self.assertTrue(display_item1 in data_group1.display_items)
             document_controller.selection.set(0)
-            data_panel.data_list_controller._delete_pressed()
+            data_panel._list_canvas_item.handle_delete()
             self.assertFalse(display_item1 in data_group1.display_items)
 
     def test_remove_item_should_remove_children_when_both_parent_and_child_are_selected(self):
@@ -498,7 +498,7 @@ class TestDataPanelClass(unittest.TestCase):
             data_panel = document_controller.find_dock_panel("data-panel")
             document_controller.periodic()
             document_controller.selection.set_multiple([0, 1])
-            data_panel.data_list_controller._delete_pressed()
+            data_panel._list_canvas_item.handle_delete()
 
     def test_data_panel_should_save_and_restore_state_when_no_data_group_is_selected(self):
         # TODO: implement data panel save/restore test
@@ -611,16 +611,15 @@ class TestDataPanelClass(unittest.TestCase):
     def test_data_panel_list_contents_resize_properly(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
-            document_model = document_controller.document_model
             data_panel = document_controller.find_dock_panel("data-panel")
             width = 320
-            data_panel._data_list_widget.content_widget.children[0].canvas_item.layout_immediate(Geometry.IntSize(width=width, height=148))
-            self.assertEqual(width - 16, data_panel.data_list_controller.scroll_area_canvas_item.canvas_bounds.width)
-            self.assertEqual(width - 16, data_panel.data_list_controller.scroll_area_canvas_item.content.canvas_bounds.width)
+            data_panel._data_list_widget.canvas_item.layout_immediate(Geometry.IntSize(width=width, height=148))
+            self.assertEqual(width - 16, data_panel._scroll_area_canvas_item.canvas_bounds.width)
+            self.assertEqual(width - 16, data_panel._scroll_area_canvas_item.content.canvas_bounds.width)
             width = 344
-            data_panel._data_list_widget.content_widget.children[0].canvas_item.layout_immediate(Geometry.IntSize(width=width, height=148))
-            self.assertEqual(width - 16, data_panel.data_list_controller.scroll_area_canvas_item.canvas_bounds.width)
-            self.assertEqual(width - 16, data_panel.data_list_controller.scroll_area_canvas_item.content.canvas_bounds.width)
+            data_panel._data_list_widget.canvas_item.layout_immediate(Geometry.IntSize(width=width, height=148))
+            self.assertEqual(width - 16, data_panel._scroll_area_canvas_item.canvas_bounds.width)
+            self.assertEqual(width - 16, data_panel._scroll_area_canvas_item.content.canvas_bounds.width)
 
     def test_data_panel_scroll_bar_works_properly(self):
         with TestContext.create_memory_context() as test_context:
@@ -630,12 +629,12 @@ class TestDataPanelClass(unittest.TestCase):
                 document_model.append_data_item(DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32)))
             document_controller.periodic()
             data_panel = document_controller.find_dock_panel("data-panel")
-            data_panel._data_list_widget.content_widget.children[0].canvas_item.layout_immediate(Geometry.IntSize(width=320, height=160))
-            self.assertEqual(data_panel.data_list_controller.scroll_area_canvas_item.content_origin, Geometry.IntPoint(0, 0))
-            self.assertEqual(data_panel.data_list_controller.scroll_area_canvas_item.content_size, Geometry.IntSize(800, 304))
-            data_panel.data_list_controller.scroll_bar_canvas_item.simulate_drag((8, 8), (24, 8))
-            self.assertEqual(data_panel.data_list_controller.scroll_area_canvas_item.content_origin, Geometry.IntPoint(-80, 0))
-            self.assertEqual(data_panel.data_list_controller.scroll_area_canvas_item.content_size, Geometry.IntSize(800, 304))
+            data_panel._data_list_widget.canvas_item.layout_immediate(Geometry.IntSize(width=320, height=160))
+            self.assertEqual(data_panel._scroll_area_canvas_item.content_origin, Geometry.IntPoint(0, 0))
+            self.assertEqual(data_panel._scroll_area_canvas_item.content_size, Geometry.IntSize(800, 304))
+            data_panel._scroll_bar_canvas_item.simulate_drag((8, 8), (24, 8))
+            self.assertEqual(data_panel._scroll_area_canvas_item.content_origin, Geometry.IntPoint(-80, 0))
+            self.assertEqual(data_panel._scroll_area_canvas_item.content_size, Geometry.IntSize(800, 304))
 
     def test_data_panel_grid_contents_resize_properly(self):
         with TestContext.create_memory_context() as test_context:
@@ -664,12 +663,12 @@ class TestDataPanelClass(unittest.TestCase):
             project_panel = document_controller.find_dock_panel("collections-panel")
             project_panel._collection_selection.set(1)  # persistent
             document_controller.periodic()
-            self.assertEqual(1, data_panel.data_list_controller.display_item_adapter_count)
-            self.assertEqual(data_panel.data_list_controller._test_get_display_item_adapter(0).data_item, data_item1)
+            self.assertEqual(1, data_panel._list_canvas_item.canvas_items_count)
+            self.assertEqual(data_panel._list_canvas_item.canvas_items[0]._canvas_item.display_item.data_item, data_item1)
             project_panel._collection_selection.set(2)  # temporary
             document_controller.periodic()
-            self.assertEqual(1, data_panel.data_list_controller.display_item_adapter_count)
-            self.assertEqual(data_panel.data_list_controller._test_get_display_item_adapter(0).data_item, data_item2)
+            self.assertEqual(1, data_panel._list_canvas_item.canvas_items_count)
+            self.assertEqual(data_panel._list_canvas_item.canvas_items[0]._canvas_item.display_item.data_item, data_item2)
 
     def test_processing_temporary_data_item_keeps_temporary_items_displayed(self):
         with TestContext.create_memory_context() as test_context:
@@ -687,14 +686,14 @@ class TestDataPanelClass(unittest.TestCase):
             project_panel._collection_selection.set(2)
             document_controller.periodic()
             document_controller.selected_display_panel.set_display_panel_display_item(display_item1)
-            self.assertEqual(data_panel.data_list_controller.display_item_adapter_count, 1)
-            self.assertEqual(data_panel.data_list_controller._test_get_display_item_adapter(0).data_item, data_item1)
+            self.assertEqual(data_panel._list_canvas_item.canvas_items_count, 1)
+            self.assertEqual(data_panel._list_canvas_item.canvas_items[0]._canvas_item.display_item.data_item, data_item1)
             data_item3 = document_model.get_invert_new(display_item1, display_item1.data_item)
             document_model.recompute_all()
             document_controller.periodic()
-            self.assertEqual(data_panel.data_list_controller.display_item_adapter_count, 2)
-            self.assertEqual(data_panel.data_list_controller._test_get_display_item_adapter(0).data_item, data_item3)
-            self.assertEqual(data_panel.data_list_controller._test_get_display_item_adapter(1).data_item, data_item1)
+            self.assertEqual(data_panel._list_canvas_item.canvas_items_count, 2)
+            self.assertEqual(data_panel._list_canvas_item.canvas_items[0]._canvas_item.display_item.data_item, data_item3)
+            self.assertEqual(data_panel._list_canvas_item.canvas_items[1]._canvas_item.display_item.data_item, data_item1)
 
     def test_switching_to_latest_session_group_displays_latest_session(self):
         with TestContext.create_memory_context() as test_context:
@@ -714,14 +713,16 @@ class TestDataPanelClass(unittest.TestCase):
             # index, parent_row, parent_id
             project_panel._collection_selection.set(1)
             document_controller.periodic()
-            self.assertEqual(data_panel.data_list_controller.display_item_adapter_count, 3)
-            self.assertIn(data_item1, [display_item.data_item for display_item in data_panel.data_list_controller.display_item_adapters])
-            self.assertIn(data_item2, [display_item.data_item for display_item in data_panel.data_list_controller.display_item_adapters])
-            self.assertIn(data_item3, [display_item.data_item for display_item in data_panel.data_list_controller.display_item_adapters])
+            self.assertEqual(data_panel._list_canvas_item.canvas_items_count, 3)
+            list_data_items = [list_item_canvas_item._canvas_item.display_item.data_item for list_item_canvas_item in data_panel._list_canvas_item.canvas_items]
+            self.assertIn(data_item1, list_data_items)
+            self.assertIn(data_item2, list_data_items)
+            self.assertIn(data_item3, list_data_items)
             project_panel._collection_selection.set(3)
             document_controller.periodic()
-            self.assertEqual(data_panel.data_list_controller.display_item_adapter_count, 1)
-            self.assertIn(data_item1, [display_item.data_item for display_item in data_panel.data_list_controller.display_item_adapters])
+            self.assertEqual(data_panel._list_canvas_item.canvas_items_count, 1)
+            list_data_items = [list_item_canvas_item._canvas_item.display_item.data_item for list_item_canvas_item in data_panel._list_canvas_item.canvas_items]
+            self.assertIn(data_item1, list_data_items)
 
     def test_switching_from_latest_group_to_all_group_displays_all(self):
         with TestContext.create_memory_context() as test_context:
@@ -741,13 +742,13 @@ class TestDataPanelClass(unittest.TestCase):
             # index, parent_row, parent_id
             project_panel._collection_selection.set(1)
             document_controller.periodic()
-            self.assertEqual(data_panel.data_list_controller.display_item_adapter_count, 3)
+            self.assertEqual(data_panel._list_canvas_item.canvas_items_count, 3)
             project_panel._collection_selection.set(3)
             document_controller.periodic()
-            self.assertEqual(data_panel.data_list_controller.display_item_adapter_count, 1)
+            self.assertEqual(data_panel._list_canvas_item.canvas_items_count, 1)
             project_panel._collection_selection.set(1)
             document_controller.periodic()
-            self.assertEqual(data_panel.data_list_controller.display_item_adapter_count, 3)
+            self.assertEqual(data_panel._list_canvas_item.canvas_items_count, 3)
 
     def test_new_display_panel_does_not_change_the_filter(self):
         with TestContext.create_memory_context() as test_context:
@@ -762,7 +763,7 @@ class TestDataPanelClass(unittest.TestCase):
             project_panel._collection_selection.set(2)
             document_controller.periodic()
             # check assumptions, temporary group selected
-            self.assertEqual(data_panel.data_list_controller.display_item_adapter_count, 0)
+            self.assertEqual(data_panel._list_canvas_item.canvas_items_count, 0)
             self.assertSetEqual({2}, project_panel._collection_selection.indexes)
             # create display panel
             data_panel = document_controller.find_dock_panel("data-panel")
@@ -776,7 +777,7 @@ class TestDataPanelClass(unittest.TestCase):
                 display_item = document_model.get_display_item_for_data_item(data_item)
                 display_panel.set_display_panel_display_item(display_item)
                 # check that changing display updates to the one temporary data item in the data panel
-                self.assertEqual(data_panel.data_list_controller.display_item_adapter_count, 1)
+                self.assertEqual(data_panel._list_canvas_item.canvas_items_count, 1)
                 self.assertSetEqual({2}, project_panel._collection_selection.indexes)
 
     def test_data_item_starts_drag_with_data_item_mime_data(self):
@@ -792,9 +793,7 @@ class TestDataPanelClass(unittest.TestCase):
             project_panel._collection_selection.set(1)
             document_controller.periodic()
             document_controller.selected_display_panel.set_display_panel_display_item(display_item)
-            with contextlib.closing(data_panel.data_list_controller._test_get_display_item_adapter(0)) as display_item_adapter:
-                # close to close thumbnail that is generated during drag_started
-                mime_data, thumbnail = display_item_adapter.drag_started(self.app.ui, 0, 0, 0)
+            mime_data, thumbnail = data_panel._list_canvas_item._delegate._get_mime_data_and_thumbnail_data(ListCanvasItem.ListCanvasItem2DragStartedEvent(display_item, [display_item], Geometry.IntPoint(), CanvasItem.KeyboardModifiers()))
             self.assertTrue(mime_data.has_format(MimeTypes.DISPLAY_ITEM_MIME_TYPE))
 
     def test_changing_filter_validates_data_browser_selection(self):
