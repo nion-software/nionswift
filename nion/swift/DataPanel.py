@@ -20,6 +20,7 @@ from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
 from nion.swift.model import Persistence
+from nion.ui import Bitmap
 from nion.ui import CanvasItem
 from nion.ui import DrawingContext
 from nion.ui import GridCanvasItem
@@ -28,7 +29,9 @@ from nion.ui import Widgets
 from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import ListModel
+from nion.utils import Model
 from nion.utils import Process
+from nion.utils import ReferenceCounting
 
 if typing.TYPE_CHECKING:
     from nion.swift import DocumentController
@@ -452,46 +455,6 @@ class ItemExplorerController:
                 self.__list_canvas_item.update()
 
 
-class ListCanvasItemDelegate(ListCanvasItem.ListCanvasItemDelegate):
-    def __init__(self, data_list_controller: DataListController):
-        self.__data_list_controller = data_list_controller
-        self.on_item_selected: typing.Optional[typing.Callable[[int], None]] = None
-        self.on_cancel: typing.Optional[typing.Callable[[], None]] = None
-
-    @property
-    def item_count(self) -> int:
-        return self.__data_list_controller.display_item_adapter_count
-
-    @property
-    def items(self) -> typing.Sequence[DisplayItemAdapter]:
-        return self.__data_list_controller.display_item_adapters
-
-    @items.setter
-    def items(self, value: typing.Sequence[DisplayItemAdapter]) -> None:
-        raise NotImplementedError()
-
-    def item_tool_tip(self, index: int) -> typing.Optional[str]:
-        items = self.items
-        if 0 <= index < len(items):
-            return items[index].list_tool_tip
-        return None
-
-    def paint_item(self, drawing_context: DrawingContext.DrawingContext, display_item_adapter: DisplayItemAdapter, rect: Geometry.IntRect, is_selected: bool) -> None:
-        display_item_adapter.draw_list_item(drawing_context, rect)
-
-    def context_menu_event(self, index: typing.Optional[int], x: int, y: int, gx: int, gy: int) -> bool:
-        return self.__data_list_controller.context_menu_event(index, x, y, gx, gy)
-
-    def delete_pressed(self) -> None:
-        self.__data_list_controller._delete_pressed()
-
-    def key_pressed(self, key: UserInterface.Key) -> bool:
-        return self.__data_list_controller._key_pressed(key)
-
-    def drag_started(self, index: int, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> None:
-        self.__data_list_controller.drag_started(index, x, y, modifiers)
-
-
 class GridCanvasItemDelegate(GridCanvasItem.GridCanvasItemDelegate):
     def __init__(self, data_grid_controller: DataGridController):
         self.__data_grid_controller = data_grid_controller
@@ -533,13 +496,6 @@ class GridCanvasItemDelegate(GridCanvasItem.GridCanvasItemDelegate):
         self.__data_grid_controller.drag_started(index, x, y, modifiers)
 
 
-class DataListController(ItemExplorerController):
-    def __init__(self, ui: UserInterface.UserInterface, display_item_adapters_model: ListModel.MappedListModel,
-                 selection: Selection.IndexedSelection) -> None:
-        canvas_item = ListCanvasItem.ListCanvasItem(ListCanvasItemDelegate(self), selection)
-        super().__init__(ui, canvas_item, display_item_adapters_model, selection, GridCanvasItem.Direction.Row, True)
-
-
 class DataGridController(ItemExplorerController):
     def __init__(self, ui: UserInterface.UserInterface, display_item_adapters_model: ListModel.MappedListModel,
                  selection: Selection.IndexedSelection,
@@ -568,8 +524,143 @@ class ItemExplorerWidget(Widgets.CompositeWidgetBase):
 
     def close(self) -> None:
         self.item_explorer_controller.on_drag_started = None
-        self.item_explorer_controller = typing.cast(DataListController, None)
+        self.item_explorer_controller = typing.cast(typing.Any, None)
         super().close()
+
+
+class DataPanelListItem(CanvasItem.CanvasItemComposition):
+    def __init__(self, display_item: DisplayItem.DisplayItem, ui: UserInterface.UserInterface, font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> None:
+        super().__init__()
+
+        self.__display_item = display_item
+        self.__ui = ui
+        self.__font_metrics_fn = font_metrics_fn
+
+        displayed_title_text_canvas_item = CanvasItem.TextCanvasItem(display_item.displayed_title)
+        displayed_title_text_canvas_item.text_font = "11px sans-serif"
+        displayed_title_text_canvas_item.size_to_content(font_metrics_fn)
+        displayed_title_text_canvas_item.update_sizing(displayed_title_text_canvas_item.sizing.with_fixed_height(displayed_title_text_canvas_item.sizing.preferred_height_int - 6))
+
+        displayed_title_row = CanvasItem.CanvasItemComposition()
+        displayed_title_row.layout = CanvasItem.CanvasItemRowLayout()
+        displayed_title_row.add_canvas_item(displayed_title_text_canvas_item)
+        displayed_title_row.add_stretch()
+        # ensure width is not limited by contents
+        displayed_title_row.update_sizing(displayed_title_row.sizing.with_fixed_width(CanvasItem.SizingEnum.UNRESTRAINED))
+
+        format_str_text_canvas_item = CanvasItem.TextCanvasItem(self.format_str)
+        format_str_text_canvas_item.text_font = "11px sans-serif"
+        format_str_text_canvas_item.size_to_content(font_metrics_fn)
+        format_str_text_canvas_item.update_sizing(format_str_text_canvas_item.sizing.with_fixed_height(format_str_text_canvas_item.sizing.preferred_height_int - 6))
+
+        format_str_row = CanvasItem.CanvasItemComposition()
+        format_str_row.layout = CanvasItem.CanvasItemRowLayout()
+        format_str_row.add_canvas_item(format_str_text_canvas_item)
+        format_str_row.add_stretch()
+        # ensure width is not limited by contents
+        format_str_row.update_sizing(format_str_row.sizing.with_fixed_width(CanvasItem.SizingEnum.UNRESTRAINED))
+
+        datetime_str_text_canvas_item = CanvasItem.TextCanvasItem(self.datetime_str)
+        datetime_str_text_canvas_item.text_font = "11px sans-serif"
+        datetime_str_text_canvas_item.size_to_content(font_metrics_fn)
+        datetime_str_text_canvas_item.update_sizing(datetime_str_text_canvas_item.sizing.with_fixed_height(datetime_str_text_canvas_item.sizing.preferred_height_int - 6))
+
+        datetime_str_row = CanvasItem.CanvasItemComposition()
+        datetime_str_row.layout = CanvasItem.CanvasItemRowLayout()
+        datetime_str_row.add_canvas_item(datetime_str_text_canvas_item)
+        datetime_str_row.add_stretch()
+        # ensure width is not limited by contents
+        datetime_str_row.update_sizing(datetime_str_row.sizing.with_fixed_width(CanvasItem.SizingEnum.UNRESTRAINED))
+
+        status_str_text_canvas_item = CanvasItem.TextCanvasItem(self.status_str)
+        status_str_text_canvas_item.text_font = "11px sans-serif"
+        status_str_text_canvas_item.size_to_content(font_metrics_fn)
+        status_str_text_canvas_item.update_sizing(status_str_text_canvas_item.sizing.with_fixed_height(status_str_text_canvas_item.sizing.preferred_height_int - 6))
+
+        status_str_row = CanvasItem.CanvasItemComposition()
+        status_str_row.layout = CanvasItem.CanvasItemRowLayout()
+        status_str_row.add_canvas_item(status_str_text_canvas_item)
+        status_str_row.add_stretch()
+        # ensure width is not limited by contents
+        status_str_row.update_sizing(status_str_row.sizing.with_fixed_width(CanvasItem.SizingEnum.UNRESTRAINED))
+
+        text_column = CanvasItem.CanvasItemComposition()
+        text_column.layout = CanvasItem.CanvasItemColumnLayout(Geometry.Margins(4, 4, 4, 4))
+        text_column.add_canvas_item(displayed_title_row)
+        text_column.add_canvas_item(format_str_row)
+        text_column.add_canvas_item(datetime_str_row)
+        text_column.add_canvas_item(status_str_row)
+        text_column.add_stretch()
+
+        thumbnail_canvas_item = CanvasItem.BitmapCanvasItem()
+        thumbnail_canvas_item.update_sizing(thumbnail_canvas_item.sizing.with_fixed_width(72).with_fixed_height(72))
+
+        thumbnail_column = CanvasItem.CanvasItemComposition()
+        thumbnail_column.layout = CanvasItem.CanvasItemColumnLayout(Geometry.Margins(4, 4, 4, 4))
+        thumbnail_column.add_canvas_item(thumbnail_canvas_item)
+        thumbnail_column.add_stretch()
+
+        self.layout = CanvasItem.CanvasItemRowLayout()
+        self.add_canvas_item(thumbnail_column)
+        self.add_canvas_item(text_column)
+        # ensure width is not limited by contents
+        self.update_sizing(self.sizing.with_fixed_width(CanvasItem.SizingEnum.UNRESTRAINED))
+
+        def thumbnail_updated() -> None:
+            bitmap_data = self.__thumbnail_source.thumbnail_data if self.__thumbnail_source else None
+            self.__thumbnail_canvas_item.bitmap = Bitmap.Bitmap(rgba_bitmap_data=bitmap_data)
+
+        self.__thumbnail_canvas_item = thumbnail_canvas_item
+        self.__thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.__ui, self.__display_item).add_ref()
+        self.__thumbnail_updated_event_listener = self.__thumbnail_source.thumbnail_updated_event.listen(thumbnail_updated)
+
+        thumbnail_updated()
+
+        self.__text_canvas_item = displayed_title_text_canvas_item
+        self.__format_canvas_item = format_str_text_canvas_item
+        self.__datetime_canvas_item = datetime_str_text_canvas_item
+        self.__status_canvas_item = status_str_text_canvas_item
+        self.__item_changed_listener = display_item.item_changed_event.listen(ReferenceCounting.weak_partial(DataPanelListItem.__item_changed, self))
+
+    def close(self) -> None:
+        self.__thumbnail_source.remove_ref()
+        super().close()
+
+    @property
+    def display_item(self) -> DisplayItem.DisplayItem:
+        return self.__display_item
+
+    @property
+    def title(self) -> str:
+        return self.__display_item.displayed_title
+
+    @property
+    def format_str(self) -> str:
+        format_str = self.__display_item.size_and_data_format_as_string if self.__display_item else str()
+        storage_space_string = self.__display_item.storage_space_string if self.__display_item else str()
+        return " ".join([format_str, storage_space_string])
+
+    @property
+    def datetime_str(self) -> str:
+        return self.__display_item.date_for_sorting_local_as_string if self.__display_item else str()
+
+    @property
+    def status_str(self) -> str:
+        return self.__display_item.status_str if self.__display_item else str()
+
+    def __item_changed(self) -> None:
+        self.__text_canvas_item.text = self.title
+        self.__text_canvas_item.size_to_content(self.__font_metrics_fn)
+        self.__text_canvas_item.update_sizing(self.__text_canvas_item.sizing.with_fixed_height(self.__text_canvas_item.sizing.preferred_height_int - 6))
+        self.__format_canvas_item.text = self.format_str
+        self.__format_canvas_item.size_to_content(self.__font_metrics_fn)
+        self.__format_canvas_item.update_sizing(self.__format_canvas_item.sizing.with_fixed_height(self.__format_canvas_item.sizing.preferred_height_int - 6))
+        self.__datetime_canvas_item.text = self.datetime_str
+        self.__datetime_canvas_item.size_to_content(self.__font_metrics_fn)
+        self.__datetime_canvas_item.update_sizing(self.__datetime_canvas_item.sizing.with_fixed_height(self.__datetime_canvas_item.sizing.preferred_height_int - 6))
+        self.__status_canvas_item.text = self.status_str
+        self.__status_canvas_item.size_to_content(self.__font_metrics_fn)
+        self.__status_canvas_item.update_sizing(self.__status_canvas_item.sizing.with_fixed_height(self.__status_canvas_item.sizing.preferred_height_int - 6))
 
 
 class DataPanel(Panel.Panel):
@@ -613,17 +704,91 @@ class DataPanel(Panel.Panel):
         def delete_display_item_adapters(display_item_adapters: typing.List[DisplayItemAdapter]) -> None:
             document_controller.delete_display_items([display_item_adapter.display_item for display_item_adapter in display_item_adapters if display_item_adapter.display_item])
 
-        self.data_list_controller = DataListController(ui, self.__filtered_display_item_adapters_model, self.__selection)
-        self.data_list_controller.on_context_menu_event = show_context_menu
-        self.data_list_controller.on_focus_changed = focus_changed
-        self.data_list_controller.on_delete_display_item_adapters = delete_display_item_adapters
-
         self.data_grid_controller = DataGridController(ui, self.__filtered_display_item_adapters_model, self.__selection)
         self.data_grid_controller.on_context_menu_event = show_context_menu
         self.data_grid_controller.on_focus_changed = focus_changed
         self.data_grid_controller.on_delete_display_item_adapters = delete_display_item_adapters
 
-        data_list_widget = ItemExplorerWidget(ui, self.data_list_controller)
+        def list_item_factory(item: typing.Any, is_selected_model: Model.PropertyModel[bool]) -> CanvasItem.AbstractCanvasItem:
+            return DataPanelListItem(typing.cast(DisplayItem.DisplayItem, item), document_controller.ui, document_controller.get_font_metrics)
+
+        class ListItemDelegate(ListCanvasItem.ListCanvasItem2Delegate):
+            def __init__(self, data_panel: DataPanel, selection: Selection.IndexedSelection) -> None:
+                self.__data_panel = data_panel
+                self.__selection = selection
+
+            def item_tool_tip(self, item: typing.Any) -> typing.Optional[str]:
+                display_item = typing.cast(DisplayItem.DisplayItem, item)
+                return display_item.list_tool_tip_str
+
+            def context_menu_event(self, context_menu_event: ListCanvasItem.ListCanvasItem2ContextMenuEvent) -> bool:
+                display_items = tuple(typing.cast(DisplayItem.DisplayItem, item) for item in context_menu_event.selected_items)
+                menu = document_controller.create_context_menu()
+                action_context = document_controller._get_action_context_for_display_items(display_items, None)
+                document_controller.populate_context_menu(menu, action_context)
+                menu.add_separator()
+                document_controller.add_action_to_menu(menu, "item.delete", action_context)
+                menu.popup(context_menu_event.gp.x, context_menu_event.gp.y)
+                return True
+
+            def delete_event(self, delete_event: ListCanvasItem.ListCanvasItem2DeleteEvent) -> bool:
+                display_items = tuple(typing.cast(DisplayItem.DisplayItem, item) for item in delete_event.selected_items)
+                document_controller.delete_display_items(display_items)
+                return True
+
+            def drag_started_event(self, drag_started_event: ListCanvasItem.ListCanvasItem2DragStartedEvent) -> bool:
+                mime_data, thumbnail_data = self._get_mime_data_and_thumbnail_data(drag_started_event)
+                if mime_data:
+                    self.__data_panel.widget.drag(mime_data, thumbnail_data)
+                    return True
+                return False
+
+            def _get_mime_data_and_thumbnail_data(self, drag_started_event: ListCanvasItem.ListCanvasItem2DragStartedEvent) -> typing.Tuple[typing.Optional[UserInterface.MimeData], typing.Optional[_NDArray]]:
+                mime_data = None
+                thumbnail_data = None
+                display_item = typing.cast(DisplayItem.DisplayItem, drag_started_event.item)
+                display_items = tuple(
+                    typing.cast(DisplayItem.DisplayItem, item) for item in drag_started_event.selected_items)
+                if len(display_items) <= 1 and display_item is not None:
+                    mime_data = document_controller.ui.create_mime_data()
+                    MimeTypes.mime_data_put_display_item(mime_data, display_item)
+                    thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.__data_panel.ui, display_item)
+                    with thumbnail_source.ref():
+                        thumbnail_data = thumbnail_source.thumbnail_data
+                    if thumbnail_data is not None:
+                        # scaling is very slow
+                        thumbnail_data = Image.get_rgba_data_from_rgba(
+                            Image.scaled(Image.get_rgba_view_from_rgba_data(thumbnail_data),
+                                         tuple(Geometry.IntSize(w=80, h=80))))
+                elif len(display_items) > 1:
+                    mime_data = document_controller.ui.create_mime_data()
+                    MimeTypes.mime_data_put_display_items(mime_data, display_items)
+                    anchor_index = self.__selection.anchor_index or 0
+                    thumbnail_display_item = display_items[anchor_index]
+                    thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.__data_panel.ui, thumbnail_display_item)
+                    with thumbnail_source.ref():
+                        thumbnail_data = thumbnail_source.thumbnail_data
+                return mime_data, thumbnail_data
+
+        list_item_delegate = ListItemDelegate(self, self.__selection)
+        list_canvas_item = ListCanvasItem.ListCanvasItem2(document_controller.filtered_display_items_model, self.__selection, list_item_factory, list_item_delegate, item_height=80, key="display_items")
+        scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(list_canvas_item)
+        scroll_bar_canvas_item = CanvasItem.ScrollBarCanvasItem(scroll_area_canvas_item, CanvasItem.Orientation.Vertical)
+        scroll_group_canvas_item = CanvasItem.CanvasItemComposition()
+        scroll_group_canvas_item.layout = CanvasItem.CanvasItemRowLayout()
+        scroll_group_canvas_item.add_canvas_item(scroll_area_canvas_item)
+        scroll_group_canvas_item.add_canvas_item(scroll_bar_canvas_item)
+
+        data_list_canvas_item = scroll_group_canvas_item
+
+        data_list_widget = ui.create_canvas_widget()
+        data_list_widget.canvas_item.add_canvas_item(data_list_canvas_item)
+
+        # for testing
+        self._list_canvas_item = list_canvas_item
+        self._scroll_area_canvas_item = scroll_area_canvas_item
+        self._scroll_bar_canvas_item = scroll_bar_canvas_item
+
         data_grid_widget = ItemExplorerWidget(ui, self.data_grid_controller)
 
         list_icon_20_bytes = pkgutil.get_data(__name__, "resources/list_icon_20.png")
@@ -723,8 +888,6 @@ class DataPanel(Panel.Panel):
         # close the widget to stop repainting the widgets before closing the controllers.
         super().close()
         # finish closing
-        self.data_list_controller.close()
-        self.data_list_controller = typing.cast(DataListController, None)
         self.data_grid_controller.close()
         self.data_grid_controller = typing.cast(DataGridController, None)
         self.__filtered_display_item_adapters_model.close()
