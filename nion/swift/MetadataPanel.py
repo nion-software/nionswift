@@ -214,7 +214,7 @@ class ThreadedCanvasItem(CanvasItem.CanvasItemComposition):
             metadata_editor_canvas_item.reconstruct()
             # calculate the new preferred size of the metadata editor.
             metadata_editor_canvas_item.size_to_content()
-            metadata_editor_canvas_item_size = Geometry.FloatSize(w=metadata_editor_canvas_item.sizing.preferred_width, h=metadata_editor_canvas_item.sizing.preferred_height).to_int_size()
+            metadata_editor_canvas_item_size = metadata_editor_canvas_item.sizing.get_preferred_size()
 
             # modifying the composition is safe until it is added to this composition.
             canvas_item_composition = CanvasItem.CanvasItemComposition()
