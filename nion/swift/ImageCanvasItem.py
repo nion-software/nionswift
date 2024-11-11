@@ -475,13 +475,15 @@ class ImageAreaCanvasItemComposer(CanvasItem.CanvasItemCompositionComposer):
         super().__init__(canvas_item, layout_sizing, composer_cache, layout, child_composers, background_color, border_color)
         self.__child_composers = child_composers
 
-    def _repaint_children(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, child_composers: typing.Sequence[CanvasItem.BaseComposer]) -> None:
+    def _repaint_children(self, drawing_context: DrawingContext.DrawingContext, canvas_rect: Geometry.IntRect, visible_rect: Geometry.IntRect, child_composers: typing.Sequence[CanvasItem.BaseComposer]) -> None:
         with drawing_context.saver():
-            drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
-            drawing_context.clip_rect(0, 0, canvas_bounds.width, canvas_bounds.height)
-            # TODO: add visible rect
+            drawing_context.translate(canvas_rect.left, canvas_rect.top)
+            drawing_context.clip_rect(0, 0, canvas_rect.width, canvas_rect.height)
+            visible_rect = Geometry.IntRect(origin=Geometry.IntPoint(), size=canvas_rect.size)
             child_composer = self.__child_composers[0]
-            child_composer.repaint(drawing_context, child_composer._canvas_bounds)
+            child_canvas_rect = child_composer._canvas_bounds
+            if visible_rect.intersects_rect(child_canvas_rect):
+                child_composer.repaint(drawing_context, child_canvas_rect, visible_rect)
 
 
 class ImageAreaCanvasItem(CanvasItem.CanvasItemComposition):
