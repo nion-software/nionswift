@@ -93,6 +93,9 @@ class MemoryProfileContext:
 
         self.__items_exit = list()
 
+        self.__ui = TestUI.UserInterface()
+
+
     def reset_profile(self):
         self.__profile = None
         self.profile_properties.clear()
@@ -167,19 +170,19 @@ class MemoryProfileContext:
 
     def create_document_controller(self, *, auto_close: bool = True) -> DocumentController.DocumentController:
         document_model = self.create_document_model(auto_close=False)
-        document_controller = DocumentController.DocumentController(TestUI.UserInterface(), document_model, workspace_id="library")
+        document_controller = DocumentController.DocumentController(self.__ui, document_model, workspace_id="library")
         if auto_close:
             self.__items_exit.append(document_controller.close)
         return document_controller
 
     def create_secondary_document_controller(self, document_model: DocumentModel.DocumentModel, *, auto_close: bool = True) -> DocumentController.DocumentController:
-        document_controller = DocumentController.DocumentController(TestUI.UserInterface(), document_model, workspace_id="library")
+        document_controller = DocumentController.DocumentController(self.__ui, document_model, workspace_id="library")
         if auto_close:
             self.__items_exit.append(document_controller.close)
         return document_controller
 
     def create_document_controller_with_application(self) -> DocumentController.DocumentController:
-        app = Application.Application(TestUI.UserInterface(), set_global=False)
+        app = Application.Application(self.__ui, set_global=False)
         document_model = self.create_document_model(auto_close=False)
         document_controller = app.create_document_controller(document_model, "library")
         self.__items_exit.append(document_controller.close)
@@ -188,7 +191,7 @@ class MemoryProfileContext:
         return document_controller
 
     def create_application(self) -> Application.Application:
-        app = Application.Application(TestUI.UserInterface(), set_global=False)
+        app = Application.Application(self.__ui, set_global=False)
         self.__app = app  # hold a reference
         return app
 

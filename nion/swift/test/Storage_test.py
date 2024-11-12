@@ -72,6 +72,7 @@ class TempProfileContext:
         self.__profile = None
         self.__no_remove = no_remove
         self.__items_to_close = list()
+        self.__ui = TestUI.UserInterface()
 
     def create_profile(self, *, profile_name: str = None, project_name: str = None, project_data_name: str = None) -> Profile.Profile:
         if not self.__profile:
@@ -114,7 +115,7 @@ class TempProfileContext:
 
     def create_document_controller(self, *, auto_close: bool = True) -> DocumentController.DocumentController:
         document_model = self.create_document_model(auto_close=False)
-        document_controller = DocumentController.DocumentController(TestUI.UserInterface(), document_model, workspace_id="library")
+        document_controller = DocumentController.DocumentController(self.__ui, document_model, workspace_id="library")
         if auto_close:
             self.__items_to_close.append(document_controller)
         return document_controller
