@@ -423,6 +423,7 @@ class ProcessorBase(ProcessorLike):
 
     def __init__(self, **kwargs: typing.Any) -> None:
         self.__dirty = True
+        self.__error = False
         self.__parameters = dict[str, typing.Any]()
         self.__results = dict[str, typing.Any]()
         self.__lock = threading.RLock()
@@ -439,7 +440,11 @@ class ProcessorBase(ProcessorLike):
     def execute(self) -> None:
         with self.__lock:
             if self.__dirty:
-                self._execute()
+                try:
+                    self._execute()
+                except Exception as e:
+                    # print(f"ProcessorBase.execute: {e}")
+                    self.__error = True
                 self.__dirty = False
 
     def set_parameter(self, key: str, value: typing.Any) -> None:
