@@ -565,6 +565,19 @@ class TestLineGraphCanvasItem(unittest.TestCase):
         self.assertEqual(("10", "-3"), e.used_labels("1e-03"))
         self.assertEqual(("10", "3"), e.used_labels("1e+03"))
 
+    # test rgb 1d data in line plot.
+    def test_line_plot_handles_rgb_1d(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            display_panel = document_controller.selected_display_panel
+            # rgb 1d
+            data_item = DataItem.DataItem(numpy.zeros((8, 4), numpy.uint8))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel.set_display_panel_display_item(display_item)
+            display_panel.repaint_immediate(DrawingContext.DrawingContext(), Geometry.IntSize(100, 100))
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

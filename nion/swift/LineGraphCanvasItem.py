@@ -320,7 +320,11 @@ class LineGraphAxes:
         calibrated_data: typing.Optional[_NDArray]
         intensity_calibration = xdata.intensity_calibration
         if intensity_calibration:
-            data = xdata.data
+            # the line plot is not able to handle RGB data yet; convert to grayscale.
+            if xdata.is_data_rgb_type:
+                data = Image.convert_to_grayscale(xdata.data)
+            else:
+                data = xdata.data
             if self.data_style == "log":
                 calibrated_data = intensity_calibration.offset + intensity_calibration.scale * data
                 calibrated_data[calibrated_data <= 0] = numpy.nan
