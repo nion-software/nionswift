@@ -385,6 +385,11 @@ class DocumentController(Window.Window):
     def consoles(self) -> typing.Sequence[ConsoleDialog.ConsoleDialog]:
         return self.__consoles
 
+    @property
+    def _project_reference(self) -> typing.Optional[Profile.ProjectReference]:
+        # TEST ONLY
+        return self.__project_reference
+
     def _create_menus(self) -> None:
         # don't use default implementation
 

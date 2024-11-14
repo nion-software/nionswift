@@ -690,6 +690,11 @@ class Application(UIApplication.BaseApplication):
                 action = menu.add_menu_item(project_title, functools.partial(self.open_project_reference, project_reference))
                 getattr(window, "_dynamic_recent_project_actions").append(action)
 
+    def _get_recent_project_references(self) -> typing.Sequence[Profile.ProjectReference]:
+        profile = self.profile
+        project_references: typing.List[Profile.ProjectReference] = list(filter(lambda pr: pr.project_state != "loaded", profile.project_references))
+        return sorted(project_references, key=operator.attrgetter("recents_key"), reverse=True)
+
     def create_project_reference(self, directory: pathlib.Path, project_name: str) -> None:
         profile = self.profile
         project_reference = profile.create_project(directory, project_name)
@@ -935,6 +940,27 @@ class ChooseProjectAction(UIWindow.Action):
         return UIWindow.ActionResult(UIWindow.ActionStatus.FINISHED)
 
 
+class SwitchProjectAction(UIWindow.Action):
+    action_id = "project.switch_project"
+    action_name = _("Switch Project")
+
+    def execute(self, context: UIWindow.ActionContext) -> UIWindow.ActionResult:
+        application = typing.cast(Application, context.application)
+        with application.prevent_close():
+            project_reference: typing.Optional[Profile.ProjectReference] = None
+            if project_uuid := context.parameters.get("project_uuid", typing.cast(typing.Optional[uuid.UUID], None)):
+                project_reference = application.profile.get_project_reference_by_project_uuid(project_uuid)
+            elif project_path_str := context.parameters.get("project_path", str()):
+                project_path = pathlib.Path(project_path_str)
+                project_reference = application.profile.get_project_reference_by_path(project_path)
+                if not project_reference:
+                    project_reference = application.profile.open_project(project_path)
+            if project_reference and project_reference.project_version == FileStorageSystem.PROJECT_VERSION and project_reference.project_state == "unloaded":
+                application.switch_project_reference(project_reference)
+        return UIWindow.ActionResult(UIWindow.ActionStatus.FINISHED)
+
+
 UIWindow.register_action(NewProjectAction())
 UIWindow.register_action(OpenProjectAction())
 UIWindow.register_action(ChooseProjectAction())
+UIWindow.register_action(SwitchProjectAction())
