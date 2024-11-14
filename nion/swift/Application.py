@@ -880,7 +880,7 @@ class NewProjectAction(UIWindow.Action):
 
 
 class OpenProjectAction(UIWindow.Action):
-    action_id = "project.open_project"
+    action_id = "project.open_project_dialog"
     action_name = _("Open Project...")
 
     def execute(self, context: UIWindow.ActionContext) -> UIWindow.ActionResult:

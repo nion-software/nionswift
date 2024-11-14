@@ -10,7 +10,7 @@
             },
             {
                 "type": "item",
-                "action_id": "project.open_project"
+                "action_id": "project.open_project_dialog"
             },
             {
                 "type": "item",
