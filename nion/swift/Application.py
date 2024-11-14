@@ -755,6 +755,34 @@ class Application(UIApplication.BaseApplication):
         about_dialog = AboutDialog(self.ui, parent_window, self.version_str)
         about_dialog.show()
 
+    def execute_command_list(
+            self,
+            commands: typing.Sequence[typing.Tuple[str, typing.Optional[typing.Dict[str, typing.Any]]]],
+            *,
+            command_delay: typing.Optional[float] = None,
+            repeat: typing.Optional[int] = None
+    ) -> None:
+        """Execute a list of application level commands with optional delay between commands and optional repeat count.
+
+        FOR TESTING ONLY.
+        """
+
+        def execute_next_command(
+                commands: typing.Sequence[typing.Tuple[str, typing.Optional[typing.Dict[str, typing.Any]]]],
+                remaining_commands: typing.MutableSequence[
+                    typing.Tuple[str, typing.Optional[typing.Dict[str, typing.Any]]]],
+                command_delay: float,
+                repeat: int
+        ) -> None:
+            if remaining_commands:
+                next_command = remaining_commands.pop(0)
+                self.execute_action(next_command[0], parameters=next_command[1])
+                self.event_loop.call_later(command_delay, execute_next_command, commands, remaining_commands, command_delay, repeat)
+            elif repeat > 0:
+                self.event_loop.call_later(command_delay, execute_next_command, commands, list(commands), command_delay, repeat - 1)
+
+        self.event_loop.call_later(command_delay or 0.0, execute_next_command, commands, list(commands), command_delay or 0.0, repeat or 1)
+
 
 def get_root_dir() -> str:
     root_dir = os.path.dirname((os.path.dirname(os.path.abspath(__file__))))

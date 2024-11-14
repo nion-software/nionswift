@@ -466,7 +466,8 @@ class DocumentController(Window.Window):
         return listener
 
     def periodic(self) -> None:
-        self.__periodic_monitor.enter()
+        periodic_monitor = self.__periodic_monitor
+        periodic_monitor.enter()
         try:
             with self.__weak_periodic_listeners_mutex:
                 periodic_listeners = copy.copy(self.__weak_periodic_listeners)
@@ -484,15 +485,19 @@ class DocumentController(Window.Window):
                         traceback.print_stack()
                     periodic_listener.next_scheduled_time = current_time + periodic_listener.interval
             super().periodic()
-            with Process.audit("perform_data_item_updates"):
-                self.document_model.perform_data_item_updates()
-            if self.workspace_controller:
-                with Process.audit("workspace_controller"):
-                    self.workspace_controller.periodic()
-            if self.__last_activity is not None and time.time() - self.__last_activity > 60 * 60:
-                pass  # self.app.choose_library()
+            # this document controller may be closed as a result of the above call to super().periodic(), e.g. if a
+            # switch project action is executed. only proceed if the document controller is still open. generally,
+            # self should not be used (including for the periodic monitor) if the document controller is closed.
+            if not self.__closed:
+                with Process.audit("perform_data_item_updates"):
+                    self.document_model.perform_data_item_updates()
+                if self.workspace_controller:
+                    with Process.audit("workspace_controller"):
+                        self.workspace_controller.periodic()
+                if self.__last_activity is not None and time.time() - self.__last_activity > 60 * 60:
+                    pass  # self.app.choose_library()
         finally:
-            self.__periodic_monitor.exit()
+            periodic_monitor.exit()
 
     @property
     def _undo_stack(self) -> Undo.UndoStack:

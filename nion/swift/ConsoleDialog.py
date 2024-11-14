@@ -174,6 +174,7 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
         super().__init__(content_widget)
 
         self.__logger = logger
+        self.__closed = False
 
         self.prompt = ">>> "
         self.continuation_prompt = "... "
@@ -232,6 +233,12 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
         content_widget.add(self.__text_edit_widget)
 
     def close(self) -> None:
+        self.__closed = True
+        # be sure to clear callbacks in the text widget which may use the text edit widget.
+        self.__text_edit_widget.on_cursor_position_changed = None
+        self.__text_edit_widget.on_return_pressed = None
+        self.__text_edit_widget.on_key_pressed = None
+        self.__text_edit_widget.on_insert_mime_data = None
         super().close()
         self.__text_edit_widget = typing.cast(typing.Any, None)
         self.__state_controller.close()
@@ -252,16 +259,20 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
 
     def insert_lines(self, lines: typing.Sequence[str]) -> None:
         for l in lines:
-            self.__text_edit_widget.move_cursor_position("end")
-            self.__text_edit_widget.insert_text(l)
+            text_edit_widget = self.__text_edit_widget
+            text_edit_widget.move_cursor_position("end")
+            text_edit_widget.insert_text(l)
             result, error_code = self.__state_controller.interpret_command(l)
-            if len(result) > 0:
-                self.__text_edit_widget.set_text_color("red" if error_code else "aquamarine")
-                self.__text_edit_widget.append_text(result[:-1])
-                self.__text_edit_widget.set_text_color("white")
-            self.__text_edit_widget.append_text(self.current_prompt)
-            self.__text_edit_widget.move_cursor_position("end")
-            self.__last_cursor_position = copy.deepcopy(self.__cursor_position)
+            # if the console is closed as a result of running the script, don't try to append text.
+            # the console can be closed as a result of switching to another project via script.
+            if not self.__closed:
+                if len(result) > 0:
+                    text_edit_widget.set_text_color("red" if error_code else "aquamarine")
+                    text_edit_widget.append_text(result[:-1])
+                    text_edit_widget.set_text_color("white")
+                text_edit_widget.append_text(self.current_prompt)
+                text_edit_widget.move_cursor_position("end")
+                self.__last_cursor_position = copy.deepcopy(self.__cursor_position)
 
     def append_line(self, line: str, *, color: typing.Optional[str] = None) -> None:
         self.__text_edit_widget.set_text_color(color if color else "aquamarine")
