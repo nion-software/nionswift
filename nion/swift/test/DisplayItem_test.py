@@ -801,6 +801,30 @@ class TestDisplayItemClass(unittest.TestCase):
                 self.assertEqual("4, 4", data_info.data_shape_str)
                 self.assertEqual("2 rad, 2 rad", data_info.calibrated_dimensional_calibrations_str)
 
+    def test_display_data_shape_calculator(self) -> None:
+        l = [
+            ((0, 1), (3, 2), False, 0, 2),          # image
+            ((1, 2), (3, 2, 4), True, 0, 2),        # sequence of image
+            ((1, 2), (3, 2, 4), False, 1, 2),       # 1d collection of image
+            ((2, 3), (5, 3, 2, 4), True, 1, 2),     # sequence of 1d collection of image
+            ((0, 1), (3, 2, 4), False, 2, 1),       # 2d collection of spectra (SI)
+            ((1, 2), (5, 3, 2, 4), True, 2, 1),     # sequence of collection of spectra (SI)
+            ((2, 3), (2, 3, 4, 5), False, 2, 2),    # 2d collection of image
+            ((3, 4), (2, 3, 4, 5, 6), True, 2, 2),  # sequence of 2d collection of image
+            ((0,), (3,), False, 0, 1),              # spectra
+            ((1,), (2, 3), True, 0, 1),             # sequence of spectra
+            ((1,), (2, 3), False, 1, 1),            # 1d collection of spectra
+            ((2,), (2, 3, 4), True, 1, 1),          # sequence of 1d collection of spectra
+        ]
+        with create_memory_profile_context() as profile_context:
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                for expected, shape, is_sequence, collection_dimension_count, datum_dimension_count in l:
+                    data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(numpy.ones(shape), data_descriptor=DataAndMetadata.DataDescriptor(is_sequence, collection_dimension_count, datum_dimension_count)))
+                    document_model.append_data_item(data_item)
+                    self.assertEqual(len(expected), len(document_model.display_items[-1].displayed_display_data_calibrations))
+                    self.assertEqual(expected, DisplayItem.DisplayDataShapeCalculator(data_item.data_metadata).indexes)
+
     # test_transaction_does_not_cascade_to_data_item_refs
     # test_increment_data_ref_counts_cascades_to_data_item_refs
     # test_adding_data_item_twice_to_composite_item_fails

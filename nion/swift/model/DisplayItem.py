@@ -1785,7 +1785,7 @@ class DisplayDataShapeCalculator:
             else:
                 self.shape = tuple(dimensional_shape[next_dimension:])
                 self.calibrations = dimensional_calibrations[next_dimension:]
-                self.indexes = tuple(range(next_dimension, next_dimension + len(dimensional_shape)))
+                self.indexes = tuple(range(len(dimensional_shape)))[next_dimension:]
 
 
 class CalibrationDescriptionLike:
