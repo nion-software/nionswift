@@ -686,7 +686,7 @@ class CollectionIndexAdapter(IndexValueAdapter):
     def get_index_value(self, display_data_channel: DisplayItem.DisplayDataChannel) -> float:
         index = self.__collection_index + (1 if display_data_channel.is_sequence else 0)
         dim_length = display_data_channel.dimensional_shape[index] if display_data_channel.dimensional_shape is not None else 0
-        return display_data_channel.collection_index[self.__collection_index] / (dim_length - 1)
+        return display_data_channel.collection_index[self.__collection_index] / (dim_length - 1) if dim_length > 1 else 0.0
 
     def get_index_str(self, display_data_channel: DisplayItem.DisplayDataChannel) -> str:
         return str(display_data_channel.collection_index[self.__collection_index])

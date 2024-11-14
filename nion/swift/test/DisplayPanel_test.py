@@ -1592,6 +1592,17 @@ class TestDisplayPanelClass(unittest.TestCase):
             document_controller.periodic()
             self.assertIsInstance(display_panel.display_canvas_item, ImageCanvasItem.ImageCanvasItem)
 
+    def test_display_2d_collection_with_dimension_1(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.DataItem()
+            data_item.set_xdata(DataAndMetadata.new_data_and_metadata(numpy.ones((1, 1, 8, 8)), data_descriptor=DataAndMetadata.DataDescriptor(False, 2, 2)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel.set_display_panel_display_item(display_item)
+
     def test_image_display_canvas_item_only_updates_if_display_data_changes(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
