@@ -14,7 +14,6 @@ from nion.swift.model import Cache
 from nion.swift.model import Changes
 from nion.swift.model import Connection
 from nion.swift.model import DataGroup
-from nion.swift.model import Symbolic
 from nion.swift.model import DataItem
 from nion.swift.model import DataStructure
 from nion.swift.model import DisplayItem
