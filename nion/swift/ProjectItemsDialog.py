@@ -214,21 +214,21 @@ class ProjectItemsDialog(Declarative.WindowHandler):
 
         items = (
             EntityBrowser.EntityBrowserEntry(context, _("Data Items"), document_controller.document_model, "data_items",
-                                             DataModel.DataItem, _("Data Item"), lambda x: typing.cast(str, x.title) if x.title else _("Auto")),
+                                             DataModel.DataItem, _("Data Item"), "title", _("Auto")),
             EntityBrowser.EntityBrowserEntry(context, _("Display Items"), document_controller.document_model, "display_items",
-                                             DataModel.DisplayItem, _("Display Item"), operator.attrgetter("displayed_title")),
+                                             DataModel.DisplayItem, _("Display Item"), "displayed_title"),
             EntityBrowser.EntityBrowserEntry(context, _("Data Structures"), document_controller.document_model, "data_structures",
-                                             None, _("Data Structure"), operator.attrgetter("structure_type")),
+                                             None, _("Data Structure"), "structure_type"),
             EntityBrowser.EntityBrowserEntry(context, _("Computations"), document_controller.document_model, "computations",
-                                             DataModel.Computation, _("Computation"), operator.attrgetter("label")),
+                                             DataModel.Computation, _("Computation"), "label"),
             EntityBrowser.EntityBrowserEntry(context, _("Connections"), document_controller.document_model, "connections",
-                                             DataModel.Connection, _("Connection"), lambda x: str(x.uuid)),
+                                             DataModel.Connection, _("Connection"), "uuid"),
             EntityBrowser.EntityBrowserEntry(context, _("Data Groups"), document_controller.document_model, "data_groups",
-                                             DataModel.DataGroup, _("Data Group"), operator.attrgetter("title")),
+                                             DataModel.DataGroup, _("Data Group"), "title"),
             EntityBrowser.EntityBrowserEntry(context, _("Projects"), typing.cast(typing.Any, document_controller.app).profile, "projects",
-                                             ProjectExtra, _("Project"), lambda x: x.title or _("Project")),
+                                             ProjectExtra, _("Project"), "title", _("Project")),
             EntityBrowser.EntityBrowserEntry(context, _("Workspaces"), document_controller.project, "workspaces",
-                                             DataModel.Workspace, _("Workspace"), operator.attrgetter("name")),
+                                             DataModel.Workspace, _("Workspace"), "name"),
         )
 
         # close any previous list dialog associated with the window
