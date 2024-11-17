@@ -12,6 +12,7 @@ import asyncio
 import dataclasses
 import gettext
 import operator
+import threading
 import typing
 
 # third party libraries
@@ -23,13 +24,13 @@ from nion.ui import Declarative
 from nion.ui import UserInterface
 from nion.ui import Widgets
 from nion.ui import Window
-from nion.utils import Binding
 from nion.utils import Converter
+from nion.utils import Event
 from nion.utils import ListModel
 from nion.utils import Model
 from nion.utils import Observable
 from nion.utils import Registry
-from nion.utils.ReferenceCounting import weak_partial
+from nion.utils import ReferenceCounting
 
 _ = gettext.gettext
 
@@ -158,7 +159,7 @@ class EntityTupleModel(Observable.Observable):
                     tuple_model.items.append((index, item))
                     tuple_model.notify_insert_item("items", tuple_model.items[-1], len(tuple_model.items) - 1)
 
-        self.__listener = value_model.property_changed_event.listen(weak_partial(property_changed, self))
+        self.__listener = value_model.property_changed_event.listen(ReferenceCounting.weak_partial(property_changed, self))
 
         property_changed(self, "value")
 
@@ -226,7 +227,7 @@ class EntityValueIndexModel(Model.PropertyModel[T], typing.Generic[T]):
             if property_name == "value":
                 property_model.value = getattr(value_model, property_name)[index]
 
-        self.__listener = self.__value_model.property_changed_event.listen(weak_partial(property_changed, self, self.__value_model))
+        self.__listener = self.__value_model.property_changed_event.listen(ReferenceCounting.weak_partial(property_changed, self, self.__value_model))
 
 
 class EntityFieldsHandler(Declarative.Handler):
@@ -279,7 +280,7 @@ class MaybePropertyChangedPropertyModel(Model.PropertyModel[typing.Any]):
                 property_model.value = getattr(observable, property_name)
 
         if hasattr(self.__observable, "property_changed_event"):
-            self.__listener = self.__observable.property_changed_event.listen(weak_partial(property_changed, self, observable, property_name))
+            self.__listener = self.__observable.property_changed_event.listen(ReferenceCounting.weak_partial(property_changed, self, observable, property_name))
 
     def _set_value(self, value: typing.Optional[T]) -> None:
         super()._set_value(value)
@@ -379,14 +380,12 @@ class ItemPageHandler(Declarative.Handler):
                  context: Context,
                  item: typing.Any,
                  entity_type: typing.Optional[Schema.EntityType],
-                 title: str,
-                 item_title_getter: typing.Optional[typing.Callable[[typing.Any], str]] = None) -> None:
+                 title: str) -> None:
         super().__init__()
         self.context = context
         self.item = item
         self.__title = title
         self.__entity_type = entity_type
-        self.__item_title_getter = item_title_getter
         self.__handlers: typing.List[Declarative.HandlerLike] = list()
         self.uuid_converter = Converter.UuidToStringConverter()
         self.date_converter = Converter.DatetimeToStringConverter(is_local=True, format="%Y-%m-%d %H:%M:%S %Z")
@@ -477,10 +476,78 @@ class DynamicDeclarativeWidgetConstructor:
 Registry.register_component(DynamicDeclarativeWidgetConstructor(), {"declarative_constructor"})
 
 
+_T = typing.TypeVar('_T')
+
+class MappedPropertyListModel(Observable.Observable, typing.Generic[_T]):
+    """A list model based on a property of items in a container.
+
+    The list model observes the container for item insertions and removals, reads a property from each item, and
+     forms a new list based on those properties. Also observes each item for changes to that property and updates
+     this list via both notify_item_content_changed and notify_property_changed('items') when a property changes.
+    """
+
+    def __init__(self, container: Observable.Observable, property_name: str, *, parent_items_key: typing.Optional[str] = None, items_key: typing.Optional[str] = None, property_value_fallback: typing.Optional[_T] = None) -> None:
+        super().__init__()
+        self.__container = container
+        self.__property_name = property_name
+        self.__property_value_fallback = property_value_fallback
+        self.__parent_items_key = parent_items_key or "items"
+        self.__items_key = items_key or self.__parent_items_key
+        self.__mutex = threading.RLock()
+        self.__items: typing.List[typing.Any] = list()  # a list of transformed items
+        self.__item_property_values: typing.List[_T] = list()  # a list of transformed items
+        self.__item_inserted_event_listener = self.__container.item_inserted_event.listen(ReferenceCounting.weak_partial(MappedPropertyListModel.__parent_item_inserted, self))
+        self.__item_removed_event_listener = self.__container.item_removed_event.listen(ReferenceCounting.weak_partial(MappedPropertyListModel.__parent_item_removed, self))
+        self.__item_property_changed_event_listeners = list[Event.EventListener]()
+        for index, item in enumerate(getattr(self.__container, self.__parent_items_key)):
+            self.__parent_item_inserted(self.__parent_items_key, item, index)
+
+    @property
+    def items(self) -> typing.Sequence[_T]:
+        """ Return the items. """
+        with self.__mutex:
+            return list(self.__item_property_values)
+
+    def __getattr__(self, property_name: str) -> typing.Any:
+        if property_name == self.__items_key:
+            return self.items
+        raise AttributeError()
+
+    # thread safe.
+    def __parent_item_inserted(self, key: str, item: typing.Any, before_index: int) -> None:
+        """ Insert the item. Called from the container. """
+        if key == self.__parent_items_key:
+            with self.__mutex:
+                self.__item_property_changed_event_listeners.insert(before_index, item.property_changed_event.listen(ReferenceCounting.weak_partial(MappedPropertyListModel.__item_property_changed, self, item)))
+                self.__items.insert(before_index, item)
+                self.__item_property_values.insert(before_index, getattr(item, self.__property_name))
+                self.notify_insert_item(self.__items_key, item, before_index)
+                self.notify_property_changed("items")
+
+    # thread safe.
+    def __parent_item_removed(self, key: str, item: typing.Any, index: int) -> None:
+        """ Remove the item. Called from the container. """
+        if key == self.__parent_items_key:
+            with self.__mutex:
+                del self.__item_property_changed_event_listeners[index]
+                del self.__items[index]
+                del self.__item_property_values[index]
+                self.notify_remove_item(self.__items_key, item, index)
+                self.notify_property_changed("items")
+
+    def __item_property_changed(self, item: typing.Any, property_name: str) -> None:
+        """ Called when a property of an item changes. """
+        with self.__mutex:
+            index = self.__items.index(item)
+            self.__item_property_values[index] = getattr(item, self.__property_name)
+            self.notify_item_content_changed(self.__items_key, item, index)
+            self.notify_property_changed("items")
+
+
 class MasterDetailHandler(Declarative.Handler):
 
     def __init__(self, model: Observable.Observable, items_key: str, component_fn: DynamicWidgetConstructorFn,
-                 title_getter: typing.Callable[[typing.Any], str], list_props: dict[str, typing.Any], *,
+                 title_property: str, title_fallback: typing.Optional[str], list_props: dict[str, typing.Any], *,
                  add_item_fn: typing.Optional[typing.Callable[[], None]] = None,
                  remove_item_fn: typing.Optional[typing.Callable[[typing.Any], None]] = None) -> None:
         super().__init__()
@@ -494,11 +561,8 @@ class MasterDetailHandler(Declarative.Handler):
         self.items_model = model
         self.__items_key = items_key
 
-        self.titles_model = ListModel.MappedListModel(container=self.items_model,
-                                                      master_items_key=items_key,
-                                                      map_fn=title_getter)
-
-        self.__labels_property_model = ListModel.ListPropertyModel(self.titles_model)
+        # the labels property model converts the titles model to a single property: a list of strings.
+        self.labels_property_model = MappedPropertyListModel(self.items_model, title_property, property_value_fallback=title_fallback)
 
         # set up a shadow list following the model/items_key
 
@@ -510,11 +574,12 @@ class MasterDetailHandler(Declarative.Handler):
                                                       map_fn=make_shadow)
 
         # the selected item in the items_model
-        self.index_model = Model.PropertyModel(0)
+        self.index_model = Model.PropertyModel(0 if self.__items else None)
 
         u = Declarative.DeclarativeUI()
 
-        item_list = u.create_list_box(items_ref="@binding(titles_model.items)",
+        # the list box wants to bind to a property that returns a list of strings. this is the labels property model.
+        item_list = u.create_list_box(items_ref="@binding(labels_property_model.items)",
                                       current_index="@binding(index_model.value)",
                                       **list_props)
 
@@ -533,7 +598,7 @@ class MasterDetailHandler(Declarative.Handler):
             item_control_row_items.append(remove_button)
 
         if item_control_row_items:
-            item_control_row = u.create_row(u.create_stretch(), u.create_row(*item_control_row_items, spacing=8), u.create_spacing(16))
+            item_control_row = u.create_row(u.create_row(*item_control_row_items, spacing=8), u.create_stretch())
             item_list_column = u.create_column(item_list, item_control_row, spacing=8)
         else:
             item_list_column = u.create_column(item_list)
@@ -561,15 +626,22 @@ class MasterDetailHandler(Declarative.Handler):
         if callable(self.__add_item_fn):
             self.__add_item_fn()
             items = self.__items
-            self.index_model.value = len(items) - 1 if items else 0
+            self.index_model.value = len(items) - 1 if items else None
 
     def remove_item(self, widget: UserInterface.Widget) -> None:
         if callable(self.__remove_item_fn):
-            index = self.index_model.value or 0
+            index = self.index_model.value
             items = self.__items
-            if 0 <= index < len(items):
+            if index is not None and 0 <= index < len(items):
                 self.__remove_item_fn(items[index])
-                self.index_model.value = index - 1 if len(items) > 1 else 0
+                item_count = len(self.__items)
+                if index < item_count:
+                    self.index_model.value = None
+                    self.index_model.value = index
+                elif item_count:
+                    self.index_model.value = item_count - 1
+                else:
+                    self.index_model.value = None
 
     def init_handler(self) -> None:
         self.__update_dynamic_widget()
@@ -582,16 +654,12 @@ class MasterDetailHandler(Declarative.Handler):
             return handler
         return None
 
-    def get_binding(self, source: Observable.Observable, property: str, converter: typing.Optional[Converter.ConverterLike[typing.Any, typing.Any]]) -> typing.Optional[Binding.Binding]:
-        if source == self.titles_model and property == "items":
-            return Binding.PropertyBinding(self.__labels_property_model, "value", converter=converter)
-        return None
 
-
-class EntityBrowserEntry:
+class EntityBrowserEntry(Observable.Observable):
     def __init__(self, context: Context, title: str, document_model: Observable.Observable,
                  master_items_key: str, entity_type: typing.Optional[Schema.EntityType], title2: str,
-                 title_getter: typing.Callable[[typing.Any], str]) -> None:
+                 title_property: str, title_fallback: typing.Optional[str] = None) -> None:
+        super().__init__()
         model = ListModel.FilteredListModel(container=document_model, master_items_key=master_items_key)
         model.sort_key = operator.attrgetter("modified")
         model.sort_reverse = True
@@ -600,16 +668,17 @@ class EntityBrowserEntry:
 
         def create_handler(item: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
             used_entity_type = entity_type if entity_type else (item.entity.entity_type if getattr(item, "entity", None) else None)
-            return ItemPageHandler(context, item, used_entity_type, title2, title_getter)
+            return ItemPageHandler(context, item, used_entity_type, title2)
 
         self.component_fn = create_handler
-        self.title_getter = title_getter
+        self.title_property = title_property
+        self.title_fallback = title_fallback
         self.label = title
 
 
 def make_master_detail(project_item_handler: EntityBrowserEntry) -> Declarative.HandlerLike:
     list_props = {"width": 160, "min_height": 480, "size_policy_vertical": "expanding"}
-    return MasterDetailHandler(project_item_handler.model, project_item_handler.items_key, project_item_handler.component_fn, project_item_handler.title_getter, list_props)
+    return MasterDetailHandler(project_item_handler.model, project_item_handler.items_key, project_item_handler.component_fn, project_item_handler.title_property, project_item_handler.title_fallback, list_props)
 
 
 class TopLevelItemHandler(Declarative.Handler):
@@ -667,4 +736,4 @@ def make_entity_browser_component(items: typing.Sequence[EntityBrowserEntry]) ->
 
     list_model = ListModel.ListModel[EntityBrowserEntry](items=items)
     list_props = {"width": 160, "min_height": 480, "size_policy_vertical": "expanding"}
-    return MasterDetailHandler(list_model, "items", typing.cast(DynamicWidgetConstructorFn, TopLevelItemHandler), operator.attrgetter("label"), list_props)
+    return MasterDetailHandler(list_model, "items", typing.cast(DynamicWidgetConstructorFn, TopLevelItemHandler), "label", None, list_props)
