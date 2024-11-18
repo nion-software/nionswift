@@ -1119,9 +1119,6 @@ class Entity(Observable.Observable):
         else:
             raise AttributeError()
 
-    def _field_value_changed(self, name: str, value: typing.Any) -> None:
-        pass
-
     def _get_array_item(self, name: str, index: int) -> typing.Any:
         array_field = typing.cast(typing.Optional[ArrayField], self.__get_field(name))
         if array_field:
@@ -1142,6 +1139,8 @@ class Entity(Observable.Observable):
             entity = typing.cast(Entity, item)
             entity._set_entity_parent(EntityParent(self, relationship_name=name))
             array_field.insert_value(self, index, item)  # passing self for container
+            self._set_modified(DateTime.utcnow())
+            self._item_inserted(name, index, item)
             self.item_inserted_event.fire(name, item, index)
         else:
             raise AttributeError()
@@ -1156,9 +1155,22 @@ class Entity(Observable.Observable):
             array_field.remove_value_at_index(index)  # passing self for container
             entity = typing.cast(Entity, item)
             entity._set_entity_parent(None)
+            self._set_modified(DateTime.utcnow())
+            self._item_removed(name, index, item)
             self.item_removed_event.fire(name, item, index)
         else:
             raise AttributeError()
+
+    # these methods can be overridden to provide custom behavior for storage and notification
+
+    def _field_value_changed(self, name: str, value: typing.Any) -> None:
+        pass
+
+    def _item_inserted(self, name: str, index: int, item: ItemProxyEntity) -> None:
+        pass
+
+    def _item_removed(self, name: str, index: int, item: ItemProxyEntity) -> None:
+        pass
 
     # compatibility functions for persistent object
 
