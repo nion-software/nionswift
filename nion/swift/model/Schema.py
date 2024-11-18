@@ -1331,7 +1331,23 @@ class EntityType:
                 for concrete_subclass in concrete_subclasses:
                     if type == concrete_subclass.entity_id:
                         return concrete_subclass.create(context, d)
-        entity = self.__factory(self, context) if callable(self.__factory) else Entity(self, context)
+        # figure out which factory to use. if the factory is set when constructing this type, use it.
+        # otherwise, look for a registered factory in this class and each base class. otherwise, use
+        # a generic Entity.
+        factory: typing.Optional[typing.Callable[[EntityType, typing.Optional[EntityContext]], typing.Optional[Entity]]] = self.__factory
+        entity: typing.Optional[Entity] = None
+        base_entity: typing.Optional[EntityType] = self
+        while not factory and base_entity:
+            global _entity_factories
+            factory = _entity_factories.get(base_entity.entity_id)
+            if factory:
+                break
+            base_entity = base_entity.base
+        if factory:
+            entity = factory(self, context)
+        if not entity:
+            entity = Entity(self, context)
+        # now read the entity from the dict.
         if d is not None:
             entity.read(d)
         return entity
@@ -1407,3 +1423,12 @@ def read_entity(entity_type: EntityType, context: EntityContext, path: pathlib.P
     """Read the entity from the path."""
     properties = read_json(path)
     return entity_type.create(context, properties)
+
+
+_entity_factories = dict[str, typing.Callable[[EntityType, typing.Optional[EntityContext]], typing.Optional[Entity]]]()
+
+# this is required to be able to construct a custom class from the entity. the old technique of passing the factory
+# into the entity type is not sufficient because the custom class would have to be known at the time the entity type
+# is constructed. this is not always possible when the model is declared independently of the custom classes.
+def register_entity_factory(entity_type: EntityType, factory: typing.Callable[[EntityType, typing.Optional[EntityContext]], typing.Optional[Entity]]) -> None:
+    _entity_factories[entity_type.entity_id] = factory
