@@ -191,7 +191,7 @@ class TestInspectorClass(unittest.TestCase):
             display_panel.set_display_panel_display_item(display_item)
             document_controller.periodic()  # needed to build the inspector
             inspector_panel = document_controller.find_dock_panel("inspector-panel")
-            point_handler = inspector_panel.column.find_widget_by_id("graphics_inspector_section")._handlers[0]
+            point_handler = inspector_panel.column.find_widget_by_id("graphics_inspector_section")._handler._graphic_handlers[0]
             x_model = point_handler._point_position_x_model
             self.assertEqual(x_model.value, "128.0 mm")
             display_item.data_item.set_dimensional_calibration(1, Calibration.Calibration(units="mmm"))
@@ -216,7 +216,7 @@ class TestInspectorClass(unittest.TestCase):
             document_controller.periodic()  # needed to build the inspector
             inspector_panel = document_controller.find_dock_panel("inspector-panel")
             # check the values
-            point_handler = inspector_panel.column.find_widget_by_id("graphics_inspector_section")._handlers[0]
+            point_handler = inspector_panel.column.find_widget_by_id("graphics_inspector_section")._handler._graphic_handlers[0]
             x_model = point_handler._point_position_x_model
             y_model = point_handler._point_position_y_model
             self.assertEqual(x_model.value, "0.0 mm")
@@ -240,7 +240,7 @@ class TestInspectorClass(unittest.TestCase):
             display_panel.set_display_panel_display_item(display_item)
             document_controller.periodic()  # needed to build the inspector
             inspector_panel = document_controller.find_dock_panel("inspector-panel")
-            point_handler = inspector_panel.column.find_widget_by_id("graphics_inspector_section")._handlers[0]
+            point_handler = inspector_panel.column.find_widget_by_id("graphics_inspector_section")._handler._graphic_handlers[0]
             x_model = point_handler._point_position_x_model
             # check the values
             display_item.data_item.set_dimensional_calibration(1, Calibration.Calibration(scale=math.sqrt(2.0), units="mm"))
@@ -279,7 +279,7 @@ class TestInspectorClass(unittest.TestCase):
             data_item.set_dimensional_calibration(0, Calibration.Calibration(units="mm"))
             data_item.set_dimensional_calibration(1, Calibration.Calibration(units="mm"))
             document_controller.periodic()  # needed to update the inspector
-            line_handler = inspector_panel.column.find_widget_by_id("graphics_inspector_section")._handlers[0]
+            line_handler = inspector_panel.column.find_widget_by_id("graphics_inspector_section")._handler._graphic_handlers[0]
             self.assertEqual(line_handler._length_model.value, "223.607 mm")  # sqrt(100*100 + 200*200)
 
     def test_graphic_inspector_sets_calibrated_length_units(self):
@@ -304,7 +304,7 @@ class TestInspectorClass(unittest.TestCase):
             data_item.set_dimensional_calibration(1, Calibration.Calibration(units="mm"))
             document_controller.periodic()  # needed to update the inspector
             length_str = "{0:g}".format(math.sqrt(100 * 100 + 200 * 200))
-            line_handler = inspector_panel.column.find_widget_by_id("graphics_inspector_section")._handlers[0]
+            line_handler = inspector_panel.column.find_widget_by_id("graphics_inspector_section")._handler._graphic_handlers[0]
             length_model = line_handler._length_model
             length_model.value = length_str
             self.assertAlmostEqual(line_region.end[0], 1.0, 3)
@@ -329,7 +329,7 @@ class TestInspectorClass(unittest.TestCase):
             inspector_panel = document_controller.find_dock_panel("inspector-panel")
             # check the values
             document_controller.periodic()  # needed to update the inspector
-            line_handler = inspector_panel.column.find_widget_by_id("graphics_inspector_section")._handlers[0]
+            line_handler = inspector_panel.column.find_widget_by_id("graphics_inspector_section")._handler._graphic_handlers[0]
             angle_model = line_handler._angle_model
             self.assertEqual(-45.0, Converter.FloatToStringConverter().convert_back(angle_model.value))
             angle_model.value = "45"
@@ -356,7 +356,7 @@ class TestInspectorClass(unittest.TestCase):
             line_region.start = (0, 0)
             line_region.end = (0.4, 0.3)
             document_controller.periodic()  # needed to update the inspector
-            line_handler = inspector_panel.column.find_widget_by_id("graphics_inspector_section")._handlers[0]
+            line_handler = inspector_panel.column.find_widget_by_id("graphics_inspector_section")._handler._graphic_handlers[0]
             length_model = line_handler._length_model
             self.assertEqual("50", length_model.value)
             length_model.value = "100"
@@ -393,7 +393,7 @@ class TestInspectorClass(unittest.TestCase):
             data_item.set_dimensional_calibration(0, Calibration.Calibration(units="mm"))
             data_item.set_dimensional_calibration(1, Calibration.Calibration(units="mm"))
             document_controller.periodic()  # needed to update the inspector
-            line_handler = inspector_panel.column.find_widget_by_id("graphics_inspector_section")._handlers[0]
+            line_handler = inspector_panel.column.find_widget_by_id("graphics_inspector_section")._handler._graphic_handlers[0]
             self.assertEqual(line_handler._line_profile_width_model.value, "10.0 mm")
 
     def test_float_to_string_converter_strips_units(self):
@@ -848,7 +848,7 @@ class TestInspectorClass(unittest.TestCase):
             # check the values
             display_item.calibration_style_id = "pixels-center"
             document_controller.periodic()  # needed to build the inspector
-            point_handler = inspector_panel.column.find_widget_by_id("graphics_inspector_section")._handlers[0]
+            point_handler = inspector_panel.column.find_widget_by_id("graphics_inspector_section")._handler._graphic_handlers[0]
             self.assertEqual(point_handler._point_position_x_model.value, "0.0")  # x
             self.assertEqual(point_handler._point_position_y_model.value, "0.0")  # y
 
@@ -868,7 +868,7 @@ class TestInspectorClass(unittest.TestCase):
             inspector_panel = document_controller.find_dock_panel("inspector-panel")
             display_item.calibration_style_id = "pixels-center"
             document_controller.periodic()  # needed to update the inspector
-            rectangle_handler = inspector_panel.column.find_widget_by_id("graphics_inspector_section")._handlers[0]
+            rectangle_handler = inspector_panel.column.find_widget_by_id("graphics_inspector_section")._handler._graphic_handlers[0]
             x_model = rectangle_handler._center_x_model
             y_model = rectangle_handler._center_y_model
             width_model = rectangle_handler._width_model
@@ -1103,7 +1103,7 @@ class TestInspectorClass(unittest.TestCase):
             document_controller.periodic()
             graphics_section = inspector_panel.column.find_widget_by_id("graphics_inspector_section")
             self.assertIsNotNone(graphics_section)
-            self.assertIn("Spot", (i._graphic_type_model.value for i in graphics_section._handlers))
+            self.assertIn("Spot", (i._graphic_type_model.value for i in graphics_section._handler._graphic_handlers))
 
     def test_band_pass_graphic_inspector_updates_without_exception(self):
         with TestContext.create_memory_context() as test_context:
@@ -1121,7 +1121,7 @@ class TestInspectorClass(unittest.TestCase):
             document_controller.periodic()
             graphics_section = inspector_panel.column.find_widget_by_id("graphics_inspector_section")
             self.assertIsNotNone(graphics_section)
-            self.assertIn("Annular Ring", (i._graphic_type_model.value for i in graphics_section._handlers))
+            self.assertIn("Annular Ring", (i._graphic_type_model.value for i in graphics_section._handler._graphic_handlers))
 
     def test_wedge_graphic_inspector_updates_without_exception(self):
         with TestContext.create_memory_context() as test_context:
@@ -1139,7 +1139,7 @@ class TestInspectorClass(unittest.TestCase):
             document_controller.periodic()
             graphics_section = inspector_panel.column.find_widget_by_id("graphics_inspector_section")
             self.assertIsNotNone(graphics_section)
-            self.assertIn("Wedge", (i._graphic_type_model.value for i in graphics_section._handlers))
+            self.assertIn("Wedge", (i._graphic_type_model.value for i in graphics_section._handler._graphic_handlers))
 
     def test_graphic_inspector_updates_for_when_data_shape_changes(self):
         # change from 2d item with a rectangle to a 1d item. what happens?
