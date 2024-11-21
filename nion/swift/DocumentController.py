@@ -3210,7 +3210,7 @@ class OpenProjectDialogAction(Window.Action):
 
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
-        application = typing.cast(Application.Application, context.application)
+        application = typing.cast("Application.Application", context.application)
         application.open_project_manager()
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
