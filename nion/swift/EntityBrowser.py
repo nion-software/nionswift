@@ -480,13 +480,19 @@ Registry.register_component(DynamicDeclarativeWidgetConstructor(), {"declarative
 class MasterDetailHandler(Declarative.Handler):
 
     def __init__(self, model: Observable.Observable, items_key: str, component_fn: DynamicWidgetConstructorFn,
-                 title_getter: typing.Callable[[typing.Any], str], list_props: dict[str, typing.Any]) -> None:
+                 title_getter: typing.Callable[[typing.Any], str], list_props: dict[str, typing.Any], *,
+                 add_item_fn: typing.Optional[typing.Callable[[], None]] = None,
+                 remove_item_fn: typing.Optional[typing.Callable[[typing.Any], None]] = None) -> None:
         super().__init__()
 
         self.__component_fn = component_fn
 
+        self.__add_item_fn = add_item_fn
+        self.__remove_item_fn = remove_item_fn
+
         # the items for which the details are displayed.
         self.items_model = model
+        self.__items_key = items_key
 
         self.titles_model = ListModel.MappedListModel(container=self.items_model,
                                                       master_items_key=items_key,
@@ -514,7 +520,25 @@ class MasterDetailHandler(Declarative.Handler):
 
         item_stack = u.create_stack(items=f"items_model.{items_key}", item_component_id="detail", current_index="@binding(index_model.value)")
 
-        self.ui_view = u.create_row(u.create_column(item_list), u.create_column(item_stack), spacing=12)
+        item_control_row_items = list[Declarative.UIDescription]()
+
+        if add_item_fn:
+            # NOTE: minimal buttons do not support min-size yet.
+            add_button = u.create_push_button(text=_("+"), on_clicked="add_item", style="minimal")
+            item_control_row_items.append(add_button)
+
+        if remove_item_fn:
+            # NOTE: minimal buttons do not support min-size yet.
+            remove_button = u.create_push_button(text=_("-"), on_clicked="remove_item", style="minimal")
+            item_control_row_items.append(remove_button)
+
+        if item_control_row_items:
+            item_control_row = u.create_row(u.create_stretch(), u.create_row(*item_control_row_items, spacing=8), u.create_spacing(16))
+            item_list_column = u.create_column(item_list, item_control_row, spacing=8)
+        else:
+            item_list_column = u.create_column(item_list)
+
+        self.ui_view = u.create_row(item_list_column, u.create_column(item_stack), spacing=12)
 
         self._detail_components: typing.Dict[typing.Any, typing.Optional[Declarative.HandlerLike]] = dict()
 
@@ -528,6 +552,24 @@ class MasterDetailHandler(Declarative.Handler):
         index = self.index_model.value or 0
         if 0 <= index < len(self.shadow_items.items):
             typing.cast(DynamicHandler, self.shadow_items.items[index]).produce_widget()
+
+    @property
+    def __items(self) -> typing.Sequence[typing.Any]:
+        return typing.cast(typing.Sequence[typing.Any], getattr(self.items_model, self.__items_key))
+
+    def add_item(self, widget: UserInterface.Widget) -> None:
+        if callable(self.__add_item_fn):
+            self.__add_item_fn()
+            items = self.__items
+            self.index_model.value = len(items) - 1 if items else 0
+
+    def remove_item(self, widget: UserInterface.Widget) -> None:
+        if callable(self.__remove_item_fn):
+            index = self.index_model.value or 0
+            items = self.__items
+            if 0 <= index < len(items):
+                self.__remove_item_fn(items[index])
+                self.index_model.value = index - 1 if len(items) > 1 else 0
 
     def init_handler(self) -> None:
         self.__update_dynamic_widget()
