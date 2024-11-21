@@ -228,6 +228,7 @@ class CalibrationStyleNative(CalibrationStyle):
 
 class CalibrationDescriptionCalibrationStyle(CalibrationStyle):
     def __init__(self, label: str, calibration_description: CalibrationDescription) -> None:
+        super().__init__()
         self.label = label
         self.calibration_style_id = calibration_description.calibration_style_id
         self.is_calibrated = True
