@@ -4037,10 +4037,15 @@ class RasterDisplayCreateGraphicAction(Window.Action):
         window = typing.cast(DocumentController, context.window)
         display_item = context.display_item
         if context.display_panel and display_item:
+            # to ensure the modified state for undo/redo is correct, we need to get the display item modified state
+            # before creating the graphic since adding the graphic will bump the display item modified count.
+            display_item_modified_state = display_item.modified_state
+            # create the graphic using the graphic factory and properties
             graphic_type = context.parameters["graphic_type"]
             graphic_properties = context.parameters.get("graphic_properties", dict[str, typing.Any]())
             graphic = graphic_factory_table[graphic_type].create_graphic_in_display_item(window, display_item, graphic_properties)
-            command = context.display_panel.create_insert_graphics_command([graphic])
+            # create the command to undo the graphic insert and perform it. the insert has already been done above.
+            command = context.display_panel.create_insert_graphics_command([graphic], display_item_modified_state)
             command.perform()
             window.push_undo_command(command)
         return Window.ActionResult(Window.ActionStatus.FINISHED)

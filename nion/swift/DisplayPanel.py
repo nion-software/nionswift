@@ -1156,7 +1156,8 @@ class InsertGraphicsCommand(Undo.UndoableCommand):
 
     def __init__(self, document_controller: DocumentController.DocumentController,
                  display_item: DisplayItem.DisplayItem, graphics: typing.Sequence[Graphics.Graphic], *,
-                 existing_graphics: typing.Optional[typing.Sequence[Graphics.Graphic]] = None) -> None:
+                 existing_graphics: typing.Optional[typing.Sequence[Graphics.Graphic]] = None,
+                 display_item_modified_state: typing.Any = None) -> None:
         super().__init__(_("Insert Graphics"))
         self.__document_controller = document_controller
         self.__display_item_proxy = display_item.create_proxy()
@@ -1164,7 +1165,7 @@ class InsertGraphicsCommand(Undo.UndoableCommand):
         self.__graphics_properties = None
         self.__graphic_proxies = [graphic.create_proxy() for graphic in existing_graphics or list()]
         self.__undelete_logs: typing.List[Changes.UndeleteLog] = list()
-        self.initialize()
+        self.initialize(display_item_modified_state)
 
     def close(self) -> None:
         self.__graphics_properties = None
@@ -1837,10 +1838,15 @@ class CreateGraphicInteractiveTask(DisplayCanvasItem.InteractiveTask):
         self.__graphic_properties = dict[str, typing.Any]()
         self.__display_panel.begin_mouse_tracking()
         from nion.swift import DocumentController  # avoid circular reference. needs rethinking.
+        # to ensure the modified state for undo/redo is correct, we need to get the display item modified state
+        # before creating the graphic since adding the graphic will bump the display item modified count.
+        display_item_modified_state = display_item.modified_state
+        # create the graphic using the graphic factory and properties
         graphic_factory = DocumentController.graphic_factory_table[graphic_type]
         graphic_properties = graphic_factory.get_graphic_properties_from_position(self.__display_item, start_position)
         graphic = graphic_factory.create_graphic_in_display_item(display_panel.document_controller, display_item, graphic_properties)
-        self.__undo_command: typing.Optional[Undo.UndoableCommand] = display_panel.create_insert_graphics_command([graphic])
+        # create the command to undo the graphic insert, but don't perform it. it will be performed after the drag is finished.
+        self.__undo_command: typing.Optional[Undo.UndoableCommand] = display_panel.create_insert_graphics_command([graphic], display_item_modified_state)
         self._graphic = graphic
 
     def _close(self) -> None:
@@ -2949,9 +2955,9 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
             for key, value in iter(display_data_channel_properties.items()):
                 setattr(display_data_channel, key, value)
 
-    def create_insert_graphics_command(self, graphics: typing.Sequence[Graphics.Graphic]) -> InsertGraphicsCommand:
+    def create_insert_graphics_command(self, graphics: typing.Sequence[Graphics.Graphic], display_item_modified_state: typing.Any) -> InsertGraphicsCommand:
         assert self.__display_item
-        return InsertGraphicsCommand(self.__document_controller, self.__display_item, list(), existing_graphics=graphics)
+        return InsertGraphicsCommand(self.__document_controller, self.__display_item, list(), existing_graphics=graphics, display_item_modified_state=display_item_modified_state)
 
     def create_change_display_command(self, *, command_id: typing.Optional[str] = None, is_mergeable: bool=False) -> ChangeDisplayCommand:
         assert self.__display_item
