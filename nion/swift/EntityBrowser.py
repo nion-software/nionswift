@@ -480,7 +480,7 @@ Registry.register_component(DynamicDeclarativeWidgetConstructor(), {"declarative
 class MasterDetailHandler(Declarative.Handler):
 
     def __init__(self, model: Observable.Observable, items_key: str, component_fn: DynamicWidgetConstructorFn,
-                 title_getter: typing.Callable[[typing.Any], str]) -> None:
+                 title_getter: typing.Callable[[typing.Any], str], list_props: dict[str, typing.Any]) -> None:
         super().__init__()
 
         self.__component_fn = component_fn
@@ -510,8 +510,7 @@ class MasterDetailHandler(Declarative.Handler):
 
         item_list = u.create_list_box(items_ref="@binding(titles_model.items)",
                                       current_index="@binding(index_model.value)",
-                                      width=160, min_height=480,
-                                      size_policy_vertical="expanding")
+                                      **list_props)
 
         item_stack = u.create_stack(items=f"items_model.{items_key}", item_component_id="detail", current_index="@binding(index_model.value)")
 
@@ -567,7 +566,8 @@ class EntityBrowserEntry:
 
 
 def make_master_detail(project_item_handler: EntityBrowserEntry) -> Declarative.HandlerLike:
-    return MasterDetailHandler(project_item_handler.model, project_item_handler.items_key, project_item_handler.component_fn, project_item_handler.title_getter)
+    list_props = {"width": 160, "min_height": 480, "size_policy_vertical": "expanding"}
+    return MasterDetailHandler(project_item_handler.model, project_item_handler.items_key, project_item_handler.component_fn, project_item_handler.title_getter, list_props)
 
 
 class TopLevelItemHandler(Declarative.Handler):
@@ -624,4 +624,5 @@ def make_entity_browser_component(items: typing.Sequence[EntityBrowserEntry]) ->
     """Make an entity browser component with the top level items."""
 
     list_model = ListModel.ListModel[EntityBrowserEntry](items=items)
-    return MasterDetailHandler(list_model, "items", typing.cast(DynamicWidgetConstructorFn, TopLevelItemHandler), operator.attrgetter("label"))
+    list_props = {"width": 160, "min_height": 480, "size_policy_vertical": "expanding"}
+    return MasterDetailHandler(list_model, "items", typing.cast(DynamicWidgetConstructorFn, TopLevelItemHandler), operator.attrgetter("label"), list_props)
