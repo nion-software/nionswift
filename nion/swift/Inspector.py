@@ -3184,7 +3184,7 @@ class GraphicsInspectorHandler(Declarative.Handler):
         )
 
     def _move_to_center_clicked(self, widget: typing.Any) -> None:
-        action_context = self.__document_controller._get_action_context()
+        action_context = self.__document_controller._get_action_context_for_display_items([self.__display_item], None, graphics=[self.__graphic])
         self.__document_controller.perform_action_in_context("display_panel.center_graphics", action_context)
 
     def __create_position_and_shape_ui(self) -> Declarative.UIDescriptionResult:
