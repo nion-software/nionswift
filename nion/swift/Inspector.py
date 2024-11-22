@@ -2864,7 +2864,10 @@ class GraphicsInspectorHandler(Declarative.Handler):
             u.create_spacing(12),
             u.create_check_box(text=_("Shape"), checked="@binding(_lock_shape_model.value)", text_alignment_vertical="center"),
             u.create_stretch(),
-            u.create_push_button(text="\N{BULLSEYE}", on_clicked="_move_to_center_clicked", width=26, text_alignment_horizontal="center"),
+            {"type": "nionswift.text_push_button",
+             "text": "\N{BULLSEYE}",
+             "on_button_clicked": "_move_to_center_clicked",
+             "tool_tip": "Center graphic."},
             u.create_spacing(4)
         )
 
@@ -3183,7 +3186,7 @@ class GraphicsInspectorHandler(Declarative.Handler):
             spacing=4
         )
 
-    def _move_to_center_clicked(self, widget: typing.Any) -> None:
+    def _move_to_center_clicked(self) -> None:
         action_context = self.__document_controller._get_action_context()
         self.__document_controller.perform_action_in_context("display_panel.center_graphics", action_context)
 
