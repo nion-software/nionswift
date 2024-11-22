@@ -3199,6 +3199,7 @@ class GraphicsSectionHandler(Declarative.Handler):
     def __init__(self, document_controller: DocumentController.DocumentController,
                  display_item: DisplayItem.DisplayItem,
                  graphics_model: ListModel.ObservedListModel[DisplayItem.DisplayLayer]):
+        super().__init__()
         self.__document_controller = document_controller
         self.__display_item = display_item
         self._graphics_model = graphics_model
