@@ -2263,6 +2263,7 @@ class DisplayItem(Persistence.PersistentObject):
 
         self.display_property_changed_event = Event.Event()
         self.display_changed_event = Event.Event()
+        self.display_item_will_close_event = Event.Event()  # used to shut down thumbnail
 
         self.__cache = Cache.ShadowCache()
         self.__suspendable_storage_cache: typing.Optional[Cache.CacheLike] = None
@@ -2330,6 +2331,7 @@ class DisplayItem(Persistence.PersistentObject):
             self.append_display_data_channel_for_data_item(data_item)
 
     def close(self) -> None:
+        self.display_item_will_close_event.fire()  # let the thumbnail shut itself down
         # wait for outstanding threads to finish
         with self.__outstanding_condition:
             while self.__outstanding_thread_count:

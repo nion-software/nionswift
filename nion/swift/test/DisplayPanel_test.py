@@ -1171,9 +1171,8 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertIsInstance(self.display_panel.display_canvas_item, DisplayPanel.MissingDisplayCanvasItem)
         # thumbnails and processors
         thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.document_controller.ui, self.display_item)
-        with thumbnail_source.ref():
-            thumbnail_source.recompute_data()
-            self.assertIsNotNone(thumbnail_source.thumbnail_data)
+        thumbnail_source.recompute_data()
+        self.assertIsNotNone(thumbnail_source.thumbnail_data)
         self.document_controller.periodic()
         self.document_controller.document_model.recompute_all()
 
@@ -1183,8 +1182,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertIsInstance(self.display_panel.display_canvas_item, DisplayPanel.MissingDisplayCanvasItem)
         # thumbnails and processors
         thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.document_controller.ui, self.display_item)
-        with thumbnail_source.ref():
-            thumbnail_source.recompute_data()
+        thumbnail_source.recompute_data()
         self.document_controller.periodic()
         self.document_controller.document_model.recompute_all()
 
