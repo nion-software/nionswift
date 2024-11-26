@@ -290,13 +290,13 @@ class TestDataItemClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             self.assertTrue(display_item._display_cache.is_cached_value_dirty(display_item, "thumbnail_data"))
             thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.app.ui, display_item)
-            with thumbnail_source.ref():
-                thumbnail_source.recompute_data()
-                self.assertIsNotNone(thumbnail_source.thumbnail_data)
-                self.assertFalse(display_item._display_cache.is_cached_value_dirty(display_item, "thumbnail_data"))
-                with display_item.data_item.data_ref() as data_ref:
-                    data_ref.data = numpy.zeros((8, 8), numpy.uint32)
-                self.assertTrue(display_item._display_cache.is_cached_value_dirty(display_item, "thumbnail_data"))
+            thumbnail_source.recompute_data()
+            self.assertIsNotNone(thumbnail_source.thumbnail_data)
+            self.assertFalse(display_item._display_cache.is_cached_value_dirty(display_item, "thumbnail_data"))
+            with display_item.data_item.data_ref() as data_ref:
+                data_ref.data = numpy.zeros((8, 8), numpy.uint32)
+            self.assertTrue(display_item._display_cache.is_cached_value_dirty(display_item, "thumbnail_data"))
+            thumbnail_source = None
 
     def test_thumbnail_2d_handles_small_dimension_without_producing_invalid_thumbnail(self):
         with TestContext.create_memory_context() as test_context:
@@ -305,10 +305,10 @@ class TestDataItemClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.app.ui, display_item)
-            with thumbnail_source.ref():
-                thumbnail_source.recompute_data()
-                thumbnail_data = thumbnail_source.thumbnail_data
-                self.assertTrue(functools.reduce(lambda x, y: x * y, thumbnail_data.shape) > 0)
+            thumbnail_source.recompute_data()
+            thumbnail_data = thumbnail_source.thumbnail_data
+            thumbnail_source = None
+            self.assertTrue(functools.reduce(lambda x, y: x * y, thumbnail_data.shape) > 0)
 
     def test_thumbnail_2d_handles_nan_data(self):
         with TestContext.create_memory_context() as test_context:
@@ -319,9 +319,9 @@ class TestDataItemClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.app.ui, display_item)
-            with thumbnail_source.ref():
-                thumbnail_source.recompute_data()
-                self.assertIsNotNone(thumbnail_source.thumbnail_data)
+            thumbnail_source.recompute_data()
+            self.assertIsNotNone(thumbnail_source.thumbnail_data)
+            thumbnail_source = None
 
     def test_thumbnail_2d_handles_inf_data(self):
         with TestContext.create_memory_context() as test_context:
@@ -332,9 +332,9 @@ class TestDataItemClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.app.ui, display_item)
-            with thumbnail_source.ref():
-                thumbnail_source.recompute_data()
-                self.assertIsNotNone(thumbnail_source.thumbnail_data)
+            thumbnail_source.recompute_data()
+            self.assertIsNotNone(thumbnail_source.thumbnail_data)
+            thumbnail_source = None
 
     def test_thumbnail_1d(self):
         with TestContext.create_memory_context() as test_context:
@@ -343,9 +343,9 @@ class TestDataItemClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.app.ui, display_item)
-            with thumbnail_source.ref():
-                thumbnail_source.recompute_data()
-                self.assertIsNotNone(thumbnail_source.thumbnail_data)
+            thumbnail_source.recompute_data()
+            self.assertIsNotNone(thumbnail_source.thumbnail_data)
+            thumbnail_source = None
 
     def test_thumbnail_1d_handles_nan_data(self):
         with TestContext.create_memory_context() as test_context:
@@ -356,9 +356,9 @@ class TestDataItemClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.app.ui, display_item)
-            with thumbnail_source.ref():
-                thumbnail_source.recompute_data()
-                self.assertIsNotNone(thumbnail_source.thumbnail_data)
+            thumbnail_source.recompute_data()
+            self.assertIsNotNone(thumbnail_source.thumbnail_data)
+            thumbnail_source = None
 
     def test_thumbnail_1d_handles_inf_data(self):
         with TestContext.create_memory_context() as test_context:
@@ -369,9 +369,9 @@ class TestDataItemClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.app.ui, display_item)
-            with thumbnail_source.ref():
-                thumbnail_source.recompute_data()
-                self.assertIsNotNone(thumbnail_source.thumbnail_data)
+            thumbnail_source.recompute_data()
+            self.assertIsNotNone(thumbnail_source.thumbnail_data)
+            thumbnail_source = None
 
     def test_thumbnail_marked_dirty_when_source_data_changed(self):
         with TestContext.create_memory_context() as test_context:
@@ -383,17 +383,17 @@ class TestDataItemClass(unittest.TestCase):
             inverted_display_item = document_model.get_display_item_for_data_item(data_item_inverted)
             document_model.recompute_all()
             thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.app.ui, inverted_display_item)
-            with thumbnail_source.ref():
-                thumbnail_source.recompute_data()
-                thumbnail_source.thumbnail_data
-                # here the data should be computed and the thumbnail should not be dirty
-                self.assertFalse(inverted_display_item._display_cache.is_cached_value_dirty(inverted_display_item, "thumbnail_data"))
-                # now the source data changes and the inverted data needs computing.
-                # the thumbnail should also be dirty.
-                with data_item.data_ref() as data_ref:
-                    data_ref.data = data_ref.data + 1.0
-                document_model.recompute_all()
-                self.assertTrue(inverted_display_item._display_cache.is_cached_value_dirty(inverted_display_item, "thumbnail_data"))
+            thumbnail_source.recompute_data()
+            thumbnail_source.thumbnail_data
+            thumbnail_source = None
+            # here the data should be computed and the thumbnail should not be dirty
+            self.assertFalse(inverted_display_item._display_cache.is_cached_value_dirty(inverted_display_item, "thumbnail_data"))
+            # now the source data changes and the inverted data needs computing.
+            # the thumbnail should also be dirty.
+            with data_item.data_ref() as data_ref:
+                data_ref.data = data_ref.data + 1.0
+            document_model.recompute_all()
+            self.assertTrue(inverted_display_item._display_cache.is_cached_value_dirty(inverted_display_item, "thumbnail_data"))
 
     def test_thumbnail_widget_when_data_item_has_no_associated_display_item(self):
         with TestContext.create_memory_context() as test_context:
