@@ -109,12 +109,8 @@ class DisplayItemAdapter:
 
     def close(self) -> None:
         # remove the listener.
-        if self.__thumbnail_updated_event_listener:
-            self.__thumbnail_updated_event_listener.close()
-            self.__thumbnail_updated_event_listener = None
-        if self.__thumbnail_source:
-            self.__thumbnail_source.remove_ref()
-            self.__thumbnail_source = None
+        self.__thumbnail_updated_event_listener = None
+        self.__thumbnail_source = None
         if self.__display_changed_event_listener:
             self.__display_changed_event_listener.close()
             self.__display_changed_event_listener = None
@@ -184,7 +180,7 @@ class DisplayItemAdapter:
     def calculate_thumbnail_data(self) -> typing.Optional[_NDArray]:
         # grab the display specifier and if there is a display, handle thumbnail updating.
         if self.__display_item and not self.__thumbnail_source:
-            self.__thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.ui, self.__display_item).add_ref()
+            self.__thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.ui, self.__display_item)
 
             def thumbnail_updated() -> None:
                 self.__list_item_drawing_context = None
@@ -611,7 +607,7 @@ class DataPanelListItem(CanvasItem.CanvasItemComposition):
             self.__thumbnail_canvas_item.bitmap = Bitmap.Bitmap(rgba_bitmap_data=bitmap_data)
 
         self.__thumbnail_canvas_item = thumbnail_canvas_item
-        self.__thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.__ui, self.__display_item).add_ref()
+        self.__thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.__ui, self.__display_item)
         self.__thumbnail_updated_event_listener = self.__thumbnail_source.thumbnail_updated_event.listen(thumbnail_updated)
 
         thumbnail_updated()
@@ -623,7 +619,8 @@ class DataPanelListItem(CanvasItem.CanvasItemComposition):
         self.__item_changed_listener = display_item.item_changed_event.listen(ReferenceCounting.weak_partial(DataPanelListItem.__item_changed, self))
 
     def close(self) -> None:
-        self.__thumbnail_source.remove_ref()
+        self.__thumbnail_updated_event_listener = typing.cast(typing.Any, None)
+        self.__thumbnail_source = typing.cast(typing.Any, None)
         super().close()
 
     @property
@@ -753,8 +750,7 @@ class DataPanel(Panel.Panel):
                     mime_data = document_controller.ui.create_mime_data()
                     MimeTypes.mime_data_put_display_item(mime_data, display_item)
                     thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.__data_panel.ui, display_item)
-                    with thumbnail_source.ref():
-                        thumbnail_data = thumbnail_source.thumbnail_data
+                    thumbnail_data = thumbnail_source.thumbnail_data
                     if thumbnail_data is not None:
                         # scaling is very slow
                         thumbnail_data = Image.get_rgba_data_from_rgba(
@@ -766,8 +762,7 @@ class DataPanel(Panel.Panel):
                     anchor_index = self.__selection.anchor_index or 0
                     thumbnail_display_item = display_items[anchor_index]
                     thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.__data_panel.ui, thumbnail_display_item)
-                    with thumbnail_source.ref():
-                        thumbnail_data = thumbnail_source.thumbnail_data
+                    thumbnail_data = thumbnail_source.thumbnail_data
                 return mime_data, thumbnail_data
 
         list_item_delegate = ListItemDelegate(self, self.__selection)

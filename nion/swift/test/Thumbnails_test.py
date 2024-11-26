@@ -55,16 +55,15 @@ class TestThumbnailsClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.app.ui, display_item)
-            with thumbnail_source.ref():
-                thumbnail_source.recompute_data()
-                thumbnail_source.thumbnail_data
-                # here the data should be computed and the thumbnail should not be dirty
-                self.assertFalse(display_item._display_cache.is_cached_value_dirty(display_item, "thumbnail_data"))
-                # now the source data changes and the inverted data needs computing.
-                # the thumbnail should also be dirty.
-                display_item._set_display_layer_property(0, "fill_color", "teal")
-                document_model.recompute_all()
-                self.assertTrue(display_item._display_cache.is_cached_value_dirty(display_item, "thumbnail_data"))
+            thumbnail_source.recompute_data()
+            thumbnail_source.thumbnail_data
+            # here the data should be computed and the thumbnail should not be dirty
+            self.assertFalse(display_item._display_cache.is_cached_value_dirty(display_item, "thumbnail_data"))
+            # now the source data changes and the inverted data needs computing.
+            # the thumbnail should also be dirty.
+            display_item._set_display_layer_property(0, "fill_color", "teal")
+            document_model.recompute_all()
+            self.assertTrue(display_item._display_cache.is_cached_value_dirty(display_item, "thumbnail_data"))
 
 
 if __name__ == '__main__':
