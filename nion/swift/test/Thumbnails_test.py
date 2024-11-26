@@ -61,9 +61,18 @@ class TestThumbnailsClass(unittest.TestCase):
             self.assertFalse(display_item._display_cache.is_cached_value_dirty(display_item, "thumbnail_data"))
             # now the source data changes and the inverted data needs computing.
             # the thumbnail should also be dirty.
+            thumbnail_dirty = False
+
+            def handle_thumbnail_dirty() -> None:
+                nonlocal thumbnail_dirty
+                thumbnail_dirty = True
+
+            listener = thumbnail_source.thumbnail_dirty_event.listen(handle_thumbnail_dirty)
             display_item._set_display_layer_property(0, "fill_color", "teal")
             document_model.recompute_all()
-            self.assertTrue(display_item._display_cache.is_cached_value_dirty(display_item, "thumbnail_data"))
+            # this is a race condition. the thumbnail thread may clear the dirty flag before we check it.
+            # so use the event instead.
+            self.assertTrue(thumbnail_dirty)
 
 
 if __name__ == '__main__':

@@ -27,7 +27,6 @@ from nion.utils import Geometry
 from nion.utils import ReferenceCounting
 
 _NDArray = numpy.typing.NDArray[typing.Any]
-_ThumbnailSourceWeakRef = typing.Callable[[], typing.Optional["ThumbnailSource"]]  # Python 3.9+
 
 
 class ThumbnailSource:
@@ -47,8 +46,15 @@ class ThumbnailSource:
         self.__display_item = display_item
         self.__recompute_lock = threading.RLock()
         self.__recompute_future: typing.Optional[concurrent.futures.Future[typing.Any]] = None
+        # the cache is used to store the thumbnail data persistently. for performance, it is ideal
+        # to minimize calling it and instead use the cached value in this class.
         self.__cache = self.__display_item._display_cache
         self.__cache_property_name = "thumbnail_data"
+        self.__cache_properties_known = False
+        self.__cache_thumbnail_data: typing.Optional[_NDArray] = None
+        self.__cache_is_dirty = False
+
+        self.thumbnail_dirty_event = Event.Event()  # for testing
 
         self.__display_changed_event_listener = display_item.display_changed_event.listen(ReferenceCounting.weak_partial(ThumbnailSource.__thumbnail_changed, self))
         self.__graphics_changed_event_listener = display_item.graphics_changed_event.listen(ReferenceCounting.weak_partial(ThumbnailSource.__graphics_changed, self))
@@ -58,8 +64,18 @@ class ThumbnailSource:
 
         self.__display_will_close_listener = display_item.display_item_will_close_event.listen(ReferenceCounting.weak_partial(ThumbnailSource.__display_item_will_close, self))
 
+    def __read_cache_properties(self) -> None:
+        if not self.__cache_properties_known:
+            self.__cache_thumbnail_data = typing.cast(typing.Optional[_NDArray], self.__cache.get_cached_value(self.__display_item, self.__cache_property_name)) if self.__display_item else None
+            self.__cache_is_dirty = self.__cache.is_cached_value_dirty(self.__display_item, self.__cache_property_name) if self.__display_item else False
+            self.__cache_properties_known = True
+            self.thumbnail_updated_event.fire()
+
     def __thumbnail_changed(self) -> None:
         self.__cache.set_cached_value_dirty(self.__display_item, self.__cache_property_name)
+        self.thumbnail_dirty_event.fire()
+        self.__cache_is_dirty = True
+        self.__cache_properties_known = True
         self.__recompute_on_thread()
 
     def __recompute_on_thread(self) -> None:
@@ -88,13 +104,10 @@ class ThumbnailSource:
 
     @property
     def thumbnail_data(self) -> typing.Optional[_NDArray]:
-        """Return the cached data for this processor.
-
-        This method is thread safe and always returns quickly, using the cached data.
-        """
-        return typing.cast(typing.Optional[_NDArray], self.__cache.get_cached_value(self.__display_item, self.__cache_property_name)) if self.__display_item else None
+        return self.__cache_thumbnail_data
 
     def __recompute_data_if_needed(self) -> None:
+        self.__read_cache_properties()
         if self._is_thumbnail_dirty:
             self.recompute_data()
 
@@ -126,47 +139,54 @@ class ThumbnailSource:
                 raise
             if calculated_data is None:
                 calculated_data = numpy.zeros((self.height, self.width), dtype=numpy.uint32)
+            self.__cache_thumbnail_data = calculated_data
+            self.__cache_is_dirty = False
+            self.__cache_properties_known = True
             self.__cache.set_cached_value(self.__display_item, self.__cache_property_name, calculated_data)
         self.thumbnail_updated_event.fire()
 
     @property
     def _is_thumbnail_dirty(self) -> bool:
-        assert self.__display_item
-        return self.__cache.is_cached_value_dirty(self.__display_item, self.__cache_property_name)
+        return self.__cache_is_dirty
+
+    @property
+    def _is_valid(self) -> bool:
+        return self.__display_item is not None
 
 
 class ThumbnailManager(metaclass=Utility.Singleton):
     """Manages thumbnail sources for displays."""
 
     def __init__(self) -> None:
-        self.__thumbnail_sources: typing.Dict[uuid.UUID, _ThumbnailSourceWeakRef] = dict()
+        self.__thumbnail_sources: typing.Dict[uuid.UUID, ThumbnailSource] = dict()
         self.__lock = threading.RLock()
 
     def reset(self) -> None:
         with self.__lock:
             self.__thumbnail_sources.clear()
 
+    def clean(self) -> None:
+        with self.__lock:
+            for uuid, thumbnail_source in list(self.__thumbnail_sources.items()):
+                if not thumbnail_source._is_valid:
+                    del self.__thumbnail_sources[uuid]
+
     def thumbnail_source_for_display_item(self, ui: UserInterface.UserInterface, display_item: DisplayItem.DisplayItem) -> ThumbnailSource:
         """Returned ThumbnailSource must be closed."""
         with self.__lock:
-            thumbnail_source_ref = self.__thumbnail_sources.get(display_item.uuid)
-            thumbnail_source = thumbnail_source_ref() if thumbnail_source_ref else None
+            self.clean()
+            thumbnail_source = self.__thumbnail_sources.get(display_item.uuid)
             if not thumbnail_source:
                 thumbnail_source = ThumbnailSource(ui, display_item)
-                self.__thumbnail_sources[display_item.uuid] = weakref.ref(thumbnail_source)
-
-                def pop_thumbnail_source(uuid: uuid.UUID) -> None:
-                    self.__thumbnail_sources.pop(uuid, None)
-
-                weakref.finalize(thumbnail_source, pop_thumbnail_source, display_item.uuid)
+                self.__thumbnail_sources[display_item.uuid] = thumbnail_source
             else:
                 assert thumbnail_source._ui == ui
             return thumbnail_source
 
     def thumbnail_data_for_display_item(self, display_item: typing.Optional[DisplayItem.DisplayItem]) -> typing.Optional[_NDArray]:
         with self.__lock:
-            thumbnail_source_ref = self.__thumbnail_sources.get(display_item.uuid) if display_item else None
-            thumbnail_source = thumbnail_source_ref() if thumbnail_source_ref else None
+            self.clean()
+            thumbnail_source = self.__thumbnail_sources.get(display_item.uuid) if display_item else None
             if thumbnail_source:
                 return thumbnail_source.thumbnail_data
             return None
