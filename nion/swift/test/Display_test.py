@@ -488,7 +488,7 @@ class TestDisplayClass(unittest.TestCase):
             display_data_channel.reset_display_limits()
             # the display limit should never be less than the display data minimum
             display_range = display_data_channel.get_latest_computed_display_values().display_range
-            self.assertLess(numpy.amin(display_data_channel.get_latest_computed_display_values().display_data_and_metadata.data), display_range[0])
+            self.assertLessEqual(numpy.amin(display_data_channel.get_latest_computed_display_values().display_data_and_metadata.data), display_range[0])
             self.assertAlmostEqual(numpy.amax(
                 display_data_channel.get_latest_computed_display_values().display_data_and_metadata.data), display_range[1])
 

@@ -177,23 +177,12 @@ class GraphicSelection:
             self.changed_event.fire()
 
 
-def calculate_display_range(display_limits: DisplayLimitsType,
-                            data_range: typing.Optional[typing.Tuple[float, float]],
-                            data_sample: typing.Optional[_ImageDataType],
-                            xdata: typing.Optional[DataAndMetadata.DataAndMetadata],
-                            complex_display_type: typing.Optional[str]) -> typing.Optional[typing.Tuple[float, float]]:
+def calculate_display_range(display_limits: DisplayLimitsType, data_range: typing.Optional[typing.Tuple[float, float]]) -> typing.Optional[typing.Tuple[float, float]]:
     if display_limits is not None:
         assert data_range is not None
         display_limit_low = display_limits[0] if display_limits[0] is not None else data_range[0]
         display_limit_high = display_limits[1] if display_limits[1] is not None else data_range[1]
         return display_limit_low, display_limit_high
-    if xdata and xdata.is_data_complex_type and complex_display_type is None:  # log absolute
-        if data_sample is not None:
-            assert data_range is not None
-            fraction = 0.05
-            display_limit_low = data_sample[int(data_sample.shape[0] * fraction)]
-            display_limit_high = data_range[1]
-            return display_limit_low, display_limit_high
     return data_range
 
 
@@ -577,11 +566,8 @@ class DisplayRangeProcessor(ProcessorBase):
     def __init__(self, *,
                  element_data: typing.Union[typing.Optional[DataAndMetadata._DataAndMetadataLike], ProcessorConnection] = None,
                  display_limits: typing.Union[typing.Optional[DisplayLimitsType], ProcessorConnection] = None,
-                 data_range: typing.Union[typing.Optional[typing.Tuple[float, float]], ProcessorConnection] = None,
-                 data_sample: typing.Union[typing.Optional[_ImageDataType], ProcessorConnection] = None,
-                 complex_display_type: typing.Union[typing.Optional[str], ProcessorConnection] = None) -> None:
-        super().__init__(element_data=element_data, display_limits=display_limits, data_range=data_range,
-                         data_sample=data_sample, complex_display_type=complex_display_type)
+                 data_range: typing.Union[typing.Optional[typing.Tuple[float, float]], ProcessorConnection] = None) -> None:
+        super().__init__(element_data=element_data, display_limits=display_limits, data_range=data_range)
 
     def _execute(self) -> None:
         element_data_and_metadata = self._get_data_and_metadata_like("element_data")
@@ -592,36 +578,11 @@ class DisplayRangeProcessor(ProcessorBase):
             display_range = display_limits[0], display_limits[1]
         else:
             data_range = typing.cast(typing.Optional[typing.Tuple[float, float]], self._get_parameter("data_range"))
-            data_sample = typing.cast(typing.Optional[_ImageDataType], self._get_parameter("data_sample"))
-            complex_display_type = self._get_optional_string("complex_display_type")
-            display_range = calculate_display_range(display_limits, data_range, data_sample, element_data_and_metadata, complex_display_type)
+            display_range = calculate_display_range(display_limits, data_range)
         # double check for cases where one or the other display limit is specified and the other is calculated.
         if display_range is not None and display_range[0] is not None and display_range[1] is not None:
             display_range = min(display_range[0], display_range[1]), max(display_range[0], display_range[1])
         self.set_result("display_range", display_range)
-
-
-class DataSampleProcessor(ProcessorBase):
-    def __init__(self, *,
-                 data: typing.Union[typing.Optional[DataAndMetadata._DataAndMetadataLike], ProcessorConnection] = None,
-                 display_data: typing.Union[typing.Optional[DataAndMetadata._DataAndMetadataLike], ProcessorConnection] = None) -> None:
-        super().__init__(data=data, display_data=display_data)
-
-    def _execute(self) -> None:
-        data_and_metadata = self._get_data_and_metadata_like("data")
-        display_data_and_metadata = self._get_data_and_metadata_like("display_data")
-        display_data = display_data_and_metadata.data if display_data_and_metadata else None
-        data_sample: typing.Optional[_ImageDataType] = None
-        if display_data is not None and display_data.shape and data_and_metadata:
-            data_shape = data_and_metadata.data_shape
-            data_dtype = data_and_metadata.data_dtype
-            if Image.is_shape_and_dtype_rgb_type(data_shape, data_dtype):
-                data_sample = None
-            elif Image.is_shape_and_dtype_complex_type(data_shape, data_dtype):
-                data_sample = numpy.sort(numpy.random.choice(display_data.reshape(numpy.prod(display_data.shape, dtype=numpy.uint64)), 200))
-            else:
-                data_sample = None
-        self.set_result("data_sample", data_sample)
 
 
 class DisplayRGBProcessor(ProcessorBase):
@@ -798,17 +759,10 @@ class DisplayValues:
             display_data=ProcessorConnection(self.__display_data_processor, "data", "display_data"),
         )
 
-        self.__data_sample_processor = DataSampleProcessor(
-            data=data_and_metadata,
-            display_data=ProcessorConnection(self.__display_data_processor, "data", "display_data"),
-        )
-
         self.__display_range_processor = DisplayRangeProcessor(
             element_data=ProcessorConnection(self.__element_data_processor, "data", "element_data"),
             display_limits=display_limits,
-            complex_display_type=complex_display_type,
             data_range=ProcessorConnection(self.__data_range_processor, "data_range"),
-            data_sample=ProcessorConnection(self.__data_sample_processor, "data_sample"),
         )
 
         self.__normalized_data_processor = NormalizedDataProcessor(
@@ -874,10 +828,6 @@ class DisplayValues:
     @property
     def data_range(self) -> typing.Optional[typing.Tuple[float, float]]:
         return typing.cast(typing.Optional[typing.Tuple[float, float]], self.__data_range_processor.get_result("data_range"))
-
-    @property
-    def data_sample(self) -> typing.Optional[_ImageDataType]:
-        return typing.cast(typing.Optional[_ImageDataType], self.__data_sample_processor.get_result("data_sample"))
 
     @property
     def display_range(self) -> typing.Optional[typing.Tuple[float, float]]:
