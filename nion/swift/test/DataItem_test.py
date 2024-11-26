@@ -295,7 +295,7 @@ class TestDataItemClass(unittest.TestCase):
             self.assertFalse(display_item._display_cache.is_cached_value_dirty(display_item, "thumbnail_data"))
             with display_item.data_item.data_ref() as data_ref:
                 data_ref.data = numpy.zeros((8, 8), numpy.uint32)
-            self.assertTrue(display_item._display_cache.is_cached_value_dirty(display_item, "thumbnail_data"))
+            self.assertTrue(thumbnail_source._is_thumbnail_dirty)
             thumbnail_source = None
 
     def test_thumbnail_2d_handles_small_dimension_without_producing_invalid_thumbnail(self):
@@ -385,7 +385,6 @@ class TestDataItemClass(unittest.TestCase):
             thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.app.ui, inverted_display_item)
             thumbnail_source.recompute_data()
             thumbnail_source.thumbnail_data
-            thumbnail_source = None
             # here the data should be computed and the thumbnail should not be dirty
             self.assertFalse(inverted_display_item._display_cache.is_cached_value_dirty(inverted_display_item, "thumbnail_data"))
             # now the source data changes and the inverted data needs computing.
@@ -393,7 +392,8 @@ class TestDataItemClass(unittest.TestCase):
             with data_item.data_ref() as data_ref:
                 data_ref.data = data_ref.data + 1.0
             document_model.recompute_all()
-            self.assertTrue(inverted_display_item._display_cache.is_cached_value_dirty(inverted_display_item, "thumbnail_data"))
+            self.assertTrue(thumbnail_source._is_thumbnail_dirty)
+            thumbnail_source = None
 
     def test_thumbnail_widget_when_data_item_has_no_associated_display_item(self):
         with TestContext.create_memory_context() as test_context:
