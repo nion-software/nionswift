@@ -683,7 +683,9 @@ class DataPanel(Panel.Panel):
         def unmap_display_item_to_display_item_adapter(display_item_adapter: DisplayItemAdapter) -> None:
             display_item_adapter.close()
 
-        self.__filtered_display_item_adapters_model = ListModel.MappedListModel(container=document_controller.filtered_display_items_model, master_items_key="display_items", items_key="display_item_adapters", map_fn=map_display_item_to_display_item_adapter, unmap_fn=unmap_display_item_to_display_item_adapter)
+        display_items_model = document_controller.filtered_display_items_model
+
+        self.__filtered_display_item_adapters_model = ListModel.MappedListModel(container=display_items_model, master_items_key="display_items", items_key="display_item_adapters", map_fn=map_display_item_to_display_item_adapter, unmap_fn=unmap_display_item_to_display_item_adapter)
 
         self.__selection = self.document_controller.selection
 
@@ -766,13 +768,24 @@ class DataPanel(Panel.Panel):
                 return mime_data, thumbnail_data
 
         list_item_delegate = ListItemDelegate(self, self.__selection)
-        list_canvas_item = ListCanvasItem.ListCanvasItem2(document_controller.filtered_display_items_model, self.__selection, list_item_factory, list_item_delegate, item_height=80, key="display_items")
+        list_canvas_item = ListCanvasItem.ListCanvasItem2(display_items_model, self.__selection, list_item_factory, list_item_delegate, item_height=80, key="display_items")
         scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(list_canvas_item)
         scroll_bar_canvas_item = CanvasItem.ScrollBarCanvasItem(scroll_area_canvas_item, CanvasItem.Orientation.Vertical)
         scroll_group_canvas_item = CanvasItem.CanvasItemComposition()
         scroll_group_canvas_item.layout = CanvasItem.CanvasItemRowLayout()
         scroll_group_canvas_item.add_canvas_item(scroll_area_canvas_item)
         scroll_group_canvas_item.add_canvas_item(scroll_bar_canvas_item)
+
+        def begin_changes(key: str) -> None:
+            list_canvas_item._begin_batch_update()
+
+        def end_changes(key: str) -> None:
+            list_canvas_item._end_batch_update()
+
+        # the display items model can notify us when it is about to change. in order to gang up changes, watch
+        # for these notification events and tell the list canvas item to only update at the end of the changes.
+        self.__display_items_begin_changes_listener = display_items_model.begin_changes_event.listen(begin_changes)
+        self.__display_items_end_changes_listener = display_items_model.end_changes_event.listen(end_changes)
 
         data_list_canvas_item = scroll_group_canvas_item
 
