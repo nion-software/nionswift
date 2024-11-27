@@ -528,6 +528,8 @@ class DataPanelListItem(CanvasItem.CanvasItemComposition):
     def __init__(self, display_item: DisplayItem.DisplayItem, ui: UserInterface.UserInterface, font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> None:
         super().__init__()
 
+        self._begin_batch_update()
+
         self.__display_item = display_item
         self.__ui = ui
         self.__font_metrics_fn = font_metrics_fn
@@ -617,6 +619,8 @@ class DataPanelListItem(CanvasItem.CanvasItemComposition):
         self.__datetime_canvas_item = datetime_str_text_canvas_item
         self.__status_canvas_item = status_str_text_canvas_item
         self.__item_changed_listener = display_item.item_changed_event.listen(ReferenceCounting.weak_partial(DataPanelListItem.__item_changed, self))
+
+        self._end_batch_update()
 
     def close(self) -> None:
         self.__thumbnail_updated_event_listener = typing.cast(typing.Any, None)
