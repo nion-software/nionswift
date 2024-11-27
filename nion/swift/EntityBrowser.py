@@ -588,13 +588,11 @@ class MasterDetailHandler(Declarative.Handler):
         item_control_row_items = list[Declarative.UIDescription]()
 
         if add_item_fn:
-            # NOTE: minimal buttons do not support min-size yet.
-            add_button = u.create_push_button(text=_("+"), on_clicked="add_item", style="minimal")
+            add_button = u.create_push_button(text=_("+"), on_clicked="add_item", style="minimal", width=24)
             item_control_row_items.append(add_button)
 
         if remove_item_fn:
-            # NOTE: minimal buttons do not support min-size yet.
-            remove_button = u.create_push_button(text=_("-"), on_clicked="remove_item", style="minimal")
+            remove_button = u.create_push_button(text=_("-"), on_clicked="remove_item", style="minimal", width=24)
             item_control_row_items.append(remove_button)
 
         if item_control_row_items:
