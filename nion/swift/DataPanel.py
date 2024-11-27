@@ -32,6 +32,7 @@ from nion.utils import ListModel
 from nion.utils import Model
 from nion.utils import Process
 from nion.utils import ReferenceCounting
+from nion.utils import Stream
 
 if typing.TYPE_CHECKING:
     from nion.swift import DocumentController
@@ -872,28 +873,13 @@ class DataPanel(Panel.Panel):
         self._data_list_widget = data_list_widget
         self._data_grid_widget = data_grid_widget
 
-        def filter_changed(data_group: typing.Optional[DataGroup.DataGroup], filter_id: typing.Optional[str]) -> None:
-            if data_group:
-                self.__status_section.visible = True
-                self.__filter_description.text = _("Group") + ": " + data_group.title
-            else:
-                if filter_id == "latest-session":
-                    self.__status_section.visible = True
-                    self.__filter_description.text = _("Latest Session Items")
-                elif filter_id == "temporary":
-                    self.__status_section.visible = True
-                    self.__filter_description.text = _("Live Items")
-                elif filter_id == "persistent":
-                    self.__status_section.visible = True
-                    self.__filter_description.text = _("Persistent Items")
-                else:
-                    self.__status_section.visible = False
-                    self.__filter_description.text = _("All Items")
+        def update_filter_description(collection_info: typing.Optional[DocumentController.CollectionInfo]) -> None:
+            self.__status_section.visible = True
+            self.__filter_description.text = collection_info.title if collection_info else str()
 
-        self.__filter_changed_event_listener = document_controller.filter_changed_event.listen(filter_changed)
+        self.__filter_description_action = Stream.ValueStreamAction(document_controller.current_collection_info, update_filter_description)
 
-        data_group, filter_id = document_controller.get_data_group_and_filter_id()
-        filter_changed(data_group, filter_id)
+        update_filter_description(document_controller.current_collection_info.value)
 
 
     def close(self) -> None:
@@ -910,8 +896,7 @@ class DataPanel(Panel.Panel):
         self.__selection_changed_event_listener.close()
         self.__selection_changed_event_listener = typing.cast(Event.EventListener, None)
         # listeners
-        self.__filter_changed_event_listener.close()
-        self.__filter_changed_event_listener = typing.cast(typing.Any, None)
+        self.__filter_description_action = typing.cast(typing.Any, None)
 
     def __notify_focus_changed(self) -> None:
         # this is called when the keyboard focus for the data panel is changed.
