@@ -95,7 +95,7 @@ class CollectionInfo:
     is_smart_collection: bool
 
 
-class CollectionDisplayItemCounter:
+class CollectionInfoController:
 
     def __init__(self, base_title: str, data_group: typing.Optional[DataGroup.DataGroup], filter_id: typing.Optional[str], document_controller: DocumentController.DocumentController):
         self.__base_title = base_title
@@ -103,10 +103,6 @@ class CollectionDisplayItemCounter:
         self.__filter_id = filter_id
         self.__filter_predicate = document_controller.get_filter_predicate(filter_id) if self.__filter_id else ListModel.Filter(True)
         self.__count = 0
-
-        # useful for drag and drop
-        self.document_controller = document_controller
-        self.document_model = document_controller.document_model
 
         self.collection_info_stream = Stream.ValueStream[CollectionInfo](self.collection_info)
 
@@ -124,28 +120,10 @@ class CollectionDisplayItemCounter:
         self.__count_observer.close()
         self.__count_observer = typing.cast(typing.Any, None)
         self.__data_group = None
-        self.document_controller = typing.cast(typing.Any, None)
-        self.document_model = typing.cast(typing.Any, None)
 
     @property
     def collection_info(self) -> CollectionInfo:
-        return CollectionInfo(self.__base_title, self.__filter_id, self.__data_group, self.is_smart_collection)
-
-    @property
-    def title(self) -> str:
-        return f"{self.__base_title} ({self.__count})"
-
-    @property
-    def is_smart_collection(self) -> bool:
-        return not isinstance(self.__data_group, DataGroup.DataGroup)
-
-    @property
-    def filter_id(self) -> typing.Optional[str]:
-        return self.__filter_id
-
-    @property
-    def data_group(self) -> typing.Optional[DataGroup.DataGroup]:
-        return self.__data_group
+        return CollectionInfo(self.__base_title, self.__filter_id, self.__data_group, not isinstance(self.__data_group, DataGroup.DataGroup))
 
 
 class ProjectPanelItemLike(typing.Protocol):
@@ -430,8 +408,9 @@ class ProjectTreeWidget(Widgets.CompositeWidgetBase):
 
 class CollectionListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
 
-    def __init__(self, collection_selection: Selection.IndexedSelection):
+    def __init__(self, document_controller: DocumentController.DocumentController, collection_selection: Selection.IndexedSelection):
         super().__init__()
+        self.__document_controller = document_controller
         self.__collection_selection = collection_selection
 
     def close(self) -> None:
@@ -449,10 +428,10 @@ class CollectionListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
             drawing_context.fill_text(title, rect[0][1] + 4, rect[0][0] + 20 - 4)
 
     def item_can_drop_mime_data(self, mime_data: UserInterface.MimeData, action: str, drop_index: int) -> bool:
-        list_display_item = self.items[drop_index]
-        is_smart_collection = list_display_item.is_smart_collection if list_display_item else False
-        display_items = MimeTypes.mime_data_get_display_items(mime_data, list_display_item.document_model)
-        if list_display_item and not is_smart_collection and display_items:
+        collection_info_controller = typing.cast(CollectionInfoController, self.items[drop_index])
+        is_smart_collection = collection_info_controller.collection_info.is_smart_collection if collection_info_controller else False
+        display_items = MimeTypes.mime_data_get_display_items(mime_data, self.__document_controller.document_model)
+        if collection_info_controller and not is_smart_collection and display_items:
             # if the display item exists in this document, then it is copied to the
             # target group. if it doesn't exist in this document, then it is coming
             # from another document and can't be handled here.
@@ -460,15 +439,15 @@ class CollectionListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
         return False
 
     def item_drop_mime_data(self, mime_data: UserInterface.MimeData, action: str, drop_index: int) -> str:
-        list_display_item = typing.cast(CollectionDisplayItemCounter, self.items[drop_index])
-        is_smart_collection = list_display_item.is_smart_collection if list_display_item else False
-        display_items = MimeTypes.mime_data_get_display_items(mime_data, list_display_item.document_model)
-        if list_display_item and not is_smart_collection and display_items:
+        collection_info_controller = typing.cast(CollectionInfoController, self.items[drop_index])
+        is_smart_collection = collection_info_controller.collection_info.is_smart_collection if collection_info_controller else False
+        display_items = MimeTypes.mime_data_get_display_items(mime_data, self.__document_controller.document_model)
+        if collection_info_controller and not is_smart_collection and display_items:
             # if the display item exists in this document, then it is copied to the
             # target group. if it doesn't exist in this document, then it is coming
             # from another document and can't be handled here.
-            document_controller = list_display_item.document_controller
-            data_group = list_display_item.data_group
+            document_controller = self.__document_controller
+            data_group = collection_info_controller.collection_info.data_group
             if data_group:
                 command = document_controller.create_insert_data_group_display_items_command(data_group, len(data_group.display_items), display_items)
                 command.perform()
@@ -478,9 +457,9 @@ class CollectionListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
 
     def delete_pressed(self) -> None:
         index = self.__collection_selection.current_index
-        if list_display_item := (typing.cast(CollectionDisplayItemCounter, self.items[index]) if index is not None else None):
-            if data_group := (list_display_item.data_group if list_display_item is not None else None):
-                list_display_item.document_controller.remove_data_group_from_container(data_group, list_display_item.document_controller.document_model._project)
+        if collection_info_controller := (typing.cast(CollectionInfoController, self.items[index]) if index is not None else None):
+            if data_group := (collection_info_controller.collection_info.data_group if collection_info_controller is not None else None):
+                self.__document_controller.remove_data_group_from_container(data_group, self.__document_controller.document_model._project)
 
 
 class CollectionsWidget(Widgets.CompositeWidgetBase):
@@ -491,29 +470,29 @@ class CollectionsWidget(Widgets.CompositeWidgetBase):
 
         document_model = document_controller.document_model
 
-        all_items_controller = CollectionDisplayItemCounter(_("All"), None, "all", document_controller)
-        persistent_items_controller = CollectionDisplayItemCounter(_("Persistent"), None, "persistent", document_controller)
-        live_items_controller = CollectionDisplayItemCounter(_("Live"), None, "temporary", document_controller)
-        latest_items_controller = CollectionDisplayItemCounter(_("Latest Session"), None, "latest-session", document_controller)
+        all_collection_info_controller = CollectionInfoController(_("All"), None, "all", document_controller)
+        persistent_collection_info_controller = CollectionInfoController(_("Persistent"), None, "persistent", document_controller)
+        live_collection_info_controller = CollectionInfoController(_("Live"), None, "temporary", document_controller)
+        latest_collection_info_controller = CollectionInfoController(_("Latest Session"), None, "latest-session", document_controller)
 
         self.__item_controllers = [
-            all_items_controller,
-            persistent_items_controller,
-            live_items_controller,
-            latest_items_controller
+            all_collection_info_controller,
+            persistent_collection_info_controller,
+            live_collection_info_controller,
+            latest_collection_info_controller
         ]
 
-        self.__data_group_controllers: typing.List[CollectionDisplayItemCounter] = list()
+        self.__data_group_collection_info_controllers: typing.List[CollectionInfoController] = list()
 
         collection_selection = Selection.IndexedSelection(Selection.Style.single_or_none)
 
-        collections_list_widget = Widgets.ListWidget(ui, CollectionListCanvasItemDelegate(collection_selection), selection=collection_selection, v_scroll_enabled=False, v_auto_resize=True)
+        collections_list_widget = Widgets.ListWidget(ui, CollectionListCanvasItemDelegate(document_controller, collection_selection), selection=collection_selection, v_scroll_enabled=False, v_auto_resize=True)
         collections_list_widget.wants_drag_events = True
 
         def filter_changed(data_group: typing.Optional[DataGroup.DataGroup], filter_id: typing.Optional[str]) -> None:
             if data_group:
-                for index, controller in enumerate(typing.cast(typing.Sequence[CollectionDisplayItemCounter], collections_list_widget.items)):
-                    if data_group == controller.data_group:
+                for index, collection_info_controller in enumerate(typing.cast(typing.Sequence[CollectionInfoController], collections_list_widget.items)):
+                    if data_group == collection_info_controller.collection_info.data_group:
                         collection_selection.set(index)
                         break
             else:
@@ -530,31 +509,31 @@ class CollectionsWidget(Widgets.CompositeWidgetBase):
 
         def collections_changed(c: typing.Optional[CollectionInfo]) -> None:
             collections_list_widget.items = [
-                all_items_controller,
-                persistent_items_controller,
-                live_items_controller,
-                latest_items_controller,
-            ] + self.__data_group_controllers
+                all_collection_info_controller,
+                persistent_collection_info_controller,
+                live_collection_info_controller,
+                latest_collection_info_controller,
+            ] + self.__data_group_collection_info_controllers
             collections_list_widget.update()
 
-        self.__all_items_action = Stream.ValueStreamAction(all_items_controller.collection_info_stream, collections_changed)
-        self.__persistent_items_action = Stream.ValueStreamAction(persistent_items_controller.collection_info_stream, collections_changed)
-        self.__live_items_action = Stream.ValueStreamAction(live_items_controller.collection_info_stream, collections_changed)
-        self.__latest_items_action = Stream.ValueStreamAction(latest_items_controller.collection_info_stream, collections_changed)
+        self.__all_items_action = Stream.ValueStreamAction(all_collection_info_controller.collection_info_stream, collections_changed)
+        self.__persistent_items_action = Stream.ValueStreamAction(persistent_collection_info_controller.collection_info_stream, collections_changed)
+        self.__live_items_action = Stream.ValueStreamAction(live_collection_info_controller.collection_info_stream, collections_changed)
+        self.__latest_items_action = Stream.ValueStreamAction(latest_collection_info_controller.collection_info_stream, collections_changed)
 
         self.__data_group_actions = list[Stream.ValueStreamAction[CollectionInfo]]()
 
         def document_model_item_inserted(key: str, value: typing.Any, before_index: int) -> None:
             if key == "data_groups":
                 data_group = value
-                controller = CollectionDisplayItemCounter(data_group.title, data_group, None, document_controller)
-                self.__data_group_controllers.insert(before_index, controller)
-                self.__data_group_actions.insert(before_index, Stream.ValueStreamAction(controller.collection_info_stream, collections_changed))
+                collection_info_controller = CollectionInfoController(data_group.title, data_group, None, document_controller)
+                self.__data_group_collection_info_controllers.insert(before_index, collection_info_controller)
+                self.__data_group_actions.insert(before_index, Stream.ValueStreamAction(collection_info_controller.collection_info_stream, collections_changed))
                 collections_changed(None)
 
         def document_model_item_removed(key: str, value: typing.Any, index: int) -> None:
             if key == "data_groups":
-                self.__data_group_controllers.pop(index).close()
+                self.__data_group_collection_info_controllers.pop(index).close()
                 self.__data_group_actions.pop(index)
                 collections_changed(None)
 
@@ -571,16 +550,16 @@ class CollectionsWidget(Widgets.CompositeWidgetBase):
 
         def collections_selection_changed(indexes: typing.AbstractSet[int]) -> None:
             if len(indexes) == 0:
-                controller = typing.cast(CollectionDisplayItemCounter, collections_list_widget.items[0])
-                document_controller.set_filter(controller.filter_id)
+                collection_info_controller = typing.cast(CollectionInfoController, collections_list_widget.items[0])
+                document_controller.set_filter(collection_info_controller.collection_info.filter_id)
             elif len(indexes) == 1:
-                controller = typing.cast(CollectionDisplayItemCounter, collections_list_widget.items[list(indexes)[0]])
-                if controller.is_smart_collection:
+                collection_info_controller = typing.cast(CollectionInfoController, collections_list_widget.items[list(indexes)[0]])
+                if collection_info_controller.collection_info.is_smart_collection:
                     document_controller.set_data_group(None)
-                    document_controller.set_filter(controller.filter_id)
+                    document_controller.set_filter(collection_info_controller.collection_info.filter_id)
                 else:
                     document_controller.set_filter(None)
-                    document_controller.set_data_group(controller.data_group)
+                    document_controller.set_data_group(collection_info_controller.collection_info.data_group)
 
         collections_list_widget.on_selection_changed = collections_selection_changed
 
@@ -597,9 +576,9 @@ class CollectionsWidget(Widgets.CompositeWidgetBase):
         self._collection_selection = collection_selection
 
     def close(self) -> None:
-        for controller in self.__data_group_controllers:
+        for controller in self.__data_group_collection_info_controllers:
             controller.close()
-        self.__data_group_controllers.clear()
+        self.__data_group_collection_info_controllers.clear()
         for item_controller in self.__item_controllers:
             item_controller.close()
         self.__item_controllers.clear()
