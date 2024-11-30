@@ -525,103 +525,99 @@ class ItemExplorerWidget(Widgets.CompositeWidgetBase):
         super().close()
 
 
-class DataPanelListItem(CanvasItem.CanvasItemComposition):
+class DataPanelListItemComposer(CanvasItem.BaseComposer):
+    def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing, cache: CanvasItem.ComposerCache,
+                 thumbnail: typing.Optional[Bitmap.Bitmap], line_height: int, displayed_title: str, format_str: str, datetime_str: str, status_str: str) -> None:
+        super().__init__(canvas_item, layout_sizing, cache)
+        self.__bitmap = thumbnail
+        self.__line_height = line_height
+        self.__displayed_title = displayed_title
+        self.__format_str = format_str
+        self.__datetime_str = datetime_str
+        self.__status_str = status_str
+
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> None:
+        text_font = "11px sans-serif"
+        text_color = "black"
+
+        line_number = 1
+        line_height = self.__line_height + 4
+
+        if self.__displayed_title:
+            drawing_context.font = text_font
+            drawing_context.text_baseline = "bottom"
+            drawing_context.text_align = "left"
+            drawing_context.fill_style = text_color
+            drawing_context.fill_text(self.__displayed_title, 82, line_height * line_number)
+            line_number += 1
+
+        if self.__format_str:
+            drawing_context.font = text_font
+            drawing_context.text_baseline = "bottom"
+            drawing_context.text_align = "left"
+            drawing_context.fill_style = text_color
+            drawing_context.fill_text(self.__format_str, 82, line_height * line_number)
+            line_number += 1
+
+        if self.__datetime_str:
+            drawing_context.font = text_font
+            drawing_context.text_baseline = "bottom"
+            drawing_context.text_align = "left"
+            drawing_context.fill_style = text_color
+            drawing_context.fill_text(self.__datetime_str, 82, line_height * line_number)
+            line_number += 1
+
+        if self.__status_str:
+            drawing_context.font = text_font
+            drawing_context.text_baseline = "bottom"
+            drawing_context.text_align = "left"
+            drawing_context.fill_style = text_color
+            drawing_context.fill_text(self.__status_str, 82, line_height * line_number)
+            line_number += 1
+
+        if self.__bitmap and self.__bitmap.rgba_bitmap_data is not None:
+            image_size = self.__bitmap.computed_shape
+            if image_size.height > 0 and image_size.width > 0:
+                rect = Geometry.IntRect(Geometry.IntPoint(y=4, x=4), size=Geometry.IntSize(h=72, w=72))
+                display_rect = Geometry.fit_to_size(rect, image_size)
+                display_height = display_rect.height
+                display_width = display_rect.width
+                if display_rect and display_width > 0 and display_height > 0:
+                    display_top = display_rect.top
+                    display_left = display_rect.left
+                    drawing_context.draw_image(self.__bitmap.rgba_bitmap_data, display_left, display_top, display_width, display_height)
+
+
+class DataPanelListItem(CanvasItem.AbstractCanvasItem):
+    """Canvas item to draw a data panel list item.
+
+    This is critical performance code. It is called for every item in the list. So use a custom renderer.
+    """
+
     def __init__(self, display_item: DisplayItem.DisplayItem, ui: UserInterface.UserInterface, font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> None:
         super().__init__()
-
-        self._begin_batch_update()
-
         self.__display_item = display_item
         self.__ui = ui
         self.__font_metrics_fn = font_metrics_fn
-
-        displayed_title_text_canvas_item = CanvasItem.TextCanvasItem(display_item.displayed_title)
-        displayed_title_text_canvas_item.text_font = "11px sans-serif"
-        displayed_title_text_canvas_item.size_to_content(font_metrics_fn)
-        displayed_title_text_canvas_item.update_sizing(displayed_title_text_canvas_item.sizing.with_fixed_height(displayed_title_text_canvas_item.sizing.preferred_height_int - 6))
-
-        displayed_title_row = CanvasItem.CanvasItemComposition()
-        displayed_title_row.layout = CanvasItem.CanvasItemRowLayout()
-        displayed_title_row.add_canvas_item(displayed_title_text_canvas_item)
-        displayed_title_row.add_stretch()
-        # ensure width is not limited by contents
-        displayed_title_row.update_sizing(displayed_title_row.sizing.with_fixed_width(CanvasItem.SizingEnum.UNRESTRAINED))
-
-        format_str_text_canvas_item = CanvasItem.TextCanvasItem(self.format_str)
-        format_str_text_canvas_item.text_font = "11px sans-serif"
-        format_str_text_canvas_item.size_to_content(font_metrics_fn)
-        format_str_text_canvas_item.update_sizing(format_str_text_canvas_item.sizing.with_fixed_height(format_str_text_canvas_item.sizing.preferred_height_int - 6))
-
-        format_str_row = CanvasItem.CanvasItemComposition()
-        format_str_row.layout = CanvasItem.CanvasItemRowLayout()
-        format_str_row.add_canvas_item(format_str_text_canvas_item)
-        format_str_row.add_stretch()
-        # ensure width is not limited by contents
-        format_str_row.update_sizing(format_str_row.sizing.with_fixed_width(CanvasItem.SizingEnum.UNRESTRAINED))
-
-        datetime_str_text_canvas_item = CanvasItem.TextCanvasItem(self.datetime_str)
-        datetime_str_text_canvas_item.text_font = "11px sans-serif"
-        datetime_str_text_canvas_item.size_to_content(font_metrics_fn)
-        datetime_str_text_canvas_item.update_sizing(datetime_str_text_canvas_item.sizing.with_fixed_height(datetime_str_text_canvas_item.sizing.preferred_height_int - 6))
-
-        datetime_str_row = CanvasItem.CanvasItemComposition()
-        datetime_str_row.layout = CanvasItem.CanvasItemRowLayout()
-        datetime_str_row.add_canvas_item(datetime_str_text_canvas_item)
-        datetime_str_row.add_stretch()
-        # ensure width is not limited by contents
-        datetime_str_row.update_sizing(datetime_str_row.sizing.with_fixed_width(CanvasItem.SizingEnum.UNRESTRAINED))
-
-        status_str_text_canvas_item = CanvasItem.TextCanvasItem(self.status_str)
-        status_str_text_canvas_item.text_font = "11px sans-serif"
-        status_str_text_canvas_item.size_to_content(font_metrics_fn)
-        status_str_text_canvas_item.update_sizing(status_str_text_canvas_item.sizing.with_fixed_height(status_str_text_canvas_item.sizing.preferred_height_int - 6))
-
-        status_str_row = CanvasItem.CanvasItemComposition()
-        status_str_row.layout = CanvasItem.CanvasItemRowLayout()
-        status_str_row.add_canvas_item(status_str_text_canvas_item)
-        status_str_row.add_stretch()
-        # ensure width is not limited by contents
-        status_str_row.update_sizing(status_str_row.sizing.with_fixed_width(CanvasItem.SizingEnum.UNRESTRAINED))
-
-        text_column = CanvasItem.CanvasItemComposition()
-        text_column.layout = CanvasItem.CanvasItemColumnLayout(Geometry.Margins(4, 4, 4, 4))
-        text_column.add_canvas_item(displayed_title_row)
-        text_column.add_canvas_item(format_str_row)
-        text_column.add_canvas_item(datetime_str_row)
-        text_column.add_canvas_item(status_str_row)
-        text_column.add_stretch()
-
-        thumbnail_canvas_item = CanvasItem.BitmapCanvasItem()
-        thumbnail_canvas_item.update_sizing(thumbnail_canvas_item.sizing.with_fixed_width(72).with_fixed_height(72))
-
-        thumbnail_column = CanvasItem.CanvasItemComposition()
-        thumbnail_column.layout = CanvasItem.CanvasItemColumnLayout(Geometry.Margins(4, 4, 4, 4))
-        thumbnail_column.add_canvas_item(thumbnail_canvas_item)
-        thumbnail_column.add_stretch()
-
-        self.layout = CanvasItem.CanvasItemRowLayout()
-        self.add_canvas_item(thumbnail_column)
-        self.add_canvas_item(text_column)
-        # ensure width is not limited by contents
-        self.update_sizing(self.sizing.with_fixed_width(CanvasItem.SizingEnum.UNRESTRAINED))
+        self.__thumbnail: typing.Optional[Bitmap.Bitmap] = None
 
         def thumbnail_updated() -> None:
             bitmap_data = self.__thumbnail_source.thumbnail_data if self.__thumbnail_source else None
-            self.__thumbnail_canvas_item.bitmap = Bitmap.Bitmap(rgba_bitmap_data=bitmap_data)
+            self.__thumbnail = Bitmap.Bitmap(rgba_bitmap_data=bitmap_data)
 
-        self.__thumbnail_canvas_item = thumbnail_canvas_item
         self.__thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.__ui, self.__display_item)
         self.__thumbnail_updated_event_listener = self.__thumbnail_source.thumbnail_updated_event.listen(thumbnail_updated)
 
         thumbnail_updated()
 
-        self.__text_canvas_item = displayed_title_text_canvas_item
-        self.__format_canvas_item = format_str_text_canvas_item
-        self.__datetime_canvas_item = datetime_str_text_canvas_item
-        self.__status_canvas_item = status_str_text_canvas_item
         self.__item_changed_listener = display_item.item_changed_event.listen(ReferenceCounting.weak_partial(DataPanelListItem.__item_changed, self))
 
-        self._end_batch_update()
+        self.update_sizing(self.sizing.with_fixed_height(72))
+        self.update_sizing(self.sizing.with_fixed_width(CanvasItem.SizingEnum.UNRESTRAINED))
+
+    def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> CanvasItem.BaseComposer:
+        line_height = self.__font_metrics_fn("11px sans-serif", "M").height
+        return DataPanelListItemComposer(self, self.layout_sizing, composer_cache, self.__thumbnail, line_height, self.title, self.format_str, self.datetime_str, self.status_str)
 
     def close(self) -> None:
         self.__thumbnail_updated_event_listener = typing.cast(typing.Any, None)
@@ -651,18 +647,7 @@ class DataPanelListItem(CanvasItem.CanvasItemComposition):
         return self.__display_item.status_str if self.__display_item else str()
 
     def __item_changed(self) -> None:
-        self.__text_canvas_item.text = self.title
-        self.__text_canvas_item.size_to_content(self.__font_metrics_fn)
-        self.__text_canvas_item.update_sizing(self.__text_canvas_item.sizing.with_fixed_height(self.__text_canvas_item.sizing.preferred_height_int - 6))
-        self.__format_canvas_item.text = self.format_str
-        self.__format_canvas_item.size_to_content(self.__font_metrics_fn)
-        self.__format_canvas_item.update_sizing(self.__format_canvas_item.sizing.with_fixed_height(self.__format_canvas_item.sizing.preferred_height_int - 6))
-        self.__datetime_canvas_item.text = self.datetime_str
-        self.__datetime_canvas_item.size_to_content(self.__font_metrics_fn)
-        self.__datetime_canvas_item.update_sizing(self.__datetime_canvas_item.sizing.with_fixed_height(self.__datetime_canvas_item.sizing.preferred_height_int - 6))
-        self.__status_canvas_item.text = self.status_str
-        self.__status_canvas_item.size_to_content(self.__font_metrics_fn)
-        self.__status_canvas_item.update_sizing(self.__status_canvas_item.sizing.with_fixed_height(self.__status_canvas_item.sizing.preferred_height_int - 6))
+        self.update()
 
 
 class DataPanel(Panel.Panel):
