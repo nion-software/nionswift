@@ -796,15 +796,8 @@ class DataItem(Persistence.PersistentObject):
 
     @property
     def date_for_sorting(self) -> datetime.datetime:
-        data_modified_list = list()
         data_modified = self.data_modified
-        if data_modified:
-            data_modified_list.append(data_modified)
-        else:
-            data_modified_list.append(self.created)
-        if len(data_modified_list):
-            return max(data_modified_list)
-        return self.created
+        return data_modified if data_modified else self.created
 
     @property
     def date_for_sorting_local(self) -> datetime.datetime:
