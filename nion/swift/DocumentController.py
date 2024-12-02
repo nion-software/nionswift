@@ -297,12 +297,8 @@ class DocumentController(Window.Window):
         self.filter_changed_event = Event.Event()
 
         # see set_filter
-        with self.__display_items_model.changes():  # change filter and sort together
-            self.__display_items_model.container = self.document_model
-            self.__display_items_model.filter = ListModel.AndFilter((self.project_filter, self.get_filter_predicate(None)))
-            self.__display_items_model.sort_key = DisplayItem.sort_by_date_key
-            self.__display_items_model.sort_reverse = True
-            typing.cast(typing.Any, self.__display_items_model).filter_id = None
+        self.__display_items_model.set_container_filter_sort(self.document_model, ListModel.AndFilter((self.project_filter, self.get_filter_predicate(None))), DisplayItem.sort_by_date_key, True)
+        typing.cast(typing.Any, self.__display_items_model).filter_id = None
 
         def call_soon() -> None:
             # call the function (this is guaranteed to be called on the main thread)
@@ -675,11 +671,8 @@ class DocumentController(Window.Window):
     def set_data_group(self, data_group: typing.Optional[DataGroup.DataGroup]) -> None:
         container = data_group if data_group else self.document_model
         if container != self.__display_items_model.container:
-            with self.__display_items_model.changes():  # change filter and sort together
-                self.__display_items_model.container = data_group
-                self.__display_items_model.filter = self.project_filter
-                self.__display_items_model.sort_key = None
-                typing.cast(typing.Any, self.__display_items_model).filter_id = None
+            self.__display_items_model.set_container_filter_sort(data_group, self.project_filter, None, False)
+            typing.cast(typing.Any, self.__display_items_model).filter_id = None
             self.filter_changed_event.fire(data_group, self.__display_items_model.filter_id)
             self.project.data_group = data_group
             self.project.filter_id = self.__display_items_model.filter_id
@@ -687,12 +680,8 @@ class DocumentController(Window.Window):
 
     def set_filter(self, filter_id: typing.Optional[str]) -> None:
         if filter_id != self.__display_items_model.filter_id:
-            with self.__display_items_model.changes():  # change filter and sort together
-                self.__display_items_model.container = self.document_model
-                self.__display_items_model.filter = ListModel.AndFilter((self.project_filter, self.get_filter_predicate(filter_id)))
-                self.__display_items_model.sort_key = DisplayItem.sort_by_date_key
-                self.__display_items_model.sort_reverse = True
-                typing.cast(typing.Any, self.__display_items_model).filter_id = filter_id
+            self.__display_items_model.set_container_filter_sort(self.document_model, ListModel.AndFilter((self.project_filter, self.get_filter_predicate(filter_id))), DisplayItem.sort_by_date_key, True)
+            typing.cast(typing.Any, self.__display_items_model).filter_id = filter_id
             self.filter_changed_event.fire(None, filter_id)
             self.project.data_group = None
             self.project.filter_id = filter_id
