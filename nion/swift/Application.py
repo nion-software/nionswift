@@ -40,6 +40,7 @@ from nion.swift import Workspace
 from nion.swift.model import ApplicationData
 from nion.swift.model import ColorMaps
 from nion.swift.model import DocumentModel
+from nion.swift.model import Feature
 from nion.swift.model import FileStorageSystem
 from nion.swift.model import PlugInManager
 from nion.swift.model import Profile
@@ -48,6 +49,7 @@ from nion.ui import Application as UIApplication
 from nion.ui import CanvasItem
 from nion.ui import Declarative
 from nion.ui import Dialog
+from nion.ui import PreferencesDialog
 from nion.ui import UserInterface
 from nion.ui import Window as UIWindow
 from nion.utils import Event
@@ -55,6 +57,7 @@ from nion.utils import Geometry
 from nion.utils import ListModel
 from nion.utils import Model
 from nion.utils import Registry
+from nion.utils import Stream
 
 if typing.TYPE_CHECKING:
     from nion.swift.model import DisplayItem
@@ -246,6 +249,7 @@ class Application(UIApplication.BaseApplication):
             app_data_file_path = self.ui.get_configuration_location() / pathlib.Path("nionswift_appdata.json")
             ApplicationData.set_file_path(app_data_file_path)
             logging.info("Application data: " + str(app_data_file_path))
+            self.__initialize_features()
             PlugInManager.load_plug_ins(self.ui.get_document_location(), self.ui.get_data_location(), get_root_dir() if use_root_dir else None)
             color_maps_dir = self.ui.get_configuration_location() / pathlib.Path("Color Maps")
             if color_maps_dir.exists():
@@ -268,6 +272,18 @@ class Application(UIApplication.BaseApplication):
         app = typing.cast(Application, None)  # hack to get the single instance set. hmm. better way?
         self.__class__.count -= 1
         super().deinitialize()
+
+    def __initialize_features(self) -> None:
+        enabled_feature_str = UserInterface.StringPersistentModel(self.ui, "enabled_feature_str", "")
+
+        feature_manager = Feature.FeatureManager()
+        feature_manager.enabled_feature_str = enabled_feature_str.value or str()
+
+        def handle_feature_manager_property_changed(property_name: str) -> None:
+            if property_name == "enabled_feature_str":
+                enabled_feature_str.value = feature_manager.enabled_feature_str
+
+        self.__enabled_feature_str_listener = feature_manager.property_changed_event.listen(handle_feature_manager_property_changed)
 
     @property
     def profile(self) -> Profile.Profile:
@@ -795,6 +811,57 @@ def get_root_dir() -> str:
     for i in range(path_ascend_count):
         root_dir = os.path.dirname(root_dir)
     return root_dir
+
+
+class FeaturesPreferencePanel:
+    def __init__(self) -> None:
+        self.identifier = "nion.swift.features-panel"
+        self.label = _("Features")
+
+    def build(self, ui: UserInterface.UserInterface, event_loop: typing.Optional[asyncio.AbstractEventLoop] = None, **kwargs: typing.Any) -> Declarative.DeclarativeWidget:
+        u = Declarative.DeclarativeUI()
+
+        class FeatureHandler(Declarative.Handler):
+            def __init__(self, item: Feature.Feature) -> None:
+                super().__init__()
+                self.feature = item
+                self.ui_view = u.create_column(
+                    u.create_row(
+                        u.create_check_box(text="@binding(feature.description)", checked="@binding(feature.enabled)"),
+                        u.create_stretch(),
+                        spacing=8
+                    ),
+                    spacing=8
+                )
+
+        class Handler(Declarative.Handler):
+            def __init__(self) -> None:
+                super().__init__()
+                self.features = Feature.FeatureManager().features
+                self.ui_view = u.create_column(
+                    u.create_row(
+                        u.create_label(text="Optional Features", width=120),
+                        u.create_stretch(),
+                        spacing=8
+                    ),
+                    u.create_divider(orientation="horizontal"),
+                    u.create_scroll_area(content=u.create_column(u.create_column(items="features", item_component_id="feature-component", spacing=4), u.create_stretch())),
+                    u.create_stretch(),
+                    spacing=8
+                )
+
+            def create_handler(self, component_id: str, container: typing.Any = None, item: typing.Any = None, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
+                # this is called to construct contained declarative component handlers within this handler.
+                if component_id == "feature-component":
+                    assert container is not None
+                    assert item is not None
+                    return FeatureHandler(item)
+                return None
+
+        return Declarative.DeclarativeWidget(ui, event_loop or asyncio.get_event_loop(), Handler())
+
+
+PreferencesDialog.PreferencesManager().register_preference_pane(FeaturesPreferencePanel())
 
 
 class NewProjectAction(UIWindow.Action):
