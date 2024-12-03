@@ -541,7 +541,7 @@ class DataPanelListItemComposer(CanvasItem.BaseComposer):
         text_color = "black"
 
         line_number = 1
-        line_height = self.__line_height + 4
+        line_height = self.__line_height + 2
 
         if self.__displayed_title:
             drawing_context.font = text_font
