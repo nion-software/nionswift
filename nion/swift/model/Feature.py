@@ -38,7 +38,6 @@ class FeatureManager(Observable.Observable, metaclass=Utility.Singleton):
     @enabled_feature_str.setter
     def enabled_feature_str(self, enabled_features_str: str) -> None:
         for enabled_feature_id in enabled_features_str.split(","):
-            print(f"{enabled_feature_id=}")
             feature = self.get_feature(enabled_feature_id)
             if feature:
                 feature.enabled = True
