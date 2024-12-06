@@ -13,3 +13,7 @@ h5py
 pytz
 tzlocal
 pillow
+
+# for testing
+types-pytz
+types-tzlocal
