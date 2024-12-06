@@ -9,6 +9,7 @@ import math
 import threading
 import time
 import typing
+import uuid
 
 # third party libraries
 import numpy
@@ -188,7 +189,7 @@ class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__ui_settings = ui_settings
         self.__displayed_shape: typing.Optional[DataAndMetadata.ShapeType] = None
         self.__graphics: typing.List[Graphics.Graphic] = list()
-        self.__graphics_for_compare: typing.List[Persistence.PersistentDictType] = list()
+        self.__graphics_for_compare: list[tuple[uuid.UUID, int]] = list()
         self.__graphic_selection = DisplayItem.GraphicSelection()
         self.__coordinate_system: typing.List[Calibration.Calibration] = list()
 
@@ -205,7 +206,7 @@ class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):
         if ((self.__displayed_shape is None) != (displayed_shape is None)) or (self.__displayed_shape != displayed_shape):
             self.__displayed_shape = displayed_shape
             needs_update = True
-        graphics_for_compare = [graphic.write_to_dict() for graphic in graphics]
+        graphics_for_compare = [(graphic.uuid, graphic.modified_count) for graphic in graphics]
         if graphics_for_compare != self.__graphics_for_compare:
             self.__graphics = list(graphics)
             self.__graphics_for_compare = graphics_for_compare
