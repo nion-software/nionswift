@@ -16,7 +16,6 @@ from nion.data import Image
 from nion.swift import MimeTypes
 from nion.swift import Panel
 from nion.swift import Thumbnails
-from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
 from nion.swift.model import Persistence
@@ -604,6 +603,7 @@ class DataPanelListItem(CanvasItem.AbstractCanvasItem):
         def thumbnail_updated() -> None:
             bitmap_data = self.__thumbnail_source.thumbnail_data if self.__thumbnail_source else None
             self.__thumbnail = Bitmap.Bitmap(rgba_bitmap_data=bitmap_data)
+            self.update()
 
         self.__thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.__ui, self.__display_item)
         self.__thumbnail_updated_event_listener = self.__thumbnail_source.thumbnail_updated_event.listen(thumbnail_updated)
