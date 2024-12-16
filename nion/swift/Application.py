@@ -46,6 +46,7 @@ from nion.swift.model import FileStorageSystem
 from nion.swift.model import PlugInManager
 from nion.swift.model import Profile
 from nion.swift.model import Symbolic
+from nion.swift.model import Utility
 from nion.ui import Application as UIApplication
 from nion.ui import CanvasItem
 from nion.ui import Declarative
@@ -961,6 +962,18 @@ class NewProjectAction(UIWindow.Action):
                     app.create_project_reference(pathlib.Path(self.directory), self.__project_name_field.text or "untitled")
                     return True
 
+                def verify_project_name(text: str) -> None:
+                    valid = text == Utility.simplify_filename(text)
+                    if valid:
+                        create_project_button.enabled = True
+                        create_project_button.tool_tip = None
+                        project_name_status_label.text = None
+                    else:
+                        create_project_button.enabled = False
+                        invalid_chars_str = _("Invalid Characters in Project Name")
+                        create_project_button.tool_tip = invalid_chars_str
+                        project_name_status_label.text = invalid_chars_str
+                        project_name_status_label.text_color = "red"
                 column = self.ui.create_column_widget()
 
                 directory_header_row = self.ui.create_row_widget()
@@ -995,9 +1008,17 @@ class NewProjectAction(UIWindow.Action):
                 project_name_field.text = self.project_name
                 project_name_field.on_return_pressed = handle_new_and_close
                 project_name_field.on_escape_pressed = handle_close
+                project_name_field.on_text_edited = verify_project_name
                 project_name_row.add(project_name_field)
                 project_name_row.add_stretch()
                 project_name_row.add_spacing(13)
+
+                project_name_status_label = self.ui.create_label_widget()
+                project_name_status_row = self.ui.create_row_widget()
+                project_name_status_row.add_spacing(26)
+                project_name_status_row.add(project_name_status_label)
+                project_name_status_row.add_stretch()
+                project_name_status_row.add_spacing(13)
 
                 column.add_spacing(12)
                 column.add(directory_header_row)
@@ -1009,6 +1030,8 @@ class NewProjectAction(UIWindow.Action):
                 column.add(project_name_header_row)
                 column.add_spacing(8)
                 column.add(project_name_row)
+                column.add_spacing(4)
+                column.add(project_name_status_row)
                 column.add_stretch()
                 column.add_spacing(16)
 
@@ -1022,7 +1045,7 @@ class NewProjectAction(UIWindow.Action):
                 choose_directory_button.on_clicked = choose
 
                 self.add_button(_("Cancel"), lambda: True)
-                self.add_button(_("Create Project"), handle_new_and_close)
+                create_project_button = self.add_button(_("Create Project"), handle_new_and_close)
 
                 self.content.add(column)
 
