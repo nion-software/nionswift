@@ -245,6 +245,7 @@ class Application(UIApplication.BaseApplication):
             logging.info("Launch time " + str(datetime.datetime.now()))
             logging.info("Python version " + str(sys.version.replace('\n', '')))
             logging.info("User interface class " + type(self.ui).__name__ + " / " + type(getattr(self.ui, "proxy")).__name__)
+            logging.info("Build version (UI) " + self.ui.get_build_version())
             logging.info("Qt version " + self.ui.get_qt_version())
             app_data_file_path = self.ui.get_configuration_location() / pathlib.Path("nionswift_appdata.json")
             ApplicationData.set_file_path(app_data_file_path)
