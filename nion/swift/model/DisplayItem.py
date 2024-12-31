@@ -1440,10 +1440,22 @@ class DisplayDataChannel(Persistence.PersistentObject):
         if data_metadata is not None and len(data_metadata.dimensional_shape) > 0:
             depth = data_metadata.dimensional_shape[-1]  # signal_index
             if depth > 0:
-                slice_interval_center = round(((slice_interval[0] + slice_interval[1]) * 0.5) * depth)
-                slice_interval_width = round((slice_interval[1] - slice_interval[0]) * depth)
-                self.slice_center = slice_interval_center
-                self.slice_width = slice_interval_width
+                # the slice interval may be sync'd with a graphic interval that may be set to values
+                # that would trigger a slice interval outside the bounds of the data. ensure that only
+                # the overlapping part of the slice interval is used; and also ensure that the slice
+                # center and slice width values are valid. then use the non-validating setters to set
+                # the value. if the validating setters are used, they will validate the intermediate
+                # values and result in the wrong slice interval. this is not a perfect solution; see
+                # test_changing_slice_interval_via_graphic_updates_slice_center_and_width for testing.
+                slice_interval = (min(1.0, max(0.0, slice_interval[0])), min(1.0, max(0.0, slice_interval[1])))
+                slice_interval_center_f = min(1.0, max(0.0, (slice_interval[0] + slice_interval[1]) * 0.5))
+                slice_interval_center = round(slice_interval_center_f * depth)
+                slice_interval_width_f = slice_interval[1] - slice_interval[0]
+                slice_interval_width_f = min(1.0, max(0.0, slice_interval_width_f))
+                slice_interval_width_f = min(2 * slice_interval_center_f, min(slice_interval_width_f, 2 * (1.0 - slice_interval_center_f)))
+                slice_interval_width = round(slice_interval_width_f * depth)
+                self._set_persistent_property_value("slice_center", slice_interval_center, validate=False)
+                self._set_persistent_property_value("slice_width", slice_interval_width, validate=False)
 
     def __slice_interval_changed(self, name: str, value: typing.Optional[typing.Tuple[float, float]]) -> None:
         # notify for dependent slice_interval property
