@@ -11,6 +11,10 @@
         "summary": "Change Export SVG dialog to remember units."
       },
       {
+        "issues": ["https://github.com/nion-software/nionswift/issues/1245"],
+        "summary": "Fix issue with graphic interval on picks not updating slice interval correctly."
+      },
+      {
         "summary": "Use filename when title is empty or missing on import (was only when missing)."
       },
       {
