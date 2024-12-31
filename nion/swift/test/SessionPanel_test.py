@@ -19,17 +19,9 @@ class TestSessionPanelClass(unittest.TestCase):
     def tearDown(self):
         TestContext.end_leaks(self)
 
-    def test_session_panel_controller_notifies_fields_changed(self):
-        session_panel_controller = SessionPanel.SessionPanelController()
-        with contextlib.closing(session_panel_controller):
-            fields = dict()
-
-            def fields_changed(d):
-                fields.update(d)
-
-            session_panel_controller.on_fields_changed = fields_changed
-
-            ApplicationData.get_session_metadata_model().microscopist = "Ned Flanders"
-            ApplicationData.get_session_metadata_model().site = "Earth"
-
-            self.assertEqual({"microscopist": "Ned Flanders", "site": "Earth"}, fields)
+    def test_session_handler_model(self):
+        session_handler = SessionPanel.SessionHandler(ApplicationData.get_session_metadata_model())
+        ApplicationData.get_session_metadata_model().microscopist = "Ned Flanders"
+        self.assertEqual("Ned Flanders", session_handler.session_model.microscopist)
+        session_handler.session_model.site = "Earth"
+        self.assertEqual("Earth", ApplicationData.get_session_metadata_model().site)

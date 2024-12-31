@@ -35,6 +35,10 @@
         "summary": "Fix issue with info panel not displaying sequence of 2d collection of 2d data pixels correctly."
       },
       {
+        "issues": ["https://github.com/nion-software/nionswift/issues/1296"],
+        "summary": "Fix keyboard focus issue in Session panel."
+      },
+      {
         "summary": "Use filename when title is empty or missing on import (was only when missing)."
       },
       {

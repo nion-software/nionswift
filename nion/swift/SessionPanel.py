@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 # standard libraries
-import functools
 import gettext
 import typing
 
@@ -11,45 +10,24 @@ import typing
 # local libraries
 from nion.swift import Panel
 from nion.swift.model import ApplicationData
+from nion.ui import Declarative
 
 if typing.TYPE_CHECKING:
     from nion.swift import DocumentController
     from nion.swift.model import Persistence
-    from nion.ui import UserInterface
     from nion.utils import StructuredModel
 
 _ = gettext.gettext
 
 
-class SessionPanelController:
+class SessionHandler(Declarative.Handler):
+    def __init__(self, model: StructuredModel.RecordModel) -> None:
+        super().__init__()
+        self.session_model = model
+        self.ui_view = self.__make_ui()
 
-    def __init__(self) -> None:
-        self.__property_changed_listener = ApplicationData.get_session_metadata_model().property_changed_event.listen(self.__property_changed)
-        self.on_fields_changed: typing.Optional[typing.Callable[[StructuredModel.DictValue], None]] = None
-
-    def close(self) -> None:
-        self.__property_changed_listener.close()
-        self.__property_changed_listener = typing.cast(typing.Any, None)
-        self.on_fields_changed = None
-
-    @property
-    def field_values(self) -> StructuredModel.DictValue:
-        return ApplicationData.get_session_metadata_model().to_dict_value()
-
-    def __property_changed(self, key: str) -> None:
-        if callable(self.on_fields_changed):
-            self.on_fields_changed(self.field_values)
-
-    def set_field(self, field_id: str, value: str) -> None:
-        setattr(ApplicationData.get_session_metadata_model(), field_id, value)
-
-
-class SessionPanel(Panel.Panel):
-
-    def __init__(self, document_controller: DocumentController.DocumentController, panel_id: str, properties: Persistence.PersistentDictType) -> None:
-        super().__init__(document_controller, panel_id, _("Session"))
-
-        self.__controller = SessionPanelController()
+    def __make_ui(self) -> Declarative.UIDescription:
+        u = Declarative.DeclarativeUI()
 
         # ordered from most likely to change to least
         field_descriptions = [
@@ -61,48 +39,20 @@ class SessionPanel(Panel.Panel):
             [_("Site"), _("Site Description"), "site"],
         ]
 
-        widget = self.ui.create_column_widget()
+        field_rows: typing.List[Declarative.UIDescription] = list()
 
-        intro_row = self.ui.create_row_widget()
-        intro_row.add_stretch()
-        intro_label_widget = self.ui.create_label_widget(_("Session metadata added to acquired data."))
-        intro_label_widget.text_font = "italic"
-        intro_label_widget.text_color = "gray"
-        intro_row.add(intro_label_widget)
-        intro_row.add_stretch()
-
-        def line_edit_changed(line_edit_widget: UserInterface.LineEditWidget, field_id: str, text: str) -> None:
-            self.__controller.set_field(field_id, text)
-            line_edit_widget.request_refocus()
-
-        field_line_edit_widget_map = dict()
-
-        widget.add_spacing(8)
         for field_description in field_descriptions:
-            title, placeholder, field_id = field_description
-            row = self.ui.create_row_widget()
-            row.add_spacing(8)
-            row.add(self.ui.create_label_widget(title, properties={"width": 100}))
-            line_edit_widget = self.ui.create_line_edit_widget(properties={"width": 200})
-            line_edit_widget.placeholder_text = placeholder
-            line_edit_widget.on_editing_finished = functools.partial(line_edit_changed, line_edit_widget, field_id)
-            field_line_edit_widget_map[field_id] = line_edit_widget
-            row.add(line_edit_widget)
-            widget.add(row)
-            widget.add_spacing(4)
-        widget.add(intro_row)
-        widget.add_spacing(8)
-        widget.add_stretch()
+            label, tool_tip, key = field_description
+            field_line_edit = u.create_line_edit(text=f"@binding(session_model.{key}_model.value)", tool_tip=tool_tip, placeholder_text=tool_tip)
+            field_rows.append(u.create_row(u.create_label(text=label, width=120, tool_tip=tool_tip), field_line_edit, spacing=4, margin_horizontal=8, margin_vertical=2))
 
-        def fields_changed(fields: StructuredModel.DictValue) -> None:
-            for field_id, line_edit_widget in field_line_edit_widget_map.items():
-                line_edit_widget.text = typing.cast(typing.Dict[str, str], fields).get(field_id)
+        return u.create_column(u.create_spacing(4), *field_rows, u.create_row(u.create_stretch(), u.create_label(text=_("Session metadata added to acquired data."), font="italic"), u.create_stretch()), u.create_stretch(), spacing=4)
 
-        self.__controller.on_fields_changed = fields_changed
-        fields_changed(self.__controller.field_values)
 
-        self.widget = widget
+class SessionPanel(Panel.Panel):
 
-    def close(self) -> None:
-        self.__controller.close()
-        super().close()
+    def __init__(self, document_controller: DocumentController.DocumentController, panel_id: str, properties: Persistence.PersistentDictType) -> None:
+        super().__init__(document_controller, panel_id, _("Session"))
+
+        ui_handler = SessionHandler(ApplicationData.get_session_metadata_model())
+        self.widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop, ui_handler)
