@@ -78,6 +78,54 @@ class TestGraphicsClass(unittest.TestCase):
         self.assertIsNone(line_graphic.test(mapping, ui_settings, Geometry.FloatPoint(), move_only=False)[0])
         line_graphic.close()
 
+    def test_line_dragging(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.DataItem(numpy.zeros((1000, 1000)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel.set_display_panel_display_item(display_item)
+            header_height = display_panel.header_canvas_item.header_height
+            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
+            mapping = self.__get_mapping()
+            line_graphic = Graphics.LineGraphic()
+            line_graphic.start = (0.25, 0.25)
+            line_graphic.end = (0.75, 0.75)
+            ui_settings = DisplayPanel.FixedUISettings()
+            display_item.add_graphic(line_graphic)
+
+            display_panel.display_canvas_item.simulate_click((250, 250))
+            document_controller.periodic()
+
+            # Test 1.1 - Drag start point, no modifiers
+            display_panel.display_canvas_item.simulate_drag((250, 250), (300, 300))
+            document_controller.periodic()
+            self.assertEqual(line_graphic.start.x, 0.3)
+            self.assertEqual(line_graphic.start.y, 0.3)
+            self.assertEqual(line_graphic.end.x, 0.75)
+            # Test 1.2 - Drag end point, no modifiers
+            display_panel.display_canvas_item.simulate_drag((750, 750), (600, 600))
+            document_controller.periodic()
+            self.assertEqual(line_graphic.end.x, 0.6)
+            self.assertEqual(line_graphic.end.y, 0.6)
+            self.assertEqual(line_graphic.start.x, 0.3)
+            # Test 2 - Drag start point, Alt pressed
+            display_panel.display_canvas_item.simulate_drag((300, 300), (200, 200), CanvasItem.KeyboardModifiers(alt=True))
+            document_controller.periodic()
+            self.assertEqual(line_graphic.start.x, 0.2)
+            self.assertEqual(line_graphic.start.y, 0.2)
+            self.assertEqual(line_graphic.end.x, 0.7)
+            self.assertEqual(line_graphic.end.y, 0.7)
+            # Test 3 - Drag start point, Shift pressed
+            display_panel.display_canvas_item.simulate_drag((200, 200), (200, 680), CanvasItem.KeyboardModifiers(shift=True)) # Almost vertical
+            document_controller.periodic()
+            self.assertEqual(line_graphic.start.x, 0.7)
+            self.assertEqual(line_graphic.start.y, 0.2)
+            self.assertEqual(line_graphic.end.x, 0.7)
+            self.assertEqual(line_graphic.end.y, 0.7)
+
     def test_point_test(self):
         mapping = self.__get_mapping()
         point_graphic = Graphics.PointGraphic()
