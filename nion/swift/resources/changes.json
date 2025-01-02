@@ -4,7 +4,13 @@
     "notes": [
       {
         "issues": [
-          "https://github.com/nion-software/nionswift-io/issues/1304"
+          "https://github.com/nion-software/nionswift/issues/961"
+        ],
+        "summary": "Add option when dragging lines to keep center fixed using alt/option key."
+      },
+      {
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/1304"
         ],
         "summary": "Fix issue where raster display tries to access deleted data."
       }
