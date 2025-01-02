@@ -1450,54 +1450,77 @@ class LineTypeGraphic(Graphic):
         end_image = mapping.map_point_image_norm_to_image(self.end)
         start_image = mapping.map_point_image_norm_to_image(self.start)
         constraints = self._constraints
+
+        # Start defining the pivot in the middle of the line
+        pivot_y = (end_image.y + start_image.y) / 2
+        pivot_x = (end_image.x + start_image.x) / 2
+
         if part[0] == "start" and not "shape" in constraints:
-            dy = p_image.y - end_image.y
-            dx = p_image.x - end_image.x
+            if not modifiers.alt:
+                pivot_x = end_image.x
+                pivot_y = end_image.y
+
+            dy = p_image.y - pivot_y
+            dx = p_image.x - pivot_x
             if modifiers.shift:
                 angle_degrees = math.degrees(math.atan2(abs(dy), abs(dx)))
                 if angle_degrees > 60:
-                    p_image = Geometry.FloatPoint(p_image.y, end_image.x)
+                    p_image = Geometry.FloatPoint(p_image.y, pivot_x)
                 elif angle_degrees > 30:
                     if angle_degrees > 45:
                         if dx * dy > 0:
-                            p_image = Geometry.FloatPoint(p_image.y, end_image.x + dy)
+                            p_image = Geometry.FloatPoint(p_image.y, pivot_x + dy)
                         else:
-                            p_image = Geometry.FloatPoint(p_image.y, end_image.x - dy)
+                            p_image = Geometry.FloatPoint(p_image.y, pivot_y - dy)
                     else:
                         if dx * dy > 0:
-                            p_image = Geometry.FloatPoint(end_image.y + dx, p_image.x)
+                            p_image = Geometry.FloatPoint(pivot_y + dx, p_image.x)
                         else:
-                            p_image = Geometry.FloatPoint(end_image.y - dx, p_image.x)
+                            p_image = Geometry.FloatPoint(pivot_y - dx, p_image.x)
                 else:
-                    p_image = Geometry.FloatPoint(end_image.y, p_image.x)
+                    p_image = Geometry.FloatPoint(pivot_y, p_image.x)
             start = mapping.map_point_image_to_image_norm(p_image)
+            start_vec = start - self.start
+            end = self.end - start_vec if modifiers.alt else self.end
             if "bounds" in constraints:
                 start = Geometry.FloatPoint(min(max(start.y, 0.0), 1.0), min(max(start.x, 0.0), 1.0))
+                end = Geometry.FloatPoint(min(max(end.y, 0.0), 1.0), min(max(end.x, 0.0), 1.0))
             self.start = start
+            if modifiers.alt:
+                self.end = end
         elif part[0] == "end" and not "shape" in constraints:
-            dy = p_image.y - start_image.y
-            dx = p_image.x - start_image.x
+            if not modifiers.alt:
+                pivot_x = start_image.x
+                pivot_y = start_image.y
+
+            dy = p_image.y - pivot_y
+            dx = p_image.x - pivot_x
             if modifiers.shift:
                 angle_degrees = math.degrees(math.atan2(abs(dy), abs(dx)))
                 if angle_degrees > 60:
-                    p_image = Geometry.FloatPoint(p_image.y, start_image.x)
+                    p_image = Geometry.FloatPoint(p_image.y, pivot_x)
                 elif angle_degrees > 30:
                     if angle_degrees > 45:
                         if dx * dy > 0:
-                            p_image = Geometry.FloatPoint(p_image.y, start_image.x + dy)
+                            p_image = Geometry.FloatPoint(p_image.y, pivot_x + dy)
                         else:
-                            p_image = Geometry.FloatPoint(p_image.y, start_image.x - dy)
+                            p_image = Geometry.FloatPoint(p_image.y, pivot_x - dy)
                     else:
                         if dx * dy > 0:
-                            p_image = Geometry.FloatPoint(start_image.y + dx, p_image.x)
+                            p_image = Geometry.FloatPoint(pivot_y + dx, p_image.x)
                         else:
-                            p_image = Geometry.FloatPoint(start_image.y - dx, p_image.x)
+                            p_image = Geometry.FloatPoint(pivot_y - dx, p_image.x)
                 else:
-                    p_image = Geometry.FloatPoint(start_image.y, p_image.x)
+                    p_image = Geometry.FloatPoint(pivot_y, p_image.x)
             end = mapping.map_point_image_to_image_norm(p_image)
+            end_vec = end - self.end
+            start = self.start - end_vec if modifiers.alt else self.start
             if "bounds" in constraints:
+                start = Geometry.FloatPoint(min(max(start.y, 0.0), 1.0), min(max(start.x, 0.0), 1.0))
                 end = Geometry.FloatPoint(min(max(end.y, 0.0), 1.0), min(max(end.x, 0.0), 1.0))
             self.end = end
+            if modifiers.alt:
+                self.start = start
         elif part[0] in ["all", "line"] or "shape" in constraints:
             o = mapping.map_point_widget_to_image_norm(original)
             p = mapping.map_point_widget_to_image_norm(current)
