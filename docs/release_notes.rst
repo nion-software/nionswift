@@ -12,6 +12,20 @@ them for evaluation and feedback. If you encounter an issue or have feedback abo
 please contact us or `file issues
 <https://github.com/nion-software/nionswift/issues>`_.
 
+Version 16.13.0 (2025-01-06)
+----------------------------
+* Improve speed of data panel drawing and filtering. (`#1257 <https://github.com/nion-software/nionswift-io/issues/1257>`_, `#1247 <https://github.com/nion-software/nionswift-io/issues/1247>`_)
+* Add support for exporting to HDF5-based 'nhdf' file format. (`#23 <https://github.com/nion-software/nionswift-io/issues/23>`_)
+* Change Export SVG dialog to remember units. (`#1125 <https://github.com/nion-software/nionswift/issues/1125>`_)
+* Fix crashes when switching workspaces. (`#1246 <https://github.com/nion-software/nionswift-io/issues/1246>`_)
+* Fix issue with graphic interval on picks not updating slice interval correctly. (`#1245 <https://github.com/nion-software/nionswift/issues/1245>`_)
+* Fix issue with undo after adding graphics. (`#1241 <https://github.com/nion-software/nionswift/issues/1241>`_)
+* Fix issue with graphic coordinates on 2d collection of 2d data. (`#1133 <https://github.com/nion-software/nionswift/issues/1133>`_)
+* Fix issue with info panel not displaying sequence of 2d collection of 2d data pixels correctly. (`#617 <https://github.com/nion-software/nionswift/issues/617>`_)
+* Fix keyboard focus issue in Session panel. (`#1296 <https://github.com/nion-software/nionswift/issues/1296>`_)
+* Use filename when title is empty or missing on import (was only when missing).
+* Add storage space to size info in data panel. Additionally, add file type in display item tool tips.
+
 Version 16.12.0 (2024-10-27)
 ----------------------------
 * Add zoom tool in toolbar. Also add zoom shortcut ‘z’. (`#21 <https://github.com/nion-software/nionswift/issues/21>`_)
