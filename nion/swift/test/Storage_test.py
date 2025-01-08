@@ -320,10 +320,10 @@ class TestStorageClass(unittest.TestCase):
                 storage_cache.set_cached_value(display_item, "thumbnail_data", numpy.zeros((128, 128, 4), dtype=numpy.uint8))
                 self.assertFalse(storage_cache.is_cached_value_dirty(display_item, "thumbnail_data"))
                 thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.app.ui, display_item)
-                with thumbnail_source.ref():
-                    thumbnail_source.recompute_data()
-                del thumbnail_source
+                thumbnail_source.recompute_data()
+                thumbnail_source = None
             # read it back
+            Thumbnails.ThumbnailManager().reset()
             document_model = profile_context.create_document_model(auto_close=False)
             with document_model.ref():
                 read_data_item = document_model.data_items[0]
@@ -331,8 +331,8 @@ class TestStorageClass(unittest.TestCase):
                 # thumbnail data should still be valid
                 self.assertFalse(storage_cache.is_cached_value_dirty(read_display_item, "thumbnail_data"))
                 thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.app.ui, read_display_item)
-                with thumbnail_source.ref():
-                    self.assertFalse(thumbnail_source._is_thumbnail_dirty)
+                self.assertFalse(thumbnail_source._is_thumbnail_dirty)
+                thumbnail_source = None
 
     def test_reload_data_item_initializes_display_data_range(self):
         with create_memory_profile_context() as profile_context:

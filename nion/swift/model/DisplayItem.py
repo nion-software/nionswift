@@ -177,23 +177,12 @@ class GraphicSelection:
             self.changed_event.fire()
 
 
-def calculate_display_range(display_limits: DisplayLimitsType,
-                            data_range: typing.Optional[typing.Tuple[float, float]],
-                            data_sample: typing.Optional[_ImageDataType],
-                            xdata: typing.Optional[DataAndMetadata.DataAndMetadata],
-                            complex_display_type: typing.Optional[str]) -> typing.Optional[typing.Tuple[float, float]]:
+def calculate_display_range(display_limits: DisplayLimitsType, data_range: typing.Optional[typing.Tuple[float, float]]) -> typing.Optional[typing.Tuple[float, float]]:
     if display_limits is not None:
         assert data_range is not None
         display_limit_low = display_limits[0] if display_limits[0] is not None else data_range[0]
         display_limit_high = display_limits[1] if display_limits[1] is not None else data_range[1]
         return display_limit_low, display_limit_high
-    if xdata and xdata.is_data_complex_type and complex_display_type is None:  # log absolute
-        if data_sample is not None:
-            assert data_range is not None
-            fraction = 0.05
-            display_limit_low = data_sample[int(data_sample.shape[0] * fraction)]
-            display_limit_high = data_range[1]
-            return display_limit_low, display_limit_high
     return data_range
 
 
@@ -228,6 +217,7 @@ class CalibrationStyleNative(CalibrationStyle):
 
 class CalibrationDescriptionCalibrationStyle(CalibrationStyle):
     def __init__(self, label: str, calibration_description: CalibrationDescription) -> None:
+        super().__init__()
         self.label = label
         self.calibration_style_id = calibration_description.calibration_style_id
         self.is_calibrated = True
@@ -576,11 +566,8 @@ class DisplayRangeProcessor(ProcessorBase):
     def __init__(self, *,
                  element_data: typing.Union[typing.Optional[DataAndMetadata._DataAndMetadataLike], ProcessorConnection] = None,
                  display_limits: typing.Union[typing.Optional[DisplayLimitsType], ProcessorConnection] = None,
-                 data_range: typing.Union[typing.Optional[typing.Tuple[float, float]], ProcessorConnection] = None,
-                 data_sample: typing.Union[typing.Optional[_ImageDataType], ProcessorConnection] = None,
-                 complex_display_type: typing.Union[typing.Optional[str], ProcessorConnection] = None) -> None:
-        super().__init__(element_data=element_data, display_limits=display_limits, data_range=data_range,
-                         data_sample=data_sample, complex_display_type=complex_display_type)
+                 data_range: typing.Union[typing.Optional[typing.Tuple[float, float]], ProcessorConnection] = None) -> None:
+        super().__init__(element_data=element_data, display_limits=display_limits, data_range=data_range)
 
     def _execute(self) -> None:
         element_data_and_metadata = self._get_data_and_metadata_like("element_data")
@@ -591,36 +578,11 @@ class DisplayRangeProcessor(ProcessorBase):
             display_range = display_limits[0], display_limits[1]
         else:
             data_range = typing.cast(typing.Optional[typing.Tuple[float, float]], self._get_parameter("data_range"))
-            data_sample = typing.cast(typing.Optional[_ImageDataType], self._get_parameter("data_sample"))
-            complex_display_type = self._get_optional_string("complex_display_type")
-            display_range = calculate_display_range(display_limits, data_range, data_sample, element_data_and_metadata, complex_display_type)
+            display_range = calculate_display_range(display_limits, data_range)
         # double check for cases where one or the other display limit is specified and the other is calculated.
         if display_range is not None and display_range[0] is not None and display_range[1] is not None:
             display_range = min(display_range[0], display_range[1]), max(display_range[0], display_range[1])
         self.set_result("display_range", display_range)
-
-
-class DataSampleProcessor(ProcessorBase):
-    def __init__(self, *,
-                 data: typing.Union[typing.Optional[DataAndMetadata._DataAndMetadataLike], ProcessorConnection] = None,
-                 display_data: typing.Union[typing.Optional[DataAndMetadata._DataAndMetadataLike], ProcessorConnection] = None) -> None:
-        super().__init__(data=data, display_data=display_data)
-
-    def _execute(self) -> None:
-        data_and_metadata = self._get_data_and_metadata_like("data")
-        display_data_and_metadata = self._get_data_and_metadata_like("display_data")
-        display_data = display_data_and_metadata.data if display_data_and_metadata else None
-        data_sample: typing.Optional[_ImageDataType] = None
-        if display_data is not None and display_data.shape and data_and_metadata:
-            data_shape = data_and_metadata.data_shape
-            data_dtype = data_and_metadata.data_dtype
-            if Image.is_shape_and_dtype_rgb_type(data_shape, data_dtype):
-                data_sample = None
-            elif Image.is_shape_and_dtype_complex_type(data_shape, data_dtype):
-                data_sample = numpy.sort(numpy.random.choice(display_data.reshape(numpy.prod(display_data.shape, dtype=numpy.uint64)), 200))
-            else:
-                data_sample = None
-        self.set_result("data_sample", data_sample)
 
 
 class DisplayRGBProcessor(ProcessorBase):
@@ -797,17 +759,10 @@ class DisplayValues:
             display_data=ProcessorConnection(self.__display_data_processor, "data", "display_data"),
         )
 
-        self.__data_sample_processor = DataSampleProcessor(
-            data=data_and_metadata,
-            display_data=ProcessorConnection(self.__display_data_processor, "data", "display_data"),
-        )
-
         self.__display_range_processor = DisplayRangeProcessor(
             element_data=ProcessorConnection(self.__element_data_processor, "data", "element_data"),
             display_limits=display_limits,
-            complex_display_type=complex_display_type,
             data_range=ProcessorConnection(self.__data_range_processor, "data_range"),
-            data_sample=ProcessorConnection(self.__data_sample_processor, "data_sample"),
         )
 
         self.__normalized_data_processor = NormalizedDataProcessor(
@@ -873,10 +828,6 @@ class DisplayValues:
     @property
     def data_range(self) -> typing.Optional[typing.Tuple[float, float]]:
         return typing.cast(typing.Optional[typing.Tuple[float, float]], self.__data_range_processor.get_result("data_range"))
-
-    @property
-    def data_sample(self) -> typing.Optional[_ImageDataType]:
-        return typing.cast(typing.Optional[_ImageDataType], self.__data_sample_processor.get_result("data_sample"))
 
     @property
     def display_range(self) -> typing.Optional[typing.Tuple[float, float]]:
@@ -1489,10 +1440,22 @@ class DisplayDataChannel(Persistence.PersistentObject):
         if data_metadata is not None and len(data_metadata.dimensional_shape) > 0:
             depth = data_metadata.dimensional_shape[-1]  # signal_index
             if depth > 0:
-                slice_interval_center = round(((slice_interval[0] + slice_interval[1]) * 0.5) * depth)
-                slice_interval_width = round((slice_interval[1] - slice_interval[0]) * depth)
-                self.slice_center = slice_interval_center
-                self.slice_width = slice_interval_width
+                # the slice interval may be sync'd with a graphic interval that may be set to values
+                # that would trigger a slice interval outside the bounds of the data. ensure that only
+                # the overlapping part of the slice interval is used; and also ensure that the slice
+                # center and slice width values are valid. then use the non-validating setters to set
+                # the value. if the validating setters are used, they will validate the intermediate
+                # values and result in the wrong slice interval. this is not a perfect solution; see
+                # test_changing_slice_interval_via_graphic_updates_slice_center_and_width for testing.
+                slice_interval = (min(1.0, max(0.0, slice_interval[0])), min(1.0, max(0.0, slice_interval[1])))
+                slice_interval_center_f = min(1.0, max(0.0, (slice_interval[0] + slice_interval[1]) * 0.5))
+                slice_interval_center = round(slice_interval_center_f * depth)
+                slice_interval_width_f = slice_interval[1] - slice_interval[0]
+                slice_interval_width_f = min(1.0, max(0.0, slice_interval_width_f))
+                slice_interval_width_f = min(2 * slice_interval_center_f, min(slice_interval_width_f, 2 * (1.0 - slice_interval_center_f)))
+                slice_interval_width = round(slice_interval_width_f * depth)
+                self._set_persistent_property_value("slice_center", slice_interval_center, validate=False)
+                self._set_persistent_property_value("slice_width", slice_interval_width, validate=False)
 
     def __slice_interval_changed(self, name: str, value: typing.Optional[typing.Tuple[float, float]]) -> None:
         # notify for dependent slice_interval property
@@ -2312,6 +2275,7 @@ class DisplayItem(Persistence.PersistentObject):
 
         self.display_property_changed_event = Event.Event()
         self.display_changed_event = Event.Event()
+        self.display_item_will_close_event = Event.Event()  # used to shut down thumbnail
 
         self.__cache = Cache.ShadowCache()
         self.__suspendable_storage_cache: typing.Optional[Cache.CacheLike] = None
@@ -2379,6 +2343,7 @@ class DisplayItem(Persistence.PersistentObject):
             self.append_display_data_channel_for_data_item(data_item)
 
     def close(self) -> None:
+        self.display_item_will_close_event.fire()  # let the thumbnail shut itself down
         # wait for outstanding threads to finish
         with self.__outstanding_condition:
             while self.__outstanding_thread_count:
@@ -3591,4 +3556,6 @@ class DisplayCalibrationInfo:
 
 def sort_by_date_key(display_item: DisplayItem) -> typing.Tuple[typing.Optional[str], datetime.datetime, str]:
     """A sort key for display items. The sort by uuid makes it determinate."""
-    return display_item.title + str(display_item.uuid) if display_item.is_live else str(), display_item.date_for_sorting, str(display_item.uuid)
+    assert not display_item._closed
+    display_item_uuid = display_item.uuid
+    return display_item.title + str(display_item_uuid) if display_item.is_live else str(), display_item.date_for_sorting, str(display_item_uuid)

@@ -60,7 +60,7 @@ def create_1d_data(length=1024, data_min=0.0, data_max=1.0):
     return data
 
 
-class TestDisplayPanel:
+class _TestDisplayPanel:
     def __init__(self) -> None:
         self.drop_region = None
 
@@ -1124,7 +1124,7 @@ class TestDisplayPanelClass(unittest.TestCase):
 
     def test_drop_on_overlay_middle_triggers_replace_data_item_in_panel_action(self):
         width, height = 640, 480
-        display_panel = TestDisplayPanel()
+        display_panel = _TestDisplayPanel()
         def get_font_metrics(a, b): return UserInterface.FontMetrics(0, 0, 0, 0, 0)
         overlay = DisplayPanel.DisplayPanelOverlayCanvasItemComposition(get_font_metrics)
         overlay.on_drag_enter = display_panel.handle_drag_enter
@@ -1148,7 +1148,7 @@ class TestDisplayPanelClass(unittest.TestCase):
 
     def test_drop_on_overlay_edge_triggers_split_image_panel_action(self):
         width, height = 640, 480
-        display_panel = TestDisplayPanel()
+        display_panel = _TestDisplayPanel()
         def get_font_metrics(a, b): return UserInterface.FontMetrics(0, 0, 0, 0, 0)
         overlay = DisplayPanel.DisplayPanelOverlayCanvasItemComposition(get_font_metrics)
         overlay.on_drag_enter = display_panel.handle_drag_enter
@@ -1171,9 +1171,8 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertIsInstance(self.display_panel.display_canvas_item, DisplayPanel.MissingDisplayCanvasItem)
         # thumbnails and processors
         thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.document_controller.ui, self.display_item)
-        with thumbnail_source.ref():
-            thumbnail_source.recompute_data()
-            self.assertIsNotNone(thumbnail_source.thumbnail_data)
+        thumbnail_source.recompute_data()
+        self.assertIsNotNone(thumbnail_source.thumbnail_data)
         self.document_controller.periodic()
         self.document_controller.document_model.recompute_all()
 
@@ -1183,8 +1182,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertIsInstance(self.display_panel.display_canvas_item, DisplayPanel.MissingDisplayCanvasItem)
         # thumbnails and processors
         thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.document_controller.ui, self.display_item)
-        with thumbnail_source.ref():
-            thumbnail_source.recompute_data()
+        thumbnail_source.recompute_data()
         self.document_controller.periodic()
         self.document_controller.document_model.recompute_all()
 
@@ -1944,6 +1942,58 @@ class TestDisplayPanelClass(unittest.TestCase):
             self.assertEqual(0, document_controller._undo_stack._undo_count)
             self.assertEqual(y_min, display_item.get_display_property("y_min"))
             self.assertEqual(y_max, display_item.get_display_property("y_max"))
+
+    def test_add_graphics_undo_redo_cycle(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.random.randn(8, 8))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            document_controller.add_rectangle_graphic()
+            document_controller.add_ellipse_graphic()
+            self.assertEqual(2, len(display_item.graphics))
+            document_controller.handle_undo()
+            self.assertEqual(1, len(display_item.graphics))
+            document_controller.handle_undo()
+            self.assertEqual(0, len(display_item.graphics))
+            document_controller.handle_redo()
+            self.assertEqual(1, len(display_item.graphics))
+            document_controller.handle_redo()
+            self.assertEqual(2, len(display_item.graphics))
+
+    def test_add_graphics_using_tool_undo_redo_cycle(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.random.randn(8, 8))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            display_panel.root_container.layout_immediate(Geometry.IntSize(100, 100))
+            display_panel.display_canvas_item.refresh_layout_immediate()
+            document_controller.periodic()
+            document_controller.tool_mode = "rectangle"
+            display_panel.display_canvas_item.simulate_drag((10, 10), (20, 20))
+            document_controller.periodic()
+            self.assertEqual(1, len(display_item.graphics))
+            document_controller.tool_mode = "rectangle"
+            display_panel.display_canvas_item.simulate_drag((30, 30), (40, 40))
+            document_controller.periodic()
+            self.assertEqual(2, len(display_item.graphics))
+            document_controller.handle_undo()
+            self.assertEqual(1, len(display_item.graphics))
+            document_controller.handle_undo()
+            self.assertEqual(0, len(display_item.graphics))
+            document_controller.handle_redo()
+            self.assertEqual(1, len(display_item.graphics))
+            document_controller.handle_redo()
+            self.assertEqual(2, len(display_item.graphics))
 
     def test_remove_graphics_undo_redo_cycle(self):
         with TestContext.create_memory_context() as test_context:

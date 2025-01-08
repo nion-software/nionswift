@@ -1,7 +1,11 @@
 [
   {
-    "version": "UNRELEASED",
+    "version": "16.13.0",
     "notes": [
+      {
+        "issues": ["https://github.com/nion-software/nionswift-io/issues/1257", "https://github.com/nion-software/nionswift-io/issues/1247"],
+        "summary": "Improve speed of data panel drawing and filtering."
+      },
       {
         "issues": ["https://github.com/nion-software/nionswift-io/issues/23"],
         "summary": "Add support for exporting to HDF5-based 'nhdf' file format."
@@ -9,6 +13,30 @@
       {
         "issues": ["https://github.com/nion-software/nionswift/issues/1125"],
         "summary": "Change Export SVG dialog to remember units."
+      },
+      {
+        "issues": ["https://github.com/nion-software/nionswift-io/issues/1246"],
+        "summary": "Fix crashes when switching workspaces."
+      },
+      {
+        "issues": ["https://github.com/nion-software/nionswift/issues/1245"],
+        "summary": "Fix issue with graphic interval on picks not updating slice interval correctly."
+      },
+      {
+        "issues": ["https://github.com/nion-software/nionswift/issues/1241"],
+        "summary": "Fix issue with undo after adding graphics."
+      },
+      {
+        "issues": ["https://github.com/nion-software/nionswift/issues/1133"],
+        "summary": "Fix issue with graphic coordinates on 2d collection of 2d data."
+      },
+      {
+        "issues": ["https://github.com/nion-software/nionswift/issues/617"],
+        "summary": "Fix issue with info panel not displaying sequence of 2d collection of 2d data pixels correctly."
+      },
+      {
+        "issues": ["https://github.com/nion-software/nionswift/issues/1296"],
+        "summary": "Fix keyboard focus issue in Session panel."
       },
       {
         "summary": "Use filename when title is empty or missing on import (was only when missing)."

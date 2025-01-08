@@ -113,16 +113,25 @@ class PersistentProperty:
         self.changed = None
         self.is_equal = typing.cast(typing.Any, None)
 
-    def set_value(self, value: typing.Any) -> bool:
+    def _set_value(self, value: typing.Any, validate: bool) -> tuple[bool, typing.Any]:
         # return whether the value changed
-        if self.validate:
+        if self.validate and validate:
             value = self.validate(value)
         else:
             value = copy.deepcopy(value)
         did_change = not self.is_equal(self.value, value)
         self.value = value
-        if did_change and callable(self.changed):
+        return did_change, value
+
+    def _set_value_call_changed(self, value: typing.Any) -> None:
+        if callable(self.changed):
             self.changed(self.name, value)
+
+    def set_value(self, value: typing.Any) -> bool:
+        # return whether the value changed
+        did_change, value = self._set_value(value, True)
+        if did_change:
+            self._set_value_call_changed(value)
         return did_change
 
     @property
@@ -1054,7 +1063,7 @@ class PersistentObject(Observable.Observable):
         property = self.__properties.get(name)
         return property.value if property else default
 
-    def _set_persistent_property_value(self, name: str, value: typing.Any, force_update: bool = False) -> None:
+    def _set_persistent_property_value(self, name: str, value: typing.Any, force_update: bool = False, validate: bool = True) -> None:
         """Set a persistent property directly.
 
          Subclasses can call this to set a hidden property.
@@ -1062,9 +1071,15 @@ class PersistentObject(Observable.Observable):
          Normally the update is not written to disk unless the value changes. force_update overrides this behavior.
          """
         property = self.__properties[name]
-        if property.set_value(value) or force_update:
+        # in order to send out the change message after the modification date/count is updated,
+        # split the set value into _set_value and _set_value_call_changed. this is consistent
+        # with the other modification methods.
+        did_change, value = property._set_value(value, validate)
+        if did_change or force_update:
             self.__update_modified(DateTime.utcnow())
             self._update_persistent_object_context_property(name)
+            if did_change:
+                property._set_value_call_changed(value)
 
     def _update_persistent_property(self, name: str, value: typing.Any) -> None:
         """ Subclasses can call this to notify that a custom property was updated. """

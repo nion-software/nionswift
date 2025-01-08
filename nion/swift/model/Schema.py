@@ -288,6 +288,10 @@ class Field(abc.ABC):
     @abc.abstractmethod
     def write(self) -> DictValue: ...
 
+    # track the parent entity and relationship for if there is one
+    def _set_entity_parent(self, entity_parent: EntityParent) -> None:
+        pass
+
     # not abstract to avoid type checking issues until mypy supports abstract properties
     @property
     def field_value(self) -> typing.Any:
@@ -510,6 +514,12 @@ class ArrayField(Field):
         else:
             l = list()
         return l if l or not self.__optional else None
+
+    # for an array, the parent of each of the children is the parent of the array
+    def _set_entity_parent(self, entity_parent: EntityParent) -> None:
+        for entity in typing.cast(typing.Sequence[Entity], self.field_value):
+            if entity:
+                entity._set_entity_parent(entity_parent)
 
     @property
     def field_value(self) -> typing.Sequence[typing.Any]:
@@ -939,6 +949,19 @@ _EntityTransform = typing.Callable[[PersistentDictType], PersistentDictType]
 _EntityTransforms = typing.Tuple[_EntityTransform, _EntityTransform]
 
 
+class EntityParent:
+    # this is for compatibility with the persistence framework and should match the corresponding class there.
+
+    def __init__(self, parent: Entity, relationship_name: typing.Optional[str] = None, item_name: typing.Optional[str] = None) -> None:
+        self.__weak_parent = weakref.ref(parent)
+        self.relationship_name = relationship_name
+        self.item_name = item_name
+
+    @property
+    def parent(self) -> typing.Optional[Entity]:
+        return self.__weak_parent()
+
+
 class Entity(Observable.Observable):
     """An instance of an entity type.
 
@@ -949,6 +972,7 @@ class Entity(Observable.Observable):
         super().__init__()
         assert entity_type, str(self.__class__)
         self.__context: typing.Optional[EntityContext] = None
+        self.__parent: typing.Optional[EntityParent] = None
         self.__entity_type = entity_type
         self.__version = entity_type._version
         self.__field_type_map = entity_type._field_type_map
@@ -1001,6 +1025,13 @@ class Entity(Observable.Observable):
             field.set_context(context)
 
     @property
+    def _entity_parent(self) -> typing.Optional[EntityParent]:
+        return self.__parent
+
+    def _set_entity_parent(self, parent: typing.Optional[EntityParent]) -> None:
+        self.__parent = parent
+
+    @property
     def uuid(self) -> uuid.UUID:
         return typing.cast(uuid.UUID, self._get_field_value("uuid"))
 
@@ -1020,7 +1051,9 @@ class Entity(Observable.Observable):
         for field_name, field_type in self.__field_type_map.items():
             d = properties.get(self.__renames.get(field_name, field_name))
             if d is not None:
-                self.__field_dict[field_name].read(d)
+                field = self.__field_dict[field_name]
+                field.read(d)
+                field._set_entity_parent(EntityParent(self, relationship_name=field_name))
         # register new uuid
         if self.__context:
             self.__context.register(self)
@@ -1086,9 +1119,6 @@ class Entity(Observable.Observable):
         else:
             raise AttributeError()
 
-    def _field_value_changed(self, name: str, value: typing.Any) -> None:
-        pass
-
     def _get_array_item(self, name: str, index: int) -> typing.Any:
         array_field = typing.cast(typing.Optional[ArrayField], self.__get_field(name))
         if array_field:
@@ -1106,7 +1136,11 @@ class Entity(Observable.Observable):
     def _insert_item(self, name: str, index: int, item: ItemProxyEntity) -> None:
         array_field = typing.cast(typing.Optional[ArrayField], self.__get_field(name))
         if array_field:
+            entity = typing.cast(Entity, item)
+            entity._set_entity_parent(EntityParent(self, relationship_name=name))
             array_field.insert_value(self, index, item)  # passing self for container
+            self._set_modified(DateTime.utcnow())
+            self._item_inserted(name, index, item)
             self.item_inserted_event.fire(name, item, index)
         else:
             raise AttributeError()
@@ -1119,9 +1153,24 @@ class Entity(Observable.Observable):
         if array_field:
             index = list(self._get_array_items(name)).index(item)
             array_field.remove_value_at_index(index)  # passing self for container
+            entity = typing.cast(Entity, item)
+            entity._set_entity_parent(None)
+            self._set_modified(DateTime.utcnow())
+            self._item_removed(name, index, item)
             self.item_removed_event.fire(name, item, index)
         else:
             raise AttributeError()
+
+    # these methods can be overridden to provide custom behavior for storage and notification
+
+    def _field_value_changed(self, name: str, value: typing.Any) -> None:
+        pass
+
+    def _item_inserted(self, name: str, index: int, item: ItemProxyEntity) -> None:
+        pass
+
+    def _item_removed(self, name: str, index: int, item: ItemProxyEntity) -> None:
+        pass
 
     # compatibility functions for persistent object
 
@@ -1153,12 +1202,23 @@ class Entity(Observable.Observable):
         self._set_entity_context(value)
 
     @property
+    def persistent_object_parent(self) -> typing.Any:
+        return self._entity_parent
+
+    @persistent_object_parent.setter
+    def persistent_object_parent(self, value: typing.Any) -> typing.Any:
+        self._set_entity_parent(value)
+
+    @property
     def item_names(self) -> typing.List[str]:
         return [k for k, f in self.__field_type_map.items() if isinstance(f, ComponentType)]
 
     @property
     def relationship_names(self) -> typing.List[str]:
         return [k for k, f in self.__field_type_map.items() if isinstance(f, ArrayType)]
+
+    def get_relationship_items(self, name: str) -> typing.List[typing.Any]:
+        return typing.cast(typing.List[typing.Any], getattr(self, name))
 
     def item_specifier(self) -> typing.Any:
         class ItemSpecifier:
@@ -1283,7 +1343,23 @@ class EntityType:
                 for concrete_subclass in concrete_subclasses:
                     if type == concrete_subclass.entity_id:
                         return concrete_subclass.create(context, d)
-        entity = self.__factory(self, context) if callable(self.__factory) else Entity(self, context)
+        # figure out which factory to use. if the factory is set when constructing this type, use it.
+        # otherwise, look for a registered factory in this class and each base class. otherwise, use
+        # a generic Entity.
+        factory: typing.Optional[typing.Callable[[EntityType, typing.Optional[EntityContext]], typing.Optional[Entity]]] = self.__factory
+        entity: typing.Optional[Entity] = None
+        base_entity: typing.Optional[EntityType] = self
+        while not factory and base_entity:
+            global _entity_factories
+            factory = _entity_factories.get(base_entity.entity_id)
+            if factory:
+                break
+            base_entity = base_entity.base
+        if factory:
+            entity = factory(self, context)
+        if not entity:
+            entity = Entity(self, context)
+        # now read the entity from the dict.
         if d is not None:
             entity.read(d)
         return entity
@@ -1359,3 +1435,12 @@ def read_entity(entity_type: EntityType, context: EntityContext, path: pathlib.P
     """Read the entity from the path."""
     properties = read_json(path)
     return entity_type.create(context, properties)
+
+
+_entity_factories = dict[str, typing.Callable[[EntityType, typing.Optional[EntityContext]], typing.Optional[Entity]]]()
+
+# this is required to be able to construct a custom class from the entity. the old technique of passing the factory
+# into the entity type is not sufficient because the custom class would have to be known at the time the entity type
+# is constructed. this is not always possible when the model is declared independently of the custom classes.
+def register_entity_factory(entity_type: EntityType, factory: typing.Callable[[EntityType, typing.Optional[EntityContext]], typing.Optional[Entity]]) -> None:
+    _entity_factories[entity_type.entity_id] = factory

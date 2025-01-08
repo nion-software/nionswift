@@ -322,6 +322,26 @@ class TestDisplayClass(unittest.TestCase):
             display_data_channel.slice_width = 4
             self.assertEqual(display_data_channel.get_latest_computed_display_values().data_range, (6, 6))
 
+    def test_changing_slice_interval_via_graphic_updates_slice_center_and_width(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            d = numpy.zeros((8, 8, 4), numpy.uint32)
+            data_item = DataItem.DataItem(d)
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_data_channel = display_item.display_data_channels[0]
+            display_data_channel.slice_center = 2
+            display_data_channel.slice_width = 4
+            pick_data_item = document_model.get_pick_region_new(display_item, data_item)
+            pick_display_item = document_model.get_display_item_for_data_item(pick_data_item)
+            interval_graphic = pick_display_item.graphics[0]
+            self.assertEqual((0.0, 1.0), interval_graphic.interval)
+            interval_graphic.end = 0.5
+            self.assertEqual((0.0, 0.5), display_data_channel.slice_interval)
+            interval_graphic.start = -0.5
+            self.assertEqual((0.0, 0.5), display_data_channel.slice_interval)
+
     def test_display_data_is_scalar_for_1d_complex(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
@@ -488,7 +508,7 @@ class TestDisplayClass(unittest.TestCase):
             display_data_channel.reset_display_limits()
             # the display limit should never be less than the display data minimum
             display_range = display_data_channel.get_latest_computed_display_values().display_range
-            self.assertLess(numpy.amin(display_data_channel.get_latest_computed_display_values().display_data_and_metadata.data), display_range[0])
+            self.assertLessEqual(numpy.amin(display_data_channel.get_latest_computed_display_values().display_data_and_metadata.data), display_range[0])
             self.assertAlmostEqual(numpy.amax(
                 display_data_channel.get_latest_computed_display_values().display_data_and_metadata.data), display_range[1])
 

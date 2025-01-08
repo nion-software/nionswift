@@ -3184,7 +3184,7 @@ class GraphicsInspectorHandler(Declarative.Handler):
         )
 
     def _move_to_center_clicked(self, widget: typing.Any) -> None:
-        action_context = self.__document_controller._get_action_context()
+        action_context = self.__document_controller._get_action_context_for_display_items([self.__display_item], None, graphics=[self.__graphic])
         self.__document_controller.perform_action_in_context("display_panel.center_graphics", action_context)
 
     def __create_position_and_shape_ui(self) -> Declarative.UIDescriptionResult:
@@ -3195,12 +3195,15 @@ class GraphicsInspectorHandler(Declarative.Handler):
             return self.__shape_and_pos_func()
 
 
-class GraphicsCalibrationHandler(Declarative.Handler):
-    def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem):
+class GraphicsSectionHandler(Declarative.Handler):
+    def __init__(self, document_controller: DocumentController.DocumentController,
+                 display_item: DisplayItem.DisplayItem,
+                 graphics_model: ListModel.ObservedListModel[DisplayItem.DisplayLayer]):
         super().__init__()
-
         self.__document_controller = document_controller
         self.__display_item = display_item
+        self._graphics_model = graphics_model
+        self._graphic_handlers: list[GraphicsInspectorHandler] = []
 
         calibration_styles = display_item.calibration_styles
         self.__display_calibration_style_options = [calibration_style.label for calibration_style in calibration_styles]
@@ -3212,18 +3215,28 @@ class GraphicsCalibrationHandler(Declarative.Handler):
         self._current_calibration_index_model = Model.PropertyModel(
             self.__display_calibration_style_reverse_map.get(self.__display_item.calibration_style_id))
         self.__calibration_style_listener = self.__display_item.display_property_changed_event.listen(
-            ReferenceCounting.weak_partial(GraphicsCalibrationHandler.__update_calibration_id, self)
-        )
+            ReferenceCounting.weak_partial(GraphicsSectionHandler.__update_calibration_id, self))
 
         u = Declarative.DeclarativeUI()
-
-        self.ui_view = display_calibrations_row = u.create_row(
-            u.create_label(text=_("Display"), width=60, text_alignment_vertical="center"),
-            u.create_combo_box(items=self.__display_calibration_style_options,
-                               current_index="@binding(_current_calibration_index_model.value)",
-                               on_current_index_changed="_change_calibration_style_option"),
+        self.ui_view = u.create_column(
+            u.create_column(items="_graphics_model.items", item_component_id="graphic", spacing=4),
+            u.create_row(
+                u.create_label(text=_("Display"), width=60, text_alignment_vertical="center"),
+                u.create_combo_box(items=self.__display_calibration_style_options,
+                                   current_index="@binding(_current_calibration_index_model.value)",
+                                   on_current_index_changed="_change_calibration_style_option"),
+                u.create_stretch()
+            ),
             u.create_stretch()
         )
+
+    def create_handler(self, component_id: str, container: typing.Optional[Symbolic.ComputationVariable] = None, item: typing.Any = None, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
+        if component_id == "graphic":
+            graphic = typing.cast(Graphics.Graphic, item)
+            handler = GraphicsInspectorHandler(self.__document_controller, self.__display_item, graphic)
+            self._graphic_handlers.append(handler)
+            return handler
+        return None
 
     def _change_calibration_style_option(self, widget: Declarative.UIWidget, current_index: int) -> None:
         self.__display_item.calibration_style_id = self.__display_calibration_style_ids[current_index]
@@ -3242,20 +3255,12 @@ class GraphicsInspectorSection(InspectorSection):
     def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem, selected_only: bool = False) -> None:
         super().__init__(document_controller.ui, "graphics", _("Graphics"))
         self.widget_id = "graphics_inspector_section"
-        graphics = getattr(display_item, "selected_graphics" if selected_only else "graphics")
-
-        handlers = []
-        for index, graphic in enumerate(graphics):
-            graphic_handler = GraphicsInspectorHandler(document_controller, display_item, graphic)
-            graphic_widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop, graphic_handler)
-            self.add_widget_to_content(graphic_widget)
-            handlers.append(graphic_handler)
-
-        self._handlers = handlers
-        self._calibration_handler = GraphicsCalibrationHandler(document_controller, display_item)
-
-        calibration_widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop, self._calibration_handler)
-        self.add_widget_to_content(calibration_widget)
+        self.__document_controller = document_controller
+        self.__display_item = display_item
+        graphics_model = ListModel.ObservedListModel[DisplayItem.DisplayLayer](self.__display_item, "selected_graphics" if selected_only else "graphics")
+        self._handler = GraphicsSectionHandler(self.__document_controller, self.__display_item, graphics_model)
+        self.__widget = Declarative.DeclarativeWidget(self.__document_controller.ui, self.__document_controller.event_loop, self._handler)
+        self.add_widget_to_content(self.__widget)
 
 
 class ChangeComputationVariableCommand(Undo.UndoableCommand):

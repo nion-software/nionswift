@@ -27,6 +27,7 @@ from nion.swift import ComputationPanel
 from nion.swift import ConsoleDialog
 from nion.swift import DisplayEditorPanel
 from nion.swift import DisplayPanel
+from nion.swift import EntityBrowser
 from nion.swift import ExportDialog
 from nion.swift import FilterPanel
 from nion.swift import GeneratorDialog
@@ -45,15 +46,14 @@ from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
-from nion.swift.model import FileStorageSystem
 from nion.swift.model import Graphics
 from nion.swift.model import ImportExportManager
 from nion.swift.model import Notification
+from nion.swift.model import Observer
 from nion.swift.model import Persistence
 from nion.swift.model import Processing
 from nion.swift.model import Profile
 from nion.swift.model import Project
-from nion.swift.model import StorageHandler
 from nion.swift.model import Symbolic
 from nion.swift.model import UISettings
 from nion.swift.model import Utility
@@ -71,6 +71,7 @@ from nion.utils import Observable
 from nion.utils import Process
 from nion.utils import Registry
 from nion.utils import Selection
+from nion.utils import Stream
 
 if typing.TYPE_CHECKING:
     from nion.swift import Application
@@ -90,6 +91,47 @@ def is_graphic_valid_crop_for_data_item(data_item: typing.Optional[DataItem.Data
         elif data_item.is_datum_2d and isinstance(graphic, Graphics.RectangleTypeGraphic):
             return True
     return False
+
+
+@dataclasses.dataclass
+class CollectionInfo:
+    title: str
+    filter_id: typing.Optional[str]
+    data_group: typing.Optional[DataGroup.DataGroup]
+    is_smart_collection: bool
+
+
+class CollectionInfoController(Observable.Observable):
+
+    def __init__(self, base_title: str, data_group: typing.Optional[DataGroup.DataGroup], filter_id: typing.Optional[str], document_controller: DocumentController):
+        super().__init__()
+        self.__base_title = base_title
+        self.__data_group = data_group
+        self.__filter_id = filter_id
+        self.__filter_predicate = document_controller.get_filter_predicate(filter_id) if self.__filter_id else ListModel.Filter(True)
+        self.__count = 0
+
+        self.collection_info_stream = Stream.ValueStream[CollectionInfo](self.collection_info)
+
+        container = self.__data_group or document_controller.document_model
+
+        def count_changed(count: Observer.ItemValue) -> None:
+            self.__count = count
+            self.collection_info_stream.value = self.collection_info
+            self.notify_property_changed("collection_info")
+
+        oo = Observer.ObserverBuilder()
+        oo.source(container).sequence_from_array("display_items", predicate=self.__filter_predicate.matches).len().action_fn(count_changed)
+        self.__count_observer = typing.cast(Observer.AbstractItemSource, oo.make_observable())
+
+    def close(self) -> None:
+        self.__count_observer.close()
+        self.__count_observer = typing.cast(typing.Any, None)
+        self.__data_group = None
+
+    @property
+    def collection_info(self) -> CollectionInfo:
+        return CollectionInfo(f"{self.__base_title} ({self.__count})", self.__filter_id, self.__data_group, not isinstance(self.__data_group, DataGroup.DataGroup))
 
 
 PeriodicFn = typing.Callable[[], None]
@@ -255,12 +297,8 @@ class DocumentController(Window.Window):
         self.filter_changed_event = Event.Event()
 
         # see set_filter
-        with self.__display_items_model.changes():  # change filter and sort together
-            self.__display_items_model.container = self.document_model
-            self.__display_items_model.filter = ListModel.AndFilter((self.project_filter, self.get_filter_predicate(None)))
-            self.__display_items_model.sort_key = DisplayItem.sort_by_date_key
-            self.__display_items_model.sort_reverse = True
-            typing.cast(typing.Any, self.__display_items_model).filter_id = None
+        self.__display_items_model.set_container_filter_sort(self.document_model, ListModel.AndFilter((self.project_filter, self.get_filter_predicate(None))), DisplayItem.sort_by_date_key, True)
+        typing.cast(typing.Any, self.__display_items_model).filter_id = None
 
         def call_soon() -> None:
             # call the function (this is guaranteed to be called on the main thread)
@@ -286,6 +324,46 @@ class DocumentController(Window.Window):
         self.__consoles: typing.List[ConsoleDialog.ConsoleDialog] = list()
 
         self._create_menus()
+
+        all_collection_info_controller = CollectionInfoController(_("All"), None, "all", self)
+        persistent_collection_info_controller = CollectionInfoController(_("Persistent"), None, "persistent", self)
+        live_collection_info_controller = CollectionInfoController(_("Live"), None, "temporary", self)
+        latest_collection_info_controller = CollectionInfoController(_("Latest Session"), None, "latest-session", self)
+
+        collection_info_controller_list_model = ListModel.ListModel[CollectionInfoController]()
+        collection_info_controller_list_model.append_item(all_collection_info_controller)
+        collection_info_controller_list_model.append_item(persistent_collection_info_controller)
+        collection_info_controller_list_model.append_item(live_collection_info_controller)
+        collection_info_controller_list_model.append_item(latest_collection_info_controller)
+
+        for index, data_group_ in enumerate(document_model.data_groups):
+            collection_info_controller = CollectionInfoController(data_group_.title, data_group_, None, self)
+            collection_info_controller_list_model.append_item(collection_info_controller)
+
+        def document_model_item_inserted(key: str, value: typing.Any, before_index: int) -> None:
+            if key == "data_groups":
+                data_group_ = typing.cast(DataGroup.DataGroup, value)
+                collection_info_controller = CollectionInfoController(data_group_.title, data_group_, None, self)
+                collection_info_controller_list_model.insert_item(before_index + 4, collection_info_controller)
+
+        def document_model_item_removed(key: str, value: typing.Any, index: int) -> None:
+            if key == "data_groups":
+                collection_info_controller_list_model.pop_item(index + 4).close()
+
+        self.__document_model_item_inserted_listener = document_model.item_inserted_event.listen(document_model_item_inserted)
+        self.__document_model_item_removed_listener = document_model.item_removed_event.listen(document_model_item_removed)
+
+        self.collection_info_list_model = EntityBrowser.MappedPropertyListModel[CollectionInfo](collection_info_controller_list_model, "collection_info")
+
+        # for close
+        self.__collection_info_controller_list_model = collection_info_controller_list_model
+
+        self.current_collection_info = Stream.ValueStream[CollectionInfo]()
+
+        def handle_collection_info_changed(key: str, value: typing.Any, index: int) -> None:
+            self.__update_current_collection_info()
+
+        self.__collection_info_list_model_content_listener = self.collection_info_list_model.item_content_changed_event.listen(handle_collection_info_changed)
 
         if data_group := self.project.data_group:
             self.set_data_group(data_group)
@@ -330,6 +408,8 @@ class DocumentController(Window.Window):
         self._finish_periodic()  # required to finish periodic operations during tests
         # dialogs
         self._close_dialogs()
+        while self.__collection_info_controller_list_model.count:
+            self.__collection_info_controller_list_model.pop_item(-1).close()
         if self.__workspace_controller:
             self.__workspace_controller.close()
             self.__workspace_controller = None
@@ -574,29 +654,38 @@ class DocumentController(Window.Window):
         else:  # "all"
             return ListModel.Filter(True)
 
+    def __update_current_collection_info(self) -> None:
+        if data_group := self.project.data_group:
+            self.current_collection_info.value = self.collection_info_list_model.items[4 + self.document_model.data_groups.index(data_group)]  # 4 is the offset of the first data group
+        else:
+            filter_id = self.project.filter_id
+            if filter_id == "latest-session":
+                self.current_collection_info.value = self.collection_info_list_model.items[3]
+            elif filter_id == "temporary":
+                self.current_collection_info.value = self.collection_info_list_model.items[2]
+            elif filter_id == "persistent":
+                self.current_collection_info.value = self.collection_info_list_model.items[1]
+            else:
+                self.current_collection_info.value = self.collection_info_list_model.items[0]
+
     def set_data_group(self, data_group: typing.Optional[DataGroup.DataGroup]) -> None:
         container = data_group if data_group else self.document_model
         if container != self.__display_items_model.container:
-            with self.__display_items_model.changes():  # change filter and sort together
-                self.__display_items_model.container = data_group
-                self.__display_items_model.filter = self.project_filter
-                self.__display_items_model.sort_key = None
-                typing.cast(typing.Any, self.__display_items_model).filter_id = None
+            self.__display_items_model.set_container_filter_sort(data_group, self.project_filter, None, False)
+            typing.cast(typing.Any, self.__display_items_model).filter_id = None
             self.filter_changed_event.fire(data_group, self.__display_items_model.filter_id)
             self.project.data_group = data_group
             self.project.filter_id = self.__display_items_model.filter_id
+            self.__update_current_collection_info()
 
     def set_filter(self, filter_id: typing.Optional[str]) -> None:
         if filter_id != self.__display_items_model.filter_id:
-            with self.__display_items_model.changes():  # change filter and sort together
-                self.__display_items_model.container = self.document_model
-                self.__display_items_model.filter = ListModel.AndFilter((self.project_filter, self.get_filter_predicate(filter_id)))
-                self.__display_items_model.sort_key = DisplayItem.sort_by_date_key
-                self.__display_items_model.sort_reverse = True
-                typing.cast(typing.Any, self.__display_items_model).filter_id = filter_id
+            self.__display_items_model.set_container_filter_sort(self.document_model, ListModel.AndFilter((self.project_filter, self.get_filter_predicate(filter_id))), DisplayItem.sort_by_date_key, True)
+            typing.cast(typing.Any, self.__display_items_model).filter_id = filter_id
             self.filter_changed_event.fire(None, filter_id)
             self.project.data_group = None
             self.project.filter_id = filter_id
+            self.__update_current_collection_info()
 
     def get_data_group_and_filter_id(self) -> typing.Tuple[typing.Optional[DataGroup.DataGroup], typing.Optional[str]]:
         # used for display panel initialization
@@ -3210,7 +3299,7 @@ class OpenProjectDialogAction(Window.Action):
 
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
-        application = typing.cast(Application.Application, context.application)
+        application = typing.cast("Application.Application", context.application)
         application.open_project_manager()
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
@@ -4037,10 +4126,15 @@ class RasterDisplayCreateGraphicAction(Window.Action):
         window = typing.cast(DocumentController, context.window)
         display_item = context.display_item
         if context.display_panel and display_item:
+            # to ensure the modified state for undo/redo is correct, we need to get the display item modified state
+            # before creating the graphic since adding the graphic will bump the display item modified count.
+            display_item_modified_state = display_item.modified_state
+            # create the graphic using the graphic factory and properties
             graphic_type = context.parameters["graphic_type"]
             graphic_properties = context.parameters.get("graphic_properties", dict[str, typing.Any]())
             graphic = graphic_factory_table[graphic_type].create_graphic_in_display_item(window, display_item, graphic_properties)
-            command = context.display_panel.create_insert_graphics_command([graphic])
+            # create the command to undo the graphic insert and perform it. the insert has already been done above.
+            command = context.display_panel.create_insert_graphics_command([graphic], display_item_modified_state)
             command.perform()
             window.push_undo_command(command)
         return Window.ActionResult(Window.ActionStatus.FINISHED)

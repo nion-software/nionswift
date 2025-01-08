@@ -16,7 +16,6 @@ from nion.data import Image
 from nion.swift import MimeTypes
 from nion.swift import Panel
 from nion.swift import Thumbnails
-from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
 from nion.swift.model import Persistence
@@ -32,6 +31,7 @@ from nion.utils import ListModel
 from nion.utils import Model
 from nion.utils import Process
 from nion.utils import ReferenceCounting
+from nion.utils import Stream
 
 if typing.TYPE_CHECKING:
     from nion.swift import DocumentController
@@ -109,12 +109,8 @@ class DisplayItemAdapter:
 
     def close(self) -> None:
         # remove the listener.
-        if self.__thumbnail_updated_event_listener:
-            self.__thumbnail_updated_event_listener.close()
-            self.__thumbnail_updated_event_listener = None
-        if self.__thumbnail_source:
-            self.__thumbnail_source.remove_ref()
-            self.__thumbnail_source = None
+        self.__thumbnail_updated_event_listener = None
+        self.__thumbnail_source = None
         if self.__display_changed_event_listener:
             self.__display_changed_event_listener.close()
             self.__display_changed_event_listener = None
@@ -184,7 +180,7 @@ class DisplayItemAdapter:
     def calculate_thumbnail_data(self) -> typing.Optional[_NDArray]:
         # grab the display specifier and if there is a display, handle thumbnail updating.
         if self.__display_item and not self.__thumbnail_source:
-            self.__thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.ui, self.__display_item).add_ref()
+            self.__thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.ui, self.__display_item)
 
             def thumbnail_updated() -> None:
                 self.__list_item_drawing_context = None
@@ -528,102 +524,104 @@ class ItemExplorerWidget(Widgets.CompositeWidgetBase):
         super().close()
 
 
-class DataPanelListItem(CanvasItem.CanvasItemComposition):
+class DataPanelListItemComposer(CanvasItem.BaseComposer):
+    def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing, cache: CanvasItem.ComposerCache,
+                 thumbnail: typing.Optional[Bitmap.Bitmap], line_height: int, displayed_title: str, format_str: str, datetime_str: str, status_str: str) -> None:
+        super().__init__(canvas_item, layout_sizing, cache)
+        self.__bitmap = thumbnail
+        self.__line_height = line_height
+        self.__displayed_title = displayed_title
+        self.__format_str = format_str
+        self.__datetime_str = datetime_str
+        self.__status_str = status_str
+
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> None:
+        text_font = "11px sans-serif"
+        text_color = "black"
+
+        line_number = 1
+        line_height = self.__line_height + 2
+
+        if self.__displayed_title:
+            drawing_context.font = text_font
+            drawing_context.text_baseline = "bottom"
+            drawing_context.text_align = "left"
+            drawing_context.fill_style = text_color
+            drawing_context.fill_text(self.__displayed_title, 82, line_height * line_number)
+            line_number += 1
+
+        if self.__format_str:
+            drawing_context.font = text_font
+            drawing_context.text_baseline = "bottom"
+            drawing_context.text_align = "left"
+            drawing_context.fill_style = text_color
+            drawing_context.fill_text(self.__format_str, 82, line_height * line_number)
+            line_number += 1
+
+        if self.__datetime_str:
+            drawing_context.font = text_font
+            drawing_context.text_baseline = "bottom"
+            drawing_context.text_align = "left"
+            drawing_context.fill_style = text_color
+            drawing_context.fill_text(self.__datetime_str, 82, line_height * line_number)
+            line_number += 1
+
+        if self.__status_str:
+            drawing_context.font = text_font
+            drawing_context.text_baseline = "bottom"
+            drawing_context.text_align = "left"
+            drawing_context.fill_style = text_color
+            drawing_context.fill_text(self.__status_str, 82, line_height * line_number)
+            line_number += 1
+
+        if self.__bitmap and self.__bitmap.rgba_bitmap_data is not None:
+            image_size = self.__bitmap.computed_shape
+            if image_size.height > 0 and image_size.width > 0:
+                rect = Geometry.IntRect(Geometry.IntPoint(y=4, x=4), size=Geometry.IntSize(h=72, w=72))
+                display_rect = Geometry.fit_to_size(rect, image_size)
+                display_height = display_rect.height
+                display_width = display_rect.width
+                if display_rect and display_width > 0 and display_height > 0:
+                    display_top = display_rect.top
+                    display_left = display_rect.left
+                    drawing_context.draw_image(self.__bitmap.rgba_bitmap_data, display_left, display_top, display_width, display_height)
+
+
+class DataPanelListItem(CanvasItem.AbstractCanvasItem):
+    """Canvas item to draw a data panel list item.
+
+    This is critical performance code. It is called for every item in the list. So use a custom renderer.
+    """
+
     def __init__(self, display_item: DisplayItem.DisplayItem, ui: UserInterface.UserInterface, font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> None:
         super().__init__()
-
         self.__display_item = display_item
         self.__ui = ui
         self.__font_metrics_fn = font_metrics_fn
-
-        displayed_title_text_canvas_item = CanvasItem.TextCanvasItem(display_item.displayed_title)
-        displayed_title_text_canvas_item.text_font = "11px sans-serif"
-        displayed_title_text_canvas_item.size_to_content(font_metrics_fn)
-        displayed_title_text_canvas_item.update_sizing(displayed_title_text_canvas_item.sizing.with_fixed_height(displayed_title_text_canvas_item.sizing.preferred_height_int - 6))
-
-        displayed_title_row = CanvasItem.CanvasItemComposition()
-        displayed_title_row.layout = CanvasItem.CanvasItemRowLayout()
-        displayed_title_row.add_canvas_item(displayed_title_text_canvas_item)
-        displayed_title_row.add_stretch()
-        # ensure width is not limited by contents
-        displayed_title_row.update_sizing(displayed_title_row.sizing.with_fixed_width(CanvasItem.SizingEnum.UNRESTRAINED))
-
-        format_str_text_canvas_item = CanvasItem.TextCanvasItem(self.format_str)
-        format_str_text_canvas_item.text_font = "11px sans-serif"
-        format_str_text_canvas_item.size_to_content(font_metrics_fn)
-        format_str_text_canvas_item.update_sizing(format_str_text_canvas_item.sizing.with_fixed_height(format_str_text_canvas_item.sizing.preferred_height_int - 6))
-
-        format_str_row = CanvasItem.CanvasItemComposition()
-        format_str_row.layout = CanvasItem.CanvasItemRowLayout()
-        format_str_row.add_canvas_item(format_str_text_canvas_item)
-        format_str_row.add_stretch()
-        # ensure width is not limited by contents
-        format_str_row.update_sizing(format_str_row.sizing.with_fixed_width(CanvasItem.SizingEnum.UNRESTRAINED))
-
-        datetime_str_text_canvas_item = CanvasItem.TextCanvasItem(self.datetime_str)
-        datetime_str_text_canvas_item.text_font = "11px sans-serif"
-        datetime_str_text_canvas_item.size_to_content(font_metrics_fn)
-        datetime_str_text_canvas_item.update_sizing(datetime_str_text_canvas_item.sizing.with_fixed_height(datetime_str_text_canvas_item.sizing.preferred_height_int - 6))
-
-        datetime_str_row = CanvasItem.CanvasItemComposition()
-        datetime_str_row.layout = CanvasItem.CanvasItemRowLayout()
-        datetime_str_row.add_canvas_item(datetime_str_text_canvas_item)
-        datetime_str_row.add_stretch()
-        # ensure width is not limited by contents
-        datetime_str_row.update_sizing(datetime_str_row.sizing.with_fixed_width(CanvasItem.SizingEnum.UNRESTRAINED))
-
-        status_str_text_canvas_item = CanvasItem.TextCanvasItem(self.status_str)
-        status_str_text_canvas_item.text_font = "11px sans-serif"
-        status_str_text_canvas_item.size_to_content(font_metrics_fn)
-        status_str_text_canvas_item.update_sizing(status_str_text_canvas_item.sizing.with_fixed_height(status_str_text_canvas_item.sizing.preferred_height_int - 6))
-
-        status_str_row = CanvasItem.CanvasItemComposition()
-        status_str_row.layout = CanvasItem.CanvasItemRowLayout()
-        status_str_row.add_canvas_item(status_str_text_canvas_item)
-        status_str_row.add_stretch()
-        # ensure width is not limited by contents
-        status_str_row.update_sizing(status_str_row.sizing.with_fixed_width(CanvasItem.SizingEnum.UNRESTRAINED))
-
-        text_column = CanvasItem.CanvasItemComposition()
-        text_column.layout = CanvasItem.CanvasItemColumnLayout(Geometry.Margins(4, 4, 4, 4))
-        text_column.add_canvas_item(displayed_title_row)
-        text_column.add_canvas_item(format_str_row)
-        text_column.add_canvas_item(datetime_str_row)
-        text_column.add_canvas_item(status_str_row)
-        text_column.add_stretch()
-
-        thumbnail_canvas_item = CanvasItem.BitmapCanvasItem()
-        thumbnail_canvas_item.update_sizing(thumbnail_canvas_item.sizing.with_fixed_width(72).with_fixed_height(72))
-
-        thumbnail_column = CanvasItem.CanvasItemComposition()
-        thumbnail_column.layout = CanvasItem.CanvasItemColumnLayout(Geometry.Margins(4, 4, 4, 4))
-        thumbnail_column.add_canvas_item(thumbnail_canvas_item)
-        thumbnail_column.add_stretch()
-
-        self.layout = CanvasItem.CanvasItemRowLayout()
-        self.add_canvas_item(thumbnail_column)
-        self.add_canvas_item(text_column)
-        # ensure width is not limited by contents
-        self.update_sizing(self.sizing.with_fixed_width(CanvasItem.SizingEnum.UNRESTRAINED))
+        self.__thumbnail: typing.Optional[Bitmap.Bitmap] = None
 
         def thumbnail_updated() -> None:
             bitmap_data = self.__thumbnail_source.thumbnail_data if self.__thumbnail_source else None
-            self.__thumbnail_canvas_item.bitmap = Bitmap.Bitmap(rgba_bitmap_data=bitmap_data)
+            self.__thumbnail = Bitmap.Bitmap(rgba_bitmap_data=bitmap_data)
+            self.update()
 
-        self.__thumbnail_canvas_item = thumbnail_canvas_item
-        self.__thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.__ui, self.__display_item).add_ref()
+        self.__thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.__ui, self.__display_item)
         self.__thumbnail_updated_event_listener = self.__thumbnail_source.thumbnail_updated_event.listen(thumbnail_updated)
 
         thumbnail_updated()
 
-        self.__text_canvas_item = displayed_title_text_canvas_item
-        self.__format_canvas_item = format_str_text_canvas_item
-        self.__datetime_canvas_item = datetime_str_text_canvas_item
-        self.__status_canvas_item = status_str_text_canvas_item
         self.__item_changed_listener = display_item.item_changed_event.listen(ReferenceCounting.weak_partial(DataPanelListItem.__item_changed, self))
 
+        self.update_sizing(self.sizing.with_fixed_height(72))
+        self.update_sizing(self.sizing.with_fixed_width(CanvasItem.SizingEnum.UNRESTRAINED))
+
+    def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> CanvasItem.BaseComposer:
+        line_height = self.__font_metrics_fn("11px sans-serif", "M").height
+        return DataPanelListItemComposer(self, self.layout_sizing, composer_cache, self.__thumbnail, line_height, self.title, self.format_str, self.datetime_str, self.status_str)
+
     def close(self) -> None:
-        self.__thumbnail_source.remove_ref()
+        self.__thumbnail_updated_event_listener = typing.cast(typing.Any, None)
+        self.__thumbnail_source = typing.cast(typing.Any, None)
         super().close()
 
     @property
@@ -649,18 +647,7 @@ class DataPanelListItem(CanvasItem.CanvasItemComposition):
         return self.__display_item.status_str if self.__display_item else str()
 
     def __item_changed(self) -> None:
-        self.__text_canvas_item.text = self.title
-        self.__text_canvas_item.size_to_content(self.__font_metrics_fn)
-        self.__text_canvas_item.update_sizing(self.__text_canvas_item.sizing.with_fixed_height(self.__text_canvas_item.sizing.preferred_height_int - 6))
-        self.__format_canvas_item.text = self.format_str
-        self.__format_canvas_item.size_to_content(self.__font_metrics_fn)
-        self.__format_canvas_item.update_sizing(self.__format_canvas_item.sizing.with_fixed_height(self.__format_canvas_item.sizing.preferred_height_int - 6))
-        self.__datetime_canvas_item.text = self.datetime_str
-        self.__datetime_canvas_item.size_to_content(self.__font_metrics_fn)
-        self.__datetime_canvas_item.update_sizing(self.__datetime_canvas_item.sizing.with_fixed_height(self.__datetime_canvas_item.sizing.preferred_height_int - 6))
-        self.__status_canvas_item.text = self.status_str
-        self.__status_canvas_item.size_to_content(self.__font_metrics_fn)
-        self.__status_canvas_item.update_sizing(self.__status_canvas_item.sizing.with_fixed_height(self.__status_canvas_item.sizing.preferred_height_int - 6))
+        self.update()
 
 
 class DataPanel(Panel.Panel):
@@ -686,7 +673,9 @@ class DataPanel(Panel.Panel):
         def unmap_display_item_to_display_item_adapter(display_item_adapter: DisplayItemAdapter) -> None:
             display_item_adapter.close()
 
-        self.__filtered_display_item_adapters_model = ListModel.MappedListModel(container=document_controller.filtered_display_items_model, master_items_key="display_items", items_key="display_item_adapters", map_fn=map_display_item_to_display_item_adapter, unmap_fn=unmap_display_item_to_display_item_adapter)
+        display_items_model = document_controller.filtered_display_items_model
+
+        self.__filtered_display_item_adapters_model = ListModel.MappedListModel(container=display_items_model, master_items_key="display_items", items_key="display_item_adapters", map_fn=map_display_item_to_display_item_adapter, unmap_fn=unmap_display_item_to_display_item_adapter)
 
         self.__selection = self.document_controller.selection
 
@@ -753,8 +742,7 @@ class DataPanel(Panel.Panel):
                     mime_data = document_controller.ui.create_mime_data()
                     MimeTypes.mime_data_put_display_item(mime_data, display_item)
                     thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.__data_panel.ui, display_item)
-                    with thumbnail_source.ref():
-                        thumbnail_data = thumbnail_source.thumbnail_data
+                    thumbnail_data = thumbnail_source.thumbnail_data
                     if thumbnail_data is not None:
                         # scaling is very slow
                         thumbnail_data = Image.get_rgba_data_from_rgba(
@@ -766,18 +754,28 @@ class DataPanel(Panel.Panel):
                     anchor_index = self.__selection.anchor_index or 0
                     thumbnail_display_item = display_items[anchor_index]
                     thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.__data_panel.ui, thumbnail_display_item)
-                    with thumbnail_source.ref():
-                        thumbnail_data = thumbnail_source.thumbnail_data
+                    thumbnail_data = thumbnail_source.thumbnail_data
                 return mime_data, thumbnail_data
 
         list_item_delegate = ListItemDelegate(self, self.__selection)
-        list_canvas_item = ListCanvasItem.ListCanvasItem2(document_controller.filtered_display_items_model, self.__selection, list_item_factory, list_item_delegate, item_height=80, key="display_items")
+        list_canvas_item = ListCanvasItem.ListCanvasItem2(display_items_model, self.__selection, list_item_factory, list_item_delegate, item_height=80, key="display_items")
         scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(list_canvas_item)
         scroll_bar_canvas_item = CanvasItem.ScrollBarCanvasItem(scroll_area_canvas_item, CanvasItem.Orientation.Vertical)
         scroll_group_canvas_item = CanvasItem.CanvasItemComposition()
         scroll_group_canvas_item.layout = CanvasItem.CanvasItemRowLayout()
         scroll_group_canvas_item.add_canvas_item(scroll_area_canvas_item)
         scroll_group_canvas_item.add_canvas_item(scroll_bar_canvas_item)
+
+        def begin_changes(key: str) -> None:
+            list_canvas_item._begin_batch_update()
+
+        def end_changes(key: str) -> None:
+            list_canvas_item._end_batch_update()
+
+        # the display items model can notify us when it is about to change. in order to gang up changes, watch
+        # for these notification events and tell the list canvas item to only update at the end of the changes.
+        self.__display_items_begin_changes_listener = display_items_model.begin_changes_event.listen(begin_changes)
+        self.__display_items_end_changes_listener = display_items_model.end_changes_event.listen(end_changes)
 
         data_list_canvas_item = scroll_group_canvas_item
 
@@ -860,28 +858,13 @@ class DataPanel(Panel.Panel):
         self._data_list_widget = data_list_widget
         self._data_grid_widget = data_grid_widget
 
-        def filter_changed(data_group: typing.Optional[DataGroup.DataGroup], filter_id: typing.Optional[str]) -> None:
-            if data_group:
-                self.__status_section.visible = True
-                self.__filter_description.text = _("Group") + ": " + data_group.title
-            else:
-                if filter_id == "latest-session":
-                    self.__status_section.visible = True
-                    self.__filter_description.text = _("Latest Session Items")
-                elif filter_id == "temporary":
-                    self.__status_section.visible = True
-                    self.__filter_description.text = _("Live Items")
-                elif filter_id == "persistent":
-                    self.__status_section.visible = True
-                    self.__filter_description.text = _("Persistent Items")
-                else:
-                    self.__status_section.visible = False
-                    self.__filter_description.text = _("All Items")
+        def update_filter_description(collection_info: typing.Optional[DocumentController.CollectionInfo]) -> None:
+            self.__status_section.visible = True
+            self.__filter_description.text = collection_info.title if collection_info else str()
 
-        self.__filter_changed_event_listener = document_controller.filter_changed_event.listen(filter_changed)
+        self.__filter_description_action = Stream.ValueStreamAction(document_controller.current_collection_info, update_filter_description)
 
-        data_group, filter_id = document_controller.get_data_group_and_filter_id()
-        filter_changed(data_group, filter_id)
+        update_filter_description(document_controller.current_collection_info.value)
 
 
     def close(self) -> None:
@@ -898,8 +881,7 @@ class DataPanel(Panel.Panel):
         self.__selection_changed_event_listener.close()
         self.__selection_changed_event_listener = typing.cast(Event.EventListener, None)
         # listeners
-        self.__filter_changed_event_listener.close()
-        self.__filter_changed_event_listener = typing.cast(typing.Any, None)
+        self.__filter_description_action = typing.cast(typing.Any, None)
 
     def __notify_focus_changed(self) -> None:
         # this is called when the keyboard focus for the data panel is changed.
