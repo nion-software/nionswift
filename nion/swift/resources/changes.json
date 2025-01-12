@@ -1,5 +1,16 @@
 [
   {
+    "version": "16.14.dev",
+    "notes": [
+      {
+        "issues": [
+          "https://github.com/nion-software/nionswift-io/issues/1304"
+        ],
+        "summary": "Fix issue where raster display tries to access deleted data."
+      }
+    ]
+  },
+  {
     "version": "16.13.0",
     "notes": [
       {
