@@ -89,10 +89,11 @@ class ThumbnailSource:
     def __display_item_will_close(self) -> None:
         # the display item is closing, so these messages should not be triggered, but just in case...
         self.__display_item_about_to_close_listener = typing.cast(typing.Any, None)
-        self.__display_item = typing.cast(typing.Any, None)
         self.__display_changed_event_listener = typing.cast(typing.Any, None)
         self.__graphics_changed_event_listener = typing.cast(typing.Any, None)
         # shut down the thread, if any. avoid deadlock.
+        # note: the __display_item still has to be valid to shut down the thread, in case it is still running.
+        # clear the display item after shutting down the thread.
         recompute_future: typing.Optional[concurrent.futures.Future[typing.Any]] = None
         with self.__recompute_lock:
             if self.__recompute_future and not self.__recompute_future.done():
@@ -103,6 +104,7 @@ class ThumbnailSource:
                 concurrent.futures.wait([recompute_future], timeout=10.0)
             except concurrent.futures.CancelledError:
                 pass
+        self.__display_item = typing.cast(typing.Any, None)
 
     @property
     def thumbnail_data(self) -> typing.Optional[_NDArray]:
