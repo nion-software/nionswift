@@ -125,6 +125,22 @@ class TestGraphicsClass(unittest.TestCase):
             self.assertEqual(line_graphic.start.y, 0.2)
             self.assertEqual(line_graphic.end.x, 0.7)
             self.assertEqual(line_graphic.end.y, 0.7)
+            # Test 4 - Drag end point, Alt pressed part way through. Ensure original mid-point is used.
+            midpoint = Geometry.midpoint(line_graphic.start, line_graphic.end)
+            display_panel.display_canvas_item.simulate_press((700, 700))
+            display_panel.display_canvas_item.simulate_move((800, 700))
+            document_controller.periodic()
+            self.assertAlmostEqualPoint(Geometry.FloatPoint(0.2, 0.7), line_graphic.start)
+            self.assertAlmostEqualPoint(Geometry.FloatPoint(0.8, 0.7), line_graphic.end)
+            self.assertAlmostEqualPoint(Geometry.FloatPoint(0.5, 0.7), Geometry.midpoint(line_graphic.start, line_graphic.end))
+            display_panel.display_canvas_item.simulate_move((800, 700), CanvasItem.KeyboardModifiers(alt=True))
+            document_controller.periodic()
+            self.assertAlmostEqualPoint(Geometry.FloatPoint(0.1, 0.7), line_graphic.start)
+            self.assertAlmostEqualPoint(Geometry.FloatPoint(0.8, 0.7), line_graphic.end)
+            self.assertAlmostEqualPoint(Geometry.FloatPoint(0.45, 0.7), Geometry.midpoint(line_graphic.start, line_graphic.end))
+            self.assertAlmostEqualPoint(midpoint, Geometry.midpoint(line_graphic.start, line_graphic.end))
+            display_panel.display_canvas_item.simulate_release((700, 800))
+            document_controller.periodic()
 
     def test_point_test(self):
         mapping = self.__get_mapping()
