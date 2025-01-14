@@ -152,7 +152,7 @@ class AboutDialog(Dialog.OkCancelDialog):
                                                          spacing=8))
                 icon_column = u.create_column(u.create_image(image="icon", width=72, height=72), u.create_stretch(), margin=4, spacing=8)
                 main_content_column = u.create_column(u.create_label(text=f"Nion Swift {version_str}"),
-                                                      u.create_label(text="© 2012-2023 Nion Company. All Rights Reserved."),
+                                                      u.create_label(text="Copyright Bruker 2025. All Rights Reserved."),
                                                       u.create_spacing(13),
                                                       u.create_label(text=f"Python {sys.version}", word_wrap=True),
                                                       *base_prefix_label, packages_scroll_area, u.create_stretch(),
@@ -206,7 +206,7 @@ class Application(UIApplication.BaseApplication):
 
         ui.set_persistence_handler(PersistenceHandler())
         setattr(self.ui, "persistence_root", "3")  # sets of preferences
-        self.version_str = "16.13.0"
+        self.version_str = "16.14.dev"  # 16.14.0
 
         self.document_model_available_event = Event.Event()
 
