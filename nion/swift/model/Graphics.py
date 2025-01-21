@@ -3,6 +3,7 @@ from __future__ import annotations
 # standard libraries
 import contextlib
 import copy
+import enum
 import gettext
 import math
 import uuid
@@ -629,6 +630,12 @@ class NullModifiers(ModifiersLike):
         return False
 
 
+class GraphicAttributeEnum(enum.Enum):
+    ONE_DIMENSIONAL = '1d'
+    TWO_DIMENSIONAL = '2d'
+    FOURIER_MASK = 'fourier'
+
+
 # A Graphic object describes visible content, such as a shape, bitmap, video, or a line of text.
 class Graphic(Persistence.PersistentObject):
 
@@ -854,6 +861,12 @@ class Graphic(Persistence.PersistentObject):
     def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: typing.Optional[Geometry.FloatPoint] = None) -> DataAndMetadata._ImageDataType:
         return numpy.zeros(data_shape)
 
+    def has_attribute(self, attribute: GraphicAttributeEnum) -> bool:
+        return attribute in self.get_attributes()
+
+    def get_attributes(self) -> set[GraphicAttributeEnum]:
+        return set()
+
     def begin_drag(self) -> DragPartData:
         raise NotImplementedError()
 
@@ -1060,6 +1073,9 @@ class RectangleTypeGraphic(Graphic):
     @property
     def _rotated_bottom_left(self) -> Geometry.FloatPoint:  # useful for testing
         return rotate(self._bounds.bottom_left, self._bounds.center, self.rotation)
+
+    def get_attributes(self) -> set[GraphicAttributeEnum]:
+        return {GraphicAttributeEnum.TWO_DIMENSIONAL}
 
     def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: typing.Optional[Geometry.FloatPoint] = None) -> DataAndMetadata._ImageDataType:
         bounds = self.bounds
@@ -1405,6 +1421,9 @@ class LineTypeGraphic(Graphic):
         self.notify_property_changed("length")
         self.notify_property_changed("angle")
 
+    def get_attributes(self) -> set[GraphicAttributeEnum]:
+        return {GraphicAttributeEnum.TWO_DIMENSIONAL}
+
     def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: typing.Optional[Geometry.FloatPoint] = None) -> DataAndMetadata._ImageDataType:
         data_rect = Geometry.FloatRect(origin=Geometry.FloatPoint(), size=Geometry.FloatSize.make(typing.cast(Geometry.SizeFloatTuple, data_shape)))
         start = Geometry.map_point(self.start, Geometry.FloatRect.unit_rect(), data_rect)
@@ -1665,6 +1684,9 @@ class PointTypeGraphic(Graphic):
         super().read_from_mime_data(graphic_dict)
         self.position = graphic_dict.get("position", self.position)
 
+    def get_attributes(self) -> set[GraphicAttributeEnum]:
+        return {GraphicAttributeEnum.TWO_DIMENSIONAL}
+
     def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: typing.Optional[Geometry.FloatPoint] = None) -> DataAndMetadata._ImageDataType:
         size = Geometry.FloatSize(1.5 / data_shape[0], 1.5 / data_shape[1])
         mask_xdata = Core.function_make_elliptical_mask(tuple(data_shape), self.position.as_tuple(), size.as_tuple(), 0.0)
@@ -1817,6 +1839,9 @@ class IntervalGraphic(Graphic):
         end = d.get("end", self.interval[1])
         self.interval = (start, end)
 
+    def get_attributes(self) -> set[GraphicAttributeEnum]:
+        return {GraphicAttributeEnum.ONE_DIMENSIONAL}
+
     @property
     def start(self) -> float:
         return self.interval[0]
@@ -1920,6 +1945,9 @@ class ChannelGraphic(Graphic):
         super().read_from_mime_data(graphic_dict)
         self.position = graphic_dict.get("position", self.position)
 
+    def get_attributes(self) -> set[GraphicAttributeEnum]:
+        return {GraphicAttributeEnum.ONE_DIMENSIONAL}
+
     # test is required for Graphic interface
     def test(self, mapping: CoordinateMappingLike, ui_settings: UISettings.UISettings, p: Geometry.FloatPoint, move_only: bool) -> typing.Tuple[typing.Optional[str], bool]:
         # first convert to widget coordinates since test distances
@@ -1987,6 +2015,9 @@ class SpotGraphic(Graphic):
         super().read_from_mime_data(graphic_dict)
         self.bounds = graphic_dict.get("bounds", self.bounds)
         self.rotation = graphic_dict.get("rotation", self.rotation)
+
+    def get_attributes(self) -> set[GraphicAttributeEnum]:
+        return {GraphicAttributeEnum.TWO_DIMENSIONAL, GraphicAttributeEnum.FOURIER_MASK}
 
     @property
     def used_role(self) -> typing.Optional[str]:
@@ -2193,6 +2224,9 @@ class WedgeGraphic(Graphic):
     def read_from_mime_data(self, graphic_dict: Persistence.PersistentDictType) -> None:
         super().read_from_mime_data(graphic_dict)
         self.angle_interval = graphic_dict.get("angle_interval", self.angle_interval)
+
+    def get_attributes(self) -> set[GraphicAttributeEnum]:
+        return {GraphicAttributeEnum.TWO_DIMENSIONAL, GraphicAttributeEnum.FOURIER_MASK}
 
     @property
     def used_role(self) -> typing.Optional[str]:
@@ -2448,6 +2482,9 @@ class RingGraphic(Graphic):
         self.radius_2 = graphic_dict.get("radius_2", self.radius_2)
         self.mode = graphic_dict.get("mode", self.mode)
 
+    def get_attributes(self) -> set[GraphicAttributeEnum]:
+        return {GraphicAttributeEnum.TWO_DIMENSIONAL, GraphicAttributeEnum.FOURIER_MASK}
+
     @property
     def used_role(self) -> typing.Optional[str]:
         return "fourier_mask"
@@ -2665,6 +2702,9 @@ class LatticeGraphic(Graphic):
         self.u_pos = graphic_dict.get("u_pos", self.u_pos)
         self.v_pos = graphic_dict.get("v_pos", self.v_pos)
         self.radius = graphic_dict.get("radius", self.radius)
+
+    def get_attributes(self) -> set[GraphicAttributeEnum]:
+        return {GraphicAttributeEnum.TWO_DIMENSIONAL, GraphicAttributeEnum.FOURIER_MASK}
 
     @property
     def used_role(self) -> typing.Optional[str]:
@@ -2954,7 +2994,7 @@ class LatticeGraphic(Graphic):
 def create_mask_data(graphics: typing.Sequence[Graphic], shape: DataAndMetadata.ShapeType, calibrated_origin: Geometry.FloatPoint) -> DataAndMetadata._ImageDataType:
     mask = None
     for graphic in graphics:
-        if isinstance(graphic, (PointTypeGraphic, LineTypeGraphic, RectangleTypeGraphic, SpotGraphic, WedgeGraphic, RingGraphic, LatticeGraphic)):
+        if graphic.has_attribute(GraphicAttributeEnum.TWO_DIMENSIONAL):
             if graphic.used_role in ("mask", "fourier_mask"):
                 if mask is None:
                     mask = numpy.zeros(shape)
