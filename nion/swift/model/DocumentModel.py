@@ -2719,7 +2719,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         if display_data_item and display_item:
             has_mask = False
             for graphic in display_item.graphics:
-                if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
+                if graphic.has_attribute(Graphics.GraphicAttributeEnum.FOURIER_MASK):
                     has_mask = True
                     break
             if not has_mask:
