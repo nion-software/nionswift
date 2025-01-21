@@ -168,7 +168,7 @@ class GraphicsCanvasItemComposer(CanvasItem.BaseComposer):
             with drawing_context.saver():
                 drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
                 for graphic_index, graphic in enumerate(graphics):
-                    if isinstance(graphic, (Graphics.PointTypeGraphic, Graphics.LineTypeGraphic, Graphics.RectangleTypeGraphic, Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
+                    if graphic.has_attribute(Graphics.GraphicAttributeEnum.TWO_DIMENSIONAL):
                         try:
                             graphic.draw(drawing_context, ui_settings, widget_mapping, graphic_selection.contains(graphic_index))
                         except Exception as e:
@@ -670,7 +670,7 @@ class PointerMouseHandler(MouseHandler):
         # graphics with the lower index. but priority should also be given to selected graphics. so sort the
         # graphics according to whether they are selected or not (selected ones go later), then by their index.
         for graphic_index, graphic in sorted(enumerate(graphics), key=lambda ig: (ig[0] in selection_indexes, ig[0])):
-            if isinstance(graphic, (Graphics.PointTypeGraphic, Graphics.LineTypeGraphic, Graphics.RectangleTypeGraphic, Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
+            if graphic.has_attribute(Graphics.GraphicAttributeEnum.TWO_DIMENSIONAL):
                 already_selected = graphic_index in selection_indexes
                 move_only = not already_selected or multiple_items_selected
                 try:

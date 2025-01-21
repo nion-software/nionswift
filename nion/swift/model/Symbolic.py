@@ -1297,7 +1297,7 @@ class MonitoredDataSource(DataSource):
         def graphic_inserted(key: str, graphic: Graphics.Graphic, before_index: int) -> None:
             if key == "graphics":
                 property_changed_listener = None
-                if isinstance(graphic, (Graphics.PointTypeGraphic, Graphics.LineTypeGraphic, Graphics.RectangleTypeGraphic, Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
+                if graphic.has_attribute(Graphics.GraphicAttributeEnum.TWO_DIMENSIONAL):
                     property_changed_listener = graphic.property_changed_event.listen(functools.partial(filter_property_changed, graphic))
                     filter_property_changed(graphic, "label")  # dummy non-role value
                 self.__graphic_property_changed_listeners.insert(before_index, property_changed_listener)
@@ -1316,7 +1316,7 @@ class MonitoredDataSource(DataSource):
         # set up initial tracking
         for graphic in self.__display_item.graphics if self.__display_item else list():
             property_changed_listener = None
-            if isinstance(graphic, (Graphics.PointTypeGraphic, Graphics.LineTypeGraphic, Graphics.RectangleTypeGraphic, Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
+            if graphic.has_attribute(Graphics.GraphicAttributeEnum.TWO_DIMENSIONAL):
                 property_changed_listener = graphic.property_changed_event.listen(functools.partial(filter_property_changed, graphic))
             self.__graphic_property_changed_listeners.append(property_changed_listener)
 
@@ -1718,7 +1718,7 @@ class BoundFilterLikeData(BoundItemBase):
                 base_items.append(data_item)
                 graphics = display_item.graphics
                 for graphic in graphics:
-                    if isinstance(graphic, (Graphics.PointTypeGraphic, Graphics.LineTypeGraphic, Graphics.RectangleTypeGraphic, Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic, Graphics.LatticeGraphic)):
+                    if graphic.has_attribute(Graphics.GraphicAttributeEnum.TWO_DIMENSIONAL):
                         base_items.append(graphic)
         return base_items
 

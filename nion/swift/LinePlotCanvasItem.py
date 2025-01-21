@@ -800,7 +800,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                 elif self.__graphics:
                     graphics = self.__graphics
                     for graphic_index, graphic in enumerate(graphics):
-                        if isinstance(graphic, (Graphics.IntervalGraphic, Graphics.ChannelGraphic)):
+                        if graphic.has_attribute(Graphics.GraphicAttributeEnum.ONE_DIMENSIONAL):
                             widget_mapping = self.__get_mouse_mapping()
                             part, specific = graphic.test(widget_mapping, self.__ui_settings, pos.to_float_point(), False)
                             if part in {"start", "end"} and not modifiers.control:
@@ -956,7 +956,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             graphics = self.__graphics
             selection_indexes = self.__graphic_selection.indexes
             for graphic_index, graphic in enumerate(graphics):
-                if isinstance(graphic, (Graphics.IntervalGraphic, Graphics.ChannelGraphic)):
+                if graphic.has_attribute(Graphics.GraphicAttributeEnum.ONE_DIMENSIONAL):
                     already_selected = graphic_index in selection_indexes
                     multiple_items_selected = len(selection_indexes) > 1
                     move_only = not already_selected or multiple_items_selected
