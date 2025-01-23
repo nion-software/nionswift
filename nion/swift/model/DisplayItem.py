@@ -352,7 +352,7 @@ def adjustment_factory(adjustment_d: Persistence.PersistentDictType) -> typing.O
                 self.__gamma = gamma
 
             def transform(self, data: _ImageDataType, display_limits: typing.Tuple[float, float]) -> _ImageDataType:
-                return numpy.power(numpy.clip(data, 0.0, 1.0), self.__gamma, dtype=numpy.float32)
+                return typing.cast(_ImageDataType, numpy.power(numpy.clip(data, 0.0, 1.0), self.__gamma, dtype=numpy.float32))
 
         return AdjustGamma(adjustment_d.get("gamma", 1.0))
     elif adjustment_d.get("type", None) == "log":
@@ -371,7 +371,7 @@ def adjustment_factory(adjustment_d: Persistence.PersistentDictType) -> typing.O
                 histogram_cdf = histogram.cumsum()
                 histogram_cdf = histogram_cdf / histogram_cdf[-1]
                 equalized = numpy.interp(data.flatten(), bins[:-1], histogram_cdf)
-                return equalized.reshape(data.shape)
+                return numpy.reshape(equalized, data.shape)
 
         return AdjustEqualized()
     else:
