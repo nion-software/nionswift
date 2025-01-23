@@ -1135,7 +1135,7 @@ class DocumentController(Window.Window):
             graphics = MimeTypes.mime_data_get_graphics(mime_data)
             if graphics:
                 display_item.graphic_selection.clear()
-                insert_command = DisplayPanel.InsertGraphicsCommand(self, display_item, graphics)
+                insert_command = DisplayPanel.InsertGraphicsCommand(self, display_item, graphics, allow_secondary_copy=True)
                 insert_command.perform()
                 self.push_undo_command(insert_command)
                 for graphic in graphics:
