@@ -1157,7 +1157,8 @@ class InsertGraphicsCommand(Undo.UndoableCommand):
     def __init__(self, document_controller: DocumentController.DocumentController,
                  display_item: DisplayItem.DisplayItem, graphics: typing.Sequence[Graphics.Graphic], *,
                  existing_graphics: typing.Optional[typing.Sequence[Graphics.Graphic]] = None,
-                 display_item_modified_state: typing.Any = None) -> None:
+                 display_item_modified_state: typing.Any = None,
+                 allow_secondary_copy: bool = False) -> None:
         super().__init__(_("Insert Graphics"))
         self.__document_controller = document_controller
         self.__display_item_proxy = display_item.create_proxy()
@@ -1165,6 +1166,7 @@ class InsertGraphicsCommand(Undo.UndoableCommand):
         self.__graphics_properties = None
         self.__graphic_proxies = [graphic.create_proxy() for graphic in existing_graphics or list()]
         self.__undelete_logs: typing.List[Changes.UndeleteLog] = list()
+        self.__allow_secondary_copy = allow_secondary_copy
         self.initialize(display_item_modified_state)
 
     def close(self) -> None:
@@ -1188,6 +1190,10 @@ class InsertGraphicsCommand(Undo.UndoableCommand):
                 display_item.add_graphic(graphic)
                 new_graphic = display_item.graphics[-1]
                 self.__graphic_proxies.append(new_graphic.create_proxy())
+                if self.__allow_secondary_copy and isinstance(graphic, Graphics.LineProfileGraphic):
+                    data_item = display_item.data_item
+                    if data_item:
+                        self.__document_controller.document_model.get_line_profile_new(display_item, data_item, None, new_graphic)
             self.__graphics = typing.cast(typing.Any, None)
 
     def _get_modified_state(self) -> typing.Any:

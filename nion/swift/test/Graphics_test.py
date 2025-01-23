@@ -11,6 +11,7 @@ import numpy
 from nion.data import Calibration
 from nion.swift import Application
 from nion.swift import DisplayPanel
+from nion.swift import Facade
 from nion.swift import ImageCanvasItem
 from nion.swift.model import DataItem
 from nion.swift.model import Graphics
@@ -18,6 +19,9 @@ from nion.swift.test import TestContext
 from nion.ui import CanvasItem
 from nion.ui import TestUI
 from nion.utils import Geometry
+
+
+Facade.initialize()
 
 
 class TestGraphicsClass(unittest.TestCase):
@@ -1412,6 +1416,35 @@ class TestGraphicsClass(unittest.TestCase):
                 self.assertEqual(2, len(display_item.graphics))
                 display_item.remove_graphic(display_item.graphics[0]).close()
                 display_item.remove_graphic(display_item.graphics[0]).close()
+
+    def test_copy_paste_line_profile_generates_secondary_data_item(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item1 = DataItem.DataItem(numpy.zeros((100, 100), numpy.uint32))
+            data_item2 = DataItem.DataItem(numpy.zeros((100, 100), numpy.uint32))
+            document_model.append_data_item(data_item1)
+            document_model.append_data_item(data_item2)
+            display_item1 = document_model.get_display_item_for_data_item(data_item1)
+            display_item2 = document_model.get_display_item_for_data_item(data_item2)
+            document_controller.show_display_item(display_item1)
+            target_data_item = document_model.get_line_profile_new(display_item1, display_item1.data_item)
+            document_model.recompute_all()
+            self.assertEqual(1, len(display_item1.graphics))
+            self.assertEqual(0, len(display_item2.graphics))
+            self.assertEqual(3, len(document_model.data_items))
+            self.assertEqual(2, len(document_model.data_items[0].data_shape))
+            self.assertEqual(2, len(document_model.data_items[1].data_shape))
+            self.assertEqual(1, len(document_model.data_items[2].data_shape))
+            display_item1.graphic_selection.set(0)
+            document_controller.handle_copy()
+            document_controller.selected_display_panel.set_display_item(display_item2)
+            document_controller.handle_paste()
+            document_model.recompute_all()
+            self.assertEqual(4, len(document_model.data_items))
+            self.assertEqual(1, len(display_item1.graphics))
+            self.assertEqual(1, len(display_item2.graphics))
+            self.assertEqual(1, len(document_model.data_items[-1].data_shape))
 
 
 if __name__ == '__main__':

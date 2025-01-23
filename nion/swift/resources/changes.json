@@ -4,6 +4,12 @@
     "notes": [
       {
         "issues": [
+          "https://github.com/nion-software/nionswift/issues/1238"
+        ],
+        "summary": "Add a line profile computation automatically when copying and pasting a line profile from one image to another."
+      },
+      {
+        "issues": [
           "https://github.com/nion-software/nionswift/issues/961"
         ],
         "summary": "Add option when dragging lines to keep center fixed using alt/option key."
