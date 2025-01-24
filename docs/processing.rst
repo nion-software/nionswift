@@ -4,26 +4,40 @@
 
 Processing and Analysis
 =======================
-You can apply processing and analysis to items in your project.
+.. explanation: Background information and conceptual discussions
 
-When you apply processing or analysis, a computation is configured and stored in your project.
+You can apply processing and analysis to items in your project. An example of processing may be to apply an FFT operation to an image. An example of analysis may be to measure the intensity of a line profile.
 
-A computation takes inputs and produces outputs. It also watches for changes to its inputs and updates it outputs whenever the inputs change.
+Most processing and analysis functions set up a live computation, meaning that when you apply the processing to a data item the results, often another data item, will be updated whenever the input data item changes or when the parameters of the computation change. The live computation is live even after closing and reloading the project.
+
+Some processing functions are single commands, meaning that the result is computed once and the resulting data item or other output is added to the project and no live computation is created.
+
+A live computation takes inputs and produces outputs. It also watches for changes to its inputs and updates it outputs whenever the inputs change.
 
 Inputs can be data items, display items, and graphics. Outputs can be data items and graphics.
 
-Computations are particularly useful during acquisition where you can perform live processing on incoming data.
+Live computations are useful during acquisition where you can perform live processing on incoming data.
 
-Computations are also useful for non-acquisition processing and analysis because they allow you to vary parameters and observe how the outputs change.
+Live computations are also useful for non-acquisition processing and analysis because they allow you to vary parameters and observe how the outputs change.
 
-Computations
-------------
+Live Computations
+-----------------
+.. how-to: Concise instructions for accomplishing specific tasks.
+
 To apply processing and analysis to items in your project, you should first select the inputs you want to process or analyze.
 
 In many cases, you can select the input by clicking on a display panel to give it keyboard focus and then choosing one of the processing menu items.
 
-Computations with Multiple Inputs
-+++++++++++++++++++++++++++++++++
+Most processing functions are available in the :menuselection:`Processing` menu. Plug-in packages may add processing functions to other menus, too.
+
+Once you have selected the input data item(s), you can choose the processing function from the menu.
+
+Any given processing or analysis menu item must be applied to a data item that is compatible with the processing or analysis. For example, you cannot apply processing to sum a sequence of images to a non-sequence.
+
+The particular behavior of a given processing function applied to the wrong data varies. Different processing functions may produce an invalid data item, do nothing, or produce an error message.
+
+Live Computations with Multiple Inputs
+++++++++++++++++++++++++++++++++++++++
 In cases where processing requires multiple inputs (e.g. cross correlation or make RGB), most operations will work with a single item selected and then you can edit the computation (see `Edit Computation`_) to change the secondary inputs.
 
 You can also select multiple display panels before you use the processing menu item if that is easier.
