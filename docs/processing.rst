@@ -46,6 +46,25 @@ Finally, for many operations you can select multiple crops (rectangles on images
 
 See :ref:`display-panels` for more information about keyboard focus and selecting multiple display panels.
 
+Duplicate, Snapshot, and Capture
+--------------------------------
+Since displays are distinct from data items, there are a variety of commands to make additional copies of displays and data items.
+
+The :menuselection:`Display --> Duplicate Display Item` menu item creates a new display item that is a copy of the selected display item. The new display item is linked to the original data item. This can be used to create a another view of the original data item. Each display can have its own settings, such as color table, zoom level, and crop.
+
+The :menuselection:`Display --> Snapshot Display` menu item or the :kbd:`Ctrl+S` (Windows/Linux) or :kbd:`Cmd+S` creates a new data item that matches the displayed image or line plot of the original data item. Then a new display is created that is linked to the new data item and matches the original display. This can be used to grab a particular display snapshot for later reference. Neither the new display nor the new data item is linked to the original display or data item. For instance, if you have a spectrum image and take a display snapshot, the resulting data item will be the displayed slice of the original data only, not the full spectrum image data.
+
+The :menuselection:`Processing --> Snapshot` menu item creates a new data item that is a copy of the selected data item. The new data item not linked to the original data item and the associated display is copied.
+
+The :menuselection:`Processing --> Duplicate` menu item creates a new data item that is a copy of the selected data item. The new data item is not linked to the original data item and the associated display is not copied.
+
+Some plug-in packages may also provide the concept of "capture" which is similar to "duplicate" but will ensure the duplicate takes place at the end of a frame. This is useful during acquisition where the data may be partially updated.
+
+Generating Data
+---------------
+
+The :menuselection:`Processing --> Generate Data` menu item allows you to create a new data item with a specified shape and data type. The data can also be expanded to a collection or sequence.
+
 .. _Edit Computation:
 
 Edit Computation
