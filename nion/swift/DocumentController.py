@@ -4462,28 +4462,6 @@ class AssignVariableReference(Window.Action):
         return context.display_item is not None
 
 
-class CopyItemUUIDAction(Window.Action):
-    action_id = "item.copy_uuid"
-    action_name = _("Copy Item UUID")
-
-    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
-        context = typing.cast(DocumentController.ActionContext, context)
-        window = typing.cast(DocumentController, context.window)
-        window.copy_uuid()
-        return Window.ActionResult(Window.ActionStatus.FINISHED)
-
-
-class CreateDataItemAction(Window.Action):
-    action_id = "item.create_data_item"
-    action_name = _("Create New Data Item")
-
-    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
-        context = typing.cast(DocumentController.ActionContext, context)
-        window = typing.cast(DocumentController, context.window)
-        window.create_empty_data_item()
-        return Window.ActionResult(Window.ActionStatus.FINISHED)
-
-
 class DuplicateAction(Window.Action):
     action_id = "item.duplicate"
     action_name = _("Duplicate")
@@ -4507,8 +4485,6 @@ class SnapshotAction(Window.Action):
 
 
 Window.register_action(AssignVariableReference())
-Window.register_action(CopyItemUUIDAction())
-Window.register_action(CreateDataItemAction())
 Window.register_action(DuplicateAction())
 Window.register_action(SnapshotAction())
 

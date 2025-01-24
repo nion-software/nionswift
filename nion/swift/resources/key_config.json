@@ -101,9 +101,6 @@
     "item.assign_variable_reference": {
         "window": "Ctrl+Shift+K"
     },
-    "item.copy_uuid": {
-        "window": "Ctrl+Shift+U"
-    },
     "line_profile.contract": {
         "line_profile_graphic": "-"
     },

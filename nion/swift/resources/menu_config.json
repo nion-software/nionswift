@@ -165,14 +165,6 @@
                 "action_id": "item.assign_variable_reference"
             },
             {
-                "type": "item",
-                "action_id": "item.copy_uuid"
-            },
-            {
-                "type": "item",
-                "action_id": "item.create_data_item"
-            },
-            {
                 "type": "separator"
             },
             {
