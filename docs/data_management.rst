@@ -29,19 +29,47 @@ You can import a folder of files using :menuselection:`File --> Import Folder...
 
 .. _Export:
 
-Exporting
-+++++++++
-You can export to several data formats.
+Exporting Data
+++++++++++++++
+You can export data to several data formats. When exporting data, you can choose to export a single item or multiple items. Exporting data does not include graphics on the associated display.
 
 The data format to which you are exporting must support data in the format of the data item you are choosing to export. For instance, you cannot export a 2D collection of 1D data to TIFF, which only supports images.
 
-You can select which data items to export by selecting one or more items in the data panel and context clicking on one of the items and then choosing the :menuselection:`File --> Export...` menu item.
+* **JPEG** - JPEG files are lossy compressed files. They are good for a visual representation of the data.
+* **PNG** - PNG files are lossless compressed files. They are good for an exact visual representation of the data.
+* **GIF** - GIF files are lossless compressed files. They are good for an exact visual representation of the data.
+* **BMP** - BMP files are uncompressed files. They are good for an exact visual representation of the data.
+* **WebP** - WebP files are compressed files. They are good for a visual representation of the data.
+* **CSV Raw** - CSV files are text files. They are good for a human-readable representation of the data in a simple format.
+* **CSV 1D** - CSV files are text files. The 1D variant includes calibration information.
+* **DigitalMicrograph** - DigitalMicrograph files are used to transfer data to DigitalMicrograph.
+* **TIFF (Baseline)** - TIFF Baseline files are lossless compressed files. They are good for an exact visual representation of the data. The data is converted to 8-bit in this format.
+* **TIFF (ImageJ)** - TIFF ImageJ files are lossless compressed files that support float 32 data format. They are useful for visual display and for transferring small files between programs.
+* **Raw NumPy** - Raw NumPy files include the data in the NumPy file format as well as a sidecar file containing the metadata. The two files zipped together are equivalent to the NData 1 format.
+* **NData 1** - NData files include all the data and calibration information and are useful for transferring small data items between programs. The NData 1 format is a zip file.
+* **NData HDF** - NData HDF files include data, calibration and other metadata, and display and can be used to transfer display and data between programs. This format is good for large data items.
 
-You can also export the currently focused item by choosing the menu item :menuselection:`File --> Export...`.
+You can select which data items to export by selecting one or more items in the data panel and context clicking on one of the items and then choosing the :menuselection:`File --> Export Single...` or the :menuselection:`File --> Export Multiple...` menu item.
 
-You can also export an item in a display panel by context clicking on the display panel and choosing :menuselection:`Export...`.
+The :menuselection:`File --> Export Single...` menu item will export the currently focused item to the data format that you choose and with the specific file name and location that you specify.
 
-You can also represent a graphic representation of your display using :menuselection:`File --> Export SVG...`.
+The :menuselection:`File --> Export Multiple...` menu item will export the selected items to the data format that you choose but with a filename generated from a checklist of properties. All selected items will be exported to the same folder that you choose.
+
+You can also export an item in a display panel by context clicking on the display panel and choosing :menuselection:`Export Single...`. If multiple display panels are selected, you can also choose :menuselection:`File --> Export Multiple...`.
+
+Exporting Data and Display
+++++++++++++++++++++++++++
+
+The NData HDF format is a good choice for exporting data and display information. The NData HDF format includes the data, calibration, and other metadata, as well as the display information. The display information includes the display type, the display settings, and the graphics. The NData HDF format is good for transferring data and display information between programs.
+
+Exporting a Display Item to SVG
++++++++++++++++++++++++++++++++
+
+You can also represent a graphic representation of your display using :menuselection:`File --> Export SVG...`. The graphic representation will be saved as an SVG file and will include a visual representation of the data as either an image or a line plot and will also include any graphics.
+
+As a convenience you can specify the size of the SVG file in pixels, inches, or centimeters.
+
+The SVG file is resolution independent and can be opened in a web browser or a vector graphics program for further editing.
 
 .. _Managing Projects:
 
