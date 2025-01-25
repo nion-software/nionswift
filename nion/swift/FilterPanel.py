@@ -99,7 +99,7 @@ class FilterController:
         # connect the display_items_model from the document controller to self.
         # when data items are inserted or removed from the document controller, the inserter and remover methods
         # will be called.
-        self.__display_items_model = document_controller.display_items_model
+        self.__display_items_model = Panel.ThreadSafeListModel(document_controller.display_items_model, document_controller.event_loop)
 
         self.__display_item_inserted_listener = self.__display_items_model.item_inserted_event.listen(display_item_inserted)
         self.__display_item_removed_listener = self.__display_items_model.item_removed_event.listen(display_item_removed)
@@ -111,7 +111,7 @@ class FilterController:
         self.__date_filter: typing.Optional[ListModel.Filter] = None
         self.__text_filter: typing.Optional[ListModel.Filter] = None
 
-        for index, display_item in enumerate(self.__display_items_model.display_items):
+        for index, display_item in enumerate(self.__display_items_model.items):
             display_item_inserted("display_items", display_item, index)
 
     def close(self) -> None:
