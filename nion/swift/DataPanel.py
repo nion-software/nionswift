@@ -256,7 +256,7 @@ class ThreadHelper:
 class ItemExplorerController:
     def __init__(self, ui: UserInterface.UserInterface,
                  canvas_item: CanvasItem.AbstractCanvasItem,
-                 display_item_adapters_model: ListModel.MappedListModel, selection: Selection.IndexedSelection,
+                 display_item_adapters_model: Panel.MappedListModelLike, selection: Selection.IndexedSelection,
                  direction: GridCanvasItem.Direction = GridCanvasItem.Direction.Row, wrap: bool = True) -> None:
         self.__pending_tasks: typing.List[asyncio.Task[None]] = list()
         self.ui = ui
@@ -317,7 +317,7 @@ class ItemExplorerController:
         self.__selection_changed_listener: typing.Optional[Event.EventListener] = self.__selection.changed_event.listen(selection_changed)
         self.selected_indexes = list()
 
-        for index, display_item_adapter in enumerate(self.__display_item_adapters_model.display_item_adapters):
+        for index, display_item_adapter in enumerate(self.__display_item_adapters_model.items):
             self.__display_item_adapter_inserted("display_item_adapters", display_item_adapter, index)
 
         self.__closed = False
@@ -493,7 +493,7 @@ class GridCanvasItemDelegate(GridCanvasItem.GridCanvasItemDelegate):
 
 
 class DataGridController(ItemExplorerController):
-    def __init__(self, ui: UserInterface.UserInterface, display_item_adapters_model: ListModel.MappedListModel,
+    def __init__(self, ui: UserInterface.UserInterface, display_item_adapters_model: Panel.MappedListModelLike,
                  selection: Selection.IndexedSelection,
                  direction: GridCanvasItem.Direction = GridCanvasItem.Direction.Row, wrap: bool = True) -> None:
         canvas_item = GridCanvasItem.GridCanvasItem(GridCanvasItemDelegate(self), selection, direction, wrap)
@@ -675,7 +675,7 @@ class DataPanel(Panel.Panel):
 
         display_items_model = document_controller.filtered_display_items_model
 
-        self.__filtered_display_item_adapters_model = ListModel.MappedListModel(container=display_items_model, master_items_key="display_items", items_key="display_item_adapters", map_fn=map_display_item_to_display_item_adapter, unmap_fn=unmap_display_item_to_display_item_adapter)
+        filtered_display_item_adapters_model = ListModel.MappedListModel(container=display_items_model, master_items_key="display_items", items_key="display_item_adapters", map_fn=map_display_item_to_display_item_adapter, unmap_fn=unmap_display_item_to_display_item_adapter)
 
         self.__selection = self.document_controller.selection
 
@@ -693,7 +693,7 @@ class DataPanel(Panel.Panel):
         def delete_display_item_adapters(display_item_adapters: typing.List[DisplayItemAdapter]) -> None:
             document_controller.delete_display_items([display_item_adapter.display_item for display_item_adapter in display_item_adapters if display_item_adapter.display_item])
 
-        self.data_grid_controller = DataGridController(ui, self.__filtered_display_item_adapters_model, self.__selection)
+        self.data_grid_controller = DataGridController(ui, Panel.ThreadSafeListModel(filtered_display_item_adapters_model, document_controller.event_loop), self.__selection)
         self.data_grid_controller.on_context_menu_event = show_context_menu
         self.data_grid_controller.on_focus_changed = focus_changed
         self.data_grid_controller.on_delete_display_item_adapters = delete_display_item_adapters
@@ -758,7 +758,7 @@ class DataPanel(Panel.Panel):
                 return mime_data, thumbnail_data
 
         list_item_delegate = ListItemDelegate(self, self.__selection)
-        list_canvas_item = ListCanvasItem.ListCanvasItem2(display_items_model, self.__selection, list_item_factory, list_item_delegate, item_height=80, key="display_items")
+        list_canvas_item = ListCanvasItem.ListCanvasItem2(Panel.ThreadSafeListModel(display_items_model, document_controller.event_loop), self.__selection, list_item_factory, list_item_delegate, item_height=80, key="display_items")
         scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(list_canvas_item)
         scroll_bar_canvas_item = CanvasItem.ScrollBarCanvasItem(scroll_area_canvas_item, CanvasItem.Orientation.Vertical)
         scroll_group_canvas_item = CanvasItem.CanvasItemComposition()
@@ -873,8 +873,6 @@ class DataPanel(Panel.Panel):
         # finish closing
         self.data_grid_controller.close()
         self.data_grid_controller = typing.cast(DataGridController, None)
-        self.__filtered_display_item_adapters_model.close()
-        self.__filtered_display_item_adapters_model = typing.cast(ListModel.MappedListModel, None)
         # button group
         self.__view_button_group.close()
         self.__view_button_group = typing.cast(CanvasItem.RadioButtonGroup, None)
