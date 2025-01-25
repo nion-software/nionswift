@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 # standard libraries
+import asyncio
 import collections
 import dataclasses
 import functools
@@ -20,7 +21,9 @@ from nion.ui import Application
 from nion.ui import CanvasItem
 from nion.ui import Declarative
 from nion.ui import UserInterface
+from nion.utils import Event
 from nion.utils import Geometry
+from nion.utils import ReferenceCounting
 from nion.utils import Registry
 
 if typing.TYPE_CHECKING:
@@ -607,3 +610,51 @@ class PanelManager(metaclass=Utility.Singleton):
             if panel_section_id in panel_section_factory.panel_section_ids:
                 return True
         return False
+
+
+# useful utility class
+
+class MappedListModelLike(typing.Protocol):
+    item_inserted_event: Event.Event
+    item_removed_event: Event.Event
+    end_changes_event: Event.Event
+
+    @property
+    def items(self) -> typing.Sequence[typing.Any]:
+        raise NotImplementedError()
+
+
+class ThreadSafeListModel(MappedListModelLike):
+    def __init__(self, list_model: MappedListModelLike, event_loop: asyncio.AbstractEventLoop) -> None:
+        self.__items = list(list_model.items)
+        self.__event_loop = event_loop
+
+        self.__list_model = list_model
+        self.item_inserted_event = Event.Event()
+        self.item_removed_event = Event.Event()
+        self.end_changes_event = Event.Event()
+
+        self.__item_inserted_listener = self.__list_model.item_inserted_event.listen(ReferenceCounting.weak_partial(ThreadSafeListModel.__list_model_item_inserted, self))
+        self.__item_removed_listener = self.__list_model.item_removed_event.listen(ReferenceCounting.weak_partial(ThreadSafeListModel.__list_model_item_removed, self))
+        self.__end_changes_listener = self.__list_model.end_changes_event.listen(ReferenceCounting.weak_partial(ThreadSafeListModel.__end_changes, self))
+
+    def __list_model_item_inserted(self, key: str, item: typing.Any, before_index: int) -> None:
+        if threading.current_thread() != threading.main_thread():
+            self.__event_loop.call_soon_threadsafe(self.__list_model_item_inserted, key, item, before_index)
+        else:
+            self.__items.insert(before_index, item)
+            self.item_inserted_event.fire(key, item, before_index)
+
+    def __list_model_item_removed(self, key: str, item: typing.Any, index: int) -> None:
+        if threading.current_thread() != threading.main_thread():
+            self.__event_loop.call_soon_threadsafe(self.__list_model_item_removed, key, item, index)
+        else:
+            del self.__items[index]
+            self.item_removed_event.fire(key, item, index)
+
+    def __end_changes(self, key: str) -> None:
+        self.end_changes_event.fire(key)
+
+    @property
+    def items(self) -> typing.Sequence[typing.Any]:
+        return list(self.__items)
