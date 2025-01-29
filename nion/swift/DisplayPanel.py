@@ -36,6 +36,7 @@ from nion.swift.model import Graphics
 from nion.swift.model import Persistence
 from nion.swift.model import UISettings
 from nion.swift.model import Utility
+from nion.swift.model.UISettings import TruncateModeType
 from nion.ui import CanvasItem
 from nion.ui import DrawingContext
 from nion.ui import GridCanvasItem
@@ -1708,6 +1709,9 @@ class DisplayPanelUISettings(UISettings.UISettings):
     def get_font_metrics(self, font: str, text: str) -> UISettings.FontMetrics:
         return typing.cast(UISettings.FontMetrics, self.__ui.get_font_metrics(font, text))
 
+    def truncate_string_to_width(self, font_str: str, text: str, pixel_width: int, mode: UISettings.TruncateModeType) -> str:
+        return self.__ui.truncate_string_to_width(font_str, text, pixel_width, typing.cast(UserInterface.TruncateModeType, mode))
+
     @property
     def cursor_tolerance(self) -> float:
         return self.__ui.get_tolerance(UserInterface.ToleranceType.CURSOR)
@@ -1719,6 +1723,9 @@ class FixedUISettings(UISettings.UISettings):
 
     def get_font_metrics(self, font: str, text: str) -> UISettings.FontMetrics:
         return UISettings.FontMetrics(width=round(6.5 * len(text)), height=15, ascent=12, descent=3, leading=0)
+
+    def truncate_string_to_width(self, font_str: str, text: str, pixel_width: int, mode: UISettings.TruncateModeType) -> str:
+        raise NotImplementedError()
 
     @property
     def cursor_tolerance(self) -> float:

@@ -16,6 +16,7 @@ import weakref
 # None
 
 # local libraries
+from nion.swift.model import UISettings
 from nion.swift.model import Utility
 from nion.ui import Application
 from nion.ui import CanvasItem
@@ -23,6 +24,7 @@ from nion.ui import Declarative
 from nion.ui import UserInterface
 from nion.utils import Event
 from nion.utils import Geometry
+from nion.utils import Platform
 from nion.utils import ReferenceCounting
 from nion.utils import Registry
 
@@ -47,7 +49,7 @@ class Panel:
 
     @classmethod
     def get_monospace_text_font(cls) -> str:
-        if sys.platform == "darwin":
+        if Platform.is_macos():
             return "11px monospace"
         else:
             return "12px monospace"
@@ -233,29 +235,62 @@ class OutputPanel(Panel):
         super().close()
 
 
-class HeaderCanvasItemComposer(CanvasItem.BaseComposer):
-    def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing, cache: CanvasItem.ComposerCache, title: str, display_close_control: bool, start_header_color: str, end_header_color: str) -> None:
+class CloseButtonCell(CanvasItem.Cell):
+    def __init__(self) -> None:
+        super().__init__()
+        self.fill_style = "rgb(128, 128, 128)"
+        self.fill_style_pressed = "rgb(64, 64, 64)"
+        self.fill_style_disabled = "rgb(192, 192, 192)"
+        self.border_style: str | None = None
+        self.border_style_pressed: str | None = None
+        self.border_style_disabled: str | None = None
+        self.stroke_style = "#FFF"
+        self.stroke_width = 3.0
+
+    def _size_to_content(self, get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> Geometry.IntSize:
+        return Geometry.IntSize(20, 20)
+
+    def _paint_cell(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.FloatRect, style: set[str]) -> None:
+        if not Platform.is_macos():
+            control_style = '#000000'
+        else:
+            control_style = '#808080'
+        with drawing_context.saver():
+            drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
+            drawing_context.begin_path()
+            close_box_left = canvas_bounds.width - (20 - 7)
+            close_box_right = canvas_bounds.width - (20 - 13)
+            close_box_top = canvas_bounds.height // 2 - 3
+            close_box_bottom = canvas_bounds.height // 2 + 3
+            drawing_context.move_to(close_box_left, close_box_top)
+            drawing_context.line_to(close_box_right, close_box_bottom)
+            drawing_context.move_to(close_box_left, close_box_bottom)
+            drawing_context.line_to(close_box_right, close_box_top)
+            drawing_context.line_width = 1.5
+            drawing_context.line_cap = "round"
+            drawing_context.stroke_style = control_style
+            drawing_context.stroke()
+
+
+class CloseButtonCanvasItem(CanvasItem.CellCanvasItem):
+
+    def __init__(self, ui_settings: UISettings.UISettings) -> None:
+        super().__init__(CloseButtonCell())
+        self.wants_mouse_events = True
+        self.size_to_content(typing.cast(typing.Callable[[str, str], UserInterface.FontMetrics], ui_settings.get_font_metrics))
+
+
+class HeaderBackgroundCanvasItemComposer(CanvasItem.BaseComposer):
+    def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing,
+                 cache: CanvasItem.ComposerCache, start_header_color: str, end_header_color: str, top_offset: int,
+                 top_stroke_style: str | None, side_stroke_style: str | None, bottom_stroke_style: str | None) -> None:
         super().__init__(canvas_item, layout_sizing, cache)
-        self.__title = title
-        self.__display_close_control = display_close_control
         self.__start_header_color = start_header_color
         self.__end_header_color = end_header_color
-        if sys.platform == "win32":
-            self.__font = 'normal 11px system serif'
-            self.__top_offset = 1
-            self.__text_offset = 4
-            self.__top_stroke_style = '#b8b8b8'
-            self.__side_stroke_style = '#b8b8b8'
-            self.__bottom_stroke_style = '#b8b8b8'
-            self.__control_style = '#000000'
-        else:
-            self.__font = 'normal 10pt system serif'
-            self.__top_offset = 0
-            self.__text_offset = 7
-            self.__top_stroke_style = '#ffffff'
-            self.__bottom_stroke_style = '#b0b0b0'
-            self.__side_stroke_style = None
-            self.__control_style = '#808080'
+        self.__top_offset = top_offset
+        self.__top_stroke_style = top_stroke_style
+        self.__side_stroke_style = side_stroke_style
+        self.__bottom_stroke_style = bottom_stroke_style
 
     def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> None:
         start_header_color = self.__start_header_color
@@ -264,11 +299,6 @@ class HeaderCanvasItemComposer(CanvasItem.BaseComposer):
         top_stroke_style = self.__top_stroke_style
         bottom_stroke_style = self.__bottom_stroke_style
         side_stroke_style = self.__side_stroke_style
-        display_close_control = self.__display_close_control
-        control_style = self.__control_style
-        font = self.__font
-        title = self.__title
-        text_offset = self.__text_offset
         with drawing_context.saver():
             drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
             with drawing_context.saver():
@@ -311,98 +341,30 @@ class HeaderCanvasItemComposer(CanvasItem.BaseComposer):
                     drawing_context.stroke_style = side_stroke_style
                     drawing_context.stroke()
 
-            if display_close_control:
-                with drawing_context.saver():
-                    drawing_context.begin_path()
-                    close_box_left = canvas_bounds.width - (20 - 7)
-                    close_box_right = canvas_bounds.width - (20 - 13)
-                    close_box_top = canvas_bounds.height // 2 - 3
-                    close_box_bottom = canvas_bounds.height // 2 + 3
-                    drawing_context.move_to(close_box_left, close_box_top)
-                    drawing_context.line_to(close_box_right, close_box_bottom)
-                    drawing_context.move_to(close_box_left, close_box_bottom)
-                    drawing_context.line_to(close_box_right, close_box_top)
-                    drawing_context.line_width = 1.5
-                    drawing_context.line_cap = "round"
-                    drawing_context.stroke_style = control_style
-                    drawing_context.stroke()
 
-            with drawing_context.saver():
-                drawing_context.font = font
-                drawing_context.text_align = 'center'
-                drawing_context.text_baseline = 'bottom'
-                drawing_context.fill_style = '#000'
-                drawing_context.fill_text(title, canvas_bounds.width // 2, canvas_bounds.height - text_offset)
+class HeaderBackgroundCanvasItem(CanvasItem.AbstractCanvasItem):
 
-
-
-class HeaderCanvasItem(CanvasItem.AbstractCanvasItem):
-
-    # header_height = 20 if sys.platform == "win32" else 22
-
-    def __init__(self, ui_settings: UISettings.UISettings, title: typing.Optional[str] = None,
-                 label: typing.Optional[str] = None, display_close_control: bool = False) -> None:
+    def __init__(self, height: int) -> None:
         super().__init__()
-        self.wants_mouse_events = True
-        self.__title = title if title else ""
-        self.__display_close_control = display_close_control
-        self.__ui_settings = ui_settings
         self.__set_default_style()
-        self.update_sizing(self.sizing.with_fixed_height(self.header_height))
-        self.on_select_pressed: typing.Optional[typing.Callable[[], None]] = None
-        self.on_drag_pressed: typing.Optional[typing.Callable[[], None]] = None
-        self.on_close_clicked: typing.Optional[typing.Callable[[], None]] = None
-        self.on_context_menu_clicked: typing.Optional[typing.Callable[[int, int, int, int], bool]] = None
-        self.on_double_clicked: typing.Optional[typing.Callable[[int, int, UserInterface.KeyboardModifiers], bool]] = None
-        self.on_tool_tip: typing.Optional[typing.Callable[[], typing.Optional[str]]] = None
-        self.__mouse_pressed_position: typing.Optional[Geometry.IntPoint] = None
-
-    def close(self) -> None:
-        self.on_select_pressed = None
-        self.on_drag_pressed = None
-        self.on_close_clicked = None
-        self.on_context_menu_clicked = None
-        self.__ui_settings = typing.cast(typing.Any, None)
-        super().close()
+        self.update_sizing(self.sizing.with_fixed_height(height))
 
     def __set_default_style(self) -> None:
-        if sys.platform == "win32":
-            self.__font = 'normal 11px system serif'
+        self.__side_stroke_style: str | None
+        if not Platform.is_macos():
             self.__top_offset = 1
-            self.__text_offset = 4
             self.__start_header_color = "#d9d9d9"
             self.__end_header_color = "#d9d9d9"
             self.__top_stroke_style = '#b8b8b8'
             self.__side_stroke_style = '#b8b8b8'
             self.__bottom_stroke_style = '#b8b8b8'
-            self.__control_style = '#000000'
         else:
-            self.__font = 'normal 10pt system serif'
             self.__top_offset = 0
-            self.__text_offset = 7
             self.__start_header_color = "#ededed"
             self.__end_header_color = "#cacaca"
             self.__top_stroke_style = '#ffffff'
             self.__bottom_stroke_style = '#b0b0b0'
             self.__side_stroke_style = None
-            self.__control_style = '#808080'
-
-    def __str__(self) -> str:
-        return self.__title
-
-    @property
-    def header_height(self) -> int:
-        return self.__ui_settings.get_font_metrics(self.__font, "abc").height + 3 + self.__text_offset
-
-    @property
-    def title(self) -> str:
-        return self.__title
-
-    @title.setter
-    def title(self, title: str) -> None:
-        if self.__title != title:
-            self.__title = title
-            self.update()
 
     @property
     def start_header_color(self) -> str:
@@ -427,6 +389,80 @@ class HeaderCanvasItem(CanvasItem.AbstractCanvasItem):
     def reset_header_colors(self) -> None:
         self.__set_default_style()
         self.update()
+
+    def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> CanvasItem.BaseComposer | None:
+        return HeaderBackgroundCanvasItemComposer(self, self.sizing, composer_cache, self.__start_header_color,
+                                                  self.__end_header_color, self.__top_offset, self.__top_stroke_style,
+                                                  self.__side_stroke_style, self.__bottom_stroke_style)
+
+
+class HeaderTitleCanvasItemComposer(CanvasItem.BaseComposer):
+    def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing, cache: CanvasItem.ComposerCache, title: str, font: str, text_offset: int, ui_settings: UISettings.UISettings) -> None:
+        super().__init__(canvas_item, layout_sizing, cache)
+        self.__title = title
+        self.__font = font
+        self.__text_offset = text_offset
+        self.__ui_settings = ui_settings
+
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> None:
+        font = self.__font
+        title = self.__title
+        text_offset = self.__text_offset
+        canvas_bounds = canvas_bounds.intersect(Geometry.IntRect.from_tlbr(0, 0, canvas_bounds.bottom, canvas_bounds.right))
+        title = self.__ui_settings.truncate_string_to_width(self.__font, title, canvas_bounds.width, UISettings.TruncateModeType.MIDDLE)
+        with drawing_context.saver():
+            drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
+            drawing_context.clip_rect(0, 0, canvas_bounds.width, canvas_bounds.height)
+            drawing_context.font = font
+            drawing_context.text_align = 'left'
+            drawing_context.text_baseline = 'bottom'
+            drawing_context.fill_style = '#000'
+            drawing_context.fill_text(title, 0, canvas_bounds.height - text_offset)
+
+
+class HeaderTitleCanvasItem(CanvasItem.AbstractCanvasItem):
+
+    def __init__(self, ui_settings: UISettings.UISettings, title: str, height: int, font: str, text_offset: int) -> None:
+        super().__init__()
+        self.__ui_settings = ui_settings
+        self.__title = title
+        self.__height = height
+        self.__font = font
+        self.__text_offset = text_offset
+        self.update_sizing(self.sizing.with_fixed_height(height))
+
+    def __str__(self) -> str:
+        return self.__title
+
+    @property
+    def title(self) -> str:
+        return self.__title
+
+    @title.setter
+    def title(self, title: str) -> None:
+        if self.__title != title:
+            self.__title = title
+            font_metrics = self.__ui_settings.get_font_metrics(self.__font, self.__title)
+            new_sizing = self.sizing
+            new_sizing = new_sizing.with_preferred_width(font_metrics.width)
+            self.update_sizing(new_sizing)
+            self.update()
+
+    def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> CanvasItem.BaseComposer | None:
+        return HeaderTitleCanvasItemComposer(self, self.sizing, composer_cache, self.title, self.__font, self.__text_offset, self.__ui_settings)
+
+
+class HeaderOverlayCanvasItem(CanvasItem.EmptyCanvasItem):
+
+    def __init__(self, height: int) -> None:
+        super().__init__()
+        self.wants_mouse_events = True
+        self.on_select_pressed: typing.Callable[[], None] | None = None
+        self.on_drag_pressed: typing.Callable[[], None] | None = None
+        self.on_context_menu_clicked: typing.Callable[[int, int, int, int], bool] | None = None
+        self.on_double_clicked: typing.Callable[[int, int, UserInterface.KeyboardModifiers], bool] | None = None
+        self.on_tool_tip: typing.Callable[[], str | None] | None = None
+        self.__mouse_pressed_position: Geometry.IntPoint | None = None
 
     def mouse_entered(self) -> bool:
         if callable(self.on_tool_tip):
@@ -459,18 +495,7 @@ class HeaderCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def mouse_released(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         canvas_size = self.canvas_size
-        select_ok = self.__mouse_pressed_position is not None
-        if canvas_size and self.__display_close_control:
-            close_box_left = canvas_size.width - (20 - 4)
-            close_box_right = canvas_size.width - (20 - 18)
-            close_box_top = 2
-            close_box_bottom = canvas_size.height - 2
-            if x > close_box_left and x < close_box_right and y > close_box_top and y < close_box_bottom:
-                on_close_clicked = self.on_close_clicked
-                if callable(on_close_clicked):
-                    on_close_clicked()
-                    select_ok = False
-        if select_ok:
+        if self.__mouse_pressed_position is not None:
             on_select_pressed = self.on_select_pressed
             if callable(on_select_pressed):
                 on_select_pressed()
@@ -482,8 +507,126 @@ class HeaderCanvasItem(CanvasItem.AbstractCanvasItem):
             return self.on_context_menu_clicked(x, y, gx, gy)
         return False
 
-    def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> typing.Optional[CanvasItem.BaseComposer]:
-        return HeaderCanvasItemComposer(self, self.sizing, composer_cache, self.title, self.__display_close_control, self.__start_header_color, self.__end_header_color)
+
+class HeaderCanvasItem(CanvasItem.CanvasItemComposition):
+
+    def __init__(self, ui_settings: UISettings.UISettings, title: str | None = None, display_close_control: bool = False) -> None:
+        super().__init__()
+        self.__ui_settings = ui_settings
+        if not Platform.is_macos():
+            self.__font = 'normal 11px system serif'
+            self.__text_offset = 4
+        else:
+            self.__font = 'normal 10pt system serif'
+            self.__text_offset = 7
+        height = self.__ui_settings.get_font_metrics(self.__font, "abc").height + 3 + self.__text_offset
+        self.__title = title or str()
+        self.__title_canvas_item = HeaderTitleCanvasItem(self.__ui_settings, self.__title, height, self.__font, self.__text_offset)
+        self.__overlay_canvas_item = HeaderOverlayCanvasItem(height)
+        self.__header_background_canvas_item = HeaderBackgroundCanvasItem(height)
+        self.__close_button_canvas_item = CloseButtonCanvasItem(self.__ui_settings) if display_close_control else None
+        title_row = CanvasItem.CanvasItemComposition()
+        title_row.layout = CanvasItem.CanvasItemRowLayout()
+        title_row.add_stretch()
+        title_row.add_canvas_item(self.__title_canvas_item)
+        title_row.add_stretch()
+        title_row.update_sizing(title_row.sizing.with_minimum_width(0))
+        header_row = CanvasItem.CanvasItemComposition()
+        header_row.layout = CanvasItem.CanvasItemRowLayout()
+        header_row.add_spacing(6)
+        header_overlay = CanvasItem.CanvasItemComposition()
+        header_overlay.add_canvas_item(title_row)
+        header_overlay.add_canvas_item(self.__overlay_canvas_item)
+        header_row.add_canvas_item(header_overlay)
+        if self.__close_button_canvas_item:
+            header_row.add_canvas_item(self.__close_button_canvas_item)
+        self.add_canvas_item(self.__header_background_canvas_item)
+        self.add_canvas_item(header_row)
+        self.update_sizing(self.sizing.with_fixed_height(height))
+
+    @property
+    def header_height(self) -> int:
+        return self.__ui_settings.get_font_metrics(self.__font, "abc").height + 3 + self.__text_offset
+
+    @property
+    def title(self) -> str:
+        return self.__title_canvas_item.title
+
+    @title.setter
+    def title(self, title: str) -> None:
+        self.__title_canvas_item.title = title
+
+    @property
+    def start_header_color(self) -> str:
+        return self.__header_background_canvas_item.start_header_color
+
+    @start_header_color.setter
+    def start_header_color(self, start_header_color: str) -> None:
+        self.__header_background_canvas_item.start_header_color = start_header_color
+
+    @property
+    def end_header_color(self) -> str:
+        return self.__header_background_canvas_item.end_header_color
+
+    @end_header_color.setter
+    def end_header_color(self, end_header_color: str) -> None:
+        self.__header_background_canvas_item.end_header_color = end_header_color
+
+    def reset_header_colors(self) -> None:
+        self.__header_background_canvas_item.reset_header_colors()
+
+    @property
+    def on_select_pressed(self) -> typing.Callable[[], None] | None:
+        return self.__overlay_canvas_item.on_select_pressed
+
+    @on_select_pressed.setter
+    def on_select_pressed(self, value: typing.Callable[[], None] | None) -> None:
+        self.__overlay_canvas_item.on_select_pressed = value
+
+    @property
+    def on_drag_pressed(self) -> typing.Callable[[], None] | None:
+        return self.__overlay_canvas_item.on_drag_pressed
+
+    @on_drag_pressed.setter
+    def on_drag_pressed(self, value: typing.Callable[[], None] | None) -> None:
+        self.__overlay_canvas_item.on_drag_pressed = value
+
+    @property
+    def on_context_menu_clicked(self) -> typing.Callable[[int, int, int, int], bool] | None:
+        return self.__overlay_canvas_item.on_context_menu_clicked
+
+    @on_context_menu_clicked.setter
+    def on_context_menu_clicked(self, value: typing.Callable[[int, int, int, int], bool] | None) -> None:
+        self.__overlay_canvas_item.on_context_menu_clicked = value
+
+    @property
+    def on_double_clicked(self) -> typing.Callable[[int, int, UserInterface.KeyboardModifiers], bool] | None:
+        return self.__overlay_canvas_item.on_double_clicked
+
+    @on_double_clicked.setter
+    def on_double_clicked(self, value: typing.Callable[[int, int, UserInterface.KeyboardModifiers], bool] | None) -> None:
+        self.__overlay_canvas_item.on_double_clicked = value
+
+    @property
+    def on_tool_tip(self) -> typing.Callable[[], str | None] | None:
+        return self.__overlay_canvas_item.on_tool_tip
+
+    @on_tool_tip.setter
+    def on_tool_tip(self, value: typing.Callable[[], str | None] | None) -> None:
+        self.__overlay_canvas_item.on_tool_tip = value
+
+    @property
+    def on_close_clicked(self) -> typing.Callable[[], None] | None:
+        return self.__close_button_canvas_item.on_clicked if self.__close_button_canvas_item else None
+
+    @on_close_clicked.setter
+    def on_close_clicked(self, value: typing.Callable[[], None] | None) -> None:
+        if self.__close_button_canvas_item:
+            self.__close_button_canvas_item.on_clicked = value
+
+    # for testing
+    def simulate_click(self, p: Geometry.IntPointTuple, modifiers: typing.Optional[UserInterface.KeyboardModifiers] = None) -> None:
+        self.__overlay_canvas_item.simulate_click(p, modifiers)
 
 
 class PanelSectionFactory(typing.Protocol):
