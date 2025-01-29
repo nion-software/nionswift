@@ -18,6 +18,7 @@ import weakref
 from nion.swift import Panel
 from nion.swift.model import DisplayItem
 from nion.swift.model import UISettings
+from nion.ui import UserInterface
 from nion.utils import ListModel
 
 if typing.TYPE_CHECKING:
@@ -31,6 +32,21 @@ _KeyListType = typing.List[_KeyType]
 _ValueType = DisplayItem.DisplayItem
 
 _ = gettext.gettext
+
+
+class FilterPanelUISettings(UISettings.UISettings):
+    def __init__(self, ui: UserInterface.UserInterface) -> None:
+        self.__ui = ui
+
+    def get_font_metrics(self, font: str, text: str) -> UISettings.FontMetrics:
+        return typing.cast(UISettings.FontMetrics, self.__ui.get_font_metrics(font, text))
+
+    def truncate_string_to_width(self, font_str: str, text: str, pixel_width: int, mode: UISettings.TruncateModeType) -> str:
+        return self.__ui.truncate_string_to_width(font_str, text, pixel_width, typing.cast(UserInterface.TruncateModeType, mode))
+
+    @property
+    def cursor_tolerance(self) -> float:
+        return self.__ui.get_tolerance(UserInterface.ToleranceType.CURSOR)
 
 
 # TODO: Add button to convert between (filter <-> smart group) -> regular group
@@ -271,8 +287,7 @@ class FilterPanel:
         date_browser.add(date_browser_tree_widget)
         date_browser.add_stretch()
 
-        # TODO: clean up UISettings FontMetrics definition
-        header_canvas_item = Panel.HeaderCanvasItem(typing.cast(UISettings.UISettings, document_controller), _("Filter"))
+        header_canvas_item = Panel.HeaderCanvasItem(FilterPanelUISettings(document_controller.ui), _("Filter"))
 
         header_widget = ui.create_canvas_widget(properties={"height": header_canvas_item.header_height})
         header_widget.canvas_item.add_canvas_item(header_canvas_item)

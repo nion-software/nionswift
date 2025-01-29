@@ -4,6 +4,12 @@
     "notes": [
       {
         "issues": [
+          "https://github.com/nion-software/nionswift/issues/1028", "https://github.com/nion-software/nionswift/issues/1280"
+        ],
+        "summary": "Improve display panel header to truncate string when not enough room. Add mouse over highlighting."
+      },
+      {
+        "issues": [
           "https://github.com/nion-software/nionswift/issues/1238"
         ],
         "summary": "Add a line profile computation automatically when copying and pasting a line profile from one image to another."
