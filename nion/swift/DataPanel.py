@@ -679,8 +679,6 @@ class DataPanel(Panel.Panel):
 
         self.__selection = self.document_controller.selection
 
-        self.__focused = False
-
         def selection_changed() -> None:
             # called when the selection changes; notify selected display item changed if focused.
             self.__notify_focus_changed()
@@ -688,7 +686,7 @@ class DataPanel(Panel.Panel):
         self.__selection_changed_event_listener = self.__selection.changed_event.listen(selection_changed)
 
         def focus_changed(focused: bool) -> None:
-            self.focused = focused
+            self.__notify_focus_changed()
 
         def delete_display_item_adapters(display_item_adapters: typing.List[DisplayItemAdapter]) -> None:
             document_controller.delete_display_items([display_item_adapter.display_item for display_item_adapter in display_item_adapters if display_item_adapter.display_item])
@@ -885,14 +883,8 @@ class DataPanel(Panel.Panel):
         # this is called when the keyboard focus for the data panel is changed.
         # if we are receiving focus, tell the window (document_controller) that
         # we now have the focus.
-        if self.__focused:
+        if self._data_list_widget.focused or self._data_grid_widget.focused:
             self.document_controller.data_panel_focused()
 
-    @property
-    def focused(self) -> bool:
-        return self.__focused
-
-    @focused.setter
-    def focused(self, value: bool) -> None:
-        self.__focused = value
-        self.__notify_focus_changed()
+    def _request_focus_for_test(self) -> None:
+        self._data_list_widget.focused = True
