@@ -183,7 +183,7 @@ class TestDataPanelClass(unittest.TestCase):
             document_model.append_data_group(data_group2)
             data_panel = document_controller.find_dock_panel("data-panel")
             project_panel = document_controller.find_dock_panel("collections-panel")
-            data_panel.focused = True
+            data_panel._request_focus_for_test()
             self.assertSetEqual({0}, project_panel._collection_selection.indexes)
             self.assertEqual(document_controller.selection.indexes, set())
             document_controller.select_data_group_in_data_panel(data_group=data_group1, data_item=data_item1)
@@ -236,7 +236,7 @@ class TestDataPanelClass(unittest.TestCase):
             document_model.append_data_item(DataItem.DataItem(numpy.zeros((2, 2))))
             document_model.append_data_item(DataItem.DataItem(numpy.zeros((2, 2))))
             data_panel = document_controller.find_dock_panel("data-panel")
-            data_panel.focused = True
+            data_panel._request_focus_for_test()
             document_controller.select_data_item_in_data_panel(document_model.data_items[0])
             self.assertEqual(document_model.data_items[0], document_controller.selected_data_item)
             document_controller.select_data_item_in_data_panel(document_model.data_items[1])
@@ -249,7 +249,7 @@ class TestDataPanelClass(unittest.TestCase):
             document_model.append_data_item(DataItem.DataItem(numpy.zeros((2, 2))))
             document_model.append_data_item(DataItem.DataItem(numpy.zeros((2, 2))))
             data_panel = document_controller.find_dock_panel("data-panel")
-            data_panel.focused = True
+            data_panel._request_focus_for_test()
             document_controller.select_data_item_in_data_panel(document_model.data_items[0])
             self.assertEqual(document_model.data_items[0], document_controller.selected_data_item)
             document_controller.select_data_items_in_data_panel(document_model.data_items)
@@ -262,7 +262,7 @@ class TestDataPanelClass(unittest.TestCase):
             document_model.append_data_item(DataItem.DataItem(numpy.zeros((2, 2))))
             document_model.append_data_item(DataItem.DataItem(numpy.zeros((2, 2))))
             data_panel = document_controller.find_dock_panel("data-panel")
-            data_panel.focused = True
+            data_panel._request_focus_for_test()
             document_controller.select_data_item_in_data_panel(document_model.data_items[0])
             self.assertEqual(document_model.data_items[0], document_controller.selected_data_item)
             document_controller.select_data_items_in_data_panel([])
@@ -283,7 +283,7 @@ class TestDataPanelClass(unittest.TestCase):
             document_model.append_data_item(data_item2)
             # finished setting up
             data_panel = document_controller.find_dock_panel("data-panel")
-            data_panel.focused = True
+            data_panel._request_focus_for_test()
             document_controller.select_data_item_in_data_panel(data_item=data_item1)
             # make sure our preconditions are right
             self.assertEqual(document_controller.selected_data_item, data_item1)
@@ -427,7 +427,7 @@ class TestDataPanelClass(unittest.TestCase):
             data_item.title = "data_item"
             document_model.append_data_item(data_item)
             data_panel = document_controller.find_dock_panel("data-panel")
-            data_panel.focused = True
+            data_panel._request_focus_for_test()
             self.assertIsNone(document_controller.selected_display_item)
             document_controller.receive_files([pathlib.Path(":/app/scroll_gem.png")], index=0)
             document_controller.periodic()
