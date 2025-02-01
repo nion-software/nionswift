@@ -410,6 +410,10 @@ class DocumentController(Window.Window):
         self._close_dialogs()
         while self.__collection_info_controller_list_model.count:
             self.__collection_info_controller_list_model.pop_item(-1).close()
+        self.__selection_changed_listener.close()
+        self.__selection_changed_listener = typing.cast(typing.Any, None)
+        self.__filtered_display_items_item_removed_event_listener.close()
+        self.__filtered_display_items_item_removed_event_listener = typing.cast(typing.Any, None)
         if self.__workspace_controller:
             self.__workspace_controller.close()
             self.__workspace_controller = None
@@ -418,10 +422,6 @@ class DocumentController(Window.Window):
             self.__workspace_display_panel_content_changed_event_listener = None
         self.__undo_stack.close()
         self.__undo_stack = typing.cast(typing.Any, None)
-        self.__selection_changed_listener.close()
-        self.__selection_changed_listener = typing.cast(typing.Any, None)
-        self.__filtered_display_items_item_removed_event_listener.close()
-        self.__filtered_display_items_item_removed_event_listener = typing.cast(typing.Any, None)
         self.__call_soon_event_listener.close()
         self.__call_soon_event_listener = typing.cast(typing.Any, None)
         self.__filtered_display_items_model.close()
@@ -740,7 +740,7 @@ class DocumentController(Window.Window):
     # when the focused display panel or focused data panel changes or when the selection in
     # one of those items changes, this is called to figure out the new selected display items
     # and issue notifications if changed. if the selected display panel is not None, it gets
-    # gets the display items from the display panel, otherwise it gets them from the data panel.
+    # the display items from the display panel, otherwise it gets them from the data panel.
     def __update_selected_display_items(self) -> None:
         old_selected_display_item = self.__selected_display_item
         display_panel = self.selected_display_panel
