@@ -36,7 +36,6 @@ from nion.swift.model import Graphics
 from nion.swift.model import Persistence
 from nion.swift.model import UISettings
 from nion.swift.model import Utility
-from nion.swift.model.UISettings import TruncateModeType
 from nion.ui import CanvasItem
 from nion.ui import DrawingContext
 from nion.ui import GridCanvasItem
