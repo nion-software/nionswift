@@ -613,11 +613,11 @@ class TestDataPanelClass(unittest.TestCase):
             document_controller = test_context.create_document_controller()
             data_panel = document_controller.find_dock_panel("data-panel")
             width = 320
-            data_panel._data_list_widget.canvas_item.layout_immediate(Geometry.IntSize(width=width, height=148))
+            data_panel._data_list_canvas_item.layout_immediate(Geometry.IntSize(width=width, height=148))
             self.assertEqual(width - 16, data_panel._scroll_area_canvas_item.canvas_bounds.width)
             self.assertEqual(width - 16, data_panel._scroll_area_canvas_item.content.canvas_bounds.width)
             width = 344
-            data_panel._data_list_widget.canvas_item.layout_immediate(Geometry.IntSize(width=width, height=148))
+            data_panel._data_list_canvas_item.layout_immediate(Geometry.IntSize(width=width, height=148))
             self.assertEqual(width - 16, data_panel._scroll_area_canvas_item.canvas_bounds.width)
             self.assertEqual(width - 16, data_panel._scroll_area_canvas_item.content.canvas_bounds.width)
 
@@ -629,7 +629,7 @@ class TestDataPanelClass(unittest.TestCase):
                 document_model.append_data_item(DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32)))
             document_controller.periodic()
             data_panel = document_controller.find_dock_panel("data-panel")
-            data_panel._data_list_widget.canvas_item.layout_immediate(Geometry.IntSize(width=320, height=160))
+            data_panel._data_list_canvas_item.layout_immediate(Geometry.IntSize(width=320, height=160))
             self.assertEqual(data_panel._scroll_area_canvas_item.content_origin, Geometry.IntPoint(0, 0))
             self.assertEqual(data_panel._scroll_area_canvas_item.content_size, Geometry.IntSize(800, 304))
             data_panel._scroll_bar_canvas_item.simulate_drag((8, 8), (24, 8))
@@ -642,13 +642,13 @@ class TestDataPanelClass(unittest.TestCase):
             document_model = document_controller.document_model
             data_panel = document_controller.find_dock_panel("data-panel")
             width = 320
-            data_panel._data_grid_widget.content_widget.children[0].canvas_item.layout_immediate(Geometry.IntSize(width=width, height=148))
-            self.assertEqual(width - 16, data_panel.data_grid_controller.scroll_area_canvas_item.canvas_bounds.width)
-            self.assertEqual(width - 16, data_panel.data_grid_controller.scroll_area_canvas_item.content.canvas_bounds.width)
+            data_panel._data_list_canvas_item.layout_immediate(Geometry.IntSize(width=width, height=148))
+            self.assertEqual(width, data_panel._data_list_canvas_item.canvas_bounds.width)
+            self.assertEqual(width - 16, data_panel._data_list_canvas_item.canvas_items[0].canvas_bounds.width)
             width = 344
-            data_panel._data_grid_widget.content_widget.children[0].canvas_item.layout_immediate(Geometry.IntSize(width=width, height=148))
-            self.assertEqual(width - 16, data_panel.data_grid_controller.scroll_area_canvas_item.canvas_bounds.width)
-            self.assertEqual(width - 16, data_panel.data_grid_controller.scroll_area_canvas_item.content.canvas_bounds.width)
+            data_panel._data_grid_canvas_item.layout_immediate(Geometry.IntSize(width=width, height=148))
+            self.assertEqual(width, data_panel._data_grid_canvas_item.canvas_bounds.width)
+            self.assertEqual(width - 16, data_panel._data_grid_canvas_item.canvas_items[0].canvas_bounds.width)
 
     def test_switching_to_temporary_group_displays_temporary_items(self):
         with TestContext.create_memory_context() as test_context:
