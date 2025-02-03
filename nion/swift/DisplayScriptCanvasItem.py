@@ -123,6 +123,9 @@ class ScriptDisplayCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         # enter key has been pressed
         return False
 
+    def set_focused(self, is_focused: bool) -> None:
+        pass
+
     def __update_display_info(self) -> None:
         data_and_metadata = self.__display_xdata
         display_script = self.__display_script
