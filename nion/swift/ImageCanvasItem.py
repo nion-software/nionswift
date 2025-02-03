@@ -149,13 +149,15 @@ class ImageCanvasItemMapping(Graphics.CoordinateMappingLike):
 class GraphicsCanvasItemComposer(CanvasItem.BaseComposer):
     def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing, cache: CanvasItem.ComposerCache,
                  ui_settings: UISettings.UISettings, graphics: typing.List[Graphics.Graphic], graphic_selection: DisplayItem.GraphicSelection,
-                 displayed_shape: typing.Optional[DataAndMetadata.ShapeType], coordinate_system: typing.List[Calibration.Calibration]) -> None:
+                 displayed_shape: typing.Optional[DataAndMetadata.ShapeType], coordinate_system: typing.List[Calibration.Calibration],
+                 is_focused: bool) -> None:
         super().__init__(canvas_item, layout_sizing, cache)
         self.__ui_settings = ui_settings
         self.__graphics = graphics
         self.__graphic_selection = graphic_selection
         self.__displayed_shape = displayed_shape
         self.__coordinate_system = coordinate_system
+        self.__is_focused = is_focused
 
     def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> None:
         ui_settings = self.__ui_settings
@@ -163,6 +165,7 @@ class GraphicsCanvasItemComposer(CanvasItem.BaseComposer):
         graphic_selection = self.__graphic_selection
         displayed_shape = self.__displayed_shape
         coordinate_system = self.__coordinate_system
+        is_focused = self.__is_focused
         widget_mapping = ImageCanvasItemMapping.make(displayed_shape, canvas_bounds, coordinate_system)
         if graphics and widget_mapping:
             with drawing_context.saver():
@@ -170,7 +173,7 @@ class GraphicsCanvasItemComposer(CanvasItem.BaseComposer):
                 for graphic_index, graphic in enumerate(graphics):
                     if graphic.has_attribute(Graphics.GraphicAttributeEnum.TWO_DIMENSIONAL):
                         try:
-                            graphic.draw(drawing_context, ui_settings, widget_mapping, graphic_selection.contains(graphic_index))
+                            graphic.draw(drawing_context, ui_settings, widget_mapping, graphic_selection.contains(graphic_index), is_focused)
                         except Exception as e:
                             import traceback
                             logging.debug("Graphic Repaint Error: %s", e)
@@ -192,6 +195,16 @@ class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__graphics_for_compare: list[tuple[uuid.UUID, int]] = list()
         self.__graphic_selection = DisplayItem.GraphicSelection()
         self.__coordinate_system: typing.List[Calibration.Calibration] = list()
+        self.__is_focused = False
+
+    @property
+    def is_focused(self) -> bool:
+        return self.__is_focused
+
+    @is_focused.setter
+    def is_focused(self, value: bool) -> None:
+        self.__is_focused = value
+        self.update()
 
     def update_coordinate_system(self, displayed_shape: typing.Optional[DataAndMetadata.ShapeType], coordinate_system: typing.Sequence[Calibration.Calibration], graphics: typing.Sequence[Graphics.Graphic], graphic_selection: DisplayItem.GraphicSelection) -> None:
         needs_update = False
@@ -218,7 +231,7 @@ class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):
             self.update()
 
     def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> typing.Optional[CanvasItem.BaseComposer]:
-        return GraphicsCanvasItemComposer(self, self.sizing, composer_cache, self.__ui_settings, self.__graphics, self.__graphic_selection, self.__displayed_shape, self.__coordinate_system)
+        return GraphicsCanvasItemComposer(self, self.sizing, composer_cache, self.__ui_settings, self.__graphics, self.__graphic_selection, self.__displayed_shape, self.__coordinate_system, self.__is_focused)
 
 
 class ScaleMarkerCanvasItemComposer(CanvasItem.BaseComposer):
@@ -1198,6 +1211,9 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                 mn, mx = numpy.nanmin(data), numpy.nanmax(data)
                 delegate.update_display_data_channel_properties({"display_limits": (mn, mx)})
         return True
+
+    def set_focused(self, is_focused: bool) -> None:
+        self.__graphics_canvas_item.is_focused = is_focused
 
     @property
     def graphics(self) -> typing.Sequence[Graphics.Graphic]:

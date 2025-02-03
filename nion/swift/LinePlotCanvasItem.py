@@ -523,6 +523,9 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                                                          display_data_delta.graphic_selection,
                                                          display_data_delta.display_calibration_info)
 
+    def set_focused(self, is_focused: bool) -> None:
+        self.__line_graph_regions_canvas_item.set_is_focused(is_focused)
+
     def __update_display_values(self, display_values_list: typing.Sequence[typing.Optional[DisplayItem.DisplayValues]]) -> None:
         self.__display_values_list = list(display_values_list)
 

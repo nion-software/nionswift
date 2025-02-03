@@ -118,6 +118,8 @@ class DisplayCanvasItem(CanvasItem.CanvasItemComposition):
 
     def update_display_data_delta(self, display_data_delta: DisplayItem.DisplayDataDelta) -> None: ...
 
+    def set_focused(self, is_focused: bool) -> None: ...
+
 
 class FrameRateCanvasItemComposer(CanvasItem.BaseComposer):
     def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing, cache: CanvasItem.ComposerCache, fps: str, fps2: str, fps3: str) -> None:
