@@ -1148,10 +1148,6 @@ class DisplayTracker:
     def display_canvas_item(self) -> DisplayCanvasItem.DisplayCanvasItem:
         return self.__display_canvas_item
 
-    @display_canvas_item.setter
-    def display_canvas_item(self, value: DisplayCanvasItem.DisplayCanvasItem) -> None:
-        self.__display_canvas_item = value
-
 
 class InsertGraphicsCommand(Undo.UndoableCommand):
 
@@ -2117,7 +2113,6 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
 
         self.__cursor_task: typing.Optional[asyncio.Task[None]] = None
 
-
     def close(self) -> None:
         if self.__cursor_task:
             self.__cursor_task.cancel()
@@ -2493,6 +2488,8 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
                 def replace_display_canvas_item(old_display_canvas_item: DisplayCanvasItem.DisplayCanvasItem, new_display_canvas_item: DisplayCanvasItem.DisplayCanvasItem) -> None:
                     self.__display_composition_canvas_item.replace_canvas_item(old_display_canvas_item, new_display_canvas_item)
                     add_display_controls(new_display_canvas_item)
+                    # whenever focus or the display canvas item changes, update the focused status
+                    new_display_canvas_item.set_focused(self.__content_canvas_item.focused)
 
                 self.__display_tracker = DisplayTracker(display_item, DisplayPanelUISettings(self.ui), self, self.__document_controller.event_loop, True)
                 self.__display_tracker.on_clear_display = clear_display
@@ -2581,6 +2578,9 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         self.__content_canvas_item.focused = focused
         if focused:
             self.__document_controller.selected_display_panel = self
+        # whenever focus or the display canvas item changes, update the focused status
+        if display_canvas_item := self.display_canvas_item:
+            display_canvas_item.set_focused(focused)
         DisplayPanelManager().focus_changed(self, focused)
 
     def _is_focused(self) -> bool:

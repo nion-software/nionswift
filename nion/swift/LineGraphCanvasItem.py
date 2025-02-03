@@ -856,11 +856,12 @@ class LineGraphLayersCanvasItem(CanvasItem.CanvasItemComposition):
 
 
 class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
-    def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing, cache: CanvasItem.ComposerCache, axes: typing.Optional[LineGraphAxes], regions: typing.Sequence[RegionInfo]) -> None:
+    def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing, cache: CanvasItem.ComposerCache, axes: typing.Optional[LineGraphAxes], regions: typing.Sequence[RegionInfo], is_focused: bool) -> None:
         super().__init__(canvas_item, layout_sizing, cache)
         self.__cache_values = list[typing.Tuple[CanvasItem.CacheValue, ...]]()
         self.__axes = axes
         self.__regions = regions
+        self.__is_focused = is_focused
 
     def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> None:
         # draw the data, if any
@@ -904,8 +905,15 @@ class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
                     drawing_context.move_to(right, plot_origin_y)
                     drawing_context.line_to(right, plot_origin_y + plot_height)
 
+                    region_color = region.color
+                    selection_color = region_color
+                    if not self.__is_focused:
+                        r, g, b = Color.Color(region_color).to_rgb_255()
+                        p = 0.25
+                        selection_color = f"#{min(255, int(r * p + 255 * (1 - p))):02x}{min(255, int(g * p + 255 * (1 - p))):02x}{min(255, int(b * p + 255 * (1 - p))):02x}"
+
                     drawing_context.line_width = 1
-                    drawing_context.stroke_style = region.color
+                    drawing_context.stroke_style = region_color
                     if not region_selected:
                         drawing_context.line_dash = 2
                     drawing_context.stroke()
@@ -918,8 +926,8 @@ class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
                     drawing_context.stroke()
                     drawing_context.line_dash = 0
                     if region_selected:
-                        draw_marker(drawing_context, Geometry.FloatPoint(level, mid_x), fill=region.color, stroke=region.color)
-                        drawing_context.fill_style = region.color
+                        draw_marker(drawing_context, Geometry.FloatPoint(level, mid_x), fill=selection_color, stroke=selection_color)
+                        drawing_context.fill_style = selection_color
                         drawing_context.font = "{0:d}px".format(font_size)
                         left_text = region.left_text
                         right_text = region.right_text
@@ -937,12 +945,12 @@ class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
                             drawing_context.text_baseline = "center"
                             drawing_context.fill_text(right_text, right + 4, level)
                     else:
-                        draw_marker(drawing_context, Geometry.FloatPoint(level, mid_x), stroke=region.color)
+                        draw_marker(drawing_context, Geometry.FloatPoint(level, mid_x), stroke=selection_color)
 
                     label = region.label
                     if label:
                         drawing_context.line_dash = 0
-                        drawing_context.fill_style = region.color
+                        drawing_context.fill_style = region_color
                         drawing_context.font = "{0:d}px".format(font_size)
                         drawing_context.text_align = "center"
                         drawing_context.text_baseline = "top"
@@ -956,6 +964,7 @@ class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
         super().__init__()
         self.__regions: typing.List[RegionInfo] = list()
         self.__axes: typing.Optional[LineGraphAxes] = None
+        self.__is_focused = False
 
     @property
     def _axes(self) -> typing.Optional[LineGraphAxes]:  # for testing only
@@ -972,8 +981,13 @@ class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
             self.__regions = list(regions)
             self.update()
 
+    def set_is_focused(self, is_focused: bool) -> None:
+        if self.__is_focused != is_focused:
+            self.__is_focused = is_focused
+            self.update()
+
     def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> CanvasItem.BaseComposer:
-        return LineGraphRegionsCanvasItemComposer(self, self.layout_sizing, composer_cache, self._axes, self.__regions)
+        return LineGraphRegionsCanvasItemComposer(self, self.layout_sizing, composer_cache, self._axes, self.__regions, self.__is_focused)
 
 
 class LineGraphFrameCanvasItemComposer(CanvasItem.BaseComposer):

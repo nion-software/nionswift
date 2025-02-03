@@ -4,6 +4,12 @@
     "notes": [
       {
         "issues": [
+          "https://github.com/nion-software/nionswift/issues/1331"
+        ],
+        "summary": "Change graphic highlighting when not focused to grey/dim."
+      },
+      {
+        "issues": [
           "https://github.com/nion-software/nionswift/issues/1324"
         ],
         "summary": "Improve focus tracking so that inspector is active for either focused data panel item or focused display panel item."
