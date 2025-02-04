@@ -4,6 +4,12 @@
     "notes": [
       {
         "issues": [
+          "https://github.com/nion-software/nionswift/issues/1324"
+        ],
+        "summary": "Improve focus tracking so that inspector is active for either focused data panel item or focused display panel item."
+      },
+      {
+        "issues": [
           "https://github.com/nion-software/nionswift/issues/1028", "https://github.com/nion-software/nionswift/issues/1280"
         ],
         "summary": "Improve display panel header to truncate string when not enough room. Add mouse over highlighting."
