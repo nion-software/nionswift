@@ -409,7 +409,7 @@ class HeaderTitleCanvasItemComposer(CanvasItem.BaseComposer):
         title = self.__title
         text_offset = self.__text_offset
         canvas_bounds = canvas_bounds.intersect(Geometry.IntRect.from_tlbr(0, 0, canvas_bounds.bottom, canvas_bounds.right))
-        title = self.__ui_settings.truncate_string_to_width(self.__font, title, canvas_bounds.width, UISettings.TruncateModeType.MIDDLE)
+        title = self.__ui_settings.truncate_string_to_width(self.__font, title, canvas_bounds.width + 2, UISettings.TruncateModeType.MIDDLE)
         with drawing_context.saver():
             drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
             drawing_context.clip_rect(0, 0, canvas_bounds.width, canvas_bounds.height)
