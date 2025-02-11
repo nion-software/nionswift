@@ -230,8 +230,12 @@ def load_plug_ins(document_location: str, data_location: str, root_dir: typing.O
 
     plugin_adapters = list[_AdapterProtocol]()
 
+    def case_insensitive_name(item: typing.Any) -> str:
+        return getattr(item, "name", "").lower()
+
     import nionswift_plugin
-    for module_info in pkgutil.iter_modules(getattr(nionswift_plugin, "__path__")):
+    modules = pkgutil.iter_modules(getattr(nionswift_plugin, "__path__"))
+    for module_info in sorted(modules, key=case_insensitive_name):
         plugin_adapters.append(ModuleAdapter(getattr(nionswift_plugin, "__name__"), module_info))
 
     for directory, relative_path in plugin_dirs:
