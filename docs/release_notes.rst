@@ -12,6 +12,15 @@ them for evaluation and feedback. If you encounter an issue or have feedback abo
 please contact us or `file issues
 <https://github.com/nion-software/nionswift/issues>`_.
 
+Version 16.14.0 (2025-02-11)
+----------------------------
+* Change graphic highlighting when not focused to grey/dim. (`#1331 <https://github.com/nion-software/nionswift/issues/1331>`_)
+* Improve focus tracking so that inspector is active for either focused data panel item or focused display panel item. (`#1324 <https://github.com/nion-software/nionswift/issues/1324>`_)
+* Improve display panel header to truncate string when not enough room. Add mouse over highlighting. (`#1028 <https://github.com/nion-software/nionswift/issues/1028>`_, `#1280 <https://github.com/nion-software/nionswift/issues/1280>`_)
+* Add a line profile computation automatically when copying and pasting a line profile from one image to another. (`#1238 <https://github.com/nion-software/nionswift/issues/1238>`_)
+* Add option when dragging lines to keep center fixed using alt/option key. (`#961 <https://github.com/nion-software/nionswift/issues/961>`_)
+* Fix issue where raster display tries to access deleted data. (`#1304 <https://github.com/nion-software/nionswift/issues/1304>`_)
+
 Version 16.13.0 (2025-01-06)
 ----------------------------
 * Improve speed of data panel drawing and filtering. (`#1257 <https://github.com/nion-software/nionswift-io/issues/1257>`_, `#1247 <https://github.com/nion-software/nionswift-io/issues/1247>`_)
