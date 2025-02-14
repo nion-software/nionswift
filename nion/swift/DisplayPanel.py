@@ -39,6 +39,7 @@ from nion.swift.model import Utility
 from nion.ui import CanvasItem
 from nion.ui import DrawingContext
 from nion.ui import GridCanvasItem
+from nion.ui import GridFlowCanvasItem
 from nion.ui import UserInterface
 from nion.ui import Window
 from nion.utils import Color
@@ -2037,7 +2038,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         def key_pressed(key: UserInterface.Key) -> bool:
             action = Window.get_action_for_key(["display_panel_browser"], key)
             if action:
-                self.document_controller.perform_action(action)
+                document_controller.perform_action(action)
                 return True
             return False
 
@@ -2071,6 +2072,74 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         def delete_display_item_adapters(display_item_adapters: typing.Sequence[DataPanel.DisplayItemAdapter]) -> None:
             document_controller.delete_display_items([display_item_adapter.display_item for display_item_adapter in display_item_adapters])
 
+        class ItemDelegate(GridFlowCanvasItem.GridFlowCanvasItemDelegate):
+            def __init__(self, display_panel: DisplayPanel, selection: Selection.IndexedSelection, ui: UserInterface.UserInterface) -> None:
+                self.__display_panel_ref = weakref.ref(display_panel)
+                self.__selection = selection
+                self.__ui = ui
+
+            def item_tool_tip(self, item: typing.Any) -> typing.Optional[str]:
+                display_item = typing.cast(DisplayItem.DisplayItem, item)
+                return display_item.list_tool_tip_str
+
+            def context_menu_event(self, context_menu_event: GridFlowCanvasItem.GridFlowCanvasItemContextMenuEvent) -> bool:
+                display_panel = self.__display_panel_ref()
+                if display_panel:
+                    display_panel.handle_context_menu_for_display(context_menu_event.item,
+                                                          context_menu_event.selected_items,
+                                                          context_menu_event.p.x, context_menu_event.p.y,
+                                                          context_menu_event.gp.x, context_menu_event.gp.y)
+                    return True
+                return False
+
+            def delete_event(self, delete_event: GridFlowCanvasItem.GridFlowCanvasItemDeleteEvent) -> bool:
+                display_items = tuple(typing.cast(DisplayItem.DisplayItem, item) for item in delete_event.selected_items)
+                document_controller.delete_display_items(display_items)
+                return True
+
+            def drag_started_event(self, drag_started_event: GridFlowCanvasItem.GridFlowCanvasItemDragStartedEvent) -> bool:
+                mime_data, thumbnail_data = self._get_mime_data_and_thumbnail_data(drag_started_event)
+                display_panel = self.__display_panel_ref()
+                if mime_data and display_panel:
+                    display_panel.content_canvas_item.drag(mime_data, thumbnail_data)
+                    return True
+                return False
+
+            def _get_mime_data_and_thumbnail_data(self, drag_started_event: GridFlowCanvasItem.GridFlowCanvasItemDragStartedEvent) -> typing.Tuple[typing.Optional[UserInterface.MimeData], typing.Optional[_NDArray]]:
+                mime_data = None
+                thumbnail_data = None
+                display_item = typing.cast(DisplayItem.DisplayItem, drag_started_event.item)
+                display_items = tuple(typing.cast(DisplayItem.DisplayItem, item) for item in drag_started_event.selected_items)
+                if len(display_items) <= 1 and display_item is not None:
+                    mime_data = document_controller.ui.create_mime_data()
+                    MimeTypes.mime_data_put_display_item(mime_data, display_item)
+                    thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.__ui, display_item)
+                    thumbnail_data = thumbnail_source.thumbnail_data
+                    if thumbnail_data is not None:
+                        # scaling is very slow
+                        thumbnail_data = Image.get_rgba_data_from_rgba(
+                            Image.scaled(Image.get_rgba_view_from_rgba_data(thumbnail_data), tuple(Geometry.IntSize(w=80, h=80))))
+                elif len(display_items) > 1:
+                    mime_data = document_controller.ui.create_mime_data()
+                    MimeTypes.mime_data_put_display_items(mime_data, display_items)
+                    anchor_index = self.__selection.anchor_index or 0
+                    thumbnail_display_item = display_items[anchor_index]
+                    thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.__ui, thumbnail_display_item)
+                    thumbnail_data = thumbnail_source.thumbnail_data
+                return mime_data, thumbnail_data
+
+            def key_pressed_event(self, key_event: GridFlowCanvasItem.GridFlowCanvasItemKeyPressedEvent) -> bool:
+                return key_pressed(key_event.key)
+
+            def mouse_double_clicked_event(self, double_clicked_event: GridFlowCanvasItem.GridFlowCanvasItemDoubleClickedEvent) -> bool:
+                display_panel = self.__display_panel_ref()
+                if display_panel:
+                    display_panel.cycle_display()
+                    return True
+                return True
+
+        display_items_model = document_controller.filtered_display_items_model
+
         self.__horizontal_data_grid_controller = DataPanel.DataGridController(document_controller.ui, self.__filtered_display_item_adapters_model, self.__selection, direction=GridCanvasItem.Direction.Row, wrap=False)
         self.__horizontal_data_grid_controller.on_context_menu_event = self.__handle_context_menu_for_display
         self.__horizontal_data_grid_controller.on_display_item_adapter_double_clicked = double_clicked
@@ -2079,19 +2148,28 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         self.__horizontal_data_grid_controller.on_drag_started = data_list_drag_started
         self.__horizontal_data_grid_controller.on_key_pressed = key_pressed
 
-        self.__grid_data_grid_controller = DataPanel.DataGridController(document_controller.ui, self.__filtered_display_item_adapters_model, self.__selection)
-        self.__grid_data_grid_controller.on_context_menu_event = self.__handle_context_menu_for_display
-        self.__grid_data_grid_controller.on_display_item_adapter_double_clicked = double_clicked
-        self.__grid_data_grid_controller.on_focus_changed = focus_changed
-        self.__grid_data_grid_controller.on_delete_display_item_adapters = delete_display_item_adapters
-        self.__grid_data_grid_controller.on_drag_started = data_list_drag_started
-        self.__grid_data_grid_controller.on_key_pressed = key_pressed
+        item_delegate = ItemDelegate(self, self.__selection, document_controller.ui)
+
+        def grid_item_factory(item: typing.Any, is_selected_model: Model.PropertyModel[bool]) -> CanvasItem.AbstractCanvasItem:
+            return DataPanel.DataPanelGridItem(typing.cast(DisplayItem.DisplayItem, item), document_controller.ui, DataPanel.DataPanelUISettings(document_controller.ui))
+
+        grid_canvas_item = GridCanvasItem.GridCanvasItem2(Panel.ThreadSafeListModel(display_items_model, document_controller.event_loop), self.__selection, grid_item_factory, item_delegate, item_size=Geometry.IntSize(80, 80), key="display_items", is_shared_selection=True)
+
+        grid_scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(grid_canvas_item)
+        grid_scroll_area_canvas_item.auto_resize_contents = True
+        grid_scroll_bar_canvas_item = CanvasItem.ScrollBarCanvasItem(grid_scroll_area_canvas_item, CanvasItem.Orientation.Vertical)
+        grid_scroll_group_canvas_item = CanvasItem.CanvasItemComposition()
+        grid_scroll_group_canvas_item.layout = CanvasItem.CanvasItemRowLayout()
+        grid_scroll_group_canvas_item.add_canvas_item(grid_scroll_area_canvas_item)
+        grid_scroll_group_canvas_item.add_canvas_item(grid_scroll_bar_canvas_item)
 
         self.__horizontal_browser_canvas_item = self.__horizontal_data_grid_controller.canvas_item
         self.__horizontal_browser_canvas_item.update_sizing(self.__horizontal_browser_canvas_item.sizing.with_fixed_height(80))
         self.__horizontal_browser_canvas_item.visible = False
 
-        self.__grid_browser_canvas_item = self.__grid_data_grid_controller.canvas_item
+        self.__grid_canvas_item = grid_canvas_item
+
+        self.__grid_browser_canvas_item = grid_scroll_group_canvas_item
         self.__grid_browser_canvas_item.visible = False
 
         # the column composition layout permits displaying data item and horizontal browser simultaneously and also the
@@ -2108,7 +2186,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
 
         self.__change_display_panel_content(d)
 
-        self.__mapped_item_listener = DocumentModel.MappedItemManager().changed_event.listen(self.__update_title)
+        self.__mapped_item_listener = DocumentModel.MappedItemManager().changed_event.listen(ReferenceCounting.weak_partial(DisplayPanel.__update_title, self))
 
         self.__cursor_task: typing.Optional[asyncio.Task[None]] = None
 
@@ -2119,7 +2197,6 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
 
         self.on_contents_changed = None
 
-        self.__mapped_item_listener.close()
         self.__mapped_item_listener = typing.cast(typing.Any, None)
 
         if self.__data_item_reference_changed_task:
@@ -2139,8 +2216,8 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         self.__set_display_panel_controller(None)
         self.__horizontal_data_grid_controller.close()
         self.__horizontal_data_grid_controller = typing.cast(typing.Any, None)
-        self.__grid_data_grid_controller.close()
-        self.__grid_data_grid_controller = typing.cast(typing.Any, None)
+        self.__grid_canvas_item = typing.cast(typing.Any, None)
+        self.__grid_browser_canvas_item = typing.cast(typing.Any, None)
         self.__selection_changed_event_listener.close()
         self.__selection_changed_event_listener = typing.cast(typing.Any, None)
         self.__document_controller.filtered_display_items_model.release_selection(self.__selection)
@@ -2619,7 +2696,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
                 if self.__horizontal_browser_canvas_item.visible:
                     self.__switch_to_grid_browser()
                     self.__update_selection_to_display()
-                    self.__grid_data_grid_controller.request_focus()
+                    self.__grid_canvas_item.request_focus()
                 else:
                     self.__switch_to_horizontal_browser()
                     self.__update_selection_to_display()
@@ -2640,7 +2717,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         if self.__display_item in display_items:
             self.__selection.set(display_items.index(self.__display_item))
             self.__horizontal_data_grid_controller.make_selection_visible()
-            self.__grid_data_grid_controller.make_selection_visible()
+            self.__grid_canvas_item.make_selection_visible()
         else:
             self.__selection.clear()
         self.__selection_changed_event_listener = self.__selection.changed_event.listen(self.__selection_changed)
@@ -2747,8 +2824,11 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         return self.__show_context_menu([], gx, gy)
 
     def __handle_context_menu_for_display(self, display_item: typing.Optional[DisplayItem.DisplayItem], display_items: typing.List[DisplayItem.DisplayItem], x: int, y: int, gx: int, gy: int) -> bool:
+        return self.handle_context_menu_for_display(display_item, display_items, x, y, gx, gy)
+
+    def handle_context_menu_for_display(self, display_item: typing.Optional[DisplayItem.DisplayItem], display_items: typing.Sequence[DisplayItem.DisplayItem], x: int, y: int, gx: int, gy: int) -> bool:
         # this handles the context menu when requested from the thumbnail/grid browser
-        return self.__show_context_menu(self.__document_controller.selected_display_items, gx, gy)
+        return self.__show_context_menu(display_items, gx, gy)
 
     def show_display_context_menu(self, gx: int, gy: int) -> bool:
         # this handles the context menu when requested from the display item
