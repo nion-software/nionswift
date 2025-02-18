@@ -8,9 +8,9 @@ Processing and Analysis
 
 You can apply processing and analysis to items in your project. An example of processing may be to apply an FFT operation to an image. An example of analysis may be to measure the intensity of a line profile.
 
-Most processing and analysis functions set up a live computation, meaning that when you apply the processing to a data item the results, often another data item, will be updated whenever the input data item changes or when the parameters of the computation change. The live computation is live even after closing and reloading the project.
+Many processing and analysis menu items result in a live computation. A live computation automatically updates the outputs when either parameters change or the source data changes. A live computation is live even after closing and reloading the project.
 
-Some processing functions are single commands, meaning that the result is computed once and the resulting data item or other output is added to the project and no live computation is created.
+Other processing functions are single commands, meaning that the output is computed once and the resulting data item or other output is added to the project and no live computation is created.
 
 A live computation takes inputs and produces outputs. It also watches for changes to its inputs and updates it outputs whenever the inputs change.
 
@@ -59,6 +59,28 @@ The :menuselection:`Processing --> Snapshot` menu item creates a new data item t
 The :menuselection:`Processing --> Duplicate` menu item creates a new data item that is a copy of the selected data item. The new data item is not linked to the original data item and the associated display is not copied.
 
 Some plug-in packages may also provide the concept of "capture" which is similar to "duplicate" but will ensure the duplicate takes place at the end of a frame. This is useful during acquisition where the data may be partially updated.
+
+.. _Line Profile Computation:
+
+Line Profiles
+-------------
+A line profile is a special live computation that allows you to see the intensity of an image along a line with optional integration in the tranverse direction. The line is displayed on the image and the profile is displayed in a line plot.
+
+A line profile can be created by using the line profile tool in the tool panel, by choosing the :menuselection:`Processing --> Line Profile` menu item, or by pressing the kbd:`l` key while a display panel has keyboard focus.
+
+A line profile can be edited by dragging the resulting line profile graphic or by editing the line profile graphic in the inspector.
+
+See also :ref:`Line Profile Graphic`.
+
+Picks
+-----
+A pick is a special live computation that allows you to pick a region of a collection of 1d data and see the average or sum of the 1d data in the region. The region is displayed as a rectangle graphic on the collection of 1d data and the average or sum is displayed in a line plot.
+
+A pick can be create by choosing the :menuselection:`Processing --> Reduce --> Pick` menu item, or by pressing the :kbd:`p` key while a display panel has keyboard focus.
+
+A pick can be edited by dragging the resulting rectangle graphic or by editing the pick graphic in the inspector.
+
+See also :ref:`Rectangle Graphic`.
 
 Generating Data
 ---------------
