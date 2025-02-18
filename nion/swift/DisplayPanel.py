@@ -2119,6 +2119,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
             return DataPanel.DataPanelGridItem(typing.cast(DisplayItem.DisplayItem, item), document_controller.ui, DataPanel.DataPanelUISettings(document_controller.ui), draw_label=False)
 
         strip_canvas_item = ListCanvasItem.ListCanvasItem2(Panel.ThreadSafeListModel(display_items_model, document_controller.event_loop), self.__selection, strip_thumbnail_item_factory, item_delegate, item_width=80, key="display_items", is_shared_selection=True)
+        strip_canvas_item.on_focus_changed = ReferenceCounting.weak_partial(DisplayPanel.set_focused, self)
 
         strip_scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(strip_canvas_item)
         strip_scroll_bar_canvas_item = CanvasItem.ScrollBarCanvasItem(strip_scroll_area_canvas_item, CanvasItem.Orientation.Horizontal)
@@ -2131,6 +2132,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
             return DataPanel.DataPanelGridItem(typing.cast(DisplayItem.DisplayItem, item), document_controller.ui, DataPanel.DataPanelUISettings(document_controller.ui))
 
         grid_canvas_item = GridCanvasItem.GridCanvasItem2(Panel.ThreadSafeListModel(display_items_model, document_controller.event_loop), self.__selection, grid_thumbnail_item_factory, item_delegate, item_size=Geometry.IntSize(80, 80), key="display_items", is_shared_selection=True)
+        grid_canvas_item.on_focus_changed = ReferenceCounting.weak_partial(DisplayPanel.set_focused, self)
 
         grid_scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(grid_canvas_item)
         grid_scroll_area_canvas_item.auto_resize_contents = True
