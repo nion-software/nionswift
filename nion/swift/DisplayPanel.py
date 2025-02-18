@@ -40,6 +40,7 @@ from nion.ui import CanvasItem
 from nion.ui import DrawingContext
 from nion.ui import GridCanvasItem
 from nion.ui import GridFlowCanvasItem
+from nion.ui import ListCanvasItem
 from nion.ui import UserInterface
 from nion.ui import Window
 from nion.utils import Color
@@ -2140,20 +2141,24 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
 
         display_items_model = document_controller.filtered_display_items_model
 
-        self.__horizontal_data_grid_controller = DataPanel.DataGridController(document_controller.ui, self.__filtered_display_item_adapters_model, self.__selection, direction=GridCanvasItem.Direction.Row, wrap=False)
-        self.__horizontal_data_grid_controller.on_context_menu_event = self.__handle_context_menu_for_display
-        self.__horizontal_data_grid_controller.on_display_item_adapter_double_clicked = double_clicked
-        self.__horizontal_data_grid_controller.on_focus_changed = focus_changed
-        self.__horizontal_data_grid_controller.on_delete_display_item_adapters = delete_display_item_adapters
-        self.__horizontal_data_grid_controller.on_drag_started = data_list_drag_started
-        self.__horizontal_data_grid_controller.on_key_pressed = key_pressed
-
         item_delegate = ItemDelegate(self, self.__selection, document_controller.ui)
 
-        def grid_item_factory(item: typing.Any, is_selected_model: Model.PropertyModel[bool]) -> CanvasItem.AbstractCanvasItem:
+        def strip_thumbnail_item_factory(item: typing.Any, is_selected_model: Model.PropertyModel[bool]) -> CanvasItem.AbstractCanvasItem:
+            return DataPanel.DataPanelGridItem(typing.cast(DisplayItem.DisplayItem, item), document_controller.ui, DataPanel.DataPanelUISettings(document_controller.ui), draw_label=False)
+
+        strip_canvas_item = ListCanvasItem.ListCanvasItem2(Panel.ThreadSafeListModel(display_items_model, document_controller.event_loop), self.__selection, strip_thumbnail_item_factory, item_delegate, item_width=80, key="display_items", is_shared_selection=True)
+
+        strip_scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(strip_canvas_item)
+        strip_scroll_bar_canvas_item = CanvasItem.ScrollBarCanvasItem(strip_scroll_area_canvas_item, CanvasItem.Orientation.Horizontal)
+        strip_scroll_group_canvas_item = CanvasItem.CanvasItemComposition()
+        strip_scroll_group_canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
+        strip_scroll_group_canvas_item.add_canvas_item(strip_scroll_area_canvas_item)
+        strip_scroll_group_canvas_item.add_canvas_item(strip_scroll_bar_canvas_item)
+
+        def grid_thumbnail_item_factory(item: typing.Any, is_selected_model: Model.PropertyModel[bool]) -> CanvasItem.AbstractCanvasItem:
             return DataPanel.DataPanelGridItem(typing.cast(DisplayItem.DisplayItem, item), document_controller.ui, DataPanel.DataPanelUISettings(document_controller.ui))
 
-        grid_canvas_item = GridCanvasItem.GridCanvasItem2(Panel.ThreadSafeListModel(display_items_model, document_controller.event_loop), self.__selection, grid_item_factory, item_delegate, item_size=Geometry.IntSize(80, 80), key="display_items", is_shared_selection=True)
+        grid_canvas_item = GridCanvasItem.GridCanvasItem2(Panel.ThreadSafeListModel(display_items_model, document_controller.event_loop), self.__selection, grid_thumbnail_item_factory, item_delegate, item_size=Geometry.IntSize(80, 80), key="display_items", is_shared_selection=True)
 
         grid_scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(grid_canvas_item)
         grid_scroll_area_canvas_item.auto_resize_contents = True
@@ -2163,8 +2168,10 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         grid_scroll_group_canvas_item.add_canvas_item(grid_scroll_area_canvas_item)
         grid_scroll_group_canvas_item.add_canvas_item(grid_scroll_bar_canvas_item)
 
-        self.__horizontal_browser_canvas_item = self.__horizontal_data_grid_controller.canvas_item
-        self.__horizontal_browser_canvas_item.update_sizing(self.__horizontal_browser_canvas_item.sizing.with_fixed_height(80))
+        self.__strip_canvas_item = strip_canvas_item
+
+        self.__horizontal_browser_canvas_item = strip_scroll_group_canvas_item
+        self.__horizontal_browser_canvas_item.update_sizing(self.__horizontal_browser_canvas_item.sizing.with_fixed_height(96))
         self.__horizontal_browser_canvas_item.visible = False
 
         self.__grid_canvas_item = grid_canvas_item
@@ -2214,8 +2221,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
 
         # NOTE: the enclosing canvas item should be closed AFTER this close is called.
         self.__set_display_panel_controller(None)
-        self.__horizontal_data_grid_controller.close()
-        self.__horizontal_data_grid_controller = typing.cast(typing.Any, None)
+        self.__strip_canvas_item = typing.cast(typing.Any, None)
         self.__grid_canvas_item = typing.cast(typing.Any, None)
         self.__grid_browser_canvas_item = typing.cast(typing.Any, None)
         self.__selection_changed_event_listener.close()
@@ -2700,7 +2706,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
                 else:
                     self.__switch_to_horizontal_browser()
                     self.__update_selection_to_display()
-                    self.__horizontal_data_grid_controller.request_focus()
+                    self.__strip_canvas_item.request_focus()
             else:
                 self.__switch_to_no_browser()
                 self._select()
@@ -2716,7 +2722,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         self.__selection_changed_event_listener = typing.cast(typing.Any, None)
         if self.__display_item in display_items:
             self.__selection.set(display_items.index(self.__display_item))
-            self.__horizontal_data_grid_controller.make_selection_visible()
+            self.__strip_canvas_item.make_selection_visible()
             self.__grid_canvas_item.make_selection_visible()
         else:
             self.__selection.clear()
