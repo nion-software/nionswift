@@ -1,5 +1,16 @@
 [
   {
+    "version": "16.15.dev",
+    "notes": [
+      {
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/1337"
+        ],
+        "summary": "Add titles in browser view."
+      }
+    ]
+  },
+  {
     "version": "16.14.0",
     "notes": [
       {
@@ -44,7 +55,7 @@
     "version": "16.13.0",
     "notes": [
       {
-        "issues": ["https://github.com/nion-software/nionswift-io/issues/1257", "https://github.com/nion-software/nionswift-io/issues/1247"],
+        "issues": ["https://github.com/nion-software/nionswift/issues/1257", "https://github.com/nion-software/nionswift/issues/1247"],
         "summary": "Improve speed of data panel drawing and filtering."
       },
       {
@@ -56,7 +67,7 @@
         "summary": "Change Export SVG dialog to remember units."
       },
       {
-        "issues": ["https://github.com/nion-software/nionswift-io/issues/1246"],
+        "issues": ["https://github.com/nion-software/nionswift/issues/1246"],
         "summary": "Fix crashes when switching workspaces."
       },
       {
