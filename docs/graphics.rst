@@ -76,6 +76,8 @@ You can edit the end points of the line by dragging each end point. Holding the 
 
 You can change the position of the line by dragging in the middle along the line.
 
+See See :ref:`Line Profile Computation`.
+
 .. _Rectangle Graphic:
 
 Rectangle
