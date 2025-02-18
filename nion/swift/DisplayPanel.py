@@ -2043,35 +2043,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
                 return True
             return False
 
-        def map_display_item_to_display_item_adapter(display_item: DisplayItem.DisplayItem) -> DataPanel.DisplayItemAdapter:
-            return DataPanel.DisplayItemAdapter(display_item, ui)
-
-        def unmap_display_item_to_display_item_adapter(display_item_adapter: DataPanel.DisplayItemAdapter) -> None:
-            display_item_adapter.close()
-
-        self.__filtered_display_item_adapters_model = ListModel.MappedListModel(container=document_controller.filtered_display_items_model, master_items_key="display_items", items_key="display_item_adapters", map_fn=map_display_item_to_display_item_adapter, unmap_fn=unmap_display_item_to_display_item_adapter)
-
-        def display_item_adapter_selection_changed(display_item_adapters: typing.Sequence[DataPanel.DisplayItemAdapter]) -> None:
-            indexes = set()
-            for index, display_item_adapter in enumerate(self.__filtered_display_item_adapters_model.display_item_adapters):
-                if display_item_adapter in display_item_adapters:
-                    indexes.add(index)
-            self.__selection.set_multiple(indexes)
-
-        def double_clicked(display_item_adapter: DataPanel.DisplayItemAdapter) -> bool:
-            display_item_adapter_selection_changed([display_item_adapter])
-            self.__cycle_display()
-            return True
-
-        def focus_changed(focused: bool) -> None:
-            # this is called when one of the browser items (grid or thumbnail) changes focus.
-            # if receiving focus, tell the window (document_controller) that this display panel
-            # is now the selected display panel.
-            if focused:
-                self.__document_controller.selected_display_panel = self
-
-        def delete_display_item_adapters(display_item_adapters: typing.Sequence[DataPanel.DisplayItemAdapter]) -> None:
-            document_controller.delete_display_items([display_item_adapter.display_item for display_item_adapter in display_item_adapters])
+        self.__filtered_display_items_model = document_controller.filtered_display_items_model
 
         class ItemDelegate(GridFlowCanvasItem.GridFlowCanvasItemDelegate):
             def __init__(self, display_panel: DisplayPanel, selection: Selection.IndexedSelection, ui: UserInterface.UserInterface) -> None:
@@ -2227,8 +2199,6 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         self.__selection_changed_event_listener.close()
         self.__selection_changed_event_listener = typing.cast(typing.Any, None)
         self.__document_controller.filtered_display_items_model.release_selection(self.__selection)
-        self.__filtered_display_item_adapters_model.close()
-        self.__filtered_display_item_adapters_model = typing.cast(typing.Any, None)
 
         # define the selection used in the thumbnail and grid browsers.
         self.__selection = Selection.IndexedSelection()
@@ -2258,10 +2228,6 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
     @property
     def display_panel_controller(self) -> typing.Optional[DisplayPanelControllerLike]:
         return self.__display_panel_controller
-
-    @property
-    def _display_item_adapters_for_test(self) -> typing.Sequence[DataPanel.DisplayItemAdapter]:
-        return typing.cast(typing.Sequence[DataPanel.DisplayItemAdapter], self.__filtered_display_item_adapters_model.display_item_adapters)
 
     @property
     def _selection_for_test(self) -> Selection.IndexedSelection:
@@ -2715,7 +2681,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
     def __update_selection_to_display(self) -> None:
         # match the selection in the browsers (thumbnail and grid) to the display item.
         # if the display item is not in the filtered display items, clear the selection.
-        display_items = [display_item_adapter.display_item for display_item_adapter in self.__filtered_display_item_adapters_model.display_item_adapters if display_item_adapter.display_item is not None]
+        display_items = typing.cast(typing.Sequence[DisplayItem.DisplayItem], self.__filtered_display_items_model.display_items)
         # selection changed listener is only intended to observe external changes.
         # disable it here and re-enable it after we adjust the selection.
         self.__selection_changed_event_listener.close()
@@ -2858,7 +2824,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         # item displayed but gets deleted => no display
         if len(self.__selection.indexes) == 1:
             index = list(self.__selection.indexes)[0]
-            display_item = self.__filtered_display_item_adapters_model.display_item_adapters[index].display_item
+            display_item = typing.cast(typing.Sequence[DisplayItem.DisplayItem], self.__filtered_display_items_model.display_items)[index]
             self.set_display_item(display_item, update_selection=False)  # do not sync the selection - it's already known
             self.__display_changed = True
         elif len(self.__selection.indexes) > 1:
