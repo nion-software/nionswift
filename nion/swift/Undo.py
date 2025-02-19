@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import abc
-import copy
 import gettext
+import logging
 import typing
 
 
 _ = gettext.gettext
+
+commands_logger = logging.getLogger("_commands")
 
 
 class UndoableCommand(abc.ABC):
@@ -53,18 +55,22 @@ class UndoableCommand(abc.ABC):
     def _old_modified_state(self) -> typing.Any:
         return self.__old_modified_state
 
-    def commit(self) -> None:
+    def commit(self, was_merge: bool = False) -> None:
+        if not was_merge:
+            commands_logger.info(f"# undo commit '{self.title}'")
         self.__new_modified_state = self._get_modified_state()
 
     def perform(self) -> None:
         self._perform()
 
     def undo(self) -> None:
+        commands_logger.info(f"# undo '{self.title}'")
         self._undo()
         self._set_modified_state(self.__old_modified_state)
         self.__is_mergeable = False
 
     def redo(self) -> None:
+        commands_logger.info(f"# redo '{self.title}'")
         self._redo()
         self._set_modified_state(self.__new_modified_state)
 
@@ -167,12 +173,13 @@ class UndoStack:
 
     def push(self, undo_command: UndoableCommand) -> None:
         assert undo_command
-        undo_command.commit()
         last_undo_command = self.__undo_stack[-1] if self.__undo_stack else None
         if last_undo_command and last_undo_command.is_mergeable and undo_command.is_mergeable and last_undo_command.command_id == undo_command.command_id:
+            undo_command.commit(was_merge=True)
             last_undo_command.merge(undo_command)
             undo_command.close()
         else:
+            undo_command.commit()
             self.__undo_stack.append(undo_command)
         while len(self.__redo_stack) > 0:
             self.__redo_stack.pop().close()
