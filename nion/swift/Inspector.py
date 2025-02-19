@@ -316,7 +316,7 @@ class ChangeDisplayItemPropertyCommand(Undo.UndoableCommand):
         self.__old_display_layers = None
         super().close()
 
-    def perform(self) -> None:
+    def _perform(self) -> None:
         display_item = self.__display_item_proxy.item
         setattr(display_item, self.__property_name, self.__new_display_layers)
 
@@ -369,7 +369,7 @@ class ChangePropertyCommand(Undo.UndoableCommand):
         self.__old_value = None
         super().close()
 
-    def perform(self) -> None:
+    def _perform(self) -> None:
         data_item = self.__data_item_proxy.item
         setattr(data_item, self.__property_name, self.__new_value)
 
@@ -717,7 +717,7 @@ class ChangeDisplayLayerPropertyCommand(Undo.UndoableCommand):
         self.__display_item_proxy = typing.cast(typing.Any, None)
         super().close()
 
-    def perform(self) -> None:
+    def _perform(self) -> None:
         display_item = self.__display_item_proxy.item
         if display_item:
             display_item._set_display_layer_property(self.__display_layer_index, self.__property_name, self.__value)
@@ -771,7 +771,7 @@ class ChangeDisplayLayerDisplayDataChannelCommand(Undo.UndoableCommand):
             self.__display_data_channel_proxy = None
         super().close()
 
-    def perform(self) -> None:
+    def _perform(self) -> None:
         display_item = self.__display_item_proxy.item
         display_data_channel = self.__display_data_channel_proxy.item if self.__display_data_channel_proxy else None
         if display_item:
@@ -1441,7 +1441,7 @@ class ChangeIntensityCalibrationCommand(Undo.UndoableCommand):
         self.__old_intensity_calibration = typing.cast(typing.Any, None)
         super().close()
 
-    def perform(self) -> None:
+    def _perform(self) -> None:
         data_item = self.__data_item_proxy.item
         if data_item and self.__new_intensity_calibration is not None:
             data_item.set_intensity_calibration(self.__new_intensity_calibration)
@@ -1494,7 +1494,7 @@ class ChangeDimensionalCalibrationsCommand(Undo.UndoableCommand):
         self.__data_item_proxy = typing.cast(typing.Any, None)
         super().close()
 
-    def perform(self) -> None:
+    def _perform(self) -> None:
         data_item = self.__data_item_proxy.item
         if data_item:
             data_item.set_dimensional_calibrations(self.__new_dimensional_calibrations)
@@ -1918,7 +1918,7 @@ class ChangeDisplayTypeCommand(Undo.UndoableCommand):
         self.__old_display_type = None
         super().close()
 
-    def perform(self) -> None:
+    def _perform(self) -> None:
         display_item = self.__display_item_proxy.item
         if display_item:
             display_item.display_type = self.__display_type
@@ -3289,7 +3289,7 @@ class ChangeComputationVariableCommand(Undo.UndoableCommand):
         self.__value_dict = typing.cast(typing.Any, None)
         super().close()
 
-    def perform(self) -> None:
+    def _perform(self) -> None:
         computation = self.__computation_proxy.item
         if computation:
             variable = computation.variables[self.__variable_index]
@@ -4231,7 +4231,7 @@ class RemoveDisplayDataChannelCommand(Undo.UndoableCommand):
         self.__undelete_logs = typing.cast(typing.Any, None)
         super().close()
 
-    def perform(self) -> None:
+    def _perform(self) -> None:
         display_item = self.__display_item_proxy.item
         if display_item:
             display_data_channel = display_item.display_data_channels[self.__display_data_channel_index]
