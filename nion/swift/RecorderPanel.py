@@ -133,7 +133,7 @@ class Recorder:
                 self.__undelete_log = None
             super().close()
 
-        def perform(self) -> None:
+        def _perform(self) -> None:
             data_item = self.__data_item_fn()
             self.__data_item_proxy = data_item.create_proxy()
 

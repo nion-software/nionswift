@@ -90,7 +90,7 @@ class AddVariableCommand(Undo.UndoableCommand):
         self.__variable = None
         super().close()
 
-    def perform(self) -> None:
+    def _perform(self) -> None:
         computation = self.__computation_proxy.item
         if computation:
             variable = computation.create_variable(self.__name, self.__value_type, self.__value, self.__value_default, self.__value_min, self.__value_max, self.__control_type, self.__specified_item, self.__label)
@@ -137,7 +137,7 @@ class RemoveVariableCommand(Undo.UndoableCommand):
         self.__variable_dict = typing.cast(typing.Any, None)
         super().close()
 
-    def perform(self) -> None:
+    def _perform(self) -> None:
         computation = self.__computation_proxy.item
         if computation:
             variable = computation.variables[self.__variable_index]
@@ -190,7 +190,7 @@ class CreateComputationCommand(Undo.UndoableCommand):
     def _computation(self) -> Symbolic.Computation:
         return self.__document_model.create_computation()
 
-    def perform(self) -> None:
+    def _perform(self) -> None:
         data_item = self.__data_item_proxy.item
         if data_item:
             computation = self.__document_model.create_computation()
@@ -227,7 +227,7 @@ class ChangeComputationCommand(Undo.UndoableCommand):
         self.__value_dict = typing.cast(typing.Any, None)
         super().close()
 
-    def perform(self) -> None:
+    def _perform(self) -> None:
         computation = self.__computation_proxy.item
         if computation:
             for key, value in self.__value_dict.items():
@@ -1111,7 +1111,7 @@ class RemoveComputationCommand(Undo.UndoableCommand):
         self.__undelete_logs = typing.cast(typing.Any, None)
         super().close()
 
-    def perform(self) -> None:
+    def _perform(self) -> None:
         document_model = self.__document_controller.document_model
         computation = document_model.computations[self.__computation_index]
         self.__undelete_logs.append(document_model.remove_computation_with_log(computation))

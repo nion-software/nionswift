@@ -1180,7 +1180,7 @@ class InsertGraphicsCommand(Undo.UndoableCommand):
         self.__display_item_proxy = typing.cast(typing.Any, None)
         super().close()
 
-    def perform(self) -> None:
+    def _perform(self) -> None:
         display_item = self.__display_item_proxy.item
         if display_item:
             graphics = self.__graphics
@@ -1242,7 +1242,7 @@ class AppendDisplayDataChannelCommand(Undo.UndoableCommand):
         self.__data_item_proxy = typing.cast(typing.Any, None)
         super().close()
 
-    def perform(self) -> None:
+    def _perform(self) -> None:
         display_item = self.__display_item_proxy.item
         data_item = self.__data_item_proxy.item
         if display_item and data_item:
@@ -1302,7 +1302,7 @@ class ChangeDisplayDataChannelCommand(Undo.UndoableCommand):
         self.__properties = typing.cast(typing.Any, None)
         super().close()
 
-    def perform(self) -> None:
+    def _perform(self) -> None:
         display_data_channel = self.__display_data_channel_proxy.item
         if display_data_channel:
             for key, value in self.__value_dict.items():
@@ -1407,7 +1407,7 @@ class MoveDisplayLayerCommand(Undo.UndoableCommand):
         self.__undelete_logs = typing.cast(typing.Any, None)
         super().close()
 
-    def perform(self) -> None:
+    def _perform(self) -> None:
         # add display data channel and display layer to new display item
         # handle the following cases:
         #   different display item with associated display data channel used only by source display layer
@@ -1508,7 +1508,7 @@ class AddDisplayLayerCommand(Undo.UndoableCommand):
         self.__display_item_proxy = typing.cast(typing.Any, None)
         super().close()
 
-    def perform(self) -> None:
+    def _perform(self) -> None:
         # add display data channel and display layer to new display item
         display_item = self.__display_item_proxy.item
         if display_item:
@@ -1559,7 +1559,7 @@ class RemoveDisplayLayerCommand(Undo.UndoableCommand):
         self.__undelete_logs = typing.cast(typing.Any, None)
         super().close()
 
-    def perform(self) -> None:
+    def _perform(self) -> None:
         # add display data channel and display layer to new display item
         display_item = self.__display_item_proxy.item
         if display_item:
@@ -1608,7 +1608,7 @@ class ChangeDisplayCommand(Undo.UndoableCommand):
         self.__properties = typing.cast(typing.Any, None)
         super().close()
 
-    def perform(self) -> None:
+    def _perform(self) -> None:
         display_item = self.__display_item_proxy.item
         if display_item:
             for key, value in self.__value_dict.items():
@@ -1660,7 +1660,7 @@ class ChangeGraphicsCommand(Undo.UndoableCommand):
         self.__graphic_indexes = typing.cast(typing.Any, None)
         super().close()
 
-    def perform(self) -> None:
+    def _perform(self) -> None:
         display_item = self.__display_item_proxy.item
         if display_item:
             graphics = [display_item.graphics[index] for index in self.__graphic_indexes]

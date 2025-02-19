@@ -1193,7 +1193,7 @@ class DocumentController(Window.Window):
             self.__display_panel = typing.cast(typing.Any, None)
             super().close()
 
-        def perform(self) -> None:
+        def _perform(self) -> None:
             display_item = self.__display_item
             self.__display_item_proxy = display_item.create_proxy() if display_item else None
             self.__display_panel.set_display_item(display_item)
@@ -1278,7 +1278,7 @@ class DocumentController(Window.Window):
             # override to allow the undo command to track state; but only use part of the state for comparison
             return bool(state1[0] == state2[0])
 
-        def perform(self) -> None:
+        def _perform(self) -> None:
             data_group = self.__data_group_proxy.item
             assert data_group
             display_items = [display_item_proxy.item for display_item_proxy in self.__display_item_proxies]
@@ -1335,7 +1335,7 @@ class DocumentController(Window.Window):
             assert data_group
             self.__document_controller.document_model.modified_state, data_group.modified_state = modified_state
 
-        def perform(self) -> None:
+        def _perform(self) -> None:
             document_model = self.__document_controller.document_model
             data_group = self.__data_group_proxy.item
             assert data_group
@@ -1414,7 +1414,7 @@ class DocumentController(Window.Window):
             # override to allow the undo command to track state; but only use part of the state for comparison
             return bool(state1[0] == state2[0])
 
-        def perform(self) -> None:
+        def _perform(self) -> None:
             data_group = self.__data_group_proxy.item
             assert data_group
             display_items = [data_group.display_items[index] for index in self.__display_item_indexes]
@@ -1461,7 +1461,7 @@ class DocumentController(Window.Window):
             # override to allow the undo command to track state; but only use part of the state for comparison
             return bool(state1[0] == state2[0])
 
-        def perform(self) -> None:
+        def _perform(self) -> None:
             data_group = self.__data_group_proxy.item
             assert data_group
             self.__new_title = data_group.title
@@ -1511,7 +1511,7 @@ class DocumentController(Window.Window):
             # override to allow the undo command to track state; but only use part of the state for comparison
             return bool(state1[0] == state2[0])
 
-        def perform(self) -> None:
+        def _perform(self) -> None:
             container = self.__container_proxy.item
             assert container
             data_group = DataGroup.DataGroup()
@@ -1564,7 +1564,7 @@ class DocumentController(Window.Window):
             # override to allow the undo command to track state; but only use part of the state for comparison
             return bool(state1[0] == state2[0])
 
-        def perform(self) -> None:
+        def _perform(self) -> None:
             container = self.__container_proxy.item
             assert container
             data_group = self.__data_group_proxy.item
@@ -1806,7 +1806,7 @@ class DocumentController(Window.Window):
             self.__undelete_logs = typing.cast(typing.Any, None)
             super().close()
 
-        def perform(self) -> None:
+        def _perform(self) -> None:
             display_item = self.__display_item_proxy.item
             if display_item:
                 graphics = [display_item.graphics[index] for index in self.__graphic_indexes]
@@ -1871,7 +1871,7 @@ class DocumentController(Window.Window):
             self.__undelete_logs = typing.cast(typing.Any, None)
             super().close()
 
-        def perform(self) -> None:
+        def _perform(self) -> None:
             document_model = self.__document_controller.document_model
             display_items = [document_model.display_items[index] for index in self.__display_item_indexes]
             for display_item in display_items:
@@ -1931,7 +1931,7 @@ class DocumentController(Window.Window):
             self.__undelete_logs = typing.cast(typing.Any, None)
             super().close()
 
-        def perform(self) -> None:
+        def _perform(self) -> None:
             document_model = self.__document_controller.document_model
             data_items = [document_model.data_items[index] for index in self.__data_item_indexes]
             for data_item in data_items:
@@ -2210,7 +2210,7 @@ class DocumentController(Window.Window):
                 self.__data_item_proxy = None
             super().close()
 
-        def perform(self) -> None:
+        def _perform(self) -> None:
             data_item = self.__data_item_fn()
             self.__data_item_proxy = data_item.create_proxy() if data_item else None
 
@@ -2294,7 +2294,7 @@ class DocumentController(Window.Window):
                 self.__undelete_log = None
             super().close()
 
-        def perform(self) -> None:
+        def _perform(self) -> None:
             # regarding focus, see https://github.com/nion-software/nionswift/issues/145
             document_controller = self.__document_controller
             display_item = self.__display_item
@@ -2370,7 +2370,7 @@ class DocumentController(Window.Window):
             self.__undelete_logs = typing.cast(typing.Any, None)
             super().close()
 
-        def perform(self) -> None:
+        def _perform(self) -> None:
             document_model = self.__document_controller.document_model
             display_item = document_model.display_items[self.__display_item_index]
             self.__undelete_logs.append(document_model.remove_display_item_with_log(display_item))
@@ -2598,7 +2598,7 @@ class DocumentController(Window.Window):
             self.__undelete_logs = typing.cast(typing.Any, None)
             super().close()
 
-        def perform(self) -> None:
+        def _perform(self) -> None:
             document_model = self.__document_controller.document_model
             index = self.__data_item_index
             for data_item in self.__data_items:
