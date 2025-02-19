@@ -8,7 +8,6 @@ import functools
 import gettext
 import json
 import logging
-import logging.handlers
 import operator
 import os
 import pathlib
@@ -267,16 +266,16 @@ class Application(UIApplication.BaseApplication):
             now_slug = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             log_dir_path = pathlib.Path(self.ui.get_data_location()) / "Logs"
             log_dir_path.mkdir(parents=True, exist_ok=True)
-            log_base_path = log_dir_path / f"commands_{now_slug}.log"
+            log_file_path = log_dir_path / f"commands_{now_slug}.log"
             log_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(threadName)s - %(message)s')
-            rotating_file_handler = logging.handlers.RotatingFileHandler(log_base_path, backupCount=100)
-            rotating_file_handler.setFormatter(log_formatter)
+            log_file_handler = logging.FileHandler(log_file_path)
+            log_file_handler.setFormatter(log_formatter)
             commands_logger = logging.getLogger("_commands")
             commands_logger.propagate = False
             commands_logger.setLevel(logging.DEBUG)
             for handler in list(commands_logger.handlers):
                 commands_logger.removeHandler(handler)
-            commands_logger.addHandler(rotating_file_handler)
+            commands_logger.addHandler(log_file_handler)
 
             COMMANDS_LOGGER_VERSION: typing.Final[str] = "1"
             commands_logger.info(f"# application launched (version {COMMANDS_LOGGER_VERSION})")
@@ -288,6 +287,7 @@ class Application(UIApplication.BaseApplication):
             logging.info("Qt version " + self.ui.get_qt_version())
             logging.info("Log files " + str(log_dir_path))
             self.__purge_log_files(log_dir_path)
+            logging.info("Log file for this launch " + str(log_file_path))
             app_data_file_path = self.ui.get_configuration_location() / pathlib.Path("nionswift_appdata.json")
             ApplicationData.set_file_path(app_data_file_path)
             logging.info("Application data: " + str(app_data_file_path))
