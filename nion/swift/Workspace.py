@@ -64,7 +64,7 @@ class CreateWorkspaceCommand(Undo.UndoableCommand):
     def _set_modified_state(self, modified_state: typing.Any) -> None:
         self.__workspace_controller._project.modified_state = modified_state
 
-    def perform(self) -> None:
+    def _perform(self) -> None:
         new_workspace = self.__workspace_controller.new_workspace(name=self.__new_name, layout=self.__new_layout, workspace_id=self.__new_workspace_id)
         self.__workspace_controller._change_workspace(new_workspace)
 
@@ -102,7 +102,7 @@ class RemoveWorkspaceCommand(Undo.UndoableCommand):
     def _set_modified_state(self, modified_state: typing.Any) -> None:
         self.__workspace_controller._project.modified_state = modified_state
 
-    def perform(self) -> None:
+    def _perform(self) -> None:
         assert len(self.__workspace_controller._project.workspaces) > 1
         old_workspace = self.__workspace_controller._workspace
         if self.__next_workspace_id:
@@ -131,7 +131,7 @@ class RenameWorkspaceCommand(Undo.UndoableCommand):
     def _set_modified_state(self, modified_state: typing.Any) -> None:
         self.__workspace_controller._project.modified_state = modified_state
 
-    def perform(self) -> None:
+    def _perform(self) -> None:
         self.__workspace_controller._workspace.name = self.__new_name
 
     def _undo(self) -> None:
@@ -157,7 +157,7 @@ class CloneWorkspaceCommand(Undo.UndoableCommand):
     def _set_modified_state(self, modified_state: typing.Any) -> None:
         self.__workspace_controller._project.modified_state = modified_state
 
-    def perform(self) -> None:
+    def _perform(self) -> None:
         new_workspace = self.__workspace_controller.new_workspace(name=self.__new_name, layout=self.__new_layout, workspace_id=self.__new_workspace_id)
         self.__workspace_controller._change_workspace(new_workspace)
 
