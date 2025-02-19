@@ -586,9 +586,9 @@ class DocumentController(Window.Window):
 
     def _invoke_action_with_context(self, action: Window.Action, action_context: Window.ActionContext) -> Window.ActionResult:
         commands_logger = logging.getLogger("_commands")
-        commands_logger.info(f"# action {action.action_id}")
+        commands_logger.info(f"# action {action.get_action_summary(action_context)}")
         action_result = super()._invoke_action_with_context(action, action_context)
-        commands_logger.info(f"# action status {action_result.status}")
+        # commands_logger.info(f"# action status {action_result.status}")  # disabled until it can provide something useful
         return action_result
 
     @property
