@@ -203,6 +203,8 @@ class Application(UIApplication.BaseApplication):
         logging.getLogger("migration").setLevel(logging.ERROR)
         logging.getLogger("loader").setLevel(logging.ERROR)
 
+        logging.getLogger("_commands").disabled = True
+
         ui.set_application_info("Nion Swift", "Nion", "nion.com")
 
         ui.set_persistence_handler(PersistenceHandler())
@@ -272,6 +274,7 @@ class Application(UIApplication.BaseApplication):
             log_file_handler.setFormatter(log_formatter)
             commands_logger = logging.getLogger("_commands")
             commands_logger.propagate = False
+            commands_logger.disabled = False
             commands_logger.setLevel(logging.DEBUG)
             for handler in list(commands_logger.handlers):
                 commands_logger.removeHandler(handler)
