@@ -29,6 +29,13 @@ __test_suites: typing.List[unittest.suite.TestSuite] = list()
 
 logger = logging.getLogger("loader_progress")
 
+commands_logger = logging.getLogger("_commands")
+
+
+def log_message(message: str) -> None:
+    logger.info(message)
+    commands_logger.info(message.replace("Plug-in", "# plug-in"))
+
 
 class RequirementsException(Exception):
     """An exception for when a plug-in can't load because it can't meet the necessary requirements."""
@@ -94,12 +101,12 @@ def load_plug_in(module_path: str, module_name: str) -> typing.Optional[types.Mo
         elapsed_s = int(time.time() - start_time)
         plugin_loaded_str = f"Plug-in '{module_name}' loaded ({module_path}) ({elapsed_s}s)."
         list_of_tests_str = " Tests: " + ",".join(tests) if len(tests) > 0 else ""
-        logger.info(plugin_loaded_str + list_of_tests_str)
+        log_message(plugin_loaded_str + list_of_tests_str)
         return module
     except RequirementsException as e:
-        logger.info("Plug-in '" + module_name + "' NOT loaded. %s (" + module_path + ")", e.reason)
+        log_message(f"Plug-in '{module_name}' NOT loaded. {e.reason} ({module_path}).")
     except Exception as e:
-        logger.info("Plug-in '" + module_name + "' NOT loaded (" + module_path + ").")
+        log_message(f"Plug-in '{module_name}' NOT loaded ({module_path}).")
         logger.info(traceback.format_exc())
         logger.info("--------")
     return None
@@ -277,7 +284,7 @@ def load_plug_ins(document_location: str, data_location: str, root_dir: typing.O
                         module_exists = importlib.util.find_spec(module) is not None
                         module_exists_map[module] = module_exists
                     if not module_exists:
-                        logger.info("Plug-in '" + plugin_adapter.module_name + "' NOT loaded (" + plugin_adapter.module_path + ").")
+                        log_message(f"Plug-in '{plugin_adapter.module_name}' NOT loaded ({plugin_adapter.module_path}).")
                         logger.info("Cannot satisfy requirement (%s): %s", module, manifest_path)
                         manifest_valid = False
                         break
@@ -291,13 +298,13 @@ def load_plug_ins(document_location: str, data_location: str, root_dir: typing.O
                     identifier, operator, version_specifier = requirement_components[0], requirement_components[1], requirement_components[2]
                     if identifier in version_map:
                         if Utility.compare_versions("~" + version_specifier, version_map[identifier]) != 0:
-                            logger.info("Plug-in '" + plugin_adapter.module_name + "' NOT loaded (" + plugin_adapter.module_path + ").")
+                            log_message(f"Plug-in '{plugin_adapter.module_name}' NOT loaded ({plugin_adapter.module_path}).")
                             logger.info("Cannot satisfy requirement (%s): %s", requirement, manifest_path)
                             manifest_valid = False
                             break
                     else:
                         # requirements not loaded yet; add back to plugin_adapters, but don't mark progress since nothing was loaded.
-                        logger.info("Plug-in '" + plugin_adapter.module_name + "' delayed (%s) (" + plugin_adapter.module_path + ").", requirement)
+                        log_message(f"Plug-in '{plugin_adapter.module_name}' delayed ({requirement}) ({plugin_adapter.module_path}).")
                         plugin_adapters.append(plugin_adapter)
                         manifest_valid = False
                         break
@@ -316,7 +323,7 @@ def load_plug_ins(document_location: str, data_location: str, root_dir: typing.O
                 __modules.append(plugin_adapter.loaded_module)
             progress = True
     for plugin_adapter in plugin_adapters:
-        logger.info("Plug-in '" + plugin_adapter.module_name + "' NOT loaded (requirements) (" + plugin_adapter.module_path + ").")
+        log_message(f"Plug-in '{plugin_adapter.module_name}' NOT loaded (requirements) ({plugin_adapter.module_path}).")
 
     for plugin_adapter in ordered_module_adapters:
         module = plugin_adapter.loaded_module
@@ -327,9 +334,9 @@ def load_plug_ins(document_location: str, data_location: str, root_dir: typing.O
                     start_time = time.time()
                     member[1]()
                     elapsed_s = int(time.time() - start_time)
-                    logger.info(f"Plug-in '{plugin_adapter.module_name}' initialized ({elapsed_s}s)")
+                    log_message(f"Plug-in '{plugin_adapter.module_name}' initialized ({elapsed_s}s)")
                 except Exception as e:
-                    logger.info("Plug-in '" + str(module) + "' exception during 'run'.")
+                    log_message(f"Plug-in '" + str(module) + "' exception during 'run'.")
                     logger.info(traceback.format_exc())
                     logger.info("--------")
 

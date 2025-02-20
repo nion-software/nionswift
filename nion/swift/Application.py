@@ -254,11 +254,12 @@ class Application(UIApplication.BaseApplication):
                     log_files.append(LogFile(file_path, now - datetime.datetime.fromtimestamp(file_path.stat().st_mtime)))
                 log_files.sort(key=operator.attrgetter("time_delta"))
                 for index, log_file in enumerate(log_files):
-                    if index > 100 or log_file.time_delta.days > 30:
+                    if index >= 100 or log_file.time_delta.days > 30:  # note: index is number from 0
                         logging.info(f"Purging log file {log_file.absolute_file_path}")
                         log_file.absolute_file_path.unlink()
         except Exception as e:
-            pass
+            logging.error(f"Error purging log files: {e}")
+            # do not raise here; otherwise an error here will prevent launch.
 
     def initialize(self, *, load_plug_ins: bool = True, use_root_dir: bool = True) -> None:
         super().initialize()
@@ -280,17 +281,21 @@ class Application(UIApplication.BaseApplication):
                 commands_logger.removeHandler(handler)
             commands_logger.addHandler(log_file_handler)
 
+            python_version = str(sys.version.replace('\n', ''))
+
             COMMANDS_LOGGER_VERSION: typing.Final[str] = "1"
             commands_logger.info(f"# application launched (version {COMMANDS_LOGGER_VERSION})")
+            commands_logger.info(f"# python version {python_version}")
+            commands_logger.info(f"# ui {type(self.ui).__name__} / {type(getattr(self.ui, 'proxy')).__name__} / {self.ui.get_build_version()}")
+            commands_logger.info(f"# qt {self.ui.get_qt_version()}")
 
-            logging.info("Launch time " + str(datetime.datetime.now()))
-            logging.info("Python version " + str(sys.version.replace('\n', '')))
-            logging.info("User interface class " + type(self.ui).__name__ + " / " + type(getattr(self.ui, "proxy")).__name__)
-            logging.info("Build version (UI) " + self.ui.get_build_version())
-            logging.info("Qt version " + self.ui.get_qt_version())
-            logging.info("Log files " + str(log_dir_path))
+            logging.info(f"Launch time {datetime.datetime.now()}")
+            logging.info(f"Python version {python_version}")
+            logging.info(f"User interface class {type(self.ui).__name__} / {type(getattr(self.ui, 'proxy')).__name__}")
+            logging.info(f"Build version (UI) {self.ui.get_build_version()}")
+            logging.info(f"Qt version {self.ui.get_qt_version()}")
             self.__purge_log_files(log_dir_path)
-            logging.info("Log file for this launch " + str(log_file_path))
+            logging.info(f"Log file {log_file_path} (level {logging.getLevelName(commands_logger.level)})")
             app_data_file_path = self.ui.get_configuration_location() / pathlib.Path("nionswift_appdata.json")
             ApplicationData.set_file_path(app_data_file_path)
             logging.info("Application data: " + str(app_data_file_path))
