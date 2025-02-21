@@ -492,7 +492,7 @@ def draw_ellipse_graphic(ctx: DrawingContextLike, center: Geometry.FloatPoint, s
         ctx.line_to(center.x, rect.top + 2 + (.5 * int(stroke_width or 1)))
         draw_arrow(ctx, Geometry.FloatPoint(y=rect.top + 10 + (.5 * int(stroke_width or 1)), x=center.x), Geometry.FloatPoint(y=rect.top + 2 + (.5 * int(stroke_width or 1)) , x=center.x), arrow_size=4)
         ctx.close_path()
-        ctx.line_width =  1
+        ctx.line_width = 1
         ctx.stroke_style = stroke_style
         ctx.stroke()
         ctx.fill_style = fill_style
