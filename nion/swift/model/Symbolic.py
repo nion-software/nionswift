@@ -10,6 +10,8 @@ from __future__ import annotations
 
 # standard libraries
 import ast
+import asyncio
+import concurrent.futures
 import contextlib
 import copy
 import datetime
@@ -1242,7 +1244,7 @@ class BoundItemBase(Observable.Observable):
     @property
     def value(self) -> typing.Any:
         # this is the value or input object for the bound item.
-        # this may be different from computation_value while transitioning to the threaded computation system.
+        # this may be different from computation_value while transitioning to the asynchronous computation system.
         return None
 
     @property
@@ -1996,6 +1998,9 @@ class Computation(Persistence.PersistentObject):
         self.__last_timestamp: typing.Optional[datetime.datetime] = None
         self.__error_stack_trace = str()
         self.__error_notification: typing.Optional[Notification.Notification] = None
+        # manage the state of asynchronous computations. these can only be modified on main thread.
+        self.is_running = False
+        self.is_pending = False
 
     @property
     def variables(self) -> typing.Sequence[ComputationVariable]:
@@ -2380,6 +2385,31 @@ class Computation(Persistence.PersistentObject):
         for result in self.results:
             is_resolved = is_resolved and result.is_resolved
         return kwargs, is_resolved
+
+    async def async_evaluate(self, event_loop: asyncio.AbstractEventLoop, thread_pool_executor: concurrent.futures.ThreadPoolExecutor) -> typing.Optional[ComputationExecutor]:
+        # this function is always run on the main thread.
+        # run the execute function in a thread pool executor using the asyncio event loop.
+        # the executor and all parameters are assumed to be thread safe.
+        api = PlugInManager.api_broker_fn("~1.0", None)
+        executor: typing.Optional[ComputationExecutor] = None
+        needs_update = self.needs_update
+        self.needs_update = False
+        if needs_update:
+            if self.expression:
+                executor = ScriptExpressionComputationExecutor(self, api)
+            else:
+                executor = RegisteredComputationExecutor(self, api)
+            kwargs, is_resolved = self.__resolve_inputs(api)
+            if is_resolved:
+                def execute(kwargs: dict[str, typing.Any]) -> None:
+                    executor.execute(**kwargs)
+
+                await event_loop.run_in_executor(thread_pool_executor, execute, kwargs)
+            else:
+                executor.error_text = _("Missing parameters.")
+            self._evaluation_count_for_test += 1
+            self.last_evaluate_data_time = time.perf_counter()
+        return executor
 
     def evaluate(self, api: typing.Any) -> typing.Optional[ComputationExecutor]:
         executor: typing.Optional[ComputationExecutor] = None
