@@ -2518,7 +2518,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 "sources": [{"name": "src", "label": _("Source"), "data_type": "cropped_display_xdata", "croppable": True}]}
             vs["crop"] = {"title": _("Crop"), "expression": "{src}.cropped_display_xdata",
                 "sources": [{"name": "src", "label": _("Source"), "data_type": "cropped_display_xdata", "croppable": True}]}
-            vs["sum"] = {"title": _("Sum"), "expression": "xd.sum({src}.cropped_xdata, {src}.xdata.datum_dimension_indexes[0])",
+            vs["sum"] = {"title": _("Sum"), "expression": "xd.sum({src}.cropped_xdata, {src}.cropped_xdata.datum_dimension_indexes[0])",
                 "sources": [{"name": "src", "label": _("Source"), "data_type": "cropped_xdata", "croppable": True, "requirements": [requirement_2d_to_4d]}]}
             slice_center_param = {"name": "center", "label": _("Center"), "type": "integral", "value": 0, "value_default": 0, "value_min": 0}
             slice_width_param = {"name": "width", "label": _("Width"), "type": "integral", "value": 1, "value_default": 1, "value_min": 1}
