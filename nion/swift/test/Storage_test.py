@@ -2231,7 +2231,7 @@ class TestStorageClass(unittest.TestCase):
                 self.assertEqual(len(document_model.data_items), 2)
                 computation = document_model.get_data_item_computation(document_model.data_items[1])
                 self.assertEqual(computation.processing_id, "sum")
-                self.assertEqual(computation.expression, Symbolic.xdata_expression("xd.sum(src.cropped_xdata, src.xdata.datum_dimension_indexes[0])"))
+                self.assertEqual(computation.expression, Symbolic.xdata_expression("xd.sum(src.cropped_xdata, src.cropped_xdata.datum_dimension_indexes[0])"))
                 self.assertEqual(len(computation.variables), 1)
                 self.assertEqual(computation.get_input_data_item("src"), document_model.data_items[0])
                 self.assertEqual(computation.get_input_graphic("src"), document_model.display_items[0].graphics[0])
