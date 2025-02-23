@@ -1784,6 +1784,25 @@ class BoundDataStructure(BoundItemBase):
         super().close()
 
     @property
+    def computation_value(self) -> typing.Any:
+        if self.__property_name:
+            return getattr(self.__object, self.__property_name)
+
+        class DataStructureComputationValue:
+            def __init__(self, d: typing.Mapping[str, typing.Any]) -> None:
+                self.structure_type = d.get("structure_type", None)
+                for k, v in d["properties"].items():
+                    setattr(self, k, v)
+
+            def get_property(self, property: str) -> typing.Any:
+                return getattr(self, property, None)
+
+            def set_property(self, property: str, value: typing.Any) -> None:
+                setattr(self, property, value)
+
+        return DataStructureComputationValue(self.__object.write_to_dict()) if self.__object else None
+
+    @property
     def value(self) -> typing.Any:
         if self.__object and self.__property_name:
             return self.__object.get_property_value(self.__property_name)
