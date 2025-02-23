@@ -4027,16 +4027,16 @@ class TestStorageClass(unittest.TestCase):
             self.computation = computation
 
         def execute(self, src, value):
-            self.__src = src
             self.__value = value
 
         def commit(self):
             graphics = self.computation.get_result("graphics")
+            src = self.computation.get_input("src")
             while len(graphics) < self.__value:
-                graphic = self.__src.add_point_region(0.5, 0.5)
+                graphic = src.add_point_region(0.5, 0.5)
                 graphics.append(graphic)
             while len(graphics) > self.__value:
-                self.__src.remove_region(graphics.pop())
+                src.remove_region(graphics.pop())
             self.computation.set_result("graphics", graphics)
 
     def test_new_computation_with_list_result_reloads(self):

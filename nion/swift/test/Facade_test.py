@@ -328,12 +328,13 @@ class TestFacadeClass(unittest.TestCase):
             self.computation = computation
 
         def execute(self, src):
-            self.__src = src
+            pass
 
         def commit(self):
             graphic = self.computation.get_result("graphic")
+            src = self.computation.get_input("src")
             if not graphic:
-                graphic = self.__src.add_point_region(0.5, 0.5)
+                graphic = src.add_point_region(0.5, 0.5)
                 self.computation.set_result("graphic", graphic)
 
     def test_register_library_computation_and_execute_it(self):
@@ -354,13 +355,13 @@ class TestFacadeClass(unittest.TestCase):
             self.computation = computation
 
         def execute(self, src, value):
-            self.__src = src
             self.__value = value
 
         def commit(self):
             graphic = self.computation.get_result("graphic")
+            src = self.computation.get_input("src")
             if not graphic:
-                graphic = self.__src.add_point_region(0.5, 0.5)
+                graphic = src.add_point_region(0.5, 0.5)
                 self.computation.set_result("graphic", graphic)
             graphic.label = str(self.__value)
 
@@ -388,7 +389,6 @@ class TestFacadeClass(unittest.TestCase):
 
         def execute(self, src):
             self.__data = src.data
-            self.__src = src
 
         def commit(self):
             dst = self.computation.get_result("dst")
@@ -421,7 +421,6 @@ class TestFacadeClass(unittest.TestCase):
         def execute(self, src):
             assert isinstance(src, Facade.DataSource)
             self.__data = src.data
-            self.__src = src
 
         def commit(self):
             dst = self.computation.get_result("dst")

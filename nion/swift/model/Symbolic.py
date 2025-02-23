@@ -1551,6 +1551,18 @@ class BoundDataItem(BoundItemBase):
         super().close()
 
     @property
+    def computation_value(self) -> typing.Any:
+        class DataItemComputationValue:
+            def __init__(self, xdata: DataAndMetadata.DataAndMetadata) -> None:
+                self.xdata = xdata
+
+            @property
+            def data(self) -> typing.Optional[DataAndMetadata._ImageDataType]:
+                return self.xdata.data if self.xdata else None
+
+        return DataItemComputationValue(self._data_item.xdata) if self._data_item and self._data_item.xdata else None
+
+    @property
     def value(self) -> typing.Optional[DataItem.DataItem]:
         return self._data_item
 

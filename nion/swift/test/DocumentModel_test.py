@@ -375,13 +375,13 @@ class TestDocumentModelClass(unittest.TestCase):
             d = src.data
             max_pos = list(numpy.unravel_index(numpy.argmax(d), d.shape))
             max_pos = max_pos[0] / d.shape[0], max_pos[1] / d.shape[1]
-            self.__src = src
             self.__max_pos = max_pos
 
         def commit(self):
             graphic = self.computation.get_result("graphic", None)
+            src = self.computation.get_input("src")
             if not graphic:
-                graphic = self.__src.add_point_region(*self.__max_pos)
+                graphic = src.add_point_region(*self.__max_pos)
                 self.computation.set_result("graphic", graphic)
             graphic.position = self.__max_pos
             TestDocumentModelClass.find_max_eval_count += 1
@@ -583,16 +583,16 @@ class TestDocumentModelClass(unittest.TestCase):
             self.computation = computation
 
         def execute(self, src, value):
-            self.__src = src
             self.__value = value
 
         def commit(self):
             graphic = self.computation.get_result("graphic", None)
+            src = self.computation.get_input("src")
             if not self.__value and graphic:
-                self.__src.remove_region(graphic)
+                src.remove_region(graphic)
                 self.computation.set_result("graphic", None)
             elif self.__value and not graphic:
-                graphic = self.__src.add_point_region(0.5, 0.5)
+                graphic = src.add_point_region(0.5, 0.5)
                 self.computation.set_result("graphic", graphic)
 
     def test_new_computation_with_optional_result(self):
@@ -648,16 +648,16 @@ class TestDocumentModelClass(unittest.TestCase):
             self.computation = computation
 
         def execute(self, src, value):
-            self.__src = src
             self.__value = value
 
         def commit(self):
             graphics = self.computation.get_result("graphics")
+            src = self.computation.get_input("src")
             while len(graphics) < self.__value:
-                graphic = self.__src.add_point_region(0.5, 0.5)
+                graphic = src.add_point_region(0.5, 0.5)
                 graphics.append(graphic)
             while len(graphics) > self.__value:
-                self.__src.remove_region(graphics.pop())
+                src.remove_region(graphics.pop())
             self.computation.set_result("graphics", graphics)
 
     def test_new_computation_with_list_result(self):
