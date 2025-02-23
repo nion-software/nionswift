@@ -2295,6 +2295,9 @@ class Computation(metaclass=SharedInstance):
         """
         return self.__computation.uuid
 
+    def get_input(self, name: str) -> typing.Any:
+        return _new_api_object(self.__computation.get_input(name))
+
     def set_input_value(self, name: str, value: typing.Any) -> None:
         # support lists here?
         if isinstance(value, (str, bool, numbers.Integral, numbers.Real, numbers.Complex)):
