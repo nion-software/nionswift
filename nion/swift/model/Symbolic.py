@@ -1932,6 +1932,10 @@ class BoundList(BoundItemBase):
         super().close()
 
     @property
+    def computation_value(self) -> typing.List[typing.Any]:
+        return [bound_item.computation_value if bound_item else None for bound_item in self.__bound_items]
+
+    @property
     def value(self) -> typing.List[typing.Any]:
         return [bound_item.value if bound_item else None for bound_item in self.__bound_items]
 
