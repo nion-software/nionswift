@@ -324,9 +324,9 @@ class TestDocumentControllerClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_item.add_graphic(crop_region)
             new_data_item = document_model.get_invert_new(display_item, display_item.data_item, crop_region)
-            self.assertEqual(crop_region.bounds, document_model.get_data_item_computation(new_data_item).get_input("src").graphic.bounds)
+            self.assertEqual(crop_region.bounds, document_model.get_data_item_computation(new_data_item).get_input_graphic("src").bounds)
             crop_region.bounds = ((0.3, 0.4), (0.25, 0.35))
-            self.assertEqual(crop_region.bounds, document_model.get_data_item_computation(new_data_item).get_input("src").graphic.bounds)
+            self.assertEqual(crop_region.bounds, document_model.get_data_item_computation(new_data_item).get_input_graphic("src").bounds)
 
     def test_processing_on_crop_region_recomputes_when_bounds_changes(self):
         with TestContext.create_memory_context() as test_context:
@@ -574,8 +574,8 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertIsNotNone(document_model.get_data_item_computation(data_item_dup))
             self.assertNotEqual(document_model.get_data_item_computation(data_item_dup), document_model.get_data_item_computation(data_item))
             self.assertNotEqual(document_model.get_data_item_computation(data_item_dup).variables[0], document_model.get_data_item_computation(data_item).variables[0])
-            self.assertEqual(document_model.get_data_item_computation(data_item_dup).get_input("src").data_item,
-                             document_model.get_data_item_computation(data_item).get_input("src").data_item)
+            self.assertEqual(document_model.get_data_item_computation(data_item_dup).get_input_data_item("src"),
+                             document_model.get_data_item_computation(data_item).get_input_data_item("src"))
 
     def test_fixing_display_limits_works_for_all_data_types(self):
         with TestContext.create_memory_context() as test_context:

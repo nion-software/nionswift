@@ -771,9 +771,9 @@ def make_image_chooser(document_controller: DocumentController.DocumentControlle
     label_row.add_stretch()
     label_row.add(label_widget)
     label_row.add_stretch()
-    data_item = computation.get_input(variable.name).data_item
+    data_item = computation.get_input_data_item(variable.name)
 
-    display_item = document_model.get_display_item_for_data_item(data_item)
+    display_item = document_model.get_display_item_for_data_item(data_item) if data_item else None
     data_item_thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(ui, display_item=display_item)
     data_item_chooser_widget = DataItemThumbnailWidget.ThumbnailWidget(ui, data_item_thumbnail_source, Geometry.IntSize(80, 80))
 
@@ -787,8 +787,7 @@ def make_image_chooser(document_controller: DocumentController.DocumentControlle
 
     def property_changed(key: str) -> None:
         if key == "specified_object":
-            computation_input = computation.get_input(variable.name)
-            data_item = computation_input.data_item if computation_input else None
+            data_item = computation.get_input_data_item(variable.name)
             display_item = document_model.get_display_item_for_data_item(data_item) if data_item else None
             if display_item:
                 data_item_thumbnail_source.set_display_item(display_item)
