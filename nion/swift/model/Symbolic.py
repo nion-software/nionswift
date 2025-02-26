@@ -2543,6 +2543,16 @@ class Computation(Persistence.PersistentObject):
         variable = self._get_variable(name)
         return variable.bound_item.value if variable and variable.bound_item else None
 
+    def get_input_data_item(self, name: str) -> DataItem.DataItem | None:
+        variable = self._get_variable(name)
+        bound_item = variable.bound_item if variable else None
+        return bound_item.base_items[0] if bound_item and len(bound_item.base_items) > 0 and isinstance(bound_item.base_items[0], DataItem.DataItem) else None
+
+    def get_input_graphic(self, name: str) -> Graphics.Graphic | None:
+        variable = self._get_variable(name)
+        bound_item = variable.bound_item if variable else None
+        return bound_item.base_items[1] if bound_item and len(bound_item.base_items) > 1 and isinstance(bound_item.base_items[1], Graphics.Graphic) else None
+
     def get_output(self, name: str) -> typing.Any:
         result = self._get_output(name)
         if result:
