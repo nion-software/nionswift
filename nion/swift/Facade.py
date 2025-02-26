@@ -2326,21 +2326,20 @@ class Computation(metaclass=SharedInstance):
                     return
             self.__computation.create_output_item(name, output_item)
 
-    def set_referenced_data(self, name: str, data: NDArray) -> None:
-        data_item = self.get_result(name)
-        if not data_item:
-            api = API_1(None, ApplicationModule.app)
-            data_item = api.library.create_data_item()
-            self.set_result(name, data_item)
-        data_item.data = data
-
     def set_referenced_xdata(self, name: str, xdata: DataAndMetadata.DataAndMetadata) -> None:
         data_item = self.get_result(name)
         if not data_item:
             api = API_1(None, ApplicationModule.app)
             data_item = api.library.create_data_item()
             self.set_result(name, data_item)
+        metadata = dict(xdata.metadata)
+        if computation_d := self.__computation.get_computation_metadata(name):
+            metadata["computation"] = computation_d
+        xdata._set_metadata(metadata)
         data_item.xdata = xdata
+
+    def set_referenced_data(self, name: str, data: NDArray) -> None:
+        self.set_referenced_xdata(name, DataAndMetadata.new_data_and_metadata(data))
 
     def clear_referenced_data(self, name: str) -> None:
         data_item = self.get_result(name)
