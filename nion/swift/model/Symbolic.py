@@ -24,6 +24,9 @@ import traceback
 import typing
 import uuid
 
+# third party libraries
+import numpy
+
 # local libraries
 from nion.data import Core
 from nion.data import DataAndMetadata
@@ -2624,6 +2627,66 @@ class Computation(Persistence.PersistentObject):
     def _processor_description(self) -> typing.Optional[ComputationProcessor]:
         return self.__processor
 
+    def get_computation_metadata(self, name: str) -> typing.Optional[Persistence.PersistentDictType]:
+        result = self._get_output(name)
+        if result:
+            for output_item in result.output_items:
+                if isinstance(output_item, DataItem.DataItem):
+                    computation_d = dict[str, typing.Any]()
+                    computation_d["computation_id"] = self.processing_id
+                    computation_d["name"] = result.name
+                    parameters_l = list[dict[str, typing.Any]]()
+                    computation_d["parameters"] = parameters_l
+                    for variable in self.variables:
+                        parameter_d = dict[str, typing.Any]()
+                        parameters_l.append(parameter_d)
+                        parameter_d["name"] = variable.name
+                        if variable.value_type is not None:
+                            parameter_d["type"] = variable.value_type.name
+                        if variable.value is not None:
+                            parameter_d["value"] = variable.value
+                        if variable.specifier is not None:
+                            parameter_d["specifier"] = variable.specifier.write_to_dict()
+                        if variable.secondary_specifier is not None:
+                            parameter_d["secondary_specifier"] = variable.secondary_specifier.write_to_dict()
+                        if variable.object_specifiers:
+                            specifiers_l = list[dict[str, typing.Any]]()
+                            parameter_d["specifiers"] = specifiers_l
+                            for specifier in variable.object_specifiers:
+                                if specifier is not None:
+                                    specifiers_l.append(specifier.write_to_dict())
+                                else:
+                                    specifiers_l.append(dict())
+                        if variable.bound_item:
+                            base_items_l = list[dict[str, typing.Any]]()
+                            parameter_d["items"] = base_items_l
+                            for base_item in variable.bound_item.base_items:
+                                item_d = dict[str, typing.Any]()
+                                base_items_l.append(item_d)
+                                if isinstance(base_item, DataItem.DataItem):
+                                    item_d["type"] = "data-item"
+                                    item_d["uuid"] = str(base_item.uuid)
+                                    if base_item.data_shape:
+                                        item_d["shape"] = base_item.data_shape
+                                    if base_item.data_dtype:
+                                        item_d["data_type"] = numpy.dtype(base_item.data_dtype).name
+                                    if base_item.data_metadata:
+                                        item_d[
+                                            "data_descriptor"] = base_item.data_metadata.data_descriptor.is_sequence, base_item.data_metadata.data_descriptor.collection_dimension_count, base_item.data_metadata.data_descriptor.datum_dimension_count
+                                elif isinstance(base_item, DisplayItem.DisplayItem):
+                                    item_d["type"] = "display-item"
+                                    item_d["uuid"] = str(base_item.uuid)
+                                elif isinstance(base_item, Graphics.Graphic):
+                                    item_d["type"] = "graphic"
+                                    item_d["uuid"] = str(base_item.uuid)
+                                    item_d["graphic_type"] = base_item.type
+                                elif isinstance(base_item, DataStructure.DataStructure):
+                                    item_d["type"] = "data-structure"
+                                    item_d["uuid"] = str(base_item.uuid)
+                                    if base_item.structure_type:
+                                        item_d["structure_type"] = base_item.structure_type
+                    return computation_d
+        return None
 
 class ComputationExecutor:
 
@@ -2769,7 +2832,13 @@ class ScriptExpressionComputationExecutor(ComputationExecutor):
             # on fast machines, so ensure that any data_modified timestamp is created using
             # DateTime.utcnow() / Schema.utcnow().
             if data_item_clone_data_modified > self.__data_item_data_modified:
-                self.__data_item.set_xdata(self.__data_item_target.xdata)
+                target_xdata = self.__data_item_target.xdata
+                if self.computation and (computation_d := self.computation.get_computation_metadata("target")) and target_xdata:
+                    metadata = dict(target_xdata.metadata)
+                    metadata.pop("computation", None)
+                    metadata["computation"] = computation_d
+                    target_xdata._set_metadata(metadata)
+                self.__data_item.set_xdata(target_xdata)
         if self.__data_item_created:
             self.__xdata = self.__data_item.xdata
             self.__data_item.close()
