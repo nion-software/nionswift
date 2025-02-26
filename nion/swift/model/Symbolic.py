@@ -27,6 +27,9 @@ import traceback
 import typing
 import uuid
 
+# third party libraries
+import numpy
+
 # local libraries
 from nion.data import Core
 from nion.data import Calibration
@@ -1739,7 +1742,7 @@ class BoundDataStructure(BoundItemBase):
     @property
     def computation_value(self) -> typing.Any:
         if self.__property_name:
-            return getattr(self.__object, self.__property_name)
+            return getattr(self._data_structure, self.__property_name)
 
         class DataStructureComputationValue:
             def __init__(self, d: typing.Mapping[str, typing.Any]) -> None:
@@ -1753,20 +1756,24 @@ class BoundDataStructure(BoundItemBase):
             def set_property(self, property: str, value: typing.Any) -> None:
                 setattr(self, property, value)
 
-        return DataStructureComputationValue(self.__object.write_to_dict()) if self.__object else None
+        return DataStructureComputationValue(self._data_structure.write_to_dict()) if self._data_structure else None
 
     @property
     def value(self) -> typing.Any:
-        if self.__object and self.__property_name:
-            return self.__object.get_property_value(self.__property_name)
-        return self.__object
+        if self._data_structure and self.__property_name:
+            return self._data_structure.get_property_value(self.__property_name)
+        return self._data_structure
 
     def _get_base_items(self) -> typing.List[Persistence.PersistentObject]:
-        return [self.__object] if self.__object else list()
+        return [self._data_structure] if self._data_structure else list()
 
     @property
-    def __object(self) -> typing.Optional[DataStructure.DataStructure]:
+    def _data_structure(self) -> typing.Optional[DataStructure.DataStructure]:
         return typing.cast(typing.Optional[DataStructure.DataStructure], self.__item_reference.item if self.__item_reference else None)
+
+    @property
+    def _property_name(self) -> typing.Optional[str]:
+        return self.__property_name
 
 
 class BoundGraphic(BoundItemBase):
@@ -1815,7 +1822,7 @@ class BoundGraphic(BoundItemBase):
 
     @property
     def computation_value(self) -> typing.Any:
-        region = self.__object.get_region() if self.__object else None
+        region = self._graphic.get_region() if self._graphic else None
         if self.__property_name:
             return getattr(region, self.__property_name)
         return region
@@ -1823,19 +1830,19 @@ class BoundGraphic(BoundItemBase):
     @property
     def value(self) -> typing.Any:
         if self.__property_name:
-            return getattr(self.__object, self.__property_name)
-        return self.__object
+            return getattr(self._graphic, self.__property_name)
+        return self._graphic
 
     def _get_base_items(self) -> typing.List[Persistence.PersistentObject]:
-        return [self.__object] if self.__object else list()
-
-    @property
-    def __object(self) -> typing.Optional[Graphics.Graphic]:
-        return typing.cast(Graphics.Graphic, self.__item_reference.item if self.__item_reference else None)
+        return [self._graphic] if self._graphic else list()
 
     @property
     def _graphic(self) -> typing.Optional[Graphics.Graphic]:
-        return self.__object
+        return typing.cast(Graphics.Graphic, self.__item_reference.item if self.__item_reference else None)
+
+    @property
+    def _property_name(self) -> typing.Optional[str]:
+        return self.__property_name
 
 
 class ComputationItem:
@@ -2272,6 +2279,8 @@ class Computation(Persistence.PersistentObject):
 
     def create_input_item(self, name: str, input_item: ComputationItem, *, property_name: typing.Optional[str] = None,
                           label: typing.Optional[str] = None, _item_specifier: typing.Optional[Specifier] = None) -> ComputationVariable:
+        if input_item.secondary_item:
+            assert isinstance(input_item.secondary_item, Graphics.Graphic)
         # Note: _item_specifier is only for testing
         if input_item.items is not None:
             variable = ComputationVariable(name, items=input_item.items, label=label)
@@ -2607,6 +2616,256 @@ class Computation(Persistence.PersistentObject):
     def _processor_description(self) -> typing.Optional[ComputationProcessor]:
         return self.__processor
 
+    def get_computation_metadata(self, name: str) -> typing.Optional[Persistence.PersistentDictType]:
+        # return the computation description for the output data item with name
+        # the intention of the computation metadata is to describe the computation performed to produce this data
+        # item result.
+
+        def make_data_item_description(data_item: DataItem.DataItem) -> PersistentDictType:
+            # note: the data item description intentionally does not copy metadata. this is to avoid performance
+            # issues with recursively including metadata. ideally the sum of all metadata stays small (< 32k).
+            item_d = dict[str, typing.Any]()
+            item_d["type"] = "data-item"
+            item_d["uuid"] = str(data_item.uuid)
+            if data_item.data_shape:
+                item_d["shape"] = data_item.data_shape
+            if data_item.data_dtype:
+                item_d["data_type"] = numpy.dtype(data_item.data_dtype).name
+            if data_item.data_metadata:
+                data_descriptor_d = dict[str, typing.Any]()
+                data_descriptor = data_item.data_metadata.data_descriptor
+                if data_descriptor.is_sequence:
+                    data_descriptor_d["is_sequence"] = data_descriptor.is_sequence
+                if data_descriptor.collection_dimension_count:
+                    data_descriptor_d["collection_dimension_count"] = data_descriptor.collection_dimension_count
+                if data_descriptor.datum_dimension_count:
+                    data_descriptor_d["datum_dimension_count"] = data_descriptor.datum_dimension_count
+                item_d["data_descriptor"] = data_descriptor_d
+            if data_item.title:
+                item_d["title"] = data_item.title
+            if "computation" in data_item.metadata:
+                item_d["computation"] = data_item.metadata["computation"]
+            return item_d
+
+        def make_display_data_channel_description(display_data_channel: DisplayItem.DisplayDataChannel) -> PersistentDictType:
+            display_data_channel_d = dict[str, typing.Any]()
+            display_data_channel_d["uuid"] = str(display_data_channel.uuid)
+            if display_data_channel.sequence_index:
+                display_data_channel_d["sequence_index"] = display_data_channel.sequence_index
+            if any(display_data_channel.collection_index):
+                display_data_channel_d["collection_index"] = display_data_channel.collection_index
+            if display_data_channel.slice_center:
+                display_data_channel_d["slice_center"] = display_data_channel.slice_center
+            display_data_channel_d["data_item_uuid"] = display_data_channel.data_item_reference
+            return display_data_channel_d
+
+        def make_data_structure_description(data_structure: DataStructure.DataStructure) -> PersistentDictType:
+            data_structure_d = dict[str, typing.Any]()
+            data_structure_d["uuid"] = str(data_structure.uuid)
+            if data_structure.structure_type:
+                data_structure_d["structure_type"] = data_structure.structure_type
+            if data_structure_properties_d := data_structure.write_to_dict().get("properties", None):
+                data_structure_d["properties"] = data_structure_properties_d
+            return data_structure_d
+
+        def make_point_description(p: Geometry.FloatPoint) -> PersistentDictType:
+            point_d = dict[str, typing.Any]()
+            point_d["x"] = p.x
+            point_d["y"] = p.y
+            return point_d
+
+        def make_size_description(size: Geometry.FloatSize) -> PersistentDictType:
+            size_d = dict[str, typing.Any]()
+            size_d["width"] = size.width
+            size_d["height"] = size.height
+            return size_d
+
+        def make_rect_description(rect: Geometry.FloatRect) -> PersistentDictType:
+            rect_d = dict[str, typing.Any]()
+            rect_d["top-left"] = make_point_description(rect.top_left)
+            rect_d["size"] = make_size_description(rect.size)
+            return rect_d
+
+        def make_graphic_description(graphic: Graphics.Graphic) -> PersistentDictType:
+            graphic_d = dict[str, typing.Any]()
+            graphic_d["uuid"] = str(graphic.uuid)
+            graphic_d["graphic_type"] = graphic.type
+            if graphic.graphic_id:
+                graphic_d["graphic_id"] = graphic.graphic_id
+            if isinstance(graphic, Graphics.RectangleTypeGraphic):
+                graphic_d["bounds"] = make_rect_description(graphic.bounds)
+                graphic_d["rotation"] = graphic.rotation
+            if isinstance(graphic, Graphics.LineTypeGraphic):
+                graphic_d["start"] = make_point_description(graphic.start)
+                graphic_d["end"] = make_point_description(graphic.end)
+            if isinstance(graphic, Graphics.LineProfileGraphic):
+                graphic_d["width"] = graphic.width
+            if isinstance(graphic, Graphics.PointTypeGraphic):
+                graphic_d["position"] = make_point_description(graphic.position)
+            if isinstance(graphic, Graphics.IntervalGraphic):
+                graphic_d["interval"] = graphic.interval
+            if isinstance(graphic, Graphics.ChannelGraphic):
+                graphic_d["channel"] = graphic.position
+            if isinstance(graphic, Graphics.SpotGraphic):
+                graphic_d["bounds"] = make_rect_description(graphic.bounds)
+                graphic_d["rotation"] = graphic.rotation
+            if isinstance(graphic, Graphics.WedgeGraphic):
+                graphic_d["angle_interval"] = graphic.angle_interval
+            if isinstance(graphic, Graphics.RingGraphic):
+                graphic_d["radius_1"] = graphic.radius_1
+                graphic_d["radius_2"] = graphic.radius_2
+                graphic_d["mode"] = graphic.mode
+            if isinstance(graphic, Graphics.LatticeGraphic):
+                graphic_d["u_pos"] = make_size_description(graphic.u_pos)
+                graphic_d["v_pos"] = make_size_description(graphic.v_pos)
+                # future change will make the cell be defined by an ellipse size and rotation
+                graphic_d["size"] = make_size_description(Geometry.FloatSize(graphic.radius, graphic.radius))
+                graphic_d["rotation"] = 0.0
+            return graphic_d
+
+        def make_object_description(object_type: str, variable_bound_item: BoundItemBase) -> PersistentDictType:
+            parameter_d = dict[str, typing.Any]()
+            parameter_d["object_type"] = object_type
+            if isinstance(variable_bound_item, BoundData) and variable_bound_item._item:
+                parameter_d["data-item"] = make_data_item_description(variable_bound_item._item)
+            if isinstance(variable_bound_item,
+                          BoundDisplayDataChannelBase) and variable_bound_item._display_data_channel:
+                if variable_bound_item._display_data_channel:
+                    parameter_d["display-data-channel"] = make_display_data_channel_description(
+                        variable_bound_item._display_data_channel)
+                if variable_bound_item._display_data_channel and variable_bound_item._display_data_channel.data_item:
+                    parameter_d["data-item"] = make_data_item_description(
+                        variable_bound_item._display_data_channel.data_item)
+                if variable_bound_item._graphic:
+                    parameter_d["graphic"] = make_graphic_description(variable_bound_item._graphic)
+            if isinstance(variable_bound_item, BoundDataSource):
+                if variable_bound_item._display_data_channel:
+                    parameter_d["display-data-channel"] = make_display_data_channel_description(
+                        variable_bound_item._display_data_channel)
+                if variable_bound_item._display_data_channel and variable_bound_item._display_data_channel.data_item:
+                    parameter_d["data-item"] = make_data_item_description(
+                        variable_bound_item._display_data_channel.data_item)
+                if variable_bound_item._graphic:
+                    parameter_d["graphic"] = make_graphic_description(variable_bound_item._graphic)
+            if isinstance(variable_bound_item, BoundDataItem) and variable_bound_item._data_item:
+                parameter_d["data-item"] = make_data_item_description(variable_bound_item._data_item)
+            if isinstance(variable_bound_item, BoundFilterLikeData):
+                if variable_bound_item._display_data_channel:
+                    parameter_d["display-data-channel"] = make_display_data_channel_description(
+                        variable_bound_item._display_data_channel)
+                if variable_bound_item._display_data_channel and variable_bound_item._display_data_channel.data_item:
+                    parameter_d["data-item"] = make_data_item_description(
+                        variable_bound_item._display_data_channel.data_item)
+            if isinstance(variable_bound_item, BoundDataStructure):
+                if variable_bound_item._data_structure:
+                    parameter_d["data-structure"] = make_data_structure_description(variable_bound_item._data_structure)
+                if variable_bound_item._property_name:
+                    parameter_d["property-name"] = variable_bound_item._property_name
+            if isinstance(variable_bound_item, BoundGraphic):
+                if variable_bound_item._graphic:
+                    parameter_d["graphic"] = make_graphic_description(variable_bound_item._graphic)
+                if variable_bound_item._property_name:
+                    parameter_d["property-name"] = variable_bound_item._property_name
+            return parameter_d
+
+        class ComputationRecordObject:
+            def __init__(self, object_type: str, bound_item: BoundItemBase) -> None:
+                self.object_type = object_type
+                self.bound_item = bound_item
+
+            def to_dict(self) -> dict[str, typing.Any]:
+                return make_object_description(self.object_type, self.bound_item)
+
+        class ComputationRecordParameter:
+            def __init__(self, name: str) -> None:
+                self.name = name
+
+            def to_dict(self) -> dict[str, typing.Any]:
+                raise NotImplementedError()
+
+        class ComputationRecordValueParameter(ComputationRecordParameter):
+            def __init__(self, name: str, value_type: ComputationVariableType, value: typing.Any) -> None:
+                super().__init__(name)
+                self.value = value
+                self.value_type = value_type
+
+            def to_dict(self) -> dict[str, typing.Any]:
+                return {
+                    "parameter_type": "value",
+                    "name": self.name,
+                    "value_type": _map_variable_type_to_identifier[self.value_type],
+                    "value": self.value
+                }
+
+        class ComputationRecordObjectParameter(ComputationRecordParameter):
+            def __init__(self, name: str, computation_object: ComputationRecordObject) -> None:
+                super().__init__(name)
+                self.computation_object = computation_object
+
+            def to_dict(self) -> dict[str, typing.Any]:
+                return {
+                    "parameter_type": "object",
+                    "name": self.name,
+                    "object": self.computation_object.to_dict()
+                }
+
+        class ComputationRecordListParameter(ComputationRecordParameter):
+            def __init__(self, name: str, list_objects: typing.Sequence[ComputationRecordObject]) -> None:
+                super().__init__(name)
+                self.list_objects = list_objects
+
+            def to_dict(self) -> dict[str, typing.Any]:
+                return {
+                    "parameter_type": "list",
+                    "name": self.name,
+                    "objects": [o.to_dict() for o in self.list_objects]
+                }
+
+        class ComputationRecord:
+            def __init__(self, computation_id: str | None, computation_uuid: uuid.UUID, computation_title: str | None, output_name: str | None, parameters: typing.Sequence[ComputationRecordParameter]) -> None:
+                self.computation_id = computation_id
+                self.computation_uuid = computation_uuid
+                self.computation_title = computation_title
+                self.output_name = output_name
+                self.computation_parameters = list(parameters)
+
+            def to_dict(self) -> dict[str, typing.Any]:
+                d = dict[str, typing.Any]()
+                if self.computation_id:
+                    d["computation_id"] = self.computation_id
+                d["computation_uuid"] = str(self.computation_uuid)
+                if self.computation_title:
+                    d["computation_title"] = self.computation_title
+                if self.output_name:
+                    d["output_name"] = self.output_name
+                d["parameters"] = [parameter.to_dict() for parameter in self.computation_parameters]
+                return d
+
+        result = self._get_output(name)
+        if result:
+            for output_item in result.output_items:
+                if isinstance(output_item, DataItem.DataItem):
+                    computation_parameters = list[ComputationRecordParameter]()
+                    for variable in self.variables:
+                        variable_specifier = variable.specifier
+                        variable_bound_item = variable.bound_item
+                        if variable_specifier and variable_bound_item:
+                            if isinstance(variable_bound_item, BoundList):
+                                list_items = list[ComputationRecordObject]()
+                                bounds_items = variable_bound_item.get_items()
+                                specifiers = variable.object_specifiers
+                                if len(bounds_items) == len(specifiers):
+                                    for bound_item, specifier in zip(bounds_items, specifiers):
+                                        if bound_item and specifier:
+                                            list_items.append(ComputationRecordObject(specifier.entity_type.entity_id, bound_item))
+                                computation_parameters.append(ComputationRecordListParameter(variable.name, list_items))
+                            else:
+                                computation_parameters.append(ComputationRecordObjectParameter(variable.name, ComputationRecordObject(variable_specifier.entity_type.entity_id, variable_bound_item)))
+                        elif variable.value_type:
+                            computation_parameters.append(ComputationRecordValueParameter(variable.name, variable.value_type, variable.value))
+                    computation_record = ComputationRecord(self.processing_id, self.uuid, self.label, result.name, computation_parameters)
+                    return computation_record.to_dict()
+        return None
 
 class ComputationExecutor:
 
@@ -2752,7 +3011,14 @@ class ScriptExpressionComputationExecutor(ComputationExecutor):
             # on fast machines, so ensure that any data_modified timestamp is created using
             # DateTime.utcnow() / Schema.utcnow().
             if data_item_clone_data_modified > self.__data_item_data_modified:
-                self.__data_item.set_xdata(self.__data_item_target.xdata)
+                target_xdata = self.__data_item_target.xdata
+                computation = self.computation
+                if computation and target_xdata:
+                    metadata = dict(target_xdata.metadata)
+                    if (computation_d := computation.get_computation_metadata("target")):
+                        metadata["computation"] = computation_d
+                    target_xdata._set_metadata(metadata)
+                self.__data_item.set_xdata(target_xdata)
         if self.__data_item_created:
             self.__xdata = self.__data_item.xdata
             self.__data_item.close()
