@@ -2264,6 +2264,10 @@ class DataStructure(metaclass=SharedInstance):
         """
         return self.__data_structure.uuid
 
+    @property
+    def structure_type(self) -> str:
+        return self.__data_structure.structure_type
+
     def get_property(self, property: str) -> typing.Any:
         return self.__data_structure.get_property_value(property)
 
