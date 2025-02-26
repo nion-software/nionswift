@@ -5,6 +5,7 @@ import abc
 import contextlib
 import copy
 import datetime
+import functools
 import gettext
 import operator
 import pathlib
@@ -558,6 +559,11 @@ class DataItem(Persistence.PersistentObject):
     def source_data_items_changed(self, source_data_items: typing.List[DataItem]) -> None:
         if len(source_data_items) == 1:
             self.__source_title_stream.stream = source_data_items[0].title_stream
+        elif len(source_data_items) > 1:
+            def combine_source_titles(count: int, title: str | None) -> str:
+                return f"{title} +{count - 1} More"
+
+            self.__source_title_stream.stream = Stream.MapStream(source_data_items[0].title_stream, functools.partial(combine_source_titles, len(source_data_items)))
         else:
             self.__source_title_stream.stream = None
 

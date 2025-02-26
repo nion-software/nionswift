@@ -1545,6 +1545,40 @@ class TestDataItemClass(unittest.TestCase):
             self.assertEqual("source (2Out - A)", data_item_a.title)
             self.assertEqual("source (2Out - B)", data_item_b.title)
 
+    class UseTwoInputs:
+        label = "UseTwo"
+
+        def __init__(self, computation, **kwargs):
+            self.computation = computation
+
+        def execute(self, src1, src2):
+            self.__new_data = src1.data + src2.data
+
+        def commit(self):
+            dst_data_item = self.computation.get_result("dst")
+            dst_data_item.data = self.__new_data
+
+    def test_computed_data_item_title_with_multiple_inputs(self):
+        Symbolic.register_computation_type("use.two", self.UseTwoInputs)
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            data_item1 = DataItem.DataItem(numpy.ones((2, 2), int))
+            data_item2 = DataItem.DataItem(numpy.ones((2, 2), int))
+            data_item3 = DataItem.DataItem()
+            document_model.append_data_item(data_item1)
+            document_model.append_data_item(data_item2)
+            document_model.append_data_item(data_item3)
+            data_item1.title = "In1"
+            data_item2.title = "In2"
+            computation = document_model.create_computation()
+            computation.create_input_item("src1", Symbolic.make_item(data_item1))
+            computation.create_input_item("src2", Symbolic.make_item(data_item2))
+            computation.create_output_item("dst", Symbolic.make_item(data_item3))
+            computation.processing_id = "use.two"
+            document_model.append_computation(computation)
+            document_model.recompute_all()
+            self.assertIn("+1 More (UseTwo)", data_item3.title)
+
     def test_setting_dynamic_title_immediately_updates_title_stream(self):
         # requirement: dynamic_titles
         with TestContext.create_memory_context() as test_context:
