@@ -1072,24 +1072,8 @@ class DataSource:
         pass
 
     @property
-    def display_data_channel(self) -> DisplayItem.DisplayDataChannel:
-        return self.__display_data_channel
-
-    @property
-    def _display_values(self) -> typing.Optional[DisplayItem.DisplayValues]:
+    def __display_values(self) -> typing.Optional[DisplayItem.DisplayValues]:
         return self.__display_data_channel.get_latest_display_values()
-
-    @property
-    def display_item(self) -> typing.Optional[DisplayItem.DisplayItem]:
-        return self.__display_item
-
-    @property
-    def data_item(self) -> typing.Optional[DataItem.DataItem]:
-        return self.__data_item
-
-    @property
-    def graphic(self) -> typing.Optional[Graphics.Graphic]:
-        return self.__graphic
 
     @property
     def data(self) -> typing.Optional[DataAndMetadata._ImageDataType]:
@@ -1099,8 +1083,8 @@ class DataSource:
     def xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
         if self.__xdata is not None:
             return self.__xdata
-        if self.data_item:
-            return self.data_item.xdata
+        if self.__data_item:
+            return self.__data_item.xdata
         return None
 
     @property
@@ -1110,7 +1094,7 @@ class DataSource:
             if self.__xdata is not None:
                 return Core.function_convert_to_scalar(self.__xdata, display_data_channel.complex_display_type)
             else:
-                display_values = self._display_values
+                display_values = self.__display_values
                 if display_values:
                     return display_values.element_data_and_metadata
         return None
@@ -1122,7 +1106,7 @@ class DataSource:
             if self.__xdata is not None:
                 return Core.function_convert_to_scalar(self.__xdata, display_data_channel.complex_display_type)
             else:
-                display_values = self._display_values
+                display_values = self.__display_values
                 if display_values:
                     return display_values.display_data_and_metadata
         return None
@@ -1134,7 +1118,7 @@ class DataSource:
             if self.__xdata is not None:
                 return self.xdata
             else:
-                display_values = self._display_values
+                display_values = self.__display_values
                 if display_values:
                     display_rgba = display_values.display_rgba
                     return DataAndMetadata.new_data_and_metadata(Image.get_byte_view(display_rgba)) if display_rgba is not None else None
@@ -1151,7 +1135,7 @@ class DataSource:
                 else:
                     return None
             else:
-                display_values = self._display_values
+                display_values = self.__display_values
                 if display_values:
                     return display_values.normalized_data_and_metadata
         return None
@@ -1163,7 +1147,7 @@ class DataSource:
             if self.__xdata is not None:
                 return self.normalized_xdata
             else:
-                display_values = self._display_values
+                display_values = self.__display_values
                 if display_values:
                     return display_values.adjusted_data_and_metadata
         return None
@@ -1175,13 +1159,13 @@ class DataSource:
             if self.__xdata is not None:
                 return self.normalized_xdata
             else:
-                display_values = self._display_values
+                display_values = self.__display_values
                 if display_values:
                     return display_values.transformed_data_and_metadata
         return None
 
     def __cropped_xdata(self, xdata: typing.Optional[DataAndMetadata.DataAndMetadata]) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
-        data_item = self.data_item
+        data_item = self.__data_item
         graphic = self.__graphic
         if data_item:
             if isinstance(graphic, Graphics.RectangleTypeGraphic) and xdata and xdata.is_data_2d:
@@ -1191,6 +1175,17 @@ class DataSource:
                     return Core.function_crop(xdata, graphic.bounds.as_tuple())
             if isinstance(graphic, Graphics.IntervalGraphic) and xdata and xdata.is_data_1d:
                 return Core.function_crop_interval(xdata, graphic.interval)
+        return xdata
+
+    def _crop_xdata(self, xdata: typing.Optional[DataAndMetadata.DataAndMetadata]) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+        graphic = self.__graphic
+        if isinstance(graphic, Graphics.RectangleTypeGraphic) and xdata and xdata.is_data_2d:
+            if graphic.rotation:
+                return Core.function_crop_rotated(xdata, graphic.bounds.as_tuple(), graphic.rotation)
+            else:
+                return Core.function_crop(xdata, graphic.bounds.as_tuple())
+        if isinstance(graphic, Graphics.IntervalGraphic) and xdata and xdata.is_data_1d:
+            return Core.function_crop_interval(xdata, graphic.interval)
         return xdata
 
     @property
@@ -1215,7 +1210,7 @@ class DataSource:
 
     @property
     def cropped_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
-        data_item = self.data_item
+        data_item = self.__data_item
         if data_item:
             xdata = self.xdata
             graphic = self.__graphic

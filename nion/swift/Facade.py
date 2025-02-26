@@ -1375,27 +1375,6 @@ class DataSource(metaclass=SharedInstance):
         return ObjectSpecifier("data_source", uuid_module.uuid4())
 
     @property
-    def _display_data_channel(self) -> DisplayItemModule.DisplayDataChannel:
-        return self.__data_source.display_data_channel
-
-    @property
-    def display_item(self) -> Display:
-        display_item = self.__data_source.display_item
-        assert display_item
-        return Display(display_item)
-
-    @property
-    def data_item(self) -> DataItem:
-        data_item = self.__data_source.data_item
-        assert data_item
-        return DataItem(data_item)
-
-    @property
-    def graphic(self) -> typing.Optional[Graphic]:
-        graphic = self.__data_source.graphic
-        return Graphic(graphic) if graphic else None
-
-    @property
     def cropped_element_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
         return self.__data_source.cropped_element_xdata
 
