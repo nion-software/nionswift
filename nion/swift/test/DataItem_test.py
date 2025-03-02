@@ -232,8 +232,8 @@ class TestDataItemClass(unittest.TestCase):
             # copy the dependent item
             data_item2a_copy = document_model.copy_data_item(data_item2a)
             # verify data source
-            self.assertEqual(document_model.get_data_item_computation(data_item2a).get_input("src").data_item, data_item2)
-            self.assertEqual(document_model.get_data_item_computation(data_item2a_copy).get_input("src").data_item, data_item2)
+            self.assertEqual(document_model.get_data_item_computation(data_item2a).get_input_data_item("src"), data_item2)
+            self.assertEqual(document_model.get_data_item_computation(data_item2a_copy).get_input_data_item("src"), data_item2)
 
     def test_copy_data_item_with_crop(self):
         with TestContext.create_memory_context() as test_context:
@@ -248,8 +248,8 @@ class TestDataItemClass(unittest.TestCase):
             data_item_copy = document_model.copy_data_item(data_item)
             self.assertNotEqual(document_model.get_data_item_computation(data_item_copy), document_model.get_data_item_computation(data_item))
             document_model.recompute_all()
-            self.assertEqual(document_model.get_data_item_computation(data_item_copy).get_input("src").graphic,
-                             document_model.get_data_item_computation(data_item).get_input("src").graphic)
+            self.assertEqual(document_model.get_data_item_computation(data_item_copy).get_input_graphic("src"),
+                             document_model.get_data_item_computation(data_item).get_input_graphic("src"))
 
     def test_copy_data_item_with_transaction(self):
         with TestContext.create_memory_context() as test_context:

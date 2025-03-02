@@ -868,8 +868,11 @@ class Graphic(Persistence.PersistentObject):
     def test(self, mapping: CoordinateMappingLike, ui_settings: UISettings.UISettings, p: Geometry.FloatPoint, move_only: bool) -> typing.Tuple[typing.Optional[str], bool]:
         raise NotImplementedError()
 
+    def get_mask_object(self) -> MaskBase:
+        return EmptyMask()
+
     def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: typing.Optional[Geometry.FloatPoint] = None) -> DataAndMetadata._ImageDataType:
-        return numpy.zeros(data_shape)
+        return self.get_mask_object().get_mask(data_shape, calibrated_origin)
 
     def has_attribute(self, attribute: GraphicAttributeEnum) -> bool:
         return attribute in self.get_attributes()
@@ -1087,14 +1090,8 @@ class RectangleTypeGraphic(Graphic):
     def get_attributes(self) -> set[GraphicAttributeEnum]:
         return {GraphicAttributeEnum.TWO_DIMENSIONAL}
 
-    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: typing.Optional[Geometry.FloatPoint] = None) -> DataAndMetadata._ImageDataType:
-        bounds = self.bounds
-        data_rect = Geometry.FloatRect(origin=Geometry.FloatPoint(), size=Geometry.FloatSize.make(typing.cast(Geometry.SizeFloatTuple, data_shape)))
-        center = Geometry.map_point(bounds.center, Geometry.FloatRect.unit_rect(), data_rect)
-        size = Geometry.map_size(bounds.size, Geometry.FloatRect.unit_rect(), data_rect)
-        mask = make_rectangle_mask(data_shape, center, size, self.rotation)
-        assert mask is not None
-        return mask
+    def get_mask_object(self) -> MaskBase:
+        return RectangleMask(self.bounds, self.rotation)
 
     # test point hit
     def test(self, mapping: CoordinateMappingLike, ui_settings: UISettings.UISettings, p: Geometry.FloatPoint, move_only: bool) -> typing.Tuple[typing.Optional[str], bool]:
@@ -1235,12 +1232,8 @@ class EllipseGraphic(RectangleTypeGraphic):
     def __init__(self) -> None:
         super().__init__("ellipse-graphic", _("Ellipse"))
 
-    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: typing.Optional[Geometry.FloatPoint] = None) -> DataAndMetadata._ImageDataType:
-        bounds = Geometry.FloatRect.make(self.bounds)
-        mask_xdata = Core.function_make_elliptical_mask(data_shape, bounds.center.as_tuple(), bounds.size.as_tuple(), self.rotation)
-        mask_data = mask_xdata.data
-        assert mask_data is not None
-        return mask_data
+    def get_mask_object(self) -> MaskBase:
+        return EllipseMask(self.bounds, self.rotation)
 
     # rectangle
     def adjust_part(self, mapping: CoordinateMappingLike, original: Geometry.FloatPoint, current: Geometry.FloatPoint, part: DragPartDataPlus, modifiers: ModifiersLike) -> None:
@@ -1434,18 +1427,8 @@ class LineTypeGraphic(Graphic):
     def get_attributes(self) -> set[GraphicAttributeEnum]:
         return {GraphicAttributeEnum.TWO_DIMENSIONAL}
 
-    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: typing.Optional[Geometry.FloatPoint] = None) -> DataAndMetadata._ImageDataType:
-        data_rect = Geometry.FloatRect(origin=Geometry.FloatPoint(), size=Geometry.FloatSize.make(typing.cast(Geometry.SizeFloatTuple, data_shape)))
-        start = Geometry.map_point(self.start, Geometry.FloatRect.unit_rect(), data_rect)
-        end = Geometry.map_point(self.end, Geometry.FloatRect.unit_rect(), data_rect)
-        bounds = Geometry.FloatRect.from_center_and_size(
-            Geometry.FloatPoint((start.y + end.y) * 0.5, (start.x + end.x) * 0.5),
-            Geometry.FloatSize(1.0, Geometry.distance(start, end)))
-        delta = Geometry.FloatPoint.make(end) - Geometry.FloatPoint.make(start)
-        angle = -math.atan2(delta.y, delta.x)
-        mask = make_rectangle_mask(data_shape, bounds.center, bounds.size, angle)
-        assert mask is not None
-        return mask
+    def get_mask_object(self) -> MaskBase:
+        return LineMask(self.start, self.end)
 
     # test is required for Graphic interface
     def test(self, mapping: CoordinateMappingLike, ui_settings: UISettings.UISettings, p: Geometry.FloatPoint, move_only: bool) -> typing.Tuple[typing.Optional[str], bool]:
@@ -1697,12 +1680,8 @@ class PointTypeGraphic(Graphic):
     def get_attributes(self) -> set[GraphicAttributeEnum]:
         return {GraphicAttributeEnum.TWO_DIMENSIONAL}
 
-    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: typing.Optional[Geometry.FloatPoint] = None) -> DataAndMetadata._ImageDataType:
-        size = Geometry.FloatSize(1.5 / data_shape[0], 1.5 / data_shape[1])
-        mask_xdata = Core.function_make_elliptical_mask(tuple(data_shape), self.position.as_tuple(), size.as_tuple(), 0.0)
-        mask_data = mask_xdata.data
-        assert mask_data is not None
-        return mask_data
+    def get_mask_object(self) -> MaskBase:
+        return PointMask(self.position)
 
     # test is required for Graphic interface
     def test(self, mapping: CoordinateMappingLike, ui_settings: UISettings.UISettings, p: Geometry.FloatPoint, move_only: bool) -> typing.Tuple[typing.Optional[str], bool]:
@@ -2080,19 +2059,8 @@ class SpotGraphic(Graphic):
     def _bounds(self, bounds: Geometry.FloatRectTuple) -> None:
         self.bounds = Geometry.FloatRect.make(bounds)
 
-    def get_mask(self, data_shape_: DataAndMetadata.ShapeType, calibrated_origin: typing.Optional[Geometry.FloatPoint] = None) -> DataAndMetadata._ImageDataType:
-        data_shape = Geometry.IntSize.make((data_shape_[0], data_shape_[1]))
-        calibrated_origin = calibrated_origin or Geometry.FloatPoint(y=data_shape[0] * 0.5 + 0.5, x=data_shape[1] * 0.5 + 0.5)
-        data_rect = Geometry.FloatRect(origin=Geometry.FloatPoint(), size=data_shape.to_float_size())
-        origin = Geometry.map_point(calibrated_origin, data_rect, Geometry.FloatRect.unit_rect())
-        bounds = Geometry.FloatRect.make(self.bounds)
-        mask1 = Core.function_make_elliptical_mask(tuple(data_shape), (origin + bounds.center).as_tuple(), bounds.size.as_tuple(), self.rotation)
-        mask2 = Core.function_make_elliptical_mask(tuple(data_shape), (origin - bounds.center).as_tuple(), bounds.size.as_tuple(), self.rotation)
-        mask1_data = mask1.data
-        mask2_data = mask2.data
-        assert mask1_data is not None
-        assert mask2_data is not None
-        return numpy.logical_or(mask1_data, mask2_data)
+    def get_mask_object(self) -> MaskBase:
+        return SpotMask(self.bounds, self.rotation)
 
     # test point hit
     def test(self, mapping: CoordinateMappingLike, ui_settings: UISettings.UISettings, p: Geometry.FloatPoint, move_only: bool) -> typing.Tuple[typing.Optional[str], bool]:
@@ -2350,39 +2318,8 @@ class WedgeGraphic(Graphic):
                 self.__start_angle_internal = self.__end_angle_internal
             self.__inverted_drag = not self.__inverted_drag
 
-    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: typing.Optional[Geometry.FloatPoint] = None) -> DataAndMetadata._ImageDataType:
-        # a and b will be the calibrated pixel origin, expressed as pixels from top left
-        calibrated_origin = calibrated_origin or Geometry.FloatPoint(y=data_shape[0] * 0.5 + 0.5,
-                                                                     x=data_shape[1] * 0.5 + 0.5)
-        a, b = calibrated_origin.y, calibrated_origin.x
-
-        # x and y will be pixel ramps increasing from top left to bottom right and zero at the origin
-        y, x = numpy.ogrid[-a:data_shape[0] - a, -b:data_shape[1] - b]  # type: ignore
-
-        # normalize the angles. the angles are specified as counter-clockwise rotation around the positive x-axis
-        s = self.start_angle % math.tau
-        e = self.end_angle % math.tau
-
-        # the sign of the cos for each angle will be helpful.
-        s_sign = math.copysign(1.0, math.cos(s))
-        e_sign = math.copysign(1.0, math.cos(e))
-
-        # in the equation below:
-        # y <= tan(angle) * x is True for the half plane y > 0 rotated counter-clockwise by the angle if it is
-        # between -pi and +pi (when cos(angle) > 0) and the half plane y < 0 if when it [the angle] is between
-        # +pi and 3/2 * pi. call this the positive half-plane.
-        # so the equation below is comprised of four sections:
-        # 1) the positive half-plane rotated by the start angle
-        # 2) the negative half-plane rotated by the end angle
-        # 1+2) give the wedge between the start and end angle in the positive direction.
-        # 3) the positive half-plane rotated by the start angle + pi
-        # 4) the negative half-plane rotated by the end angle + pi
-        # 3+4) give the wedge between the start and end angle in the negative direction.
-
-        return (numpy.where(y * s_sign <= numpy.tan(-s) * x * s_sign, 1, 0) &  # type: ignore
-                numpy.where(y * e_sign <= numpy.tan(-e) * x * e_sign, 0, 1)) | (
-                    numpy.where(-y * s_sign <= numpy.tan(-s) * -x * s_sign, 1, 0) &
-                    numpy.where(-y * e_sign <= numpy.tan(-e) * -x * e_sign, 0, 1))
+    def get_mask_object(self) -> MaskBase:
+        return WedgeMask(self.start_angle, self.end_angle)
 
     def _draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
         center = mapping.calibrated_origin_widget
@@ -2561,27 +2498,8 @@ class RingGraphic(Graphic):
         if part[0] == "radius_2":
             self.radius_2 = radius
 
-    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: typing.Optional[Geometry.FloatPoint] = None) -> DataAndMetadata._ImageDataType:
-        calibrated_origin = calibrated_origin or Geometry.FloatPoint(y=data_shape[0] * 0.5 + 0.5, x=data_shape[1] * 0.5 + 0.5)
-        mask: numpy.typing.NDArray[numpy.float64] = numpy.zeros(data_shape, dtype=float)
-        bounds_int = ((0, 0), (int(data_shape[0]), int(data_shape[1])))
-        a, b = calibrated_origin.y, calibrated_origin.x
-        y, x = numpy.ogrid[-a:data_shape[0] - a, -b:data_shape[1] - b]  # type: ignore
-        outer_radius = self.radius_1 if self.radius_1 > self.radius_2 else self.radius_2
-        inner_radius = self.radius_1 if self.radius_1 < self.radius_2 else self.radius_2
-        outer_eq = x * x + y * y <= (bounds_int[1][0] * outer_radius) ** 2
-        inner_eq = x * x + y * y <= (bounds_int[1][0] * inner_radius) ** 2
-        if self.mode == "band-pass":
-            mask[outer_eq] = 1
-            mask[inner_eq] = 0
-        elif self.mode == "low-pass":
-            not_outer_eq = numpy.logical_not(outer_eq)
-            mask[not_outer_eq] = 1
-        elif self.mode == "high-pass":
-            mask[inner_eq] = 1
-        else:
-            mask = numpy.ones(data_shape)
-        return mask
+    def get_mask_object(self) -> MaskBase:
+        return RingMask(self.mode, self.radius_1, self.radius_2)
 
     def _draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
         # origin is top left
@@ -2891,39 +2809,8 @@ class LatticeGraphic(Graphic):
             part_bounds = Geometry.FloatRect.make(part_bounds)
             self.radius = abs(part_bounds.height / 2)
 
-    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: typing.Optional[Geometry.FloatPoint] = None) -> DataAndMetadata._ImageDataType:
-        calibrated_origin = calibrated_origin or Geometry.FloatPoint(y=data_shape[0] * 0.5 + 0.5, x=data_shape[1] * 0.5 + 0.5)
-        mask = numpy.zeros(data_shape)
-
-        start = Geometry.FloatPoint(y=calibrated_origin.y / data_shape[0], x=calibrated_origin.x / data_shape[1])
-        u_pos = self.u_pos
-        v_pos = self.v_pos
-        radius = self.radius
-        size = Geometry.FloatSize(width=radius * 2, height=radius * 2)
-
-        bounds = Geometry.FloatRect.from_tlbr(0, 0, 1, 1).inset(-radius, -radius)
-        mx = 0
-        drawn = True
-        while drawn and mx < 32:
-            drawn = False
-            for ui in range(-mx, mx + 1):
-                for vi in range(-mx, mx + 1):
-                    if ui == -mx or ui == mx or vi == -mx or vi == mx:
-                        p = start + ui * u_pos + vi * v_pos
-                        if bounds.contains_point(p):
-                            r = Geometry.FloatRect(origin=Geometry.FloatPoint(y=data_shape[0] * (p.y - radius),
-                                                                              x=data_shape[1] * (p.x - radius)),
-                                                   size=Geometry.FloatSize(h=data_shape[0] * size.height,
-                                                                           w=data_shape[1] * size.width))
-                            if r.width > 0 and r.height > 0:
-                                a, b = round(r.top + 0.5 * r.height), round(r.left + 0.5 * r.width)
-                                y, x = numpy.ogrid[-a:data_shape[0] - a, -b:data_shape[1] - b]
-                                mask_eq1 = x * x / ((r.height / 2) * (r.height / 2)) + y * y / ((r.width / 2) * (r.width / 2)) <= 1
-                                mask[mask_eq1] = 1
-                            drawn = True
-            mx += 1
-
-        return mask
+    def get_mask_object(self) -> MaskBase:
+        return LatticeMask(self.u_pos, self.v_pos, self.radius)
 
     def _draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
         start = mapping.calibrated_origin_image_norm
@@ -3012,6 +2899,206 @@ def create_mask_data(graphics: typing.Sequence[Graphic], shape: DataAndMetadata.
     if mask is None:
         mask = numpy.ones(shape)
     return mask
+
+
+class MaskBase:
+    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: typing.Optional[Geometry.FloatPoint] = None) -> DataAndMetadata._ImageDataType:
+        raise NotImplementedError("get_mask")
+
+
+class EmptyMask(MaskBase):
+    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: typing.Optional[Geometry.FloatPoint] = None) -> DataAndMetadata._ImageDataType:
+        return numpy.zeros(data_shape)
+
+
+class RectangleMask(MaskBase):
+    def __init__(self, bounds: Geometry.FloatRect, rotation: float) -> None:
+        self.bounds = bounds
+        self.rotation = rotation
+
+    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: typing.Optional[Geometry.FloatPoint] = None) -> DataAndMetadata._ImageDataType:
+        bounds = self.bounds
+        data_rect = Geometry.FloatRect(origin=Geometry.FloatPoint(), size=Geometry.FloatSize.make(typing.cast(Geometry.SizeFloatTuple, data_shape)))
+        center = Geometry.map_point(bounds.center, Geometry.FloatRect.unit_rect(), data_rect)
+        size = Geometry.map_size(bounds.size, Geometry.FloatRect.unit_rect(), data_rect)
+        mask = make_rectangle_mask(data_shape, center, size, self.rotation)
+        assert mask is not None
+        return mask
+
+
+class EllipseMask(MaskBase):
+    def __init__(self, bounds: Geometry.FloatRect, rotation: float) -> None:
+        self.bounds = bounds
+        self.rotation = rotation
+
+    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: typing.Optional[Geometry.FloatPoint] = None) -> DataAndMetadata._ImageDataType:
+        bounds = Geometry.FloatRect.make(self.bounds)
+        mask_xdata = Core.function_make_elliptical_mask(data_shape, bounds.center.as_tuple(), bounds.size.as_tuple(), self.rotation)
+        mask_data = mask_xdata.data
+        assert mask_data is not None
+        return mask_data
+
+
+class LineMask(MaskBase):
+    def __init__(self, start: Geometry.FloatPoint, end: Geometry.FloatPoint) -> None:
+        self.start = start
+        self.end = end
+
+    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: typing.Optional[Geometry.FloatPoint] = None) -> DataAndMetadata._ImageDataType:
+        data_rect = Geometry.FloatRect(origin=Geometry.FloatPoint(), size=Geometry.FloatSize.make(typing.cast(Geometry.SizeFloatTuple, data_shape)))
+        start = Geometry.map_point(self.start, Geometry.FloatRect.unit_rect(), data_rect)
+        end = Geometry.map_point(self.end, Geometry.FloatRect.unit_rect(), data_rect)
+        bounds = Geometry.FloatRect.from_center_and_size(
+            Geometry.FloatPoint((start.y + end.y) * 0.5, (start.x + end.x) * 0.5),
+            Geometry.FloatSize(1.0, Geometry.distance(start, end)))
+        delta = Geometry.FloatPoint.make(end) - Geometry.FloatPoint.make(start)
+        angle = -math.atan2(delta.y, delta.x)
+        mask = make_rectangle_mask(data_shape, bounds.center, bounds.size, angle)
+        assert mask is not None
+        return mask
+
+
+class PointMask(MaskBase):
+    def __init__(self, position: Geometry.FloatPoint) -> None:
+        self.position = position
+
+    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: typing.Optional[Geometry.FloatPoint] = None) -> DataAndMetadata._ImageDataType:
+        size = Geometry.FloatSize(1.5 / data_shape[0], 1.5 / data_shape[1])
+        mask_xdata = Core.function_make_elliptical_mask(tuple(data_shape), self.position.as_tuple(), size.as_tuple(), 0.0)
+        mask_data = mask_xdata.data
+        assert mask_data is not None
+        return mask_data
+
+
+class SpotMask(MaskBase):
+    def __init__(self, bounds: Geometry.FloatRect, rotation: float) -> None:
+        self.bounds = bounds
+        self.rotation = rotation
+
+    def get_mask(self, data_shape_: DataAndMetadata.ShapeType, calibrated_origin: typing.Optional[Geometry.FloatPoint] = None) -> DataAndMetadata._ImageDataType:
+        data_shape = Geometry.IntSize.make((data_shape_[0], data_shape_[1]))
+        calibrated_origin = calibrated_origin or Geometry.FloatPoint(y=data_shape[0] * 0.5 + 0.5, x=data_shape[1] * 0.5 + 0.5)
+        data_rect = Geometry.FloatRect(origin=Geometry.FloatPoint(), size=data_shape.to_float_size())
+        origin = Geometry.map_point(calibrated_origin, data_rect, Geometry.FloatRect.unit_rect())
+        bounds = Geometry.FloatRect.make(self.bounds)
+        mask1 = Core.function_make_elliptical_mask(tuple(data_shape), (origin + bounds.center).as_tuple(), bounds.size.as_tuple(), self.rotation)
+        mask2 = Core.function_make_elliptical_mask(tuple(data_shape), (origin - bounds.center).as_tuple(), bounds.size.as_tuple(), self.rotation)
+        mask1_data = mask1.data
+        mask2_data = mask2.data
+        assert mask1_data is not None
+        assert mask2_data is not None
+        return numpy.logical_or(mask1_data, mask2_data)
+
+
+class WedgeMask(MaskBase):
+    def __init__(self, start_angle: float, end_angle: float) -> None:
+        self.start_angle = start_angle
+        self.end_angle = end_angle
+
+
+    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: typing.Optional[Geometry.FloatPoint] = None) -> DataAndMetadata._ImageDataType:
+        # a and b will be the calibrated pixel origin, expressed as pixels from top left
+        calibrated_origin = calibrated_origin or Geometry.FloatPoint(y=data_shape[0] * 0.5 + 0.5,
+                                                                     x=data_shape[1] * 0.5 + 0.5)
+        a, b = calibrated_origin.y, calibrated_origin.x
+
+        # x and y will be pixel ramps increasing from top left to bottom right and zero at the origin
+        y, x = numpy.ogrid[-a:data_shape[0] - a, -b:data_shape[1] - b]  # type: ignore
+
+        # normalize the angles. the angles are specified as counter-clockwise rotation around the positive x-axis
+        s = self.start_angle % math.tau
+        e = self.end_angle % math.tau
+
+        # the sign of the cos for each angle will be helpful.
+        s_sign = math.copysign(1.0, math.cos(s))
+        e_sign = math.copysign(1.0, math.cos(e))
+
+        # in the equation below:
+        # y <= tan(angle) * x is True for the half plane y > 0 rotated counter-clockwise by the angle if it is
+        # between -pi and +pi (when cos(angle) > 0) and the half plane y < 0 if when it [the angle] is between
+        # +pi and 3/2 * pi. call this the positive half-plane.
+        # so the equation below is comprised of four sections:
+        # 1) the positive half-plane rotated by the start angle
+        # 2) the negative half-plane rotated by the end angle
+        # 1+2) give the wedge between the start and end angle in the positive direction.
+        # 3) the positive half-plane rotated by the start angle + pi
+        # 4) the negative half-plane rotated by the end angle + pi
+        # 3+4) give the wedge between the start and end angle in the negative direction.
+
+        return (numpy.where(y * s_sign <= numpy.tan(-s) * x * s_sign, 1, 0) &  # type: ignore
+                numpy.where(y * e_sign <= numpy.tan(-e) * x * e_sign, 0, 1)) | (
+                    numpy.where(-y * s_sign <= numpy.tan(-s) * -x * s_sign, 1, 0) &
+                    numpy.where(-y * e_sign <= numpy.tan(-e) * -x * e_sign, 0, 1))
+
+
+class RingMask(MaskBase):
+    def __init__(self, mode: str, radius_1: float, radius_2: float) -> None:
+        self.radius_1 = radius_1
+        self.radius_2 = radius_2
+        self.mode = mode
+
+    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: typing.Optional[Geometry.FloatPoint] = None) -> DataAndMetadata._ImageDataType:
+        calibrated_origin = calibrated_origin or Geometry.FloatPoint(y=data_shape[0] * 0.5 + 0.5, x=data_shape[1] * 0.5 + 0.5)
+        mask: numpy.typing.NDArray[numpy.float64] = numpy.zeros(data_shape, dtype=float)
+        bounds_int = ((0, 0), (int(data_shape[0]), int(data_shape[1])))
+        a, b = calibrated_origin.y, calibrated_origin.x
+        y, x = numpy.ogrid[-a:data_shape[0] - a, -b:data_shape[1] - b]  # type: ignore
+        outer_radius = self.radius_1 if self.radius_1 > self.radius_2 else self.radius_2
+        inner_radius = self.radius_1 if self.radius_1 < self.radius_2 else self.radius_2
+        outer_eq = x * x + y * y <= (bounds_int[1][0] * outer_radius) ** 2
+        inner_eq = x * x + y * y <= (bounds_int[1][0] * inner_radius) ** 2
+        if self.mode == "band-pass":
+            mask[outer_eq] = 1
+            mask[inner_eq] = 0
+        elif self.mode == "low-pass":
+            not_outer_eq = numpy.logical_not(outer_eq)
+            mask[not_outer_eq] = 1
+        elif self.mode == "high-pass":
+            mask[inner_eq] = 1
+        else:
+            mask = numpy.ones(data_shape)
+        return mask
+
+
+class LatticeMask(MaskBase):
+    def __init__(self, u_pos: Geometry.FloatSize, v_pos: Geometry.FloatSize, radius: float) -> None:
+        self.u_pos = u_pos
+        self.v_pos = v_pos
+        self.radius = radius
+
+    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: typing.Optional[Geometry.FloatPoint] = None) -> DataAndMetadata._ImageDataType:
+        calibrated_origin = calibrated_origin or Geometry.FloatPoint(y=data_shape[0] * 0.5 + 0.5, x=data_shape[1] * 0.5 + 0.5)
+        mask = numpy.zeros(data_shape)
+
+        start = Geometry.FloatPoint(y=calibrated_origin.y / data_shape[0], x=calibrated_origin.x / data_shape[1])
+        u_pos = self.u_pos
+        v_pos = self.v_pos
+        radius = self.radius
+        size = Geometry.FloatSize(width=radius * 2, height=radius * 2)
+
+        bounds = Geometry.FloatRect.from_tlbr(0, 0, 1, 1).inset(-radius, -radius)
+        mx = 0
+        drawn = True
+        while drawn and mx < 32:
+            drawn = False
+            for ui in range(-mx, mx + 1):
+                for vi in range(-mx, mx + 1):
+                    if ui == -mx or ui == mx or vi == -mx or vi == mx:
+                        p = start + ui * u_pos + vi * v_pos
+                        if bounds.contains_point(p):
+                            r = Geometry.FloatRect(origin=Geometry.FloatPoint(y=data_shape[0] * (p.y - radius),
+                                                                              x=data_shape[1] * (p.x - radius)),
+                                                   size=Geometry.FloatSize(h=data_shape[0] * size.height,
+                                                                           w=data_shape[1] * size.width))
+                            if r.width > 0 and r.height > 0:
+                                a, b = round(r.top + 0.5 * r.height), round(r.left + 0.5 * r.width)
+                                y, x = numpy.ogrid[-a:data_shape[0] - a, -b:data_shape[1] - b]
+                                mask_eq1 = x * x / ((r.height / 2) * (r.height / 2)) + y * y / ((r.width / 2) * (r.width / 2)) <= 1
+                                mask[mask_eq1] = 1
+                            drawn = True
+            mx += 1
+
+        return mask
 
 
 def factory(lookup_id: typing.Callable[[str], str]) -> Graphic:
