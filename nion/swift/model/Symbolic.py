@@ -1063,7 +1063,9 @@ def result_factory(lookup_id: typing.Callable[[str], str]) -> ComputationOutput:
 
 
 class DataSource:
-    def __init__(self, display_data_channel: DisplayItem.DisplayDataChannel, graphic: typing.Optional[Graphics.Graphic]) -> None:
+    def __init__(self, data_item: DataItem.DataItem | None, display_data_channel: DisplayItem.DisplayDataChannel | None, graphic: Graphics.Graphic | None) -> None:
+        assert not (data_item and display_data_channel)
+        self.__data_item = data_item
         self.__display_data_channel = display_data_channel
         display_item = typing.cast("DisplayItem.DisplayItem", display_data_channel.container) if display_data_channel else None
         self.__mask_items = list[Graphics.MaskItem]()
@@ -1072,13 +1074,13 @@ class DataSource:
                 if graphic.has_attribute(Graphics.GraphicAttributeEnum.TWO_DIMENSIONAL):
                     if graphic.used_role in ("mask", "fourier_mask"):
                         self.__mask_items.append(graphic.get_mask_item())
-        data_item = display_data_channel.data_item if display_data_channel else None
+        data_item = display_data_channel.data_item if display_data_channel else data_item
         self.__xdata = data_item.xdata if data_item else None
         self.__display_data_shape_calculator = DisplayItem.DisplayDataShapeCalculator(self.__xdata.data_metadata if self.__xdata else None)
         self.__graphic_bounds = graphic.bounds if isinstance(graphic, Graphics.RectangleTypeGraphic) else None
         self.__graphic_rotation = graphic.rotation if isinstance(graphic, Graphics.RectangleTypeGraphic) else 0.0
         self.__graphic_interval = graphic.interval if isinstance(graphic, Graphics.IntervalGraphic) else None
-        self.__display_values = display_data_channel.get_latest_display_values()
+        self.__display_values = display_data_channel.get_latest_display_values() if display_data_channel else None
 
     def close(self) -> None:
         pass
@@ -1295,8 +1297,8 @@ class BoundData(BoundItemBase):
         return [self._item] if self._item else list()
 
     @property
-    def value(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
-        return self._item.xdata if self._item else None
+    def value(self) -> typing.Optional[DataSource]:
+        return DataSource(self._item, None, None) if self._item else None
 
     @property
     def _item(self) -> typing.Optional[DataItem.DataItem]:
@@ -1371,6 +1373,26 @@ class BoundDisplayDataChannelBase(BoundItemBase):
     def _graphic(self) -> typing.Optional[Graphics.Graphic]:
         return typing.cast(typing.Optional[Graphics.Graphic], self.__graphic_reference.item)
 
+    @property
+    def value(self) -> typing.Optional[DataSource]:
+        display_data_channel = self._display_data_channel
+        if display_data_channel and display_data_channel.data_item:
+            graphic = self._graphic
+            return DataSource(None, display_data_channel, graphic)
+        return None
+
+
+class BoundDisplayData(BoundDisplayDataChannelBase):
+    pass
+
+
+class BoundCroppedData(BoundDisplayDataChannelBase):
+    pass
+
+
+class BoundCroppedDisplayData(BoundDisplayDataChannelBase):
+    pass
+
 
 class BoundDataSource(BoundItemBase):
 
@@ -1419,7 +1441,7 @@ class BoundDataSource(BoundItemBase):
         display_data_channel = self._display_data_channel
         if display_data_channel and display_data_channel.data_item:
             graphic = self._graphic
-            return DataSource(display_data_channel, graphic)
+            return DataSource(None, display_data_channel, graphic)
         return None
 
     def __maintain(self) -> None:
@@ -1552,15 +1574,7 @@ class BoundDataItem(BoundItemBase):
 
     @property
     def computation_value(self) -> typing.Any:
-        class DataItemComputationValue:
-            def __init__(self, xdata: DataAndMetadata.DataAndMetadata) -> None:
-                self.xdata = xdata
-
-            @property
-            def data(self) -> typing.Optional[DataAndMetadata._ImageDataType]:
-                return self.xdata.data if self.xdata else None
-
-        return DataItemComputationValue(self._data_item.xdata) if self._data_item and self._data_item.xdata else None
+        return DataSource(self._data_item, None, None)
 
     @property
     def value(self) -> typing.Optional[DataItem.DataItem]:
@@ -1572,44 +1586,6 @@ class BoundDataItem(BoundItemBase):
     @property
     def _data_item(self) -> typing.Optional[DataItem.DataItem]:
         return typing.cast(typing.Optional[DataItem.DataItem], self.__item_reference.item if self.__item_reference else None)
-
-
-class BoundDisplayData(BoundDisplayDataChannelBase):
-
-    @property
-    def value(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
-        display_values = self._display_values if self._display_data_channel else None
-        return display_values.display_data_and_metadata if display_values else None
-
-
-class BoundCroppedData(BoundDisplayDataChannelBase):
-
-    @property
-    def value(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
-        data_item = self._display_data_channel.data_item if self._display_data_channel else None
-        xdata = data_item.xdata if data_item else None
-        graphic = self._graphic
-        if graphic and xdata:
-            if isinstance(graphic, Graphics.RectangleTypeGraphic):
-                return Core.function_crop(xdata, graphic.bounds.as_tuple())
-            if isinstance(graphic, Graphics.IntervalGraphic):
-                return Core.function_crop_interval(xdata, graphic.interval)
-        return xdata
-
-
-class BoundCroppedDisplayData(BoundDisplayDataChannelBase):
-
-    @property
-    def value(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
-        display_values = self._display_values if self._display_data_channel else None
-        xdata = display_values.display_data_and_metadata if display_values else None
-        graphic = self._graphic
-        if xdata and graphic:
-            if isinstance(graphic, Graphics.RectangleTypeGraphic):
-                return Core.function_crop(xdata, graphic.bounds.as_tuple())
-            if isinstance(graphic, Graphics.IntervalGraphic):
-                return Core.function_crop_interval(xdata, graphic.interval)
-        return xdata
 
 
 class BoundFilterLikeData(BoundItemBase):
@@ -1692,49 +1668,25 @@ class BoundFilterLikeData(BoundItemBase):
     def _display_values(self) -> typing.Optional[DisplayItem.DisplayValues]:
         return self._display_data_channel.get_latest_display_values() if self._display_data_channel else None
 
-
-class BoundFilterData(BoundFilterLikeData):
+    @property
+    def value(self) -> typing.Optional[DataItem.DataItem]:
+        display_data_channel = self._display_data_channel
+        return display_data_channel.data_item if display_data_channel else None
 
     @property
-    def value(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+    def computation_value(self) -> typing.Optional[DataSource]:
         display_data_channel = self._display_data_channel
-        if display_data_channel:
-            display_item = display_data_channel.display_item
-            # no display item is a special case for cascade removing graphics from computations. ugh.
-            # see test_new_computation_becomes_unresolved_when_xdata_input_is_removed_from_document.
-            if display_item:
-                display_values = self._display_values
-                if display_values:
-                    display_data_and_metadata = display_values.display_data_and_metadata
-                    if display_data_and_metadata:
-                        shape = display_data_and_metadata.data_shape
-                        calibrated_origin = Geometry.FloatPoint(y=display_item.datum_calibrations[0].convert_from_calibrated_value(0.0),
-                                                                x=display_item.datum_calibrations[1].convert_from_calibrated_value(0.0))
-                        mask = Graphics.create_mask_data(display_item.graphics, shape, calibrated_origin)
-                        return DataAndMetadata.DataAndMetadata.from_data(mask)
+        if display_data_channel and display_data_channel.data_item:
+            return DataSource(None, display_data_channel, None)
         return None
+
+
+class BoundFilterData(BoundFilterLikeData):
+    pass
 
 
 class BoundFilteredData(BoundFilterLikeData):
-
-    @property
-    def value(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
-        display_data_channel = self._display_data_channel
-        if display_data_channel:
-            data_item = display_data_channel.data_item
-            display_item = display_data_channel.display_item
-            # no display item is a special case for cascade removing graphics from computations. ugh.
-            # see test_new_computation_becomes_unresolved_when_xdata_input_is_removed_from_document.
-            if display_item and data_item:
-                xdata = data_item.xdata
-                if xdata and xdata.is_data_2d and xdata.is_data_complex_type:
-                    shape = xdata.data_shape
-                    calibrated_origin = Geometry.FloatPoint(y=display_item.datum_calibrations[0].convert_from_calibrated_value(0.0),
-                                                            x=display_item.datum_calibrations[1].convert_from_calibrated_value(0.0))
-                    mask = Graphics.create_mask_data(display_item.graphics, shape, calibrated_origin)
-                    return Core.function_fourier_mask(xdata, DataAndMetadata.DataAndMetadata.from_data(mask))
-                return xdata
-        return None
+    pass
 
 
 class BoundDataStructure(BoundItemBase):

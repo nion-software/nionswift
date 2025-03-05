@@ -1462,7 +1462,7 @@ class TestDataItemClass(unittest.TestCase):
             data_item2 = DataItem.DataItem(numpy.zeros((8, 8)))
             document_model.append_data_item(data_item)
             document_model.append_data_item(data_item2)
-            computation = document_model.create_computation("target.xdata = src")
+            computation = document_model.create_computation("target.xdata = src.filter_xdata")
             display_item = document_model.get_display_item_for_data_item(data_item)
             computation.create_input_item("src", Symbolic.make_item(display_item.display_data_channel, type="filter_xdata"))
             document_model.set_data_item_computation(data_item2, computation)
