@@ -1233,7 +1233,14 @@ class BoundItemBase(Observable.Observable):
         BoundItemBase.count -= 1
 
     @property
+    def computation_value(self) -> typing.Any:
+        # this is the value passed to a computation using this bound item
+        return self.value
+
+    @property
     def value(self) -> typing.Any:
+        # this is the value or input object for the bound item.
+        # this may be different from computation_value while transitioning to the threaded computation system.
         return None
 
     @property
@@ -2368,7 +2375,7 @@ class Computation(Persistence.PersistentObject):
         for variable in self.variables:
             bound_object = variable.bound_item
             if bound_object is not None:
-                resolved_object = bound_object.value if bound_object else None
+                resolved_object = bound_object.computation_value if bound_object else None
                 # in the ideal world, we could clone the object/data and computations would not be
                 # able to modify the input objects; reality, though, dictates that performance is
                 # more important than this protection. so use the resolved object directly.
