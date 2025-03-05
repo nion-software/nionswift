@@ -3987,8 +3987,8 @@ class TestStorageClass(unittest.TestCase):
             self.computation = computation
 
         def execute(self, src_list):
-            if len(set(src.data_shape for src in src_list)) == 1:
-                self.__new_data = numpy.sum([src.data for src in src_list], axis=0)
+            if len(set(src.display_xdata.data_shape for src in src_list)) == 1:
+                self.__new_data = numpy.sum([src.display_xdata.data for src in src_list], axis=0)
             else:
                 self.__new_data = None
 

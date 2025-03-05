@@ -1,6 +1,7 @@
 # standard libraries
 import contextlib
 import copy
+import functools
 import gc
 import random
 import time
@@ -792,11 +793,14 @@ class TestDocumentModelClass(unittest.TestCase):
     add2_eval_count = 0
 
     class Add2:
-        def __init__(self, computation, **kwargs):
+        def __init__(self, property: str, computation, **kwargs):
             self.computation = computation
+            self.property = property
 
         def execute(self, src1, src2):
-            self.__new_data = src1.data + src2.data
+            src1_xdata = getattr(src1, self.property)
+            src2_xdata = getattr(src2, self.property)
+            self.__new_data = src1_xdata.data + src2_xdata.data
 
         def commit(self):
             dst_data_item = self.computation.get_result("dst")
@@ -804,7 +808,7 @@ class TestDocumentModelClass(unittest.TestCase):
             TestDocumentModelClass.add2_eval_count += 1
 
     def test_new_computation_becomes_unresolved_when_data_item_input_is_removed_from_document(self):
-        Symbolic.register_computation_type("add2", self.Add2)
+        Symbolic.register_computation_type("add2", functools.partial(self.Add2, "xdata"))
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.ones((2, 2), int))
@@ -828,7 +832,7 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(0, len(document_model.computations))
 
     def test_new_computation_becomes_unresolved_when_data_source_input_is_removed_from_document(self):
-        Symbolic.register_computation_type("add2", self.Add2)
+        Symbolic.register_computation_type("add2", functools.partial(self.Add2, "xdata"))
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.ones((2, 2), int))
@@ -852,8 +856,8 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(0, len(document_model.computations))
 
     def test_new_computation_becomes_unresolved_when_xdata_input_is_removed_from_document(self):
-        Symbolic.register_computation_type("add2", self.Add2)
         for t in ("xdata", "display_xdata", "cropped_xdata", "cropped_display_xdata", "filter_xdata", "filtered_xdata"):
+            Symbolic.register_computation_type("add2", functools.partial(self.Add2, t))
             with TestContext.create_memory_context() as test_context:
                 document_model = test_context.create_document_model()
                 data_item = DataItem.DataItem(numpy.ones((2, 2), int))
@@ -928,7 +932,7 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(0, len(document_model.computations))
 
     def test_new_computation_deletes_computation_when_result_data_item_deleted(self):
-        Symbolic.register_computation_type("add2", self.Add2)
+        Symbolic.register_computation_type("add2", functools.partial(self.Add2, "xdata"))
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.ones((2, 2), int))
@@ -990,7 +994,7 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(len(document_model.computations), 0)
 
     def test_new_computation_deleting_computation_deletes_all_results(self):
-        Symbolic.register_computation_type("add2", self.Add2)
+        Symbolic.register_computation_type("add2", functools.partial(self.Add2, "xdata"))
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.ones((2, 2), int))
@@ -1085,8 +1089,8 @@ class TestDocumentModelClass(unittest.TestCase):
             self.computation = computation
 
         def execute(self, src_list):
-            if len(set(src.data_shape for src in src_list)) == 1:
-                self.__new_data = numpy.sum([src.data for src in src_list], axis=0)
+            if len(set(src.display_xdata.data_shape for src in src_list)) == 1:
+                self.__new_data = numpy.sum([src.display_xdata.data for src in src_list], axis=0)
             else:
                 self.__new_data = None
 
@@ -1249,8 +1253,12 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.append_data_item(data_item1)
             data_item2 = DataItem.DataItem(numpy.full((2, 2), 2))
             document_model.append_data_item(data_item2)
+            display_item1 = document_model.get_display_item_for_data_item(data_item1)
+            display_data_channel1 = display_item1.display_data_channel
+            display_item2 = document_model.get_display_item_for_data_item(data_item2)
+            display_data_channel2 = display_item2.display_data_channel
             computation = document_model.create_computation()
-            items = Symbolic.make_item_list([data_item1, data_item2], type="xdata")
+            items = Symbolic.make_item_list([display_data_channel1, display_data_channel2], type="display_xdata")
             computation.create_input_item("src_list", items)
             computation.processing_id = "add_n"
             document_model.append_computation(computation)
@@ -1332,7 +1340,7 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_new_computation_with_missing_input_does_not_recompute(self):
         TestDocumentModelClass.add2_eval_count = 0
-        Symbolic.register_computation_type("add2", self.Add2)
+        Symbolic.register_computation_type("add2", functools.partial(self.Add2, "xdata"))
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.ones((2, 2), int))
@@ -1357,7 +1365,7 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_new_computation_with_missing_input_recomputes_when_missing_input_supplied(self):
         TestDocumentModelClass.add2_eval_count = 0
-        Symbolic.register_computation_type("add2", self.Add2)
+        Symbolic.register_computation_type("add2", functools.partial(self.Add2, "xdata"))
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.ones((2, 2), int))
@@ -1379,7 +1387,7 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_new_computation_with_initially_missing_input_fails_gracefully(self):
         TestDocumentModelClass.add2_eval_count = 0
-        Symbolic.register_computation_type("add2", self.Add2)
+        Symbolic.register_computation_type("add2", functools.partial(self.Add2, "xdata"))
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.ones((2, 2), int))
@@ -1395,17 +1403,19 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(TestDocumentModelClass.add2_eval_count, 0)
 
     class PassThru:
-        def __init__(self, computation, **kwargs):
+        def __init__(self, property: str, computation, **kwargs):
             self.computation = computation
+            self.property = property
 
-        def execute(self, src_xdata):
+        def execute(self, src):
+            src_xdata = getattr(src, self.property)
             self.__new_data = numpy.copy(src_xdata.data)
 
         def commit(self):
             self.computation.set_referenced_data("dst", self.__new_data)
 
     def test_new_computation_with_missing_output_does_not_evaluate(self):
-        Symbolic.register_computation_type("pass_thru", self.PassThru)
+        Symbolic.register_computation_type("pass_thru", functools.partial(self.PassThru, "xdata"))
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.ones((2, 2), int))
@@ -1414,7 +1424,7 @@ class TestDocumentModelClass(unittest.TestCase):
                 document_model.append_data_item(data_item)
                 # document_model.append_data_item(data_item3)  # purposely not added
                 computation = document_model.create_computation()
-                computation.create_input_item("src_xdata", Symbolic.make_item(data_item, type="xdata"))
+                computation.create_input_item("src", Symbolic.make_item(data_item, type="xdata"))
                 computation.create_output_item("dst", Symbolic.make_item(data_item3), _item_specifier=Symbolic.get_object_specifier(data_item3))
                 computation.processing_id = "pass_thru"
                 document_model.append_computation(computation)
@@ -1422,7 +1432,7 @@ class TestDocumentModelClass(unittest.TestCase):
                 self.assertEqual(1, len(document_model.data_items))
 
     def test_new_computation_with_missing_input_which_subsequently_appears_does_evaluate(self):
-        Symbolic.register_computation_type("pass_thru", self.PassThru)
+        Symbolic.register_computation_type("pass_thru", functools.partial(self.PassThru, "xdata"))
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.ones((2, 2), int))
@@ -1430,7 +1440,7 @@ class TestDocumentModelClass(unittest.TestCase):
             # document_model.append_data_item(data_item)  # purposely not added
             document_model.append_data_item(data_item3)
             computation = document_model.create_computation()
-            computation.create_input_item("src_xdata", Symbolic.make_item(data_item, type="xdata"), _item_specifier=Symbolic.get_object_specifier(data_item))
+            computation.create_input_item("src", Symbolic.make_item(data_item, type="xdata"), _item_specifier=Symbolic.get_object_specifier(data_item))
             computation.create_output_item("dst", Symbolic.make_item(data_item3))
             computation.processing_id = "pass_thru"
             document_model.append_computation(computation)
@@ -1439,7 +1449,7 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertTrue(computation.is_resolved)
 
     def test_new_computation_with_missing_output_which_subsequently_appears_does_evaluate(self):
-        Symbolic.register_computation_type("pass_thru", self.PassThru)
+        Symbolic.register_computation_type("pass_thru", functools.partial(self.PassThru, "xdata"))
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.ones((2, 2), int))
@@ -1447,7 +1457,7 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             # document_model.append_data_item(data_item3)  # purposely not added
             computation = document_model.create_computation()
-            computation.create_input_item("src_xdata", Symbolic.make_item(data_item, type="xdata"))
+            computation.create_input_item("src", Symbolic.make_item(data_item, type="xdata"))
             computation.create_output_item("dst", Symbolic.make_item(data_item3), _item_specifier=Symbolic.get_object_specifier(data_item3))
             computation.processing_id = "pass_thru"
             document_model.append_computation(computation)
@@ -1546,10 +1556,12 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(len(document_model.get_source_items(data_item)), 0)
 
     class CropHalf:
-        def __init__(self, computation, **kwargs):
+        def __init__(self, property: str, computation, **kwargs):
+            self.property = property
             self.computation = computation
 
-        def execute(self, src_xdata):
+        def execute(self, src):
+            src_xdata = getattr(src, self.property)
             top = src_xdata.dimensional_shape[0] // 4
             left = src_xdata.dimensional_shape[1] // 4
             bottom = top + src_xdata.dimensional_shape[0] // 2
@@ -1564,7 +1576,7 @@ class TestDocumentModelClass(unittest.TestCase):
             dst_data_item.data = self.__new_data
 
     def test_computation_can_depend_on_xdata(self):
-        Symbolic.register_computation_type("crop_half", self.CropHalf)
+        Symbolic.register_computation_type("crop_half", functools.partial(self.CropHalf, "xdata"))
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.random.randn(12, 12))
@@ -1572,7 +1584,7 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             document_model.append_data_item(data_item2)
             computation = document_model.create_computation()
-            computation.create_input_item("src_xdata", Symbolic.make_item(data_item, type="xdata"))
+            computation.create_input_item("src", Symbolic.make_item(data_item, type="xdata"))
             computation.create_output_item("dst", Symbolic.make_item(data_item2))
             computation.processing_id = "crop_half"
             document_model.append_computation(computation)
@@ -1584,7 +1596,7 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertIn(data_item, document_model.get_source_items(data_item2))
 
     def test_computation_can_depend_on_display_xdata(self):
-        Symbolic.register_computation_type("crop_half", self.CropHalf)
+        Symbolic.register_computation_type("crop_half", functools.partial(self.CropHalf, "display_xdata"))
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.random.randn(12, 12, 4))
@@ -1596,7 +1608,7 @@ class TestDocumentModelClass(unittest.TestCase):
             display_data_channel.slice_center = 2
             display_data_channel.slice_width = 1
             computation = document_model.create_computation()
-            computation.create_input_item("src_xdata", Symbolic.make_item(display_data_channel, type="display_xdata"))
+            computation.create_input_item("src", Symbolic.make_item(display_data_channel, type="display_xdata"))
             computation.create_output_item("dst", Symbolic.make_item(data_item2))
             computation.processing_id = "crop_half"
             document_model.append_computation(computation)
@@ -1608,7 +1620,7 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertIn(data_item, document_model.get_source_items(data_item2))
 
     def test_computation_can_depend_on_cropped_xdata(self):
-        Symbolic.register_computation_type("crop_half", self.CropHalf)
+        Symbolic.register_computation_type("crop_half", functools.partial(self.CropHalf, "cropped_xdata"))
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.random.randn(24, 24))
@@ -1620,7 +1632,7 @@ class TestDocumentModelClass(unittest.TestCase):
             graphic.bounds = (0, 0), (0.5, 0.5)
             display_item.add_graphic(graphic)
             computation = document_model.create_computation()
-            computation.create_input_item("src_xdata", Symbolic.make_item(display_item.display_data_channel, type="cropped_xdata", secondary_item=graphic))
+            computation.create_input_item("src", Symbolic.make_item(display_item.display_data_channel, type="cropped_xdata", secondary_item=graphic))
             computation.create_output_item("dst", Symbolic.make_item(data_item2))
             computation.processing_id = "crop_half"
             document_model.append_computation(computation)
@@ -1635,7 +1647,7 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertIn(data_item, document_model.get_source_items(data_item2))
 
     def test_computation_can_depend_on_cropped_display_xdata(self):
-        Symbolic.register_computation_type("crop_half", self.CropHalf)
+        Symbolic.register_computation_type("crop_half", functools.partial(self.CropHalf, "cropped_display_xdata"))
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.random.randn(24, 24, 4))
@@ -1650,7 +1662,7 @@ class TestDocumentModelClass(unittest.TestCase):
             graphic.bounds = (0, 0), (0.5, 0.5)
             display_item.add_graphic(graphic)
             computation = document_model.create_computation()
-            computation.create_input_item("src_xdata", Symbolic.make_item(display_data_channel, type="cropped_display_xdata", secondary_item=graphic))
+            computation.create_input_item("src", Symbolic.make_item(display_data_channel, type="cropped_display_xdata", secondary_item=graphic))
             computation.create_output_item("dst", Symbolic.make_item(data_item2))
             computation.processing_id = "crop_half"
             document_model.append_computation(computation)
@@ -1665,7 +1677,7 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertIn(data_item, document_model.get_source_items(data_item2))
 
     def test_computation_can_depend_on_filter_xdata(self):
-        Symbolic.register_computation_type("pass_thru", self.PassThru)
+        Symbolic.register_computation_type("pass_thru", functools.partial(self.PassThru, "filter_xdata"))
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.full((20, 20), 5))
@@ -1678,7 +1690,7 @@ class TestDocumentModelClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_item.add_graphic(graphic)
             computation = document_model.create_computation()
-            computation.create_input_item("src_xdata", Symbolic.make_item(display_item.display_data_channel, type="filter_xdata"))
+            computation.create_input_item("src", Symbolic.make_item(display_item.display_data_channel, type="filter_xdata"))
             computation.create_output_item("dst", Symbolic.make_item(data_item2))
             computation.processing_id = "pass_thru"
             document_model.append_computation(computation)
@@ -1695,7 +1707,7 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertIn(data_item, document_model.get_source_items(data_item2))
 
     def test_computation_can_depend_on_filtered_xdata(self):
-        Symbolic.register_computation_type("pass_thru", self.PassThru)
+        Symbolic.register_computation_type("pass_thru", functools.partial(self.PassThru, "filtered_xdata"))
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
             data_item = DataItem.DataItem(numpy.full((20, 20), 5, dtype=numpy.complex128))
@@ -1708,7 +1720,7 @@ class TestDocumentModelClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_item.add_graphic(graphic)
             computation = document_model.create_computation()
-            computation.create_input_item("src_xdata", Symbolic.make_item(display_item.display_data_channel, type="filtered_xdata"))
+            computation.create_input_item("src", Symbolic.make_item(display_item.display_data_channel, type="filtered_xdata"))
             computation.create_output_item("dst", Symbolic.make_item(data_item2))
             computation.processing_id = "pass_thru"
             document_model.append_computation(computation)
@@ -1725,7 +1737,7 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertIn(data_item, document_model.get_source_items(data_item2))
 
     def test_computation_sequence_evaluates(self):
-        Symbolic.register_computation_type("pass_thru", self.PassThru)
+        Symbolic.register_computation_type("pass_thru", functools.partial(self.PassThru, "xdata"))
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
             data_item1 = DataItem.DataItem(numpy.zeros((2, 2)))
@@ -1735,12 +1747,12 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.append_data_item(data_item2)
             document_model.append_data_item(data_item3)
             computation1 = document_model.create_computation()
-            computation1.create_input_item("src_xdata", Symbolic.make_item(data_item1, type="xdata"))
+            computation1.create_input_item("src", Symbolic.make_item(data_item1, type="xdata"))
             computation1.create_output_item("dst", Symbolic.make_item(data_item2))
             computation1.processing_id = "pass_thru"
             document_model.append_computation(computation1)
             computation2 = document_model.create_computation()
-            computation2.create_input_item("src_xdata", Symbolic.make_item(data_item2, type="xdata"))
+            computation2.create_input_item("src", Symbolic.make_item(data_item2, type="xdata"))
             computation2.create_output_item("dst", Symbolic.make_item(data_item3))
             computation2.processing_id = "pass_thru"
             document_model.append_computation(computation2)
@@ -1749,7 +1761,7 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(data_item1.data, data_item3.data))
 
     def test_computation_deletes_when_source_deletes(self):
-        Symbolic.register_computation_type("pass_thru", self.PassThru)
+        Symbolic.register_computation_type("pass_thru", functools.partial(self.PassThru, "xdata"))
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
             data_item1 = DataItem.DataItem(numpy.zeros((2, 2)))
@@ -1760,7 +1772,7 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.append_data_item(data_item3)
             computation = document_model.create_computation()
             computation.source = data_item3
-            computation.create_input_item("src_xdata", Symbolic.make_item(data_item1, type="xdata"))
+            computation.create_input_item("src", Symbolic.make_item(data_item1, type="xdata"))
             computation.create_output_item("dst", Symbolic.make_item(data_item2))
             computation.processing_id = "pass_thru"
             document_model.append_computation(computation)
@@ -1812,7 +1824,7 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(0, len(document_model.get_dependent_items(data_item1)))
 
     def test_computation_deletes_when_triggered_by_both_inputs_and_source_deletion(self):
-        Symbolic.register_computation_type("pass_thru", self.PassThru)
+        Symbolic.register_computation_type("pass_thru", functools.partial(self.PassThru, "xdata"))
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
             data_item1 = DataItem.DataItem(numpy.zeros((2, 2)))
@@ -1824,7 +1836,7 @@ class TestDocumentModelClass(unittest.TestCase):
             data_item3.source = data_item2
             computation = document_model.create_computation()
             computation.source = data_item3
-            computation.create_input_item("src_xdata", Symbolic.make_item(data_item1, type="xdata"))
+            computation.create_input_item("src", Symbolic.make_item(data_item1, type="xdata"))
             computation.create_output_item("dst", Symbolic.make_item(data_item2))
             computation.processing_id = "pass_thru"
             document_model.append_computation(computation)
@@ -1891,8 +1903,8 @@ class TestDocumentModelClass(unittest.TestCase):
         def __init__(self, computation, **kwargs):
             self.computation = computation
 
-        def execute(self, src_xdata):
-            self.__new_data = -src_xdata.data
+        def execute(self, src):
+            self.__new_data = -src.xdata.data
 
         def commit(self):
             self.computation.set_referenced_data("dst", self.__new_data)
@@ -1910,7 +1922,7 @@ class TestDocumentModelClass(unittest.TestCase):
             # create the computation
             computation = document_model.create_computation()
             computation.source = data_item
-            computation.create_input_item("src_xdata", Symbolic.make_item(data_item, type="xdata"))
+            computation.create_input_item("src", Symbolic.make_item(data_item, type="xdata"))
             computation.create_output_item("dst", Symbolic.make_item(data_item2))
             computation.processing_id = "negate"
             document_model.append_computation(computation)
@@ -1961,7 +1973,7 @@ class TestDocumentModelClass(unittest.TestCase):
             # create the computation
             computation = document_model.create_computation()
             computation.source = data_item
-            computation.create_input_item("src_xdata", Symbolic.make_item(data_item2, type="xdata"))
+            computation.create_input_item("src", Symbolic.make_item(data_item2, type="xdata"))
             computation.create_output_item("dst", Symbolic.make_item(data_item3))
             computation.processing_id = "negate"
             document_model.append_computation(computation)
