@@ -1830,6 +1830,13 @@ class BoundGraphic(BoundItemBase):
         super().close()
 
     @property
+    def computation_value(self) -> typing.Any:
+        region = self.__object.get_region() if self.__object else None
+        if self.__property_name:
+            return getattr(region, self.__property_name)
+        return region
+
+    @property
     def value(self) -> typing.Any:
         if self.__property_name:
             return getattr(self.__object, self.__property_name)
