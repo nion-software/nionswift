@@ -868,6 +868,9 @@ class Graphic(Persistence.PersistentObject):
     def test(self, mapping: CoordinateMappingLike, ui_settings: UISettings.UISettings, p: Geometry.FloatPoint, move_only: bool) -> typing.Tuple[typing.Optional[str], bool]:
         raise NotImplementedError()
 
+    def get_region(self) -> RegionBase:
+        return EmptyRegion()
+
     def get_mask_item(self) -> MaskItem:
         return EmptyMaskItem()
 
@@ -1138,6 +1141,9 @@ class RectangleGraphic(RectangleTypeGraphic):
     def __init__(self) -> None:
         super().__init__("rect-graphic", _("Rectangle"))
 
+    def get_region(self) -> RectangleRegion:
+        return RectangleRegion(self.bounds, self.rotation)
+
     # rectangle
     def adjust_part(self, mapping: CoordinateMappingLike, original: Geometry.FloatPoint, current: Geometry.FloatPoint, part: DragPartDataPlus, modifiers: ModifiersLike) -> None:
         original_image = mapping.map_point_widget_to_image(original)
@@ -1231,6 +1237,9 @@ class RectangleGraphic(RectangleTypeGraphic):
 class EllipseGraphic(RectangleTypeGraphic):
     def __init__(self) -> None:
         super().__init__("ellipse-graphic", _("Ellipse"))
+
+    def get_region(self) -> EllipseRegion:
+        return EllipseRegion(self.bounds, self.rotation)
 
     def get_mask_item(self) -> MaskItem:
         return EllipseMaskItem(self.bounds, self.rotation)
@@ -1534,6 +1543,9 @@ class LineGraphic(LineTypeGraphic):
     def __init__(self) -> None:
         super().__init__("line-graphic", _("Line"))
 
+    def get_region(self) -> LineRegion:
+        return LineRegion(self.start, self.end)
+
     def _draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
         p1 = mapping.map_point_image_norm_to_widget(self.start)
         p2 = mapping.map_point_image_norm_to_widget(self.end)
@@ -1590,6 +1602,9 @@ class LineProfileGraphic(LineTypeGraphic):
     def read_from_mime_data(self, graphic_dict: Persistence.PersistentDictType) -> None:
         super().read_from_mime_data(graphic_dict)
         self.width = graphic_dict.get("line_width", self.width)
+
+    def get_region(self) -> LineProfileRegion:
+        return LineProfileRegion(self.start, self.end, self.width)
 
     def _draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
         p1 = mapping.map_point_image_norm_to_widget(self.start)
@@ -1746,6 +1761,9 @@ class PointGraphic(PointTypeGraphic):
         super().__init__("point-graphic", _("Point"))
         self.cross_hair_size = 12
 
+    def get_region(self) -> PointRegion:
+        return PointRegion(self.position)
+
     def _draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
         p = mapping.map_point_image_norm_to_widget(self.position)
         with ctx.saver():
@@ -1852,6 +1870,9 @@ class IntervalGraphic(Graphic):
         self.notify_property_changed("start")
         self.notify_property_changed("end")
 
+    def get_region(self) -> IntervalRegion:
+        return IntervalRegion(self.start, self.end)
+
     # test is required for Graphic interface
     def test(self, mapping: CoordinateMappingLike, ui_settings: UISettings.UISettings, p: Geometry.FloatPoint, move_only: bool) -> typing.Tuple[typing.Optional[str], bool]:
         # first convert to widget coordinates since test distances
@@ -1936,6 +1957,9 @@ class ChannelGraphic(Graphic):
 
     def get_attributes(self) -> set[GraphicAttributeEnum]:
         return {GraphicAttributeEnum.ONE_DIMENSIONAL}
+
+    def get_region(self) -> ChannelRegion:
+        return ChannelRegion(self.position)
 
     # test is required for Graphic interface
     def test(self, mapping: CoordinateMappingLike, ui_settings: UISettings.UISettings, p: Geometry.FloatPoint, move_only: bool) -> typing.Tuple[typing.Optional[str], bool]:
@@ -2058,6 +2082,9 @@ class SpotGraphic(Graphic):
     @_bounds.setter
     def _bounds(self, bounds: Geometry.FloatRectTuple) -> None:
         self.bounds = Geometry.FloatRect.make(bounds)
+
+    def get_region(self) -> SpotRegion:
+        return SpotRegion(self.bounds, self.rotation)
 
     def get_mask_item(self) -> MaskItem:
         return SpotMaskItem(self.bounds, self.rotation)
@@ -2318,6 +2345,9 @@ class WedgeGraphic(Graphic):
                 self.__start_angle_internal = self.__end_angle_internal
             self.__inverted_drag = not self.__inverted_drag
 
+    def get_region(self) -> WedgeRegion:
+        return WedgeRegion(self.start_angle, self.end_angle)
+
     def get_mask_item(self) -> MaskItem:
         return WedgeMaskItem(self.start_angle, self.end_angle)
 
@@ -2497,6 +2527,9 @@ class RingGraphic(Graphic):
             self.radius_1 = radius
         if part[0] == "radius_2":
             self.radius_2 = radius
+
+    def get_region(self) -> RingRegion:
+        return RingRegion(self.mode, self.radius_1, self.radius_2)
 
     def get_mask_item(self) -> MaskItem:
         return RingMaskItem(self.mode, self.radius_1, self.radius_2)
@@ -2809,6 +2842,9 @@ class LatticeGraphic(Graphic):
             part_bounds = Geometry.FloatRect.make(part_bounds)
             self.radius = abs(part_bounds.height / 2)
 
+    def get_region(self) -> LatticeRegion:
+        return LatticeRegion(self.u_pos, self.v_pos, Geometry.FloatSize(self.radius * 2, self.radius * 2), 0.0)
+
     def get_mask_item(self) -> MaskItem:
         return LatticeMaskItem(self.u_pos, self.v_pos, Geometry.FloatSize(self.radius * 2, self.radius * 2), 0.0)
 
@@ -3104,6 +3140,126 @@ class LatticeMaskItem(MaskItem):
             mx += 1
 
         return mask
+
+
+class RegionBase:
+    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: Geometry.FloatPoint | None = None) -> DataAndMetadata._ImageDataType:
+        raise NotImplementedError("get_mask")
+
+    def mask_xdata_with_shape(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: Geometry.FloatPoint | None = None) -> DataAndMetadata.DataAndMetadata:
+        calibrated_origin = calibrated_origin or Geometry.FloatPoint(y=data_shape[0] * 0.5 + 0.5, x=data_shape[1] * 0.5 + 0.5)
+        mask_data = self.get_mask(data_shape, calibrated_origin)
+        return DataAndMetadata.new_data_and_metadata(mask_data)
+
+    def get_property(self, name: str, default_value: typing.Any = None) -> typing.Any:
+        return getattr(self, name, default_value)
+
+
+class EmptyRegion(RegionBase):
+    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: Geometry.FloatPoint | None = None) -> DataAndMetadata._ImageDataType:
+        return EmptyMaskItem().get_mask_data(data_shape, calibrated_origin)
+
+
+class RectangleLikeRegion(RegionBase):
+    def __init__(self, bounds: Geometry.FloatRect, rotation: float) -> None:
+        self.bounds = bounds
+        self.rotation = rotation
+
+
+class RectangleRegion(RectangleLikeRegion):
+    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: Geometry.FloatPoint | None = None) -> DataAndMetadata._ImageDataType:
+        return RectangleMaskItem(self.bounds, self.rotation).get_mask_data(data_shape, calibrated_origin)
+
+
+class EllipseRegion(RectangleLikeRegion):
+    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: Geometry.FloatPoint | None = None) -> DataAndMetadata._ImageDataType:
+        return EllipseMaskItem(self.bounds, self.rotation).get_mask_data(data_shape, calibrated_origin)
+
+
+class LineTypeRegion(RegionBase):
+    def __init__(self, start: Geometry.FloatPoint, end: Geometry.FloatPoint) -> None:
+        self.start = start
+        self.end = end
+
+    @property
+    def vector(self) -> typing.Tuple[Geometry.FloatPoint, Geometry.FloatPoint]:
+        return self.start, self.end
+
+
+class LineRegion(LineTypeRegion):
+    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: Geometry.FloatPoint | None = None) -> DataAndMetadata._ImageDataType:
+        return LineMaskItem(self.start, self.end).get_mask_data(data_shape, calibrated_origin)
+
+
+class LineProfileRegion(LineTypeRegion):
+    def __init__(self, start: Geometry.FloatPoint, end: Geometry.FloatPoint, line_width: float) -> None:
+        super().__init__(start, end)
+        self.line_width = line_width
+
+    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: Geometry.FloatPoint | None = None) -> DataAndMetadata._ImageDataType:
+        return LineMaskItem(self.start, self.end).get_mask_data(data_shape, calibrated_origin)
+
+
+class PointRegion(RegionBase):
+    def __init__(self, position: Geometry.FloatPoint) -> None:
+        self.position = position
+
+    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: Geometry.FloatPoint | None = None) -> DataAndMetadata._ImageDataType:
+        return PointMaskItem(self.position).get_mask_data(data_shape, calibrated_origin)
+
+
+class IntervalRegion(RegionBase):
+    def __init__(self, start: float, end: float) -> None:
+        self.start = start
+        self.end = end
+
+    @property
+    def interval(self) -> tuple[float, float]:
+        return (self.start, self.end)
+
+
+class ChannelRegion(RegionBase):
+    def __init__(self, channel: float) -> None:
+        self.channel = channel
+
+
+class SpotRegion(RegionBase):
+    def __init__(self, bounds: Geometry.FloatRect, rotation: float) -> None:
+        self.bounds = bounds
+        self.rotation = rotation
+
+    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: Geometry.FloatPoint | None = None) -> DataAndMetadata._ImageDataType:
+        return SpotMaskItem(self.bounds, self.rotation).get_mask_data(data_shape, calibrated_origin)
+
+
+class WedgeRegion(RegionBase):
+    def __init__(self, start_angle: float, end_angle: float) -> None:
+        self.start_angle = start_angle
+        self.end_angle = end_angle
+
+    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: Geometry.FloatPoint | None = None) -> DataAndMetadata._ImageDataType:
+        return WedgeMaskItem(self.start_angle, self.end_angle).get_mask_data(data_shape, calibrated_origin)
+
+
+class RingRegion(RegionBase):
+    def __init__(self, mode: str, radius_1: float, radius_2: float) -> None:
+        self.mode = mode
+        self.radius_1 = radius_1
+        self.radius_2 = radius_2
+
+    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: Geometry.FloatPoint | None = None) -> DataAndMetadata._ImageDataType:
+        return RingMaskItem(self.mode, self.radius_1, self.radius_2).get_mask_data(data_shape, calibrated_origin)
+
+
+class LatticeRegion(RegionBase):
+    def __init__(self, u_pos: Geometry.FloatSize, v_pos: Geometry.FloatSize, size: Geometry.FloatSize, rotation: float) -> None:
+        self.u_pos = u_pos
+        self.v_pos = v_pos
+        self.size = size
+        self.rotation = rotation
+
+    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: Geometry.FloatPoint | None = None) -> DataAndMetadata._ImageDataType:
+        return LatticeMaskItem(self.u_pos, self.v_pos, self.size, self.rotation).get_mask_data(data_shape, calibrated_origin)
 
 
 def factory(lookup_id: typing.Callable[[str], str]) -> Graphic:
