@@ -1066,12 +1066,12 @@ class DataSource:
     def __init__(self, display_data_channel: DisplayItem.DisplayDataChannel, graphic: typing.Optional[Graphics.Graphic]) -> None:
         self.__display_data_channel = display_data_channel
         display_item = typing.cast("DisplayItem.DisplayItem", display_data_channel.container) if display_data_channel else None
-        self.__mask_objects = list[Graphics.MaskBase]()
+        self.__mask_items = list[Graphics.MaskItem]()
         if display_item:
             for graphic in display_item.graphics:
                 if graphic.has_attribute(Graphics.GraphicAttributeEnum.TWO_DIMENSIONAL):
                     if graphic.used_role in ("mask", "fourier_mask"):
-                        self.__mask_objects.append(graphic.get_mask_object())
+                        self.__mask_items.append(graphic.get_mask_item())
         data_item = display_data_channel.data_item if display_data_channel else None
         self.__xdata = data_item.xdata if data_item else None
         self.__display_data_shape_calculator = DisplayItem.DisplayDataShapeCalculator(self.__xdata.data_metadata if self.__xdata else None)
@@ -1196,10 +1196,10 @@ class DataSource:
             y=datum_calibrations[0].convert_from_calibrated_value(0.0),
             x=datum_calibrations[1].convert_from_calibrated_value(0.0))
         mask = None
-        for mask_object in self.__mask_objects:
+        for mask_item in self.__mask_items:
             if mask is None:
                 mask = numpy.zeros(shape)
-            mask = numpy.logical_or(mask, mask_object.get_mask(shape, calibrated_origin))
+            mask = numpy.logical_or(mask, mask_item.get_mask_data(shape, calibrated_origin))
         if mask is None:
             mask = numpy.ones(shape)
         return DataAndMetadata.DataAndMetadata.from_data(mask)
