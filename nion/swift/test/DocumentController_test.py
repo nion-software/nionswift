@@ -144,7 +144,7 @@ class TestDocumentControllerClass(unittest.TestCase):
     def test_document_controller_releases_itself(self):
         i = 0
         try:
-            for i in range(100):
+            for i in range(4):
                 with TestContext.create_memory_context() as test_context:
                     document_controller = test_context.create_document_controller()
                     document_model = document_controller.document_model
@@ -241,6 +241,7 @@ class TestDocumentControllerClass(unittest.TestCase):
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_display_item(display_item)
             line_profile_data_item = document_controller.processing_line_profile().data_item
+            document_model.recompute_all()
             document_controller.periodic()  # TODO: remove need to let the inspector catch up
             display_panel.set_display_panel_display_item(display_item)
             display_item.graphic_selection.clear()

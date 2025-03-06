@@ -1083,7 +1083,7 @@ class DataSource:
         self.__display_values = display_data_channel.get_latest_display_values() if display_data_channel else None
 
     def close(self) -> None:
-        pass
+        self.__display_values = None
 
     @property
     def data(self) -> typing.Optional[DataAndMetadata._ImageDataType]:
@@ -1257,7 +1257,6 @@ class BoundData(BoundItemBase):
 
     def __init__(self, container: Persistence.PersistentObject, specifier: DataSpecifier) -> None:
         super().__init__(specifier)
-
         self.__item_reference = container.create_item_reference(item_specifier=Persistence.read_persistent_specifier(specifier.reference_uuid))
         self.__data_changed_event_listener: typing.Optional[Event.EventListener] = None
 

@@ -1069,6 +1069,7 @@ class TestInspectorClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel.set_display_panel_display_item(display_item)
             inspector_panel = document_controller.find_dock_panel("inspector-panel")
+            document_model.recompute_all()
             document_controller.periodic()
             expected_inspector_section_count = len(inspector_panel._get_inspector_sections())
             # add the point graphic, ensure that inspector is updated with just a section for point graphic
@@ -1076,12 +1077,14 @@ class TestInspectorClass(unittest.TestCase):
             document_model.get_pick_new(display_item, display_item.data_item)
             self.assertEqual(document_controller.selected_data_item, data_item)
             document_controller.selected_display_item.graphic_selection.add(0)
+            document_model.recompute_all()
             document_controller.periodic()
             graphic_inspector_section_count = len(inspector_panel._get_inspector_sections())
             self.assertNotEqual(expected_inspector_section_count, graphic_inspector_section_count)
             # now remove the point graphic and ensure that inspector inspecting data item again
             self.assertEqual(len(document_controller.selected_display_item.graphic_selection.indexes), 1)  # make sure graphic is selected
             document_controller.remove_selected_graphics()
+            document_model.recompute_all()
             document_controller.periodic()
             self.assertEqual(len(document_controller.selected_display_item.graphic_selection.indexes), 0)  # make sure graphic is not selected
             actual_inspector_section_count = len(inspector_panel._get_inspector_sections())
@@ -1544,6 +1547,7 @@ class TestInspectorClass(unittest.TestCase):
             computation.create_output_item("dst", Symbolic.make_item(data_item2))
             computation.create_output_item("dst2", Symbolic.make_item(data_item3))
             document_model.append_computation(computation)
+            document_model.recompute_all()
             interval2.source = interval
             display_item.append_display_data_channel_for_data_item(data_item2)
             display_item.append_display_data_channel_for_data_item(data_item3)
