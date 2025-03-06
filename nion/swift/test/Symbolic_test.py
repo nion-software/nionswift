@@ -1152,7 +1152,7 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.set_data_item_computation(computed_data_item, computation)
             document_model.recompute_all()
             evaluation_count = computation._evaluation_count_for_test
-            computation.expression = Symbolic.xdata_expression("xd.gaussian_blur(a, 2)")
+            computation.expression = Symbolic.xdata_expression("xd.gaussian_blur(a.xdata, 2)")
             # computation should not be re-evaluated until requested
             self.assertEqual(computation._evaluation_count_for_test - evaluation_count, 0)
             document_model.recompute_all()
@@ -1348,7 +1348,7 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             script_and_data = [
                 ("xd.histogram(a.xdata, 10)", None),
-                ("xd.line_profile(a.xdata, xd.vector(xd.norm_point(0.1, 0.1), xd.norma_point(0.8, 0.7)), 10)", None),
+                ("xd.line_profile(a.xdata, xd.vector(xd.norm_point(0.1, 0.1), xd.norm_point(0.8, 0.7)), 10)", None),
                 ("xd.transpose_flip(a.xdata, False, True, False)", None),
                 ("xd.crop(a.xdata, xd.rectangle_from_origin_size(xd.norm_point(0, 0), xd.norm_size(0.5, 0.625)))", src_data[0:5, 0:5]),
                 ("xd.sum(a.xdata, 0)", numpy.sum(src_data, 0)),

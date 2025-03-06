@@ -88,6 +88,7 @@ class TestDataPanelClass(unittest.TestCase):
                 display_panel.set_display_panel_display_item(display_item1)
                 data_panel = document_controller.find_dock_panel("data-panel")
                 document_controller.select_data_item_in_data_panel(data_item=data_item1)
+                document_model.recompute_all()
                 document_controller.periodic()
                 document_controller.selected_display_panel = display_panel
                 # first delete a child of a data item

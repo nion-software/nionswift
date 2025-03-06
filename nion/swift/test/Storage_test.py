@@ -3788,7 +3788,7 @@ class TestStorageClass(unittest.TestCase):
                 data = numpy.ones((2, 2), numpy.double)
                 data_item = DataItem.DataItem(data)
                 document_model.append_data_item(data_item)
-                computation = document_model.create_computation(Symbolic.xdata_expression("xd.column(a.xdata)"))
+                computation = document_model.create_computation(Symbolic.xdata_expression("xd.column(a.xdata.data_shape)"))
                 computation.create_input_item("a", Symbolic.make_item(data_item))
                 computed_data_item = DataItem.DataItem(data.copy())
                 document_model.append_data_item(computed_data_item)

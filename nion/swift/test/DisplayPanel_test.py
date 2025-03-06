@@ -140,6 +140,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertEqual(self.data_item, self.document_model.data_items[0])
         self.assertEqual(self.display_item.data_item, self.data_item)
         self.document_controller.processing_invert()
+        self.document_model.recompute_all()
         self.document_controller.periodic()
         self.display_panel.set_display_panel_display_item(self.display_item)
         self.assertEqual(self.display_panel.data_item, self.data_item)
@@ -152,6 +153,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertEqual(self.display_panel.data_item, self.data_item)
         inverted_data_item = self.document_controller.processing_invert().data_item
         inverted_display_item = self.document_model.get_display_item_for_data_item(inverted_data_item)
+        self.document_model.recompute_all()
         self.document_controller.periodic()
         self.display_panel.set_display_panel_display_item(inverted_display_item)
         self.assertEqual(self.display_panel.data_item, inverted_data_item)
@@ -2616,9 +2618,11 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_panel.set_displayed_data_item(data_item1)
             document_controller.processing_invert()
             display_panel.set_displayed_data_item(data_item1)
+            document_model.recompute_all()
             document_controller.periodic()
             document_controller.display_filter = ListModel.TextFilter("text_for_filter", "99")
             data_item.set_data(numpy.zeros(8, ))
+            document_model.recompute_all()
             document_controller.periodic()
 
     def test_filter_masks_can_be_created_on_a_variety_of_displays(self):
