@@ -2810,7 +2810,7 @@ class LatticeGraphic(Graphic):
             self.radius = abs(part_bounds.height / 2)
 
     def get_mask_object(self) -> MaskBase:
-        return LatticeMask(self.u_pos, self.v_pos, self.radius)
+        return LatticeMask(self.u_pos, self.v_pos, Geometry.FloatSize(self.radius * 2, self.radius * 2), 0.0)
 
     def _draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
         start = mapping.calibrated_origin_image_norm
@@ -3061,10 +3061,11 @@ class RingMask(MaskBase):
 
 
 class LatticeMask(MaskBase):
-    def __init__(self, u_pos: Geometry.FloatSize, v_pos: Geometry.FloatSize, radius: float) -> None:
+    def __init__(self, u_pos: Geometry.FloatSize, v_pos: Geometry.FloatSize, size: Geometry.FloatSize, rotation: float) -> None:
         self.u_pos = u_pos
         self.v_pos = v_pos
-        self.radius = radius
+        self.size = size
+        self.rotation = rotation
 
     def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: typing.Optional[Geometry.FloatPoint] = None) -> DataAndMetadata._ImageDataType:
         calibrated_origin = calibrated_origin or Geometry.FloatPoint(y=data_shape[0] * 0.5 + 0.5, x=data_shape[1] * 0.5 + 0.5)
@@ -3073,10 +3074,9 @@ class LatticeMask(MaskBase):
         start = Geometry.FloatPoint(y=calibrated_origin.y / data_shape[0], x=calibrated_origin.x / data_shape[1])
         u_pos = self.u_pos
         v_pos = self.v_pos
-        radius = self.radius
-        size = Geometry.FloatSize(width=radius * 2, height=radius * 2)
-
-        bounds = Geometry.FloatRect.from_tlbr(0, 0, 1, 1).inset(-radius, -radius)
+        size = self.size
+        rotation = self.rotation
+        bounds = Geometry.FloatRect.from_tlbr(0, 0, 1, 1).inset(-size.width * 0.5, -size.height * 0.5)
         mx = 0
         drawn = True
         while drawn and mx < 32:
@@ -3086,14 +3086,19 @@ class LatticeMask(MaskBase):
                     if ui == -mx or ui == mx or vi == -mx or vi == mx:
                         p = start + ui * u_pos + vi * v_pos
                         if bounds.contains_point(p):
-                            r = Geometry.FloatRect(origin=Geometry.FloatPoint(y=data_shape[0] * (p.y - radius),
-                                                                              x=data_shape[1] * (p.x - radius)),
+                            r = Geometry.FloatRect(origin=Geometry.FloatPoint(y=data_shape[0] * (p.y - size.height * 0.5),
+                                                                              x=data_shape[1] * (p.x - size.width * 0.5)),
                                                    size=Geometry.FloatSize(h=data_shape[0] * size.height,
                                                                            w=data_shape[1] * size.width))
                             if r.width > 0 and r.height > 0:
                                 a, b = round(r.top + 0.5 * r.height), round(r.left + 0.5 * r.width)
                                 y, x = numpy.ogrid[-a:data_shape[0] - a, -b:data_shape[1] - b]
-                                mask_eq1 = x * x / ((r.height / 2) * (r.height / 2)) + y * y / ((r.width / 2) * (r.width / 2)) <= 1
+                                if rotation:
+                                    angle_sin = math.sin(rotation)
+                                    angle_cos = math.cos(rotation)
+                                    mask_eq1 = (((x * angle_cos) - (y * angle_sin)) ** 2) / ((r.width / 2) * (r.width / 2)) + (((y * angle_cos) + (x * angle_sin)) ** 2) / ((r.height / 2) * (r.height / 2)) <= 1
+                                else:
+                                    mask_eq1 = x * x / ((r.width / 2) * (r.width / 2)) + y * y / ((r.height / 2) * (r.height / 2)) <= 1
                                 mask[mask_eq1] = 1
                             drawn = True
             mx += 1
