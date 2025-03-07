@@ -1070,10 +1070,10 @@ class DataSource:
         display_item = typing.cast("DisplayItem.DisplayItem", display_data_channel.container) if display_data_channel else None
         self.__mask_items = list[Graphics.MaskItem]()
         if display_item:
-            for graphic in display_item.graphics:
-                if graphic.has_attribute(Graphics.GraphicAttributeEnum.TWO_DIMENSIONAL):
-                    if graphic.used_role in ("mask", "fourier_mask"):
-                        self.__mask_items.append(graphic.get_mask_item())
+            for graphic_ in display_item.graphics:
+                if graphic_.has_attribute(Graphics.GraphicAttributeEnum.TWO_DIMENSIONAL):
+                    if graphic_.used_role in ("mask", "fourier_mask"):
+                        self.__mask_items.append(graphic_.get_mask_item())
         data_item = display_data_channel.data_item if display_data_channel else data_item
         self.__xdata = data_item.xdata if data_item else None
         self.__display_data_shape_calculator = DisplayItem.DisplayDataShapeCalculator(self.__xdata.data_metadata if self.__xdata else None)
