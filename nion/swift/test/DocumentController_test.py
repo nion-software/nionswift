@@ -295,6 +295,24 @@ class TestDocumentControllerClass(unittest.TestCase):
                 pass  # triggers usage of 'processors' which gets set to null when closed
             document_controller2.close()  # this would fail even if processors part didn't fail
 
+    def test_processing_on_crop_region_only_if_selected(self):
+        # see commit 30cbf6eca364e28b9ff6a0ecec209d618796d060
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            h, w = 8, 8
+            data_item = DataItem.DataItem(numpy.ones((h, w), numpy.float32))
+            document_model.append_data_item(data_item)
+            crop_region = Graphics.RectangleGraphic()
+            crop_region.bounds = ((0.25, 0.25), (0.5, 0.5))
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item.add_graphic(crop_region)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            new_data_item = document_model.get_invert_new(display_item, display_item.data_item, None)
+            document_model.recompute_all()
+            self.assertEqual(new_data_item.data_shape, (h, w))
+
     def test_processing_on_crop_region_constructs_composite_operation(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
