@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import typing
 
 from nion.swift.model import Utility
@@ -8,11 +9,11 @@ from nion.utils import Observable
 
 
 class Feature(Observable.Observable):
-    def __init__(self, feature_id: str, description: str) -> None:
+    def __init__(self, feature_id: str, description: str, enabled: bool = False) -> None:
         super().__init__()
         self.feature_id = feature_id
         self.description = description
-        self.__enabled = False
+        self.__enabled = enabled
 
     @property
     def enabled(self) -> bool:
@@ -33,14 +34,18 @@ class FeatureManager(Observable.Observable, metaclass=Utility.Singleton):
 
     @property
     def enabled_feature_str(self) -> str:
-        return ",".join(feature.feature_id for feature in self.features if feature.enabled)
+        return json.dumps({feature.feature_id: feature.enabled for feature in self.features})
 
     @enabled_feature_str.setter
     def enabled_feature_str(self, enabled_features_str: str) -> None:
-        for enabled_feature_id in enabled_features_str.split(","):
-            feature = self.get_feature(enabled_feature_id)
-            if feature:
-                feature.enabled = True
+        try:
+            enabled_features = json.loads(enabled_features_str)
+            for enabled_feature in enabled_features.keys():
+                feature = self.get_feature(enabled_feature)
+                if feature:
+                    feature.enabled = enabled_features[enabled_feature]
+        except Exception as e:
+            pass  # don't fail to launch due to bad json
 
     @property
     def features(self) -> typing.Sequence[Feature]:
