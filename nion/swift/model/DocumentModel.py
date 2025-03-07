@@ -4,6 +4,7 @@ from __future__ import annotations
 import abc
 import asyncio
 import collections
+import concurrent.futures
 import contextlib
 import copy
 import datetime
@@ -24,6 +25,7 @@ from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.swift.model import DataStructure
 from nion.swift.model import DisplayItem
+from nion.swift.model import Feature
 from nion.swift.model import Graphics
 from nion.swift.model import Observer
 from nion.swift.model import Persistence
@@ -574,6 +576,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         super().__init__()
         self.__class__.count += 1
 
+        self.event_loop: asyncio.AbstractEventLoop | None = None
+
         self.about_to_close_event = Event.Event()
 
         self.data_item_will_be_removed_event = Event.Event()  # will be called before the item is deleted
@@ -586,6 +590,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.project_loaded_event = Event.Event()
 
         self.__computation_thread_pool = ThreadPool.ThreadPool()
+        self.__computation_thread_pool_executor = concurrent.futures.ThreadPoolExecutor(max_workers=8)
 
         self.__project = project
         self.__is_loading = False
@@ -634,6 +639,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.__pending_computation_lock = threading.RLock()
         self.__pending_computation_executor: typing.Optional[Symbolic.ComputationExecutor] = None
         self.__current_computation_executor: typing.Optional[Symbolic.ComputationExecutor] = None
+
+        self.__computation_tasks = set[asyncio.Task[typing.Any]]()
 
         self.__call_soon_queue: typing.List[typing.Callable[[], None]] = list()
         self.__call_soon_queue_lock = threading.RLock()
@@ -712,6 +719,15 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
         # notify listeners
         self.about_to_close_event.fire()
+
+        # stop computations
+        with self.__computation_queue_lock:
+            for computation_task in self.__computation_tasks:
+                computation_task.cancel()
+            self.__computation_tasks.clear()
+        if self.event_loop:
+            self.event_loop.stop()
+            self.event_loop.run_forever()
 
         # stop computations
         with self.__computation_queue_lock:
@@ -1366,18 +1382,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         if isinstance(source_item, DataItem.DataItem) and isinstance(target_item, DataItem.DataItem):
             target_item.source_data_items_changed(self.get_source_data_items(target_item))
 
-    def __computation_needs_update(self, computation: Symbolic.Computation) -> None:
-        # When the computation for a data item is set or mutated, this function will be called.
-        # This function looks through the existing pending computation queue, and if this data
-        # item is not already in the queue, it adds it and ensures the dispatch thread eventually
-        # executes the computation.
-        with self.__computation_queue_lock:
-            for computation_queue_item in self.__computation_queue:
-                if computation and computation_queue_item == computation:
-                    return
-            self.__computation_queue.append(computation)
-        self.dispatch_task(self.__recompute)
-
     def __establish_computation_dependencies(self, computation: Symbolic.Computation) -> None:
         # establish dependencies between input and output items.
         old_inputs = computation._inputs
@@ -1624,6 +1628,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
     def recompute_all(self, merge: bool = True) -> None:
         while True:
             self.__computation_thread_pool.run_all()
+            while self.event_loop and self.__computation_tasks:
+                self.event_loop.stop()
+                self.event_loop.run_forever()
             if merge:
                 self.commit_pending_computation()
                 with self.__computation_queue_lock:
@@ -1634,6 +1641,69 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
     def start_dispatcher(self) -> None:
         self.__computation_thread_pool.start(1)
+
+    def __start_computation(self, computation: Symbolic.Computation) -> bool:
+        # start the computation asynchronously if asynchronous computations are enabled.
+        # this is only called on the main thread, so state can be managed without locks.
+        # assumes self.__computation_queue_lock is held.
+
+        async def run_computation(event_loop: asyncio.AbstractEventLoop, computation_thread_pool_executor: concurrent.futures.ThreadPoolExecutor, computation: Symbolic.Computation) -> None:
+            # this runs on the main thread
+            # run the computation execute on a thread by calling computation.async_evaluate
+            # then commit the result in the same thread as this function is called (the main thread).
+            while event_loop and not computation._closed:
+                computation.is_pending = False  # TODO: race?
+                computation_executor = await computation.async_evaluate(event_loop, computation_thread_pool_executor)
+                if not computation._closed and computation_executor:
+                    try:
+                        computation_executor.commit()
+                    except Exception as e:
+                        import traceback
+                        traceback.print_exc()
+                    finally:
+                        computation_executor.mark_initial_computation_complete()
+                        computation_executor.close()
+                # by putting this before the break from the loop, we ensure that the computation is not run too often.
+                # otherwise the computation may run, finish, and be requested again faster than the sleep time.
+                await asyncio.sleep(0.1)
+                if computation._closed or not computation.is_pending:
+                    break
+            computation.is_running = False
+
+        if Feature.FeatureManager().is_feature_enabled("feature.asynchronous_computations") and self.event_loop:
+            if not computation.is_running:
+
+                # schedule the computation to be run via run_computation on the main thread via the event loop.
+                computation.is_running = True
+                computation.is_pending = False
+                computation_task = self.event_loop.create_task(run_computation(self.event_loop, self.__computation_thread_pool_executor, computation))
+                self.__computation_tasks.add(computation_task)
+
+                def discard_task(document_model_ref: weakref.ReferenceType[DocumentModel], computation_task: asyncio.Task[typing.Any]) -> None:
+                    document_model = document_model_ref()
+                    if document_model:
+                        document_model.__computation_tasks.discard(computation_task)
+
+                computation_task.add_done_callback(functools.partial(discard_task, weakref.ref(self)))
+            else:
+                computation.is_pending = True
+            return True
+
+        return False
+
+    def __computation_needs_update(self, computation: Symbolic.Computation) -> None:
+        # When a computation needs an update due to changing parameters, this function will be called. This function
+        # looks through the existing pending computation queue, and if this computation is not already in the queue,
+        # it schedules the computation for execution.
+        with self.__computation_queue_lock:
+            for computation_queue_item in self.__computation_queue:
+                if computation_queue_item == computation:
+                    return
+            # give the __start_computation method a chance to start it. if it doesn't (indicated by returning False),
+            # add it to the synchronous queue.
+            if not self.__start_computation(computation):
+                self.__computation_queue.append(computation)
+        self.dispatch_task(self.__recompute)
 
     def __recompute(self) -> None:
         # this runs on a thread
@@ -3016,3 +3086,6 @@ DocumentModel.register_processors(DocumentModel._get_builtin_processors())
 
 def evaluate_data(computation: Symbolic.Computation) -> DataAndMetadata.DataAndMetadata:
     return Symbolic.evaluate_data(computation)
+
+
+Feature.FeatureManager().add_feature(Feature.Feature("feature.asynchronous_computations", "Asynchronous (threaded) computations (requires relaunch)", True))
