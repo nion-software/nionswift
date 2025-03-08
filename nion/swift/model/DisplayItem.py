@@ -2696,12 +2696,17 @@ class DisplayItem(Persistence.PersistentObject):
             # removal of a display layer can cascade remove a display data channel and leave the display data channel
             # of the display layer dangling during the cascade. hack it here.
             data_index = None
-            if display_layer.display_data_channel and display_layer.display_data_channel in self.display_data_channels:
-                data_index = self.display_data_channels.index(display_layer.display_data_channel)
+            display_data_channel = display_layer.display_data_channel
+            if display_data_channel and display_data_channel in self.display_data_channels:
+                data_index = self.display_data_channels.index(display_data_channel)
+            label = display_layer.label
+            if not label:
+                data_item = display_data_channel.data_item if display_data_channel else None
+                label = data_item.title if data_item else None
             display_layer_info = DisplayLayerInfo(
                 data_index=data_index,
                 data_row=display_layer.data_row,
-                label=display_layer.label,
+                label=label,
                 stroke_color=display_layer.stroke_color,
                 fill_color=display_layer.fill_color,
                 stroke_width=display_layer.stroke_width
