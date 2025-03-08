@@ -114,7 +114,7 @@ MAX_LAYER_COUNT = 16
 
 
 class LinePlotDisplayInfo:
-    def __init__(self, display_calibration_info: typing.Optional[DisplayItem.DisplayCalibrationInfo], display_properties: Persistence.PersistentDictType, display_values_list: typing.Sequence[typing.Optional[DisplayItem.DisplayValues]], display_layers: typing.Sequence[DisplayItem.DisplayLayer]) -> None:
+    def __init__(self, display_calibration_info: typing.Optional[DisplayItem.DisplayCalibrationInfo], display_properties: Persistence.PersistentDictType, display_values_list: typing.Sequence[typing.Optional[DisplayItem.DisplayValues]], display_layers: typing.Sequence[DisplayItem.DisplayLayerInfo]) -> None:
         self.__display_calibration_info = display_calibration_info
         self.__y_min = display_properties.get("y_min", None)
         self.__y_max = display_properties.get("y_max", None)
@@ -532,7 +532,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
     def __update_display_properties_and_layers(self, display_calibration_info: DisplayItem.DisplayCalibrationInfo,
                                                display_properties: Persistence.PersistentDictType,
-                                               display_layers: typing.Sequence[DisplayItem.DisplayLayer]) -> None:
+                                               display_layers: typing.Sequence[DisplayItem.DisplayLayerInfo]) -> None:
         """Update the display values. Called from display panel.
 
         This method saves the display values and data and triggers an update. It should be as fast as possible.

@@ -1108,7 +1108,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                 timestamp_ns = metadata_d.get("hardware_source", dict()).get("system_time_ns", time.perf_counter_ns()) if self.__display_latency else 0
                 self.__timestamp_canvas_item.timestamp_ns = timestamp_ns
 
-    def __update_display_properties_and_layers(self, display_calibration_info: DisplayItem.DisplayCalibrationInfo, display_properties: Persistence.PersistentDictType, display_layers: typing.Sequence[DisplayItem.DisplayLayer]) -> None:
+    def __update_display_properties_and_layers(self, display_calibration_info: DisplayItem.DisplayCalibrationInfo, display_properties: Persistence.PersistentDictType, display_layers: typing.Sequence[DisplayItem.DisplayLayerInfo]) -> None:
         # thread-safe
         data_and_metadata = self.__display_values.data_and_metadata if self.__display_values else None
         data_metadata = data_and_metadata.data_metadata if data_and_metadata else None
