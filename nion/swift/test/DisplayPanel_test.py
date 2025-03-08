@@ -2711,6 +2711,8 @@ class TestDisplayPanelClass(unittest.TestCase):
             self.assertEqual(2, len(new_display_item.display_data_channels))
             self.assertEqual(data_item1, new_display_item.data_items[0])
             self.assertEqual(data_item2, new_display_item.data_items[1])
+            self.assertFalse(new_display_item.display_layers[0].label)
+            self.assertFalse(new_display_item.display_layers[1].label)
             # undo and check original assumptions
             document_controller.last_undo_command.undo()
             self.assertEqual(3, len(document_model.data_items))

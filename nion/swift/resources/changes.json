@@ -4,6 +4,12 @@
     "notes": [
       {
         "issues": [
+          "https://github.com/nion-software/nionswift/issues/217"
+        ],
+        "summary": "Composite line plots use source data item names unless label explicitly set in line plot."
+      },
+      {
+        "issues": [
           "https://github.com/nion-software/nionswift/issues/1337"
         ],
         "summary": "Add titles in browser view."
