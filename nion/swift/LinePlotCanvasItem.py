@@ -2,6 +2,7 @@ from __future__ import annotations
 
 # standard libraries
 import copy
+import dataclasses
 import math
 import operator
 import threading
@@ -113,7 +114,7 @@ MAX_LAYER_COUNT = 16
 
 
 class LinePlotDisplayInfo:
-    def __init__(self, display_calibration_info: typing.Optional[DisplayItem.DisplayCalibrationInfo], display_properties: Persistence.PersistentDictType, display_values_list: typing.Sequence[typing.Optional[DisplayItem.DisplayValues]], display_layers: typing.Sequence[Persistence.PersistentDictType]) -> None:
+    def __init__(self, display_calibration_info: typing.Optional[DisplayItem.DisplayCalibrationInfo], display_properties: Persistence.PersistentDictType, display_values_list: typing.Sequence[typing.Optional[DisplayItem.DisplayValues]], display_layers: typing.Sequence[DisplayItem.DisplayLayer]) -> None:
         self.__display_calibration_info = display_calibration_info
         self.__y_min = display_properties.get("y_min", None)
         self.__y_max = display_properties.get("y_max", None)
@@ -253,11 +254,11 @@ class LinePlotDisplayInfo:
             axes = self.axes
 
             for index, display_layer in enumerate(self.__display_layers[0:MAX_LAYER_COUNT]):
-                fill_color_str = display_layer.get("fill_color")
-                stroke_color_str = display_layer.get("stroke_color")
-                stroke_width = display_layer.get("stroke_width", 0.5)
-                data_index = display_layer.get("data_index", 0)
-                data_row = display_layer.get("data_row", 0)
+                fill_color_str = display_layer.fill_color
+                stroke_color_str = display_layer.stroke_color
+                stroke_width = display_layer.stroke_width
+                data_index = display_layer.data_index or 0
+                data_row = display_layer.data_row or 0
                 if 0 <= data_index < len(xdata_list):
                     fill_color = Color.Color(fill_color_str) if fill_color_str else None
                     stroke_color = Color.Color(stroke_color_str) if stroke_color_str else None
@@ -284,9 +285,9 @@ class LinePlotDisplayInfo:
         if self.__legend_entries is None:
             legend_entries = list()
             for index, display_layer in enumerate(self.__display_layers[0:MAX_LAYER_COUNT]):
-                data_index = display_layer.get("data_index", None)
-                data_row = display_layer.get("data_row", None)
-                label = display_layer.get("label", str())
+                data_index = display_layer.data_index
+                data_row = display_layer.data_row
+                label = display_layer.label
                 if not label:
                     if data_index is not None and data_row is not None:
                         label = "Data {}:{}".format(data_index, data_row)
@@ -294,8 +295,8 @@ class LinePlotDisplayInfo:
                         label = "Data {}".format(data_index)
                     else:
                         label = "Unknown"
-                fill_color = display_layer.get("fill_color")
-                stroke_color = display_layer.get("stroke_color")
+                fill_color = display_layer.fill_color
+                stroke_color = display_layer.stroke_color
                 legend_entries.append(LineGraphCanvasItem.LegendEntry(label, fill_color, stroke_color))
             self.__legend_entries = legend_entries
         return self.__legend_entries
@@ -531,7 +532,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
     def __update_display_properties_and_layers(self, display_calibration_info: DisplayItem.DisplayCalibrationInfo,
                                                display_properties: Persistence.PersistentDictType,
-                                               display_layers: typing.Sequence[Persistence.PersistentDictType]) -> None:
+                                               display_layers: typing.Sequence[DisplayItem.DisplayLayer]) -> None:
         """Update the display values. Called from display panel.
 
         This method saves the display values and data and triggers an update. It should be as fast as possible.

@@ -1658,6 +1658,7 @@ class DisplayLayer(Schema.Entity):
         super().__init__(Model.DisplayLayer)
         self.persistent_storage: typing.Optional[Persistence.PersistentStorageInterface] = None
         self.display_data_channel = None
+        self.data_index = 0
         display_layer_properties = display_layer_properties or dict()
         for k, v in display_layer_properties.items():
             setattr(self, k, v)
@@ -1705,10 +1706,22 @@ def display_layer_factory(lookup_id: typing.Callable[[str], str]) -> DisplayLaye
     return DisplayLayer()
 
 
+def display_layer_equal(layer1: DisplayLayer, layer2: DisplayLayer) -> bool:
+    display_data_channel_uuid1 = layer1.display_data_channel.uuid if layer1.display_data_channel else None
+    display_data_channel_uuid2 = layer2.display_data_channel.uuid if layer2.display_data_channel else None
+    return (layer1.data_row == layer2.data_row and
+            layer1.label == layer2.label and
+            layer1.stroke_color == layer2.stroke_color and
+            layer1.fill_color == layer2.fill_color and
+            layer1.stroke_width == layer2.stroke_width and
+            layer1.data_index == layer2.data_index and
+            display_data_channel_uuid1 == display_data_channel_uuid2)
+
+
 @dataclasses.dataclass
 class DisplayItemSaveProperties:
     display_properties: Persistence.PersistentDictType
-    display_layers_list: typing.List[Persistence.PersistentDictType]
+    display_layers_list: typing.List[DisplayLayer]
     calibration_style_id: str
     intensity_calibration_style_id: str
 
@@ -1853,7 +1866,7 @@ class DisplayDataDelta:
     display_calibration_info: DisplayCalibrationInfo
     display_values_list: typing.List[typing.Optional[DisplayValues]]
     display_properties: Persistence.PersistentDictType
-    display_layers_list: typing.List[Persistence.PersistentDictType]
+    display_layers_list: typing.List[DisplayLayer]
     graphics_changed: bool = False
     graphic_selection_changed: bool = False
     display_calibration_info_changed: bool = False
@@ -1898,7 +1911,7 @@ class DisplayDataDeltaStream(Stream.ValueStream[DisplayDataDelta]):
         self.__graphics = list[Graphics.Graphic]()
         self.__graphic_selection = copy.copy(display_item.graphic_selection)
         self.__display_layers = list[DisplayLayer]()
-        self.__display_layers_list = list[Persistence.PersistentDictType]()
+        self.__display_layers_list = list[DisplayLayer]()
         self.__display_properties = copy.deepcopy(display_item.display_properties)
 
         self.__last_display_data_delta: typing.Optional[DisplayDataDelta] = None
@@ -1950,7 +1963,7 @@ class DisplayDataDeltaStream(Stream.ValueStream[DisplayDataDelta]):
                 display_data_delta.display_values_list_changed = True
             if display_data_delta.display_properties != self.__last_display_data_delta.display_properties:
                 display_data_delta.display_properties_changed = True
-            if display_data_delta.display_layers_list != self.__last_display_data_delta.display_layers_list:
+            if len(display_data_delta.display_layers_list) != len(self.__last_display_data_delta.display_layers_list) or any(not display_layer_equal(x, y) for x, y in zip(display_data_delta.display_layers_list, self.__last_display_data_delta.display_layers_list)):
                 display_data_delta.display_layers_list_changed = True
         else:
             display_data_delta.mark_changed()
@@ -1990,7 +2003,7 @@ class DisplayDataDeltaStream(Stream.ValueStream[DisplayDataDelta]):
         return self.__graphic_selection
 
     @property
-    def display_layers(self) -> typing.Sequence[Persistence.PersistentDictType]:
+    def display_layers(self) -> typing.Sequence[DisplayLayer]:
         return self.__display_layers_list
 
     @property
@@ -2669,32 +2682,26 @@ class DisplayItem(Persistence.PersistentObject):
         self.display_changed_event.fire()
 
     @property
-    def display_layers_list(self) -> typing.List[Persistence.PersistentDictType]:
-        properties = ["data_row", "fill_color", "stroke_color", "label", "stroke_width"]
-        l = list()
+    def display_layers_list(self) -> list[DisplayLayer]:
+        display_layer_list = list[DisplayLayer]()
         for display_layer in self.display_layers:
-            d = dict()
-            for property in properties:
-                value = getattr(display_layer, property, None)
-                if value is not None:
-                    d[property] = value
+            display_layer_c = copy.deepcopy(display_layer)
             # the check for display data channel still being in display data channels is a hack needed because the
             # removal of a display layer can cascade remove a display data channel and leave the display data channel
             # of the display layer dangling during the cascade. hack it here.
             if display_layer.display_data_channel and display_layer.display_data_channel in self.display_data_channels:
-                d["data_index"] = self.display_data_channels.index(display_layer.display_data_channel)
-            l.append(d)
-        return l
+                display_layer_c.data_index = self.display_data_channels.index(display_layer.display_data_channel)
+            display_layer_list.append(display_layer_c)
+        return display_layer_list
 
     @display_layers_list.setter
-    def display_layers_list(self, value: typing.List[Persistence.PersistentDictType]) -> None:
+    def display_layers_list(self, value: list[DisplayLayer]) -> None:
         assert len(value) == len(self.display_layers)
-        properties = ["data_row", "fill_color", "stroke_color", "label", "stroke_width"]
-        for index, (display_layer, display_layer_dict) in enumerate(zip(self.display_layers, value)):
+        properties = ["data_row", "data_index", "fill_color", "stroke_color", "label", "stroke_width"]
+        for index, (display_layer, new_display_layer) in enumerate(zip(self.display_layers, value)):
             for property in properties:
-                if not property in display_layer_dict:
-                    display_layer_dict[property] = None
-            self._set_display_layer_properties(index, **display_layer_dict)
+                property_value = getattr(new_display_layer, property)
+                self._set_display_layer_property(index, property, property_value)
 
     def get_display_layer_property(self, index: int, property_name: str, default_value: typing.Any = None) -> typing.Any:
         return getattr(self.display_layers[index], property_name, default_value)
