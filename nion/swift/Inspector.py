@@ -32,6 +32,7 @@ from nion.swift.model import DataStructure
 from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
+from nion.swift.model import Observer
 from nion.swift.model import Schema
 from nion.swift.model import Symbolic
 from nion.ui import CanvasItem
@@ -846,7 +847,7 @@ class LinePlotDisplayLayerHandler(Declarative.Handler):
         self.ui_view = u.create_column(
             u.create_row(
                 u.create_label(text=_("Layer:")),
-                u.create_line_edit(text="@binding(_line_plot_display_layer_model.label_model.value)"),
+                u.create_line_edit(text="@binding(_line_plot_display_layer_model.label_model.value)", placeholder_text="@binding(_line_plot_display_layer_model.placeholder_label_model.value)"),
                 u.create_spacing(12),
                 spacing=12
             ),
@@ -956,6 +957,14 @@ class LinePlotDisplayLayerModel(Observable.Observable):
         self.display_item = display_item
         self.display_layer = display_layer
         self.label_model = DisplayLayerPropertyCommandModel(document_controller, display_item, display_layer, "label")
+
+        # to follow changes to the title, we need to observe the display data channel for changes to the data item,
+        # and then observe the data item for changes to the title, and then update the placeholder label model when
+        # the title changes. to accomplish this, we create a chain of observers using the ObserverBuilder and then
+        # use the Observer.ItemValueModel as the model.
+        oo = Observer.ObserverBuilder()
+        oo.source(display_layer).prop("display_data_channel").prop("data_item").prop("title")
+        self.placeholder_label_model = Observer.ItemValueModel(oo.make_observable())
 
         index = display_item.display_layers.index(display_layer)
         display_data_channel = display_item.get_display_layer_display_data_channel(index)
