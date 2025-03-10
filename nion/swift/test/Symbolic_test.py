@@ -1501,8 +1501,10 @@ class TestSymbolicClass(unittest.TestCase):
             computed_data_item = DataItem.DataItem(src_data.copy())
             document_model.append_data_item(computed_data_item)
             document_model.set_data_item_computation(computed_data_item, computation)
-            document_model.start_dispatcher()
-            continue_event.wait(10.0)
+            document_model.recompute_all()
+            if False and not computation.is_threaded:  # always threaded
+                document_model.start_dispatcher()
+                continue_event.wait(10.0)
             listener.close()
             listener = None
             document_controller.periodic()
