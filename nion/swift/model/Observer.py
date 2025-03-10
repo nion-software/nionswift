@@ -1073,6 +1073,40 @@ class ItemMonitor(AbstractAction):
         self.__item_source = typing.cast(typing.Any, None)
 
 
+class ItemValueModel(Observable.Observable):
+    """A value model based on an item source.
+
+    This can be used directly with with Observer.ItemValueModel(oo.make_observable()) as a model.
+    """
+
+    def __init__(self, item_source: AbstractItemSource | None) -> None:
+        super().__init__()
+
+        # item_source must be valid. however, the type signature of this init specifies optional so that it can
+        # be directly used with make_observable() which returns None if the item source is not valid.
+        assert item_source
+
+        self.__item_source = item_source
+        self.__item = None
+
+        def item_changed(item: ItemValue) -> None:
+            if item != self.__item:
+                self.__item = item
+                self.property_changed_event.fire("value")
+
+        self.__item_changed_listener = item_source.item_changed_event.listen(item_changed)
+
+        item_changed(item_source.item)
+
+    @property
+    def value(self) -> ItemValue:
+        return self.__item
+
+    def close(self) -> None:
+        self.__item_source.close()
+        self.__item_source = typing.cast(typing.Any, None)
+
+
 class ObserverBuilder:
     """The observer builder base. Constructs an observable. Provides root item."""
 
