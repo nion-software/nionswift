@@ -472,8 +472,7 @@ def draw_rect_marker(ctx: DrawingContextLike, r: Geometry.FloatRect, fill_style:
     draw_marker(ctx, r.bottom_right, is_enabled, fill_style)
     draw_marker(ctx, r.bottom_left, is_enabled, fill_style)
 
-
-def draw_ellipse_graphic(ctx: DrawingContextLike, center: Geometry.FloatPoint, size: Geometry.FloatSize, rotation: float, is_selected: bool, is_focused: bool, stroke_style: typing.Optional[str], stroke_width:typing.Optional[float], fill_style: typing.Optional[str]) -> None:
+def draw_ellipse_graphic(ctx: DrawingContextLike, center: Geometry.FloatPoint, size: Geometry.FloatSize, rotation: float, is_selected: bool, is_focused: bool, stroke_style: typing.Optional[str], stroke_width: typing.Optional[float], fill_style: typing.Optional[str]) -> None:
     rect = Geometry.FloatRect.from_center_and_size(center, size)
     origin = rect.origin
     top_left = rect.top_left
@@ -491,7 +490,7 @@ def draw_ellipse_graphic(ctx: DrawingContextLike, center: Geometry.FloatPoint, s
         ctx.begin_path()
         ctx.move_to(center.x, rect.top + 10 + (.5 * int(stroke_width or 1)))
         ctx.line_to(center.x, rect.top + 2 + (.5 * int(stroke_width or 1)))
-        draw_arrow(ctx, Geometry.FloatPoint(y=rect.top + 10 + (.5 * int(stroke_width or 1)), x=center.x), Geometry.FloatPoint(y=rect.top + 2 + (.5 * int(stroke_width or 1)) , x=center.x), arrow_size=4)
+        draw_arrow(ctx, Geometry.FloatPoint(y=rect.top + 10 + (.5 * int(stroke_width or 1)), x=center.x), Geometry.FloatPoint(y=rect.top + 2 + (.5 * int(stroke_width or 1)), x=center.x), arrow_size=4)
         ctx.close_path()
         ctx.line_width = 1
         ctx.stroke_style = stroke_style
@@ -821,7 +820,7 @@ class Graphic(Persistence.PersistentObject):
         self.stroke_color = graphic_dict.get("stroke_width", self.stroke_width)
         self.fill_color = graphic_dict.get("fill_color", self.fill_color)
         self.label = graphic_dict.get("label", self.label)
-        self.is_stroke_enabled = graphic_dict.get("stroke_enabled",self.is_stroke_enabled)
+        self.is_stroke_enabled = graphic_dict.get("stroke_enabled", self.is_stroke_enabled)
         self.is_stroke_enabled = graphic_dict.get("stroke_enabled", self.is_fill_enabled)
         self.is_position_locked = graphic_dict.get("is_position_locked", self.is_position_locked)
         self.is_shape_locked = graphic_dict.get("is_shape_locked", self.is_shape_locked)
@@ -1301,7 +1300,7 @@ class EllipseGraphic(RectangleTypeGraphic):
         rotation = self.rotation
         stroke_style = self.used_stroke_style
         fill_style = self.used_fill_style
-        stroke_width= self.stroke_width or 1
+        stroke_width = self.stroke_width or 1
         bounds = Geometry.FloatRect.make(self.bounds)
         center = mapping.map_point_image_norm_to_widget(bounds.center)
         size = mapping.map_size_image_norm_to_widget(bounds.size)
