@@ -466,11 +466,11 @@ def draw_circular_marker(ctx: DrawingContextLike, p: Geometry.FloatPoint, is_ena
         draw_ellipse(ctx, p, size, '#444', '#ccc')
 
 
-def draw_rect_marker(ctx: DrawingContextLike, r: Geometry.FloatRect, fill_style: typing.Optional[str] = None) -> None:
-    draw_marker(ctx, r.top_left, is_enabled, fill_style)
-    draw_marker(ctx, r.top_right, is_enabled, fill_style)
-    draw_marker(ctx, r.bottom_right, is_enabled, fill_style)
-    draw_marker(ctx, r.bottom_left, is_enabled, fill_style)
+def draw_rect_marker(ctx: DrawingContextLike, r: Geometry.FloatRect, is_enabled: bool) -> None:
+    draw_marker(ctx, r.top_left, is_enabled)
+    draw_marker(ctx, r.top_right, is_enabled)
+    draw_marker(ctx, r.bottom_right, is_enabled)
+    draw_marker(ctx, r.bottom_left, is_enabled)
 
 def draw_ellipse_graphic(ctx: DrawingContextLike, center: Geometry.FloatPoint, size: Geometry.FloatSize, rotation: float, is_selected: bool, is_focused: bool, stroke_style: typing.Optional[str], stroke_width: typing.Optional[float], fill_style: typing.Optional[str]) -> None:
     rect = Geometry.FloatRect.from_center_and_size(center, size)
