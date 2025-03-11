@@ -254,7 +254,7 @@ class DataItem(Persistence.PersistentObject):
         self.__content_changed = False
         self.__display_data_channel_refs = set[weakref.ReferenceType["DisplayItem.DisplayDataChannel"]]()
         if data is not None:
-            data_and_metadata = DataAndMetadata.DataAndMetadata.from_data(data, timezone=self.timezone, timezone_offset=self.timezone_offset)
+            data_and_metadata = DataAndMetadata.new_data_and_metadata(data, timezone=self.timezone, timezone_offset=self.timezone_offset)
             self.increment_data_ref_count()
             try:
                 self.__set_data_and_metadata_direct(data_and_metadata)
@@ -627,10 +627,11 @@ class DataItem(Persistence.PersistentObject):
                     # doesn't trigger a write to disk or a change modification.
                     self._get_persistent_property("datum_dimension_count").set_value(datum_dimension_count)
                 data_descriptor = DataAndMetadata.DataDescriptor(is_sequence, collection_dimension_count, datum_dimension_count)
-                self.__data_metadata = DataAndMetadata.DataMetadata(data_shape_and_dtype,
-                                                                    intensity_calibration,
-                                                                    dimensional_calibrations, metadata,
-                                                                    timestamp,
+                self.__data_metadata = DataAndMetadata.DataMetadata(data_shape_and_dtype=data_shape_and_dtype,
+                                                                    intensity_calibration=intensity_calibration,
+                                                                    dimensional_calibrations=dimensional_calibrations,
+                                                                    metadata=metadata,
+                                                                    timestamp=timestamp,
                                                                     data_descriptor=data_descriptor,
                                                                     timezone=self.timezone,
                                                                     timezone_offset=self.timezone_offset)
@@ -951,15 +952,15 @@ class DataItem(Persistence.PersistentObject):
         try:
             if self.__data_metadata and self.__data is not None:
                 data_and_metadata = DataAndMetadata.DataAndMetadata(
-                    self.__data,
-                    self.__data_metadata.data_shape_and_dtype,
-                    self.__data_metadata.intensity_calibration,
-                    self.__data_metadata.dimensional_calibrations,
-                    self.__data_metadata.metadata,
-                    self.__data_metadata.timestamp,
-                    self.__data_metadata.data_descriptor,
-                    self.__data_metadata.timezone,
-                    self.__data_metadata.timezone_offset
+                    data=self.__data,
+                    data_shape_and_dtype=self.__data_metadata.data_shape_and_dtype,
+                    intensity_calibration=self.__data_metadata.intensity_calibration,
+                    dimensional_calibrations=self.__data_metadata.dimensional_calibrations,
+                    metadata=self.__data_metadata.metadata,
+                    timestamp=self.__data_metadata.timestamp,
+                    data_descriptor=self.__data_metadata.data_descriptor,
+                    timezone=self.__data_metadata.timezone,
+                    timezone_offset=self.__data_metadata.timezone_offset
                 )
 
                 DataItem._data_count += 1
@@ -1075,7 +1076,7 @@ class DataItem(Persistence.PersistentObject):
                         dimensional_calibrations.pop(-1)
                     metadata = data_and_metadata.metadata
                     data_descriptor = data_and_metadata.data_descriptor
-                self.set_data_and_metadata(DataAndMetadata.DataAndMetadata.from_data(data, intensity_calibration, dimensional_calibrations, metadata, timestamp, data_descriptor), data_modified)
+                self.set_data_and_metadata(DataAndMetadata.new_data_and_metadata(data, intensity_calibration=intensity_calibration, dimensional_calibrations=dimensional_calibrations, metadata=metadata, timestamp=timestamp, data_descriptor=data_descriptor), data_modified)
             else:
                 self.set_data_and_metadata(None)
 
@@ -1258,7 +1259,7 @@ class DataItem(Persistence.PersistentObject):
                 data_descriptor = data_and_metadata.data_descriptor
                 timezone = data_and_metadata.timezone or Utility.get_local_timezone()
                 timezone_offset = data_and_metadata.timezone_offset or Utility.TimezoneMinutesToStringConverter().convert(Utility.local_utcoffset_minutes())
-                new_data_and_metadata = DataAndMetadata.DataAndMetadata(data, data_shape_and_dtype, intensity_calibration, dimensional_calibrations, metadata, timestamp, data_descriptor, timezone, timezone_offset)
+                new_data_and_metadata = DataAndMetadata.DataAndMetadata(data=data, data_shape_and_dtype=data_shape_and_dtype, intensity_calibration=intensity_calibration, dimensional_calibrations=dimensional_calibrations, metadata=metadata, timestamp=timestamp, data_descriptor=data_descriptor, timezone=timezone, timezone_offset=timezone_offset)
             else:
                 new_data_and_metadata = None
             self.__set_data_and_metadata_direct(new_data_and_metadata, data_modified)
@@ -1306,11 +1307,14 @@ class DataItem(Persistence.PersistentObject):
                     timezone = data_metadata.timezone or Utility.get_local_timezone()
                     timezone_offset = data_metadata.timezone_offset or Utility.TimezoneMinutesToStringConverter().convert(
                         Utility.local_utcoffset_minutes())
-                    new_data_and_metadata = DataAndMetadata.DataAndMetadata(data, data_shape_and_dtype,
-                                                                            intensity_calibration,
-                                                                            dimensional_calibrations, metadata,
-                                                                            timestamp, data_descriptor, timezone,
-                                                                            timezone_offset)
+                    new_data_and_metadata = DataAndMetadata.DataAndMetadata(data=data,
+                                                                            data_shape_and_dtype=data_shape_and_dtype,
+                                                                            intensity_calibration=intensity_calibration,
+                                                                            dimensional_calibrations=dimensional_calibrations,
+                                                                            metadata=metadata, timestamp=timestamp,
+                                                                            data_descriptor=data_descriptor,
+                                                                            timezone=timezone,
+                                                                            timezone_offset=timezone_offset)
                     self.__set_data_and_metadata_direct(new_data_and_metadata, data_modified)
                 if self.__data is not None:
                     date_modified = data_metadata.timestamp if self.__data_and_metadata_first_update_after_reserve else self.__data_metadata.timestamp if self.__data_metadata else None

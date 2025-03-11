@@ -1622,16 +1622,15 @@ class TestDataItemClass(unittest.TestCase):
             document_model = test_context.create_document_model()
             data_item = DataItem.DataItem()
             document_model.append_data_item(data_item)
-            data_shape_and_dtype = (4, 4), float
             intensity_calibration = Calibration.Calibration()
             dimensional_calibrations = [Calibration.Calibration(), Calibration.Calibration()]
             data_descriptor = DataAndMetadata.DataDescriptor(False, 0, 2)
-            data_metadata = DataAndMetadata.DataMetadata(data_shape_and_dtype,
-                                                         intensity_calibration,
-                                                         dimensional_calibrations,
+            data_metadata = DataAndMetadata.DataMetadata(data_shape=(4, 4), data_dtype=float,
+                                                         intensity_calibration=intensity_calibration,
+                                                         dimensional_calibrations=dimensional_calibrations,
                                                          data_descriptor=data_descriptor,
                                                          timestamp=datetime.datetime(2000, 1, 1))
-            data_and_metadata = DataAndMetadata.new_data_and_metadata(numpy.ones((2, 4), data_shape_and_dtype[1]))
+            data_and_metadata = DataAndMetadata.new_data_and_metadata(numpy.ones((2, 4), float))
             data_item.reserve_data(data_shape=(4, 4), data_dtype=float, data_descriptor=DataAndMetadata.DataDescriptor(False, 0, 2))
             document_model.update_data_item_partial(data_item, data_metadata, data_and_metadata, [slice(0, 2), slice(None)], [slice(0, 2), slice(None)])
             document_model.perform_data_item_updates()

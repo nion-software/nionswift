@@ -1206,7 +1206,7 @@ class DataSource:
             mask = numpy.logical_or(mask, mask_item.get_mask_data(shape, calibrated_origin))
         if mask is None:
             mask = numpy.ones(shape)
-        return DataAndMetadata.DataAndMetadata.from_data(mask)
+        return DataAndMetadata.new_data_and_metadata(data=mask)
 
 
 class BoundDataEventType(enum.Enum):

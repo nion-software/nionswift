@@ -779,7 +779,7 @@ class Graphic(metaclass=SharedInstance):
         Scriptable: Yes
         """
         mask = self._graphic.get_mask(shape)
-        return DataAndMetadata.DataAndMetadata.from_data(mask)
+        return DataAndMetadata.new_data_and_metadata(data=mask)
 
     # position, start, end, vector, center, size, bounds, angle
 
@@ -1345,7 +1345,7 @@ class DataItem(metaclass=SharedInstance):
                 calibrated_origin = Geometry.FloatPoint(y=self.__display_item.datum_calibrations[0].convert_from_calibrated_value(0.0),
                                                         x=self.__display_item.datum_calibrations[1].convert_from_calibrated_value(0.0))
                 mask = Graphics.create_mask_data(self.__display_item.graphics, shape, calibrated_origin)
-                return DataAndMetadata.DataAndMetadata.from_data(mask)
+                return DataAndMetadata.new_data_and_metadata(data=mask)
         return None
 
     def data_item_to_svg(self) -> str:
@@ -2470,7 +2470,7 @@ class Library(metaclass=SharedInstance):
 
         Scriptable: Yes
         """
-        return self.create_data_item_from_data_and_metadata(DataAndMetadata.DataAndMetadata.from_data(data), title)
+        return self.create_data_item_from_data_and_metadata(DataAndMetadata.new_data_and_metadata(data=data), title)
 
     def create_data_item_from_data_and_metadata(self, data_and_metadata: DataAndMetadata.DataAndMetadata, title: typing.Optional[str] = None) -> DataItem:
         """Create a data item in the library from a data and metadata object.
