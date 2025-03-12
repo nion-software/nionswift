@@ -4,6 +4,12 @@
     "notes": [
       {
         "issues": [
+          "https://github.com/nion-software/nionswift/issues/1363"
+        ],
+        "summary": "Fix issue with metadata panel not showing data. Also add note when target data item has no metadata."
+      },
+      {
+        "issues": [
           "https://github.com/nion-software/nionswift/issues/217"
         ],
         "summary": "Composite line plots use source data item names unless label explicitly set in line plot."

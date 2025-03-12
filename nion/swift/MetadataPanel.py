@@ -90,6 +90,10 @@ class MetadataModel:
                 self.__property_changed_event_listener = data_item.property_changed_event.listen(property_changed)
             self.__metadata_changed(data_item)
 
+    @property
+    def data_item(self) -> DataItem.DataItem | None:
+        return self.__data_item
+
 
 class MetadataSource(typing.Protocol):
     @property
@@ -101,6 +105,10 @@ class MetadataEditorTreeDelegate(TreeCanvasItem.TreeCanvasItemDelegate):
     def __init__(self) -> None:
         self.metadata_source: typing.Optional[MetadataSource] = None
         self.__expanded_value_paths: typing.Set[str] = set()
+
+    @property
+    def has_items(self) -> bool:
+        return self.metadata_source is not None and bool(self.metadata_source.metadata)
 
     def __is_expanded(self, value_path: TreeCanvasItem._ValuePath) -> bool:
         return json.dumps(value_path) in self.__expanded_value_paths
@@ -161,7 +169,7 @@ class MetadataEditorTreeDelegate(TreeCanvasItem.TreeCanvasItemDelegate):
 class ThreadedCanvasItem(CanvasItem.CanvasItemComposition):
     _executor = concurrent.futures.ThreadPoolExecutor()
 
-    def __init__(self, get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics], delegate: TreeCanvasItem.TreeCanvasItemDelegate, content_size_changed_fn: typing.Optional[typing.Callable[[Geometry.IntSize], None]] = None) -> None:
+    def __init__(self, get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics], delegate: MetadataEditorTreeDelegate, content_size_changed_fn: typing.Optional[typing.Callable[[Geometry.IntSize], None]] = None) -> None:
         super().__init__()
         self.__get_font_metrics_fn = get_font_metrics_fn
         self.__delegate = delegate
@@ -216,11 +224,29 @@ class ThreadedCanvasItem(CanvasItem.CanvasItemComposition):
             metadata_editor_canvas_item.size_to_content()
             metadata_editor_canvas_item_size = metadata_editor_canvas_item.sizing.get_preferred_size()
 
+            no_metadata_label = CanvasItem.StaticTextCanvasItem(text=_("No metadata available"))
+            no_metadata_label.font = "italic 12px"
+            no_metadata_label.size_to_content(self.__get_font_metrics_fn)
+            no_metadata_row = CanvasItem.CanvasItemComposition()
+            no_metadata_row.layout = CanvasItem.CanvasItemRowLayout()
+            no_metadata_row.add_canvas_item(no_metadata_label)
+            no_metadata_row.add_stretch()
+            no_metadata = CanvasItem.CanvasItemComposition()
+            no_metadata.layout = CanvasItem.CanvasItemColumnLayout()
+            no_metadata.add_canvas_item(no_metadata_row)
+            no_metadata.add_stretch()
+
+            metadata_or_none = CanvasItem.CanvasItemComposition()
+            if self.__delegate.has_items:
+                metadata_or_none.add_canvas_item(metadata_editor_canvas_item)
+            else:
+                metadata_or_none.add_canvas_item(no_metadata)
+
             # modifying the composition is safe until it is added to this composition.
             canvas_item_composition = CanvasItem.CanvasItemComposition()
             canvas_item_composition.wants_mouse_events = True
             canvas_item_composition.layout = CanvasItem.CanvasItemColumnLayout()
-            canvas_item_composition.add_canvas_item(metadata_editor_canvas_item)
+            canvas_item_composition.add_canvas_item(metadata_or_none)
             canvas_item_composition.add_stretch()
             self.__metadata_editor_canvas_item = metadata_editor_canvas_item
 
@@ -291,7 +317,7 @@ class MetadataPanel(Panel.Panel):
         self.__metadata_model = MetadataModel(document_controller)
         self.__thread_helper = ThreadHelper(document_controller.event_loop)
 
-        delegate = MetadataEditorTreeDelegate()
+        self.__delegate = MetadataEditorTreeDelegate()
 
         def content_size_changed(content_size: Geometry.IntSize) -> None:
             def _content_height_changed() -> None:
@@ -306,7 +332,7 @@ class MetadataPanel(Panel.Panel):
                 metadata_editor_canvas_item._set_canvas_size(content_size)
             self.__thread_helper.call_on_main_thread("_content_height_changed", _content_height_changed)
 
-        metadata_editor_canvas_item = ThreadedCanvasItem(ui.get_font_metrics, delegate, content_size_changed)
+        metadata_editor_canvas_item = ThreadedCanvasItem(ui.get_font_metrics, self.__delegate, content_size_changed)
 
         self.__metadata_editor_canvas_item = metadata_editor_canvas_item
 
@@ -328,16 +354,9 @@ class MetadataPanel(Panel.Panel):
         column.add(metadata_editor_widget)
         column.add_spacing(0)
 
-        def metadata_source_changed(metadata_source: MetadataSource) -> None:
-            delegate.metadata_source = metadata_source
+        self.__metadata_changed_event_listener = self.__metadata_model.metadata_changed_event.listen(self.__metadata_source_changed)
 
-            def reconstruct_metadata() -> None:
-                if self.__metadata_editor_canvas_item:  # use this instead of local variable to handle close properly
-                    self.__metadata_editor_canvas_item._trigger()
-
-            self.document_controller.queue_task(reconstruct_metadata)
-
-        self.__metadata_changed_event_listener = self.__metadata_model.metadata_changed_event.listen(metadata_source_changed)
+        self.__metadata_source_changed(self.__metadata_model.data_item)
 
         self.widget = column
 
@@ -349,7 +368,27 @@ class MetadataPanel(Panel.Panel):
         self.__metadata_changed_event_listener = typing.cast(typing.Any, None)
         self.__metadata_model.close()
         self.__metadata_model = typing.cast(typing.Any, None)
+        self.__delegate = typing.cast(typing.Any, None)
         super().close()
+
+    def create_dock_widget(self, title: str, positions: typing.Sequence[str], position: str) -> None:
+        super().create_dock_widget(title, positions, position)
+
+        def handle_will_show() -> None:
+            # this is called when the dock widget is shown. we need to trigger the metadata editor to
+            # reconstruct its contents.
+            self.__metadata_source_changed(self.__metadata_model.data_item)
+
+        self.dock_widget.on_will_show = handle_will_show
+
+    def __metadata_source_changed(self, metadata_source: MetadataSource | None) -> None:
+        self.__delegate.metadata_source = metadata_source
+
+        def reconstruct_metadata() -> None:
+            if self.__metadata_editor_canvas_item:  # use this instead of local variable to handle close properly
+                self.__metadata_editor_canvas_item._trigger()
+
+        self.document_controller.queue_task(reconstruct_metadata)
 
     @property
     def _metadata_editor_canvas_item_for_testing(self) -> TreeCanvasItem.TreeCanvasItem:
