@@ -324,7 +324,9 @@ class MetadataPanel(Panel.Panel):
         metadata_editor_widget.canvas_item.add_canvas_item(scroll_group_canvas_item)
 
         column = self.ui.create_column_widget(properties={"size-policy-horizontal": "expanding", "size-policy-vertical": "expanding"})
+        column.add_spacing(0)  # work around unexplained Qt layout issue where widget did not appear at top of column on macOS
         column.add(metadata_editor_widget)
+        column.add_spacing(0)
 
         def metadata_source_changed(metadata_source: MetadataSource) -> None:
             delegate.metadata_source = metadata_source

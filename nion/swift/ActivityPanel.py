@@ -142,7 +142,11 @@ class ActivityPanel(Panel.Panel):
     def __init__(self, document_controller: DocumentController.DocumentController, panel_id: str, properties: typing.Mapping[str, typing.Any]) -> None:
         super().__init__(document_controller, panel_id, _("Activity"))
         activity_controller = ActivityController(document_controller)
-        self.widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop, activity_controller)
+        column = self.ui.create_column_widget()
+        column.add_spacing(0)  # work around unexplained Qt layout issue where widget did not appear at top of column on macOS
+        column.add(Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop, activity_controller))
+        column.add_spacing(0)
+        self.widget = column
 
 """
         async def later() -> None:
