@@ -2867,6 +2867,27 @@ class Computation(Persistence.PersistentObject):
                     return computation_record.to_dict()
         return None
 
+    def get_source_metadata(self) -> typing.Optional[Persistence.PersistentDictType]:
+        # return the metadata of the first source data item, if it exists
+        # the intention of the source metadata is to have a copy of any metadata that helps describe the origin
+        # of the data, typically an acquisition.
+        for variable in self.variables:
+            variable_bound_item = variable.bound_item
+            base_items = variable_bound_item.base_items if variable_bound_item else list()
+            if base_items and isinstance(base_items[0], DataItem.DataItem):
+                data_item = base_items[0]
+                metadata = data_item.metadata
+                if "source_metadata" in metadata:
+                    metadata = metadata["source_metadata"]
+                copy_keys = ("hardware_source", "instrument", "scan")
+                data_item_d = dict[str, typing.Any]()
+                for key in copy_keys:
+                    if key in metadata:
+                        data_item_d[key] = metadata[key]
+                return data_item_d
+        return None
+
+
 class ComputationExecutor:
 
     def __init__(self, computation: Computation) -> None:
@@ -3017,6 +3038,8 @@ class ScriptExpressionComputationExecutor(ComputationExecutor):
                     metadata = dict(target_xdata.metadata)
                     if (computation_d := computation.get_computation_metadata("target")):
                         metadata["computation"] = computation_d
+                    if source_metadata_d := computation.get_source_metadata():
+                        metadata["source_metadata"] = source_metadata_d
                     target_xdata._set_metadata(metadata)
                 self.__data_item.set_xdata(target_xdata)
         if self.__data_item_created:

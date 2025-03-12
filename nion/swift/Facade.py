@@ -2335,6 +2335,8 @@ class Computation(metaclass=SharedInstance):
         metadata = dict(xdata.metadata)
         if computation_d := self.__computation.get_computation_metadata(name):
             metadata["computation"] = computation_d
+        if source_metadata_d := self.__computation.get_source_metadata():
+            metadata["source_metadata"] = source_metadata_d
         xdata._set_metadata(metadata)
         data_item.xdata = xdata
 
