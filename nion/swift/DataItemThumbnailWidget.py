@@ -289,18 +289,19 @@ class ThumbnailCanvasItem(CanvasItem.CanvasItemComposition):
         return self.__thumbnail_source
 
     def set_thumbnail_source(self, thumbnail_source: AbstractThumbnailSource) -> None:
-        # reconfigure with the new thumbnail source.
-        self.__thumbnail_source.close()
-        self.__thumbnail_source = thumbnail_source
-        if self.__thumbnail_size is not None:
+        with self.batch_update():
+            # reconfigure with the new thumbnail source.
+            self.__thumbnail_source.close()
+            self.__thumbnail_source = thumbnail_source
+            if self.__thumbnail_size is not None:
+                for overlay_canvas_item in thumbnail_source.overlay_canvas_items:
+                    overlay_canvas_item.update_sizing(overlay_canvas_item.sizing.with_fixed_size(self.__thumbnail_size))
+            while self.__bitmap_overlay_canvas_item.canvas_items_count > 1:
+                self.__bitmap_overlay_canvas_item.remove_canvas_item(self.__bitmap_overlay_canvas_item.canvas_items[0])
             for overlay_canvas_item in thumbnail_source.overlay_canvas_items:
-                overlay_canvas_item.update_sizing(overlay_canvas_item.sizing.with_fixed_size(self.__thumbnail_size))
-        while self.__bitmap_overlay_canvas_item.canvas_items_count > 1:
-            self.__bitmap_overlay_canvas_item.remove_canvas_item(self.__bitmap_overlay_canvas_item.canvas_items[0])
-        for overlay_canvas_item in thumbnail_source.overlay_canvas_items:
-            self.__bitmap_overlay_canvas_item.insert_canvas_item(self.__bitmap_overlay_canvas_item.canvas_items_count - 1, overlay_canvas_item)
-        self.__thumbnail_source.on_thumbnail_data_changed = ReferenceCounting.weak_partial(ThumbnailCanvasItem.__thumbnail_data_changed, self)
-        self.__thumbnail_data_changed(self.__thumbnail_source.thumbnail_data)
+                self.__bitmap_overlay_canvas_item.insert_canvas_item(self.__bitmap_overlay_canvas_item.canvas_items_count - 1, overlay_canvas_item)
+            self.__thumbnail_source.on_thumbnail_data_changed = ReferenceCounting.weak_partial(ThumbnailCanvasItem.__thumbnail_data_changed, self)
+            self.__thumbnail_data_changed(self.__thumbnail_source.thumbnail_data)
 
     def close(self) -> None:
         self.__thumbnail_source.close()
