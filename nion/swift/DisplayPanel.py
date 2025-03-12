@@ -887,9 +887,39 @@ class IndexValueSliderCanvasItem(CanvasItem.CanvasItemComposition):
 
 _RelatedItemsTuple = typing.Tuple[typing.List[DisplayItem.DisplayItem], typing.List[DisplayItem.DisplayItem]]
 
+
+def is_related_items_equal(a: typing.Any, b: typing.Any) -> bool:
+    if a is None and b is None:
+        return True
+    if a is None or b is None:
+        return False
+    if isinstance(a, list) and isinstance(b, list):
+        if len(a) != len(b):
+            return False
+        for i in range(len(a)):
+            if a[i] != b[i]:
+                return False
+        return True
+    return False
+
+
+def is_related_items_tuple_equal(a: typing.Any, b: typing.Any) -> bool:
+    if a is None and b is None:
+        return True
+    if a is None or b is None:
+        return False
+    if isinstance(a, tuple) and isinstance(b, tuple) and len(a) == 2 and len(b) == 2:
+        if not is_related_items_equal(a[0], b[0]):
+            return False
+        if not is_related_items_equal(a[1], b[1]):
+            return False
+        return True
+    return False
+
+
 class RelatedItemsValueStream(Stream.ValueStream[_RelatedItemsTuple]):
     def __init__(self, document_model: DocumentModel.DocumentModel, display_item_value_stream: Stream.ValueStream[DisplayItem.DisplayItem]) -> None:
-        super().__init__()
+        super().__init__(cmp=is_related_items_tuple_equal)
         self.__document_model = document_model
         self.__display_item_stream = display_item_value_stream.add_ref()
         self.__stream_listener = self.__display_item_stream.value_stream.listen(self.__update_display_item)
@@ -937,13 +967,12 @@ class RelatedIconsCanvasItem(CanvasItem.CanvasItemComposition):
         self.__source_thumbnails.layout = CanvasItem.CanvasItemRowLayout(spacing=8)
         self.__dependent_thumbnails = CanvasItem.CanvasItemComposition()
         self.__dependent_thumbnails.layout = CanvasItem.CanvasItemRowLayout(spacing=8)
-        self.__source_display_items = list[DisplayItem.DisplayItem]()
-        self.__dependent_display_items = list[DisplayItem.DisplayItem]()
         self.add_spacing(12)
         self.add_canvas_item(self.__source_thumbnails)
         self.add_stretch()
         self.add_canvas_item(self.__dependent_thumbnails)
         self.add_spacing(12)
+        self.__display_item_value_stream = display_item_value_stream
         related_items_value_stream = RelatedItemsValueStream(document_model, display_item_value_stream)
         self.__related_items_stream_action = Stream.ValueStreamAction[_RelatedItemsTuple](related_items_value_stream, self.__related_items_changed)
         self.__related_items_changed(related_items_value_stream.value)
@@ -951,8 +980,6 @@ class RelatedIconsCanvasItem(CanvasItem.CanvasItemComposition):
     def close(self) -> None:
         self.__related_items_stream_action.close()
         self.__related_items_stream_action = typing.cast(typing.Any, None)
-        self.__source_display_items.clear()
-        self.__dependent_display_items.clear()
         super().close()
 
     @property
@@ -964,53 +991,22 @@ class RelatedIconsCanvasItem(CanvasItem.CanvasItemComposition):
         return self.__dependent_thumbnails
 
     def __related_items_changed(self, items: typing.Optional[_RelatedItemsTuple]) -> None:
-        assert items is not None
-        source_display_items, dependent_display_items = items
-
-        # try to reuse thumbnail canvas items if possible. the algorithm runs through the max of source display items
-        # and canvas items. for iteration, if both source and canvas item exist, update it if it is changed. if only
-        # the source item exists, create a new canvas item and add it to the canvas. if only the canvas item exists,
-        # remove it from the canvas. this is repeated for the dependent display items. the canvas items for the list
-        # of canvas items are stored in the source_display_items and dependent_display_items lists respectively, to
-        # allow for quick comparison and updating.
-
-        for index in range(max(len(source_display_items), self.__source_thumbnails.canvas_items_count)):
-            source_display_item = source_display_items[index] if index < len(source_display_items) else None
-            thumbnail_canvas_item = typing.cast(DataItemThumbnailWidget.ThumbnailCanvasItem, self.__source_thumbnails.canvas_items[index]) if index < self.__source_thumbnails.canvas_items_count else None
-            if source_display_item and thumbnail_canvas_item:
-                thumbnail_canvas_item = typing.cast(DataItemThumbnailWidget.ThumbnailCanvasItem, self.__source_thumbnails.canvas_items[index])
-                if self.__source_display_items[index] != source_display_item:
-                    thumbnail_canvas_item.set_thumbnail_source(DataItemThumbnailWidget.DataItemThumbnailSource(self.ui, display_item=source_display_item))
-                    self.__source_display_items[index] = source_display_item
-            elif not source_display_item and thumbnail_canvas_item:
-                self.__source_thumbnails.remove_canvas_item(self.__source_thumbnails.canvas_items[-1])
-                self.__source_display_items.pop(-1)
-            elif source_display_item and not thumbnail_canvas_item:
-                thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(self.ui, display_item=source_display_items[index])
+        with self.batch_update():
+            assert items is not None
+            source_display_items, dependent_display_items = items
+            self.__source_thumbnails.remove_all_canvas_items()
+            self.__dependent_thumbnails.remove_all_canvas_items()
+            for source_display_item in source_display_items:
+                thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(self.ui, display_item=source_display_item)
                 thumbnail_canvas_item = DataItemThumbnailWidget.ThumbnailCanvasItem(self.ui, thumbnail_source, self.__thumbnail_size)
                 thumbnail_canvas_item.update_sizing(thumbnail_canvas_item.sizing.with_fixed_height(self.__thumbnail_size.height))
                 thumbnail_canvas_item.on_drag = self.__drag_fn
                 self.__source_thumbnails.add_canvas_item(thumbnail_canvas_item)
-                self.__source_display_items.append(source_display_item)
-
-        for index in range(max(len(dependent_display_items), self.__dependent_thumbnails.canvas_items_count)):
-            dependent_display_item = dependent_display_items[index] if index < len(dependent_display_items) else None
-            thumbnail_canvas_item = typing.cast(DataItemThumbnailWidget.ThumbnailCanvasItem, self.__dependent_thumbnails.canvas_items[index]) if index < self.__dependent_thumbnails.canvas_items_count else None
-            if dependent_display_item and thumbnail_canvas_item:
-                thumbnail_canvas_item = typing.cast(DataItemThumbnailWidget.ThumbnailCanvasItem, self.__dependent_thumbnails.canvas_items[index])
-                if self.__dependent_display_items[index] != dependent_display_item:
-                    thumbnail_canvas_item.set_thumbnail_source(DataItemThumbnailWidget.DataItemThumbnailSource(self.ui, display_item=dependent_display_item))
-                    self.__dependent_display_items[index] = dependent_display_item
-            elif not dependent_display_item and thumbnail_canvas_item:
-                self.__dependent_thumbnails.remove_canvas_item(self.__dependent_thumbnails.canvas_items[-1])
-                self.__dependent_display_items.pop(-1)
-            elif dependent_display_item and not thumbnail_canvas_item:
-                thumbnail_dependent = DataItemThumbnailWidget.DataItemThumbnailSource(self.ui, display_item=dependent_display_items[index])
-                thumbnail_canvas_item = DataItemThumbnailWidget.ThumbnailCanvasItem(self.ui, thumbnail_dependent, self.__thumbnail_size)
-                thumbnail_canvas_item.update_sizing(thumbnail_canvas_item.sizing.with_fixed_height(self.__thumbnail_size.height))
+            for dependent_display_item in dependent_display_items:
+                thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(self.ui, display_item=dependent_display_item)
+                thumbnail_canvas_item = DataItemThumbnailWidget.ThumbnailCanvasItem(self.ui, thumbnail_source, self.__thumbnail_size)
                 thumbnail_canvas_item.on_drag = self.__drag_fn
                 self.__dependent_thumbnails.add_canvas_item(thumbnail_canvas_item)
-                self.__dependent_display_items.append(dependent_display_item)
 
 
 class MissingCanvasItemComposer(CanvasItem.BaseComposer):
