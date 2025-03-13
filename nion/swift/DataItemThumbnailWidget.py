@@ -22,6 +22,7 @@ from nion.utils import Process
 from nion.utils import ReferenceCounting
 
 if typing.TYPE_CHECKING:
+    from nion.swift import DocumentController
     from nion.swift.model import Persistence
     from nion.ui import DrawingContext
     from nion.ui import Window
@@ -420,6 +421,7 @@ class DataItemThumbnailSource(AbstractThumbnailSource):
         self.__display_item_binding: typing.Optional[Binding.Binding] = None
         self.__thumbnail_source: typing.Optional[Thumbnails.ThumbnailSource] = None
         self.__thumbnail_updated_event_listener: typing.Optional[Event.EventListener] = None
+        self.__display_item_changed_event: Event.EventListener | None = None
 
         self.is_live_overlay_canvas_item = IsLiveOverlayCanvasItem()
 
@@ -446,10 +448,8 @@ class DataItemThumbnailSource(AbstractThumbnailSource):
     def __update_thumbnail(self) -> None:
         if self.__display_item:
             self._set_thumbnail_data(Thumbnails.ThumbnailManager().thumbnail_data_for_display_item(self.__display_item))
-            self.is_live_overlay_canvas_item.active = self.__display_item.is_live
         else:
             self._set_thumbnail_data(None)
-            self.is_live_overlay_canvas_item.active = False
         if callable(self.on_thumbnail_data_changed):
             self.on_thumbnail_data_changed(self.thumbnail_data)
 
@@ -460,9 +460,19 @@ class DataItemThumbnailSource(AbstractThumbnailSource):
             if display_item:
                 self.__thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.ui, display_item)
                 self.__thumbnail_updated_event_listener = self.__thumbnail_source.thumbnail_updated_event.listen(self.__update_thumbnail)
+                self.__display_item_changed_event = display_item.item_changed_event.listen(self.__handle_display_item_changed_event)
+            else:
+                self.__display_item_changed_event = None
             self.__update_thumbnail()
+            self.__handle_display_item_changed_event()
             if self.__display_item_binding:
                 self.__display_item_binding.update_source(display_item)
+
+    def __handle_display_item_changed_event(self) -> None:
+        if self.__display_item:
+            self.is_live_overlay_canvas_item.active = self.__display_item.is_live
+        else:
+            self.is_live_overlay_canvas_item.active = False
 
     def populate_mime_data_for_drag(self, mime_data: UserInterface.MimeData, size: Geometry.IntSize) -> typing.Tuple[bool, typing.Optional[_NDArray]]:
         if self.__display_item:
@@ -509,18 +519,23 @@ class DataItemReferenceThumbnailSource(DataItemThumbnailSource):
 
     Useful, for instance, for displaying a live update thumbnail that can be dragged to other locations."""
 
-    def __init__(self, ui: UserInterface.UserInterface, document_model: DocumentModel.DocumentModel, data_item_reference: DocumentModel.DocumentModel.DataItemReference) -> None:
+    def __init__(self, document_controller: DocumentController.DocumentController, data_item_reference: DocumentModel.DocumentModel.DataItemReference) -> None:
         data_item = data_item_reference.data_item
+        document_model = document_controller.document_model
         display_item = document_model.get_display_item_for_data_item(data_item) if data_item else None
-        super().__init__(ui, display_item=display_item)
+        super().__init__(document_controller.ui, display_item=display_item)
 
-        def data_item_changed() -> None:
+        async def async_data_item_changed() -> None:
             data_item = data_item_reference.data_item
             display_item = document_model.get_display_item_for_data_item(data_item) if data_item else None
             self.set_display_item(display_item)
 
-        self.__data_item_reference_changed_event_listener = data_item_reference.data_item_reference_changed_event.listen(
-            data_item_changed)
+        def data_item_changed() -> None:
+            # this is a messy hack. the display item may not be available at the time this method is called; so delay
+            # the call to set_display_item until the next event loop iteration.
+            document_controller.event_loop.create_task(async_data_item_changed())
+
+        self.__data_item_reference_changed_event_listener = data_item_reference.data_item_reference_changed_event.listen(data_item_changed)
 
     def close(self) -> None:
         self.__data_item_reference_changed_event_listener.close()

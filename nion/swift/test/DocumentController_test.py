@@ -11,6 +11,7 @@ import numpy
 
 # local libraries
 from nion.swift import Application
+from nion.swift import DataItemThumbnailWidget
 from nion.swift import DocumentController
 from nion.swift import DisplayPanel
 from nion.swift import Facade
@@ -1220,6 +1221,17 @@ class TestDocumentControllerClass(unittest.TestCase):
             document_controller.add_display_data_channel_to_or_create_composite(display_item1, display_item2, display_panel)
             display_item = document_model.display_items[-1]
             self.assertEqual("Multiple Data Items", display_item.displayed_title)
+
+    def test_thumbnail_widget_when_data_item_has_no_associated_display_item(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item_reference = document_model.get_data_item_reference(document_model.make_data_item_reference_key("abc"))
+            with contextlib.closing(DataItemThumbnailWidget.DataItemReferenceThumbnailSource(document_controller, data_item_reference)):
+                data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+                document_model.append_data_item(data_item)
+                data_item_reference.data_item = data_item
+                document_controller.periodic()
 
 
 if __name__ == '__main__':

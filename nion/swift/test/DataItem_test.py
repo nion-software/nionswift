@@ -20,7 +20,6 @@ from nion.data import Calibration
 from nion.data import DataAndMetadata
 from nion.data import Image
 from nion.swift import Application
-from nion.swift import DataItemThumbnailWidget
 from nion.swift import Facade
 from nion.swift import Thumbnails
 from nion.swift.model import DataItem
@@ -394,15 +393,6 @@ class TestDataItemClass(unittest.TestCase):
             document_model.recompute_all()
             self.assertTrue(thumbnail_source._is_thumbnail_dirty)
             thumbnail_source = None
-
-    def test_thumbnail_widget_when_data_item_has_no_associated_display_item(self):
-        with TestContext.create_memory_context() as test_context:
-            document_model = test_context.create_document_model()
-            data_item_reference = document_model.get_data_item_reference(document_model.make_data_item_reference_key("abc"))
-            with contextlib.closing(DataItemThumbnailWidget.DataItemReferenceThumbnailSource(self.app.ui, document_model, data_item_reference)):
-                data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-                document_model.append_data_item(data_item)
-                data_item_reference.data_item = data_item
 
     def test_delete_nested_data_item(self):
         with TestContext.create_memory_context() as test_context:
