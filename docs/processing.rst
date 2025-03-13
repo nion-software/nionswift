@@ -70,15 +70,19 @@ A line profile can be created by using the line profile tool in the tool panel, 
 
 A line profile can be edited by dragging the resulting line profile graphic or by editing the line profile graphic in the inspector.
 
+A line profile and its computation can be copied from one data item to another by copying and pasting the line profile graphic from one display to another. A new line profile graphic and associated computation will be created on the data item of target display.
+
 See also :ref:`Line Profile Graphic`.
 
 Picks
 -----
 A pick is a special live computation that allows you to pick a region of a collection of 1d data and see the average or sum of the 1d data in the region. The region is displayed as a rectangle graphic on the collection of 1d data and the average or sum is displayed in a line plot.
 
-A pick can be create by choosing the :menuselection:`Processing --> Reduce --> Pick` menu item, or by pressing the :kbd:`p` key while a display panel has keyboard focus.
+A pick can be created by choosing the :menuselection:`Processing --> Reduce --> Pick` menu item, or by pressing the :kbd:`p` key while a display panel has keyboard focus.
 
 A pick can be edited by dragging the resulting rectangle graphic or by editing the pick graphic in the inspector.
+
+A pick can be copied from one data item to another by copying and pasting the pick graphic from one display to another. Then, using the new rectangle graphic, a new pick computation can be created using :menuselection:`Processing --> Reduce --> Pick`.
 
 See also :ref:`Rectangle Graphic`.
 
