@@ -2766,6 +2766,20 @@ class DocumentController(Window.Window):
                     reveal_text_pt2 = _("in Data Panel")
                     menu.add_menu_item(f"{reveal_text} \"{truncated_title}\" {reveal_text_pt2}",
                                        functools.partial(show_dependent_data_item, dependent_data_item))
+        display_item = action_context.display_item
+        if display_item:
+            if len(display_item.data_items) > 1:
+                menu.add_separator()
+                for data_item in display_item.data_items:
+                    def show_data_item(data_item: DataItem.DataItem) -> None:
+                        self.select_data_item_in_data_panel(data_item)
+
+                    truncated_title = self.ui.truncate_string_to_width(str(), data_item.title, 280,
+                                                                       UserInterface.TruncateModeType.MIDDLE)
+                    reveal_text = _("Reveal Component")
+                    reveal_text_pt2 = _("in Data Panel")
+                    menu.add_menu_item(f"{reveal_text} \"{truncated_title}\" {reveal_text_pt2}",
+                                        functools.partial(show_data_item, data_item))
 
     class ActionContext(Window.ActionContext):
         """Action contact.
