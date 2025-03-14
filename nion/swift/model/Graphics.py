@@ -737,22 +737,6 @@ class Graphic(Persistence.PersistentObject):
         self._set_persistent_property_value("label", value)
 
     @property
-    def is_stroke_enabled(self) -> bool:
-        return typing.cast(bool, self._get_persistent_property_value("is_stroke_enabled"))
-
-    @is_stroke_enabled.setter
-    def is_stroke_enabled(self, value: bool) -> None:
-        self._set_persistent_property_value("is_stroke_enabled", value)
-
-    @property
-    def is_fill_enabled(self) -> bool:
-        return typing.cast(bool, self._get_persistent_property_value("is_fill_enabled"))
-
-    @is_fill_enabled.setter
-    def is_fill_enabled(self, value: bool) -> None:
-        self._set_persistent_property_value("is_fill_enabled", value)
-
-    @property
     def is_position_locked(self) -> bool:
         return typing.cast(bool, self._get_persistent_property_value("is_position_locked"))
 
@@ -816,8 +800,6 @@ class Graphic(Persistence.PersistentObject):
             "fill_color": self.fill_color,
             "label": self.label,
             "is_position_locked": self.is_position_locked,
-            "is_stroke_enabled": self.is_stroke_enabled,
-            "is_fill_enabled": self.is_fill_enabled,
             "is_shape_locked": self.is_shape_locked,
             "is_bounds_constrained": self.is_bounds_constrained,
         }
@@ -832,11 +814,9 @@ class Graphic(Persistence.PersistentObject):
 
     def read_from_mime_data(self, graphic_dict: Persistence.PersistentDictType) -> None:
         self.stroke_color = graphic_dict.get("stroke_color", self.stroke_color)
-        self.stroke_color = graphic_dict.get("stroke_width", self.stroke_width)
+        self.stroke_width = graphic_dict.get("stroke_width", self.stroke_width)
         self.fill_color = graphic_dict.get("fill_color", self.fill_color)
         self.label = graphic_dict.get("label", self.label)
-        self.is_stroke_enabled = graphic_dict.get("stroke_enabled", self.is_stroke_enabled)
-        self.is_stroke_enabled = graphic_dict.get("stroke_enabled", self.is_fill_enabled)
         self.is_position_locked = graphic_dict.get("is_position_locked", self.is_position_locked)
         self.is_shape_locked = graphic_dict.get("is_shape_locked", self.is_shape_locked)
         self.is_bounds_constrained = graphic_dict.get("is_bounds_constrained", self.is_bounds_constrained)
