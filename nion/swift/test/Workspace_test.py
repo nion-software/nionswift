@@ -4,7 +4,9 @@ import copy
 import datetime
 import json
 import logging
+import pathlib
 import unittest
+import urllib
 import weakref
 
 # third party libraries
@@ -1692,6 +1694,24 @@ class TestWorkspaceClass(unittest.TestCase):
             for bounds, display_panel in zip(expected_bounds, workspace_controller.display_panels):
                 self.assertEqual(bounds.size, display_panel.canvas_bounds.size)
                 self.assertEqual(bounds.origin, display_panel.map_to_root_container(display_panel.canvas_bounds.origin))
+
+    def test_drop_external_on_1x1_replace(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+            data_item = DataItem.DataItem(numpy.zeros((256), numpy.double))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel = document_controller.workspace_controller.display_panels[0]
+            display_panel.set_display_panel_display_item(display_item)
+            image_path = pathlib.Path(__file__).parent.parent / "resources" / "1x1_icon.png"
+            mime_data = TestUI.MimeData({"text/uri-list": pathlib.Path(image_path)})  # this is the format used by TestUI
+            document_controller.workspace_controller.handle_drop(display_panel, mime_data, "none", 160, 240)
+            self.assertEqual(2, len(document_model.data_items))
+            self.assertEqual(document_controller.workspace_controller.display_panels[0].data_item, document_model.data_items[-1])
+            self.assertEqual(document_controller.workspace_controller.display_panels[0].display_panel_type, "data_item")
 
     # def test_display_panel_controller_initially_displays_existing_data(self):
     #     # cannot implement until common code for display controllers is moved into document model

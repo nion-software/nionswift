@@ -878,7 +878,15 @@ class Workspace:
             return "copy"
         if mime_data.has_format("text/uri-list"):
             index = len(document_model.data_items)
-            self.document_controller.receive_files(mime_data.file_paths, None, index)
+            display_items = self.document_controller.receive_files(mime_data.file_paths, None, index)
+            display_item = display_items[0] if len(display_items) > 0 else None
+            if display_item:
+                if region == "right" or region == "left" or region == "top" or region == "bottom":
+                    command = self.insert_display_panel(display_panel, region, display_item)
+                    self.document_controller.push_undo_command(command)
+                else:
+                    command = self.__replace_displayed_display_item(display_panel, display_item)
+                    self.document_controller.push_undo_command(command)
             return "copy"
         return "ignore"
 
