@@ -3641,7 +3641,11 @@ class WorkspaceSplitAction(Window.Action):
 
     def is_enabled(self, context: Window.ActionContext) -> bool:
         context = typing.cast(DocumentController.ActionContext, context)
-        return context.display_panel is not None
+        window = typing.cast(DocumentController, context.window)
+        workspace_controller = window.workspace_controller
+        display_panels = context.display_panels
+        selected_display_panel = context.selected_display_panel
+        return bool(workspace_controller and display_panels and selected_display_panel)
 
 
 class WorkspaceSplitHorizontalAction(WorkspaceSplitAction):
