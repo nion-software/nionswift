@@ -574,6 +574,20 @@ class GraphicPropertyCommandModel(Model.PropertyModel[typing.Any]):
         if name == self.__property_name:
             self.value = getattr(self.__graphic, self.__property_name)
 
+class FillVisibilityModel(Model.PropertyModel[str]):
+
+    def __init__(self, graphic_type: Model.PropertyModel[str]) -> None:
+        super().__init__()
+        self._graphic_type = graphic_type
+        self._fill_visible = self._compute_fill_visibility()
+
+    def _compute_fill_visibility(self) -> bool:
+        disallowed_types = {"Line", "Point", "Line Profile", "Interval"}
+        return self._graphic_type.value not in disallowed_types
+
+    @property
+    def fill_visible(self) -> bool:
+        return self._fill_visible
 
 class InfoInspectorHandler(Declarative.Handler):
     def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem):
@@ -2853,11 +2867,10 @@ class GraphicsInspectorHandler(Declarative.Handler):
         self.__stroke_style_func = None
         self._graphic_label_model = GraphicPropertyCommandModel(document_controller, display_item, graphic, "label", title=_("Change Label"), command_id="change_label")
         self._lock_position_model = GraphicPropertyCommandModel(self.__document_controller, self.__display_item, graphic, "is_position_locked", title=_(f"Change {self._graphic_type_model.value} Position Locked"), command_id=f"change_{self._graphic_type_model.value}_position_locked")
-        self._stroke_color_model = GraphicPropertyCommandModel(document_controller, display_item, graphic,"stroke_color", title=_("Change Stroke Color"), command_id="change_stroke_color")
-        self._stroke_width_model = GraphicPropertyCommandModel(document_controller, display_item, graphic, "stroke_width", title=_("Change Stroke Width"),command_id="change_stroke_width")
-        self._stroke_enabled_model = GraphicPropertyCommandModel(self.__document_controller, self.__display_item, graphic, "is_stroke_enabled", title=_(f"Change {self._graphic_type_model.value} Stroke Enabled"), command_id=f"change_{self._graphic_type_model.value}_stroke_enabled")
-        self._fill_color_model = GraphicPropertyCommandModel(document_controller, display_item, graphic,"fill_color", title=_("Change Fill Color"),command_id="change_fill_color")
-        self._fill_enabled_model = GraphicPropertyCommandModel(self.__document_controller, self.__display_item, graphic, "is_fill_enabled", title=_(f"Change {self._graphic_type_model.value} Fill Enabled"), command_id=f"change_{self._graphic_type_model.value}_fill_enabled")
+        self._stroke_color_model = GraphicPropertyCommandModel(document_controller, display_item, graphic, "stroke_color", title=_("Change Stroke Color"), command_id="change_stroke_color")
+        self._stroke_width_model = GraphicPropertyCommandModel(document_controller, display_item, graphic, "stroke_width", title=_("Change Stroke Width"), command_id="change_stroke_width")
+        self._fill_color_model = GraphicPropertyCommandModel(document_controller, display_item, graphic, "fill_color", title=_("Change Fill Color"), command_id="change_fill_color")
+        self._fill_color_visibility_model = FillVisibilityModel(self._graphic_type_model)
         self._lock_shape_model = GraphicPropertyCommandModel(self.__document_controller, self.__display_item, graphic, "is_shape_locked", title=_(f"Change {self._graphic_type_model.value} Shape Locked"), command_id=f"change_{self._graphic_type_model.value}_shape_locked")
 
         u = Declarative.DeclarativeUI()
@@ -3216,30 +3229,33 @@ class GraphicsInspectorHandler(Declarative.Handler):
             u = Declarative.DeclarativeUI()
 
             return u.create_column(
-                                   u.create_row(
-                                   u.create_label(text=_("Stroke"), width=40, text_alignment_vertical="center", text_alignment="left"),
-                                   u.create_spacing(15),
-                                   u.create_check_box(text=_("Show?"), checked="@binding(_stroke_enabled_model.value)", text_alignment_vertical="center"),spacing=2),
-                                   u.create_row(u.create_spacing(3),
-                                   u.create_label(text=_("Stroke Color"), width=80, text_alignment_vertical="center",text_alignment_horisontal= "right"), {"type": "nionswift.color_chooser", "color": "@binding(_stroke_color_model.value)"},
-                                   u.create_line_edit(text="@binding(_stroke_color_model.value)",  placeholder_text="None", width=80),
-                                   u.create_stretch(),spacing=8),
-                                   u.create_row(u.create_spacing(5),
-                                   u.create_label(text=_("Stroke Width"), width=80, text_alignment_vertical="center"),
-                                   u.create_line_edit(text="@binding(_stroke_width_model.value, converter=float_str_converter)", placeholder_text="1", width=80),
-                                   u.create_stretch(), spacing=8),
-                                   u.create_spacing(15),
-                                   u.create_row(
-                                   u.create_label(text=_("Fill"), width=40, text_alignment_vertical="center",text_alignment_horisontal= "left"),
-                                   u.create_spacing(15),
-                                   u.create_check_box(text=_("Show?"),checked="@binding(_fill_enabled_model.value)",text_alignment_vertical="center"), spacing=1),
-                                   u.create_row(u.create_spacing(3),
-                                   u.create_label(text=_("Fill Color"), width=80, text_alignment_vertical="center",text_alignment_horisontal= "right"), {"type": "nionswift.color_chooser", "color": "@binding(_fill_color_model.value)"},
-                                   u.create_line_edit(text="@binding(_fill_color_model.value)", placeholder_text="None", width=80),
-                                   u.create_stretch(),spacing=8),
-                                   )
+u.create_spacing(10),
+                u.create_column(
+                u.create_label(text=_("Stroke"), width=40, text_alignment_vertical="center"),
+                u.create_row(u.create_spacing(15),
+                u.create_label(text=_("Stroke Color"), width=65, text_alignment_vertical="center"),
+                {"type": "nionswift.color_chooser", "color": "@binding(_stroke_color_model.value)"},
+                u.create_line_edit(text="@binding(_stroke_color_model.value)", placeholder_text="None", width=80),
+                u.create_stretch()),
+                u.create_row(u.create_spacing(15),
+                u.create_label(text=_("Stroke Width"), width=68, text_alignment_vertical="center"),
+                u.create_spacing(6),
+                u.create_line_edit(text="@binding(_stroke_width_model.value, converter=float_str_converter)", placeholder_text="1", width=80),
+                u.create_stretch())),
+                u.create_spacing(20),
+                u.create_column(
+        u.create_row(
+        u.create_label(text=_("Fill"), text_alignment_vertical="center"),
+                u.create_stretch()),
+                u.create_row(u.create_spacing(15),
+                u.create_label(text=_("Fill Color"), width=47, text_alignment_vertical="center"),
+                {"type": "nionswift.color_chooser", "color": "@binding(_fill_color_model.value)"},
+                u.create_line_edit(text="@binding(_fill_color_model.value)", placeholder_text="None", width=80),
+                u.create_stretch()),visible="@binding(_fill_color_visibility_model.fill_visible)"
+                ))
         else:
             return self.__stroke_style_func()
+
 
 class GraphicsSectionHandler(Declarative.Handler):
     def __init__(self, document_controller: DocumentController.DocumentController,
