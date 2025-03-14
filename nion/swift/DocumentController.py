@@ -2750,7 +2750,9 @@ class DocumentController(Window.Window):
 
                     truncated_title = self.ui.truncate_string_to_width(str(), source_data_item.title, 280,
                                                                        UserInterface.TruncateModeType.MIDDLE)
-                    menu.add_menu_item("{0} \"{1}\"".format(_("Go to Source "), truncated_title),
+                    reveal_text = _("Reveal Source")
+                    reveal_text_pt2 = _("in Data Panel")
+                    menu.add_menu_item(f"{reveal_text} \"{truncated_title}\" {reveal_text_pt2}",
                                        functools.partial(show_source_data_item, source_data_item))
             dependent_data_items = self.document_model.get_dependent_data_items(data_item)
             if len(dependent_data_items) > 0:
@@ -2761,7 +2763,9 @@ class DocumentController(Window.Window):
 
                     truncated_title = self.ui.truncate_string_to_width(str(), dependent_data_item.title, 280,
                                                                        UserInterface.TruncateModeType.MIDDLE)
-                    menu.add_menu_item("{0} \"{1}\"".format(_("Go to Dependent "), truncated_title),
+                    reveal_text = _("Reveal Dependent")
+                    reveal_text_pt2 = _("in Data Panel")
+                    menu.add_menu_item(f"{reveal_text} \"{truncated_title}\" {reveal_text_pt2}",
                                        functools.partial(show_dependent_data_item, dependent_data_item))
 
     class ActionContext(Window.ActionContext):
