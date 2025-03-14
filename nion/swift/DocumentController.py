@@ -2662,7 +2662,7 @@ class DocumentController(Window.Window):
     # position in the document model (the end) and at the group at the position
     # specified by the index. if the data group is not specified, the item is added
     # at the index within the document model.
-    def receive_files(self, files: typing.Sequence[str], data_group: typing.Optional[DataGroup.DataGroup] = None, index: int = -1) -> None:
+    def receive_files(self, files: typing.Sequence[str], data_group: typing.Optional[DataGroup.DataGroup] = None, index: int = -1) -> typing.Sequence[DisplayItem.DisplayItem]:
         display_items = list[DisplayItem.DisplayItem]()
         file_paths = [pathlib.Path(file_path) for file_path in files]
         for file_index, file_path in enumerate(file_paths):
@@ -2724,6 +2724,7 @@ class DocumentController(Window.Window):
                 traceback.print_exc()
                 traceback.print_stack()
         self.select_display_items_in_data_panel(display_items)
+        return display_items
 
     def create_context_menu_for_display(self, display_items: typing.List[DisplayItem.DisplayItem]) -> UserInterface.Menu:
         # only used in tests
