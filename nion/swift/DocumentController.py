@@ -25,6 +25,7 @@ import weakref
 from nion.data import DataAndMetadata
 from nion.swift import ComputationPanel
 from nion.swift import ConsoleDialog
+from nion.swift import DataPanel
 from nion.swift import DisplayEditorPanel
 from nion.swift import DisplayPanel
 from nion.swift import EntityBrowser
@@ -779,6 +780,14 @@ class DocumentController(Window.Window):
             display_item = display_items[0]
             if display_item in filtered_display_items:
                 self.selection.anchor_index = filtered_display_items.index(display_item)
+        if not indexes:
+            Notification.notify(
+                Notification.Notification("nion.data_panel.no-targets", "\N{WARNING SIGN} Data Panel",
+                                          "No display/data item visible",
+                                          "The selected display/data item is not visible in the data panel.",))
+        else:
+            data_panel = typing.cast(DataPanel.DataPanel, self.find_dock_panel("data-panel"))
+            data_panel.make_selection_visible()
 
     def select_data_items_in_data_panel(self, data_items: typing.Sequence[DataItem.DataItem]) -> None:
         document_model = self.document_model
