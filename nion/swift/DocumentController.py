@@ -2738,48 +2738,40 @@ class DocumentController(Window.Window):
         self.add_action_to_menu_if_enabled(menu, "display.reveal", action_context)
         self.add_action_to_menu_if_enabled(menu, "file.export", action_context)
         self.add_action_to_menu_if_enabled(menu, "file.export_batch", action_context)
+
+        def reveal_data_item(data_item: DataItem.DataItem) -> None:
+            # same as selecting menu item for 'reveal'
+            action_context_ = self._get_action_context()
+            action_context_.display_panel = action_context.display_panel
+            action_context_.display_item = self.document_model.get_best_display_item_for_data_item(data_item)
+            self.perform_action_in_context("display.reveal", action_context_)
+
+        def make_reveal_data_item_callback(data_item: DataItem.DataItem) -> typing.Callable[[], None]:
+            return functools.partial(reveal_data_item, data_item)
+
+        def make_reveal_menu_item_title(data_item: DataItem.DataItem, text: str) -> str:
+            truncated_title = self.ui.truncate_string_to_width(str(), data_item.title, 280, UserInterface.TruncateModeType.MIDDLE)
+            reveal_text = _("Reveal")
+            return f"{reveal_text} {text} \"{truncated_title}\""
+
         data_item = action_context.data_item
         if data_item:
             source_data_items = self.document_model.get_source_data_items(data_item)
             if len(source_data_items) > 0:
                 menu.add_separator()
-                for source_data_item in source_data_items:
-                    def show_source_data_item(data_item: DataItem.DataItem) -> None:
-                        self.select_data_item_in_data_panel(data_item)
-
-                    truncated_title = self.ui.truncate_string_to_width(str(), source_data_item.title, 280,
-                                                                       UserInterface.TruncateModeType.MIDDLE)
-                    reveal_text = _("Reveal Source")
-                    reveal_text_pt2 = _("in Data Panel")
-                    menu.add_menu_item(f"{reveal_text} \"{truncated_title}\" {reveal_text_pt2}",
-                                       functools.partial(show_source_data_item, source_data_item))
+                for data_item in source_data_items:
+                    menu.add_menu_item(make_reveal_menu_item_title(data_item, _("Source")), make_reveal_data_item_callback(data_item))
             dependent_data_items = self.document_model.get_dependent_data_items(data_item)
             if len(dependent_data_items) > 0:
                 menu.add_separator()
-                for dependent_data_item in dependent_data_items:
-                    def show_dependent_data_item(data_item: DataItem.DataItem) -> None:
-                        self.select_data_item_in_data_panel(data_item)
-
-                    truncated_title = self.ui.truncate_string_to_width(str(), dependent_data_item.title, 280,
-                                                                       UserInterface.TruncateModeType.MIDDLE)
-                    reveal_text = _("Reveal Dependent")
-                    reveal_text_pt2 = _("in Data Panel")
-                    menu.add_menu_item(f"{reveal_text} \"{truncated_title}\" {reveal_text_pt2}",
-                                       functools.partial(show_dependent_data_item, dependent_data_item))
+                for data_item in dependent_data_items:
+                    menu.add_menu_item(make_reveal_menu_item_title(data_item, _("Dependent")), make_reveal_data_item_callback(data_item))
         display_item = action_context.display_item
         if display_item:
             if len(display_item.data_items) > 1:
                 menu.add_separator()
                 for data_item in display_item.data_items:
-                    def show_data_item(data_item: DataItem.DataItem) -> None:
-                        self.select_data_item_in_data_panel(data_item)
-
-                    truncated_title = self.ui.truncate_string_to_width(str(), data_item.title, 280,
-                                                                       UserInterface.TruncateModeType.MIDDLE)
-                    reveal_text = _("Reveal Component")
-                    reveal_text_pt2 = _("in Data Panel")
-                    menu.add_menu_item(f"{reveal_text} \"{truncated_title}\" {reveal_text_pt2}",
-                                        functools.partial(show_data_item, data_item))
+                    menu.add_menu_item(make_reveal_menu_item_title(data_item, _("Component")), make_reveal_data_item_callback(data_item))
 
     class ActionContext(Window.ActionContext):
         """Action contact.
