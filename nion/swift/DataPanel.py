@@ -312,6 +312,15 @@ class DataPanel(Panel.Panel):
                     return True
                 return False
 
+            def can_drop_mime_data(self, mime_data: UserInterface.MimeData, action: str, drop_index: int | None) -> bool:
+                return mime_data.has_file_paths
+
+            def drop_mime_data(self, mime_data: UserInterface.MimeData, action: str, drop_index: int | None) -> str:
+                display_items = document_controller.receive_files(mime_data.file_paths)
+                if set(display_items).intersection(set(document_controller.filtered_display_items_model.display_items)):
+                    document_controller.select_display_items_in_data_panel(display_items)
+                return "accept"
+
             def _get_mime_data_and_thumbnail_data(self, drag_started_event: GridFlowCanvasItem.GridFlowCanvasItemDragStartedEvent) -> typing.Tuple[typing.Optional[UserInterface.MimeData], typing.Optional[_NDArray]]:
                 mime_data = None
                 thumbnail_data = None
@@ -345,6 +354,7 @@ class DataPanel(Panel.Panel):
         # note is_shared_selection is True for both list and grid canvas items. prevents the selection from being updated when items are inserted.
         # instead, the selection in the model itself is used.
         list_canvas_item = ListCanvasItem.ListCanvasItem2(Panel.ThreadSafeListModel(display_items_model, document_controller.event_loop), self.__selection, list_item_factory, item_delegate, item_height=80, key="display_items", is_shared_selection=True)
+        list_canvas_item.wants_drag_events = True
         list_scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(list_canvas_item)
         list_scroll_bar_canvas_item = CanvasItem.ScrollBarCanvasItem(list_scroll_area_canvas_item, CanvasItem.Orientation.Vertical)
         list_scroll_group_canvas_item = CanvasItem.CanvasItemComposition()
@@ -359,6 +369,7 @@ class DataPanel(Panel.Panel):
         # instead, the selection in the model itself is used.
         line_height = document_controller.get_font_metrics("11px sans-serif", "M").height
         grid_canvas_item = GridCanvasItem.GridCanvasItem2(Panel.ThreadSafeListModel(display_items_model, document_controller.event_loop), self.__selection, grid_item_factory, item_delegate, item_size=Geometry.IntSize(80 + line_height, 80), key="display_items", is_shared_selection=True)
+        grid_canvas_item.wants_drag_events = True
         grid_scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(grid_canvas_item)
         grid_scroll_area_canvas_item.auto_resize_contents = True
         grid_scroll_bar_canvas_item = CanvasItem.ScrollBarCanvasItem(grid_scroll_area_canvas_item, CanvasItem.Orientation.Vertical)
