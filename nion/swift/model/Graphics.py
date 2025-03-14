@@ -7,7 +7,6 @@ import enum
 import gettext
 import math
 import uuid
-from faulthandler import is_enabled
 
 # third party libraries
 import numpy  # for arange
@@ -438,7 +437,7 @@ def draw_arrow(ctx: DrawingContextLike, p1: Geometry.FloatPoint, p2: Geometry.Fl
     ctx.line_to(p2.x - arrow_size * math.cos(angle + math.pi / 6), p2.y - arrow_size * math.sin(angle + math.pi / 6))
 
 
-def draw_marker(ctx: DrawingContextLike, p: Geometry.FloatPoint, is_enabled: bool, fill_style: typing.Optional[str] = None) -> None:
+def draw_marker(ctx: DrawingContextLike, p: Geometry.FloatPoint, is_enabled: bool) -> None:
     with ctx.saver():
         marker_color = '#00FF00'
         ctx.begin_path()
@@ -448,7 +447,7 @@ def draw_marker(ctx: DrawingContextLike, p: Geometry.FloatPoint, is_enabled: boo
         ctx.line_to(p.x - 3, p.y + 3)
         ctx.close_path()
         if is_enabled:
-            ctx.fill_style = fill_style if fill_style else marker_color
+            ctx.fill_style = marker_color
             ctx.fill()
         else:
             ctx.stroke_style = '#444'
@@ -457,8 +456,8 @@ def draw_marker(ctx: DrawingContextLike, p: Geometry.FloatPoint, is_enabled: boo
             ctx.fill()
 
 
-def draw_circular_marker(ctx: DrawingContextLike, p: Geometry.FloatPoint, is_enabled: bool, fill_style: typing.Optional[str] = None) -> None:
-    marker_color = fill_style if fill_style else '#00FF00'
+def draw_circular_marker(ctx: DrawingContextLike, p: Geometry.FloatPoint, is_enabled: bool) -> None:
+    marker_color = '#00FF00'
     size = Geometry.FloatSize(w=6, h=6)
     if is_enabled:
         draw_ellipse(ctx, p, size, None, marker_color)
@@ -485,12 +484,12 @@ def draw_ellipse_graphic(ctx: DrawingContextLike, center: Geometry.FloatPoint, s
             ctx.translate(center.x, center.y)
             ctx.rotate(-rotation)
             ctx.translate(-center.x, -center.y)
-        ctx.line_width = stroke_width or 1
+        ctx.line_width = line_width = stroke_width or 1
         draw_ellipse(ctx, origin + size / 2, size, stroke_style, fill_style)
         ctx.begin_path()
-        ctx.move_to(center.x, rect.top + 10 + (.5 * int(stroke_width or 1)))
-        ctx.line_to(center.x, rect.top + 2 + (.5 * int(stroke_width or 1)))
-        draw_arrow(ctx, Geometry.FloatPoint(y=rect.top + 10 + (.5 * int(stroke_width or 1)), x=center.x), Geometry.FloatPoint(y=rect.top + 2 + (.5 * int(stroke_width or 1)), x=center.x), arrow_size=4)
+        ctx.move_to(center.x, rect.top + 10 + (.5 * int(line_width)))
+        ctx.line_to(center.x, rect.top + 2 + (.5 * int(line_width)))
+        draw_arrow(ctx, Geometry.FloatPoint(y=rect.top + 10 + (.5 * int(line_width)), x=center.x), Geometry.FloatPoint(y=rect.top + 2 + (.5 * int(line_width)), x=center.x), arrow_size=4)
         ctx.close_path()
         ctx.line_width = 1
         ctx.stroke_style = stroke_style
@@ -503,10 +502,10 @@ def draw_ellipse_graphic(ctx: DrawingContextLike, center: Geometry.FloatPoint, s
                 ctx.translate(center.x, center.y)
                 ctx.rotate(-rotation)
                 ctx.translate(-center.x, -center.y)
-            draw_marker(ctx, top_left, is_focused, fill_style)
-            draw_marker(ctx, top_right, is_focused, fill_style)
-            draw_marker(ctx, bottom_right, is_focused, fill_style)
-            draw_marker(ctx, bottom_left, is_focused, fill_style)
+            draw_marker(ctx, top_left, is_focused)
+            draw_marker(ctx, top_right, is_focused)
+            draw_marker(ctx, bottom_right, is_focused)
+            draw_marker(ctx, bottom_left, is_focused)
             mark_size = 8
             if size[0] > mark_size:
                 mid_x = origin[1] + 0.5 * size[1]
@@ -652,23 +651,36 @@ class Graphic(Persistence.PersistentObject):
     def __init__(self, type: str) -> None:
         super().__init__()
         self.define_type(type)
+        self.__source_reference = self.create_item_reference()
+        self._default_stroke_color = "#F80"
+        self._default_fill_color = None
+        self._default_drag_part = "all"
         self.define_property("graphic_id", None, changed=self._property_changed, validate=lambda s: str(s) if s else None, hidden=True)
         self.define_property("source_specifier", changed=self.__source_specifier_changed, key="source_uuid", hidden=True)
-        self.define_property("stroke_color", None, changed=self._property_changed, hidden=True)
-        self.define_property("stroke_width", None, changed=self._property_changed, hidden=True)
-        self.define_property("fill_color", None, changed=self._property_changed, hidden=True)
+        self.define_property("stroke_color", self.get_default_stroke_color(), changed=self._property_changed, hidden=True)
+        self.define_property("stroke_width", 1, changed=self._property_changed, hidden=True)
+        self.define_property("fill_color", self.get_default_fill_color(), changed=self._property_changed, hidden=True)
         self.define_property("label", changed=self._property_changed, validate=lambda s: str(s) if s else None, hidden=True)
-        self.define_property("is_stroke_enabled", True, changed=self._property_changed, hidden=True)
-        self.define_property("is_fill_enabled", True, changed=self._property_changed, hidden=True)
         self.define_property("is_position_locked", False, changed=self._property_changed, hidden=True)
         self.define_property("is_shape_locked", False, changed=self._property_changed, hidden=True)
         self.define_property("is_bounds_constrained", False, changed=self._property_changed, hidden=True)
         self.define_property("role", None, changed=self._property_changed, hidden=True)
         self.label_padding = 4
         self.label_font = "normal 11px serif"
-        self.__source_reference = self.create_item_reference()
-        self._default_stroke_color = "#F80"
-        self._default_drag_part = "all"
+
+    def get_default_stroke_color(self) -> str:
+        if self.used_role == "fourier_mask":
+            return "#F08"
+        elif self.used_role == "mask":
+            return "#00F"
+        return self._default_stroke_color
+
+    def get_default_fill_color(self) -> typing.Optional[str]:
+        if self.used_role == "fourier_mask":
+            return "rgba(255, 0, 127, 0.1)"
+        elif self.used_role == "mask":
+            return "rgba(0, 0, 255, 0.1)"
+        return self._default_fill_color
 
     def update_uuids(self, uuid_map: dict[uuid.UUID, uuid.UUID]) -> None:
         assert not self.persistent_object_context
@@ -698,6 +710,7 @@ class Graphic(Persistence.PersistentObject):
     @stroke_color.setter
     def stroke_color(self, value: typing.Optional[str]) -> None:
         self._set_persistent_property_value("stroke_color", value)
+        self.notify_property_changed("stroke_color")
 
     @property
     def stroke_width(self) -> typing.Optional[float]:
@@ -770,6 +783,8 @@ class Graphic(Persistence.PersistentObject):
     @role.setter
     def role(self, value: typing.Optional[str]) -> None:
         self._set_persistent_property_value("role", value)
+        self.stroke_color = self.get_default_stroke_color()
+        self.fill_color = self.get_default_fill_color()
 
     @property
     def project(self) -> typing.Optional[Project.Project]:
@@ -854,30 +869,11 @@ class Graphic(Persistence.PersistentObject):
 
     @property
     def used_stroke_style(self) -> typing.Optional[str]:
-        if not self.is_stroke_enabled:
-            if not self.is_fill_enabled:
-                return self._default_stroke_color
-            else:
-                return None
-        if self.stroke_color:
-            return self.stroke_color
-        if self.used_role == "fourier_mask":
-            return "#F08"
-        elif self.used_role == "mask":
-            return "#00F"
-        return self._default_stroke_color
+        return self.stroke_color
 
     @property
     def used_fill_style(self) -> typing.Optional[str]:
-        if not self.is_fill_enabled:
-            return None
-        if self.fill_color:
-            return self.fill_color
-        if self.used_role == "fourier_mask":
-            return "rgba(255, 0, 127, 0.1)"
-        elif self.used_role == "mask":
-            return "rgba(0, 0, 255, 0.1)"
-        return None
+        return self.fill_color
 
     @property
     def color(self) -> typing.Optional[str]:
