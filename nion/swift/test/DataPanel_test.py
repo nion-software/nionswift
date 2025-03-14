@@ -2,6 +2,7 @@
 import contextlib
 import logging
 import pathlib
+import typing
 import unittest
 
 # third party libraries
@@ -9,6 +10,7 @@ import numpy
 
 # local libraries
 from nion.swift import Application
+from nion.swift import DataPanel
 from nion.swift import DisplayPanel
 from nion.swift import Facade
 from nion.swift import MimeTypes
@@ -844,6 +846,32 @@ class TestDataPanelClass(unittest.TestCase):
             with contextlib.closing(document_controller):
                 data_group = document_controller.document_model.data_groups[0]
                 self.assertEqual((data_group, None), document_controller.get_data_group_and_filter_id())
+
+    def test_focused_display_item_updates_properly(self):
+        with TestContext.MemoryProfileContext() as profile_context:
+            document_controller = profile_context.create_document_controller()
+            data_panel = typing.cast(DataPanel.DataPanel, document_controller.find_dock_panel("data-panel"))
+            document_model = document_controller.document_model
+            data_item1 = DataItem.DataItem(numpy.zeros((256, 256)))
+            data_item2 = DataItem.DataItem(numpy.zeros((128, 128)))
+            # add in reverse order so they appear in the data panel in order 1, 2
+            document_model.append_data_item(data_item2)
+            document_model.append_data_item(data_item1)
+            display_item1 = document_model.get_display_item_for_data_item(data_item1)
+            display_item2 = document_model.get_display_item_for_data_item(data_item2)
+            items = document_controller.filtered_display_items_model.items
+            document_controller.workspace_controller.display_panels[0].set_display_item(items[0])
+            document_controller.workspace_controller.display_panels[0].set_focused(True)
+            self.assertEqual(items[0], document_controller.focused_display_item)
+            data_panel._list_canvas_item.request_focus()
+            data_panel._selection.set(1)
+            self.assertEqual(items[1], document_controller.focused_display_item)
+            data_panel._list_canvas_item.clear_focus()
+            document_controller.workspace_controller.display_panels[0].set_focused(True)
+            self.assertEqual(items[0], document_controller.focused_display_item)
+            data_panel._list_canvas_item.request_focus()
+            data_panel._selection.set(1)
+            self.assertEqual(items[1], document_controller.focused_display_item)
 
 
 if __name__ == '__main__':

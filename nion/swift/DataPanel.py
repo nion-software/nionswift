@@ -381,7 +381,6 @@ class DataPanel(Panel.Panel):
         self.__display_items_end_changes_listener = display_items_model.end_changes_event.listen(end_changes)
 
         # for testing
-        self._list_canvas_item = list_canvas_item
         self._scroll_area_canvas_item = list_scroll_area_canvas_item
         self._scroll_bar_canvas_item = list_scroll_bar_canvas_item
 
@@ -458,6 +457,11 @@ class DataPanel(Panel.Panel):
         self.__list_canvas_item = list_canvas_item
         self.__grid_canvas_item = grid_canvas_item
 
+        # listen to the focus changed event for the list and grid canvas items.
+        # if we are receiving focus, tell the window (document_controller) to update the selected display item.
+        self.__list_canvas_item_focus_changed_event_listener = list_canvas_item.focus_changed_event.listen(self.__notify_focus_changed)
+        self.__grid_canvas_item_focus_changed_event_listener = grid_canvas_item.focus_changed_event.listen(self.__notify_focus_changed)
+
         # for tests only
         self._data_list_canvas_item = list_scroll_group_canvas_item
         self._data_grid_canvas_item = grid_scroll_group_canvas_item
@@ -478,6 +482,18 @@ class DataPanel(Panel.Panel):
         self.__view_button_group = typing.cast(CanvasItem.RadioButtonGroup, None)
         # close the widget to stop repainting the widgets before closing the controllers.
         super().close()
+
+    @property
+    def _selection(self) -> Selection.IndexedSelection:
+        return self.__selection
+
+    @property
+    def _list_canvas_item(self) -> ListCanvasItem.ListCanvasItem2:
+        return self.__list_canvas_item
+
+    @property
+    def _grid_canvas_item(self) -> GridCanvasItem.GridCanvasItem2:
+        return self.__grid_canvas_item
 
     def __notify_focus_changed(self) -> None:
         # this is called when the keyboard focus for the data panel is changed.
