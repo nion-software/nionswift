@@ -793,7 +793,7 @@ class DocumentController(Window.Window):
         document_model = self.document_model
         associated_display_items = list()
         for data_item in data_items:
-            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item = document_model.get_best_display_item_for_data_item(data_item)
             if display_item:
                 associated_display_items.append(display_item)
         self.select_display_items_in_data_panel(associated_display_items)
