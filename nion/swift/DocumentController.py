@@ -780,7 +780,7 @@ class DocumentController(Window.Window):
             display_item = display_items[0]
             if display_item in filtered_display_items:
                 self.selection.anchor_index = filtered_display_items.index(display_item)
-        if not indexes:
+        if display_items and not indexes:
             Notification.notify(
                 Notification.Notification("nion.data_panel.no-targets", "\N{WARNING SIGN} Data Panel",
                                           "No display/data item visible",
