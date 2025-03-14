@@ -504,3 +504,7 @@ class DataPanel(Panel.Panel):
 
     def _request_focus_for_test(self) -> None:
         self.__list_canvas_item.request_focus()
+
+    def make_selection_visible(self) -> None:
+        self.__list_canvas_item.make_selection_visible()
+        self.__grid_canvas_item.make_selection_visible()
