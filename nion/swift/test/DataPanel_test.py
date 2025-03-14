@@ -873,6 +873,19 @@ class TestDataPanelClass(unittest.TestCase):
             data_panel._selection.set(1)
             self.assertEqual(items[1], document_controller.focused_display_item)
 
+    def test_drop_external_file(self):
+        with TestContext.MemoryProfileContext() as profile_context:
+            document_controller = profile_context.create_document_controller()
+            data_panel = typing.cast(DataPanel.DataPanel, document_controller.find_dock_panel("data-panel"))
+            document_model = document_controller.document_model
+            image_path = pathlib.Path(__file__).parent.parent / "resources" / "1x1_icon.png"
+            mime_data = TestUI.MimeData({"text/uri-list": pathlib.Path(image_path)})  # this is the format used by TestUI
+            self.assertTrue(data_panel._list_canvas_item._delegate.can_drop_mime_data(mime_data, "copy", None))
+            data_panel._list_canvas_item._delegate.drop_mime_data(mime_data, "copy", None)
+            self.assertEqual(1, len(document_model.data_items))
+            data_panel._grid_canvas_item._delegate.drop_mime_data(mime_data, "copy", None)
+            self.assertEqual(2, len(document_model.data_items))
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
