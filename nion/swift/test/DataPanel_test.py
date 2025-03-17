@@ -13,6 +13,7 @@ from nion.swift import Application
 from nion.swift import DataPanel
 from nion.swift import DisplayPanel
 from nion.swift import Facade
+from nion.swift import HistogramPanel
 from nion.swift import MimeTypes
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
@@ -885,6 +886,45 @@ class TestDataPanelClass(unittest.TestCase):
             self.assertEqual(1, len(document_model.data_items))
             data_panel._grid_canvas_item._delegate.drop_mime_data(mime_data, "copy", None)
             self.assertEqual(2, len(document_model.data_items))
+
+    def test_data_panel_updates_selection(self):
+        # this is a messy test for issue #1326 which occurred when the data panel selection drawing was out of sync
+        # with the selection itself and also with the selected_display_items property in DocumentController
+        with TestContext.MemoryProfileContext() as profile_context:
+            document_controller = profile_context.create_document_controller()
+            data_panel = typing.cast(DataPanel.DataPanel, document_controller.find_dock_panel("data-panel"))
+            document_model = document_controller.document_model
+            # add the first item
+            data_item1 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            document_model.append_data_item(data_item1)
+            display_item1 = document_model.get_display_item_for_data_item(data_item1)
+            display_item_stream = HistogramPanel.TargetDisplayItemStream(document_controller)
+            # show the first item
+            document_controller.show_display_item(display_item1)
+            self.assertTrue(data_panel._list_canvas_item._grid_flow_item_canvas_items[0].is_selected)
+            self.assertEqual(document_controller.selected_display_items, [display_item1])
+            self.assertEqual(document_controller.selected_display_item, display_item1)
+            self.assertEqual(display_item_stream.value, display_item1)
+            # add the second item
+            data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            document_model.append_data_item(data_item2)
+            display_item2 = document_model.get_display_item_for_data_item(data_item2)
+            self.assertEqual(display_item_stream.value, display_item1)
+            # confirm that the selection did not change
+            self.assertFalse(data_panel._list_canvas_item._grid_flow_item_canvas_items[0].is_selected)
+            self.assertTrue(data_panel._list_canvas_item._grid_flow_item_canvas_items[1].is_selected)
+            self.assertEqual(document_controller.selected_display_items, [display_item1])
+            self.assertEqual(document_controller.selected_display_item, display_item1)
+            self.assertEqual(display_item_stream.value, display_item1)
+            # show the second item with the data panel focused
+            document_controller.data_panel_focused()  # ensure display panel is not focused so selection in data panel gets updated
+            document_controller.show_display_item(display_item2)
+            # confirm that the selection did change to the new item
+            self.assertTrue(data_panel._list_canvas_item._grid_flow_item_canvas_items[0].is_selected)
+            self.assertFalse(data_panel._list_canvas_item._grid_flow_item_canvas_items[1].is_selected)
+            self.assertEqual(document_controller.selected_display_items, [display_item2])
+            self.assertEqual(document_controller.selected_display_item, display_item2)
+            self.assertEqual(display_item_stream.value, display_item2)
 
 
 if __name__ == '__main__':
