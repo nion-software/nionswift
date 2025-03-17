@@ -279,8 +279,8 @@ class DocumentController(Window.Window):
         self.__weak_periodic_listeners: typing.List[_PeriodicListenerWeakRef] = list()
         self.__weak_periodic_listeners_mutex = threading.RLock()
 
-        self.selection = Selection.IndexedSelection()
-        self.selection.expanded_changed_event = True
+        self.__selection = Selection.IndexedSelection()
+        self.__selection.expanded_changed_event = True
 
         # the user has two ways of filtering data items: first by selecting a data group (or none) in the data panel,
         # and next by applying a custom filter to the items from the items resulting in the first selection.
@@ -293,7 +293,7 @@ class DocumentController(Window.Window):
         def filtered_display_items_item_removed(selection: Selection.IndexedSelection, key: str, value: DisplayItem.DisplayItem, index: int) -> None:
             selection.remove_index(index)
 
-        self.__filtered_display_items_item_removed_event_listener = self.__filtered_display_items_model.item_removed_event.listen(functools.partial(filtered_display_items_item_removed, self.selection))
+        self.__filtered_display_items_item_removed_event_listener = self.__filtered_display_items_model.item_removed_event.listen(functools.partial(filtered_display_items_item_removed, self.__selection))
 
         self.__last_display_filter = ListModel.Filter(True)
         self.filter_changed_event = Event.Event()
@@ -321,7 +321,7 @@ class DocumentController(Window.Window):
         self.__focused_display_item: typing.Optional[DisplayItem.DisplayItem] = None
         self.__selected_display_items: typing.List[DisplayItem.DisplayItem] = list()
         self.__selected_display_item: typing.Optional[DisplayItem.DisplayItem] = None
-        self.__selection_changed_listener = self.selection.changed_event.listen(self.__update_selected_display_items)
+        self.__selection_changed_listener = self.__selection.changed_event.listen(self.__update_selected_display_items)
 
         self.__consoles: typing.List[ConsoleDialog.ConsoleDialog] = list()
 
@@ -343,7 +343,13 @@ class DocumentController(Window.Window):
             collection_info_controller_list_model.append_item(collection_info_controller)
 
         def document_model_item_inserted(key: str, value: typing.Any, before_index: int) -> None:
-            if key == "data_groups":
+            if key == "display_items":
+                # ensure selected data items are invariant when display items are added. do it in two steps (clear and
+                # set) to trigger notifications
+                selected_display_items = copy.copy(self.__selected_display_items)
+                self.select_display_items_in_data_panel(list())
+                self.select_display_items_in_data_panel(selected_display_items)
+            elif key == "data_groups":
                 data_group_ = typing.cast(DataGroup.DataGroup, value)
                 collection_info_controller = CollectionInfoController(data_group_.title, data_group_, None, self)
                 collection_info_controller_list_model.insert_item(before_index + 4, collection_info_controller)
@@ -716,6 +722,10 @@ class DocumentController(Window.Window):
         return self.project.project_filter
 
     @property
+    def selection(self) -> Selection.IndexedSelection:
+        return self.__selection
+
+    @property
     def selected_display_item(self) -> typing.Optional[DisplayItem.DisplayItem]:
         """Return the selected display item.
 
@@ -760,7 +770,7 @@ class DocumentController(Window.Window):
         else:
             self.__selected_display_items = list()
             display_items = self.__filtered_display_items_model.display_items
-            for index in self.selection.ordered_indexes:
+            for index in self.__selection.ordered_indexes:
                 self.__selected_display_items.append(display_items[index])
         if len(self.__selected_display_items) == 1:
             self.__selected_display_item = next(iter(self.__selected_display_items))
@@ -775,11 +785,15 @@ class DocumentController(Window.Window):
         for index, display_item in enumerate(filtered_display_items):
             if display_item in display_items:
                 indexes.add(index)
-        self.selection.set_multiple(indexes)
+        # clearing the selection forces the selection changed event to be fired, which updates the selected
+        # display items. this is important to ensure the inspector gets updated properly.
+        # '__update_selected_display_items' <-- this is here for searches.
+        self.__selection.clear()
+        self.__selection.set_multiple(indexes)
         if len(display_items) > 0:
             display_item = display_items[0]
             if display_item in filtered_display_items:
-                self.selection.anchor_index = filtered_display_items.index(display_item)
+                self.__selection.anchor_index = filtered_display_items.index(display_item)
         if display_items and not indexes:
             Notification.notify(
                 Notification.Notification("nion.data_panel.no-targets", "\N{WARNING SIGN} Data Panel",
