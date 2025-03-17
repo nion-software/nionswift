@@ -4,21 +4,59 @@
     "notes": [
       {
         "issues": [
-          "https://github.com/nion-software/nionswift/issues/1363"
+          "https://github.com/nion-software/nionswift/issues/304"
         ],
-        "summary": "Fix issue with metadata panel not showing data. Also add note when target data item has no metadata."
+        "summary": "Change computations to run asynchronously (threaded)."
+      },
+      {
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/915",
+          "https://github.com/nion-software/nionswift/issues/620"
+        ],
+        "summary": "Improve metadata in computed data items to include computation and source (acquisition) metadata."
       },
       {
         "issues": [
           "https://github.com/nion-software/nionswift/issues/217"
         ],
-        "summary": "Composite line plots use source data item names unless label explicitly set in line plot."
+        "summary": "Composite line plots layers use component data item names unless label explicitly set in line plot inspector."
       },
       {
         "issues": [
           "https://github.com/nion-software/nionswift/issues/1337"
         ],
         "summary": "Add titles in browser view."
+      },
+      {
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/1370"
+        ],
+        "summary": "Improve context menu on line plots to be able to reveal line plot 'component' display items."
+      },
+      {
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/1343"
+        ],
+        "summary": "Fix issues with source/dependent thumbnails not showing consistently in display panels."
+      },
+      {
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/1353",
+          "https://github.com/nion-software/nionswift/issues/1354"
+        ],
+        "summary": "Fix issues with drag and drop files on display panel and data panel to import."
+      },
+      {
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/1370"
+        ],
+        "summary": "Fix issue with 'reveal' context menu item not working consistently."
+      },
+      {
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/1363"
+        ],
+        "summary": "Fix issue with metadata panel not showing data. Also add note when target data item has no metadata."
       }
     ]
   },
