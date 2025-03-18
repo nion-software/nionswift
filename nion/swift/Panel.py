@@ -760,6 +760,7 @@ class PanelManager(metaclass=Utility.Singleton):
 class MappedListModelLike(typing.Protocol):
     item_inserted_event: Event.Event
     item_removed_event: Event.Event
+    begin_changes_event: Event.Event
     end_changes_event: Event.Event
 
     @property
@@ -775,10 +776,12 @@ class ThreadSafeListModel(MappedListModelLike):
         self.__list_model = list_model
         self.item_inserted_event = Event.Event()
         self.item_removed_event = Event.Event()
+        self.begin_changes_event = Event.Event()
         self.end_changes_event = Event.Event()
 
         self.__item_inserted_listener = self.__list_model.item_inserted_event.listen(ReferenceCounting.weak_partial(ThreadSafeListModel.__list_model_item_inserted, self))
         self.__item_removed_listener = self.__list_model.item_removed_event.listen(ReferenceCounting.weak_partial(ThreadSafeListModel.__list_model_item_removed, self))
+        self.__begin_changes_listener = self.__list_model.begin_changes_event.listen(ReferenceCounting.weak_partial(ThreadSafeListModel.__begin_changes, self))
         self.__end_changes_listener = self.__list_model.end_changes_event.listen(ReferenceCounting.weak_partial(ThreadSafeListModel.__end_changes, self))
 
     def __list_model_item_inserted(self, key: str, item: typing.Any, before_index: int) -> None:
@@ -794,6 +797,9 @@ class ThreadSafeListModel(MappedListModelLike):
         else:
             del self.__items[index]
             self.item_removed_event.fire(key, item, index)
+
+    def __begin_changes(self, key: str) -> None:
+        self.begin_changes_event.fire(key)
 
     def __end_changes(self, key: str) -> None:
         self.end_changes_event.fire(key)
