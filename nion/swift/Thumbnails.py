@@ -33,10 +33,11 @@ class ThumbnailSource:
     """Produce a thumbnail for a display."""
     _executor = concurrent.futures.ThreadPoolExecutor()
 
-    def __init__(self, ui: UserInterface.UserInterface, display_item: DisplayItem.DisplayItem) -> None:
+    def __init__(self, ui: UserInterface.UserInterface, display_item: DisplayItem.DisplayItem, will_close_fn: typing.Callable[[uuid.UUID], None]) -> None:
         super().__init__()
         self._ui = ui
         self._display_item = display_item
+        self.__will_close_fn = will_close_fn
 
         self.width = 256
         self.height = 256
@@ -104,6 +105,8 @@ class ThumbnailSource:
                 concurrent.futures.wait([recompute_future], timeout=10.0)
             except concurrent.futures.CancelledError:
                 pass
+        self.__will_close_fn(self.__display_item.uuid)
+        self.__will_close_fn = typing.cast(typing.Any, None)  # break the reference cycle for faster garbage collection
         self.__display_item = typing.cast(typing.Any, None)
 
     @property
@@ -169,19 +172,16 @@ class ThumbnailManager(metaclass=Utility.Singleton):
         with self.__lock:
             self.__thumbnail_sources.clear()
 
-    def clean(self) -> None:
-        with self.__lock:
-            for uuid, thumbnail_source in list(self.__thumbnail_sources.items()):
-                if not thumbnail_source._is_valid:
-                    del self.__thumbnail_sources[uuid]
-
     def thumbnail_source_for_display_item(self, ui: UserInterface.UserInterface, display_item: DisplayItem.DisplayItem) -> ThumbnailSource:
         """Returned ThumbnailSource must be closed."""
         with self.__lock:
-            self.clean()
             thumbnail_source = self.__thumbnail_sources.get(display_item.uuid)
             if not thumbnail_source:
-                thumbnail_source = ThumbnailSource(ui, display_item)
+                def will_close_fn(display_item_uuid: uuid.UUID) -> None:
+                    with self.__lock:
+                        del self.__thumbnail_sources[display_item_uuid]
+
+                thumbnail_source = ThumbnailSource(ui, display_item, will_close_fn)
                 self.__thumbnail_sources[display_item.uuid] = thumbnail_source
             else:
                 assert thumbnail_source._ui == ui
@@ -189,7 +189,6 @@ class ThumbnailManager(metaclass=Utility.Singleton):
 
     def thumbnail_data_for_display_item(self, display_item: typing.Optional[DisplayItem.DisplayItem]) -> typing.Optional[_NDArray]:
         with self.__lock:
-            self.clean()
             thumbnail_source = self.__thumbnail_sources.get(display_item.uuid) if display_item else None
             if thumbnail_source:
                 return thumbnail_source.thumbnail_data
