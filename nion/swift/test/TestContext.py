@@ -181,11 +181,12 @@ class MemoryProfileContext:
             self.__items_exit.append(document_controller.close)
         return document_controller
 
-    def create_document_controller_with_application(self) -> DocumentController.DocumentController:
+    def create_document_controller_with_application(self, *, auto_close: bool = True) -> DocumentController.DocumentController:
         app = Application.Application(self.__ui, set_global=False)
         document_model = self.create_document_model(auto_close=False)
         document_controller = app.create_document_controller(document_model, "library")
-        self.__items_exit.append(document_controller.close)
+        if auto_close:
+            self.__items_exit.append(document_controller.close)
         self.__app = app  # hold a reference
         app._set_document_model(document_model)  # required to allow API to find document model
         return document_controller
