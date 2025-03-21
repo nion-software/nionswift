@@ -99,6 +99,8 @@ The edit computation dialog allows you to edit the inputs and parameters of a co
 
 Once the edit computation dialog is open, you can change inputs by dragging items into the input data item controls.
 
+You can drag display items from the data panel or display panels to the input thumbnails in the dialog. You can also drag the thumbnails themselves out into display panels.
+
 Some computations can perform their processing on a cropped region of a data item. You can select a rectangular graphic on a display item, release the mouse, hold the :kbd:`Alt` key (Windows, Linux) or the :kbd:`Option` key (macOS), then click the mouse on the selected graphic and drag to the input data item control in the edit computation dialog. This will force the combination of the data and crop area to be used as the input data item.
 
 Run Script
