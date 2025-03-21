@@ -127,7 +127,7 @@ Line Plot Layers
 ++++++++++++++++
 .. this is too complicated
 
-A line plot display can show multiple data item plots in the same display.
+A line plot display can show multiple 1d data items in the same display.
 
 You can drag a line plot into the graph area of another line plot to create the layering. Each layer will have its own name, stroke color, fill color, and stroke width.
 
@@ -141,8 +141,14 @@ To reorder the line plot layers, you can click the up and down arrows in the :gu
 
 To add or remove line plot layers without explicitly adding or removing the underlying data items, you can click the :guilabel:`+` and :guilabel:`-` buttons in the :guilabel:`Line Plot Layers` section of the Inspector.
 
-You can change the fill and stroke colors (both of which may be transparent to effectively make them invisible) by clicking on the associated color pick or by typing in a color into the associated text field. The format of the text field can be in the format "rgb(100, 50, 200)", "rgb(100, 50, 200, 0.5)" for transparency, "#55AAFF", "#55AAFF80" for transparency, or a web-named color such as "blue".
+You can change the fill and stroke colors by clicking on the associated color pick or by typing in a color into the associated text field. The format of the text field can be in the format "rgb(100, 50, 200)", "rgb(100, 50, 200, 0.5)" for transparency, "#55AAFF", "#55AAFF80" for transparency, or a web-named color such as "blue". You can also use the special color "transparent" to make the stroke or fill color transparent.
 
-When the line plot has multiple layers, the name of each layer can be displayed in a legend. You can adjust the position of the legend or whether it appears at all by changing the :guilabel:`Legend Position` in the :guilabel:`Line Plot Display` section of the Inspector.
+When the line plot has multiple layers, the name of each layer can be displayed in a legend. The default layer name is the title of the component data item. You can override the default name by editing the layer name in the inspector.
+
+You can adjust the position of the legend or whether it appears at all by changing the :guilabel:`Legend Position` in the :guilabel:`Line Plot Display` section of the Inspector.
 
 You can reorder layers within the legend by grabbing the layer and dragging it to reorder it within the legend.
+
+To inspect the properties or histogram of an individual data item displayed as a layer in the line plot, you can context click (right click) on the display panel and reveal the component data item in the data panel. Then click on that item in the data panel to inspect it individually.
+
+To view data values of an individual data item displayed as a layer in the line plot, you can context click (right click) o the display panel and reveal the component data item in the data panel. Then drag the highlighted item from the data panel to its own display panel and examine it individually.
