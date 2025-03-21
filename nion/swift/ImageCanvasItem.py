@@ -249,7 +249,7 @@ class ScaleMarkerCanvasItemComposer(CanvasItem.BaseComposer):
         dimensional_calibration = self.__dimensional_calibration
         info_text = self.__info_text
         screen_pixel_per_image_pixel = self.__screen_pixel_per_image_pixel
-        scale_marker_width = 120
+        scale_marker_width = max(16, min(round(canvas_bounds.width * 0.8), 120))
         scale_marker_height = 6
         scale_marker_font = "normal 14px serif"
         get_font_metrics_fn = self.__get_font_metrics_fn
