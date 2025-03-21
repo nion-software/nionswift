@@ -779,7 +779,7 @@ class DocumentController(Window.Window):
         if self.__selected_display_item != old_selected_display_item:
             self.focused_display_item_changed_event.fire(self.__selected_display_item)
 
-    def select_display_items_in_data_panel(self, display_items: typing.Sequence[DisplayItem.DisplayItem]) -> None:
+    def select_display_items_in_data_panel(self, display_items: typing.Sequence[DisplayItem.DisplayItem]) -> bool:
         filtered_display_items = self.filtered_display_items_model.display_items
         indexes = set()
         for index, display_item in enumerate(filtered_display_items):
@@ -794,14 +794,11 @@ class DocumentController(Window.Window):
             display_item = display_items[0]
             if display_item in filtered_display_items:
                 self.__selection.anchor_index = filtered_display_items.index(display_item)
-        if display_items and not indexes:
-            Notification.notify(
-                Notification.Notification("nion.data_panel.no-targets", "\N{WARNING SIGN} Data Panel",
-                                          "No display/data item visible",
-                                          "The selected display/data item is not visible in the data panel.",))
-        else:
-            data_panel = typing.cast(DataPanel.DataPanel, self.find_dock_panel("data-panel"))
-            data_panel.make_selection_visible()
+        data_panel = typing.cast(DataPanel.DataPanel, self.find_dock_panel("data-panel"))
+        data_panel.make_selection_visible()
+        # if there are indexes selected and there are display items to display, return True
+        # if there are display items to display but no indexes were selected, return False
+        return len(indexes) > 0 or len(display_items) == 0
 
     def select_data_items_in_data_panel(self, data_items: typing.Sequence[DataItem.DataItem]) -> None:
         document_model = self.document_model
@@ -4061,6 +4058,17 @@ class DisplayRevealAction(Window.Action):
         window = typing.cast(DocumentController, context.window)
         if context.display_panel and context.display_item:
             window.select_display_items_in_data_panel([context.display_item])
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
+
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        if context.display_panel and context.display_item:
+            if not window.select_display_items_in_data_panel([context.display_item]):
+                Notification.notify(
+                    Notification.Notification("nion.data_panel.no-targets", "\N{WARNING SIGN} Data Panel",
+                                              "No display/data item visible",
+                                              "The selected display/data item is not visible in the data panel.", ))
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
     def is_enabled(self, context: Window.ActionContext) -> bool:
