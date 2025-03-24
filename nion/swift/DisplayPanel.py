@@ -2290,6 +2290,8 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
                 display_items.append(filtered_display_items[index])
         self.__display_items = display_items
         if self.__display_items != old_display_items:
+            if callable(self.on_contents_changed):
+                self.on_contents_changed()
             self.display_items_changed_event.fire()
 
     def save_contents(self) -> Persistence.PersistentDictType:

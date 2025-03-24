@@ -3455,10 +3455,9 @@ class WorkspaceChangeSplits(Window.Action):
         workspace_controller = window.workspace_controller
         if workspace_controller:
             splitter_canvas_item = typing.cast(CanvasItem.SplitterCanvasItem, context.parameters["splitter"])
-            splits = context.parameters["splits"]
+            splits = typing.cast(typing.Sequence[float], context.parameters["splits"])
             command = Workspace.ChangeWorkspaceContentsCommand(workspace_controller, _("Change Splits"))
-            splitter_canvas_item.splits = splits
-            workspace_controller._sync_layout()
+            workspace_controller.set_splits(splitter_canvas_item, splits)
             window.push_undo_command(command)
             return Window.ActionResult(Window.ActionStatus.FINISHED)
         raise ValueError("Missing workspace controller")
