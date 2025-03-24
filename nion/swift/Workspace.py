@@ -262,8 +262,6 @@ class Workspace:
         for message_box_widget in copy.copy(list(self.__message_boxes.values())):
             self.message_column.remove(message_box_widget)
         self.__message_boxes.clear()
-        if self.__workspace:
-            self.__sync_layout()
         self.__display_panels = list()
         self.__display_panel_display_items_changed_event_listeners = list()
         self.__canvas_item = typing.cast(CanvasItem.CanvasItemComposition, None)
@@ -308,8 +306,6 @@ class Workspace:
         return geometry, state
 
     def save_geometry_state(self, geometry: str, state: str) -> None:
-        # ugh. this has the side effect of saving the layout when the geometry state is saved.
-        self.__sync_layout()
         self.ui.set_persistent_string(f"Workspace/{self.workspace_id}/Geometry", geometry)
         self.ui.set_persistent_string(f"Workspace/{self.workspace_id}/State", state)
 
@@ -381,6 +377,7 @@ class Workspace:
         for display_panel in self.__display_panels:
             if display_panel.display_panel_id == display_panel_id:
                 display_panel.set_display_panel_display_item(display_item)
+                # the layout has changed, write it to persistent storage
                 self.__sync_layout()
 
     def _construct(self, desc: Persistence.PersistentDictType, display_panels: typing.List[DisplayPanel.DisplayPanel]) -> typing.Tuple[typing.Optional[CanvasItem.AbstractCanvasItem], typing.Optional[DisplayPanel.DisplayPanel]]:
@@ -402,6 +399,7 @@ class Workspace:
             container = splitter_canvas_item
         elif type == "image":
             display_panel = DisplayPanel.DisplayPanel(self.document_controller, desc)
+            # when display panel contents change, write the layout to persistent storage
             display_panel.on_contents_changed = self.__sync_layout
             display_panels.append(display_panel)
             if desc.get("selected", False):
@@ -564,9 +562,7 @@ class Workspace:
     def _change_workspace(self, workspace_layout: WorkspaceLayout.WorkspaceLayout) -> None:
         assert workspace_layout is not None
         # save the current workspace
-        if self.__workspace:
-            self.__sync_layout()
-            self.__workspace = None
+        self.__workspace = None
         # remove existing layout and canvas item
         while len(self.__display_panels) > 0:
             self.__remove_display_panel_at_index(0)
@@ -907,7 +903,10 @@ class Workspace:
         elif d is not None:
             display_panel.change_display_panel_content(d)
         display_panel.request_focus()
+
+        # the layout has changed, write it to persistent storage
         self.__sync_layout()
+
         return command
 
     def insert_display_panel(self, display_panel: DisplayPanel.DisplayPanel, region: str,
@@ -961,7 +960,10 @@ class Workspace:
                 splits[index + 1] = old_split * 0.5
                 container.splits = splits
             new_display_panel.request_focus()
+
+        # the layout has changed, write it to persistent storage
         self.__sync_layout()
+
         return old_splits, new_display_panel
 
     def remove_display_panel(self, display_panel: DisplayPanel.DisplayPanel,
@@ -999,10 +1001,15 @@ class Workspace:
                 else:
                     if splits is not None:
                         container.splits = copy.copy(splits)
+
+        # the layout has changed, write it to persistent storage
         self.__sync_layout()
+
         return old_display_panel, old_splits, region_id
 
     def apply_layouts(self, primary_display_panel: DisplayPanel.DisplayPanel, display_panels: typing.Sequence[DisplayPanel.DisplayPanel], w: int, h: int) -> typing.List[DisplayPanel.DisplayPanel]:
+        """Apply a w x h display panels to the current workspace."""
+
         assert self.__workspace
         change_workspace_contents_command = ChangeWorkspaceContentsCommand(self, _("Change Workspace Contents"))
 
@@ -1054,6 +1061,7 @@ class Workspace:
                         column_splitter_canvas_item.insert_canvas_item(column + 1, column_display_panel)
                     column_splitter_canvas_item.splits = [1//w] * w
 
+        # the layout has changed, write it to persistent storage
         self.__sync_layout()
 
         primary_display_panel.request_focus()
@@ -1067,6 +1075,7 @@ class Workspace:
         self.__change_splitter_command = ChangeWorkspaceContentsCommand(self, _("Change Workspace Contents"))
 
     def _splits_did_change(self, splitter_canvas_item: CanvasItem.SplitterCanvasItem) -> None:
+        # if the canvas item splits change by way of the user dragging the splitter, write the layout to persistent storage.
         self.__sync_layout()
         if self.__change_splitter_command:
             if splitter_canvas_item.splits != self.__change_splitter_splits:
@@ -1076,7 +1085,10 @@ class Workspace:
             self.__change_splitter_command = None
             self.__change_splitter_splits = list()
 
-    def _sync_layout(self) -> None:
+    def set_splits(self, splitter_canvas_item: CanvasItem.SplitterCanvasItem, splits: typing.Sequence[float]) -> None:
+        # if the splits are set explicitly, write the layout to persistent storage. the splitter canvas will not
+        # trigger the splits did change callback.
+        splitter_canvas_item.splits = splits
         self.__sync_layout()
 
     def __sync_layout(self) -> None:
