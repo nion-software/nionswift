@@ -1291,7 +1291,6 @@ class EllipseGraphic(RectangleTypeGraphic):
         center = mapping.map_point_image_norm_to_widget(bounds.center)
         size = mapping.map_size_image_norm_to_widget(bounds.size)
         draw_ellipse_graphic(ctx, center, size, rotation, is_selected, is_focused, self.is_shape_locked, self.is_position_locked, self.used_stroke_style, stroke_width, fill_style)
-        draw_ellipse_graphic(ctx, center, size, rotation, is_selected, is_focused, stroke_style, stroke_width, fill_style)
         self.draw_label(ctx, ui_settings, mapping)
 
     def label_position(self, mapping: CoordinateMappingLike, font_metrics: UISettings.FontMetrics, padding: float) -> typing.Optional[Geometry.FloatPoint]:
