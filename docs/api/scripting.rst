@@ -374,7 +374,7 @@ Metadata about the current session is stored with the library object and can be 
 
 Reading and Writing Data Item Metadata
 --------------------------------------
-You can also access metadata associated with the data item.
+You can access metadata associated with the data item.
 
    >>> data_item.set_metadata_value("stem.session.site", "Hogwarts School of Witchcraft and Wizardry")
    >>> data_item.set_metadata_value("stem.session.microscopist", "Albus Dumbledore")
@@ -489,6 +489,23 @@ If a key or set of keys should be added, Nion maintains a registry of keys. Plea
 ``stem.scan.scan_id``                  string
 ``stem.scan.valid_rows``               integer
 ====================================== ====
+
+Reading and Writing Extended Data Metadata
+------------------------------------------
+You can access metadata associated with an extended data and metadata object using the `Metadata` utility class.
+
+```
+   >>> from nion.swift.model import Metadata
+   >>> Metadata.set_metadata_value(xdata, "stem.session.site", "Hogwarts School of Witchcraft and Wizardry")
+   >>> Metadata.set_metadata_value(xdata, "stem.session.microscopist", "Albus Dumbledore")
+   >>> Metadata.get_metadata_value(xdata, "stem.high_tension_v")
+   120000
+   >>> Metadata.delete_metadata_value(xdata, "stem.session.task")
+   >>> Metadata.has_metadata_value(xdata, "stem.session.task")
+   False
+```
+
+Note: if the xdata is already associated with a data item, you should use the data item methods to set the xdata metadata instead of directly setting it on the xdata. The data item returns a copy of the metadata when accessing xdata using `data_item.xdata` and setting metadata on the resulting object will not write the metadata to disk. Use the `Metadata.*` methods above when you have not yet added the xdata to a data item.
 
 Copying a Data Item
 -------------------
