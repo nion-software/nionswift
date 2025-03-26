@@ -1161,6 +1161,12 @@ class Entity(Observable.Observable):
         else:
             raise AttributeError()
 
+    def _remove_all_items(self, name: str) -> None:
+        array_field = typing.cast(typing.Optional[ArrayField], self.__get_field(name))
+        if array_field:
+            for item in list(self._get_array_items(name)):
+                self._remove_item(name, item)
+
     # these methods can be overridden to provide custom behavior for storage and notification
 
     def _field_value_changed(self, name: str, value: typing.Any) -> None:
