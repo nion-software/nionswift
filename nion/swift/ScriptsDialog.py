@@ -668,10 +668,21 @@ class RunScriptDialog(Dialog.ActionDialog):
                 ast.fix_missing_locations(new_node)
                 return new_node
 
+        is_script_main = False
+        is_internal_main = False
+
         # if script_main exists, add a node to call it
         for node in script_ast.body:
             if getattr(node, "name", None) == "script_main":
                 script_ast = AddCallFunctionNodeTransformer('script_main', 'api_broker').visit(script_ast)
+                is_script_main = True
+
+        # if _internal_main exists, add a node to call it
+        if not is_script_main:
+            for node in script_ast.body:
+                if getattr(node, "name", None) == "_internal_main":
+                    script_ast = AddCallFunctionNodeTransformer('_internal_main', '_window').visit(script_ast)
+                    is_internal_main = True
 
         compiled = compile(script_ast, script_name, 'exec')
 
@@ -700,6 +711,9 @@ class RunScriptDialog(Dialog.ActionDialog):
                 g["api_broker"] = APIBroker()
                 g["print"] = self.print
                 g["input"] = self.get_string
+
+                if is_internal_main:
+                    g["_window"] = self.document_controller
 
                 print_fn = self.print
                 self.__cancelled = False  # Reset cancelled flag to make "Run again" work after a script was cancelled
