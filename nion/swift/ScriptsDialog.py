@@ -749,14 +749,19 @@ class RunScriptDialog(Dialog.ActionDialog):
                 pass
 
             if not self.__is_closed:
-                result = self.confirm(_("Finished"), _("Run Again"), _("Close"))
+                try:
+                    result = self.confirm(_("Finished"), _("Run Again"), _("Close"))
+                except ScriptCancelException:
+                    pass
 
-                with self.__lock:
-                    if result:
-                        self.__q.append(functools.partial(self.run_script, script_path))
-                    else:
-                        self.__q.append(self.request_close)
-                    self.document_controller.add_task("run_" + str(id(self)), self.__handle_output_and_q)
+                # script dialog can be closed if application exit during confirmation dialog, recheck
+                if not self.__is_closed:
+                    with self.__lock:
+                        if result:
+                            self.__q.append(functools.partial(self.run_script, script_path))
+                        else:
+                            self.__q.append(self.request_close)
+                        self.document_controller.add_task("run_" + str(id(self)), self.__handle_output_and_q)
 
         self.__thread = threading.Thread(target=func_run, args=(func,))
         self.__thread.start()
