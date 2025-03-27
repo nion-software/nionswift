@@ -223,22 +223,20 @@ class ExportDialog(Declarative.Handler):
                     if viewmodel.include_sequence.value:
                         components.append(str(index))
                     filepath = ExportDialog.build_filepath(components, writer.extensions[0], directory_path=directory_path)
-                    file_name = filepath.name
                     file_extension = filepath.suffix[1:].lower()
                     if writer.can_write_display_item(display_item, file_extension):
                         ImportExportManager.ImportExportManager().write_display_item_with_writer(writer, display_item, filepath)
-                        export_results.append(ExportResult(file_name))
+                        export_results.append(ExportResult(display_item.displayed_title))
                     else:
                         error_message = _("Cannot export this data to file format")
-                        export_results.append(ExportResult(file_name, f"{error_message} {writer.name}"))
+                        export_results.append(ExportResult(display_item.displayed_title, f"{error_message} {writer.name}"))
                 except Exception as e:
                     logging.debug("Could not export image %s / %s", str(data_item), str(e))
                     traceback.print_exc()
                     traceback.print_stack()
                     export_results.append(ExportResult(file_name, str(e)))
 
-            if any(e.error for e in export_results):
-                ExportResultDialog(ui, document_controller, export_results, directory_path)
+            ExportResultDialog(ui, document_controller, export_results, directory_path)
 
     def cancel(self) -> bool:
         return True
@@ -636,7 +634,7 @@ class ExportSVGDialog:
 
 @dataclasses.dataclass
 class ExportResult:
-    file: str
+    data_item_title: str
     error: typing.Optional[str] = None
 
 
@@ -681,18 +679,24 @@ class ExportResultDialog(Declarative.Handler):
         COLUMN_SPACING = 12
 
         header_labels = [
-            u.create_label(text=_('File'), font='bold', width=FILE_FIELD_WIDTH),
-            u.create_label(text=_('Status'), font='bold', width=STATUS_FIELD_WIDTH),
+            u.create_label(text=_('Data Item'), font='bold', width=FILE_FIELD_WIDTH),
+            u.create_label(text=_('Error'), font='bold', width=STATUS_FIELD_WIDTH),
         ]
 
         file_name_labels = list()
         status_labels = list()
 
         for export in self.exports:
-            status_text = _("Succeeded") if not export.error else f"\N{WARNING SIGN} {export.error}"
-            color = 'green' if not export.error else 'red'
-            file_name_labels.append(u.create_label(text=export.file, tool_tip=export.file, width=FILE_FIELD_WIDTH))
-            status_labels.append(u.create_label(text=status_text, tool_tip=export.error, color=color, width=STATUS_FIELD_WIDTH))
+            if export.error:
+                status_text = f"\N{WARNING SIGN} {export.error}"
+                color = 'red'
+                file_name_labels.append(u.create_label(text=export.data_item_title, tool_tip=export.data_item_title, width=FILE_FIELD_WIDTH))
+                status_labels.append(u.create_label(text=status_text, tool_tip=export.error, color=color, width=STATUS_FIELD_WIDTH))
+
+        num_errors = len(file_name_labels)
+        total_exports = len(self.exports)
+        num_successful = total_exports - num_errors
+        info_row = u.create_row(u.create_label(text=f"{num_successful} of {total_exports} successful"))
 
         header_row = u.create_row(*header_labels, u.create_stretch(), spacing=COLUMN_SPACING)
 
@@ -713,13 +717,16 @@ class ExportResultDialog(Declarative.Handler):
 
         path_title = u.create_label(text=_('Directory:'), font='bold')
 
-        path_directory = u.create_label(text=str(self.export_folder), min_width=280, height=48, word_wrap=True, size_policy_horizontal='min-expanding', text_alignment_vertical='top')
+        path_directory = u.create_label(text=str(self.export_folder), min_width=280, word_wrap=True, size_policy_horizontal='min-expanding', text_alignment_vertical='top')
 
         path_goto = u.create_row(u.create_push_button(text='Open Directory', on_clicked='open_export_folder'),
                                  u.create_stretch())
 
-        self.ui_view = u.create_column(path_title, path_directory, path_goto, header_row, data_row, spacing=8,
-                                       margin=12)
+        if num_errors == 0:
+            self.ui_view = u.create_column(info_row, path_title, path_directory, path_goto, spacing=8, margin=12)
+        else:
+            self.ui_view = u.create_column(info_row, path_title, path_directory, path_goto, header_row, data_row, spacing=8,
+                                           margin=12)
 
     def ok_click(self) -> bool:
         return True
