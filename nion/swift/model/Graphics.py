@@ -2481,15 +2481,16 @@ class RingGraphic(Graphic):
         bottom_marker_inner = mapping.map_point_image_norm_to_widget(Geometry.FloatPoint(calibrated_origin.y, calibrated_origin.x + self.radius_2))
         image_norm_test_point = mapping.map_point_widget_to_image_norm(p)
         test_radius = abs(image_norm_test_point - calibrated_origin)
-        if test_point(top_marker_outer, p, ui_settings.cursor_tolerance):
-            return "radius_1", True
-        if test_point(bottom_marker_outer, p, ui_settings.cursor_tolerance):
-            return "radius_1", True
-        if test_point(left_marker_outer, p, ui_settings.cursor_tolerance):
-            return "radius_1", True
-        if test_point(right_marker_outer, p, ui_settings.cursor_tolerance):
-            return "radius_1", True
-        if self.mode == "band-pass":
+        if self.mode == "band-pass" or self.mode == "high-pass":
+            if test_point(top_marker_outer, p, ui_settings.cursor_tolerance):
+                return "radius_1", True
+            if test_point(bottom_marker_outer, p, ui_settings.cursor_tolerance):
+                return "radius_1", True
+            if test_point(left_marker_outer, p, ui_settings.cursor_tolerance):
+                return "radius_1", True
+            if test_point(right_marker_outer, p, ui_settings.cursor_tolerance):
+                return "radius_1", True
+        if self.mode == "band-pass" or self.mode == "low-pass":
             if test_point(top_marker_inner, p, ui_settings.cursor_tolerance):
                 return "radius_2", True
             if test_point(bottom_marker_inner, p, ui_settings.cursor_tolerance):
@@ -2504,10 +2505,10 @@ class RingGraphic(Graphic):
             if test_radius < outer and test_radius > inner:
                 return "all", True
         elif self.mode == "high-pass":
-            if test_radius < self.radius_1:
+            if test_radius > self.radius_1:
                 return "all", True
         elif self.mode == "low-pass":
-            if test_radius > self.radius_1:
+            if test_radius < self.radius_2:
                 return "all", True
 
         # didn't find anything
@@ -2542,15 +2543,18 @@ class RingGraphic(Graphic):
         radius_1_widget = mapping.map_size_image_norm_to_widget(Geometry.FloatSize(self.radius_1, self.radius_1))
         radius_2_widget = mapping.map_size_image_norm_to_widget(Geometry.FloatSize(self.radius_2, self.radius_2))
         with ctx.saver():
-            ctx.line_width = 1
-            ctx.stroke_style = self.used_stroke_style
-            draw_ellipse(ctx, center, Geometry.FloatSize(width=radius_1_widget[1] * 2, height=radius_1_widget[0] * 2), self.used_stroke_style, None)
-            if is_selected:
-                draw_marker(ctx, Geometry.FloatPoint(center.y + radius_1_widget[0], center.x), is_focused)
-                draw_marker(ctx, Geometry.FloatPoint(center.y - radius_1_widget[0], center.x), is_focused)
-                draw_marker(ctx, Geometry.FloatPoint(center.y, center.x + radius_1_widget[1]), is_focused)
-                draw_marker(ctx, Geometry.FloatPoint(center.y, center.x - radius_1_widget[1]), is_focused)
-            if not self.mode == "low-pass" and not self.mode == "high-pass":
+            if not self.mode == "low-pass":
+                ctx.line_width = 1
+                ctx.stroke_style = self.used_stroke_style
+                draw_ellipse(ctx, center,
+                             Geometry.FloatSize(width=radius_1_widget[1] * 2, height=radius_1_widget[0] * 2),
+                             self.used_stroke_style, None)
+                if is_selected:
+                    draw_marker(ctx, Geometry.FloatPoint(center.y + radius_1_widget[0], center.x), is_focused)
+                    draw_marker(ctx, Geometry.FloatPoint(center.y - radius_1_widget[0], center.x), is_focused)
+                    draw_marker(ctx, Geometry.FloatPoint(center.y, center.x + radius_1_widget[1]), is_focused)
+                    draw_marker(ctx, Geometry.FloatPoint(center.y, center.x - radius_1_widget[1]), is_focused)
+            if not self.mode == "high-pass":
                 ctx.line_width = 1
                 ctx.stroke_style = self.used_stroke_style
                 draw_ellipse(ctx, center, Geometry.FloatSize(width=radius_2_widget[1] * 2, height=radius_2_widget[0] * 2), self.used_stroke_style, None)
@@ -2582,7 +2586,7 @@ class RingGraphic(Graphic):
                         ctx.line_to(x, y)
                 ctx.close_path()
                 ctx.fill()
-            elif self.mode == "low-pass":
+            elif self.mode == "high-pass":
                 ctx.begin_path()
                 for i in numpy.arange(0, 2 * math.pi, 0.1):
                     x = center.x + radius_1_widget[1] * math.cos(i)
@@ -2600,11 +2604,11 @@ class RingGraphic(Graphic):
                 ctx.line_to(center.x + radius_1_widget[1] * math.cos(6.2), center.y + radius_1_widget[0] * math.sin(6.2))
                 ctx.close_path()
                 ctx.fill()
-            elif self.mode == "high-pass":
+            elif self.mode == "low-pass":
                 ctx.begin_path()
                 for i in numpy.arange(0, 2 * math.pi, 0.1):
-                    x = center.x + radius_1_widget[1] * math.cos(i)
-                    y = center.y + radius_1_widget[0] * math.sin(i)
+                    x = center.x + radius_2_widget[1] * math.cos(i)
+                    y = center.y + radius_2_widget[0] * math.sin(i)
                     if i == 0:
                         ctx.move_to(x, y)
                     else:
@@ -3079,18 +3083,18 @@ class RingMaskItem(MaskItem):
         bounds_int = ((0, 0), (int(data_shape[0]), int(data_shape[1])))
         a, b = calibrated_origin.y, calibrated_origin.x
         y, x = numpy.ogrid[-a:data_shape[0] - a, -b:data_shape[1] - b]  # type: ignore
-        outer_radius = self.radius_1 if self.radius_1 > self.radius_2 else self.radius_2
-        inner_radius = self.radius_1 if self.radius_1 < self.radius_2 else self.radius_2
-        outer_eq = x * x + y * y <= (bounds_int[1][0] * outer_radius) ** 2
-        inner_eq = x * x + y * y <= (bounds_int[1][0] * inner_radius) ** 2
+        radius_1_eq = x * x + y * y <= (bounds_int[1][0] * self.radius_1) ** 2
+        radius_2_eq = x * x + y * y <= (bounds_int[1][0] * self.radius_2) ** 2
+        outer_eq = radius_1_eq if self.radius_1 > self.radius_2 else radius_2_eq
+        inner_eq = radius_1_eq if self.radius_1 < self.radius_2 else radius_2_eq
         if self.mode == "band-pass":
             mask[outer_eq] = 1
             mask[inner_eq] = 0
         elif self.mode == "low-pass":
-            not_outer_eq = numpy.logical_not(outer_eq)
-            mask[not_outer_eq] = 1
+            mask[radius_2_eq] = 1
         elif self.mode == "high-pass":
-            mask[inner_eq] = 1
+            not_radius_1_eq = numpy.logical_not(radius_1_eq)
+            mask[not_radius_1_eq] = 1
         else:
             mask = numpy.ones(data_shape)
         return mask
