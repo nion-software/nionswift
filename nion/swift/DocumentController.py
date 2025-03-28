@@ -3550,6 +3550,11 @@ class WorkspaceNextAction(Window.Action):
             workspace_controller.change_to_next_workspace()
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        return len(window.project.workspaces) > 1
+
 
 class WorkspacePreviousAction(Window.Action):
     action_id = "workspace.previous"
@@ -3562,6 +3567,11 @@ class WorkspacePreviousAction(Window.Action):
         if workspace_controller:
             workspace_controller.change_to_previous_workspace()
         return Window.ActionResult(Window.ActionStatus.FINISHED)
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        return len(window.project.workspaces) > 1
 
 
 class WorkspaceRemoveAction(Window.Action):
