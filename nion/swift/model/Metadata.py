@@ -1,3 +1,4 @@
+import collections.abc
 import typing
 
 # standardized metadata paths, mapping to properties
@@ -96,24 +97,32 @@ def has_metadata_value(metadata_source: typing.Any, key: str) -> bool:
     Also note that some predefined keys map to the metadata ``dict`` but others do not. For this reason, prefer
     using the ``metadata_value`` methods over directly accessing ``metadata``.
     """
+    d: typing.Mapping[str, typing.Any] | None = None
+
     desc = session_key_map.get(key)
     if desc is not None:
-        d = getattr(metadata_source, "session_metadata", metadata_source)
+        d = getattr(metadata_source, "session_metadata", None)
+        if d is None:
+            d = getattr(metadata_source, "metadata", None)
+            if d is not None:
+                d = d.get("session_metadata", dict())
+            elif isinstance(metadata_source, collections.abc.Mapping):
+                d = metadata_source.get("session_metadata", dict())
+    if d is None:
+        desc = key_map.get(key)
+        if desc is not None:
+            d = getattr(metadata_source, "metadata", metadata_source)
+        elif isinstance(metadata_source, collections.abc.Mapping):
+            d = metadata_source
+
+    if desc is not None and d is not None:
         for path in desc["paths"]:
             path_components = path.split(".")
             for k in path_components[:-1]:
                 d =  d.get(k, dict()) if d is not None else None
             if d is not None:
                 return path_components[-1] in d
-    desc = key_map.get(key)
-    if desc is not None:
-        d = getattr(metadata_source, "metadata", metadata_source)
-        for path in desc["paths"]:
-            path_components = path.split(".")
-            for k in path_components[:-1]:
-                d =  d.get(k, dict()) if d is not None else None
-            if d is not None:
-                return path_components[-1] in d
+
     return False
 
 
@@ -129,25 +138,33 @@ def get_metadata_value(metadata_source: typing.Any, key: str) -> typing.Any:
     Also note that some predefined keys map to the metadata ``dict`` but others do not. For this reason, prefer
     using the ``metadata_value`` methods over directly accessing ``metadata``.
     """
+    d: typing.Mapping[str, typing.Any] | None = None
+
     desc = session_key_map.get(key)
     if desc is not None:
+        d = getattr(metadata_source, "session_metadata", None)
+        if d is None:
+            d = getattr(metadata_source, "metadata", None)
+            if d is not None:
+                d = d.get("session_metadata", dict())
+            elif isinstance(metadata_source, collections.abc.Mapping):
+                d = metadata_source.get("session_metadata", dict())
+    if d is None:
+        desc = key_map.get(key)
+        if desc is not None:
+            d = getattr(metadata_source, "metadata", metadata_source)
+        elif isinstance(metadata_source, collections.abc.Mapping):
+            d = metadata_source
+
+    if desc is not None and d is not None:
         for path in desc["paths"]:
-            v = getattr(metadata_source, "session_metadata", metadata_source)
             path_components = path.split(".")
             for k in path_components:
-                v =  v.get(k) if v is not None else None
-            if v is not None:
-                return v
-    desc = key_map.get(key)
-    if desc is not None:
-        v = getattr(metadata_source, "metadata", metadata_source)
-        for path in desc["paths"]:
-            path_components = path.split(".")
-            for k in path_components:
-                v =  v.get(k) if v is not None else None
-            if v is not None:
-                return v
-    return None
+                d =  d.get(k) if d is not None else None
+            if d is not None:
+                return d
+
+    raise KeyError()
 
 
 def set_metadata_value(metadata_source: typing.Any, key: str, value: typing.Any) -> None:
@@ -162,31 +179,54 @@ def set_metadata_value(metadata_source: typing.Any, key: str, value: typing.Any)
     Also note that some predefined keys map to the metadata ``dict`` but others do not. For this reason, prefer
     using the ``metadata_value`` methods over directly accessing ``metadata``.
     """
+    _set_session_metadata_fn = getattr(metadata_source, "_set_session_metadata", None)
+    _set_metadata_fn = getattr(metadata_source, "_set_metadata", None)
+
+    d: typing.MutableMapping[str, typing.Any] | None = None
+    path: str | None = None
+    is_session_metadata = False
+    has_session_metadata = False
+
     desc = session_key_map.get(key)
     if desc is not None:
-        d0 = getattr(metadata_source, "session_metadata", metadata_source)
-        d = d0
         path = desc["paths"][0]
+        d = getattr(metadata_source, "session_metadata", None)
+        if d is None:
+            d = getattr(metadata_source, "metadata", None)
+            if d is not None:
+                path = "session_metadata." + path
+            elif isinstance(metadata_source, collections.abc.MutableMapping):
+                path = "session_metadata." + path
+                d = metadata_source
+        else:
+            is_session_metadata = True
+    if d is None:
+        desc = key_map.get(key)
+        if desc is not None:
+            path = desc["paths"][0]
+            d = getattr(metadata_source, "metadata", metadata_source)
+        elif isinstance(metadata_source, collections.abc.MutableMapping):
+            d = metadata_source
+
+    changed = False
+
+    if desc is not None and d is not None and path is not None:
         path_components = path.split(".")
+        d_ = d
         for k in path_components[:-1]:
-            d =  d.setdefault(k, dict()) if d is not None else None
-        if d is not None:
-            d[path_components[-1]] = value
-            metadata_source.session_metadata = d0
-            return
-    desc = key_map.get(key)
-    if desc is not None:
-        d0 = getattr(metadata_source, "metadata", metadata_source)
-        d = d0
-        path = desc["paths"][0]
-        path_components = path.split(".")
-        for k in path_components[:-1]:
-            d =  d.setdefault(k, dict()) if d is not None else None
-        if d is not None:
-            d[path_components[-1]] = value
-            metadata_source.metadata = d0
-            return
-    raise KeyError()
+            d_ =  d_.setdefault(k, dict()) if d is not None else None
+        if d_ is not None:
+            d_[path_components[-1]] = value
+            changed = True
+
+    if changed and d is not None and path is not None:
+        if is_session_metadata:
+            assert callable(_set_session_metadata_fn)
+            _set_session_metadata_fn(d)
+        elif callable(_set_metadata_fn):
+            _set_metadata_fn(d)
+    else:
+        raise KeyError()
 
 
 def delete_metadata_value(metadata_source: typing.Any, key: str) -> None:
@@ -201,32 +241,51 @@ def delete_metadata_value(metadata_source: typing.Any, key: str) -> None:
     Also note that some predefined keys map to the metadata ``dict`` but others do not. For this reason, prefer
     using the ``metadata_value`` methods over directly accessing ``metadata``.
     """
+    _set_session_metadata_fn = getattr(metadata_source, "_set_session_metadata", None)
+    _set_metadata_fn = getattr(metadata_source, "_set_metadata", None)
+
+    d: typing.MutableMapping[str, typing.Any] | None = None
+    path: str | None = None
+    is_session_metadata = False
+    has_session_metadata = False
+
     desc = session_key_map.get(key)
     if desc is not None:
-        d0 = getattr(metadata_source, "session_metadata", dict())
-        changed = False
-        for path in desc["paths"]:
-            d = d0
-            path_components = path.split(".")
-            for k in path_components[:-1]:
-                d =  d.setdefault(k, dict()) if d is not None else None
-            if d is not None and path_components[-1] in d:
-                d.pop(path_components[-1], None)
-                changed = True
-        if changed:
-            metadata_source.session_metadata = d0
-    desc = key_map.get(key)
-    if desc is not None:
-        d0 = getattr(metadata_source, "metadata", dict())
-        changed = False
-        for path in desc["paths"]:
-            d = d0
-            path_components = path.split(".")
-            for k in path_components[:-1]:
-                d =  d.setdefault(k, dict()) if d is not None else None
-            if d is not None and path_components[-1] in d:
-                d.pop(path_components[-1], None)
-                metadata_source.metadata = d0
-                changed = True
-        if changed:
-            metadata_source.session_metadata = d0
+        path = desc["paths"][0]
+        d = getattr(metadata_source, "session_metadata", None)
+        if d is None:
+            d = getattr(metadata_source, "metadata", None)
+            if d is not None:
+                path = "session_metadata." + path
+            elif isinstance(metadata_source, collections.abc.MutableMapping):
+                path = "session_metadata." + path
+                d = metadata_source
+        else:
+            is_session_metadata = True
+    if d is None:
+        desc = key_map.get(key)
+        if desc is not None:
+            path = desc["paths"][0]
+            d = getattr(metadata_source, "metadata", metadata_source)
+        elif isinstance(metadata_source, collections.abc.MutableMapping):
+            d = metadata_source
+
+    changed = False
+
+    if desc is not None and d is not None and path is not None:
+        path_components = path.split(".")
+        d_ = d
+        for k in path_components[:-1]:
+            d_ =  d_.get(k, dict()) if d is not None else None
+        if d_ is not None and path_components[-1] in d_:
+            d_.pop(path_components[-1], None)
+            changed = True
+
+    if changed and d is not None and path is not None:
+        if is_session_metadata:
+            assert callable(_set_session_metadata_fn)
+            _set_session_metadata_fn(d)
+        elif callable(_set_metadata_fn):
+            _set_metadata_fn(d)
+    else:
+        raise KeyError()

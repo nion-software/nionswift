@@ -992,6 +992,9 @@ class DataItem(Persistence.PersistentObject):
     def session_metadata(self, value: DataAndMetadata.MetadataType) -> None:
         self._set_persistent_property_value("session", copy.deepcopy(value))
 
+    def _set_session_metadata(self, metadata: DataAndMetadata.MetadataType) -> None:
+        self.session_metadata = metadata
+
     @property
     def session_data(self) -> DataAndMetadata.MetadataType:
         return self.session_metadata
@@ -1166,6 +1169,9 @@ class DataItem(Persistence.PersistentObject):
                 self.__data_metadata._set_metadata(metadata)
             self.__metadata = copy.deepcopy(metadata) if metadata else dict()
             self._set_persistent_property_value("metadata", self.__metadata)
+
+    def _set_metadata(self, metadata: DataAndMetadata.MetadataType) -> None:
+        self.metadata = metadata
 
     @property
     def has_data(self) -> bool:
@@ -1346,6 +1352,10 @@ class DataItem(Persistence.PersistentObject):
     @property
     def data_dtype(self) -> typing.Optional[numpy.typing.DTypeLike]:
         return self.__data_metadata.data_dtype if self.__data_metadata else None
+
+    @property
+    def data_descriptor(self) -> typing.Optional[DataAndMetadata.DataDescriptor]:
+        return self.__data_metadata.data_descriptor if self.__data_metadata else None
 
     @property
     def dimensional_shape(self) -> DataAndMetadata.ShapeType:
