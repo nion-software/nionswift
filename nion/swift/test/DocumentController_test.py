@@ -2,6 +2,7 @@
 import contextlib
 import gc
 import logging
+import typing
 import unittest
 import uuid
 import weakref

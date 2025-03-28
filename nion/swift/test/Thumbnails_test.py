@@ -1,10 +1,11 @@
 # standard libraries
 import contextlib
-
-import numpy
 import logging
 import threading
+import typing
 import unittest
+
+import numpy
 
 # local libraries
 from nion.swift import Application
