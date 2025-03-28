@@ -19,9 +19,10 @@ class TestHistogramPanelClass(unittest.TestCase):
 
     def setUp(self):
         TestContext.begin_leaks()
-        self.app = Application.Application(TestUI.UserInterface(), set_global=False)
+        self._test_setup = TestContext.TestSetup()
 
     def tearDown(self):
+        self._test_setup = typing.cast(typing.Any, None)
         TestContext.end_leaks(self)
 
     def get_data(self):

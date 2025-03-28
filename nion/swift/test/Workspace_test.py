@@ -95,9 +95,10 @@ class TestWorkspaceClass(unittest.TestCase):
 
     def setUp(self):
         TestContext.begin_leaks()
-        self.app = Application.Application(TestUI.UserInterface(), set_global=False)
+        self._test_setup = TestContext.TestSetup()
 
     def tearDown(self):
+        self._test_setup = typing.cast(typing.Any, None)
         TestContext.end_leaks(self)
 
     def test_basic_change_layout_results_in_correct_image_panel_count(self):
@@ -1244,7 +1245,7 @@ class TestWorkspaceClass(unittest.TestCase):
             self.assertEqual(document_controller.workspace_controller.display_panels[0].display_item, display_item1)
             self.assertEqual(document_controller.workspace_controller.display_panels[1].display_item, display_item2)
             # simulate drag. data_item2 in right panel swaps with data_item1 in left panel.
-            mime_data = self.app.ui.create_mime_data()
+            mime_data = self._test_setup.app.ui.create_mime_data()
             MimeTypes.mime_data_put_display_item(mime_data, display_item2)
             document_controller.replaced_display_panel_content_flag = True  # this would get set by the drag command
             document_controller.workspace_controller.handle_drop(document_controller.workspace_controller.display_panels[0], mime_data, "middle", 160, 240)

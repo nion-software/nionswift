@@ -41,9 +41,10 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def setUp(self):
         TestContext.begin_leaks()
-        self.app = Application.Application(TestUI.UserInterface(), set_global=False)
+        self._test_setup = TestContext.TestSetup()
 
     def tearDown(self):
+        self._test_setup = typing.cast(typing.Any, None)
         TestContext.end_leaks(self)
 
     def test_remove_data_items_on_document_model(self):
@@ -730,7 +731,7 @@ class TestDocumentModelClass(unittest.TestCase):
         Symbolic.register_computation_type("set_const", self.SetConst)
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            self.app._set_document_model(document_model)  # required to allow API to find document model
+            self._test_setup.app._set_document_model(document_model)  # required to allow API to find document model
             data_item = DataItem.DataItem(numpy.zeros((2, 2), int))
             document_model.append_data_item(data_item)
             computation = document_model.create_computation()
@@ -750,7 +751,7 @@ class TestDocumentModelClass(unittest.TestCase):
         Symbolic.register_computation_type("set_const", self.SetConst)
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            self.app._set_document_model(document_model)  # required to allow API to find document model
+            self._test_setup.app._set_document_model(document_model)  # required to allow API to find document model
             data_item = DataItem.DataItem(numpy.zeros((2, 2), int))
             data_item2 = DataItem.DataItem(numpy.zeros((3, 3), int))
             document_model.append_data_item(data_item)
@@ -1069,7 +1070,7 @@ class TestDocumentModelClass(unittest.TestCase):
         Symbolic.register_computation_type("set_const", self.SetConst)
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            self.app._set_document_model(document_model)  # required to allow API to find document model
+            self._test_setup.app._set_document_model(document_model)  # required to allow API to find document model
             data_item = DataItem.DataItem(numpy.zeros((2, 2), int))
             document_model.append_data_item(data_item)
             computation = document_model.create_computation()
@@ -1104,7 +1105,7 @@ class TestDocumentModelClass(unittest.TestCase):
         Symbolic.register_computation_type("add_n", self.AddN)
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            self.app._set_document_model(document_model)  # required to allow API to find document model
+            self._test_setup.app._set_document_model(document_model)  # required to allow API to find document model
             data_item1 = DataItem.DataItem(numpy.full((2, 2), 1))
             document_model.append_data_item(data_item1)
             display_item1 = document_model.get_display_item_for_data_item(data_item1)
@@ -1126,7 +1127,7 @@ class TestDocumentModelClass(unittest.TestCase):
         Symbolic.register_computation_type("add_n", self.AddN)
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            self.app._set_document_model(document_model)  # required to allow API to find document model
+            self._test_setup.app._set_document_model(document_model)  # required to allow API to find document model
             data_item1 = DataItem.DataItem(numpy.full((2, 2), 1))
             document_model.append_data_item(data_item1)
             display_item1 = document_model.get_display_item_for_data_item(data_item1)
@@ -1145,7 +1146,7 @@ class TestDocumentModelClass(unittest.TestCase):
         Symbolic.register_computation_type("add_n", self.AddN)
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            self.app._set_document_model(document_model)  # required to allow API to find document model
+            self._test_setup.app._set_document_model(document_model)  # required to allow API to find document model
             data_item1 = DataItem.DataItem(numpy.full((2, 2), 1))
             document_model.append_data_item(data_item1)
             display_item1 = document_model.get_display_item_for_data_item(data_item1)
@@ -1168,7 +1169,7 @@ class TestDocumentModelClass(unittest.TestCase):
         Symbolic.register_computation_type("add_n", self.AddN)
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            self.app._set_document_model(document_model)  # required to allow API to find document model
+            self._test_setup.app._set_document_model(document_model)  # required to allow API to find document model
             data_item1 = DataItem.DataItem(numpy.full((2, 2), 1))
             document_model.append_data_item(data_item1)
             display_item1 = document_model.get_display_item_for_data_item(data_item1)
@@ -1197,7 +1198,7 @@ class TestDocumentModelClass(unittest.TestCase):
         Symbolic.register_computation_type("add_n", self.AddN)
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            self.app._set_document_model(document_model)  # required to allow API to find document model
+            self._test_setup.app._set_document_model(document_model)  # required to allow API to find document model
             data_item1 = DataItem.DataItem(numpy.full((2, 2), 1))
             document_model.append_data_item(data_item1)
             display_item1 = document_model.get_display_item_for_data_item(data_item1)
@@ -1223,7 +1224,7 @@ class TestDocumentModelClass(unittest.TestCase):
         Symbolic.register_computation_type("add_n", self.AddN)
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            self.app._set_document_model(document_model)  # required to allow API to find document model
+            self._test_setup.app._set_document_model(document_model)  # required to allow API to find document model
             data_item1 = DataItem.DataItem(numpy.full((2, 2), 1))
             document_model.append_data_item(data_item1)
             display_item1 = document_model.get_display_item_for_data_item(data_item1)
@@ -1248,7 +1249,7 @@ class TestDocumentModelClass(unittest.TestCase):
         Symbolic.register_computation_type("add_n", self.AddN)
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            self.app._set_document_model(document_model)  # required to allow API to find document model
+            self._test_setup.app._set_document_model(document_model)  # required to allow API to find document model
             data_item1 = DataItem.DataItem(numpy.full((2, 2), 1))
             document_model.append_data_item(data_item1)
             data_item2 = DataItem.DataItem(numpy.full((2, 2), 2))
@@ -1286,7 +1287,7 @@ class TestDocumentModelClass(unittest.TestCase):
         Symbolic.register_computation_type("copy_data", self.CopyData)
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            self.app._set_document_model(document_model)  # required to allow API to find document model
+            self._test_setup.app._set_document_model(document_model)  # required to allow API to find document model
             data_item = DataItem.DataItem(numpy.zeros((2, 2), int))
             data_item2 = DataItem.DataItem()
             document_model.append_data_item(data_item)
@@ -1307,7 +1308,7 @@ class TestDocumentModelClass(unittest.TestCase):
         Symbolic.register_computation_type("copy_data", self.CopyData)
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            self.app._set_document_model(document_model)  # required to allow API to find document model
+            self._test_setup.app._set_document_model(document_model)  # required to allow API to find document model
             data_item = DataItem.DataItem(numpy.zeros((2, 2), int))
             document_model.append_data_item(data_item)
             with self.assertRaises(Exception):
@@ -1321,7 +1322,7 @@ class TestDocumentModelClass(unittest.TestCase):
         Symbolic.register_computation_type("copy_data", self.CopyData)
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            self.app._set_document_model(document_model)  # required to allow API to find document model
+            self._test_setup.app._set_document_model(document_model)  # required to allow API to find document model
             data_item = DataItem.DataItem(numpy.zeros((2, 2), int))
             data_item2 = DataItem.DataItem(numpy.zeros((2, 2), int))
             document_model.append_data_item(data_item)
@@ -1536,7 +1537,7 @@ class TestDocumentModelClass(unittest.TestCase):
         Symbolic.register_computation_type("genzero", self.GenerateZero)
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            self.app._set_document_model(document_model)  # required to allow API to find document model
+            self._test_setup.app._set_document_model(document_model)  # required to allow API to find document model
             data_item = DataItem.DataItem(numpy.ones((2, 2), int))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
@@ -1796,7 +1797,7 @@ class TestDocumentModelClass(unittest.TestCase):
         Symbolic.register_computation_type("source_cycle_test", self.SourceCycleTest)
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            self.app._set_document_model(document_model)  # required to allow API to find document model
+            self._test_setup.app._set_document_model(document_model)  # required to allow API to find document model
             data_item1 = DataItem.DataItem(numpy.zeros((2, )))
             document_model.append_data_item(data_item1)
             display_item1 = document_model.get_display_item_for_data_item(data_item1)
@@ -1913,7 +1914,7 @@ class TestDocumentModelClass(unittest.TestCase):
         Symbolic.register_computation_type("negate", self.Negate)
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            self.app._set_document_model(document_model)  # required to allow API to find document model
+            self._test_setup.app._set_document_model(document_model)  # required to allow API to find document model
             # create the data items
             data_item = DataItem.DataItem(numpy.ones((4, 4)))
             document_model.append_data_item(data_item)
@@ -1959,7 +1960,7 @@ class TestDocumentModelClass(unittest.TestCase):
         Symbolic.register_computation_type("negate", self.Negate)
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            self.app._set_document_model(document_model)  # required to allow API to find document model
+            self._test_setup.app._set_document_model(document_model)  # required to allow API to find document model
             # create the data items
             data_item = DataItem.DataItem(numpy.ones((4, 4)))
             document_model.append_data_item(data_item)
@@ -2005,7 +2006,7 @@ class TestDocumentModelClass(unittest.TestCase):
     def test_undelete_connection(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            self.app._set_document_model(document_model)  # required to allow API to find document model
+            self._test_setup.app._set_document_model(document_model)  # required to allow API to find document model
             # create the data items
             data_item1 = DataItem.DataItem(numpy.ones((4, 4)))
             document_model.append_data_item(data_item1)
@@ -2043,7 +2044,7 @@ class TestDocumentModelClass(unittest.TestCase):
     def test_undeleted_connection_is_properly_restored_into_persistent_object_context(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            self.app._set_document_model(document_model)  # required to allow API to find document model
+            self._test_setup.app._set_document_model(document_model)  # required to allow API to find document model
             # create the data items
             data_item = DataItem.DataItem(numpy.ones((4, 4, 100)))
             document_model.append_data_item(data_item)
@@ -2065,7 +2066,7 @@ class TestDocumentModelClass(unittest.TestCase):
     def test_undelete_graphic(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            self.app._set_document_model(document_model)  # required to allow API to find document model
+            self._test_setup.app._set_document_model(document_model)  # required to allow API to find document model
             # create the data items
             data_item = DataItem.DataItem(numpy.ones((8, 8)))
             document_model.append_data_item(data_item)
@@ -2097,7 +2098,7 @@ class TestDocumentModelClass(unittest.TestCase):
     def test_undeleted_graphic_is_properly_restored_into_persistent_object_context(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            self.app._set_document_model(document_model)  # required to allow API to find document model
+            self._test_setup.app._set_document_model(document_model)  # required to allow API to find document model
             # create the data items
             data_item = DataItem.DataItem(numpy.ones((8, 8)))
             document_model.append_data_item(data_item)
@@ -2114,7 +2115,7 @@ class TestDocumentModelClass(unittest.TestCase):
     def test_undelete_data_item(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            self.app._set_document_model(document_model)  # required to allow API to find document model
+            self._test_setup.app._set_document_model(document_model)  # required to allow API to find document model
             # create the data items
             data_item = DataItem.DataItem(numpy.ones((8, 8)))
             document_model.append_data_item(data_item)
@@ -2130,7 +2131,7 @@ class TestDocumentModelClass(unittest.TestCase):
     def test_undelete_data_item_with_graphic(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
-            self.app._set_document_model(document_model)  # required to allow API to find document model
+            self._test_setup.app._set_document_model(document_model)  # required to allow API to find document model
             # create the data items
             data_item = DataItem.DataItem(numpy.ones((8, 8)))
             document_model.append_data_item(data_item)

@@ -1,4 +1,5 @@
 # standard libraries
+import asyncio
 import contextlib
 import logging
 import math
@@ -79,6 +80,8 @@ class TestDisplayPanelClass(unittest.TestCase):
 
     def setUp(self):
         TestContext.begin_leaks()
+        event_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(event_loop)
         self.test_context = TestContext.create_memory_context()
         self.test_context.__enter__()
         self.document_controller = self.test_context.create_document_controller_with_application()
@@ -94,6 +97,11 @@ class TestDisplayPanelClass(unittest.TestCase):
     def tearDown(self):
         self.test_context.__exit__(None, None, None)
         self.test_context.close()
+        event_loop = asyncio.get_event_loop()
+        event_loop.stop()
+        event_loop.run_forever()
+        asyncio.set_event_loop(None)
+        event_loop.close()
         TestContext.end_leaks(self)
 
     def setup_line_plot(self, canvas_shape=None, data_min=0.0, data_max=1.0):

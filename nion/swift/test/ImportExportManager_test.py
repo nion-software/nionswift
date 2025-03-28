@@ -30,9 +30,10 @@ class TestImportExportManagerClass(unittest.TestCase):
 
     def setUp(self):
         TestContext.begin_leaks()
-        self.app = Application.Application(TestUI.UserInterface(), set_global=True)
+        self._test_setup = TestContext.TestSetup(set_global=True)
 
     def tearDown(self):
+        self._test_setup = typing.cast(typing.Any, None)
         TestContext.end_leaks(self)
 
     def test_convert_data_element_records_time_zone_in_data_item_metadata(self):

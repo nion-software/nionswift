@@ -157,7 +157,7 @@ class TestStorageClass(unittest.TestCase):
 
     def setUp(self):
         TestContext.begin_leaks()
-        self.app = Application.Application(TestUI.UserInterface(), set_global=False)
+        self._test_setup = TestContext.TestSetup()
         # self.__memory_start = memory_usage_resource()
 
     def tearDown(self):
@@ -165,6 +165,7 @@ class TestStorageClass(unittest.TestCase):
         # memory_usage = memory_usage_resource() - self.__memory_start
         # if memory_usage > 0.5:
         #     logging.debug("{} {}".format(self.id(), memory_usage))
+        self._test_setup = typing.cast(typing.Any, None)
         TestContext.end_leaks(self)
 
     """
@@ -319,7 +320,7 @@ class TestStorageClass(unittest.TestCase):
                 display_item = document_model.get_display_item_for_data_item(data_item)
                 storage_cache.set_cached_value(display_item, "thumbnail_data", numpy.zeros((128, 128, 4), dtype=numpy.uint8))
                 self.assertFalse(storage_cache.is_cached_value_dirty(display_item, "thumbnail_data"))
-                thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.app.ui, display_item)
+                thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self._test_setup.app.ui, display_item)
                 thumbnail_source.recompute_data()
                 thumbnail_source = None
             # read it back
@@ -330,7 +331,7 @@ class TestStorageClass(unittest.TestCase):
                 read_display_item = document_model.get_display_item_for_data_item(read_data_item)
                 # thumbnail data should still be valid
                 self.assertFalse(storage_cache.is_cached_value_dirty(read_display_item, "thumbnail_data"))
-                thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.app.ui, read_display_item)
+                thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self._test_setup.app.ui, read_display_item)
                 self.assertFalse(thumbnail_source._is_thumbnail_dirty)
                 thumbnail_source = None
 
@@ -4003,7 +4004,7 @@ class TestStorageClass(unittest.TestCase):
         with create_memory_profile_context() as profile_context:
             document_model = profile_context.create_document_model(auto_close=False)
             with document_model.ref():
-                self.app._set_document_model(document_model)  # required to allow API to find document model
+                self._test_setup.app._set_document_model(document_model)  # required to allow API to find document model
                 data_item1 = DataItem.DataItem(numpy.full((2, 2), 1))
                 document_model.append_data_item(data_item1)
                 display_item1 = document_model.get_display_item_for_data_item(data_item1)
@@ -4064,7 +4065,7 @@ class TestStorageClass(unittest.TestCase):
         with create_memory_profile_context() as profile_context:
             document_model = profile_context.create_document_model(auto_close=False)
             with document_model.ref():
-                self.app._set_document_model(document_model)  # required to allow API to find document model
+                self._test_setup.app._set_document_model(document_model)  # required to allow API to find document model
                 data_item1 = DataItem.DataItem(numpy.full((2, 2), 1))
                 document_model.append_data_item(data_item1)
                 display_item1 = document_model.get_display_item_for_data_item(data_item1)

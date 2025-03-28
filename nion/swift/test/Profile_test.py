@@ -35,9 +35,10 @@ class TestProfileClass(unittest.TestCase):
 
     def setUp(self):
         TestContext.begin_leaks()
-        self.app = Application.Application(TestUI.UserInterface(), set_global=False)
+        self._test_setup = TestContext.TestSetup()
 
     def tearDown(self):
+        self._test_setup = typing.cast(typing.Any, None)
         TestContext.end_leaks(self)
 
     def test_closing_window_unloads_project_referemnce(self):
@@ -45,9 +46,9 @@ class TestProfileClass(unittest.TestCase):
             # use lower level calls to create the profile and open the window via the app
             profile = profile_context.create_profile()
             profile.read_profile()
-            self.app._set_profile_for_test(profile)
+            self._test_setup.app._set_profile_for_test(profile)
             TestContext.add_project_memory(profile, load=False)
-            document_controller = self.app.open_project_window(profile.project_references[0])
+            document_controller = self._test_setup.app.open_project_window(profile.project_references[0])
             # check conditions
             self.assertEqual(2, len(profile.project_references))
             self.assertEqual("loaded", profile.project_references[0].project_state)
@@ -86,10 +87,10 @@ class TestProfileClass(unittest.TestCase):
             # use lower level calls to create the profile and open the window via the app
             profile = profile_context.create_profile()
             profile.read_profile()
-            self.app._set_profile_for_test(profile)
+            self._test_setup.app._set_profile_for_test(profile)
             TestContext.add_project_memory(profile, load=False)
             # load first project and check conditions
-            document_controller = self.app.open_project_window(profile.project_references[0])
+            document_controller = self._test_setup.app.open_project_window(profile.project_references[0])
             document_controller.document_model.append_data_item(DataItem.DataItem(numpy.zeros((2, 2))))
             document_controller._perform_processing(document_controller.document_model.display_items[0], document_controller.document_model.display_items[0].data_item, None, document_controller.document_model.get_fft_new)
             document_controller.document_model.recompute_all()
@@ -98,12 +99,12 @@ class TestProfileClass(unittest.TestCase):
             self.assertEqual(2, len(document_controller.document_model.data_items))
             # switch projects and check conditions
             document_controller.request_close()
-            document_controller = self.app.open_project_window(profile.project_references[1])
+            document_controller = self._test_setup.app.open_project_window(profile.project_references[1])
             self.assertEqual("unloaded", profile.project_references[0].project_state)
             self.assertEqual("loaded", profile.project_references[1].project_state)
             # switch projects again and check conditions
             document_controller.request_close()
-            document_controller = self.app.open_project_window(profile.project_references[0])
+            document_controller = self._test_setup.app.open_project_window(profile.project_references[0])
             self.assertEqual("loaded", profile.project_references[0].project_state)
             self.assertEqual("unloaded", profile.project_references[1].project_state)
             self.assertEqual(2, len(document_controller.document_model.data_items))
@@ -114,10 +115,10 @@ class TestProfileClass(unittest.TestCase):
             # use lower level calls to create the profile and open the window via the app
             profile = profile_context.create_profile()
             profile.read_profile()
-            self.app._set_profile_for_test(profile)
+            self._test_setup.app._set_profile_for_test(profile)
             TestContext.add_project_memory(profile, load=False)
             # load first project and check conditions
-            document_controller = self.app.open_project_window(profile.project_references[0])
+            document_controller = self._test_setup.app.open_project_window(profile.project_references[0])
             self.assertEqual("loaded", profile.project_references[0].project_state)
             self.assertEqual("unloaded", profile.project_references[1].project_state)
             # forget project and check conditions
@@ -132,10 +133,10 @@ class TestProfileClass(unittest.TestCase):
             # use lower level calls to create the profile and open the window via the app
             profile = profile_context.create_profile()
             profile.read_profile()
-            self.app._set_profile_for_test(profile)
-            document_controller = self.app.open_project_window(profile.project_references[0])
+            self._test_setup.app._set_profile_for_test(profile)
+            document_controller = self._test_setup.app.open_project_window(profile.project_references[0])
             # check preconditions
-            self.assertEqual(1, len(self.app.windows))
+            self.assertEqual(1, len(self._test_setup.app.windows))
             self.assertEqual(1, len(profile.project_references))
             self.assertEqual("loaded", profile.project_references[0].project_state)
             # add project, check
@@ -144,7 +145,7 @@ class TestProfileClass(unittest.TestCase):
             self.assertEqual("loaded", profile.project_references[0].project_state)
             self.assertEqual("unloaded", profile.project_references[1].project_state)
             self.assertEqual(project_reference2, profile.project_references[1])
-            self.assertEqual(1, len(self.app.windows))
+            self.assertEqual(1, len(self._test_setup.app.windows))
             # clean up
             document_controller.close()
 
@@ -153,10 +154,10 @@ class TestProfileClass(unittest.TestCase):
             # use lower level calls to create the profile and open the window via the app
             profile = profile_context.create_profile()
             profile.read_profile()
-            self.app._set_profile_for_test(profile)
+            self._test_setup.app._set_profile_for_test(profile)
             TestContext.add_project_memory(profile, load=False)
             # load first project and check conditions
-            document_controller = self.app.open_project_window(profile.project_references[0])
+            document_controller = self._test_setup.app.open_project_window(profile.project_references[0])
             self.assertEqual("loaded", profile.project_references[0].project_state)
             self.assertEqual("unloaded", profile.project_references[1].project_state)
             # forget project and check conditions

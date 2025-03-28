@@ -21,9 +21,10 @@ class TestThumbnailsClass(unittest.TestCase):
 
     def setUp(self):
         TestContext.begin_leaks()
-        self.app = Application.Application(TestUI.UserInterface(), set_global=False)
+        self._test_setup = TestContext.TestSetup()
 
     def tearDown(self):
+        self._test_setup = typing.cast(typing.Any, None)
         TestContext.end_leaks(self)
 
     def test_data_item_display_thumbnail_source_produces_data_item_mime_data(self):
@@ -54,7 +55,7 @@ class TestThumbnailsClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.ones((8,)))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.app.ui, display_item)
+            thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self._test_setup.app.ui, display_item)
             thumbnail_source.recompute_data()
             thumbnail_source.thumbnail_data
             # here the data should be computed and the thumbnail should not be dirty

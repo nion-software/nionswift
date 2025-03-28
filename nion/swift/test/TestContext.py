@@ -1,8 +1,11 @@
 # system libraries
+import asyncio
+import dataclasses
 import gc
 import typing
 import unittest
 import uuid
+import weakref
 
 # local libraries
 from nion.swift import Application
@@ -63,6 +66,21 @@ def convert_tuples_to_lists(i: typing.Any) -> typing.Any:
     elif itype == list or itype == tuple:
         return [convert_tuples_to_lists(v) for v in i]
     return i
+
+
+class TestSetup:
+    def __init__(self, set_global: bool = False) -> None:
+        self.app = Application.Application(TestUI.UserInterface(), set_global=set_global)
+        event_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(event_loop)
+
+        def finalize() -> None:
+            event_loop.stop()
+            event_loop.run_forever()
+            asyncio.set_event_loop(None)
+            event_loop.close()
+
+        weakref.finalize(self, finalize)
 
 
 class MemoryProfileContext:
