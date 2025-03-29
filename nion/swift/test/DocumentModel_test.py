@@ -2493,6 +2493,25 @@ class TestDocumentModelClass(unittest.TestCase):
                 self.assertEqual("test (Copy)", display_copy.data_item.title)
                 self.assertEqual("test (Copy)", display_copy.displayed_title)
 
+    def test_mapped_sum_connector_on_invalid_data(self):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            data_item = DataItem.DataItem(numpy.zeros((8, 8, 4, 4)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            crop_region = Graphics.RectangleGraphic()
+            crop_region.center = (0.25, 0.25)
+            crop_region.size = (0.5, 0.5)
+            display_item.add_graphic(crop_region)
+            document_model.get_processing_new("mapped_sum", display_item, display_item.data_item, crop_region)
+            computed_display_item = document_model.get_display_item_for_data_item(document_model.data_items[-1])
+            document_model.recompute_all()
+            # set up the source data item so that it produces an invalid collection index.
+            display_item.display_data_channel.collection_index = (0, 1)
+            data_item.set_data_and_metadata(DataAndMetadata.new_data_and_metadata(numpy.zeros((1,1))))
+            # trigger the connection
+            display_item.display_data_channel.collection_index = (1, 0)
+
     # solve problem of where to create new elements (same library), generally shouldn't create data items for now?
     # way to configure display for new data items?
     # splitting complex and reconstructing complex does so efficiently (i.e. one recompute for each change at each step)
