@@ -396,6 +396,10 @@ class NDataHandler(StorageHandler.StorageHandler):
     def factory(self) -> StorageHandler.StorageHandlerFactoryLike:
         return NDataHandlerFactory()
 
+    @property
+    def storage_handler_type(self) -> str:
+        return "ndata"
+
     # called before the file is moved; close but don't count.
     def prepare_move(self) -> None:
         pass
@@ -501,6 +505,9 @@ class NDataHandler(StorageHandler.StorageHandler):
 
 
 class NDataHandlerFactory(StorageHandler.StorageHandlerFactoryLike):
+
+    def get_storage_handler_type(self) -> str:
+        return "ndata"
 
     def is_matching(self, file_path: str) -> bool:
         """Return whether the given absolute file path is a ndata file."""

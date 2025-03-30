@@ -40,6 +40,9 @@ _NDArray = numpy.typing.NDArray[typing.Any]
 _CreateStorageHandlerFn = typing.Type[StorageHandler.StorageHandler]
 
 
+_g_large_format_size = 16 * 1024 * 1024
+
+
 class ReaderInfo:
     def __init__(self,
                  properties: PersistentDictType,
@@ -548,7 +551,7 @@ class ProjectStorageSystemMigrationStage:
 def make_storage_handler_attributes(data_item: DataItem.DataItem) -> StorageHandler.StorageHandlerAttributes:
     dimensional_shape = data_item.dimensional_shape
     data_dtype = data_item.data_dtype
-    n_bytes = typing.cast(int, numpy.prod(dimensional_shape + (numpy.dtype(data_dtype).itemsize,), dtype=numpy.int64))
+    n_bytes = typing.cast(int, numpy.prod(dimensional_shape, dtype=numpy.int64)) * numpy.dtype(data_dtype).itemsize
     return StorageHandler.StorageHandlerAttributes(data_item.uuid, data_item.created_local, data_item.session_id, n_bytes, data_item.large_format)
 
 
@@ -565,6 +568,9 @@ class ProjectStorageSystem(PersistentStorageSystem):
         self.__storage_adapter_map.clear()
 
     @abc.abstractmethod
+    def _get_storage_handler_factory(self, storage_handler_attributes: StorageHandler.StorageHandlerAttributes) -> StorageHandler.StorageHandlerFactoryLike: ...
+
+    @abc.abstractmethod
     def _make_storage_handler(self, storage_handler_attributes: StorageHandler.StorageHandlerAttributes, file_handler: typing.Optional[StorageHandler.StorageHandlerFactoryLike] = None) -> StorageHandler.StorageHandler: ...
 
     @abc.abstractmethod
@@ -572,6 +578,9 @@ class ProjectStorageSystem(PersistentStorageSystem):
 
     @abc.abstractmethod
     def _remove_storage_handler(self, storage_handler: StorageHandler.StorageHandler, *, safe: bool = False) -> None: ...
+
+    @abc.abstractmethod
+    def _replace_storage_handler(self, storage_handler: StorageHandler.StorageHandler, data_item: DataItem.DataItem) -> StorageHandler.StorageHandler: ...
 
     @abc.abstractmethod
     def _restore_item(self, data_item_uuid: uuid.UUID) -> typing.Optional[PersistentDictType]: ...
@@ -653,6 +662,7 @@ class ProjectStorageSystem(PersistentStorageSystem):
                 storage_handler.prepare_move()
                 assert storage_handler_properties is not None
                 properties = Migration.transform_to_latest(storage_handler_properties)
+                assert properties.get("uuid")
                 reader_info = ReaderInfo(properties, [False], large_format, storage_handler, storage_handler.reference)
                 reader_info_list.append(reader_info)
             except Exception as e:
@@ -789,15 +799,33 @@ class ProjectStorageSystem(PersistentStorageSystem):
         assert storage_adapter
         return storage_adapter.load_data(data_item)
 
+    def __ensure_valid_storage_adapter(self, data_item: DataItem.DataItem, n_bytes: int, force_large_format: bool) -> DataItemStorageAdapter:
+        # check to see if the existing storage adapter is still suitable for the data item with the new size n_bytes
+        # if not, create a new storage adapter and replace the old one.
+        storage_adapter = self.__storage_adapter_map.get(data_item.uuid)
+        assert storage_adapter
+        storage_handler = storage_adapter.storage_handler
+        storage_handler_attributes = make_storage_handler_attributes(data_item)
+        storage_handler_type = self._get_storage_handler_factory(storage_handler_attributes).get_storage_handler_type()
+        if storage_handler_type != storage_handler.storage_handler_type:
+            properties = storage_adapter.properties
+            new_storage_handler = self._replace_storage_handler(storage_handler, data_item)
+            storage_handler.close()
+            new_storage_adapter = DataItemStorageAdapter(new_storage_handler, properties)
+            self.__storage_adapter_map[data_item.uuid] = new_storage_adapter
+            new_storage_adapter.rewrite_item(data_item)
+            return new_storage_adapter
+        return storage_adapter
+
     def __write_data_item_data(self, data_item: DataItem.DataItem, data: typing.Optional[_NDArray]) -> None:
         if not self.is_write_delayed(data_item):
-            storage_adapter = self.__storage_adapter_map.get(data_item.uuid)
-            assert storage_adapter
+            n_bytes = typing.cast(int, numpy.prod(data.shape, dtype=numpy.int64)) * numpy.dtype(data.dtype).itemsize if data is not None else 0
+            storage_adapter = self.__ensure_valid_storage_adapter(data_item, n_bytes, False)
             storage_adapter.update_data(data_item, data)
 
     def __reserve_data_item_data(self, data_item: DataItem.DataItem, data_shape: typing.Tuple[int, ...], data_dtype: numpy.typing.DTypeLike) -> None:
-        storage_adapter = self.__storage_adapter_map.get(data_item.uuid)
-        assert storage_adapter
+        n_bytes = typing.cast(int, numpy.prod(data_shape, dtype=numpy.int64)) * numpy.dtype(data_dtype).itemsize
+        storage_adapter = self.__ensure_valid_storage_adapter(data_item, n_bytes, False)
         storage_adapter.reserve_data(data_item, data_shape, data_dtype)
 
     def __rewrite_data_item_properties(self, data_item: DataItem.DataItem) -> None:
@@ -887,11 +915,14 @@ class FileProjectStorageSystem(ProjectStorageSystem):
     def get_identifier(self) -> str:
         return str(self.__project_path)
 
-    def _make_storage_handler(self, storage_handler_attributes: StorageHandler.StorageHandlerAttributes, file_handler_factory: typing.Optional[StorageHandler.StorageHandlerFactoryLike] = None) -> StorageHandler.StorageHandler:
+    def _get_storage_handler_factory(self, storage_handler_attributes: StorageHandler.StorageHandlerAttributes) -> StorageHandler.StorageHandlerFactoryLike:
         # if there are two handlers, first is small, second is large
         # if there is only one handler, it is used in all cases
-        is_large_format = storage_handler_attributes.n_bytes > 16 * 1024 * 1024 or storage_handler_attributes._force_large_format
-        file_handler_factory = file_handler_factory if file_handler_factory else (self._file_handler_factories[-1] if is_large_format else self._file_handler_factories[0])
+        is_large_format = storage_handler_attributes.n_bytes > _g_large_format_size or storage_handler_attributes._force_large_format
+        return self._file_handler_factories[-1] if is_large_format else self._file_handler_factories[0]
+
+    def _make_storage_handler(self, storage_handler_attributes: StorageHandler.StorageHandlerAttributes, file_handler_factory: typing.Optional[StorageHandler.StorageHandlerFactoryLike] = None) -> StorageHandler.StorageHandler:
+        file_handler_factory = file_handler_factory if file_handler_factory else self._get_storage_handler_factory(storage_handler_attributes)
         assert self.__project_data_path is not None
         return file_handler_factory.make(self.__project_data_path / self.__get_base_path(storage_handler_attributes))
 
@@ -913,6 +944,11 @@ class FileProjectStorageSystem(ProjectStorageSystem):
             trash_dir.mkdir(exist_ok=True)
             shutil.move(str(file_path), new_file_path)
         storage_handler.remove()
+
+    def _replace_storage_handler(self, storage_handler: StorageHandler.StorageHandler, data_item: DataItem.DataItem) -> StorageHandler.StorageHandler:
+        new_storage_handler = self._make_storage_handler(make_storage_handler_attributes(data_item))
+        self._remove_storage_handler(storage_handler)
+        return new_storage_handler
 
     def _restore_item(self, data_item_uuid: uuid.UUID) -> typing.Optional[PersistentDictType]:
         assert self.__project_data_path is not None
@@ -1100,6 +1136,10 @@ class MemoryStorageHandler(StorageHandler.StorageHandler):
         return MemoryStorageHandlerFactory()
 
     @property
+    def storage_handler_type(self) -> str:
+        return "memory"
+
+    @property
     def reference(self) -> str:
         return str(self.__uuid)
 
@@ -1131,6 +1171,9 @@ class MemoryStorageHandler(StorageHandler.StorageHandler):
 
 
 class MemoryStorageHandlerFactory(StorageHandler.StorageHandlerFactoryLike):
+
+    def get_storage_handler_type(self) -> str:
+        return "memory"
 
     def is_matching(self, file_path: str) -> bool:
         return True
@@ -1171,6 +1214,9 @@ class MemoryProjectStorageSystem(ProjectStorageSystem):
     def get_identifier(self) -> str:
         return "memory"
 
+    def _get_storage_handler_factory(self, storage_handler_attributes: StorageHandler.StorageHandlerAttributes) -> StorageHandler.StorageHandlerFactoryLike:
+        return MemoryStorageHandlerFactory()
+
     def _make_storage_handler(self, storage_handler_attributes: StorageHandler.StorageHandlerAttributes, file_handler: typing.Optional[StorageHandler.StorageHandlerFactoryLike] = None) -> MemoryStorageHandler:
         data_item_uuid_str = str(storage_handler_attributes.uuid)
         return MemoryStorageHandler(data_item_uuid_str, self.__data_properties_map, self.__data_map, self._test_data_read_event)
@@ -1193,6 +1239,11 @@ class MemoryProjectStorageSystem(ProjectStorageSystem):
             assert storage_handler_reference not in self.__trash_map
             self.__trash_map[storage_handler_reference] = {"data": data, "properties": properties}
         storage_handler.close()  # moving files in the storage handler requires it to be closed.
+
+    def _replace_storage_handler(self, storage_handler: StorageHandler.StorageHandler, data_item: DataItem.DataItem) -> StorageHandler.StorageHandler:
+        new_storage_handler = self._make_storage_handler(make_storage_handler_attributes(data_item))
+        # do not call _remove_storage_handler since everything has already been updated via side effects. sigh.
+        return new_storage_handler
 
     def _restore_item(self, data_item_uuid: uuid.UUID) -> typing.Optional[PersistentDictType]:
         data_item_uuid_str = str(data_item_uuid)

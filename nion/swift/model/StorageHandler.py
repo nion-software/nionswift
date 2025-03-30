@@ -16,6 +16,8 @@ _NDArray = numpy.typing.NDArray[typing.Any]
 
 class StorageHandlerFactoryLike(typing.Protocol):
 
+    def get_storage_handler_type(self) -> str: ...
+
     def is_matching(self, file_path: str) -> bool: ...
 
     def make(self, file_path: pathlib.Path) -> StorageHandler: ...
@@ -31,6 +33,9 @@ class StorageHandler(typing.Protocol):
 
     @property
     def factory(self) -> StorageHandlerFactoryLike: raise NotImplementedError()
+
+    @property
+    def storage_handler_type(self) -> str: raise NotImplementedError()
 
     @property
     def reference(self) -> str: raise NotImplementedError()

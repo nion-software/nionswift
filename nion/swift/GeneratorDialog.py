@@ -193,11 +193,9 @@ class GenerateDataDialog(Declarative.WindowHandler):
             calibrations.append(Calibration.Calibration(units="nm"))
             calibrations.append(Calibration.Calibration(units="eV"))
 
-        is_large = numpy.prod(numpy.array(data_shape), dtype=numpy.int64).item() > 16 * 1024 * 1024
-
         document_model = self.__document_controller.document_model
 
-        data_item = DataItem.DataItem(large_format=is_large)
+        data_item = DataItem.DataItem()
         title_value = self.title_model.value
         if title_value:
             data_item.title = title_value
