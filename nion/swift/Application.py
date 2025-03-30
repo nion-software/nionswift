@@ -491,6 +491,8 @@ class Application(UIApplication.BaseApplication):
             try:
                 document_controller = self.open_project_window(project_reference, update_last_project_reference)
             except Exception:
+                import traceback
+                traceback.print_exc()
                 self.show_ok_dialog(_("Error Opening Project"), _("Unable to open default project."), completion_fn=self.show_choose_project_dialog)
                 return True
 
