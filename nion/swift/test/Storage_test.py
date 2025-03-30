@@ -887,6 +887,31 @@ class TestStorageClass(unittest.TestCase):
             with document_model.ref():
                 self.assertTrue(numpy.array_equal(document_model.data_items[0].data, zeros))
 
+    def test_file_format_adjusts_to_data_size(self):
+        with create_temp_profile_context() as profile_context:
+            document_model = profile_context.create_document_model(auto_close=False)
+            data4 = numpy.random.randn(4,4)
+            data16 = numpy.random.randn(16, 16)
+            with document_model.ref():
+                old_large_format_size = FileStorageSystem._g_large_format_size
+                FileStorageSystem._g_large_format_size = 256
+                try:
+                    xdata = DataAndMetadata.new_data_and_metadata(data4, metadata={"a": 99})
+                    data_item = DataItem.new_data_item(xdata)
+                    document_model.append_data_item(data_item)
+                    ndata_file_path = pathlib.Path(data_item._test_get_file_path())
+                    self.assertEqual(".ndata", ndata_file_path.suffix)
+                    data_item.set_data_and_metadata(DataAndMetadata.new_data_and_metadata(data16, metadata={"a": 99}))
+                    h5_file_path = pathlib.Path(data_item._test_get_file_path())
+                    self.assertEqual(".h5", h5_file_path.suffix)
+                    self.assertFalse(os.path.exists(ndata_file_path))
+                finally:
+                    FileStorageSystem._g_large_format_size = old_large_format_size
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                self.assertTrue(numpy.array_equal(document_model.data_items[0].data, data16))
+                self.assertEqual(99, document_model.data_items[0].metadata["a"])
+
     def test_data_changes_reserve_large_format_file(self):
         with create_temp_profile_context() as profile_context:
             zeros = numpy.zeros((8, 8), numpy.uint32)
