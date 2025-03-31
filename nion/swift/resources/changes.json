@@ -34,6 +34,22 @@
         "summary": "Improve context menu on line plots to be able to reveal line plot 'component' display items."
       },
       {
+        "summary": "Improve performance of data and display panel list and grid browsers."
+      },
+      {
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/1140",
+          "https://github.com/nion-software/nionswift/issues/1143"
+        ],
+        "summary": "Fix issues with ring Fourier filter."
+      },
+      {
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/1384"
+        ],
+        "summary": "Improve internal handling of data item storage when size increases beyond 16MB."
+      },
+      {
         "issues": [
           "https://github.com/nion-software/nionswift/issues/1343"
         ],
