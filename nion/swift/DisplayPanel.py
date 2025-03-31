@@ -2596,11 +2596,12 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
 
     def set_selected(self, selected: bool) -> None:
         if self.__content_canvas_item:  # may be closed
-            self.__content_canvas_item.selected = selected
-            if selected:
-                self.__content_canvas_item.focused_style = "#4682B4"  # steel blue
-                self.__content_canvas_item.selection_number = None
-                self.__content_canvas_item.line_dash = None
+            if self.__content_canvas_item.selected is not selected:
+                self.__content_canvas_item.selected = selected
+                if selected:
+                    self.__content_canvas_item.focused_style = "#4682B4"  # steel blue
+                    self.__content_canvas_item.selection_number = None
+                    self.__content_canvas_item.line_dash = None
 
     def _is_selected(self) -> bool:
         """ Used for testing. """
