@@ -688,8 +688,8 @@ class ExportResultDialog(Declarative.Handler):
 
         for export in self.exports:
             if export.error:
-                status_text = _("Succeeded") if not export.error else f"\N{WARNING SIGN} {export.error}"
-                color = 'green' if not export.error else 'red'
+                status_text = f"\N{WARNING SIGN} {export.error}"
+                color = 'red'
                 file_name_labels.append(u.create_label(text=export.data_item_title, tool_tip=export.data_item_title, width=FILE_FIELD_WIDTH))
                 status_labels.append(u.create_label(text=status_text, tool_tip=export.error, color=color, width=STATUS_FIELD_WIDTH))
 
