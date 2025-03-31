@@ -1446,6 +1446,104 @@ class TestGraphicsClass(unittest.TestCase):
             self.assertEqual(1, len(display_item2.graphics))
             self.assertEqual(1, len(document_model.data_items[-1].data_shape))
 
+    def test_high_pass_mask(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((10,10), numpy.uint32))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            document_controller.show_display_item(document_model.get_display_item_for_data_item(data_item))
+            # set up mask graphic
+            ring_graphic = Graphics.RingGraphic()
+            display_item.add_graphic(ring_graphic)
+            ring_graphic.radius_1 = 0.2
+            ring_graphic.radius_2 = 0.4
+            ring_graphic.mode = "high-pass"
+
+            # high pass should use radius 1 meaning only the innermost region is set to 0
+            mask = ring_graphic.get_mask((10,10), Geometry.FloatPoint(4.5,4.5))
+            self.assertEqual(mask[5,5], 0.0) # inside inner
+            self.assertEqual(mask[5, 2], 1.0) # inbetween radius
+            self.assertEqual(mask[0, 0], 1.0) # outside outer
+
+            # check for radius_1 larger than radius 2
+            ring_graphic.radius_1 = 0.4
+            ring_graphic.radius_2 = 0.2
+
+            # high pass should use radius 1 meaning only the outermost region is set to 1
+            mask = ring_graphic.get_mask((10,10), Geometry.FloatPoint(4.5, 4.5))
+            self.assertEqual(mask[5,5], 0.0) # inside inner
+            self.assertEqual(mask[5, 2], 0.0) # inbetween radius
+            self.assertEqual(mask[0, 0], 1.0) # outside outer
+
+            display_item.remove_graphic(display_item.graphics[0]).close()
+
+    def test_low_pass_mask(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((10, 10), numpy.uint32))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            document_controller.show_display_item(document_model.get_display_item_for_data_item(data_item))
+
+            # set up mask graphic
+            ring_graphic = Graphics.RingGraphic()
+            display_item.add_graphic(ring_graphic)
+            ring_graphic.radius_1 = 0.2
+            ring_graphic.radius_2 = 0.4
+            ring_graphic.mode = "low-pass"
+
+            # low-pass should use radius 2 so only the outermost region is set to 0
+            mask = ring_graphic.get_mask((10,10), Geometry.FloatPoint(4.5,4.5))
+            self.assertEqual(mask[5,5], 1.0) # inside inner
+            self.assertEqual(mask[5, 2], 1.0) # inbetween radius
+            self.assertEqual(mask[0, 0], 0.0) # outside outer
+
+            # check for radius_1 larger than radius 2
+            ring_graphic.radius_1 = 0.4
+            ring_graphic.radius_2 = 0.2
+
+            # low-pass should use radius 2 so only the innermost region should be set to 1
+            mask = ring_graphic.get_mask((10,10), Geometry.FloatPoint(4.5,4.5))
+            self.assertEqual(mask[5,5], 1.0) # inside inner
+            self.assertEqual(mask[5, 2], 0.0) # inbetween radius
+            self.assertEqual(mask[0, 0], 0.0) # outside outer
+
+            display_item.remove_graphic(display_item.graphics[0]).close()
+
+    def test_band_pass_mask(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((10, 10), numpy.uint32))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            document_controller.show_display_item(document_model.get_display_item_for_data_item(data_item))
+
+            # set up mask graphic
+            ring_graphic = Graphics.RingGraphic()
+            display_item.add_graphic(ring_graphic)
+            ring_graphic.radius_1 = 0.2
+            ring_graphic.radius_2 = 0.4
+            ring_graphic.mode = "band-pass"
+
+            # band-pass uses both radii so only the region between the 2 should be set to 1
+            mask = ring_graphic.get_mask((10,10), Geometry.FloatPoint(4.5,4.5))
+            self.assertEqual(mask[5,5], 0.0) # inside inner
+            self.assertEqual(mask[5, 2], 1.0) # inbetween radius
+            self.assertEqual(mask[0, 0], 0.0) # outside outer
+
+            # check for radius_1 larger than radius 2
+            ring_graphic.radius_1 = 0.4
+            ring_graphic.radius_2 = 0.2
+
+            # band-pass uses both radii so only the region between the 2 should be set to 1
+            mask = ring_graphic.get_mask((10,10), Geometry.FloatPoint(4.5,4.5))
+            self.assertEqual(mask[5,5], 0.0) # inside inner
+            self.assertEqual(mask[5, 2], 1.0) # inbetween radius
+            self.assertEqual(mask[0, 0], 0.0) # outside outer
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
