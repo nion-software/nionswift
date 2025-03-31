@@ -164,7 +164,7 @@ def get_metadata_value(metadata_source: typing.Any, key: str) -> typing.Any:
             if d is not None:
                 return d
 
-    raise KeyError()
+    return None
 
 
 def set_metadata_value(metadata_source: typing.Any, key: str, value: typing.Any) -> None:
