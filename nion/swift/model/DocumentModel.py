@@ -117,20 +117,26 @@ class TransactionManager:
     def item_transaction(self, item: Persistence.PersistentObject) -> Transaction:
         """Begin transaction state for item.
 
-        A transaction state is exists to prevent writing out to disk, mainly for performance reasons.
+        A transaction state exists to prevent writing out to disk, mainly for performance reasons.
         All changes to the object are delayed until the transaction state exits.
 
         This method is thread safe.
         """
-        items = self.__build_transaction_items(item)
-        transaction = Transaction(self, item, items)
-        self.__transactions.append(transaction)
-        return transaction
+        with self.__transactions_lock:
+            items = self.__build_transaction_items(item)
+            transaction = Transaction(self, item, items)
+            self.__transactions.append(transaction)
+            return transaction
 
     def _close_transaction(self, transaction: Transaction) -> None:
-        items = transaction.items
-        self.__close_transaction_items(items)
-        self.__transactions.remove(transaction)
+        with self.__transactions_lock:
+            # transaction can be closed when a data item is deleted, or explicitly as the transaction is closed.
+            # so check if it's still in the list of transactions, which means it has not been closed yet.
+            # this can occur in the acquisition test dashboard when the data item is deleted.
+            if transaction in self.__transactions:
+                items = transaction.items
+                self.__close_transaction_items(items)
+                self.__transactions.remove(transaction)
 
     def __build_transaction_items(self, item: Persistence.PersistentObject) -> typing.Set[Persistence.PersistentObject]:
         items: typing.Set[Persistence.PersistentObject] = set()
@@ -211,17 +217,19 @@ class TransactionManager:
         self._rebuild_transactions()
 
     def _remove_item(self, item: Persistence.PersistentObject) -> None:
-        for transaction in copy.copy(self.__transactions):
-            if transaction.item == item:
-                self._close_transaction(transaction)
-        self._rebuild_transactions()
+        with self.__transactions_lock:
+            for transaction in copy.copy(self.__transactions):
+                if transaction.item == item:
+                    self._close_transaction(transaction)
+            self._rebuild_transactions()
 
     def _rebuild_transactions(self) -> None:
-        for transaction in self.__transactions:
-            old_items = transaction.items
-            new_items = self.__build_transaction_items(transaction.item)
-            transaction.replace_items(new_items)
-            self.__close_transaction_items(old_items)
+        with self.__transactions_lock:
+            for transaction in self.__transactions:
+                old_items = transaction.items
+                new_items = self.__build_transaction_items(transaction.item)
+                transaction.replace_items(new_items)
+                self.__close_transaction_items(old_items)
 
 
 class UndeleteObjectSpecifier(Changes.UndeleteBase):
