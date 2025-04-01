@@ -336,6 +336,16 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertFalse(line_profile_display_item.in_transaction_state)
             self.assertEqual(0, document_model.transaction_count)
 
+    def test_data_item_deleted_within_transaction(self):
+        # this can occur if an acquistition data channel keeps a transaction but hasn't been finalized
+        # and the data item is deleted. The transaction may be closed twice.
+        with create_memory_profile_context() as profile_context:
+            document_model = profile_context.create_document_model()
+            data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+            document_model.append_data_item(data_item)
+            with document_model.item_transaction(data_item):
+                document_model.remove_data_item(data_item)
+
     def test_data_item_with_associated_data_structure_deletes_when_data_item_deleted(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
