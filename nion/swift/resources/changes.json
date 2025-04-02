@@ -1,5 +1,16 @@
 [
   {
+    "version": "UNRELEASED",
+    "notes": [
+      {
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/960"
+        ],
+        "summary": "Locked graphics now draw distinctly to indicate shape and/or position are locked."
+      }
+    ]
+  },
+  {
     "version": "16.15.1",
     "notes": [
       {
