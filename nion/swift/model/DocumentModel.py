@@ -1941,8 +1941,15 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         with self.__pending_data_item_updates_lock:
             pending_data_item_updates = self.__pending_data_item_updates
             self.__pending_data_item_updates = list()
+        # a race condition exists if data_item is closed here. however, this method is always called on the main
+        # thread and data items should only be closed on the main thread.
         for data_item in pending_data_item_updates:
-            data_item.update_to_pending_xdata()
+            # on the other hand, _queue_data_item_update may be called from a thread on a data item that has already
+            # been closed. check for that here by confirming the data item to be updated is in the current data
+            # items. this was occurring with the acquisition test dashboard when the results were deleted immediately
+            # after acquisition.
+            if data_item in self.data_items:
+                data_item.update_to_pending_xdata()
 
     # for testing
     def _get_pending_data_item_updates_count(self) -> int:
