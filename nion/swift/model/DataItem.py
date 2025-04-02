@@ -306,8 +306,8 @@ class DataItem(Persistence.PersistentObject):
 
         self.__placeholder_title_stream = Stream.CombineLatestStream([self.__source_title_stream, self.__computation_title_stream, self.__dynamic_title_stream], combine_placeholder_title)
 
-
     def close(self) -> None:
+        self.__title_stream_action = typing.cast(typing.Any, None)
         self.__title_stream = typing.cast(typing.Any, None)
         self.__dynamic_title = None
         self.__dynamic_title_persistence_action = None
@@ -316,8 +316,6 @@ class DataItem(Persistence.PersistentObject):
         self.__computation_title_stream = typing.cast(typing.Any, None)
         self.__dynamic_title_stream = typing.cast(typing.Any, None)
         self.__dynamic_title_enabled_stream = typing.cast(typing.Any, None)
-        self.__title_stream = typing.cast(typing.Any, None)
-        self.__title_stream_action = typing.cast(typing.Any, None)
         self.__placeholder_title_stream = typing.cast(typing.Any, None)
         self.__data = None
         super().close()
