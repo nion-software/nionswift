@@ -1261,6 +1261,10 @@ class DocumentController(Window.Window):
         if data_item and target_display_item:
             if target_display_item.display_data_channel:
                 new_display_item = target_display_item.snapshot()
+                display_layer = new_display_item.display_layers[0]
+                display_layer_color_str = display_layer.fill_color or display_layer.stroke_color or DisplayItem.DisplayItem.DEFAULT_COLORS[0]
+                display_layer.fill_color = None
+                display_layer.stroke_color = display_layer_color_str
                 self.document_model.append_display_item(new_display_item)
                 display_layer = copy.deepcopy(display_item.display_layers[0])
                 with contextlib.closing(display_layer):
