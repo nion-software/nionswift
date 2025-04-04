@@ -437,6 +437,9 @@ class Application(UIApplication.BaseApplication):
             # calling open default project.
             def complete_find_existing_projects() -> None:
                 self.__open_default_project(profile_dir, is_created)
+                self._exit_prevent_close_state()
+
+            self._enter_prevent_close_state()
 
             window_handler = FindExistingProjectsWindowHandler(completion_fn=complete_find_existing_projects)
             window_handler.run(window, app=self)
@@ -620,6 +623,11 @@ class Application(UIApplication.BaseApplication):
                     self.__application = application
                     self.current_index = 0
                     self.list_property_model = ListModel.ListPropertyModel(project_reference_items_model)
+                    self.__application._enter_prevent_close_state()
+
+                def close(self) -> None:
+                    self.__application._exit_prevent_close_state()
+                    super().close()
 
                 def recent_item_selected(self, widget: Declarative.UIWidget, current_index: int) -> None:
                     if 0 <= current_index < len(project_reference_items_model.project_reference_items):
@@ -944,13 +952,12 @@ class NewProjectAction(UIWindow.Action):
 
                 self.project_name = project_base_name + project_base_index_str
 
-                def safe_request_close() -> bool:
-                    event_loop.call_soon(self.request_close)
+                def handle_close() -> bool:
+                    self.request_close()
                     return True
 
                 def handle_new_and_close() -> bool:
                     app.create_project_reference(pathlib.Path(self.directory), self.__project_name_field.text or "untitled")
-                    safe_request_close()
                     return True
 
                 column = self.ui.create_column_widget()
@@ -986,7 +993,7 @@ class NewProjectAction(UIWindow.Action):
                 project_name_field = self.ui.create_line_edit_widget(properties={"width": 400})
                 project_name_field.text = self.project_name
                 project_name_field.on_return_pressed = handle_new_and_close
-                project_name_field.on_escape_pressed = safe_request_close
+                project_name_field.on_escape_pressed = handle_close
                 project_name_row.add(project_name_field)
                 project_name_row.add_stretch()
                 project_name_row.add_spacing(13)
@@ -1020,6 +1027,11 @@ class NewProjectAction(UIWindow.Action):
 
                 self.__project_name_field = project_name_field
 
+            def close(self) -> None:
+                if self.app:
+                    self.app._exit_prevent_close_state()
+                super().close()
+
             def show(self, *, size: typing.Optional[Geometry.IntSize] = None, position: typing.Optional[Geometry.IntPoint] = None) -> None:
                 super().show(size=size, position=position)
                 self.__project_name_field.focused = True
@@ -1027,6 +1039,7 @@ class NewProjectAction(UIWindow.Action):
 
         application = typing.cast(Application, context.application)
         profile = application.profile
+        application._enter_prevent_close_state()
         new_project_dialog = NewProjectDialog(application.ui, application, application.event_loop, profile)
         new_project_dialog.show()
 

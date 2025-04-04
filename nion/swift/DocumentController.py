@@ -559,6 +559,10 @@ class DocumentController(Window.Window):
         return listener
 
     def periodic(self) -> None:
+        # handle case where periodic gets called after close. Qt seems to do this occasionally.
+        # this is a hack and probably needs more thought as to why it is occurring.
+        if self.__closed:
+            return
         periodic_monitor = self.__periodic_monitor
         periodic_monitor.enter()
         try:
