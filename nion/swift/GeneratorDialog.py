@@ -144,7 +144,6 @@ class GenerateDataDialog(Declarative.WindowHandler):
         window = u.create_window(main_page, title=_("Generate Data"), margin=12, window_style="tool")
 
         self.run(window, parent_window=document_controller, persistent_id="generate_data")
-        self.__document_controller.register_dialog(self.window)
 
     def generate(self, widget: typing.Optional[Declarative.UIWidget] = None) -> None:
         data_shape: typing.Tuple[int, ...] = tuple()
