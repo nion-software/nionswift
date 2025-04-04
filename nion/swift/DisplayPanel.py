@@ -1249,6 +1249,7 @@ class AppendDisplayDataChannelCommand(Undo.UndoableCommand):
                 display_layer_color_str = display_item.get_unique_display_layer_color(Color.Color(display_layer_color_str))
                 display_layer.fill_color = None
                 display_layer.stroke_color = display_layer_color_str
+                display_layer.stroke_width = 2
                 display_layer_properties = display_layer.get_display_layer_properties()
             display_item.append_display_data_channel_for_data_item(data_item, display_layer_properties)
             self.__display_data_channel_index = display_item.display_data_channels.index(display_item.get_display_data_channel_for_data_item(data_item))

@@ -1265,6 +1265,7 @@ class DocumentController(Window.Window):
                 display_layer_color_str = display_layer.fill_color or display_layer.stroke_color or DisplayItem.DisplayItem.DEFAULT_COLORS[0]
                 display_layer.fill_color = None
                 display_layer.stroke_color = display_layer_color_str
+                display_layer.stroke_width = 2
                 self.document_model.append_display_item(new_display_item)
                 display_layer = copy.deepcopy(display_item.display_layers[0])
                 with contextlib.closing(display_layer):
@@ -1272,6 +1273,7 @@ class DocumentController(Window.Window):
                     display_layer_color_str = target_display_item.get_unique_display_layer_color(Color.Color(display_layer_color_str))
                     display_layer.fill_color = None
                     display_layer.stroke_color = display_layer_color_str
+                    display_layer.stroke_width = 2
                     display_layer_properties = display_layer.get_display_layer_properties()
                 new_display_item.append_display_data_channel_for_data_item(data_item, display_layer_properties)
                 command = DocumentController.InsertDisplayItemCommand(self, new_display_item, display_panel)
