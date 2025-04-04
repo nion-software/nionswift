@@ -2783,7 +2783,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             document_controller.add_display_data_channel_to_or_create_composite(display_item1, display_item2, display_panel)
             new_display_item = document_model.display_items[-1]
             document_controller.add_display_data_channel_to_or_create_composite(new_display_item, display_item3, display_panel)
-            self.assertEqual("red", new_display_item.display_layers[0].fill_color)
+            self.assertEqual(None, new_display_item.display_layers[0].fill_color)
             self.assertEqual("red", new_display_item.display_layers[0].stroke_color)
             self.assertIsNone(new_display_item.display_layers[1].fill_color)
             self.assertEqual("green", new_display_item.display_layers[1].stroke_color)
