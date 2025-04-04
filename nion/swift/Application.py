@@ -692,8 +692,9 @@ class Application(UIApplication.BaseApplication):
             if display_panel:
                 display_panel.set_display_panel_display_item(display_item)
         setattr(document_controller, "_dynamic_recent_project_actions", list())
-        document_controller.show()
+        # restore the ui state and geometry before show so that it pops up in the right location
         document_controller.restore_ui_state_and_geometry()
+        document_controller.show()
         return document_controller
 
     def _set_profile_for_test(self, profile: typing.Optional[Profile.Profile]) -> None:
