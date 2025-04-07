@@ -1778,10 +1778,10 @@ class PointGraphic(PointTypeGraphic):
             ctx.stroke()
             self.draw_label(ctx, ui_settings, mapping)
         if is_selected:
-            draw_marker(ctx, p + Geometry.FloatPoint(cross_hair_size, cross_hair_size), is_focused)
-            draw_marker(ctx, p + Geometry.FloatPoint(cross_hair_size, -cross_hair_size), is_focused)
-            draw_marker(ctx, p + Geometry.FloatPoint(-cross_hair_size, cross_hair_size), is_focused)
-            draw_marker(ctx, p + Geometry.FloatPoint(-cross_hair_size, -cross_hair_size), is_focused)
+            draw_marker(ctx, p + Geometry.FloatPoint(cross_hair_size, cross_hair_size), is_focused, True)
+            draw_marker(ctx, p + Geometry.FloatPoint(cross_hair_size, -cross_hair_size), is_focused, True)
+            draw_marker(ctx, p + Geometry.FloatPoint(-cross_hair_size, cross_hair_size), is_focused, True)
+            draw_marker(ctx, p + Geometry.FloatPoint(-cross_hair_size, -cross_hair_size), is_focused, True)
 
     def label_position(self, mapping: CoordinateMappingLike, font_metrics: UISettings.FontMetrics, padding: float) -> typing.Optional[Geometry.FloatPoint]:
         p = Geometry.FloatPoint.make(mapping.map_point_image_norm_to_widget(self.position))
