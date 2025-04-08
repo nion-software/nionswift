@@ -1707,15 +1707,48 @@ class TestSymbolicClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((8, 8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            display_panel = document_controller.selected_display_panel
-            display_panel.set_display_panel_display_item(display_item)
+            pick_display_item = document_model.get_pick_new(display_item, display_item.data_item)
             document_controller.perform_action("processing.pick")
-            # pick_display_item = document_model.display_items[-1]
             document_model.recompute_all()
             self.assertEqual(1, document_model.computations[-1]._evaluation_count_for_test)
             display_item.display_data_channels[0].slice_center += 1
             document_model.recompute_all()
             self.assertEqual(1, document_model.computations[-1]._evaluation_count_for_test)
+
+    def test_changing_filter_does_not_update_element_data_compute(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((8, 8)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            ring_graphic = Graphics.RingGraphic()
+            display_item.add_graphic(ring_graphic)
+            line_profile_display_item = document_model.get_line_profile_new(display_item, display_item.data_item)
+            document_model.recompute_all()
+            self.assertEqual(1, document_model.computations[-1]._evaluation_count_for_test)
+            ring_graphic.radius_1 += 0.1
+            document_model.recompute_all()
+            self.assertEqual(1, document_model.computations[-1]._evaluation_count_for_test)
+
+    def test_changing_filter_updates_filter_data_compute(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((8, 8)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            ring_graphic = Graphics.RingGraphic()
+            display_item.add_graphic(ring_graphic)
+            masked_display_item = document_model.get_masked_new(display_item, display_item.data_item)
+            mask_display_item = document_model.get_mask_new(display_item, display_item.data_item)
+            document_model.recompute_all()
+            self.assertEqual(1, document_model.computations[-2]._evaluation_count_for_test)
+            self.assertEqual(1, document_model.computations[-1]._evaluation_count_for_test)
+            ring_graphic.radius_1 += 0.1
+            document_model.recompute_all()
+            self.assertEqual(2, document_model.computations[-2]._evaluation_count_for_test)
+            self.assertEqual(2, document_model.computations[-1]._evaluation_count_for_test)
 
     def test_inserting_and_changing_unrelated_graphic_does_not_trigger_pick_recompute(self):
         with TestContext.create_memory_context() as test_context:

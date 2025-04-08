@@ -1466,7 +1466,7 @@ class BoundDataSource(BoundItemBase):
             self.__display_values_subscription = display_data_channel.subscribe_to_latest_display_values(handle_display_values)
 
             def property_changed(key: str) -> None:
-                self.data_event.fire(BoundDataEventType.GRAPHIC)
+                self.data_event.fire(BoundDataEventType.CROP_REGION)
 
             if graphic:
                 self.__property_changed_listener = graphic.property_changed_event.listen(property_changed)
@@ -3220,12 +3220,22 @@ class ComputationProcessorSource:
         return cls(name, label, data_type, requirements, regions, is_croppable)
 
     def needs_update_for_event(self, event_type: BoundDataEventType) -> bool:
-        if self.data_type == 'xdata':
-            if self.is_croppable:
-                return event_type in (BoundDataEventType.UNSPECIFIED, BoundDataEventType.DATA, BoundDataEventType.CROP_REGION)
-            else:
+        """Determine if the source needs to be updated for the given event type."""
+        match self.data_type, self.is_croppable:
+            case ("xdata" | "cropped_xdata"), False:
                 return event_type in (BoundDataEventType.UNSPECIFIED, BoundDataEventType.DATA)
-        return True
+            case ("xdata" | "cropped_xdata"), True:
+                return event_type in (BoundDataEventType.UNSPECIFIED, BoundDataEventType.DATA, BoundDataEventType.CROP_REGION)
+            case ("element_xdata" | "display_xdata" | "cropped_display_xdata" | "transformed_xdata" | "cropped_transformed_xdata" | "display_rgba"), False:
+                return event_type in (BoundDataEventType.UNSPECIFIED, BoundDataEventType.DISPLAY_DATA)
+            case ("element_xdata" | "display_xdata" | "cropped_display_xdata" | "transformed_xdata" | "cropped_transformed_xdata" | "display_rgba"), True:
+                return event_type in (BoundDataEventType.UNSPECIFIED, BoundDataEventType.DISPLAY_DATA, BoundDataEventType.CROP_REGION)
+            case ("filtered_xdata" | "filter_xdata"), False:
+                return event_type in (BoundDataEventType.UNSPECIFIED, BoundDataEventType.FILTER)
+            case ("filtered_xdata" | "filter_xdata"), True:
+                return event_type in (BoundDataEventType.UNSPECIFIED, BoundDataEventType.FILTER, BoundDataEventType.CROP_REGION)
+            case _:
+                return True
 
 
 class ComputationProcessorParameter:
