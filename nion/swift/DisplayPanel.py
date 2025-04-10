@@ -1755,9 +1755,17 @@ class PlaybackController:
                 max_index = data_metadata.max_sequence_index
                 if display_data_channel.sequence_index + 1 >= max_index:
                     self.index_adapter.set_index_int_value(display_data_channel, 0)
+                sequence_index = display_data_channel.sequence_index
+                # loop until the movie is finished; but also stop if sequence_index changes externally.
+                # stopping when sequence_index changes also prevents strange behavior if the user
+                # changes the sequence index while the movie is playing.
                 while display_data_channel.sequence_index + 1 < max_index:
                     await asyncio.sleep(0.05)
-                    self.index_adapter.set_index_int_value(display_data_channel, display_data_channel.sequence_index + 1)
+                    # this check goes after the sleep, the sequence index can change during the sleep.
+                    if sequence_index != display_data_channel.sequence_index:
+                        break
+                    sequence_index = sequence_index + 1
+                    self.index_adapter.set_index_int_value(display_data_channel, sequence_index)
         finally:
             display_data_channel.ghost_properties.subtract(["sequence_index"])
             self.__stop_playing()
