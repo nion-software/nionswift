@@ -4693,6 +4693,7 @@ class DeclarativeTextPushButtonWidgetConstructor:
             if handler:
                 Declarative.connect_name(widget, d, handler)
                 Declarative.connect_reference_value(widget, d, handler, "on_button_clicked", finishes)
+                Declarative.connect_event(widget, widget, d, handler, "on_clicked", [])
                 Declarative.connect_attributes(widget, d, handler, finishes)
 
             return widget
