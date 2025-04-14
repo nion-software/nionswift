@@ -15,6 +15,7 @@ from nion.swift import DisplayPanel
 from nion.swift import Facade
 from nion.swift import HistogramPanel
 from nion.swift import MimeTypes
+from nion.swift import ProjectPanel
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.swift.test import TestContext
@@ -926,6 +927,24 @@ class TestDataPanelClass(unittest.TestCase):
             self.assertEqual(document_controller.selected_display_items, [display_item2])
             self.assertEqual(document_controller.selected_display_item, display_item2)
             self.assertEqual(display_item_stream.value, display_item2)
+
+    def test_collections_panel_updates_counts_when_property_changes(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item1 = DataItem.DataItem(numpy.zeros((4, 4)))
+            data_item1.category = "temporary"
+            data_item2 = DataItem.DataItem(numpy.zeros((4, 4)))
+            document_model.append_data_item(data_item1)
+            document_model.append_data_item(data_item2)
+            project_panel = typing.cast(ProjectPanel.CollectionsPanel, document_controller.find_dock_panel("collections-panel"))
+            # index, parent_row, parent_id
+            project_panel._collection_selection.set(2)
+            self.assertTrue(project_panel._collection_info_list_stream.value[2].title.endswith("(1)"))
+            data_item2.category = "temporary"
+            self.assertTrue(project_panel._collection_info_list_stream.value[2].title.endswith("(2)"))
+            data_item1.category = None
+            self.assertTrue(project_panel._collection_info_list_stream.value[2].title.endswith("(1)"))
 
 
 if __name__ == '__main__':

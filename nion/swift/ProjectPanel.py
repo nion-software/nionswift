@@ -495,6 +495,7 @@ class CollectionsWidget(Widgets.CompositeWidgetBase):
 
         # for testing
         self._collection_selection = collection_selection
+        self._collection_info_list_stream = collection_info_list_stream
 
     def close(self) -> None:
         self.__filter_changed_event_listener.close()
@@ -524,6 +525,10 @@ class CollectionsPanel(Panel.Panel):
     @property
     def _collection_selection(self) -> Selection.IndexedSelection:
         return self._collections_section._collection_selection
+
+    @property
+    def _collection_info_list_stream(self) -> Stream.PropertyChangedEventStream[typing.Sequence["DocumentController.CollectionInfo"]]:
+        return self._collections_section._collection_info_list_stream
 
 
 class ProjectDialog(Dialog.ActionDialog):

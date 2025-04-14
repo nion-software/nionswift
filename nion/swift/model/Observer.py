@@ -226,19 +226,36 @@ class ArrayArraySourceAdapter(AbstractArraySourceAdapter):
         self.__predicate = predicate or (lambda x: bool(x))
         self.__mapping = mapping or (lambda x: x)
         self.__items: typing.OrderedDict[ItemValue, ItemValue] = collections.OrderedDict()
+        self.__main_items = list[Observable.Observable]()
+        self.__property_changed_listeners = list[Event.EventListener | None]()
+
+        def property_changed(item: Observable.Observable, property: str) -> None:
+            in_items = item in self.__items
+            should_be_in_items = self.__predicate(item)
+            if in_items != should_be_in_items:
+                index = self.__main_items.index(item)
+                item_removed(key, item, index)
+                item_inserted(key, item, index)
 
         def item_inserted(key: str, item: ItemValue, index: int) -> None:
-            if key == self.__key and self.__predicate(item):
-                mapped_item = self.__mapping(item) if item else None
-                index = len(self.__items)
-                self.__items[item] = mapped_item
-                inserted(mapped_item, index)
+            if key == self.__key:
+                # also observe when properties of the item change, since that may affect the truthiness of the predicate.
+                self.__main_items.insert(index, item)
+                self.__property_changed_listeners.insert(index, item.property_changed_event.listen(functools.partial(property_changed, item)) if hasattr(item, "property_changed_event") else None)
+                if self.__predicate(item):
+                    mapped_item = self.__mapping(item) if item else None
+                    index = len(self.__items)
+                    self.__items[item] = mapped_item
+                    inserted(mapped_item, index)
 
         def item_removed(key: str, item: ItemValue, index: int) -> None:
-            if key == self.__key and item in self.__items:
-                index = list(self.__items.keys()).index(item)
-                mapped_item = self.__items.pop(item)
-                removed(mapped_item, index)
+            if key == self.__key:
+                self.__main_items.pop(index)
+                self.__property_changed_listeners.pop(index)
+                if item in self.__items:
+                    index = list(self.__items.keys()).index(item)
+                    mapped_item = self.__items.pop(item)
+                    removed(mapped_item, index)
 
         self.__item_inserted_listener = source.item_inserted_event.listen(item_inserted)
         self.__item_removed_listener = source.item_removed_event.listen(item_removed)
@@ -246,10 +263,9 @@ class ArrayArraySourceAdapter(AbstractArraySourceAdapter):
             item_inserted(self.__key, item, index)
 
     def close(self) -> None:
-        self.__item_inserted_listener.close()
         self.__item_inserted_listener = typing.cast(typing.Any, None)
-        self.__item_removed_listener.close()
         self.__item_removed_listener = typing.cast(typing.Any, None)
+        self.__item_content_changed_listener = typing.cast(typing.Any, None)
 
     @property
     def items(self) -> typing.Sequence[ItemValue]:
