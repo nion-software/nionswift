@@ -3076,9 +3076,11 @@ class RingMaskItem(MaskItem):
         mask: numpy.typing.NDArray[numpy.float64] = numpy.zeros(data_shape, dtype=float)
         bounds_int = ((0, 0), (int(data_shape[0]), int(data_shape[1])))
         a, b = calibrated_origin.y, calibrated_origin.x
-        y, x = numpy.ogrid[-a:data_shape[0] - a, -b:data_shape[1] - b]  # type: ignore
-        radius_1_eq = x * x + y * y <= (bounds_int[1][0] * self.radius_1) ** 2
-        radius_2_eq = x * x + y * y <= (bounds_int[1][0] * self.radius_2) ** 2
+        y, x = numpy.ogrid[-a:data_shape[0] - a, -b:data_shape[1] - b] # type: ignore
+        y = y / bounds_int[1][0]
+        x = x / bounds_int[1][1]
+        radius_1_eq = x * x + y * y <= self.radius_1 ** 2
+        radius_2_eq = x * x + y * y <= self.radius_2 ** 2
         outer_eq = radius_1_eq if self.radius_1 > self.radius_2 else radius_2_eq
         inner_eq = radius_1_eq if self.radius_1 < self.radius_2 else radius_2_eq
         if self.mode == "band-pass":
