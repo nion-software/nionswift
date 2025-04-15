@@ -385,8 +385,8 @@ class LineGraphSegment:
     def path(self) -> DrawingContext.DrawingContext:
         return self.__path
 
-    def move_to(self, x: float, y: float) -> None:
-        self.__path.move_to(x, y)
+    def first_line_to(self, x: float, y: float) -> None:
+        self.__path.line_to(x, y)
         self.__first_point = Geometry.FloatPoint(x=x, y=y)
 
     def line_to(self, x: float, y: float) -> None:
@@ -401,6 +401,8 @@ class LineGraphSegment:
     def fill(self, drawing_context: DrawingContext.DrawingContext, baseline: float, fill_color: Color.Color) -> None:
         with drawing_context.saver():
             drawing_context.begin_path()
+            # the first action in the 'path' is a line, so be sure to move to the right starting point
+            drawing_context.move_to(self.__first_point.x, baseline)
             drawing_context.add(self.__path)
             drawing_context.line_to(self.__last_point.x, baseline)
             drawing_context.line_to(self.__first_point.x, baseline)
@@ -408,11 +410,18 @@ class LineGraphSegment:
             drawing_context.fill_style = fill_color.color_str
             drawing_context.fill()
 
-    def stroke(self, drawing_context: DrawingContext.DrawingContext, baseline: float, stroke_color: Color.Color, stroke_width: float) -> None:
+    def stroke(self, drawing_context: DrawingContext.DrawingContext, baseline: float, stroke_color: Color.Color, stroke_width: float, draw_sides: bool = False) -> None:
         with drawing_context.saver():
             drawing_context.begin_path()
+            # the first action in the 'path' is a line, so be sure to move to the right starting point
+            # draw_sides is off by default, but leaving the option here for the future.
+            if draw_sides:
+                drawing_context.move_to(self.__first_point.x, baseline)
+            else:
+                drawing_context.move_to(self.__first_point.x, self.__first_point.y)
             drawing_context.add(self.__path)
-            drawing_context.line_to(self.__last_point.x, baseline)
+            if draw_sides:
+                drawing_context.line_to(self.__last_point.x, baseline)
             drawing_context.line_width = stroke_width
             drawing_context.stroke_style = stroke_color.color_str
             drawing_context.stroke()
@@ -502,11 +511,7 @@ def calculate_line_graph(plot_height: int, plot_width: int, plot_origin_y: int, 
                             # segment_path.line_to(px, py)
                     else:
                         did_draw = True
-                        if i == 0:
-                            segment.move_to(px, py)
-                        else:
-                            segment.move_to(px, baseline)
-                            segment.line_to(px, py)
+                        segment.first_line_to(px, py)
                     last_py = py
                 else:
                     if did_draw:
