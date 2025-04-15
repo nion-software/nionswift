@@ -3091,6 +3091,10 @@ class DisplayItem(Persistence.PersistentObject):
     def append_display_data_channel(self, display_data_channel: DisplayDataChannel, display_layer: typing.Optional[DisplayLayer] = None) -> None:
         self.insert_display_data_channel(len(self.display_data_channels), display_data_channel)
         if display_layer:
+            # force display values to compute; not sure if this should go somewhere else. generally display data is
+            # computed when needed, but when adding a new display data channel, there is nowhere else where the
+            # first computation is triggered.
+            display_data_channel.update_display_data()
             self.__add_display_layer_auto(display_layer, display_data_channel)
 
     def get_unique_display_layer_color(self, preferred_color: typing.Optional[Color.Color] = None) -> str:
