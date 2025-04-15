@@ -1324,7 +1324,7 @@ class LineTypeGraphic(Graphic):
         vector = self.vector
         d["vector"] = vector[0].as_tuple(), vector[1].as_tuple()
         d["start_arrow_enabled"] = self.start_arrow_enabled
-        d["end_arrow_enabled"] = self.start_arrow_enabled
+        d["end_arrow_enabled"] = self.end_arrow_enabled
         return d
 
     def read_from_mime_data(self, graphic_dict: Persistence.PersistentDictType) -> None:
@@ -1338,6 +1338,8 @@ class LineTypeGraphic(Graphic):
         start = d.get("start", self.vector[0])
         end = d.get("end", self.vector[1])
         self.vector = (start, end)
+        self.end_arrow_enabled = d.get("end_arrow_enabled", self.end_arrow_enabled)
+        self.start_arrow_enabled = d.get("start_arrow_enabled", self.start_arrow_enabled)
 
     @property
     def start(self) -> Geometry.FloatPoint:
