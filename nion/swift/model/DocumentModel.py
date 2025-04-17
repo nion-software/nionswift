@@ -1785,15 +1785,20 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             self.mutex = threading.RLock()
             self.data_item_reference_changed_event = Event.Event()
             self.__item_inserted_listener: typing.Optional[Event.EventListener] = None
+            self._test_delay = 0.0
 
             def item_unregistered(item: Persistence.PersistentObject) -> None:
                 # when this data item is removed, it can no longer be used.
                 # but to ensure that start/stop calls are matching in the case where this item
                 # is removed and then a new item is set, we need to copy the number of starts
-                # to the pending starts so when the new item is set, start gets called the right
+                # to the pending starts so when the new item gets set, start gets called the right
                 # number of times to match the stops that will eventually be called.
-                self.__pending_starts = self.__starts
-                self.__starts = 0
+                if self._test_delay:
+                    import time
+                    time.sleep(self._test_delay)
+                with self.mutex:
+                    self.__pending_starts = self.__starts
+                    self.__starts = 0
 
             self.__data_item_proxy.on_item_unregistered = item_unregistered
 
@@ -1806,17 +1811,18 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             return self.__key
 
         def set_data_item_specifier(self, project: Project.Project, data_item_specifier: typing.Optional[Persistence.PersistentObjectSpecifier]) -> None:
-            data_item_proxy = project.create_item_proxy(item_specifier=data_item_specifier)
             # data_item_proxy may be an old proxy, only update if it is valid and different from the existing one.
-            if data_item_proxy.item and data_item_proxy.item != self.__data_item:
-                assert self.__starts == 0
-                assert self.__pending_starts == 0
-                assert not self.__data_item_transaction
-                self.__stop()  # data item is changing; close existing one.
-                self.__data_item_proxy.close()
-                self.__data_item_proxy = data_item_proxy
-            else:
-                data_item_proxy.close()
+            with self.mutex:
+                data_item_proxy = project.create_item_proxy(item_specifier=data_item_specifier)
+                if data_item_proxy.item and data_item_proxy.item != self.__data_item:
+                    assert self.__starts == 0
+                    assert self.__pending_starts == 0
+                    assert not self.__data_item_transaction
+                    self.__stop()  # data item is changing; close existing one.
+                    self.__data_item_proxy.close()
+                    self.__data_item_proxy = data_item_proxy
+                else:
+                    data_item_proxy.close()
 
         @property
         def __data_item(self) -> typing.Optional[DataItem.DataItem]:
@@ -1831,10 +1837,11 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
             This call is thread safe.
             """
-            if self.__data_item:
-                self.__start()
-            else:
-                self.__pending_starts += 1
+            with self.mutex:
+                if self.__data_item:
+                    self.__start()
+                else:
+                    self.__pending_starts += 1
 
         def stop(self) -> None:
             """Stop using the data item reference. Must have called start a matching number of times.
@@ -1845,10 +1852,11 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
             This call is thread safe.
             """
-            if self.__data_item:
-                self.__stop()
-            else:
-                self.__pending_starts -= 1
+            with self.mutex:
+                if self.__data_item:
+                    self.__stop()
+                else:
+                    self.__pending_starts -= 1
 
         def __start(self) -> None:
             if self.__data_item:
@@ -1880,8 +1888,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             with self.mutex:
                 if self.__data_item != value:
                     self.__data_item_proxy.item = value
-                    # start (internal) for each pending start.
-                    for i in range(self.__pending_starts):
+                    # start (internal) for each pending start or existing start.
+                    # existing starts may be cleared in item_unregistered, but there is a race
+                    # between this method and item_unregistered. see _test_delay.
+                    for i in range(self.__pending_starts + self.__starts):
                         self.__start()
                     self.__pending_starts = 0
                     if self.__data_item in self.__document_model.data_items:
