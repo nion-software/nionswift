@@ -901,10 +901,12 @@ class TestStorageClass(unittest.TestCase):
                     document_model.append_data_item(data_item)
                     ndata_file_path = pathlib.Path(data_item._test_get_file_path())
                     self.assertEqual(".ndata", ndata_file_path.suffix)
+                    self.assertTrue(ndata_file_path.exists())
                     data_item.set_data_and_metadata(DataAndMetadata.new_data_and_metadata(data16, metadata={"a": 99}))
                     h5_file_path = pathlib.Path(data_item._test_get_file_path())
                     self.assertEqual(".h5", h5_file_path.suffix)
-                    self.assertFalse(os.path.exists(ndata_file_path))
+                    self.assertTrue(h5_file_path.exists())
+                    self.assertFalse(ndata_file_path.exists())
                 finally:
                     FileStorageSystem._g_large_format_size = old_large_format_size
             document_model = profile_context.create_document_model(auto_close=False)
@@ -934,6 +936,36 @@ class TestStorageClass(unittest.TestCase):
             document_model = profile_context.create_document_model(auto_close=False)
             with document_model.ref():
                 self.assertTrue(numpy.array_equal(document_model.data_items[0].data, zeros))
+
+    def test_file_format_adjusts_to_data_size_when_reserved(self):
+        with create_temp_profile_context() as profile_context:
+            document_model = profile_context.create_document_model(auto_close=False)
+            data16 = numpy.random.randn(16, 16)
+            with document_model.ref():
+                old_large_format_size = FileStorageSystem._g_large_format_size
+                FileStorageSystem._g_large_format_size = 256
+                try:
+                    data_item = DataItem.DataItem()
+                    document_model.append_data_item(data_item)
+                    # check intermediate state
+                    ndata_file_path = pathlib.Path(data_item._test_get_file_path())
+                    self.assertEqual(".ndata", ndata_file_path.suffix)
+                    self.assertTrue(ndata_file_path.exists())
+                    # reserve and ensure file is h5
+                    data_item.reserve_data(data_shape=data16.shape, data_dtype=data16.dtype, data_descriptor=DataAndMetadata.DataDescriptor(False, 0, 2))
+                    data_item.set_data_and_metadata_partial(data_item.xdata.data_metadata,
+                                                            DataAndMetadata.new_data_and_metadata(data16),
+                                                            (slice(0, 16), slice(0, 16)),
+                                                            (slice(0, 16), slice(0, 16)))
+                    h5_file_path = pathlib.Path(data_item._test_get_file_path())
+                    self.assertEqual(".h5", h5_file_path.suffix)
+                    self.assertTrue(os.path.exists(h5_file_path))
+                    self.assertFalse(ndata_file_path.exists())
+                finally:
+                    FileStorageSystem._g_large_format_size = old_large_format_size
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                self.assertTrue(numpy.array_equal(document_model.data_items[0].data, data16))
 
     def test_metadata_works_in_reserved_data(self):
         with create_temp_profile_context() as profile_context:

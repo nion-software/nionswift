@@ -548,10 +548,10 @@ class ProjectStorageSystemMigrationStage:
     pass
 
 
-def make_storage_handler_attributes(data_item: DataItem.DataItem) -> StorageHandler.StorageHandlerAttributes:
+def make_storage_handler_attributes(data_item: DataItem.DataItem, n_bytes_override: int | None = None) -> StorageHandler.StorageHandlerAttributes:
     dimensional_shape = data_item.dimensional_shape
     data_dtype = data_item.data_dtype
-    n_bytes = typing.cast(int, numpy.prod(dimensional_shape, dtype=numpy.int64)) * numpy.dtype(data_dtype).itemsize
+    n_bytes = n_bytes_override if n_bytes_override is not None else typing.cast(int, numpy.prod(dimensional_shape, dtype=numpy.int64)) * numpy.dtype(data_dtype).itemsize
     return StorageHandler.StorageHandlerAttributes(data_item.uuid, data_item.created_local, data_item.session_id, n_bytes, data_item.large_format)
 
 
@@ -580,7 +580,7 @@ class ProjectStorageSystem(PersistentStorageSystem):
     def _remove_storage_handler(self, storage_handler: StorageHandler.StorageHandler, *, safe: bool = False) -> None: ...
 
     @abc.abstractmethod
-    def _replace_storage_handler(self, storage_handler: StorageHandler.StorageHandler, data_item: DataItem.DataItem) -> StorageHandler.StorageHandler: ...
+    def _replace_storage_handler(self, storage_handler: StorageHandler.StorageHandler, storage_handler_attributes: StorageHandler.StorageHandlerAttributes) -> StorageHandler.StorageHandler: ...
 
     @abc.abstractmethod
     def _restore_item(self, data_item_uuid: uuid.UUID) -> typing.Optional[PersistentDictType]: ...
@@ -805,11 +805,11 @@ class ProjectStorageSystem(PersistentStorageSystem):
         storage_adapter = self.__storage_adapter_map.get(data_item.uuid)
         assert storage_adapter
         storage_handler = storage_adapter.storage_handler
-        storage_handler_attributes = make_storage_handler_attributes(data_item)
+        storage_handler_attributes = make_storage_handler_attributes(data_item, n_bytes)
         storage_handler_type = self._get_storage_handler_factory(storage_handler_attributes).get_storage_handler_type()
         if storage_handler_type != storage_handler.storage_handler_type:
             properties = storage_adapter.properties
-            new_storage_handler = self._replace_storage_handler(storage_handler, data_item)
+            new_storage_handler = self._replace_storage_handler(storage_handler, storage_handler_attributes)
             storage_handler.close()
             new_storage_adapter = DataItemStorageAdapter(new_storage_handler, properties)
             self.__storage_adapter_map[data_item.uuid] = new_storage_adapter
@@ -945,8 +945,8 @@ class FileProjectStorageSystem(ProjectStorageSystem):
             shutil.move(str(file_path), new_file_path)
         storage_handler.remove()
 
-    def _replace_storage_handler(self, storage_handler: StorageHandler.StorageHandler, data_item: DataItem.DataItem) -> StorageHandler.StorageHandler:
-        new_storage_handler = self._make_storage_handler(make_storage_handler_attributes(data_item))
+    def _replace_storage_handler(self, storage_handler: StorageHandler.StorageHandler, storage_handler_attributes: StorageHandler.StorageHandlerAttributes) -> StorageHandler.StorageHandler:
+        new_storage_handler = self._make_storage_handler(storage_handler_attributes)
         self._remove_storage_handler(storage_handler)
         return new_storage_handler
 
@@ -1240,8 +1240,8 @@ class MemoryProjectStorageSystem(ProjectStorageSystem):
             self.__trash_map[storage_handler_reference] = {"data": data, "properties": properties}
         storage_handler.close()  # moving files in the storage handler requires it to be closed.
 
-    def _replace_storage_handler(self, storage_handler: StorageHandler.StorageHandler, data_item: DataItem.DataItem) -> StorageHandler.StorageHandler:
-        new_storage_handler = self._make_storage_handler(make_storage_handler_attributes(data_item))
+    def _replace_storage_handler(self, storage_handler: StorageHandler.StorageHandler, storage_handler_attributes: StorageHandler.StorageHandlerAttributes) -> StorageHandler.StorageHandler:
+        new_storage_handler = self._make_storage_handler(storage_handler_attributes)
         # do not call _remove_storage_handler since everything has already been updated via side effects. sigh.
         return new_storage_handler
 
