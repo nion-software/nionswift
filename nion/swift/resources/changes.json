@@ -17,6 +17,12 @@
       },
       {
         "issues": [
+          "https://github.com/nion-software/nionswift/issues/1391"
+        ],
+        "summary": "Changed default stroke/fill options to non-filled for all layers when initially making composite line plots."
+      },
+      {
+        "issues": [
           "https://github.com/nion-software/nionswift/issues/217"
         ],
         "summary": "Composite line plots layers use component data item names unless label explicitly set in line plot inspector."
@@ -45,9 +51,27 @@
       },
       {
         "issues": [
+          "https://github.com/nion-software/nionswift/issues/1428"
+        ],
+        "summary": "Fix another case where computations would be recomputed unnecessarily."
+      },
+      {
+        "issues": [
           "https://github.com/nion-software/nionswift/issues/1384"
         ],
         "summary": "Improve internal handling of data item storage when size increases beyond 16MB."
+      },
+      {
+        "summary": "Fix issues with line plot drawing at first and last pixel."
+      },
+      {
+        "summary": "Fix issues with open dialogs preventing application closing."
+      },
+      {
+        "summary": "Fix issues with window returning to same location when application last exited."
+      },
+      {
+        "summary": "Fix issue where play-sequence would enter endless loop if adjusted while playing."
       },
       {
         "issues": [
