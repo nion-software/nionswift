@@ -12,6 +12,27 @@ them for evaluation and feedback. If you encounter an issue or have feedback abo
 please contact us or `file issues
 <https://github.com/nion-software/nionswift/issues>`_.
 
+Version 16.15.0 (2025-04-23)
+----------------------------
+* Change computations to run asynchronously (threaded). (`#304 <https://github.com/nion-software/nionswift/issues/304>`_)
+* Improve metadata in computed data items to include computation and source (acquisition) metadata. (`#915 <https://github.com/nion-software/nionswift/issues/915>`_, `#620 <https://github.com/nion-software/nionswift/issues/620>`_)
+* Changed default stroke/fill options to non-filled for all layers when initially making composite line plots. (`#1391 <https://github.com/nion-software/nionswift/issues/1391>`_)
+* Composite line plots layers use component data item names unless label explicitly set in line plot inspector. (`#217 <https://github.com/nion-software/nionswift/issues/217>`_)
+* Add titles in browser view. (`#1337 <https://github.com/nion-software/nionswift/issues/1337>`_)
+* Improve context menu on line plots to be able to reveal line plot 'component' display items. (`#1370 <https://github.com/nion-software/nionswift/issues/1370>`_)
+* Improve performance of data and display panel list and grid browsers.
+* Fix issues with ring Fourier filter. (`#1140 <https://github.com/nion-software/nionswift/issues/1140>`_, `#1143 <https://github.com/nion-software/nionswift/issues/1143>`_)
+* Fix another case where computations would be recomputed unnecessarily. (`#1428 <https://github.com/nion-software/nionswift/issues/1428>`_)
+* Improve internal handling of data item storage when size increases beyond 16MB. (`#1384 <https://github.com/nion-software/nionswift/issues/1384>`_)
+* Fix issues with line plot drawing at first and last pixel.
+* Fix issues with open dialogs preventing application closing.
+* Fix issues with window returning to same location when application last exited.
+* Fix issue where play-sequence would enter endless loop if adjusted while playing.
+* Fix issues with source/dependent thumbnails not showing consistently in display panels. (`#1343 <https://github.com/nion-software/nionswift/issues/1343>`_)
+* Fix issues with drag and drop files on display panel and data panel to import. (`#1353 <https://github.com/nion-software/nionswift/issues/1353>`_, `#1354 <https://github.com/nion-software/nionswift/issues/1354>`_)
+* Fix issue with 'reveal' context menu item not working consistently. (`#1370 <https://github.com/nion-software/nionswift/issues/1370>`_)
+* Fix issue with metadata panel not showing data. Also add note when target data item has no metadata. (`#1363 <https://github.com/nion-software/nionswift/issues/1363>`_)
+
 Version 16.14.0 (2025-02-11)
 ----------------------------
 * Change graphic highlighting when not focused to grey/dim. (`#1331 <https://github.com/nion-software/nionswift/issues/1331>`_)
