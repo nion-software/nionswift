@@ -2,15 +2,15 @@
 
 .. _user-interface:
 
-User Interface
-==============
-
-.. _user-interface-workspace:
+**************
+Utility Panels
+**************
 
 .. _Workspaces:
+.. This section will be covered by the overview section so this will remain here temporarily until that section is finished.
 
 Workspaces
-----------
+==========
 The workspace is the area where you can view your data.
 
 The workspace can be subdivided into display panels and the size of the display panels can be adjusted by dragging on their edges.
@@ -25,284 +25,421 @@ If you do processing or acquisition which produces new data, its associated disp
 
 See :ref:`display-panels`.
 
-.. _Data Panel:
+Utility Panels
+==============
 
-Data Panel
-----------
-The Data panel (:menuselection:`Window --> Data Panel`) lists the display items in your project.
+Utility panels provide options for the selected item or items. There are various utility panels for editing different aspects of data.
 
-You can drag items from the data panel to display panels in the workspace.
+The layout of the utility panels can also be moved around and adjusted. There are several ways to customize the utility panel layout:
 
-You can delete display items (and associated data items if they become orphaned) by selecting them in the data panel and pressing the delete key.
+* Show or hide any utility panel by using the [Window] menu.
 
-You can filter (by text) what items appear in the data panel by typing into the :guilabel:`Filter` field at the bottom of the data panel. The filter works on the title and the size/data type fields.
+* Close a utility panel by clicking the x button in the corner of its title bar.
 
-.. _Output Panel:
+* Rearrange the layout of the shown panels by clicking and dragging a utility panel by its title bar.
 
-Output
-------
-The Output panel (:menuselection:`Window --> Output`) shows text output while running the application.
+* Stack utility panels by dropping one utility panel onto another. If two or more panels are in a stack, selection buttons will appear at the bottom of the panel to switch between them.
 
-Additional debugging information may be available using debugger consoles if launched from the console.
+* Expand utility panels into a separate window by dragging the panel by the title bar away from the main window.
 
-.. _Info Panel:
+* Resize a utility panel by clicking and dragging from its edges.
 
-Info
-----
-The Info panel (:menuselection:`Window --> Info`) shows the position of the cursor and the value at the pixel under the cursor if the cursor is over a display item showing a single data item in a display panel. It will also show the intensity level of the data represented at the cursor position in the histogram panel.
+.. image:: graphics/customize_utility_panels.png
+    :width: 396
+    :alt: Customizing Utility Panels
 
-.. _Histogram Panel:
-
-Histogram
----------
-The Histogram panel (:menuselection:`Window --> Histogram`) shows the histogram graph and other statistics of the data in the selected display panel if a display item with a single data item is shown. It also shows the mapping of data intensity values to colors in a color bar just below the graph.
-
-If there are either zero or more than one display panels selected or if the display item in the selected display panel displays more than one data item, the histogram will be blank.
-
-You can click and drag over a range of intensity levels in the histogram graph to change display limits of the display item.
-
-You can double click in the histogram graph to reset the display limits. This is the same as clicking on a display panel with a single data item and pressing the :kbd:`Enter` key.
-
-If the display item has a selected rectangle or ellipse (for an image) or an interval (for a line plot), the histogram panel will show the histogram graph and statistics for just the are within the sub-region. This provides a quick way to examine statistics within a sub-region.
-
-.. _Inspector Panel:
-
-Inspector
----------
-The Inspector panel (:menuselection:`Window --> Inspector`) shows detailed information about the selected item and allows you to edit it. The selected item may be a display item or a graphic.
-
-The inspector is split into subsections that can be individually opened or closed, depending on your needs at the moment.
-
-.. _Info Inspector Section:
-
-Info
-++++
-.. title, caption, session id, date
-
-The :guilabel:`Info` inspector subsection displays the title of the display item or data item. It also allows you to edit a free text description / caption of the item. It also displays the session id and creation date of the item.
-
-The title of the item is treated differently depending on whether a single data item is associated with the display item or not. If a single data item is associated with the display item, then the title field in the inspector displays and edits the data item title directly. Otherwise, if there are more than one data items associated with the display item (e.g. in a line plot displaying multiple layers), then the title field in the inspector displays and edits the display item title and does not display or change the individual data item titles. To edit the individual data item titles, you must use a display that is displaying just that data item only.
-
-To edit the description / caption, press the :guilabel:`Edit` button, make your changes, then click :guilabel:`Save` or :guilabel:`Cancel`.
-
-.. _Image Inspector Section:
-
-Image Display
-+++++++++++++
-.. display type
-
-The :guilabel:`Image Display` inspector subsection allows you to force the display to either a line plot or an image instead of the default, which is an image for 2d data and a line plot for 1d data.
-
-.. _Line Plot Inspector Section:
-
-Line Plot Display
-+++++++++++++++++
-.. intensity range, channels, auto, log scale, legend position
-
-The :guilabel:`Line Plot Display` inspector subsection allows you to force the display to either a line plot or an image instead of the default, which is an image for 2d data and a line plot for 1d data.
-
-It also allows you to specify an intensity range to be displayed vertically on the line plot and a channel range to be displayed horizontally on the line plot. You can remove values from low/high intensity and/or left/right channels by deleting the text and pressing enter. This will trigger that particular value to be auto calculated.
-
-This inspector subsection also allows you to indicate whether to display the vertical intensity axis of the line plot on a log scale. You can change the setting by checking/unchecking the :guilabel:`Log Scale (Y)` checkbox.
-
-Finally, you can also specify the legend position as :guilabel:`None`, :guilabel:`Top Left`, or :guilabel:`Top Right`.
-
-.. _Image Data Inspector Section:
-
-Image Data
-++++++++++
-.. date, data description, data range (r/o), intensity display limits, color map, brightness, contrast, adjustment
-
-The :guilabel:`Image Data` inspector subsection shows you information about data displayed as an image, including the creation date, a description of the dimension grouping, the minimum and maximum values in the data, the intensity display limits, the color map. It also allows you to adjust brightness and contrast, to apply a display adjustment, and to set the conversion from complex data to scalar if required.
-
-The intensity display limits may entered in the fields or adjusted using the Histogram panel. You can reset them by deleting the values in the fields and pressing :kbd:`Enter`.
-
-You can choose a different color map. The intensity values will be mapped from the intensity display limits to the full range of the color map. You can set it to default to use the default color map (grayscale).
-
-You can adjust the brightness and contrast using the sliders or by entering values in the associated text fields. The values for brightness range from -1.0 to 1.0 with a default of 0.0. The values for contrast typically range from 1/10 to 10 with a default value of 1. You can enter numbers as fractions, such as "1/2".
-
-The adjustment can be set to None, Equalized, Gamma, or Log. Adjustments are applied after brightness and contrast. Equalized means the display will attempt to have more color variation where there are is intensity density. Gamma means the display will apply a gamma curve to the contrast transfer function. The values for gamma typically range from 10 to 1/10 with the default value of 1. You can enter numbers as fractions, such as "1/2". Log means the display will apply a log to the contrast transfer function. If intensity values are small or negative, the behavior is undefined.
-
-If your data is complex, you can also choose how to convert the data from complex to a scalar value for display. The options are Log Absolute, Absolute, Real, and Imaginary. The default is Log Absolute.
-
-.. _Layers Inspector Section:
-
-Line Plot Display Layers
-++++++++++++++++++++++++
-.. layer name, move layer forward/back, add/remove layer
-.. data index, row
-.. fill color, stroke color, stroke width
-.. complex display type
-
-The :guilabel:`Line Plot Display Layers` inspector subsection shows and allows you to edit the layers of a line plot display. In many cases, there will only be a single layer.
-
-The up and down arrows allow you to change the ordering of layers.
-
-The plus and minus buttons allow you to add and remove layers.
-
-The data index and row fields allow you to associate the layer with one of the data items displayed by the line plot display. A data item may be one dimensional or two dimensional. If the data item is two dimensional, the row field allows you to indicate which row of the data to use for the line plot display. The default is row 0. For example, a data item which is 1024x4 can still be displayed as four layers by using the same data index and change the row field for the values 0, 1, 2, 3.
-
-.. see https://github.com/nion-software/nionswift/issues/758
-
-The fill color, stroke color, and stroke width control the look of the layer in the line plot. You can click on the color wells to bring up a color picker. You can enter colors as "#F00", "#00FF00", "blue". Clearing the field will make the color tranparent (not displayed). The default stroke width is 1.
-
-If your data is complex, you can also choose how to convert the data from complex to a scalar value for display. The options are Log Absolute, Absolute, Real, and Imaginary. The default is Log Absolute.
-
-.. _Data Info Inspector Section:
-
-Data Info
-+++++++++
-.. for each data item
-.. date, data description, shape, data type
-
-For each data item displayed with the display item, the :guilabel:`Data Info` inspector subsection shows you the creation date, description of the dimensional groupings, shape of the data, and the data type.
-
-For image displays, there will only be one data item. For line plots will be one or more data items.
-
-.. _Calibrations Inspector Section:
-
-Calibrations
-++++++++++++
-.. for each data item
-.. offset, scale, units for each dimension
-.. displayed units
-
-For each data item displayed with the display item, the :guilabel:`Calibrations` inspector subsection shows you the dimensional and intensity calibrations and allows you to edit them. You can edit the offset, scale, and units for each dimension.
-
-.. see https://github.com/nion-software/nionswift/issues/300
-
-The :guilabel:`Display` combo box also allows you to select how the units are displayed and edited.
-
-.. _Session Inspector Section:
-
-Session
-+++++++
-.. for each data item
-.. specific to data item
-
-For each data item displayed with the display item, the :guilabel:`Session` inspector subsection allows you to see and edit the session info for that particular data item. For editing the global session information which gets applied to new data, see `Sessions`_.
-
-.. _Computation Inspector Section:
-
-Computation
-+++++++++++
-.. for each data item
-.. recommend using editor instead
-
-For each data item displayed with the display item, the :guilabel:`Computation` inspector subsection allows you to edit the computation associated with that data item.
-
-The computation editor  (see :ref:`Edit Computation`) is recommended instead of the computation inspector for editing computations. They do similar things but the editor is easier to access.
-
-.. _Graphics Inspector Section:
-
-Graphics
-++++++++
-.. label, properties of specific graphic, displayed units
-
-For each graphic display with the display item, the :guilabel:`Graphics` inspector subsection allows you to inspect and edit the properties of the graphic.
-
-If a graphic is selected, it shows the inspector for the single selected graphic; otherwise it shows an inspector for each graphic in the display item.
-
-The :guilabel:`Label` field is common to all graphics and can be edited to label the graphic.
-
-The :guilabel:`Display` combo box allows you to select the units displayed for graphics. It allows you to change the setting for the display item as a whole and it will apply to all graphics (see `Calibrations`_).
-
-The inspector for the Line graphic allows you to edit the start and end points, length, and angle (in degrees).
-
-The inspector for the Rectangle and Ellipse allow you to edit the center position, size, and rotation (in degrees).
-
-The inspector for the Point allows you to edit the position.
-
-The inspector for the Interval allows you to edit the start and end channels.
-
-The inspector for the Channel allows you to edit the channel.
-
-The inspector for the Spot Fourier Mask allows you to edit the center position, size, and rotation (in degrees) of the primary spot.
-
-The inspector for the Wedge Fourier Mask allows you to edit the start and end angle (both in degrees).
-
-The inspector for the Bandpass Fourier Mask allows you to edit the inner radius and outer radius and allows you to select the bandpass type (low, high, band).
-
-The inspector for the Lattice Fourier Mask allows you to edit the center position, size, and rotation (in degrees) of the primary and secondary spots.
-
-.. _Sessions Panel:
-
-Sessions
---------
-.. the information to seed new sessions
-.. when does a session begin?
-
-The Session panel (:menuselection:`Window --> Sessions`) allows you to see and edit the session info that gets applied to new acquisition data. For editing the session information already attached to a data item, see `Session`_.
-
-.. _Metadata Panel:
-
-Metadata
---------
-.. a viewer for the metadata
-
-The Metadata panel (:menuselection:`Window --> Metadata`) allows you to see and edit the metadata attached to the data item associated with the selected display item.
-
-.. _Collections Panel:
-
-Collections
------------
-.. all, persistent, live, latest, data groups
-
-The Collections panel (:menuselection:`Window --> Collections`) allows you to filter items in the data panel by whether they are Live, Persistent, created in the Latest Session, or in one of your custom Data Groups.
-
-.. TODO: where are Data Groups covered?
-
-.. _Tool Panel:
-
-Tools
------
-.. tools: pointer, hand, line, rectangle, ellipse, point, line profile, interval, spot, wedge, band pass, array
-.. images: zoom options
-.. workspace: split h,v, 2x2, 3x2, 3x3, 4x3, 4x4, 5x4, select more panels, clear selected panels, reset workspace, close selected panels
-
-The Tools panel (:menuselection:`Window --> Tools`) allows you to select tools, adjust image zooming, and modify the workspace.
-
-The tools available are the pointer, hand, line, rectangle, ellipse, point, line profile, interval, spot, wedge, band pass, and lattice tools. Some tools have keyboard shortcuts which can be seen by hovering over the tool.
-
-The zoom buttons allow you to set raster image displays to fill the space with the image (Fill), fit the image to the space (Fit), set the pixel scaling to one data pixel per screen pixel (1:1), and set the pixel scaling to one data pixel per two screen pixels (2:1).
-
-The workspace buttons allow you to split the workspace panels horizontally and vertically, or into grids of 2x2, 3x2, 3x3, 4x3, 4x4, 5x4. There is a button to expand the selected display panels. Pressing this button repeatedly allows you to select all of the display panels with a few clicks. There are also buttons to clear the contents of the selected display panels, close the selected display panels, and reset the workspace to a single display panel.
-
-.. _Task Panel:
-
-Task Panel
-----------
-.. table output from alignment
-
-The Task panel (:menuselection:`Window --> Task Panel`) allows you to see the output from tasks such as microscope tuning. The output is often arranged into a table of data.
-
-.. _Recorder Dialog:
-
-Recorder
---------
-.. records a data item, useful during live acquisition or adjustments
-.. interval, number of frames
-.. what does it produce?
-
-The Recorder dialog (:menuselection:`File --> Data Item Recorder...`) allows you to record data at regular intervals from the display item selected when you open the recorder.
-
-To record acquisition, click on the live acquisition display panel. Then open the Recorder dialog. Enter the desired interval (in milliseconds) and the number of items to record. Then click Record. The resulting data item will be a sequence of data sampled from the live data at regular intervals.
+The utility panels are organized alphabetically in the [Window] menu and their functions are as follows:
 
 .. _Activity Panel:
 
 Activity
---------
-.. displays current computation activity
-.. work in progress
+========
+The Activity panel shows the activity of computations running in the background.
 
-The Activity panel (:menuselection:`Window --> Activity`) allows you to observe activity, such as computations, that are running in the background. It can be useful for understanding how live computations are being updated during acquisition or editing.
+.. image:: graphics/activity_panel.png
+    :width: 321
+    :alt: Activity Panel
+
+The activity panel displays changes to computations and updates during live data acquisition or editing. Activity will only be displayed if a computation is actively running. Otherwise, the panel will not show anything. 
+
+Some computations are connected to a graphic. In this case, the activity panel will only display activity info while the graphic is being moved or manipulated. A computation like this is not always active.
+
+.. _Collections Panel:
+
+Collections
+===========
+The Collections panel sorts the data items in a project into folders. Data can also be sorted manually into a custom folder.
+
+.. image:: graphics/collections_panel.png
+    :width: 333
+    :alt: Collections Panel
+
+Data items are automatically sorted into four categories:
+
+* :guilabel:`All` - All data items in the current project
+
+* :guilabel:`Persistent` - Data items that are permenantly saved; these data items will not be overwritten by acquisition or recomputation without action by the user.
+
+* :guilabel:`Live` - Data items that can be used for live acquisition and/or recomputation
+
+* :guilabel:`Latest Session` - Data items used in the most recent session (since the most recent time the project was opened)
+
+To view a collection, click on the title of the desired collection in the Collections panel. All data items in the collection will be listed in the Data panel. By default, the Data panel is set to show the “All” collection.
+
+The Collections panel also provides a collection called :guilabel:`My Data` which is curated by the user. “My Data” can be used to group any data items together. To add a data item to the “My Data” collection, drag the data item from the data panel into the “My Data” collection in the Collections panel.
+
+To add a new collection to the panel, use the menu item [File > Add Group]. Use this new folder just as the :guilabel:`My Data` folder above.
+
+.. _Data Panel:
+
+Data Panel
+==========
+The Data panel provides a list of the data items in a given collection. 
+
+.. image:: graphics/data_panel.png
+    :width: 333
+    :alt: Data Panel
+
+Any data item in the data panel can be displayed in a display panel. To display a data item, drag the data item from the data panel into an empty display panel.
+
+By default, the Data panel is set to show all data items in a project, but the data panel can show any other collection by choosing a different collection in the Collections panel.
+
+You can also search for data items in the selected collection by using the filter text box at the bottom of the Data panel. If a data item is not in the selected collection, it will not appear in the filtered results. The filter search bar looks for keywords in the titles and captions of data items.
+
+Newly created data items will appear in the data panel. Make sure the collection is set to “All.” A new data item may not be applicable to the currently selected collection.
+
+To delete a data item, select it in the data panel and press the delete key. To select multiple data items, hold down the control key (command key for macOS) and select all the data items you want to delete in the data panel.
+
+.. _Histogram Panel:
+
+Histogram
+=========
+The Histogram shows the frequency of different intensities in the selected data item.
+
+.. image:: graphics/histogram_panel.png
+    :width: 321
+    :alt: Histogram Panel
+
+The bar directly under the histogram displays the color range of the data and will change color to match the color map of the selected display. General values about the data (maximum value, mean, minimum value, etc.) are displayed under the histogram. If no display panel or data item is selected, the histogram panel will not display anything.
+
+To select a range of data, click and drag between two points on the histogram. Doing this will zoom into the histogram on the selected range and the associated display panel will only display data values within that range. To reset the range, double click on the histogram.
+
+If a graphic is selected, the histogram will show data within that graphic. Click on a display panel outside the graphic to show the histogram for the full range of the data item.
+
+.. _Info Panel:
+
+Info
+====
+The Info panel shows the value of the data at the cursor's position. 
+
+.. image:: graphics/info_panel.png
+    :width: 321
+    :alt: Info Panel
+
+When hovering the cursor over the histogram, the info panel will show the intensity for a given position along the histogram.
+
+.. _Inspector Panel:
+
+Inspector
+=========
+The Inspector Panel shows information and settings for the selected item. The Inspector is split into subsections for specific functions. Clicking the triangle next to the title of a given subsection will expand or hide the subsection.
+
+.. image:: graphics/inspector_image.png
+    :width: 321
+    :alt: Inspector Panel with Image Selected
+
+When different kinds of items are selected (display item, graphic, etc.) the Inspector's subsections will change to display settings relevant to the selected type of item. In the image above, an image is selected; and in the image below, a line plot is selected.
+
+.. image:: graphics/inspector_line_plot.png
+    :width: 321
+    :alt: Inspector Panel with Line Plot Selected
+
+.. _Info Inspector Section:
+
+Info
+----
+The Info subsection of the inspector allows you to edit the title and description of the selected item. 
+
+.. image:: graphics/inspector_info_subsection.png
+    :width: 321
+    :alt: Inspector Info Subsection
+
+The Info subsection will only be visible if a single item is selected. If the item selected contains multiple data items, like a layered line plot for example, changing the title and description of the item will not affect the names and descriptions of each data item; it will change the title and description for the combined display item.
+
+.. _Image Display Inspector Section:
+
+Image Display
+-------------
+Image Display allows you to force an image to be displayed as a line plot instead of the default.
+
+.. image:: graphics/inspector_image_display_subsection.png
+    :width: 321
+    :alt: Inspector Image Display Subsection
+
+You can revert to the default display for an image by choosing :guilabel:`Default`.
+
+.. _Image Data Inspector Section:
+
+Image Data
+----------
+Image Data presents several controls and settings for a selected image:
+
+.. image:: graphics/inspector_image_data_subsection.png
+    :width: 321
+    :alt: Inspector Image Data Subsection
+
+* :guilabel:`Date` - Displays the date and time the image was created.
+  
+* :guilabel:`Data` - Displays the dimensions of the image and the bit count.
+
+* :guilabel:`Data Range` - Displays the minimum and maximum values of the selected data.
+  
+* :guilabel:`Display Limits` - Change the minimum and maximum values currently shown in the selected data. Editing these is the same as zooming in or out on an interval on the Histogram.
+  
+* :guilabel:`Color Map` - Change the color of the data. The data range is mapped to a range of colors. Choose from a list of preset color profiles. Grayscale is the default.
+  
+* :guilabel:`Brightness` - Change the brightness of the color values on the color map. Moving the slider to the right will increase the brightness and moving the slider to the left will decrease the brightness. 0.0 is the default brightness setting. The slider ranges from -1.0 to 1.0.
+  
+* :guilabel:`Contrast` - Change the range of color values on the color map. Moving the slider to the right will increase the contrast and moving the slider to the left will decrease the contrast. 1.0 is the default contrast setting. The slider ranges from 1/10 to 10.
+  
+* :guilabel:`Adjustment` - Change the equalization of the selected data. Choose between Equalized, Gamma, Log, or no adjustment.
+
+* :guilabel:`Gamma` - If :guilabel:`Gamma` is selected for the adjustment, a new slider will appear to adjust gamma values. Moving the slider to the right will decrease the gamma and moving the slider to the left will increase the gamma. 1.0 is the default contrast setting. The slider ranges from 10 to 1/10.
+
+.. _Line Plot Inspector Section:
+
+Line Plot Display
+-----------------
+Line Plot Display presents several controls and settings for a selected line plot:
+
+.. image:: graphics/inspector_line_plot_display_subsection.png
+    :width: 321
+    :alt: Inspector Line Plot Display Subsection
+
+* :guilabel:`Display Type` - Force the selected line plot to display as an image.
+
+* :guilabel:`Display` - Change the range of y values shown on the line plot. These values are set to automatically calculate by default, but changing them allows you to zoom into a specific section on the line plot.
+
+* :guilabel:`Channels` - Change the range of x values shown on the line plot. These values are set to automatically calculate by default, but changing them allows you to zoom into a specific section on the line plot. Changing the channel values is similar to zooming into an interval on the line plot with an interval graphic.
+
+* :guilabel:`Log Scale Y` - Set the y axis to scale logarithmically.
+
+* :guilabel:`Legend Position` - Choose the position of the legend for a layered line plot. Line plots with no layers will not show a legend. 
+
+.. _Data Info Inspector Section:
+
+Data Info
+---------
+Data Info displays the date and time a selected line plot was created. It will also display the dimensions of the line plot and the bit count. 
+
+.. image:: graphics/inspector_data_info_subsection.png
+    :width: 321
+    :alt: Inspector Data Info Subsection
+
+For line plots with multiple layers, each data item in the stack will have its own Data Info section. For more information, see :ref:`layers inspector section`.
+
+.. _Calibrations Inspector Section:
+
+Calibrations
+------------
+Calibrations allow you to make specific changes to the scale and position of a selected item. Images and line plot displays have different features in the calibrations subsection.
+
+Image Calibrations
+++++++++++++++++++
+When an image is selected, the calibrations subsection of the inspector panel will show variables specific to an image.
+
+.. image:: graphics/inspector_calibrations_subsection_image.png
+    :width: 321
+    :alt: Inspector Calibrations Subsection with Image Selected
+
+With an image selected, use the calibrations subsection to
+
+* Change the offset, scale, and units on the y and x axes. The default units for images is nanometers (nm). The formula for the offset is x' = x * scale + offset.
+
+* Change the intensity and scale of the selected image.
+
+* Change the coordinate system. This will also change how the cursor position over a display item is shown in the Info panel. See :ref:`data-items` for more information.
+
+Line Plot Calibrations
+++++++++++++++++++++++
+When a line plot is selected, the calibrations subsection of the inspector panel will show variables specific to a line plot.
+
+.. image:: graphics/inspector_calibrations_subsection_line_plot.png
+    :width: 321
+    :alt: Inspector Calibrations Subsection with Line Plot Selected
+
+With a line plot selected, use the calibrations subsection to
+
+* Change the offset, scale, and units of the x axis (Channel).
+
+* Change the coordinate system. This will also change how the cursor position over a display item is shown in the Info panel. See :ref:`data-items` for more information.
+
+.. _Session Inspector Section:
+
+Session
+-------
+The Session subsection of the inspector allows you to change the session info for the selected item. 
+
+.. image:: graphics/inspector_session_subsection.png
+    :width: 321
+    :alt: Inspector Session Subsection
+
+Editing session info in the inspector will not change global session info. Global session info is added to a data item when it is acquired or imported.
+
+.. _Computation Inspector Section:
+
+Computation
+-----------
+With the Computation subsection of the inspector, you can adjust several variables for a computation associated with the selected item.
+
+.. image:: graphics/inspector_computation_subsection.png
+    :width: 321
+    :alt: Inspector Computation Subsection  
+
+The variables in this subsection will change based on what kind of item is selected. For example, a line profile will have adjustments for the coordinates of each end of the line, the angle of the line, and the length and width of the line; whereas a processing filter like a gaussian blur may only have a single slider to adjust the sigma (or blur) value. If the selected item has no associated computations, the Computation subsection will say “None.”
+
+The Computation subsection can also be accessed in a separate pop-up window by hitting [ctrl + E] (or [cmd + E] on macOS). 
+
+.. image:: graphics/computation_window.png
+    :width: 321
+    :alt: Computation Editor Window
+
+.. _Layers Inspector Section:
+
+Line Plot Display Layers
+------------------------
+With this subsection, you can manage all aspects of the layers in a layered line plot. 
+
+.. image:: graphics/inspector_line_plot_display_layers_subsection.png
+    :width: 321
+    :alt: Inspector Line Plot Display Layers Subsection
+
+With the layered line plot selected, you can
+
+* Change the order of layers using the up and down arrow buttons under the layer number.
+
+* Add or remove layers with the plus and minus buttons to the right of the arrow buttons.
+  
+* Associate layers with data items in the stack using the text box labeled :guilabel:`Data Index`. Type the number of the data item as it appears in the stack. The first data item will be called “Data #0,” the second will be called “Data #1,” and so on. Type 0 or 1 into the text box to associate the layer with Data #0 or Data #1 respectively.
+
+* Choose which row of a data item to show. If a data item has multiple rows, use the “Row” text box to choose which one is shown. Like data items, the row numbering will start at 0 and count up.
+
+* Change the fill color and stroke color using the color or text boxes under each layer's section.
+
+ * Change colors with text like rgb(100, 50, 200), #55AAFF, or a web-defined color like “Blue”
+  
+ * Choose colors with the color selection panel by clicking on the color box next to “Fill Color” or “Stroke Color.”
+
+ * Input transparent colors with text like rgb(100, 50, 200, .5) or #55AAFF80.
+
+ * Change the transparency of a color using the opacity sliders at the bottom of the color selection panel.
+
+ * Choose no color by deleting any text from the text box next to “Fill Color” or “Stroke Color.” The text box will show a gray “None.”
+
+* Change the stroke width by typing a number into the “Stroke Width” text box. This will create an outline of the stroke color around the associated layer.
+
+.. _Graphics Inspector Section:
+
+Graphics
+--------
+The Graphics subsection shows options for selected graphics, or for graphics associated with the selected data item. If multiple graphics are selected, the inspector will list options for all selected graphics.
+
+.. image:: graphics/inspector_graphics_subsection.png
+    :width: 321
+    :alt: Inspector Graphics Subsection
+
+Each graphic will have different variables that can be changed in this subsection. Most of the variables can either be manipulated by text in the inspector panel or by moving points around in the display panel. The inputs and outputs for the variables will be based off of the coordinate system selected in the calibration drop-down. See :ref:`data-items` (Calibrations) for information on different types of coordinate systems. 
+
+Each graphic will have some or all of the following variables:
+
+* :guilabel:`Name` - The name of the selected graphic. To show no name on a graphic, remove all text from the name text box. The box will show a gray “None.”
+
+* :guilabel:`X`, :guilabel:`Y` - The center coordinate of a graphic in nanometers (nm), pixels, or a decimal fraction depending on the coordinate system selected.
+
+* :guilabel:`X0`, :guilabel:`Y0`, and/or :guilabel:`X1`, :guilabel:`Y1` - The coordinates of anchor points or vertices of a graphic in nanometers (nm), pixels, or a decimal fraction depending on the coordinate system selected.
+
+* :guilabel:`W`, :guilabel:`H` - The width and height of a graphic in nanometers (nm), pixels, or a decimal fraction depending on the coordinate system selected.
+
+* :guilabel:`L` - The length of a graphic in nanometers (nm), pixels, or a decimal fraction depending on the coordinate system selected.
+
+* :guilabel:`A` - The angle of a graphic in degrees. Angle inputs over 180 degrees will be automatically reformatted into the equivalent negative angle. For example, an input of 225 degrees in the text box will be reformatted as -135 degrees.
+
+* :guilabel:`Rotation` - The rotation of a graphic in degrees around its center point.
+
+* :guilabel:`Start/End` - The end points of a graphic on a line plot in nanometers (nm), pixels, or a decimal fraction depending on the coordinate system selected.
+
+* :guilabel:`Radius 1` - The outer radius of a ring mask in nanometers (nm), pixels, or a decimal fraction depending on the coordinate system selected.
+
+* :guilabel:`Radius 2` The inner radius of a ring mask in nanometers (nm), pixels, or a decimal fraction depending on the coordinate system selected.
+
+* :guilabel:`Mode` - The type of ring mask. See :ref:`graphics` for more information on ring masks.
+
+* :guilabel:`Start Angle` - The top left inside angle of a wedge mask in degrees.
+
+* :guilabel:`End Angle` - The inside opposite angle of a wedge mask in degrees.
+
+* :guilabel:`Display` - The type of coordinate system used to label the coordinates on the image or line plot. See :ref:`data-items` for information on different types of coordinate systems.
+
+.. _Metadata Panel:
+
+Metadata
+========
+The Metadata utility panel shows any metadata associated with the selected data item. The session info will be added as metadata to any live data acquired during a given session.
+
+.. _Output Panel:
+
+Output
+======
+The Output panel displays output text at the bottom of the window while running Nion Swift. This is useful for debugging the application.
+
+.. _Sessions Panel:
+
+Session
+=======
+The Session panel allows you to edit the session info for the whole project rather than for a single data item. 
+
+.. image:: graphics/session_panel.png
+    :width: 321
+    :alt: Session Panel
+
+The session info will be added as metadata to any live data acquired during a given session. Every time Nion Swift is closed and reopened, a new session starts and global session info resets.
+
+.. _Task Panel:
+
+Task Panel
+==========
+The Task panel allows you to see the output from tasks such as microscope tuning. The output is often arranged into a table of data.
+
+.. _Tool Panel:
+
+Toolbar
+=======
+The Toolbar provides quick access to several options for the workspace. You can select items, move images, add graphics, create masks, choose image scale options, and edit the layout and content of display panels.
+
+.. image:: graphics/toolbar_infographic.png
+    :width: 310
+    :alt: Toolbar Button Functions
+
+Some tools on the toolbar have key shortcuts. For example, hitting the lowercase E key will select the pointer tool. You can see the shortcuts for the various tools by hovering the cursor over the button for a tool.
+
+.. _Recorder Dialog:
+
+Recorder
+========
+.. records a data item, useful during live acquisition or adjustments
+.. interval, number of frames
+.. what does it produce?
+
+The Recorder dialog allows you to record data at regular intervals from the display item selected when you open the recorder.
+
+To record acquisition, click on the live acquisition display panel. Then open the Recorder dialog. Enter the desired interval (in milliseconds) and the number of items to record. Then click Record. The resulting data item will be a sequence of data sampled from the live data at regular intervals.
 
 .. _Notifications Panel:
 
 Notifications
--------------
+=============
 .. displays notifications, must be dismissed, global
 
-The Notification dialog (:menuselection:`File --> Notifications...`) allows you to see notifications about errors and other important information that occurs while running the software.
+The Notification dialog allows you to see notifications about errors and other important information that occurs while running the software.
 
 The dialog will open automatically in the last location if a notification occurs. You must dismiss the notification and close the dialog.
