@@ -458,14 +458,15 @@ def draw_marker(ctx: DrawingContextLike, p: Geometry.FloatPoint, is_enabled: boo
     else:
         with ctx.saver():
             marker_color = '#00FF00'
-            ctx.line_width = 1.5
             ctx.begin_path()
-            ctx.move_to(p.x - 3, p.y - 3)
-            ctx.line_to(p.x + 3, p.y + 3)
-            ctx.move_to(p.x + 3, p.y - 3)
-            ctx.line_to(p.x - 3, p.y + 3)
+            ctx.line_width = 1.5
+            ctx.move_to(p.x - 2.5, p.y - 2.5)
+            ctx.line_to(p.x + 2.5, p.y - 2.5)
+            ctx.line_to(p.x + 2.5, p.y + 2.5)
+            ctx.line_to(p.x - 2.5, p.y + 2.5)
             ctx.close_path()
             if is_enabled:
+                ctx.fill_style = marker_color
                 ctx.stroke_style = marker_color
                 ctx.stroke()
             else:
