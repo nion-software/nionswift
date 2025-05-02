@@ -10,6 +10,7 @@ import copy
 import datetime
 import functools
 import gettext
+import logging
 import threading
 import types
 import typing
@@ -1753,7 +1754,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
     async def compute_immediate(self, event_loop: asyncio.AbstractEventLoop, computation: Symbolic.Computation, timeout: typing.Optional[float] = None) -> None:
         if computation:
             def sync_recompute() -> None:
-                computation.is_initial_computation_complete.wait(timeout)
+                if not computation.is_initial_computation_complete.wait(timeout):
+                    logging.warn("Initial compute failed.")
             await event_loop.run_in_executor(None, sync_recompute)
 
     def get_graphic_by_uuid(self, object_uuid: uuid.UUID) -> typing.Optional[Graphics.Graphic]:
