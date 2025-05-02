@@ -2411,6 +2411,7 @@ class Computation(Persistence.PersistentObject):
             kwargs, is_resolved = self.__resolve_inputs(api)
             if is_resolved:
                 def execute(kwargs: dict[str, typing.Any]) -> None:
+                    # execute is not allowed to raise exceptions.
                     executor.execute(**kwargs)
 
                 await event_loop.run_in_executor(thread_pool_executor, execute, kwargs)
