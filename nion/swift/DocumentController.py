@@ -4184,7 +4184,7 @@ class LineProfileGraphicAction(Window.Action):
         if not context.display_panel:
             return False
         graphic_type_set = {graphic.type for graphic in context.selected_graphics}
-        return len(graphic_type_set) == 1 and list(graphic_type_set)[0] == "line-profile"
+        return len(graphic_type_set) == 1 and list(graphic_type_set)[0] == "line-profile-graphic"
 
 
 class RasterDisplayCreateGraphicAction(Window.Action):

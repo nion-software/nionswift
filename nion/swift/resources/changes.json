@@ -97,6 +97,9 @@
           "https://github.com/nion-software/nionswift/issues/1363"
         ],
         "summary": "Fix issue with metadata panel not showing data. Also add note when target data item has no metadata."
+      },
+      {
+        "summary": "Fix issue with plus and minus key adjusting line profile widths."
       }
     ]
   },
