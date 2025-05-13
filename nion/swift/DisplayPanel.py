@@ -2048,6 +2048,10 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
                 return True
             return False
 
+        def is_key_mode_enabled(self, modifiers: UserInterface.KeyboardModifiers, key: str, mode_name: str) -> bool:
+            controller = self.document_controller_ref() if self.document_controller_ref else None
+            return controller.is_key_mode_enabled(modifiers, key, mode_name) if controller else False
+
         self.__filtered_display_items_model = document_controller.filtered_display_items_model
 
         class ItemDelegate(GridFlowCanvasItem.GridFlowCanvasItemDelegate):
