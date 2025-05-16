@@ -125,9 +125,19 @@ class CollectionInfoController(Observable.Observable):
         oo.source(container).sequence_from_array("display_items", predicate=self.__filter_predicate.matches).len().action_fn(count_changed)
         self.__count_observer = typing.cast(Observer.AbstractItemSource, oo.make_observable())
 
+        def title_changed(key: str) -> None:
+            if key == "title":
+                if self.__data_group:
+                    self.__base_title = self.__data_group.title
+                    self.collection_info_stream.value = self.collection_info
+                    self.notify_property_changed("collection_info")
+
+        self.__title_changed_listener = self.__data_group.property_changed_event.listen(title_changed) if self.__data_group else None
+
     def close(self) -> None:
         self.__count_observer.close()
         self.__count_observer = typing.cast(typing.Any, None)
+        self.__title_changed_listener = None
         self.__data_group = None
 
     @property

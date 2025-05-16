@@ -7,6 +7,7 @@ import pathlib
 import subprocess
 import sys
 import typing
+import weakref
 
 # local libraries
 from nion.swift import MimeTypes
@@ -367,10 +368,11 @@ class ProjectTreeWidget(Widgets.CompositeWidgetBase):
 
 class CollectionListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
 
-    def __init__(self, document_controller: DocumentController.DocumentController, collection_selection: Selection.IndexedSelection) -> None:
+    def __init__(self, collections_widget: CollectionsWidget, document_controller: DocumentController.DocumentController, collection_selection: Selection.IndexedSelection) -> None:
         super().__init__()
         self.__document_controller = document_controller
         self.__collection_selection = collection_selection
+        self.__collections_widget_ref = weakref.ref(collections_widget)
 
     def close(self) -> None:
         pass
@@ -425,6 +427,21 @@ class CollectionListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
             if data_group := (collection_info.data_group if collection_info else None):
                 self.__document_controller.remove_data_group_from_container(data_group, self.__document_controller.document_model._project)
 
+    def key_pressed(self, key: UserInterface.Key) -> bool:
+        if key.is_enter_or_return:
+            collections_widget = self.__collections_widget_ref()
+            if collections_widget:
+                collections_widget.return_pressed()
+                return True
+        return False
+
+    def mouse_double_clicked_in_item(self, mouse_index: int, pos: Geometry.IntPoint, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        collections_widget = self.__collections_widget_ref()
+        if collections_widget:
+            collections_widget.return_pressed()
+            return True
+        return False
+
 
 class CollectionsWidget(Widgets.CompositeWidgetBase):
 
@@ -432,13 +449,15 @@ class CollectionsWidget(Widgets.CompositeWidgetBase):
         content_widget = ui.create_column_widget()
         super().__init__(content_widget)
 
+        self.__document_controller = document_controller
+
         collection_selection = Selection.IndexedSelection(Selection.Style.single_or_none)
 
         collection_info_list_model = document_controller.collection_info_list_model
 
         collection_info_list_stream = Stream.PropertyChangedEventStream[typing.Sequence["DocumentController.CollectionInfo"]](collection_info_list_model, "items")
 
-        collection_list_canvas_item_delegate = CollectionListCanvasItemDelegate(document_controller, collection_selection)
+        collection_list_canvas_item_delegate = CollectionListCanvasItemDelegate(self, document_controller, collection_selection)
         collections_list_widget = Widgets.ListWidget(ui, collection_list_canvas_item_delegate, selection=collection_selection, v_scroll_enabled=False, v_auto_resize=True)
         collections_list_widget.wants_drag_events = True
 
@@ -493,6 +512,10 @@ class CollectionsWidget(Widgets.CompositeWidgetBase):
         content_widget.add(collections_section)
         content_widget.add_stretch()
 
+        # for internal use
+        self.__collection_selection = collection_selection
+        self.__collections_list_widget = collections_list_widget
+
         # for testing
         self._collection_selection = collection_selection
         self._collection_info_list_stream = collection_info_list_stream
@@ -501,6 +524,28 @@ class CollectionsWidget(Widgets.CompositeWidgetBase):
         self.__filter_changed_event_listener.close()
         self.__filter_changed_event_listener = typing.cast(typing.Any, None)
         super().close()
+
+    def return_pressed(self) -> None:
+        current_index = self.__collection_selection.current_index
+        if current_index is not None:
+            collections_list_widget = self.__collections_list_widget
+            item_rect = collections_list_widget.rect_for_index(current_index)
+            item_rect = Geometry.IntRect(collections_list_widget.map_to_global(item_rect.top_left), item_rect.size)
+            collection_info = typing.cast("DocumentController.CollectionInfo", collections_list_widget.items[current_index])
+            data_group = collection_info.data_group
+            if data_group:
+                def handle_title_changed(s: str | None) -> None:
+                    if s is not None:
+                        assert data_group is not None
+                        command = self.__document_controller.create_rename_data_group_command(data_group, s)
+                        command.perform()
+                        self.__document_controller.push_undo_command(command)
+
+                Dialog.pose_edit_string_pop_up(data_group.title, handle_title_changed,
+                                               window=self.__document_controller,
+                                               title=_("Edit Group Name"),
+                                               position=item_rect.bottom_left + Geometry.IntPoint(4, 0),
+                                               size=Geometry.IntSize(30, item_rect.width))
 
 
 class CollectionsPanel(Panel.Panel):
