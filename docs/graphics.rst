@@ -76,6 +76,8 @@ You can edit the end points of the line by dragging each end point. Holding the 
 
 You can change the position of the line by dragging in the middle along the line.
 
+You can also change the width of the line profile by clicking on the line profile graphic and pressing :kbd:`+` or :kbd:`=` keys to increase the width or :kbd:`-` key to decrease the width.
+
 See See :ref:`Line Profile Computation`.
 
 .. _Rectangle Graphic:
