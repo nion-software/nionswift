@@ -1,6 +1,23 @@
 [
   {
-    "version": "16.15.dev",
+    "version": "16.15.1",
+    "notes": [
+      {
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/1463"
+        ],
+        "summary": "Add ability to rename data group by hitting return or double clicking on list item."
+      },
+      {
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/1483"
+        ],
+        "summary": "Fix issue with plus and minus key adjusting line profile widths."
+      }
+    ]
+  },
+  {
+    "version": "16.15.0",
     "notes": [
       {
         "issues": [
@@ -97,9 +114,6 @@
           "https://github.com/nion-software/nionswift/issues/1363"
         ],
         "summary": "Fix issue with metadata panel not showing data. Also add note when target data item has no metadata."
-      },
-      {
-        "summary": "Fix issue with plus and minus key adjusting line profile widths."
       }
     ]
   },

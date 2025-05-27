@@ -1,8 +1,8 @@
 .. include:: defs.rst
 .. _index:
 
-|AppName| User's Guide (16.15.0)
-================================
+|AppName| User's Guide (16.15)
+==============================
 |AppName| is an open-source scientific image-processing software that uses Python to integrate hardware control, data acquisition, visualization, processing, and analysis. It runs on Windows, Linux, and macOS.
 
 .. image:: graphics/workspace.png
@@ -25,7 +25,7 @@ Who Uses |AppName|?
 |AppName| has been primarily developed for the operation of Nion electron microscopes and also as an offline tool to visualize, process, and analyze scientific data from electron microscopes, other instrumentation, and other scientific fields.
 
 |AppName| is open source. You can find the source code on
-`GitHub |AppName| <https://github.com/nion-software/nionswift/>`_.
+`GitHub nionswift <https://github.com/nion-software/nionswift/>`_.
 
 Installation/Upgrading
 ----------------------
@@ -60,10 +60,6 @@ Python Scripting
 |AppName| offers a great deal of functionality using the user interface. However, sometimes you will want to go beyond its intrinsic capabilities. Fortunately it is easy to extend the functionality using Python.
 
 * :ref:`scripting`
-
-|AppName| Links
----------------
-`|AppName| Google Group <https://groups.google.com/forum/#!forum/nionswift>`_ News and Announcements.
 
 Indices and Tables
 ==================

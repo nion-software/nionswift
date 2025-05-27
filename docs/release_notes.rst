@@ -12,6 +12,11 @@ them for evaluation and feedback. If you encounter an issue or have feedback abo
 please contact us or `file issues
 <https://github.com/nion-software/nionswift/issues>`_.
 
+Version 16.15.1 (2025-05-27)
+----------------------------
+* Add ability to rename data group by hitting return or double clicking on list item. (`#1463 <https://github.com/nion-software/nionswift/issues/1463>`_)
+* Fix issue with plus and minus key adjusting line profile widths. (`#1483 <https://github.com/nion-software/nionswift/issues/1483>`_)
+
 Version 16.15.0 (2025-04-23)
 ----------------------------
 * Change computations to run asynchronously (threaded). (`#304 <https://github.com/nion-software/nionswift/issues/304>`_)
