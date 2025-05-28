@@ -2873,7 +2873,7 @@ class GraphicsInspectorHandler(Declarative.Handler):
             u.create_spacing(12),
             u.create_check_box(text=_("Shape"), checked="@binding(_lock_shape_model.value)", text_alignment_vertical="center"),
             u.create_stretch(),
-            u.create_push_button(text="\N{BULLSEYE}", on_clicked="_move_to_center_clicked", width=26, text_alignment_horizontal="center"),
+            u.create_push_button(text="\N{BULLSEYE}", on_clicked="_move_to_center_clicked", text_alignment_horizontal="center", style="minimal"),
             u.create_spacing(4)
         )
 
