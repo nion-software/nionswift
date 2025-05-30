@@ -388,7 +388,7 @@ class FilteredDataSpecifier(Specifier):
         return BoundFilteredData(container, self, secondary_specifier)
 
 
-def specifier_factory(lookup_id: typing.Callable[[str], str]) -> typing.Optional[Specifier]:
+def specifier_factory(lookup_id: typing.Callable[[str], str | None]) -> typing.Optional[Specifier]:
     build_map: typing.Dict[str, typing.Callable[[], Specifier]] = {
         Model.DataSourceSpecifier.entity_id: DataSourceSpecifier,
         Model.DataItemSpecifier.entity_id: DataItemSpecifier,

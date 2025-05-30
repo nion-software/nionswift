@@ -2638,7 +2638,7 @@ class LatticeGraphic(Graphic):
         return Geometry.FloatSize.make(typing.cast(Geometry.SizeFloatTuple, self._get_persistent_property_value("v_pos")))
 
     @v_pos.setter
-    def v_pos(self, value: Geometry.FloatPointTuple) -> None:
+    def v_pos(self, value: Geometry.FloatSizeTuple) -> None:
         self._set_persistent_property_value("v_pos", tuple(value))
 
     @property

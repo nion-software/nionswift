@@ -1131,24 +1131,24 @@ class DataItem(Persistence.PersistentObject):
             self.__metadata_property_changed("data_modified", value)
 
     @property
-    def timezone(self) -> typing.Optional[str]:
+    def timezone(self) -> str | None:
         data_metadata = self.__data_metadata
         return data_metadata.timezone if data_metadata else Utility.get_local_timezone()
 
     @timezone.setter
-    def timezone(self, value: str) -> None:
+    def timezone(self, value: str | None) -> None:
         if self.__data_metadata:
             self.__data_metadata._set_timezone(value)
             self._set_persistent_property_value("timezone", value)
             self.__timezone_property_changed("timezone", value)
 
     @property
-    def timezone_offset(self) -> typing.Optional[str]:
+    def timezone_offset(self) -> str | None:
         data_metadata = self.__data_metadata
         return data_metadata.timezone_offset if data_metadata else Utility.TimezoneMinutesToStringConverter().convert(Utility.local_utcoffset_minutes())
 
     @timezone_offset.setter
-    def timezone_offset(self, value: str) -> None:
+    def timezone_offset(self, value: str | None) -> None:
         if self.__data_metadata:
             self.__data_metadata._set_timezone_offset(value)
             self._set_persistent_property_value("timezone_offset", value)

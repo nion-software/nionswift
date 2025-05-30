@@ -564,11 +564,11 @@ class PersistentObjectReference:
         self.__persistent_object_context_changed()
 
     @property
-    def item_specifier(self) -> typing.Optional[PersistentObjectSpecifier]:
+    def item_specifier(self) -> PersistentObjectSpecifier | None:
         return self.__item_specifier
 
     @item_specifier.setter
-    def item_specifier(self, item_specifier: PersistentObjectSpecifier) -> None:
+    def item_specifier(self, item_specifier: PersistentObjectSpecifier | None) -> None:
         self.__item_specifier = item_specifier
         self.__item = None
         self.__persistent_object_context_changed()
@@ -800,12 +800,12 @@ class PersistentObject(Observable.Observable):
         pass
 
     @property
-    def persistent_object_context(self) -> typing.Optional[PersistentObjectContext]:
+    def persistent_object_context(self) -> PersistentObjectContext | None:
         """ Return the persistent object context. """
         return self.__persistent_object_context
 
     @persistent_object_context.setter
-    def persistent_object_context(self, persistent_object_context: PersistentObjectContext) -> None:
+    def persistent_object_context(self, persistent_object_context: PersistentObjectContext | None) -> None:
         """ Set the persistent object context and propagate it to contained objects. """
         assert self.__persistent_object_context is None or persistent_object_context is None  # make sure persistent object context is handled cleanly
         old_persistent_object_context = self.__persistent_object_context
