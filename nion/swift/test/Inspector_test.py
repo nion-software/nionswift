@@ -15,6 +15,7 @@ from nion.data import DataAndMetadata
 from nion.swift import DisplayPanel
 from nion.swift import Facade
 from nion.swift import Inspector
+from nion.swift import LinePlotCanvasItem
 from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
 from nion.swift.model import Graphics
@@ -544,6 +545,55 @@ class TestInspectorClass(unittest.TestCase):
             document_controller.periodic()
             line_plot_canvas_item = display_panel.display_canvas_item
             line_plot_canvas_item._mouse_dragged(0.3, 0.5)
+
+    def test_line_plot_inspector_display_limits_undo(self):
+        # note: testing this manually you need to unfocus the field to undo, otherwise it is a text undo.
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.array([1,2]))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            # find the inspector panel
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            document_controller.periodic()  # needed to build the inspector
+            inspector_panel = document_controller.find_dock_panel("inspector-panel")
+            inspector_section = inspector_panel.widget.find_widget_by_id("line_plot_display_inspector_section")
+            self.assertEqual(None, inspector_section._line_plot_display_section_handler._y_min_model.value)
+            self.assertEqual(None, inspector_section._line_plot_display_section_handler._y_max_model.value)
+            # test undo after editing (only testing y_min field)
+            inspector_section._line_plot_display_section_handler.y_min_field.editing_finished("0.0")
+            self.assertEqual(0.0, inspector_section._line_plot_display_section_handler._y_min_model.value)
+            document_controller.handle_undo()
+            self.assertEqual(None, inspector_section._line_plot_display_section_handler._y_min_model.value)
+
+    def test_line_plot_inspector_display_limits_update_when_using_auto_display(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.array([1,2]))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            # find the inspector panel
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            document_controller.periodic()  # needed to build the inspector
+            inspector_panel = document_controller.find_dock_panel("inspector-panel")
+            inspector_section = inspector_panel.widget.find_widget_by_id("line_plot_display_inspector_section")
+            self.assertEqual(None, inspector_section._line_plot_display_section_handler._y_min_model.value)
+            self.assertEqual(None, inspector_section._line_plot_display_section_handler._y_max_model.value)
+            line_plot_canvas_item = typing.cast(LinePlotCanvasItem.LinePlotCanvasItem, display_panel.display_canvas_item)
+            line_plot_canvas_item.handle_auto_display()
+            # these values are manually determined by the auto display algorithm.
+            self.assertEqual(0.0, inspector_section._line_plot_display_section_handler._y_min_model.value)
+            self.assertEqual(2.4, inspector_section._line_plot_display_section_handler._y_max_model.value)
+            document_controller.handle_undo()
+            self.assertEqual(None, inspector_section._line_plot_display_section_handler._y_min_model.value)
+            self.assertEqual(None, inspector_section._line_plot_display_section_handler._y_max_model.value)
+            document_controller.handle_redo()
+            self.assertEqual(0.0, inspector_section._line_plot_display_section_handler._y_min_model.value)
+            self.assertEqual(2.4, inspector_section._line_plot_display_section_handler._y_max_model.value)
 
     def test_slice_inspector_section_uses_correct_dimension(self):
         with TestContext.create_memory_context() as test_context:
