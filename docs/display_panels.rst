@@ -73,9 +73,11 @@ Once the adjustments have been applied, the data is scaled so that the lower dis
 
 The display limits may be specified or unspecified, in which case they are "auto" calculated, meaning that they will automatically adjust to the lowest and highest values of the data (once it has been converted to scalar and brightness, contrast, and gamma applied) in the image.
 
-The selection of indexes for sequences or collections, the conversion from complex to scalar, the adjustments such as brightness, contrast, and gamma, the display limits, and the color map are all selectable or editable using the inspector (see :ref:`Inspector Panel`).
+You can press the :kbd:`Enter` key to fix display limits limits to their current values if they are "auto" calculated.
 
-You can press the :kbd:`Enter` key to reset display limits.
+You can reset the display limits to "auto" by using the Inspector and deleting the values in the :guilabel:`Display Limits` section of the Inspector.
+
+The selection of indexes for sequences or collections, the conversion from complex to scalar, the adjustments such as brightness, contrast, and gamma, the display limits, and the color map are all selectable or editable using the inspector (see :ref:`Inspector Panel`).
 
 The Histogram panel (see :ref:`Histogram Panel`) shows the histogram of the image data. It can be used to set or reset the display limits by dragging within the histogram graph or by double clicking within the graph, respectively.
 
@@ -104,6 +106,10 @@ The axes may be configured so that they are specified with values or are "auto" 
 You can reset an axis to "auto" by double clicking on it.
 
 The display limits and display channels may be specified or unspecified, in which case they are "auto" calculated, meaning that they will automatically adjust to the lowest and highest values of the data (once it has been converted to scalar) in the plot.
+
+You can press the :kbd:`Enter` key to fix display limits and display channels to their current values if they are "auto" calculated.
+
+You can reset the display limits and channels "auto" by using the Inspector and deleting the values in the :guilabel:`Display` and :guilabel:`Channels` sections of the Inspector.
 
 The y-axis can be displayed as linear or logarithmic by clicking on the :guilabel:`Log Scale (Y)` checkbox in the :guilabel:`Line Plot Display` section of the Inspector.
 

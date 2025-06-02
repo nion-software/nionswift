@@ -7,6 +7,18 @@
           "https://github.com/nion-software/nionswift/issues/960"
         ],
         "summary": "Locked graphics now draw distinctly to indicate shape and/or position are locked."
+      },
+      {
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/1505"
+        ],
+        "summary": "Fix inspector issue with updating line plot display limits."
+      },
+      {
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/1504"
+        ],
+        "summary": "Fix inspector issue with updating data range when data changes."
       }
     ]
   },
