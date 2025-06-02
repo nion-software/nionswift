@@ -7,7 +7,6 @@ import copy
 import functools
 import gettext
 import math
-import operator
 import sys
 import threading
 import typing
@@ -525,7 +524,7 @@ class DisplayItemPropertyCommandModel(Model.PropertyChangedPropertyModel[typing.
         return getattr(self.__display_item, self.__property_name)
 
 
-class DisplayItemDisplayPropertyCommandModel(Model.PropertyChangedPropertyModel[typing.Any]):
+class DisplayItemDisplayPropertyCommandModel(Model.PropertyModel[typing.Any]):
     """Display item channel property command model.
 
     This model makes undoable changes to a display item property.
@@ -533,19 +532,42 @@ class DisplayItemDisplayPropertyCommandModel(Model.PropertyChangedPropertyModel[
 
     def __init__(self, document_controller: DocumentController.DocumentController,
                  display_item: DisplayItem.DisplayItem, property_name: str) -> None:
-        super().__init__(display_item, property_name)
+        super().__init__()
         self.__display_item = display_item
         self.__document_controller = document_controller
         self.__property_name = property_name
+        # avoid using display_properties_changed event, as it is not guaranteed to be called when the display
+        # properties change. instead just listen for display item property changes, respond to 'display_properties'
+        # changing. then let the PropertyModel machinery check for changes and send out notifications.
+        self.__listener = display_item.property_changed_event.listen(ReferenceCounting.weak_partial(DisplayItemDisplayPropertyCommandModel.__display_property_changed, self))
+        self.value = self._get_property_value()
 
-    def _set_property_value(self, value: typing.Optional[typing.Any]) -> None:
-        if value != self._get_property_value():
-            command = DisplayPanel.ChangeDisplayCommand(self.__document_controller.document_model, self.__display_item,
-                                                        title=_("Change Display"),
-                                                        command_id="change_display_" + self.__property_name, is_mergeable=True,
-                                                        **{self.__property_name: value})
-            command.perform()
-            self.__document_controller.push_undo_command(command)
+    def __display_property_changed(self, key: str) -> None:
+        if key == "display_properties":
+            # the PropertyModel does a similar check when setting the property value. but here we don't want to set
+            # the property value since that will trigger a command. this is being received as an outside change and
+            # should not post an undo command that can be undone. if the value change is received from the UI,
+            # then it should post an undo command.
+            value = self._get_property_value()
+            if self.value is None:
+                not_equal = value is not None
+            elif value is None:
+                not_equal = self.value is not None
+            else:
+                not_equal = value != self.value
+            if not_equal:
+                super()._set_value(self._get_property_value())
+
+    def _set_value(self, value: typing.Optional[typing.Any]) -> None:
+        # override this to generate the command. the _set_value sets the PropertyModel value, the command sets the
+        # actual value in the display item.
+        super()._set_value(value)
+        command = DisplayPanel.ChangeDisplayCommand(self.__document_controller.document_model, self.__display_item,
+                                                    title=_("Change Display"),
+                                                    command_id="change_display_" + self.__property_name, is_mergeable=True,
+                                                    **{self.__property_name: value})
+        command.perform()
+        self.__document_controller.push_undo_command(command)
 
     def _get_property_value(self) -> typing.Optional[typing.Any]:
         return self.__display_item.get_display_property(self.__property_name)
@@ -2125,20 +2147,20 @@ class LinePlotDisplaySectionHandler(Declarative.Handler):
         self.ui_view = u.create_column(
             u.create_row(
                 u.create_label(text=_("Display:"), width=120),
-                u.create_line_edit(text="@binding(_y_min_model.value, converter=_float_to_string_converter)", width=72, placeholder_text=_("Auto")),
+                u.create_line_edit(text="@binding(_y_min_model.value, converter=_float_to_string_converter)", width=72, placeholder_text=_("Auto"), name="y_min_field"),
                 u.create_spacing(8),
-                u.create_line_edit(text="@binding(_y_max_model.value, converter=_float_to_string_converter)", width=72, placeholder_text=_("Auto")),
+                u.create_line_edit(text="@binding(_y_max_model.value, converter=_float_to_string_converter)", width=72, placeholder_text=_("Auto"), name="y_max_field"),
                 u.create_stretch()
             ),
             u.create_row(
                 u.create_label(text=_("Channels:"), width=120),
-                u.create_line_edit(text="@binding(_left_channel_model.value, converter=_float_to_string_converter)", width=72, placeholder_text=_("Auto")),
+                u.create_line_edit(text="@binding(_left_channel_model.value, converter=_float_to_string_converter)", width=72, placeholder_text=_("Auto"), name="left_channel_field"),
                 u.create_spacing(8),
-                u.create_line_edit(text="@binding(_right_channel_model.value, converter=_float_to_string_converter)", width=72, placeholder_text=_("Auto")),
+                u.create_line_edit(text="@binding(_right_channel_model.value, converter=_float_to_string_converter)", width=72, placeholder_text=_("Auto"), name="right_channel_field"),
                 u.create_stretch()
             ),
             u.create_row(
-                u.create_check_box(text=_("Log Scale (Y)"), checked="@binding(_y_style_model.value, converter=_log_checked_to_check_state_converter)"),
+                u.create_check_box(text=_("Log Scale (Y)"), checked="@binding(_y_style_model.value, converter=_log_checked_to_check_state_converter)", name="log_scale_check_box"),
                 u.create_stretch()
             )
         )
@@ -2152,6 +2174,8 @@ class LinePlotDisplayInspectorSection(InspectorSection):
 
     def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem) -> None:
         super().__init__(document_controller.ui, "line-plot", _("Line Plot Display"))
+
+        self.widget_id = "line_plot_display_inspector_section"
 
         self._display_type_chooser = DisplayTypeChooserHandler(display_item, document_controller)
         display_type_chooser_widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop, self._display_type_chooser)
