@@ -1125,8 +1125,8 @@ class ImageDataInspectorModel(Observable.Observable):
 
         self.data_range_low_model = Model.PropertyModel[float]()
         self.data_range_high_model = Model.PropertyModel[float]()
-        self._update_data_range(self._display_data_channel.get_latest_computed_display_values())
-        self._display_data_channel.subscribe_to_latest_computed_display_values(self._update_data_range)
+        self.__display_values_subscription = self._display_data_channel.subscribe_to_latest_computed_display_values(ReferenceCounting.weak_partial(ImageDataInspectorModel.__update_data_range, self))
+        self.__update_data_range(self._display_data_channel.get_latest_computed_display_values())
 
         display_limits_model = DisplayDataChannelPropertyCommandModel(document_controller, display_data_channel, "display_limits", title=_("Change Display Limits"), command_id="change_display_limits")
         self.display_limits_low_model = ImageDisplayLimitsModel(display_data_channel, display_limits_model, 0)
@@ -1153,9 +1153,9 @@ class ImageDataInspectorModel(Observable.Observable):
 
         self.gamma_model = DisplayDataChannelAdjustmentPropertyCommandModel(document_controller, display_data_channel, "gamma", 1.0)
 
-        self.listener = self._display_data_channel.property_changed_event.listen(ReferenceCounting.weak_partial(ImageDataInspectorModel._property_changed, self))
+        self.listener = self._display_data_channel.property_changed_event.listen(ReferenceCounting.weak_partial(ImageDataInspectorModel.__property_changed, self))
 
-    def _update_data_range(self, display_values: typing.Optional[DisplayItem.DisplayValues]) -> None:
+    def __update_data_range(self, display_values: typing.Optional[DisplayItem.DisplayValues]) -> None:
         if display_values is not None and display_values.data_range is not None:
             data_range = display_values.data_range
             self.data_range_low_model.value = data_range[0]
@@ -1173,7 +1173,7 @@ class ImageDataInspectorModel(Observable.Observable):
     def get_current_adjustment_index(self) -> int:
         return self._adjustment_options_reverse_map[self.get_current_adjustment_id()]
 
-    def _property_changed(self, name: str) -> None:
+    def __property_changed(self, name: str) -> None:
         if name == "color_map_id":
             self.current_colormap_index.value = self._color_map_reverse_map[self._display_data_channel.color_map_id]
         if name == "adjustments":
