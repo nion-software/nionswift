@@ -204,7 +204,7 @@ You can edit both angles in the :guilabel:`Inspector` panel.
 
 Ring
 ++++
-The wedge graphic is a pair of circles centered at the origin. It can be used to perform low pass, high pass, and band pass filters.
+The ring graphic is a pair of circles centered at the origin. It can be used to perform low pass, high pass, and band pass filters.
 
 You can drag the radius of either circle to adjust its filter frequency.
 
