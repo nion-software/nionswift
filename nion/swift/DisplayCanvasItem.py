@@ -120,6 +120,9 @@ class DisplayCanvasItem(CanvasItem.CanvasItemComposition):
 
     def set_focused(self, is_focused: bool) -> None: ...
 
+    def _wait_for_update(self) -> None:
+        pass
+
 
 class FrameRateCanvasItemComposer(CanvasItem.BaseComposer):
     def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing, cache: CanvasItem.ComposerCache, fps: str, fps2: str, fps3: str) -> None:

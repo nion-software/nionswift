@@ -1623,8 +1623,10 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_panel.root_container.layout_immediate(Geometry.IntSize(240, 240))
             document_controller.periodic()
             self.assertIsInstance(display_panel.display_canvas_item, ImageCanvasItem.ImageCanvasItem)
+            display_panel.display_canvas_item._wait_for_update()
             update_count = display_panel.display_canvas_item._update_count
             document_controller.periodic()
+            display_panel.display_canvas_item._wait_for_update()
             self.assertEqual(update_count, display_panel.display_canvas_item._update_count)
 
     def test_image_display_canvas_item_only_updates_once_if_data_changes(self):
@@ -1638,8 +1640,10 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_panel.set_display_panel_display_item(display_item)
             display_panel.root_container.repaint_immediate(DrawingContext.DrawingContext(), Geometry.IntSize(240, 640))
             self.assertIsInstance(display_panel.display_canvas_item, ImageCanvasItem.ImageCanvasItem)
+            display_panel.display_canvas_item._wait_for_update()
             update_count = display_panel.display_canvas_item._update_count
             data_item.set_xdata(DataAndMetadata.new_data_and_metadata(numpy.random.randn(8, 8)))
+            display_panel.display_canvas_item._wait_for_update()
             self.assertEqual(update_count + 1, display_panel.display_canvas_item._update_count)
 
     def test_image_display_canvas_item_only_updates_once_if_graphic_changes(self):
@@ -1656,8 +1660,10 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_panel.root_container.layout_immediate(Geometry.IntSize(240, 240))
             document_controller.periodic()
             self.assertIsInstance(display_panel.display_canvas_item, ImageCanvasItem.ImageCanvasItem)
+            display_panel.display_canvas_item._wait_for_update()
             update_count = display_panel.display_canvas_item._update_count
             graphic.bounds = Geometry.FloatRect.from_tlbr(0.1, 0.1, 0.2, 0.2)
+            display_panel.display_canvas_item._wait_for_update()
             self.assertEqual(update_count + 1, display_panel.display_canvas_item._update_count)
 
     def test_image_display_canvas_item_does_not_update_if_graphic_does_not_change(self):
@@ -1679,6 +1685,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             # click once
             display_panel.display_canvas_item.simulate_click(Geometry.IntPoint(120, 120))
             document_controller.periodic()
+            display_panel.display_canvas_item._wait_for_update()
             update_count = display_panel.display_canvas_item._update_count
 
             display_item_did_change = False
@@ -1693,6 +1700,7 @@ class TestDisplayPanelClass(unittest.TestCase):
                 document_controller.periodic()
                 display_panel.display_canvas_item.simulate_release(Geometry.IntPoint(120, 120))
                 document_controller.periodic()
+                display_panel.display_canvas_item._wait_for_update()
                 self.assertEqual(update_count, display_panel.display_canvas_item._update_count)
 
             self.assertFalse(display_item_did_change)
@@ -1709,8 +1717,10 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_panel.set_display_panel_display_item(display_item)
             display_panel.root_container.repaint_immediate(DrawingContext.DrawingContext(), Geometry.IntSize(240, 640))
             self.assertIsInstance(display_panel.display_canvas_item, ImageCanvasItem.ImageCanvasItem)
+            display_panel.display_canvas_item._wait_for_update()
             update_count = display_panel.display_canvas_item._update_count
             display_data_channel.color_map_id = "hsv"
+            display_panel.display_canvas_item._wait_for_update()
             self.assertEqual(update_count + 1, display_panel.display_canvas_item._update_count)
 
     def test_line_plot_image_display_canvas_item_only_updates_if_display_data_changes(self):
@@ -1725,9 +1735,11 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_panel.root_container.layout_immediate(Geometry.IntSize(240, 640))
             document_controller.periodic()
             self.assertIsInstance(display_panel.display_canvas_item, LinePlotCanvasItem.LinePlotCanvasItem)
+            display_panel.display_canvas_item._wait_for_update()
             update_count = display_panel.display_canvas_item._update_count
             document_controller.periodic()
             self.display_panel.root_container.refresh_layout_immediate()
+            display_panel.display_canvas_item._wait_for_update()
             self.assertEqual(update_count, display_panel.display_canvas_item._update_count)
 
     def test_focused_data_item_changes_when_display_changed_directly_in_content(self):
