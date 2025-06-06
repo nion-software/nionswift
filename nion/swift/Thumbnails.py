@@ -126,26 +126,26 @@ class ThumbnailSource:
          and the cache will not be marked dirty.
         """
         ui = self._ui
+        try:
+            display_item = self.__display_item
+            if display_item.display_data_shape and len(display_item.display_data_shape) == 2:
+                pixel_shape = Geometry.IntSize(height=512, width=512)
+            else:
+                pixel_shape = Geometry.IntSize(height=308, width=512)
+            drawing_context = DisplayPanel.preview(DisplayPanel.DisplayPanelUISettings(ui), display_item, pixel_shape)
+            thumbnail_drawing_context = DrawingContext.DrawingContext()
+            thumbnail_drawing_context.scale(self.width / 512, self.height / 512)
+            thumbnail_drawing_context.translate(0, (pixel_shape.width - pixel_shape.height) * 0.5)
+            thumbnail_drawing_context.add(drawing_context)
+            calculated_data = ui.create_rgba_image(thumbnail_drawing_context, self.width, self.height)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            traceback.print_stack()
+            raise
+        if calculated_data is None:
+            calculated_data = numpy.zeros((self.height, self.width), dtype=numpy.uint32)
         with self.__recompute_lock:
-            try:
-                display_item = self.__display_item
-                if display_item.display_data_shape and len(display_item.display_data_shape) == 2:
-                    pixel_shape = Geometry.IntSize(height=512, width=512)
-                else:
-                    pixel_shape = Geometry.IntSize(height=308, width=512)
-                drawing_context = DisplayPanel.preview(DisplayPanel.DisplayPanelUISettings(ui), display_item, pixel_shape)
-                thumbnail_drawing_context = DrawingContext.DrawingContext()
-                thumbnail_drawing_context.scale(self.width / 512, self.height / 512)
-                thumbnail_drawing_context.translate(0, (pixel_shape.width - pixel_shape.height) * 0.5)
-                thumbnail_drawing_context.add(drawing_context)
-                calculated_data = ui.create_rgba_image(thumbnail_drawing_context, self.width, self.height)
-            except Exception as e:
-                import traceback
-                traceback.print_exc()
-                traceback.print_stack()
-                raise
-            if calculated_data is None:
-                calculated_data = numpy.zeros((self.height, self.width), dtype=numpy.uint32)
             self.__cache_thumbnail_data = calculated_data
             self.__cache_is_dirty = False
             self.__cache_properties_known = True

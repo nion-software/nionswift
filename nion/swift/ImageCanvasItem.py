@@ -2,6 +2,7 @@ from __future__ import annotations
 
 # standard libraries
 import asyncio
+import concurrent.futures
 import copy
 import dataclasses
 import logging
@@ -24,6 +25,7 @@ from nion.swift.model import UISettings
 from nion.swift.model import Utility
 from nion.ui import CanvasItem
 from nion.utils import Geometry
+from nion.utils import Model
 from nion.utils import Registry
 from nion.utils import Stream
 from nion.utils import ReferenceCounting
@@ -964,6 +966,111 @@ graphic_type_map = {
 }
 
 
+class DisplayValueProcessor:
+    """Process display values in a separate thread.
+
+    The executor is shared between all instances of this class.
+
+    Clients should call put_display_values to put display values into the processor. The processor will run
+    process_display_values on a thread if it is not already running. The processor will apply the display values to
+    the bitmap and timestamp canvas items.
+
+    Clients should call stop to stop the processor when it is no longer needed. This will stop the processing thread.
+    """
+    def __init__(self,
+                 executor: concurrent.futures.ThreadPoolExecutor,
+                 bitmap_canvas_item: CanvasItem.BitmapCanvasItem,
+                 timestamp_canvas_item: CanvasItem.TimestampCanvasItem,
+                 display_latency_model: Model.PropertyModel[bool]) -> None:
+        self.__executor = executor
+        self.__display_values: DisplayItem.DisplayValues | None = None
+        self.__bitmap_canvas_item = bitmap_canvas_item
+        self.__timestamp_canvas_item = timestamp_canvas_item
+        self.__display_latency_model = display_latency_model
+        self.__stopped = False
+        self.__lock = threading.RLock()
+        self.__future: concurrent.futures.Future[None] | None = None
+
+    def stop(self) -> None:
+        # set the stopped flag and wait for the future (if any) to complete.
+        self.__stopped = True
+        with self.__lock:
+            future = self.__future
+            self.__display_values = None
+        if future:
+            future.result()
+
+    def __process_display_values(self) -> None:
+        # runs on a thread until stopped, loop while new display values are available, apply them to the bitmap
+        # and timestamp canvas items. after the loop is exited, check again for display values to avoid a race
+        # condition where the display values get set after the lock within the loop but where the current value
+        # was None, causing a break out of the loop.
+        while not self.__stopped:
+            # put_display_values only sets display values under the lock.
+            # retrieve them here under the lock and clear them.
+            with self.__lock:
+                display_values = self.__display_values
+                self.__display_values = None
+            # at this point forward, the display values may be set again, so we need to check
+            if display_values:
+                self.apply(display_values)
+                display_values = None  # clear the reference to the display values
+            else:
+                break
+        with self.__lock:
+            if self.__display_values:
+                self.__future = self.__executor.submit(self.__process_display_values)
+            else:
+                self.__future = None
+
+    def put_display_values(self, display_values: DisplayItem.DisplayValues) -> None:
+        with self.__lock:
+            # always set the new display values
+            self.__display_values = display_values
+
+            # launch processing on a thread if not already running
+            if not self.__future:
+                self.__future = self.__executor.submit(self.__process_display_values)
+
+    def wait_for_update(self) -> None:
+        while True:
+            with self.__lock:
+                if not self.__future:
+                    break
+            time.sleep(0.01)  # wait for the display values to be processed
+
+    def apply(self, display_values: DisplayItem.DisplayValues) -> None:
+        bitmap_canvas_item = self.__bitmap_canvas_item
+        timestamp_canvas_item = self.__timestamp_canvas_item
+        display_latency_model = self.__display_latency_model
+        display_data = display_values.adjusted_data_and_metadata
+        if display_data and display_data.data_dtype == numpy.float32:
+            display_range = display_values.transformed_display_range
+            color_map_data = display_values.color_map_data
+            color_map_rgba: typing.Optional[DrawingContext.RGBA32Type]
+            if color_map_data is not None:
+                color_map_rgba = numpy.empty(color_map_data.shape[:-1] + (4,), numpy.uint8)
+                color_map_rgba[..., 0:3] = color_map_data
+                color_map_rgba[..., 3] = 255
+                color_map_rgba = color_map_rgba.view(numpy.uint32).reshape(color_map_rgba.shape[:-1])
+            else:
+                color_map_rgba = None
+            # the canvas item expects a ndarray. since the data is being accessed directly here, it could
+            # be an array compatible that might be deleted (e.g. a hdf5 dataset). so convert it to a numpy
+            # if not already.
+            display_data_data = display_data.data
+            if not isinstance(display_data_data, numpy.ndarray):
+                display_data_data = numpy.array(display_data_data)
+            bitmap_canvas_item.set_data(display_data_data, display_range, color_map_rgba)
+        else:
+            data_rgba = display_values.display_rgba
+            bitmap_canvas_item.set_rgba_bitmap_data(data_rgba)
+        data_and_metadata = display_values.data_and_metadata
+        metadata_d = data_and_metadata.metadata if data_and_metadata else dict()
+        timestamp_ns = metadata_d.get("hardware_source", dict()).get("system_time_ns", time.perf_counter_ns()) if display_latency_model.value else 0
+        timestamp_canvas_item.timestamp_ns = timestamp_ns
+
+
 class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
     """A canvas item to paint an image.
 
@@ -989,6 +1096,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         enter_key_pressed()
         cursor_changed(pos)
     """
+    _executor = concurrent.futures.ThreadPoolExecutor()
 
     def __init__(self, ui_settings: UISettings.UISettings,
                  delegate: typing.Optional[DisplayCanvasItem.DisplayCanvasItemDelegate],
@@ -1046,6 +1154,8 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
         self.__display_values_dirty = False
         self.__display_values: typing.Optional[DisplayItem.DisplayValues] = None
+        self.__pending_display_values_lock = threading.RLock()
+        self.__pending_display_values = list[DisplayItem.DisplayValues]()
         self.__data_shape: typing.Optional[DataAndMetadata.Shape2dType] = None
         self.__coordinate_system: typing.List[Calibration.Calibration] = list()
         self.__graphics: typing.List[Graphics.Graphic] = list()
@@ -1057,9 +1167,14 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.__mouse_handler: typing.Optional[MouseHandler] = None
 
         # frame rate and latency
-        self.__display_latency = False
+        self.__display_latency_model = Model.PropertyModel[bool](False)
+
+        # display values queue
+        self.__display_values_processor = DisplayValueProcessor(ImageCanvasItem._executor, self.__bitmap_canvas_item, self.__timestamp_canvas_item, self.__display_latency_model)
 
     def close(self) -> None:
+        self.__display_values_processor.stop()
+        self.__display_values_processor = typing.cast(typing.Any, None)
         with self.__closing_lock:
             self.__closed = True
         self.__display_values = None
@@ -1081,32 +1196,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             # configure the bitmap canvas item
             display_values = self.__display_values
             if display_values:
-                display_data = display_values.adjusted_data_and_metadata
-                if display_data and display_data.data_dtype == numpy.float32:
-                    display_range = display_values.transformed_display_range
-                    color_map_data = display_values.color_map_data
-                    color_map_rgba: typing.Optional[DrawingContext.RGBA32Type]
-                    if color_map_data is not None:
-                        color_map_rgba = numpy.empty(color_map_data.shape[:-1] + (4,), numpy.uint8)
-                        color_map_rgba[..., 0:3] = color_map_data
-                        color_map_rgba[..., 3] = 255
-                        color_map_rgba = color_map_rgba.view(numpy.uint32).reshape(color_map_rgba.shape[:-1])
-                    else:
-                        color_map_rgba = None
-                    # the canvas item expects a ndarray. since the data is being accessed directly here, it could
-                    # be an array compatible that might be deleted (e.g. a hdf5 dataset). so convert it to a numpy
-                    # if not already.
-                    display_data_data = display_data.data
-                    if not isinstance(display_data_data, numpy.ndarray):
-                        display_data_data = numpy.array(display_data_data)
-                    self.__bitmap_canvas_item.set_data(display_data_data, display_range, color_map_rgba)
-                else:
-                    data_rgba = display_values.display_rgba
-                    self.__bitmap_canvas_item.set_rgba_bitmap_data(data_rgba)
-                data_and_metadata = display_values.data_and_metadata
-                metadata_d = data_and_metadata.metadata if data_and_metadata else dict()
-                timestamp_ns = metadata_d.get("hardware_source", dict()).get("system_time_ns", time.perf_counter_ns()) if self.__display_latency else 0
-                self.__timestamp_canvas_item.timestamp_ns = timestamp_ns
+                self.__display_values_processor.put_display_values(display_values)
 
     def __update_display_properties_and_layers(self, display_calibration_info: DisplayItem.DisplayCalibrationInfo, display_properties: Persistence.PersistentDictType, display_layers: typing.Sequence[DisplayItem.DisplayLayerInfo]) -> None:
         # thread-safe
@@ -1196,6 +1286,10 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             self.__update_graphics_coordinate_system(display_data_delta.graphics,
                                                      display_data_delta.graphic_selection,
                                                      display_data_delta.display_calibration_info)
+
+    def _wait_for_update(self) -> None:
+        # used for testing
+        self.__display_values_processor.wait_for_update()
 
     def handle_auto_display(self) -> bool:
         # enter key has been pressed. calculate best display limits and set them.
@@ -1461,7 +1555,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.__bitmap_canvas_item.display_frame_rate_id = self.__frame_rate_canvas_item.display_frame_rate_id
 
     def toggle_latency(self) -> None:
-        self.__display_latency = not self.__display_latency
+        self.__display_latency_model.value = not self.__display_latency_model.value
 
     def __get_mouse_mapping(self) -> ImageCanvasItemMapping:
         widget_mapping = ImageCanvasItemMapping.make(self.__data_shape, self.__composite_canvas_item.canvas_rect, self.__coordinate_system)
