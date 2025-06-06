@@ -2791,19 +2791,19 @@ class DocumentController(Window.Window):
             source_data_items = self.document_model.get_source_data_items(data_item)
             if len(source_data_items) > 0:
                 menu.add_separator()
-                for data_item in source_data_items:
-                    menu.add_menu_item(make_reveal_menu_item_title(data_item, _("Source")), make_reveal_data_item_callback(data_item))
+                for data_item_ in source_data_items:
+                    menu.add_menu_item(make_reveal_menu_item_title(data_item_, _("Source")), make_reveal_data_item_callback(data_item_))
             dependent_data_items = self.document_model.get_dependent_data_items(data_item)
             if len(dependent_data_items) > 0:
                 menu.add_separator()
-                for data_item in dependent_data_items:
-                    menu.add_menu_item(make_reveal_menu_item_title(data_item, _("Dependent")), make_reveal_data_item_callback(data_item))
+                for data_item_ in dependent_data_items:
+                    menu.add_menu_item(make_reveal_menu_item_title(data_item_, _("Dependent")), make_reveal_data_item_callback(data_item_))
         display_item = action_context.display_item
         if display_item:
             if len(display_item.data_items) > 1:
                 menu.add_separator()
-                for data_item in display_item.data_items:
-                    menu.add_menu_item(make_reveal_menu_item_title(data_item, _("Component")), make_reveal_data_item_callback(data_item))
+                for data_item_ in display_item.data_items:
+                    menu.add_menu_item(make_reveal_menu_item_title(data_item_, _("Component")), make_reveal_data_item_callback(data_item_))
 
     class ActionContext(Window.ActionContext):
         """Action contact.

@@ -25,6 +25,12 @@
           "https://github.com/nion-software/nionswift/issues/1458"
         ],
         "summary": "Fix issue with closing new project dialog when exiting dialog with Enter key."
+      },
+      {
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/1422"
+        ],
+        "summary": "Fix issue with reveal menu items on data items having both source and dependent."
       }
     ]
   },
