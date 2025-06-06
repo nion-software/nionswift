@@ -363,7 +363,7 @@ Version 0.15.2 (2020-11-13)
 * (2020-11-06) Ensure all context menu items are also in main menus.
 * (2020-10-08) Fix issue with reading metadata from scripts.
 * (2020-10-08) Fix issue with images updating during partial acquisition.
-* (2020-10-06) Fix issue dragging spot graphic.
+* (2020-10-06) Fix issue dragging spot filter graphic.
 * (2020-10-06) Partially fix performance when dragging graphics on complex data.
 * (2020-09-23) Add RGB processing commands (beta). Fix related RGB issues.
 * (2020-09-21) Fix issue where line plot would sometimes fail to update properly.
@@ -412,7 +412,7 @@ data item script editor. The data item script editor is now available with Cmd/C
 * (2020-02-12) Add sequence align variants for spline and Fourier.
 * (2020-01-21) Add support for folders to Run Script dialog.
 * (2020-01-17) Add internal support for sectioned acquisition.
-* (2019-12-30) Allow spot masks to be elliptical and rotatable.
+* (2019-12-30) Allow spot filter masks to be elliptical and rotatable.
 * (2019-12-26) Change mask graphics to center on calibrated origin.
 * (2019-12-23) Add Gaussian, Hamming, and Hann window processing functions.
 * (2019-12-15) Allow graphics to be designated as masks.
@@ -522,7 +522,7 @@ Version 0.13.8, July 23, 2018
 Version 0.13.7, July 2, 2018
 ----------------------------
 * (2018-06-29) Fix regression where annular ring inspector was not available.
-* (2018-06-29) Fix regression where spot graphic could not be created/edited by dragging.
+* (2018-06-29) Fix regression where spot filter graphic could not be created/edited by dragging.
 
 Version 0.13.6, June 26, 2018
 -----------------------------
@@ -774,7 +774,7 @@ Version 0.9.0, August 22, 2016
 * Change SI and other 3d images to treat last dimension as signal rather than first.
 * Fix drawing issues on line plot display (intervals drawn outside bounds).
 * Enter key on line plot with selected intervals will auto-scale to data in intervals.
-* Add spot and wedge mask graphics (experimental). Add Fourer Filter menu item.
+* Add spot filter and angular filter mask graphics (experimental). Add Fourer Filter menu item.
 * Add display rate limiter. Improves performance.
 * Add color map property for displays; add inspector for it; add display in histogram panel.
 * Fix bugs with graphic item inspectors on ndim > 2 data.

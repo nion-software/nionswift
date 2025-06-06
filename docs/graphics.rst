@@ -186,42 +186,42 @@ Four types of graphics are available for Fourier filter.
 ..   a better description of the use of filters
 ..   more thorough explanation of their functionality
 
-.. _Spot Graphic:
+.. _Spot Filter Graphic:
 
-Spot
-++++
-The spot graphic is a rotatable ellipse, symmetric around the origin. It can be used to filter a specific frequency at a specific angle.
+Spot Filter
++++++++++++
+The spot filter graphic is a rotatable ellipse, symmetric around the origin. It can be used to filter a specific frequency at a specific angle.
 
 You can drag either spot to adjust its position, shape, and rotation.
 
 You can edit the position, size, and rotation in the :guilabel:`Inspector` panel.
 
-.. _Wedge Graphic:
+.. _Angular Filter Graphic:
 
-Wedge
-+++++
-The wedge graphic is a pair of lines intersecting at the origin. It can be used to perform filtering along a specific angle and a range of frequencies.
+Angular Filter
+++++++++++++++
+The angular filter graphic is a pair of lines intersecting at the origin. It can be used to perform filtering along a specific angle and a range of frequencies.
 
 You can drag either line to adjust its angle.
 
 You can edit both angles in the :guilabel:`Inspector` panel.
 
-.. _Ring Graphic:
+.. _Band-Pass Filter Graphic:
 
-Ring
-++++
-The ring graphic is a pair of circles centered at the origin. It can be used to perform low pass, high pass, and band pass filters.
+Band-Pass Filter
+++++++++++++++++
+The band-pass filter graphic is a pair of circles centered at the origin. It can be used to perform low pass, high pass, and band-pass filters.
 
 You can drag the radius of either circle to adjust its filter frequency.
 
-You can change whether it is a low pass, high pass, or band pass filter in the :guilabel:`Inspector` panel.
+You can change whether it is a low pass, high pass, or band-pass filter in the :guilabel:`Inspector` panel.
 
-.. _Lattice Graphic:
+.. _Lattice Filter Graphic:
 
-Lattice
-+++++++
-The lattice graphic is a repeating filter centered at the origin. It can be used to filter related frequencies occurring at regular spacing.
+Lattice Filter
+++++++++++++++
+The lattice filter graphic is a repeating filter centered at the origin. It can be used to filter related frequencies occurring at regular spacing.
 
-The lattice graphic consists of two vectors and rotatable ellipses at the end of each vector. The vectors are then repeated across the entire image.
+The lattice filter graphic consists of two vectors and rotatable ellipses at the end of each vector. The vectors are then repeated across the entire image.
 
 You can edit the position of each vector by dragging the ellipse. You can edit the shape and rotation of the ellipse.
