@@ -3044,13 +3044,16 @@ class GraphicsInspectorHandler(Declarative.Handler):
             self._graphic_type_model.value = _("Position")
         elif isinstance(self.__graphic, Graphics.SpotGraphic):
             self.__shape_and_pos_func = self.__create_spot_shape_and_pos
-            self._graphic_type_model.value = _("Spot")
+            self._graphic_type_model.value = _("Spot Graphic")
         elif isinstance(self.__graphic, Graphics.WedgeGraphic):
             self.__shape_and_pos_func = self.__create_wedge_shape_and_pos
-            self._graphic_type_model.value = _("Wedge")
+            self._graphic_type_model.value = _("Angular Graphic")
         elif isinstance(self.__graphic, Graphics.RingGraphic):
             self.__shape_and_pos_func = self.__create_ring_shape_and_pos
-            self._graphic_type_model.value = _("Annular Ring")
+            self._graphic_type_model.value = _("Band-Pass Graphic")
+        elif isinstance(self.__graphic, Graphics.LatticeGraphic):
+            self.__shape_and_pos_func = self.__create_default_shape_and_position_ui
+            self._graphic_type_model.value = _("Lattice Graphic")
         else:
             self.__shape_and_pos_func = self.__create_default_shape_and_position_ui
             self._graphic_type_model.value = _("")
@@ -3308,7 +3311,7 @@ class GraphicsInspectorHandler(Declarative.Handler):
                                         command_id="change_radius_2"),
             CalibratedSizeFloatToStringConverter(self.__display_item, 0), self.__display_item)
 
-        self.__annular_ring_mode_options = [_("Band Pass"), _("Low Pass"), _("High Pass")]
+        self.__annular_ring_mode_options = [_("Band-Pass"), _("Low-Pass"), _("High-Pass")]
         self.__annular_ring_mode_ids = ["band-pass", "low-pass", "high-pass"]
         self.__annular_ring_mode_reverse_map = {p: i for i, p in enumerate(self.__annular_ring_mode_ids)}
 
