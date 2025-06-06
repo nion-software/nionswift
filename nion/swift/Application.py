@@ -960,6 +960,7 @@ class NewProjectAction(UIWindow.Action):
 
                 def handle_new_and_close() -> bool:
                     app.create_project_reference(pathlib.Path(self.directory), self.__project_name_field.text or "untitled")
+                    self.request_close()
                     return True
 
                 def verify_project_name(text: str) -> None:

@@ -19,6 +19,12 @@
           "https://github.com/nion-software/nionswift/issues/1504"
         ],
         "summary": "Fix inspector issue with updating data range when data changes."
+      },
+      {
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/1458"
+        ],
+        "summary": "Fix issue with closing new project dialog when exiting dialog with Enter key."
       }
     ]
   },
