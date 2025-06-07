@@ -83,7 +83,7 @@ class ExportDialog(Declarative.Handler):
 
         # create the dialog and show it.
         export_text = _("Export")
-        items_text = _("Items")
+        items_text = _("Items") if len(display_items) != 1 else _("Item")
         title_text = f"{export_text} ({len(display_items)} {items_text})"
         dialog = typing.cast(Dialog.ActionDialog, Declarative.construct(document_controller.ui, document_controller, u.create_modeless_dialog(self.ui_view, title=title_text), self))
         dialog.add_button(_("Cancel"), self.cancel)
