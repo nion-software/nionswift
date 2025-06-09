@@ -4,8 +4,10 @@ import dataclasses
 import datetime
 import io
 import json
+import logging
 import os
 import pathlib
+import time
 import typing
 import uuid
 import zipfile
@@ -195,7 +197,12 @@ class ImportExportManager(metaclass=Utility.Singleton):
         if extension:
             extension = extension[1:].lower()  # remove the leading "."
             if extension in writer.extensions and writer.can_write_display_item(display_item, extension):
+                start = time.time()
                 writer.write_display_item(display_item, path, extension)
+                elapsed = time.time() - start
+                export_metrics_str = f"{int(elapsed)}s ({path}) {'/'.join(data_item.size_and_data_format_as_string for data_item in display_item.data_items)}"
+                logging.getLogger("export").info(f"Export {export_metrics_str}")
+                logging.getLogger("_commands").info(f"# export metrics {export_metrics_str}")
 
     def write_display_item(self, display_item: DisplayItem.DisplayItem, path: pathlib.Path) -> None:
         extension = path.suffix
