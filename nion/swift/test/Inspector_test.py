@@ -1176,7 +1176,7 @@ class TestInspectorClass(unittest.TestCase):
             document_controller.periodic()
             graphics_section = inspector_panel.column.find_widget_by_id("graphics_inspector_section")
             self.assertIsNotNone(graphics_section)
-            self.assertIn("Spot", (i._graphic_type_model.value for i in graphics_section._handler._graphic_handlers))
+            self.assertIn("Spot Filter", (i._graphic_type_model.value for i in graphics_section._handler._graphic_handlers))
 
     def test_band_pass_graphic_inspector_updates_without_exception(self):
         with TestContext.create_memory_context() as test_context:
@@ -1194,7 +1194,7 @@ class TestInspectorClass(unittest.TestCase):
             document_controller.periodic()
             graphics_section = inspector_panel.column.find_widget_by_id("graphics_inspector_section")
             self.assertIsNotNone(graphics_section)
-            self.assertIn("Annular Ring", (i._graphic_type_model.value for i in graphics_section._handler._graphic_handlers))
+            self.assertIn("Band-Pass Filter", (i._graphic_type_model.value for i in graphics_section._handler._graphic_handlers))
 
     def test_wedge_graphic_inspector_updates_without_exception(self):
         with TestContext.create_memory_context() as test_context:
@@ -1212,7 +1212,7 @@ class TestInspectorClass(unittest.TestCase):
             document_controller.periodic()
             graphics_section = inspector_panel.column.find_widget_by_id("graphics_inspector_section")
             self.assertIsNotNone(graphics_section)
-            self.assertIn("Wedge", (i._graphic_type_model.value for i in graphics_section._handler._graphic_handlers))
+            self.assertIn("Angular Filter", (i._graphic_type_model.value for i in graphics_section._handler._graphic_handlers))
 
     def test_graphic_inspector_updates_for_when_data_shape_changes(self):
         # change from 2d item with a rectangle to a 1d item. what happens?
