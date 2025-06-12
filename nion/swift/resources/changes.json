@@ -4,6 +4,12 @@
     "notes": [
       {
         "issues": [
+          "https://github.com/nion-software/nionswift/issues/149"
+        ],
+        "summary": "Add ability to change graphic selection using tab/backtab."
+      },
+      {
+        "issues": [
           "https://github.com/nion-software/nionswift/issues/1549"
         ],
         "summary": "Fix tab handling in display panels to select next panel."

@@ -3148,7 +3148,7 @@ class DisplayItem(Persistence.PersistentObject):
 
     @property
     def selected_graphic(self) -> typing.Optional[Graphics.Graphic]:
-        if selected_graphic_index := self.graphic_selection.current_index:
+        if (selected_graphic_index := self.graphic_selection.current_index) is not None:
             return self.graphics[selected_graphic_index]
         return None
 
