@@ -559,7 +559,7 @@ def draw_ellipse_graphic(ctx: DrawingContextLike, center: Geometry.FloatPoint, s
 def make_rectangle_mask(data_shape: DataAndMetadata.ShapeType, center: Geometry.FloatPoint, size: Geometry.FloatSize, rotation: float) -> DataAndMetadata._ImageDataType:
     mask = numpy.zeros(data_shape)
     bounds = Geometry.FloatRect.from_center_and_size(center, size)
-    a, b = bounds.top + bounds.height * 0.5, bounds.left + bounds.width * 0.5
+    a, b = bounds.top + bounds.height * 0.5 - 0.5, bounds.left + bounds.width * 0.5 - 0.5
     y, x = numpy.ogrid[-a:data_shape[0] - a, -b:data_shape[1] - b]  # type: ignore
     if rotation == 0.0:
         mask_eq = (numpy.fabs(x) / (bounds.width / 2) <= 1) & (numpy.fabs(y) / (bounds.height / 2) <= 1)
