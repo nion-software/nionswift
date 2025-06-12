@@ -3048,7 +3048,7 @@ class WedgeMaskItem(MaskItem):
         # a and b will be the calibrated pixel origin, expressed as pixels from top left
         calibrated_origin = calibrated_origin or Geometry.FloatPoint(y=data_shape[0] * 0.5 + 0.5,
                                                                      x=data_shape[1] * 0.5 + 0.5)
-        a, b = calibrated_origin.y, calibrated_origin.x
+        a, b = calibrated_origin.y - 0.5, calibrated_origin.x - 0.5
 
         # x and y will be pixel ramps increasing from top left to bottom right and zero at the origin
         y, x = numpy.ogrid[-a:data_shape[0] - a, -b:data_shape[1] - b]  # type: ignore
