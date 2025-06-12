@@ -1551,6 +1551,24 @@ class TestDisplayPanelClass(unittest.TestCase):
             document_controller.periodic()
             display_panel._handle_key_pressed(TestUI.Key(None, "up", None))
 
+    def test_display_panel_next_previous_graphic(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.DataItem(numpy.ones((8, 8), float))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel.set_display_panel_display_item(display_item)
+            display_item.add_graphic(Graphics.PointGraphic())
+            display_item.add_graphic(Graphics.PointGraphic())
+            display_item.graphic_selection.set(0)
+            self.assertEqual(display_item.graphics[0], display_item.selected_graphic)
+            display_panel._handle_key_pressed(TestUI.Key(None, "tab", None))
+            self.assertEqual(display_item.graphics[1], display_item.selected_graphic)
+            display_panel._handle_key_pressed(TestUI.Key(None, "backtab", None))
+            self.assertEqual(display_item.graphics[0], display_item.selected_graphic)
+
     def test_display_2d_updates_display_values_after_changing_display_type(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
