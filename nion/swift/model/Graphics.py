@@ -3075,7 +3075,7 @@ class RingMaskItem(MaskItem):
         calibrated_origin = calibrated_origin or Geometry.FloatPoint(y=data_shape[0] * 0.5 + 0.5, x=data_shape[1] * 0.5 + 0.5)
         mask: numpy.typing.NDArray[numpy.float64] = numpy.zeros(data_shape, dtype=float)
         bounds_int = ((0, 0), (int(data_shape[0]), int(data_shape[1])))
-        a, b = calibrated_origin.y, calibrated_origin.x
+        a, b = calibrated_origin.y - 0.5, calibrated_origin.x - 0.5
         y, x = numpy.ogrid[-a:data_shape[0] - a, -b:data_shape[1] - b] # type: ignore
         y = y / bounds_int[1][0]
         x = x / bounds_int[1][1]
