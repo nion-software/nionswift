@@ -4,9 +4,9 @@
     "notes": [
       {
         "issues": [
-          "https://github.com/nion-software/nionswift/issues/960"
+          "https://github.com/nion-software/nionswift/issues/1549"
         ],
-        "summary": "Locked graphics now draw distinctly to indicate shape and/or position are locked."
+        "summary": "Fix tab handling in display panels to select next panel."
       },
       {
         "issues": [
@@ -31,6 +31,12 @@
           "https://github.com/nion-software/nionswift/issues/1422"
         ],
         "summary": "Fix issue with reveal menu items on data items having both source and dependent."
+      },
+      {
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/960"
+        ],
+        "summary": "Locked graphics now draw distinctly to indicate shape and/or position are locked."
       }
     ]
   },

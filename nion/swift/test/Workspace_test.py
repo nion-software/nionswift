@@ -1715,6 +1715,31 @@ class TestWorkspaceClass(unittest.TestCase):
             self.assertEqual(document_controller.workspace_controller.display_panels[0].data_item, document_model.data_items[-1])
             self.assertEqual(document_controller.workspace_controller.display_panels[0].display_panel_type, "data_item")
 
+    def test_display_panel_next_previous_display_panel(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+            workspace_controller = document_controller.workspace_controller
+            display_panel = workspace_controller.display_panels[0]
+            document_controller.selected_display_panel = display_panel
+            document_controller.perform_action("workspace.split_2x2")
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+            self.assertEqual(workspace_controller.display_panels[0], document_controller.selected_display_panel)
+            display_panel._handle_key_pressed(TestUI.Key(None, "tab", None))
+            self.assertEqual(workspace_controller.display_panels[1], document_controller.selected_display_panel)
+            display_panel._handle_key_pressed(TestUI.Key(None, "tab", None))
+            self.assertEqual(workspace_controller.display_panels[2], document_controller.selected_display_panel)
+            display_panel._handle_key_pressed(TestUI.Key(None, "tab", None))
+            self.assertEqual(workspace_controller.display_panels[3], document_controller.selected_display_panel)
+            display_panel._handle_key_pressed(TestUI.Key(None, "tab", None))
+            self.assertEqual(workspace_controller.display_panels[0], document_controller.selected_display_panel)
+            display_panel._handle_key_pressed(TestUI.Key(None, "backtab", None))
+            self.assertEqual(workspace_controller.display_panels[3], document_controller.selected_display_panel)
+            display_panel._handle_key_pressed(TestUI.Key(None, "backtab", None))
+            self.assertEqual(workspace_controller.display_panels[2], document_controller.selected_display_panel)
+
     # def test_display_panel_controller_initially_displays_existing_data(self):
     #     # cannot implement until common code for display controllers is moved into document model
     #     pass

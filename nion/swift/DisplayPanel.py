@@ -1878,6 +1878,28 @@ class CreateGraphicInteractiveTask(DisplayCanvasItem.InteractiveTask):
         self.__display_panel.document_controller.push_undo_command(undo_command)
 
 
+class DisplayPanelListCanvasItem(ListCanvasItem.ListCanvasItem2):
+    def key_pressed(self, key: UserInterface.Key) -> bool:
+        if key.is_backtab:
+            self._adjust_selection_backward(1, False)
+            return True
+        if key.is_tab:
+            self._adjust_selection_forward(1, False)
+            return True
+        return super().key_pressed(key)
+
+
+class DisplayPanelGridCanvasItem(GridCanvasItem.GridCanvasItem2):
+    def key_pressed(self, key: UserInterface.Key) -> bool:
+        if key.is_backtab:
+            self._adjust_selection_backward(1, False)
+            return True
+        if key.is_tab:
+            self._adjust_selection_forward(1, False)
+            return True
+        return super().key_pressed(key)
+
+
 class DisplayPanel(CanvasItem.LayerCanvasItem):
     """A canvas item to display a library item. Allows library item to be changed."""
 
@@ -2123,7 +2145,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         def strip_thumbnail_item_factory(item: typing.Any, is_selected_model: Model.PropertyModel[bool]) -> CanvasItem.AbstractCanvasItem:
             return DataPanel.DataPanelGridItem(typing.cast(DisplayItem.DisplayItem, item), document_controller.ui, DataPanel.DataPanelUISettings(document_controller.ui), draw_label=False)
 
-        strip_canvas_item = ListCanvasItem.ListCanvasItem2(Panel.ThreadSafeListModel(display_items_model, document_controller.event_loop), self.__selection, strip_thumbnail_item_factory, item_delegate, item_width=80, key="display_items", is_shared_selection=True)
+        strip_canvas_item = DisplayPanelListCanvasItem(Panel.ThreadSafeListModel(display_items_model, document_controller.event_loop), self.__selection, strip_thumbnail_item_factory, item_delegate, item_width=80, key="display_items", is_shared_selection=True)
         strip_canvas_item.on_focus_changed = ReferenceCounting.weak_partial(DisplayPanel.set_focused, self)
 
         strip_scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(strip_canvas_item)
@@ -2136,7 +2158,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         def grid_thumbnail_item_factory(item: typing.Any, is_selected_model: Model.PropertyModel[bool]) -> CanvasItem.AbstractCanvasItem:
             return DataPanel.DataPanelGridItem(typing.cast(DisplayItem.DisplayItem, item), document_controller.ui, DataPanel.DataPanelUISettings(document_controller.ui))
 
-        grid_canvas_item = GridCanvasItem.GridCanvasItem2(Panel.ThreadSafeListModel(display_items_model, document_controller.event_loop), self.__selection, grid_thumbnail_item_factory, item_delegate, item_size=Geometry.IntSize(80, 80), key="display_items", is_shared_selection=True)
+        grid_canvas_item = DisplayPanelGridCanvasItem(Panel.ThreadSafeListModel(display_items_model, document_controller.event_loop), self.__selection, grid_thumbnail_item_factory, item_delegate, item_size=Geometry.IntSize(80, 80), key="display_items", is_shared_selection=True)
         grid_canvas_item.on_focus_changed = ReferenceCounting.weak_partial(DisplayPanel.set_focused, self)
 
         grid_scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(grid_canvas_item)
@@ -2708,20 +2730,31 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         self.__display_composition_canvas_item.visible = True
         self.__horizontal_browser_canvas_item.visible = False
         self.__grid_browser_canvas_item.visible = False
+        self.__display_composition_canvas_item.request_focus()
 
     def __switch_to_horizontal_browser(self) -> None:
         self.__display_composition_canvas_item.visible = True
         self.__horizontal_browser_canvas_item.visible = True
         self.__grid_browser_canvas_item.visible = False
+        self.__horizontal_browser_canvas_item.request_focus()
 
     def __switch_to_grid_browser(self) -> None:
         self.__display_composition_canvas_item.visible = False
         self.__horizontal_browser_canvas_item.visible = False
         self.__grid_browser_canvas_item.visible = True
+        self.__grid_browser_canvas_item.request_focus()
 
     # from the canvas item directly. dispatches to the display canvas item. if the display canvas item
     # doesn't handle it, gives the display controller a chance to handle it.
     def _handle_key_pressed(self, key: UserInterface.Key) -> bool:
+        # handle tabs before anything else.
+        if key.is_tab:
+            self.document_controller.perform_action(Window.actions["display_panel.focus_next"])
+            return True
+        elif key.is_backtab:
+            self.document_controller.perform_action(Window.actions["display_panel.focus_previous"])
+            return True
+
         display_canvas_item = self.display_canvas_item
         if display_canvas_item:
             # Alt+Shift+L and Alt+Shift+F are not currently expressible using key config.
