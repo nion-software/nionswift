@@ -3964,6 +3964,46 @@ class DisplayPanelDeleteGraphicsAction(Window.Action):
         return display_item is not None and display_item.graphic_selection.has_selection
 
 
+def adjust_display_panel_focus(context: Window.ActionContext, delta: int) -> Window.ActionResult:
+    context = typing.cast(DocumentController.ActionContext, context)
+    window = typing.cast(DocumentController, context.window)
+    workspace_controller = window.workspace_controller
+    assert workspace_controller
+    if context.display_panel:
+        index = workspace_controller.display_panels.index(context.display_panel)
+        index = (index + delta) % len(workspace_controller.display_panels)
+        window.selected_display_panel = workspace_controller.display_panels[index]
+        window.selected_display_panel.request_focus()
+    elif workspace_controller.display_panels:
+        window.selected_display_panel = workspace_controller.display_panels[0] if delta > 0 else workspace_controller.display_panels[-1]
+        window.selected_display_panel.request_focus()
+    return Window.ActionResult(Window.ActionStatus.FINISHED)
+
+
+class DisplayPanelFocusNextAction(Window.Action):
+    action_id = "display_panel.focus_next"
+    action_name = _("Move Focus to Next Display Panel")
+
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        return adjust_display_panel_focus(context, 1)
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return len(context.display_panels) > 0 or context.display_panel is not None
+
+
+class DisplayPanelFocusPreviousAction(Window.Action):
+    action_id = "display_panel.focus_previous"
+    action_name = _("Move Focus to Previous Display Panel")
+
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        return adjust_display_panel_focus(context, -1)
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return len(context.display_panels) > 0 or context.display_panel is not None
+
+
 class DisplayPanelSelectSiblings(Window.Action):
     action_id = "display_panel.select_siblings"
     action_name = _("Select More Display Panels")
@@ -4157,6 +4197,8 @@ Window.register_action(DisplayPanelClearAction())
 Window.register_action(DisplayPanelCloseAction())
 Window.register_action(DisplayPanelCycleAction())
 Window.register_action(DisplayPanelDeleteGraphicsAction())
+Window.register_action(DisplayPanelFocusNextAction())
+Window.register_action(DisplayPanelFocusPreviousAction())
 Window.register_action(DisplayPanelSelectSiblings())
 Window.register_action(DisplayPanelShowItemAction())
 Window.register_action(DisplayPanelShowGridBrowserAction())
