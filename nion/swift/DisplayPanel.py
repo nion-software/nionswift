@@ -2749,10 +2749,24 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
     def _handle_key_pressed(self, key: UserInterface.Key) -> bool:
         # handle tabs before anything else.
         if key.is_tab:
-            self.document_controller.perform_action(Window.actions["display_panel.focus_next"])
+            display_item = self.display_item
+            selected_graphics = display_item.selected_graphics if display_item else None
+            if selected_graphics:
+                assert display_item
+                last_selected_graphic_index = max(display_item.graphic_selection.indexes)
+                display_item.graphic_selection.set((last_selected_graphic_index + 1) % len(display_item.graphics))
+            else:
+                self.document_controller.perform_action(Window.actions["display_panel.focus_next"])
             return True
         elif key.is_backtab:
-            self.document_controller.perform_action(Window.actions["display_panel.focus_previous"])
+            display_item = self.display_item
+            selected_graphics = display_item.selected_graphics if display_item else None
+            if selected_graphics:
+                assert display_item
+                last_selected_graphic_index = min(display_item.graphic_selection.indexes)
+                display_item.graphic_selection.set((last_selected_graphic_index - 1) % len(display_item.graphics))
+            else:
+                self.document_controller.perform_action(Window.actions["display_panel.focus_previous"])
             return True
 
         display_canvas_item = self.display_canvas_item
