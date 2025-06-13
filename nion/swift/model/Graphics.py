@@ -556,20 +556,6 @@ def draw_ellipse_graphic(ctx: DrawingContextLike, center: Geometry.FloatPoint, s
             draw_circular_marker(ctx, rotation_point, is_focused)
 
 
-def make_rectangle_mask(data_shape: DataAndMetadata.ShapeType, center: Geometry.FloatPoint, size: Geometry.FloatSize, rotation: float) -> DataAndMetadata._ImageDataType:
-    mask = numpy.zeros(data_shape)
-    bounds = Geometry.FloatRect.from_center_and_size(center, size)
-    a, b = bounds.top + bounds.height * 0.5 - 0.5, bounds.left + bounds.width * 0.5 - 0.5
-    y, x = numpy.ogrid[-a:data_shape[0] - a, -b:data_shape[1] - b]  # type: ignore
-    if rotation == 0.0:
-        mask_eq = (numpy.fabs(x) / (bounds.width / 2) <= 1) & (numpy.fabs(y) / (bounds.height / 2) <= 1)
-    else:
-        angle_sin = math.sin(rotation)
-        angle_cos = math.cos(rotation)
-        mask_eq = (numpy.fabs(x*angle_cos - y*angle_sin) / (bounds.width / 2) <= 1) & (numpy.fabs(y*angle_cos + x*angle_sin) / (bounds.height / 2) <= 1)
-    mask[mask_eq] = 1
-    return mask
-
 
 # closest point on line
 def get_closest_point_on_line(start: Geometry.FloatPoint, end: Geometry.FloatPoint, p: Geometry.FloatPoint) -> Geometry.FloatPoint:
@@ -2966,10 +2952,7 @@ class RectangleMaskItem(MaskItem):
 
     def get_mask_data(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: typing.Optional[Geometry.FloatPoint] = None) -> DataAndMetadata._ImageDataType:
         bounds = self.bounds
-        data_rect = Geometry.FloatRect(origin=Geometry.FloatPoint(), size=Geometry.FloatSize.make(typing.cast(Geometry.SizeFloatTuple, data_shape)))
-        center = Geometry.map_point(bounds.center, Geometry.FloatRect.unit_rect(), data_rect)
-        size = Geometry.map_size(bounds.size, Geometry.FloatRect.unit_rect(), data_rect)
-        mask = make_rectangle_mask(data_shape, center, size, self.rotation)
+        mask = Core.function_make_rectangular_mask(data_shape, bounds.center, bounds.size, self.rotation).data
         assert mask is not None
         return mask
 
@@ -2999,9 +2982,10 @@ class LineMaskItem(MaskItem):
         bounds = Geometry.FloatRect.from_center_and_size(
             Geometry.FloatPoint((start.y + end.y) * 0.5, (start.x + end.x) * 0.5),
             Geometry.FloatSize(1.0, Geometry.distance(start, end)))
+        bounds = Geometry.map_rect(bounds, data_rect, Geometry.FloatRect.unit_rect())
         delta = Geometry.FloatPoint.make(end) - Geometry.FloatPoint.make(start)
         angle = -math.atan2(delta.y, delta.x)
-        mask = make_rectangle_mask(data_shape, bounds.center, bounds.size, angle)
+        mask = Core.function_make_rectangular_mask(data_shape, bounds.center, bounds.size, angle).data
         assert mask is not None
         return mask
 
