@@ -2898,12 +2898,17 @@ class GraphicsInspectorHandler(Declarative.Handler):
         pos_shape_row = self.__create_position_and_shape_ui()
         stroke_style_row = self.__create_stroke_style_ui()
 
+        disabled_tooltip_str: typing.Final[str] = _("This does not apply to this graphic type.")
+
+        position_lock_tooltip = str() if self.__graphic.CAN_REPOSITION else disabled_tooltip_str
+        shape_lock_tooltip = str() if self.__graphic.CAN_RESHAPE else disabled_tooltip_str
+
         lock_row = u.create_row(
             u.create_spacing(3),
             u.create_label(text=_("Lock"), width=60, text_alignment_vertical="center"),
-            u.create_check_box(text=_("Position"), checked="@binding(_lock_position_model.value)", text_alignment_vertical="center"),
+            u.create_check_box(text=_("Position"), checked="@binding(_lock_position_model.value)", enabled=self.__graphic.CAN_REPOSITION, tool_tip=position_lock_tooltip, text_alignment_vertical="center"),
             u.create_spacing(12),
-            u.create_check_box(text=_("Shape"), checked="@binding(_lock_shape_model.value)", text_alignment_vertical="center"),
+            u.create_check_box(text=_("Shape"), checked="@binding(_lock_shape_model.value)", enabled=self.__graphic.CAN_RESHAPE, tool_tip=shape_lock_tooltip, text_alignment_vertical="center"),
             u.create_stretch(),
             u.create_push_button(text="\N{BULLSEYE}", on_clicked="_move_to_center_clicked", text_alignment_horizontal="center", style="minimal"),
             u.create_spacing(4)
