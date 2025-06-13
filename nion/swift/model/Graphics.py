@@ -742,12 +742,20 @@ class Graphic(Persistence.PersistentObject):
         self._set_persistent_property_value("is_position_locked", value)
 
     @property
+    def can_lock_position(self) -> bool:
+        return True
+
+    @property
     def is_shape_locked(self) -> bool:
         return typing.cast(bool, self._get_persistent_property_value("is_shape_locked"))
 
     @is_shape_locked.setter
     def is_shape_locked(self, value: bool) -> None:
         self._set_persistent_property_value("is_shape_locked", value)
+
+    @property
+    def can_lock_shape(self) -> bool:
+        return True
 
     @property
     def is_bounds_constrained(self) -> bool:
@@ -1671,6 +1679,10 @@ class PointTypeGraphic(Graphic):
         self.define_property("position", (0.5, 0.5), changed=self._property_changed, validate=lambda value: tuple(value), hidden=True)
 
     @property
+    def can_lock_shape(self) -> bool:
+        return False
+
+    @property
     def position(self) -> Geometry.FloatPoint:
         return Geometry.FloatPoint.make(typing.cast(Geometry.PointFloatTuple, self._get_persistent_property_value("position")))
 
@@ -1933,6 +1945,10 @@ class ChannelGraphic(Graphic):
         # channel is stored in image normalized coordinates
         self.define_property("position", 0.5, changed=self._property_changed, validate=lambda value: float(value), hidden=True)
         self._default_drag_part = "position"
+
+    @property
+    def can_lock_shape(self) -> bool:
+        return False
 
     @property
     def position(self) -> float:
@@ -2208,6 +2224,10 @@ class WedgeGraphic(Graphic):
         self._default_drag_part = "start-angle"
 
     @property
+    def can_lock_position(self) -> bool:
+        return False
+
+    @property
     def angle_interval(self) -> typing.Tuple[float, float]:
         return typing.cast(typing.Tuple[float, float], self._get_persistent_property_value("angle_interval"))
 
@@ -2415,6 +2435,10 @@ class RingGraphic(Graphic):
         self.define_property("radius_2", 0.2, validate=validate_angles, changed=self._property_changed, hidden=True)
         self.define_property("mode", "band-pass", changed=self._property_changed, hidden=True)
         self._default_drag_part = "radius_1"
+
+    @property
+    def can_lock_position(self) -> bool:
+        return False
 
     @property
     def radius_1(self) -> float:
