@@ -2873,7 +2873,7 @@ class GraphicsInspectorHandler(Declarative.Handler):
         self.__document_controller = document_controller
         self.__display_item = display_item
         self.__graphic = graphic
-        self._stroke_float_str_converter = Converter.FloatToStringConverter()
+        self._stroke_float_str_converter = Converter.FloatToStringConverter(pass_none=True)
         self._graphic_type_model = Model.PropertyModel[str]()
         self.__set_type_specifics()
         self._graphic_label_model = GraphicPropertyCommandModel(document_controller, display_item, graphic, "label", title=_("Change Label"), command_id="change_label")
