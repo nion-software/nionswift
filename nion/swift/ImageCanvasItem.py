@@ -240,12 +240,18 @@ class ScaleMarkerCanvasItemComposer(CanvasItem.BaseComposer):
     def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing,
                  cache: CanvasItem.ComposerCache, dimensional_calibration: typing.Optional[Calibration.Calibration],
                  info_text: str, screen_pixel_per_image_pixel: typing.Optional[float],
-                 get_font_metrics_fn: typing.Callable[[str, str], UISettings.FontMetrics]) -> None:
+                 get_font_metrics_fn: typing.Callable[[str, str], UISettings.FontMetrics],
+                 scale_marker_position: str | None,
+                 scale_marker_text_color: str | None,
+                 scale_marker_background_color: str | None) -> None:
         super().__init__(canvas_item, layout_sizing, cache)
         self.__dimensional_calibration = dimensional_calibration
         self.__info_text = info_text
         self.__screen_pixel_per_image_pixel = screen_pixel_per_image_pixel
         self.__get_font_metrics_fn = get_font_metrics_fn
+        self.__scale_marker_position = scale_marker_position
+        self.__scale_marker_text_color = scale_marker_text_color
+        self.__scale_marker_background_color = scale_marker_background_color
 
     def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> None:
         dimensional_calibration = self.__dimensional_calibration
@@ -255,34 +261,67 @@ class ScaleMarkerCanvasItemComposer(CanvasItem.BaseComposer):
         scale_marker_height = 6
         scale_marker_font = "normal 14px serif"
         get_font_metrics_fn = self.__get_font_metrics_fn
-        if dimensional_calibration:  # display scale marker?
+
+        if dimensional_calibration and screen_pixel_per_image_pixel and screen_pixel_per_image_pixel > 0.0:
+            scale_marker_image_width = scale_marker_width / screen_pixel_per_image_pixel
+            calibrated_scale_marker_width = Geometry.make_pretty2(scale_marker_image_width * dimensional_calibration.scale, True)
+            scale_marker_image_width = calibrated_scale_marker_width / dimensional_calibration.scale
+            scale_marker_calculated_width = scale_marker_image_width * screen_pixel_per_image_pixel
+
+            text1 = dimensional_calibration.convert_to_calibrated_size_str(scale_marker_image_width)
+            fm1 = get_font_metrics_fn(scale_marker_font, text1)
+            text_height = fm1.height
+            text2 = info_text
+            fm2 = get_font_metrics_fn(scale_marker_font, text2)
+            text_width = max(fm1.width, fm2.width)
+            padding = 3
+
+            content_width = max(scale_marker_calculated_width, text_width)
+            # Set drawing origin
+            if self.__scale_marker_position == "bottom-right":
+                origin_x = max(0.0, canvas_bounds.width * 2 - (content_width + padding * 2 + 16))
+            else:
+                origin_x = 0
+
             with drawing_context.saver():
-                drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
-                if screen_pixel_per_image_pixel and screen_pixel_per_image_pixel > 0.0:
-                    scale_marker_image_width = scale_marker_width / screen_pixel_per_image_pixel
-                    calibrated_scale_marker_width = Geometry.make_pretty2(scale_marker_image_width * dimensional_calibration.scale, True)
-                    # update the scale marker width
-                    scale_marker_image_width = calibrated_scale_marker_width / dimensional_calibration.scale
-                    scale_marker_calculated_width = scale_marker_image_width * screen_pixel_per_image_pixel
-                    baseline = canvas_bounds.height
-                    drawing_context.begin_path()
-                    drawing_context.move_to(0, baseline)
-                    drawing_context.line_to(0 + scale_marker_calculated_width, baseline)
-                    drawing_context.line_to(0 + scale_marker_calculated_width, baseline - scale_marker_height)
-                    drawing_context.line_to(0, baseline - scale_marker_height)
-                    drawing_context.close_path()
-                    drawing_context.fill_style = "#448"
-                    drawing_context.fill()
-                    drawing_context.stroke_style = "#000"
-                    drawing_context.stroke()
-                    drawing_context.font = scale_marker_font
-                    drawing_context.text_baseline = "bottom"
-                    drawing_context.fill_style = "#FFF"
-                    text1 = dimensional_calibration.convert_to_calibrated_size_str(scale_marker_image_width)
-                    text2 = info_text
-                    fm1 = get_font_metrics_fn(scale_marker_font, text1)
+                drawing_context.translate(canvas_bounds.left + origin_x, canvas_bounds.top)
+                baseline = canvas_bounds.height
+                total_text_height = text_height * 2
+                total_height = scale_marker_height + padding + total_text_height
+                background_top = baseline - total_height
+                drawing_context.begin_path()
+                drawing_context.rect(0 - padding, background_top, content_width + padding * 2, total_height + padding)
+                drawing_context.close_path()
+                drawing_context.fill_style = self.__scale_marker_background_color
+
+                drawing_context.fill()
+
+                if self.__scale_marker_position == "bottom-right":
+                    bar_left = content_width - scale_marker_calculated_width
+                else:
+                    bar_left = 0
+
+                drawing_context.begin_path()
+                drawing_context.move_to(bar_left, baseline)
+                drawing_context.line_to(bar_left + scale_marker_calculated_width, baseline)
+                drawing_context.line_to(bar_left + scale_marker_calculated_width, baseline - scale_marker_height)
+                drawing_context.line_to(bar_left, baseline - scale_marker_height)
+                drawing_context.close_path()
+                drawing_context.fill_style = "darkslateblue"
+                drawing_context.fill()
+                drawing_context.font = scale_marker_font
+                drawing_context.text_baseline = "bottom"
+                drawing_context.stroke_style = "black"
+                drawing_context.stroke()
+                drawing_context.fill_style = self.__scale_marker_text_color or "white"
+                if self.__scale_marker_position == "bottom-right":
+                    drawing_context.text_align = "right"
+                    drawing_context.fill_text(text1, content_width, baseline - scale_marker_height - 4)
+                    drawing_context.fill_text(text2, content_width, baseline - scale_marker_height - 4 - text_height)
+                else:
+                    drawing_context.text_align = "left"
                     drawing_context.fill_text(text1, 0, baseline - scale_marker_height - 4)
-                    drawing_context.fill_text(text2, 0, baseline - scale_marker_height - 4 - fm1.height)
+                    drawing_context.fill_text(text2, 0, baseline - scale_marker_height - 4 - text_height)
 
 
 class ScaleMarkerCanvasItem(CanvasItem.AbstractCanvasItem):
@@ -304,6 +343,39 @@ class ScaleMarkerCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__screen_pixel_per_image_pixel_stream = screen_pixel_per_image_pixel_stream.add_ref()
         self.__screen_pixel_per_image_pixel_action = Stream.ValueStreamAction(screen_pixel_per_image_pixel_stream, lambda x: self.__update_sizing())
         self.__scale_marker_width = 0
+        self.__scale_marker_position: str | None = None
+        self.__scale_marker_text_color: str | None = None
+        self.__scale_marker_background_color: str | None = None
+
+    @property
+    def scale_marker_position(self) -> typing.Optional[str]:
+        return self.__scale_marker_position
+
+    @scale_marker_position.setter
+    def scale_marker_position(self, value: typing.Optional[str]) -> None:
+        if value != self.__scale_marker_position:
+            self.__scale_marker_position = value
+            self.update()
+
+    @property
+    def scale_marker_text_color(self) -> typing.Optional[str]:
+        return self.__scale_marker_text_color
+
+    @scale_marker_text_color.setter
+    def scale_marker_text_color(self, value: typing.Optional[str]) -> None:
+        if value != self.__scale_marker_text_color:
+            self.__scale_marker_text_color = value
+            self.update()
+
+    @property
+    def scale_marker_background_color(self) -> typing.Optional[str]:
+        return self.__scale_marker_background_color
+
+    @scale_marker_background_color.setter
+    def scale_marker_background_color(self, value: typing.Optional[str]) -> None:
+        if value != self.__scale_marker_background_color:
+            self.__scale_marker_background_color = value
+            self.update()
 
     def close(self) -> None:
         self.__screen_pixel_per_image_pixel_stream.remove_ref()
@@ -349,8 +421,19 @@ class ScaleMarkerCanvasItem(CanvasItem.AbstractCanvasItem):
             self.__update_sizing()
             self.update()
 
+    def set_display_properties(self, display_properties: Persistence.PersistentDictType) -> None:
+        self.scale_marker_position = display_properties.get("scale_marker_position", None)
+        self.scale_marker_text_color = display_properties.get("scale_marker_text_color", None)
+        self.scale_marker_background_color = display_properties.get("scale_marker_background_color", None)
+
     def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> typing.Optional[CanvasItem.BaseComposer]:
-        return ScaleMarkerCanvasItemComposer(self, self.sizing, composer_cache, self.__dimensional_calibration, self.__info_text, self.__screen_pixel_per_image_pixel_stream.value, self.__get_font_metrics_fn)
+        return ScaleMarkerCanvasItemComposer(self, self.sizing, composer_cache, self.__dimensional_calibration,
+                                             self.__info_text, self.__screen_pixel_per_image_pixel_stream.value,
+                                             self.__get_font_metrics_fn,
+                                             scale_marker_position=self.scale_marker_position,
+                                             scale_marker_text_color=self.scale_marker_text_color,
+                                             scale_marker_background_color=self.scale_marker_background_color
+                                             )
 
 
 def calculate_origin_and_size(canvas_size: Geometry.IntSize, data_shape: DataAndMetadata.Shape2dType, image_canvas_mode: str, image_zoom: float, image_position: Geometry.FloatPoint) -> Geometry.IntRect:
@@ -1270,6 +1353,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                 # setting the bitmap on the bitmap_canvas_item is delayed until paint, so that it happens on a thread, since it may be time consuming
                 dimensional_calibration = calculate_dimensional_calibration(data_metadata, display_calibration_info.displayed_dimensional_calibrations)
                 self.__scale_marker_canvas_item.set_data_info(dimensional_calibration, frame_info.info_items)
+                self.__scale_marker_canvas_item.set_display_properties(display_properties)
 
     def __update_graphics_coordinate_system(self, graphics: typing.Sequence[Graphics.Graphic], graphic_selection: DisplayItem.GraphicSelection, display_calibration_info: DisplayItem.DisplayCalibrationInfo) -> None:
         self.__graphics = list(graphics)

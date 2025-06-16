@@ -30,6 +30,7 @@ from nion.swift.model import DataItem
 from nion.swift.model import DataStructure
 from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
+from nion.swift.model import Feature
 from nion.swift.model import Graphics
 from nion.swift.model import Observer
 from nion.swift.model import Schema
@@ -1986,6 +1987,75 @@ class ChangeDisplayTypeCommand(Undo.UndoableCommand):
         return isinstance(command, self.__class__) and bool(self.command_id) and self.command_id == command.command_id and self.__display_item_uuid == command.__display_item_uuid
 
 
+class ScaleMarkerOptionsHandler(Declarative.Handler):
+    def __init__(self, display_item: DisplayItem.DisplayItem, document_controller: DocumentController.DocumentController) -> None:
+        super().__init__()
+        self._scale_marker_location_items = (_("Bottom Left"), _("Bottom Right"))
+        self._scale_marker_location_reverse_map = {"bottom-left": 0, "bottom-right": 1}
+        self._scale_marker_location_flags = ("bottom-left", "bottom-right")
+        if display_item.get_display_property("show_scale_info_text") is None:
+            display_item.set_display_property("show_scale_info_text", True)
+
+        self._show_info_text_model = DisplayItemDisplayPropertyCommandModel(
+            document_controller,
+            display_item,
+            "show_scale_info_text"
+        )
+        self.notify_property_changed("show_scale_info_text")
+
+        self._scale_marker_position_model = DisplayItemDisplayPropertyCommandModel(
+            document_controller,
+            display_item,
+            "scale_marker_position"
+        )
+
+        self._current_index = self._scale_marker_location_reverse_map.get(self._scale_marker_position_model.value or "bottom-left", 0)
+
+        self._scale_marker_text_color_model = DisplayItemDisplayPropertyCommandModel(
+            document_controller,
+            display_item,
+            "scale_marker_text_color"
+        )
+
+        self._scale_marker_background_color_model = DisplayItemDisplayPropertyCommandModel(
+            document_controller,
+            display_item,
+            "scale_marker_background_color"
+        )
+
+        u = Declarative.DeclarativeUI()
+
+        self.ui_view = u.create_column(
+            u.create_row(
+                u.create_label(text=_("Scale Marker"), text_alignment_vertical="vcenter", text_alignment_horizontal="right", width=100),
+                u.create_combo_box(
+                    items=self._scale_marker_location_items,
+                    on_current_index_changed="change_scale_marker_location",
+                    current_index="@binding(_current_index)"
+                ),
+                u.create_stretch(),
+                spacing=8
+            ),
+            u.create_row(
+                u.create_label(text=_("Text Color"),text_alignment_vertical="vcenter", text_alignment_horizontal="right", width=100),
+                u.create_line_edit(text="@binding(_scale_marker_text_color_model.value)", placeholder_text=_("Default"), width=100),
+                {"type": "nionswift.color_chooser", "color": "@binding(_scale_marker_text_color_model.value)"},
+                u.create_stretch(),
+                spacing=8
+            ),
+            u.create_row(
+                u.create_label(text=_("Background"),text_alignment_vertical="vcenter", text_alignment_horizontal="right", width=100),
+                u.create_line_edit(text="@binding(_scale_marker_background_color_model.value)", placeholder_text=_("Default"), width=100),
+                {"type": "nionswift.color_chooser", "color": "@binding(_scale_marker_background_color_model.value)"},
+                u.create_stretch(),
+                spacing=8
+            )
+        )
+
+    def change_scale_marker_location(self, widget: Declarative.UIWidget, current_index: int) -> None:
+        self._scale_marker_position_model.value = self._scale_marker_location_flags[current_index]
+
+
 class DisplayTypeChooserHandler(Declarative.Handler):
     def __init__(self, display_item: DisplayItem.DisplayItem, document_controller: DocumentController.DocumentController) -> None:
         super().__init__()
@@ -1999,9 +2069,10 @@ class DisplayTypeChooserHandler(Declarative.Handler):
         u = Declarative.DeclarativeUI()
 
         self.ui_view = u.create_row(
-            u.create_label(text=_("Display Type:"), width=120),
+            u.create_label(text=_("Display Type"), text_alignment_vertical="vcenter", text_alignment_horizontal="right", width=100),
             u.create_combo_box(items=self._display_type_items, on_current_index_changed="change_display_type", current_index="@binding(_current_index)"),
-            u.create_stretch()
+            u.create_stretch(),
+            spacing=8
         )
 
     def change_display_type(self,  widget: Declarative.UIWidget, current_index: int) -> None:
@@ -2082,12 +2153,16 @@ class ImageDisplayInspectorSection(InspectorSection):
 
     def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem) -> None:
         super().__init__(document_controller.ui, "display-limits", _("Image Display"))
+        self.__image_display_handler = DisplayTypeChooserHandler(display_item, document_controller)
 
-        self._image_diaplay_handler = DisplayTypeChooserHandler(display_item, document_controller)
         widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop,
-                                               self._image_diaplay_handler)
+                                               self.__image_display_handler)
 
         self.add_widget_to_content(widget)
+
+        if Feature.FeatureManager().is_feature_enabled("feature.scale_marker_customization"):
+            scale_marker_widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop, ScaleMarkerOptionsHandler(display_item, document_controller))
+            self.add_widget_to_content(scale_marker_widget)
 
 
 class LegendPositionChooserHandler(Declarative.Handler):
@@ -4782,3 +4857,6 @@ class DeclarativeColorChooserConstructor:
             return widget
 
         return None
+
+
+Feature.FeatureManager().add_feature(Feature.Feature("feature.scale_marker_customization", "Scale marker customization (position, color, background).", False))
