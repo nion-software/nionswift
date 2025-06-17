@@ -1986,6 +1986,60 @@ class ChangeDisplayTypeCommand(Undo.UndoableCommand):
         return isinstance(command, self.__class__) and bool(self.command_id) and self.command_id == command.command_id and self.__display_item_uuid == command.__display_item_uuid
 
 
+class ScalebarOptionsHandler(Declarative.Handler):
+    def __init__(self, display_item: DisplayItem.DisplayItem, document_controller: DocumentController.DocumentController) -> None:
+        super().__init__()
+        # Ensure the property is initialized if not already set
+        if display_item.get_display_property("show_scale_info_text") is None:
+            display_item.set_display_property("show_scale_info_text", True)
+
+        self._show_info_text_model = DisplayItemDisplayPropertyCommandModel(
+            document_controller,
+            display_item,
+            "show_scale_info_text"
+        )
+        self.notify_property_changed("show_scale_info_text")
+
+        self._scale_marker_position_model = DisplayItemDisplayPropertyCommandModel(
+            document_controller,
+            display_item,
+            "scale_marker_position"
+        )
+
+        self._background_fill_color_model = DisplayItemDisplayPropertyCommandModel(
+            document_controller,
+            display_item,
+            "show_scale_background_fill_color"
+        )
+
+        u = Declarative.DeclarativeUI()
+
+        self.ui_view = u.create_column(
+            u.create_row(
+                u.create_check_box(
+                    text=_("Show Info Text"),
+                    checked="@binding(_show_info_text_model.value)"
+                ),
+                u.create_stretch()
+            ),
+            u.create_row(
+                u.create_check_box(
+                    text=_("Draw on Right"),
+                    checked="@binding(_scale_marker_position_model.value)"
+                ),
+                u.create_stretch()
+            ),
+            u.create_row(
+                u.create_check_box(
+                    text=_("Show Background"),
+                    checked="@binding(_background_fill_color_model.value)"
+                ),
+                u.create_stretch()
+            ),spacing=4
+        )
+
+
+
 class DisplayTypeChooserHandler(Declarative.Handler):
     def __init__(self, display_item: DisplayItem.DisplayItem, document_controller: DocumentController.DocumentController) -> None:
         super().__init__()
@@ -2082,13 +2136,14 @@ class ImageDisplayInspectorSection(InspectorSection):
 
     def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem) -> None:
         super().__init__(document_controller.ui, "display-limits", _("Image Display"))
-
-        self._image_diaplay_handler = DisplayTypeChooserHandler(display_item, document_controller)
+        self.__scale_marker_options_handler = ScalebarOptionsHandler(display_item, document_controller)
+        self.__image_display_handler = DisplayTypeChooserHandler(display_item, document_controller)
         widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop,
-                                               self._image_diaplay_handler)
-
+                                               self.__image_display_handler)
+        scalebar_widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop,
+                                               self.__scale_marker_options_handler)
         self.add_widget_to_content(widget)
-
+        self.add_widget_to_content(scalebar_widget)
 
 class LegendPositionChooserHandler(Declarative.Handler):
     def __init__(self, display_item: DisplayItem.DisplayItem, document_controller: DocumentController.DocumentController) -> None:
