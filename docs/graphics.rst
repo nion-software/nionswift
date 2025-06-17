@@ -168,6 +168,8 @@ To create a mask, add one or more rectangle or ellipse graphics. Select the desi
 
 You can remove a graphic from a mask by selecting the graphic and choosing :menuselection:`Graphics -> Remove from Mask` or by just deleting the graphic.
 
+A pixel is considered to be contained within the mask if the center of the pixel is within any of the mask graphics.
+
 .. _Fourier Filtering:
 
 Fourier Filtering
@@ -175,6 +177,8 @@ Fourier Filtering
 A special type of masking is called Fourier filtering. You can place symmetric masks on complex-valued images and perform Fourier filtering using the menu item :menuselection:`Processing --> Fourier --> Fourier Filter`.
 
 The origin of the Fourier filter graphics will typically be in the middle of the center value of the complex-valued image. However, the origin can be changed by editing the spatial calibrations of the image.
+
+A pixel is considered to be contained within the mask if the center of the pixel is within any of the Fourier mask graphics.
 
 Four types of graphics are available for Fourier filter.
 

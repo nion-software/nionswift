@@ -28,6 +28,12 @@
       },
       {
         "issues": [
+          "https://github.com/nion-software/nionswift/issues/1472"
+        ],
+        "summary": "Fix issue with masks being off by 0.5 pixel."
+      },
+      {
+        "issues": [
           "https://github.com/nion-software/nionswift/issues/1458"
         ],
         "summary": "Fix issue with closing new project dialog when exiting dialog with Enter key."
