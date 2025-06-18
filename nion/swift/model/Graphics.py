@@ -3106,20 +3106,7 @@ class LatticeMaskItem(MaskItem):
                     if ui == -mx or ui == mx or vi == -mx or vi == mx:
                         p = start + ui * u_pos + vi * v_pos
                         if bounds.contains_point(p):
-                            r = Geometry.FloatRect(origin=Geometry.FloatPoint(y=data_shape[0] * (p.y - size.height * 0.5),
-                                                                              x=data_shape[1] * (p.x - size.width * 0.5)),
-                                                   size=Geometry.FloatSize(h=data_shape[0] * size.height,
-                                                                           w=data_shape[1] * size.width))
-                            if r.width > 0 and r.height > 0:
-                                a, b = round(r.top + 0.5 * r.height), round(r.left + 0.5 * r.width)
-                                y, x = numpy.ogrid[-a:data_shape[0] - a, -b:data_shape[1] - b]
-                                if rotation:
-                                    angle_sin = math.sin(rotation)
-                                    angle_cos = math.cos(rotation)
-                                    mask_eq1 = (((x * angle_cos) - (y * angle_sin)) ** 2) / ((r.width / 2) * (r.width / 2)) + (((y * angle_cos) + (x * angle_sin)) ** 2) / ((r.height / 2) * (r.height / 2)) <= 1
-                                else:
-                                    mask_eq1 = x * x / ((r.width / 2) * (r.width / 2)) + y * y / ((r.height / 2) * (r.height / 2)) <= 1
-                                mask[mask_eq1] = 1
+                            mask = numpy.logical_or(mask, Core.function_make_elliptical_mask(data_shape, p, size, rotation))
                             drawn = True
             mx += 1
 
