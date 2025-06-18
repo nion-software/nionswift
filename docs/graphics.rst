@@ -24,6 +24,8 @@ You can cut, copy, and paste graphics.
 
 If you have trouble selecting a graphic that is behind another graphic, try clicking on the control points of the graphic. The control points take priority over the middle of graphics further forward.
 
+You can also select graphics behind other graphics by selecting the graphic in the foreground and using the :kbd:`Tab` key to cycle through the graphics in the order they were added. The :kbd:`Shift` + :kbd:`Tab` keys will cycle through the graphics in reverse order.
+
 .. _Image Graphics:
 
 Image Graphics

@@ -11,15 +11,17 @@ Display panels are used to show display items.
 
 You can drag items from the data panel into a display panel.
 
-You can put keyboard focus on a display panel by clicking on it.
+The primary selected display panel will have a solid focus ring around it and will be the one that receives keyboard input.
 
-The display item with keyboard focus also serves as the primary selected item. Primary selections are indicated by a solid focus ring.
+You can make a display panel be the primary selected display panel by clicking on it.
 
-You can add secondary selected items by :kbd:`control` clicking (Windows/Linux) or :kbd:`command` (macOS) clicking on display panels. Secondary selections are indicated by a dotted focus ring.
+You can also change the primary selected display panel by using the :kbd:`Tab` key to cycle through the display panels. The :kbd:`Shift-Tab` key will cycle in reverse order.
 
-Processing and other commands apply to the primary selected items. Processing commands that need multiple inputs may use secondary selected items.
+You can add secondary selected display panels by :kbd:`control` clicking (Windows/Linux) or :kbd:`command` (macOS) clicking on additional display panels. Secondary selections are indicated by a dotted focus ring.
 
-To select multiple primary items, you need to use the data panel or a browser panel.
+Processing and other commands mostly apply to the display items in the primary selected display panel. Processing commands that need multiple inputs may use display items in the secondary selected display panels.
+
+To select multiple primary display items, you need to use the data panel or a browser panel.
 
 .. _Display Panel Browsers:
 
