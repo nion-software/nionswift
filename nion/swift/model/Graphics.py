@@ -669,6 +669,13 @@ class GraphicAttributeEnum(enum.Enum):
 
 # A Graphic object describes visible content, such as a shape, bitmap, video, or a line of text.
 class Graphic(Persistence.PersistentObject):
+    @property
+    def CAN_LOCK_POSITION(self) -> bool:
+        return True
+
+    @property
+    def CAN_LOCK_SHAPE(self) -> bool:
+        return True
 
     def __init__(self, type: str) -> None:
         super().__init__()
@@ -742,20 +749,12 @@ class Graphic(Persistence.PersistentObject):
         self._set_persistent_property_value("is_position_locked", value)
 
     @property
-    def can_lock_position(self) -> bool:
-        return True
-
-    @property
     def is_shape_locked(self) -> bool:
         return typing.cast(bool, self._get_persistent_property_value("is_shape_locked"))
 
     @is_shape_locked.setter
     def is_shape_locked(self, value: bool) -> None:
         self._set_persistent_property_value("is_shape_locked", value)
-
-    @property
-    def can_lock_shape(self) -> bool:
-        return True
 
     @property
     def is_bounds_constrained(self) -> bool:
@@ -1672,15 +1671,13 @@ class LineProfileGraphic(LineTypeGraphic):
 
 
 class PointTypeGraphic(Graphic):
+    CAN_LOCK_SHAPE = False
+
     def __init__(self, type: str, title: typing.Optional[str]) -> None:
         super().__init__(type)
         self.title = title
         # start and end points are stored in image normalized coordinates
         self.define_property("position", (0.5, 0.5), changed=self._property_changed, validate=lambda value: tuple(value), hidden=True)
-
-    @property
-    def can_lock_shape(self) -> bool:
-        return False
 
     @property
     def position(self) -> Geometry.FloatPoint:
@@ -1939,16 +1936,14 @@ class IntervalGraphic(Graphic):
 
 
 class ChannelGraphic(Graphic):
+    CAN_LOCK_SHAPE = False
+
     def __init__(self) -> None:
         super().__init__("channel-graphic")
         self.title = _("Channel")
         # channel is stored in image normalized coordinates
         self.define_property("position", 0.5, changed=self._property_changed, validate=lambda value: float(value), hidden=True)
         self._default_drag_part = "position"
-
-    @property
-    def can_lock_shape(self) -> bool:
-        return False
 
     @property
     def position(self) -> float:
@@ -2209,6 +2204,8 @@ class SpotGraphic(Graphic):
 
 
 class WedgeGraphic(Graphic):
+    CAN_LOCK_POSITION = False
+
     def __init__(self) -> None:
         super().__init__("wedge-graphic")
         self.title = _("Wedge")
@@ -2222,10 +2219,6 @@ class WedgeGraphic(Graphic):
         self.__inverted_drag = False
         self.define_property("angle_interval", (0.0, math.pi), validate=validate_angles, changed=self._property_changed, hidden=True)
         self._default_drag_part = "start-angle"
-
-    @property
-    def can_lock_position(self) -> bool:
-        return False
 
     @property
     def angle_interval(self) -> typing.Tuple[float, float]:
@@ -2424,6 +2417,8 @@ class WedgeGraphic(Graphic):
 
 
 class RingGraphic(Graphic):
+    CAN_LOCK_POSITION = False
+
     def __init__(self) -> None:
         super().__init__("ring-graphic")
         self.title = _("Annular Ring")
@@ -2435,10 +2430,6 @@ class RingGraphic(Graphic):
         self.define_property("radius_2", 0.2, validate=validate_angles, changed=self._property_changed, hidden=True)
         self.define_property("mode", "band-pass", changed=self._property_changed, hidden=True)
         self._default_drag_part = "radius_1"
-
-    @property
-    def can_lock_position(self) -> bool:
-        return False
 
     @property
     def radius_1(self) -> float:
