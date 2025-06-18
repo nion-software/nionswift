@@ -3120,7 +3120,7 @@ class LatticeMaskItem(MaskItem):
                     if ui == -mx or ui == mx or vi == -mx or vi == mx:
                         p = start + ui * u_pos + vi * v_pos
                         if bounds.contains_point(p):
-                            mask = numpy.logical_or(mask, Core.function_make_elliptical_mask(data_shape, p, size, rotation))
+                            mask = numpy.logical_or(mask, Core.function_make_elliptical_mask(data_shape, p.as_tuple(), size.as_tuple(), rotation))
                             drawn = True
             mx += 1
 
