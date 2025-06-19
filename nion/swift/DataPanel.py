@@ -483,8 +483,9 @@ class DataPanel(Panel.Panel):
                 self.__filter_description_combo_box.current_item = collection_info
 
         def update_filter_descriptions(collection_info_list: typing.Optional[typing.Sequence[DocumentController.CollectionInfo]]) -> None:
-            self.__filter_description_combo_box.items = collection_info_list
-            update_filter_description(document_controller.current_collection_info.value)
+            if collection_info_list is not None:
+                self.__filter_description_combo_box.items = collection_info_list
+                update_filter_description(document_controller.current_collection_info.value)
 
         def on_current_collection_changed(collection_info: typing.Optional[DocumentController.CollectionInfo]) -> None:
             if collection_info and document_controller.current_collection_info.value != collection_info:
