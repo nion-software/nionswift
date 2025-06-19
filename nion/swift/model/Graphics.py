@@ -475,13 +475,21 @@ def draw_marker(ctx: DrawingContextLike, p: Geometry.FloatPoint, is_enabled: boo
                 ctx.stroke()
 
 
-def draw_circular_marker(ctx: DrawingContextLike, p: Geometry.FloatPoint, is_enabled: bool) -> None:
-    marker_color = '#00FF00'
-    size = Geometry.FloatSize(w=6, h=6)
-    if is_enabled:
-        draw_ellipse(ctx, p, size, None, marker_color)
+def draw_circular_marker(ctx: DrawingContextLike, p: Geometry.FloatPoint, is_enabled: bool, is_locked:bool) -> None:
+    if not is_locked:
+        marker_color = '#00FF00'
+        size = Geometry.FloatSize(w=6, h=6)
+        if is_enabled:
+            draw_ellipse(ctx, p, size, None, marker_color)
+        else:
+            draw_ellipse(ctx, p, size, '#444', '#ccc')
     else:
-        draw_ellipse(ctx, p, size, '#444', '#ccc')
+        marker_color = '#00FF00'
+        size = Geometry.FloatSize(w=6, h=6)
+        if is_enabled:
+            draw_ellipse(ctx, p, size, marker_color, None )
+        else:
+            draw_ellipse(ctx, p, size, '#ccc', None)
 
 
 def draw_centre_marker(ctx: DrawingContextLike, origin: Geometry.FloatPoint, graphic_size: Geometry.FloatSizeTuple, stroke_style: typing.Any, is_move_locked: bool, mark_size: int = 8) -> None:
@@ -517,7 +525,7 @@ def draw_rect_marker(ctx: DrawingContextLike, r: Geometry.FloatRect, is_enabled:
     draw_marker(ctx, r.bottom_left, is_enabled, is_shape_locked)
 
 
-def draw_ellipse_graphic(ctx: DrawingContextLike, center: Geometry.FloatPoint, size: Geometry.FloatSize, rotation: float, is_selected: bool, is_focused: bool, is_shape_locked: bool, is_position_locked: bool, stroke_style: str, stroke_width: float, fill_style: typing.Optional[str]) -> None:
+def draw_ellipse_graphic(ctx: DrawingContextLike, center: Geometry.FloatPoint, size: Geometry.FloatSize, rotation: float, is_selected: bool, is_focused: bool, is_shape_locked: bool, is_position_locked: bool, is_rotation_locked: bool, stroke_style: str, stroke_width: float, fill_style: typing.Optional[str]) -> None:
     rect = Geometry.FloatRect.from_center_and_size(center, size)
     origin = rect.origin
     center = rect.center
@@ -554,7 +562,7 @@ def draw_ellipse_graphic(ctx: DrawingContextLike, center: Geometry.FloatPoint, s
             ctx.line_to(rotation_point.x, rotation_point.y)
             ctx.stroke_style = stroke_style
             ctx.stroke()
-            draw_circular_marker(ctx, rotation_point, is_focused)
+            draw_circular_marker(ctx, rotation_point, is_focused, is_rotation_locked)
 
 
 
@@ -677,6 +685,7 @@ class Graphic(Persistence.PersistentObject):
         self.define_property("label", changed=self._property_changed, validate=lambda s: str(s) if s else None, hidden=True)
         self.define_property("is_position_locked", False, changed=self._property_changed, hidden=True)
         self.define_property("is_shape_locked", False, changed=self._property_changed, hidden=True)
+        self.define_property("is_rotation_locked", False, changed=self._property_changed, hidden=True)
         self.define_property("is_bounds_constrained", False, changed=self._property_changed, hidden=True)
         self.define_property("role", None, changed=self._property_changed, hidden=True)
         self.label_padding = 4
@@ -757,6 +766,14 @@ class Graphic(Persistence.PersistentObject):
         self._set_persistent_property_value("is_shape_locked", value)
 
     @property
+    def is_rotation_locked(self) -> bool:
+        return typing.cast(bool, self._get_persistent_property_value("is_rotation_locked"))
+
+    @is_rotation_locked.setter
+    def is_rotation_locked(self, value: bool) -> None:
+        self._set_persistent_property_value("is_rotation_locked", value)
+
+    @property
     def is_bounds_constrained(self) -> bool:
         return typing.cast(bool, self._get_persistent_property_value("is_bounds_constrained"))
 
@@ -805,6 +822,7 @@ class Graphic(Persistence.PersistentObject):
             "label": self.label,
             "is_position_locked": self.is_position_locked,
             "is_shape_locked": self.is_shape_locked,
+            "is_rotation_locked": self.is_rotation_locked,
             "is_bounds_constrained": self.is_bounds_constrained,
         }
 
@@ -823,6 +841,7 @@ class Graphic(Persistence.PersistentObject):
         self.label = graphic_dict.get("label", self.label)
         self.is_position_locked = graphic_dict.get("is_position_locked", self.is_position_locked)
         self.is_shape_locked = graphic_dict.get("is_shape_locked", self.is_shape_locked)
+        self.is_rotation_locked = graphic_dict.get("is_rotation_locked", self.is_rotation_locked)
         self.is_bounds_constrained = graphic_dict.get("is_bounds_constrained", self.is_bounds_constrained)
 
     def read_properties_from_dict(self, d: Persistence.PersistentDictType) -> None:
@@ -890,6 +909,8 @@ class Graphic(Persistence.PersistentObject):
             constraints.add("position")
         if self.is_shape_locked:
             constraints.add("shape")
+        if self.is_rotation_locked:
+            constraints.add("rotation")
         if self.is_bounds_constrained:
             constraints.add("bounds")
         return constraints
@@ -1197,7 +1218,7 @@ class RectangleGraphic(RectangleTypeGraphic):
         bounds, rotation = adjust_rectangle_like(part[0], Geometry.FloatSize.make(mapping.data_shape), bounds, self.rotation, False, original_image, current_image, part[2], modifiers, self._constraints)
         if bounds != self.bounds:
             self.bounds = bounds
-        if rotation != self.rotation:
+        if rotation != self.rotation and "rotation" not in self._constraints:
             self.rotation = rotation
 
     def _draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
@@ -1246,7 +1267,7 @@ class RectangleGraphic(RectangleTypeGraphic):
                 ctx.line_to(rotation_point.x, rotation_point.y)
                 ctx.stroke_style = self.used_stroke_style
                 ctx.stroke()
-                draw_circular_marker(ctx, rotation_point, is_focused)
+                draw_circular_marker(ctx, rotation_point, is_focused, self.is_rotation_locked)
         self.draw_label(ctx, ui_settings, mapping)
 
     def label_position(self, mapping: CoordinateMappingLike, font_metrics: UISettings.FontMetrics, padding: float) -> typing.Optional[Geometry.FloatPoint]:
@@ -1276,7 +1297,7 @@ class EllipseGraphic(RectangleTypeGraphic):
         bounds, rotation = adjust_rectangle_like(part[0], Geometry.FloatSize.make(mapping.data_shape), bounds, self.rotation, True, original_image, current_image, part[2], modifiers, self._constraints)
         if bounds != self.bounds:
             self.bounds = bounds
-        if rotation != self.rotation:
+        if rotation != self.rotation and "rotation" not in self._constraints:
             self.rotation = rotation
 
     def _draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
@@ -1285,7 +1306,7 @@ class EllipseGraphic(RectangleTypeGraphic):
         bounds = Geometry.FloatRect.make(self.bounds)
         center = mapping.map_point_image_norm_to_widget(bounds.center)
         size = mapping.map_size_image_norm_to_widget(bounds.size)
-        draw_ellipse_graphic(ctx, center, size, rotation, is_selected, is_focused, self.is_shape_locked, self.is_position_locked, self.used_stroke_style,  self.used_stroke_width, self.used_fill_style)
+        draw_ellipse_graphic(ctx, center, size, rotation, is_selected, is_focused, self.is_shape_locked, self.is_position_locked, self.is_rotation_locked, self.used_stroke_style,  self.used_stroke_width, self.used_fill_style)
         self.draw_label(ctx, ui_settings, mapping)
 
     def label_position(self, mapping: CoordinateMappingLike, font_metrics: UISettings.FontMetrics, padding: float) -> typing.Optional[Geometry.FloatPoint]:
@@ -2227,17 +2248,18 @@ class SpotGraphic(Graphic):
         used_fill_style = self.used_fill_style
         is_shape_locked = self.is_shape_locked
         is_position_locked = self.is_position_locked
+        is_rotation_locked = self.is_rotation_locked
         rotation = self.rotation
         bounds = Geometry.FloatRect.make(self.bounds)
         origin = mapping.calibrated_origin_widget
         center = origin + mapping.map_size_image_norm_to_widget(bounds.center.as_size())
         size = mapping.map_size_image_norm_to_widget(bounds.size)
-        draw_ellipse_graphic(ctx, center, size, rotation, is_selected, is_focused, is_shape_locked, is_position_locked, used_stroke_style, used_stroke_width, used_fill_style)
+        draw_ellipse_graphic(ctx, center, size, rotation, is_selected, is_focused, is_shape_locked, is_position_locked, is_rotation_locked, used_stroke_style, used_stroke_width, used_fill_style)
         with ctx.saver():
             ctx.translate(origin.x, origin.y)
             ctx.rotate(math.pi)
             ctx.translate(-origin.x, -origin.y)
-            draw_ellipse_graphic(ctx, center, size, rotation, is_selected, is_focused, is_shape_locked, is_position_locked, used_stroke_style, used_stroke_width, used_fill_style)
+            draw_ellipse_graphic(ctx, center, size, rotation, is_selected, is_focused, is_shape_locked, is_position_locked, is_rotation_locked, used_stroke_style, used_stroke_width, used_fill_style)
         self.draw_label(ctx, ui_settings, mapping)
 
     def label_position(self, mapping: CoordinateMappingLike, font_metrics: UISettings.FontMetrics, padding: float) -> typing.Optional[Geometry.FloatPoint]:
