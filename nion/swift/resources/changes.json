@@ -4,6 +4,12 @@
     "notes": [
       {
         "issues": [
+          "https://github.com/nion-software/nionswift/issues/1295"
+        ],
+        "summary": "Add ability to switch collection directly from the data panel."
+      },
+      {
+        "issues": [
           "https://github.com/nion-software/nionswift/issues/149"
         ],
         "summary": "Add ability to change graphic selection using tab/backtab."

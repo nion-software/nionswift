@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import copy
 import gettext
+import operator
 import pkgutil
 import threading
 import typing
@@ -440,20 +441,20 @@ class DataPanel(Panel.Panel):
         self.__view_button_group.current_index = 0
         self.__view_button_group.on_current_index_changed = lambda index: setattr(stack_canvas_item, "current_index", index)
 
-        self.__filter_description = ui.create_label_widget(_("All Items"))
+        self.__filter_description_combo_box = ui.create_combo_box_widget(item_getter=operator.attrgetter("title"))
 
         status_row = ui.create_row_widget()
-        status_row.add_spacing(8)
-        status_row.add(self.__filter_description)
-        status_row.add_stretch()
+        status_row.add_spacing(4)
+        status_row.add(self.__filter_description_combo_box)
+        status_row.add_spacing(3)
 
         divider_widget = ui.create_canvas_widget(properties={"height": 2})
         divider_widget.canvas_item.add_canvas_item(CanvasItem.DividerCanvasItem(orientation="horizontal"))
 
         self.__status_section = ui.create_column_widget()
-        self.__status_section.add_spacing(4)
-        self.__status_section.add(status_row)
         self.__status_section.add_spacing(2)
+        self.__status_section.add(status_row)
+        self.__status_section.add_spacing(4)
         self.__status_section.add(divider_widget)
 
         widget = ui.create_column_widget(properties=properties)
@@ -478,12 +479,27 @@ class DataPanel(Panel.Panel):
         self._data_grid_canvas_item = grid_scroll_group_canvas_item
 
         def update_filter_description(collection_info: typing.Optional[DocumentController.CollectionInfo]) -> None:
-            self.__status_section.visible = True
-            self.__filter_description.text = collection_info.title if collection_info else str()
+            if collection_info != self.__filter_description_combo_box.current_item:
+                self.__filter_description_combo_box.current_item = collection_info
+
+        def update_filter_descriptions(collection_info_list: typing.Optional[typing.Sequence[DocumentController.CollectionInfo]]) -> None:
+            if collection_info_list is not None:
+                self.__filter_description_combo_box.items = collection_info_list
+                update_filter_description(document_controller.current_collection_info.value)
+
+        def on_current_collection_changed(collection_info: typing.Optional[DocumentController.CollectionInfo]) -> None:
+            if collection_info and document_controller.current_collection_info.value != collection_info:
+                if collection_info.is_smart_collection:
+                    document_controller.set_filter(collection_info.filter_id)
+                else:
+                    document_controller.set_data_group(collection_info.data_group)
 
         self.__filter_description_action = Stream.ValueStreamAction(document_controller.current_collection_info, update_filter_description)
+        collection_info_list_stream = Stream.PropertyChangedEventStream[typing.Sequence["DocumentController.CollectionInfo"]](document_controller.collection_info_list_model, "items")
+        self.__collection_info_list_stream_action = Stream.ValueStreamAction(collection_info_list_stream, update_filter_descriptions)
 
-        update_filter_description(document_controller.current_collection_info.value)
+        update_filter_descriptions(document_controller.collection_info_list_model.items)
+        self.__filter_description_combo_box.on_current_item_changed = on_current_collection_changed
 
     def close(self) -> None:
         self.__selection_changed_event_listener.close()
