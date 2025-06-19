@@ -718,6 +718,7 @@ class PointerMouseHandler(MouseHandler):
             # keep track of general drag information
             graphic_drag_start_pos = start_drag_pos
             graphic_drag_changed = False
+            graphic_drag_external = False
             # keep track of info for the specific item that was clicked
             graphic_drag_item = graphics[graphic_index]
             graphic_drag_part = part
@@ -753,8 +754,10 @@ class PointerMouseHandler(MouseHandler):
                         if force_drag and graphic_drag_part == "all":
                             if Geometry.distance(mouse_pos, graphic_drag_start_pos) <= 2:
                                 delegate.drag_graphics(graphic_drag_items)
+                                graphic_drag_external = True
                                 continue
-                        delegate.adjust_graphics(widget_mapping, graphic_drag_items, graphic_drag_part, graphic_part_data, graphic_drag_start_pos, mouse_pos, modifiers)
+                        if not graphic_drag_external:
+                            delegate.adjust_graphics(widget_mapping, graphic_drag_items, graphic_drag_part, graphic_part_data, graphic_drag_start_pos, mouse_pos, modifiers)
 
                     self.cursor_shape = get_pointer_tool_shape(mouse_pos)
 
@@ -777,7 +780,7 @@ class PointerMouseHandler(MouseHandler):
                         delegate.add_index_to_selection(graphic_index)
 
             # if graphic_drag_changed, it means the user moved the image. perform the task.
-            if graphic_drag_changed:
+            if graphic_drag_changed and not graphic_drag_external:
                 change_graphics_task.commit()
 
 
