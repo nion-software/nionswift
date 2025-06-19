@@ -50,12 +50,12 @@ key_map = {
     'stem.beam_current_a': {'paths': ['instrument.beam_current', 'hardware_source.beam_current_a'], 'type': 'real'},
     'stem.defocus': {'paths': ['instrument.defocus', 'hardware_source.defocus_m'], 'type': 'real'},
     'stem.defocus_m': {'paths': ['instrument.defocus', 'hardware_source.defocus_m'], 'type': 'real'},
-    'stem.ronchigram_orientation_angle':{'paths': ['instrument.scan_orientation_rad'], 'type': 'real'},
+    'stem.ronchigram_orientation_angle':{'paths': ['instrument.ronchigram_orientation_angle'], 'type': 'real'},
 
     'stem.eels.spectrum_type': {'paths': ['hardware_source.eels_spectrum_type'], 'type': 'string'},
     'stem.eels.resolution_eV': {'paths': ['hardware_source.eels_resolution_eV'], 'type': 'string'},
     'stem.eels.is_monochromated': {'paths': ['hardware_source.eels_is_monochromated'], 'type': 'boolean'},
-    'stem.eels.camera_orientation_angle':{'paths': ['instrument.eels_camera_orientation_rad'], 'type': 'real'},
+    'stem.eels.camera_orientation_angle':{'paths': ['instrument.eels_camera_orientation_angle'], 'type': 'real'},
 
     'stem.camera.binning': {'paths': ['hardware_source.binning'], 'type': 'integer'},
     'stem.camera.channel_id': {'paths': ['hardware_source.channel_id'], 'type': 'string'},
@@ -84,7 +84,7 @@ key_map = {
     'stem.scan.frame_index': {'paths': ['hardware_source.frame_index'], 'type': 'integer'},
     'stem.scan.pixel_time_us': {'paths': ['hardware_source.pixel_time_us'], 'type': 'real'},
     'stem.scan.line_time_us': {'paths': ['hardware_source.line_time_us'], 'type': 'real'},
-    'stem.scan.orientation_angle':{'paths': ['instrument.scan_orientation_rad'], 'type': 'real'},
+    'stem.scan.orientation_angle':{'paths': ['instrument.scan_orientation_angle'], 'type': 'real'},
 }
 
 
