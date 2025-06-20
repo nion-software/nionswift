@@ -13,6 +13,8 @@ import typing
 import uuid
 import weakref
 
+from sympy.physics.quantum.spin import Rotation
+
 # third party libraries
 # None
 
@@ -2878,6 +2880,7 @@ class GraphicsInspectorHandler(Declarative.Handler):
         self.__set_type_specifics()
         self._graphic_label_model = GraphicPropertyCommandModel(document_controller, display_item, graphic, "label", title=_("Change Label"), command_id="change_label")
         self._lock_position_model = GraphicPropertyCommandModel(self.__document_controller, self.__display_item, graphic, "is_position_locked", title=_(f"Change {self._graphic_type_model.value} Position Locked"), command_id=f"change_{self._graphic_type_model.value}_position_locked")
+        self._lock_rotation_model = GraphicPropertyCommandModel(self.__document_controller, self.__display_item, graphic, "is_rotation_locked", title=_(f"Change {self._graphic_type_model.value} Rotation Locked"), command_id=f"change_{self._graphic_type_model.value}_rotation_locked")
         self._stroke_color_model = GraphicPropertyCommandModel(document_controller, display_item, graphic,"stroke_color", title=_("Change Stroke Color"), command_id="change_stroke_color")
         self._used_stroke_color_model = GraphicPropertyCommandModel(document_controller, display_item, graphic,"stroke_color", title=_("Change Stroke Color"), command_id="change_stroke_color", read_property_name="used_stroke_style")
         self._stroke_width_model = GraphicPropertyCommandModel(document_controller, display_item, graphic, "stroke_width", title=_("Change Stroke Width"), command_id="change_stroke_width")
@@ -2898,16 +2901,23 @@ class GraphicsInspectorHandler(Declarative.Handler):
         pos_shape_row = self.__create_position_and_shape_ui()
         stroke_style_row = self.__create_stroke_style_ui()
 
+        position_lock_tooltip = "" if self.__graphic.CAN_LOCK_POSITION else _("Unable to lock graphic's position")
+        shape_lock_tooltip = "" if self.__graphic.CAN_LOCK_SHAPE else _( "Unable to lock graphic's shape")
+        rotation_lock_tooltip = "" if self.__graphic.CAN_LOCK_ROTATION else _("Unable to lock graphic's rotation")
+
         lock_row = u.create_row(
             u.create_spacing(3),
             u.create_label(text=_("Lock"), width=60, text_alignment_vertical="center"),
-            u.create_check_box(text=_("Position"), checked="@binding(_lock_position_model.value)", text_alignment_vertical="center"),
+            u.create_check_box(text=_("Position"), checked="@binding(_lock_position_model.value)", enabled=self.__graphic.CAN_LOCK_POSITION, tool_tip=position_lock_tooltip, text_alignment_vertical="center"),
             u.create_spacing(12),
-            u.create_check_box(text=_("Shape"), checked="@binding(_lock_shape_model.value)", text_alignment_vertical="center"),
+            u.create_check_box(text=_("Shape"), checked="@binding(_lock_shape_model.value)", enabled=self.__graphic.CAN_LOCK_SHAPE, tool_tip=shape_lock_tooltip, text_alignment_vertical="center"),
+            u.create_spacing(12),
+            u.create_check_box(text=_("Rotation"), checked="@binding(_lock_rotation_model.value)", enabled=self.__graphic.CAN_LOCK_ROTATION, tool_tip=rotation_lock_tooltip, text_alignment_vertical="center"))
+        bullseye_row = u.create_row(
             u.create_stretch(),
             u.create_push_button(text="\N{BULLSEYE}", on_clicked="_move_to_center_clicked", text_alignment_horizontal="center", style="minimal"),
-            u.create_spacing(4)
-        )
+            u.create_spacing(4))
+
 
         self.ui_view = u.create_column(
             title_row,
@@ -2915,6 +2925,7 @@ class GraphicsInspectorHandler(Declarative.Handler):
             pos_shape_row,
             u.create_spacing(4),
             lock_row,
+            bullseye_row,
             u.create_spacing(4),
             stroke_style_row,
             u.create_spacing(12),
