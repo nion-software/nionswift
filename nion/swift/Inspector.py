@@ -2890,15 +2890,15 @@ class GraphicsInspectorHandler(Declarative.Handler):
 
         pos_shape_row = self.__create_position_and_shape_ui()
 
-        position_lock_tooltip = "" if self.__graphic.CAN_LOCK_POSITION else _("Unable to lock graphic's position")
-        shape_lock_tooltip = "" if self.__graphic.CAN_LOCK_SHAPE else _( "Unable to lock graphic's shape")
+        position_lock_tooltip = "" if self.__graphic.CAN_REPOSITION else _("Unable to lock graphic's position")
+        shape_lock_tooltip = "" if self.__graphic.CAN_RESHAPE else _( "Unable to lock graphic's shape")
 
         lock_row = u.create_row(
             u.create_spacing(3),
             u.create_label(text=_("Lock"), width=60, text_alignment_vertical="center"),
-            u.create_check_box(text=_("Position"), checked="@binding(_lock_position_model.value)", enabled=self.__graphic.CAN_LOCK_POSITION, tool_tip=position_lock_tooltip, text_alignment_vertical="center"),
+            u.create_check_box(text=_("Position"), checked="@binding(_lock_position_model.value)", enabled=self.__graphic.CAN_REPOSITION, tool_tip=position_lock_tooltip, text_alignment_vertical="center"),
             u.create_spacing(12),
-            u.create_check_box(text=_("Shape"), checked="@binding(_lock_shape_model.value)", enabled=self.__graphic.CAN_LOCK_SHAPE, tool_tip=shape_lock_tooltip, text_alignment_vertical="center"),
+            u.create_check_box(text=_("Shape"), checked="@binding(_lock_shape_model.value)", enabled=self.__graphic.CAN_RESHAPE, tool_tip=shape_lock_tooltip, text_alignment_vertical="center"),
             u.create_stretch(),
             u.create_push_button(text="\N{BULLSEYE}", on_clicked="_move_to_center_clicked", text_alignment_horizontal="center", style="minimal"),
             u.create_spacing(4)

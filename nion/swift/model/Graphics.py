@@ -670,12 +670,14 @@ class GraphicAttributeEnum(enum.Enum):
 # A Graphic object describes visible content, such as a shape, bitmap, video, or a line of text.
 class Graphic(Persistence.PersistentObject):
     @property
-    def CAN_LOCK_POSITION(self) -> bool:
-        return True
+    @abstractmethod
+    def CAN_REPOSITION(self) -> bool:
+        pass
 
     @property
-    def CAN_LOCK_SHAPE(self) -> bool:
-        return True
+    @abstractmethod
+    def CAN_RESHAPE(self) -> bool:
+        pass
 
     def __init__(self, type: str) -> None:
         super().__init__()
@@ -970,6 +972,9 @@ class Graphic(Persistence.PersistentObject):
 
 
 class MissingGraphic(Graphic):
+    CAN_REPOSITION = True
+    CAN_RESHAPE = True
+
     def __init__(self, type: str) -> None:
         super().__init__(type)
 
@@ -978,6 +983,9 @@ class MissingGraphic(Graphic):
 
 
 class RectangleTypeGraphic(Graphic):
+    CAN_REPOSITION = True
+    CAN_RESHAPE = True
+
     def __init__(self, type: str, title: typing.Optional[str]) -> None:
         super().__init__(type)
         self.title = title
@@ -1166,6 +1174,9 @@ class RectangleTypeGraphic(Graphic):
 
 
 class RectangleGraphic(RectangleTypeGraphic):
+    CAN_REPOSITION = True
+    CAN_RESHAPE = True
+
     def __init__(self) -> None:
         super().__init__("rect-graphic", _("Rectangle"))
 
@@ -1239,6 +1250,9 @@ class RectangleGraphic(RectangleTypeGraphic):
 
 
 class EllipseGraphic(RectangleTypeGraphic):
+    CAN_REPOSITION = True
+    CAN_RESHAPE = True
+
     def __init__(self) -> None:
         super().__init__("ellipse-graphic", _("Ellipse"))
 
@@ -1277,6 +1291,9 @@ class EllipseGraphic(RectangleTypeGraphic):
 
 
 class LineTypeGraphic(Graphic):
+    CAN_REPOSITION = True
+    CAN_RESHAPE = True
+
     def __init__(self, type: str, title: typing.Optional[str]) -> None:
         super().__init__(type)
         self.title = title
@@ -1546,6 +1563,9 @@ class LineTypeGraphic(Graphic):
 
 
 class LineGraphic(LineTypeGraphic):
+    CAN_REPOSITION = True
+    CAN_RESHAPE = True
+
     def __init__(self) -> None:
         super().__init__("line-graphic", _("Line"))
 
@@ -1578,6 +1598,9 @@ class LineGraphic(LineTypeGraphic):
 
 
 class LineProfileGraphic(LineTypeGraphic):
+    CAN_REPOSITION = True
+    CAN_RESHAPE = True
+
     def __init__(self) -> None:
         super().__init__("line-profile-graphic", _("Line Profile"))
         self.define_property("width", 1.0, changed=self._property_changed, validate=lambda value: float(value), hidden=True)
@@ -1671,7 +1694,8 @@ class LineProfileGraphic(LineTypeGraphic):
 
 
 class PointTypeGraphic(Graphic):
-    CAN_LOCK_SHAPE = False
+    CAN_REPOSITION = True
+    CAN_RESHAPE = False
 
     def __init__(self, type: str, title: typing.Optional[str]) -> None:
         super().__init__(type)
@@ -1765,6 +1789,9 @@ class PointTypeGraphic(Graphic):
 
 
 class PointGraphic(PointTypeGraphic):
+    CAN_REPOSITION = True
+    CAN_RESHAPE = False
+
     def __init__(self) -> None:
         super().__init__("point-graphic", _("Point"))
         self.cross_hair_size = 12
@@ -1802,6 +1829,9 @@ class PointGraphic(PointTypeGraphic):
 
 
 class IntervalGraphic(Graphic):
+    CAN_REPOSITION = True
+    CAN_RESHAPE = True
+
     def __init__(self) -> None:
         super().__init__("interval-graphic")
         self._default_stroke_color = "#F00"
@@ -1936,7 +1966,8 @@ class IntervalGraphic(Graphic):
 
 
 class ChannelGraphic(Graphic):
-    CAN_LOCK_SHAPE = False
+    CAN_REPOSITION = True
+    CAN_RESHAPE = False
 
     def __init__(self) -> None:
         super().__init__("channel-graphic")
@@ -2005,6 +2036,9 @@ class ChannelGraphic(Graphic):
 
 
 class SpotGraphic(Graphic):
+    CAN_REPOSITION = True
+    CAN_RESHAPE = True
+
     def __init__(self) -> None:
         super().__init__("spot-graphic")
         self.title = _("Spot")
@@ -2204,7 +2238,8 @@ class SpotGraphic(Graphic):
 
 
 class WedgeGraphic(Graphic):
-    CAN_LOCK_POSITION = False
+    CAN_REPOSITION = False
+    CAN_RESHAPE = True
 
     def __init__(self) -> None:
         super().__init__("wedge-graphic")
@@ -2417,7 +2452,8 @@ class WedgeGraphic(Graphic):
 
 
 class RingGraphic(Graphic):
-    CAN_LOCK_POSITION = False
+    CAN_REPOSITION = False
+    CAN_RESHAPE = True
 
     def __init__(self) -> None:
         super().__init__("ring-graphic")
@@ -2632,6 +2668,9 @@ class RingGraphic(Graphic):
 
 
 class LatticeGraphic(Graphic):
+    CAN_REPOSITION = True
+    CAN_RESHAPE = True
+
     def __init__(self) -> None:
         super().__init__("lattice-graphic")
         self.title = _("Lattice")
