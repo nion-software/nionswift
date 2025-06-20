@@ -685,6 +685,10 @@ class Graphic(Persistence.PersistentObject):
     def CAN_LOCK_SHAPE(self) -> bool:
         return True
 
+    @property
+    def CAN_LOCK_ROTATION(self) -> bool:
+        return True
+
     def __init__(self, type: str) -> None:
         super().__init__()
         self.define_type(type)
@@ -1315,6 +1319,7 @@ class EllipseGraphic(RectangleTypeGraphic):
 
 
 class LineTypeGraphic(Graphic):
+    CAN_LOCK_ROTATION = False
     def __init__(self, type: str, title: typing.Optional[str]) -> None:
         super().__init__(type)
         self.title = title
@@ -1710,7 +1715,7 @@ class LineProfileGraphic(LineTypeGraphic):
 
 class PointTypeGraphic(Graphic):
     CAN_LOCK_SHAPE = False
-
+    CAN_LOCK_ROTATION = False
     def __init__(self, type: str, title: typing.Optional[str]) -> None:
         super().__init__(type)
         self.title = title
@@ -1840,6 +1845,7 @@ class PointGraphic(PointTypeGraphic):
 
 
 class IntervalGraphic(Graphic):
+    CAN_LOCK_ROTATION = False
     def __init__(self) -> None:
         super().__init__("interval-graphic")
         self._default_stroke_color = "#F00"
@@ -1975,7 +1981,7 @@ class IntervalGraphic(Graphic):
 
 class ChannelGraphic(Graphic):
     CAN_LOCK_SHAPE = False
-
+    CAN_LOCK_ROTATION = False
     def __init__(self) -> None:
         super().__init__("channel-graphic")
         self.title = _("Channel")
@@ -2453,7 +2459,7 @@ class WedgeGraphic(Graphic):
 
 class RingGraphic(Graphic):
     CAN_LOCK_POSITION = False
-
+    CAN_LOCK_ROTATION = False
     def __init__(self) -> None:
         super().__init__("ring-graphic")
         self.title = _("Annular Ring")
@@ -2667,6 +2673,7 @@ class RingGraphic(Graphic):
 
 
 class LatticeGraphic(Graphic):
+    CAN_LOCK_ROTATION = False
     def __init__(self) -> None:
         super().__init__("lattice-graphic")
         self.title = _("Lattice")
