@@ -4,9 +4,15 @@
     "notes": [
       {
         "issues": [
-          "https://github.com/nion-software/nionswift/issues/960"
+          "https://github.com/nion-software/nionswift/issues/149"
         ],
-        "summary": "Locked graphics now draw distinctly to indicate shape and/or position are locked."
+        "summary": "Add ability to change graphic selection using tab/backtab."
+      },
+      {
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/1549"
+        ],
+        "summary": "Fix tab handling in display panels to select next panel."
       },
       {
         "issues": [
@@ -22,6 +28,12 @@
       },
       {
         "issues": [
+          "https://github.com/nion-software/nionswift/issues/1472"
+        ],
+        "summary": "Fix issue with masks being off by 0.5 pixel."
+      },
+      {
+        "issues": [
           "https://github.com/nion-software/nionswift/issues/1458"
         ],
         "summary": "Fix issue with closing new project dialog when exiting dialog with Enter key."
@@ -31,6 +43,12 @@
           "https://github.com/nion-software/nionswift/issues/1422"
         ],
         "summary": "Fix issue with reveal menu items on data items having both source and dependent."
+      },
+      {
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/960"
+        ],
+        "summary": "Locked graphics now draw distinctly to indicate shape and/or position are locked."
       }
     ]
   },
