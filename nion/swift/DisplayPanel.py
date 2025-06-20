@@ -3253,6 +3253,7 @@ class DisplayPanelManager(metaclass=Utility.Singleton):
         self.image_display_mouse_pressed_event = Event.Event()
         self.image_display_mouse_released_event = Event.Event()
         self.image_display_mouse_position_changed_event = Event.Event()
+        self.focus_changed_event = Event.Event()
 
     def __get_kwargs(self, display_panel: DisplayPanel) -> typing.Dict[str, typing.Any]:
         kwargs: typing.Dict[str, typing.Any] = dict()
@@ -3275,8 +3276,11 @@ class DisplayPanelManager(metaclass=Utility.Singleton):
             return True
         return self.key_released_event.fire_any(display_panel, key)
 
-    def focus_changed(self, display_panel: DisplayPanel, focused: bool) -> None:
-        display_panel.document_controller.exec_action_events("focused" if focused else "unfocused", **self.__get_kwargs(display_panel))
+    def focus_changed(self, display_panel: DisplayPanel, focused: bool) -> bool:
+        if display_panel.document_controller.exec_action_events("focused" if focused else "unfocused", **self.__get_kwargs(display_panel)):
+            return True
+        return self.focus_changed_event.fire_any(display_panel, focused)
+
 
     def image_display_clicked(self, display_panel: DisplayPanel, display_item: DisplayItem.DisplayItem, image_position: Geometry.FloatPoint, modifiers: UserInterface.KeyboardModifiers) -> bool:
         if display_panel.document_controller.exec_action_events("mouse_clicked", image_position=image_position, modifiers=modifiers, **self.__get_kwargs(display_panel)):
