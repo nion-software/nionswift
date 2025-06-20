@@ -2878,6 +2878,7 @@ class GraphicsInspectorHandler(Declarative.Handler):
         self.__set_type_specifics()
         self._graphic_label_model = GraphicPropertyCommandModel(document_controller, display_item, graphic, "label", title=_("Change Label"), command_id="change_label")
         self._lock_position_model = GraphicPropertyCommandModel(self.__document_controller, self.__display_item, graphic, "is_position_locked", title=_(f"Change {self._graphic_type_model.value} Position Locked"), command_id=f"change_{self._graphic_type_model.value}_position_locked")
+        self._lock_rotation_model = GraphicPropertyCommandModel(self.__document_controller, self.__display_item, graphic, "is_rotation_locked", title=_(f"Change {self._graphic_type_model.value} Rotation Locked"), command_id=f"change_{self._graphic_type_model.value}_rotation_locked")
         self._stroke_color_model = GraphicPropertyCommandModel(document_controller, display_item, graphic,"stroke_color", title=_("Change Stroke Color"), command_id="change_stroke_color")
         self._used_stroke_color_model = GraphicPropertyCommandModel(document_controller, display_item, graphic,"stroke_color", title=_("Change Stroke Color"), command_id="change_stroke_color", read_property_name="used_stroke_style")
         self._stroke_width_model = GraphicPropertyCommandModel(document_controller, display_item, graphic, "stroke_width", title=_("Change Stroke Width"), command_id="change_stroke_width")
@@ -2902,6 +2903,7 @@ class GraphicsInspectorHandler(Declarative.Handler):
 
         position_lock_tooltip = str() if self.__graphic.CAN_REPOSITION else disabled_tooltip_str
         shape_lock_tooltip = str() if self.__graphic.CAN_RESHAPE else disabled_tooltip_str
+        rotation_lock_tooltip = str() if self.__graphic.CAN_ROTATE else disabled_tooltip_str
 
         lock_row = u.create_row(
             u.create_spacing(3),
@@ -2910,13 +2912,12 @@ class GraphicsInspectorHandler(Declarative.Handler):
             u.create_spacing(12),
             u.create_check_box(text=_("Shape"), checked="@binding(_lock_shape_model.value)", enabled=self.__graphic.CAN_RESHAPE, tool_tip=shape_lock_tooltip, text_alignment_vertical="center"),
             u.create_spacing(12),
-            u.create_check_box(text=_("Rotation"), checked="@binding(_lock_rotation_model.value)", text_alignment_vertical="center"))
+            u.create_check_box(text=_("Rotation"), checked="@binding(_lock_rotation_model.value)", enabled=self.__graphic.CAN_ROTATE, tool_tip=rotation_lock_tooltip, text_alignment_vertical="center"))
         bullseye_row = u.create_row(
             u.create_stretch(),
             u.create_push_button(text="\N{BULLSEYE}", on_clicked="_move_to_center_clicked", text_alignment_horizontal="center", style="minimal"),
             u.create_spacing(4)
         )
-
 
         self.ui_view = u.create_column(
             title_row,
