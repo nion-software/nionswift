@@ -674,6 +674,11 @@ class Graphic(Persistence.PersistentObject):
     def CAN_RESHAPE(self) -> bool:
         pass
 
+    @property
+    @abc.abstractmethod
+    def CAN_ROTATE(self) -> bool:
+        pass
+
     def __init__(self, type: str) -> None:
         super().__init__()
         self.define_type(type)
@@ -1001,6 +1006,7 @@ class Graphic(Persistence.PersistentObject):
 class MissingGraphic(Graphic):
     CAN_REPOSITION = True
     CAN_RESHAPE = True
+    CAN_ROTATE = True
 
     def __init__(self, type: str) -> None:
         super().__init__(type)
@@ -1012,6 +1018,7 @@ class MissingGraphic(Graphic):
 class RectangleTypeGraphic(Graphic):
     CAN_REPOSITION = True
     CAN_RESHAPE = True
+    CAN_ROTATE = True
 
     def __init__(self, type: str, title: typing.Optional[str]) -> None:
         super().__init__(type)
@@ -1203,6 +1210,7 @@ class RectangleTypeGraphic(Graphic):
 class RectangleGraphic(RectangleTypeGraphic):
     CAN_REPOSITION = True
     CAN_RESHAPE = True
+    CAN_ROTATE = True
 
     def __init__(self) -> None:
         super().__init__("rect-graphic", _("Rectangle"))
@@ -1279,6 +1287,7 @@ class RectangleGraphic(RectangleTypeGraphic):
 class EllipseGraphic(RectangleTypeGraphic):
     CAN_REPOSITION = True
     CAN_RESHAPE = True
+    CAN_ROTATE = True
 
     def __init__(self) -> None:
         super().__init__("ellipse-graphic", _("Ellipse"))
@@ -1318,6 +1327,7 @@ class EllipseGraphic(RectangleTypeGraphic):
 class LineTypeGraphic(Graphic):
     CAN_REPOSITION = True
     CAN_RESHAPE = True
+    CAN_ROTATE = False
 
     def __init__(self, type: str, title: typing.Optional[str]) -> None:
         super().__init__(type)
@@ -1590,6 +1600,7 @@ class LineTypeGraphic(Graphic):
 class LineGraphic(LineTypeGraphic):
     CAN_REPOSITION = True
     CAN_RESHAPE = True
+    CAN_ROTATE = False
 
     def __init__(self) -> None:
         super().__init__("line-graphic", _("Line"))
@@ -1625,6 +1636,7 @@ class LineGraphic(LineTypeGraphic):
 class LineProfileGraphic(LineTypeGraphic):
     CAN_REPOSITION = True
     CAN_RESHAPE = True
+    CAN_ROTATE = False
 
     def __init__(self) -> None:
         super().__init__("line-profile-graphic", _("Line Profile"))
@@ -1721,6 +1733,7 @@ class LineProfileGraphic(LineTypeGraphic):
 class PointTypeGraphic(Graphic):
     CAN_REPOSITION = True
     CAN_RESHAPE = False
+    CAN_ROTATE = False
 
     def __init__(self, type: str, title: typing.Optional[str]) -> None:
         super().__init__(type)
@@ -1816,6 +1829,7 @@ class PointTypeGraphic(Graphic):
 class PointGraphic(PointTypeGraphic):
     CAN_REPOSITION = True
     CAN_RESHAPE = False
+    CAN_ROTATE = False
 
     def __init__(self) -> None:
         super().__init__("point-graphic", _("Point"))
@@ -1856,6 +1870,7 @@ class PointGraphic(PointTypeGraphic):
 class IntervalGraphic(Graphic):
     CAN_REPOSITION = True
     CAN_RESHAPE = True
+    CAN_ROTATE = False
 
     def __init__(self) -> None:
         super().__init__("interval-graphic")
@@ -1993,6 +2008,7 @@ class IntervalGraphic(Graphic):
 class ChannelGraphic(Graphic):
     CAN_REPOSITION = True
     CAN_RESHAPE = False
+    CAN_ROTATE = False
 
     def __init__(self) -> None:
         super().__init__("channel-graphic")
@@ -2063,6 +2079,7 @@ class ChannelGraphic(Graphic):
 class SpotGraphic(Graphic):
     CAN_REPOSITION = True
     CAN_RESHAPE = True
+    CAN_ROTATE = False
 
     def __init__(self) -> None:
         super().__init__("spot-graphic")
@@ -2274,6 +2291,7 @@ class SpotGraphic(Graphic):
 class WedgeGraphic(Graphic):
     CAN_REPOSITION = False
     CAN_RESHAPE = True
+    CAN_ROTATE = True
 
     def __init__(self) -> None:
         super().__init__("wedge-graphic")
@@ -2488,6 +2506,7 @@ class WedgeGraphic(Graphic):
 class RingGraphic(Graphic):
     CAN_REPOSITION = False
     CAN_RESHAPE = True
+    CAN_ROTATE = False
 
     def __init__(self) -> None:
         super().__init__("ring-graphic")
@@ -2704,6 +2723,7 @@ class RingGraphic(Graphic):
 class LatticeGraphic(Graphic):
     CAN_REPOSITION = True
     CAN_RESHAPE = True
+    CAN_ROTATE = False
 
     def __init__(self) -> None:
         super().__init__("lattice-graphic")
