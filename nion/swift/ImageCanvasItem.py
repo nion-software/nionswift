@@ -282,9 +282,7 @@ class ScaleMarkerCanvasItemComposer(CanvasItem.BaseComposer):
                 text_width = fm1.width
             padding = 3
 
-            # Determine width needed to fit both bar and text
             content_width = max(scale_marker_calculated_width, text_width)
-
             # Set drawing origin
             if self.__scale_marker_position:
                 origin_x = max(0.0, canvas_bounds.width * 2 - (content_width + padding * 2 + 16))
@@ -318,6 +316,9 @@ class ScaleMarkerCanvasItemComposer(CanvasItem.BaseComposer):
                 drawing_context.close_path()
                 drawing_context.fill_style = "#448"
                 drawing_context.fill()
+                drawing_context.font = scale_marker_font
+                if not self.__background_fill_color:
+                    drawing_context.fill_style = "#FFF"
                 drawing_context.stroke_style = "#000"
                 drawing_context.stroke()
 
