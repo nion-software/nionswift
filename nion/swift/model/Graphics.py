@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 # standard libraries
+import abc
 import contextlib
 import copy
 import enum
@@ -670,12 +671,12 @@ class GraphicAttributeEnum(enum.Enum):
 # A Graphic object describes visible content, such as a shape, bitmap, video, or a line of text.
 class Graphic(Persistence.PersistentObject):
     @property
-    @abstractmethod
+    @abc.abstractmethod
     def CAN_REPOSITION(self) -> bool:
         pass
 
     @property
-    @abstractmethod
+    @abc.abstractmethod
     def CAN_RESHAPE(self) -> bool:
         pass
 
