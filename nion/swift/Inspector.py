@@ -2006,10 +2006,15 @@ class ScalebarOptionsHandler(Declarative.Handler):
             "scale_marker_position"
         )
 
+        self._background_fill_color_enabled_model = DisplayItemDisplayPropertyCommandModel(
+            document_controller,
+            display_item,
+            "show_scale_background_fill_color_enabled"
+        )
         self._background_fill_color_model = DisplayItemDisplayPropertyCommandModel(
             document_controller,
             display_item,
-            "show_scale_background_fill_color"
+            "scale_background_fill_color"
         )
 
         u = Declarative.DeclarativeUI()
@@ -2032,8 +2037,9 @@ class ScalebarOptionsHandler(Declarative.Handler):
             u.create_row(
                 u.create_check_box(
                     text=_("Show Background"),
-                    checked="@binding(_background_fill_color_model.value)"
+                    checked="@binding(_background_fill_color_enabled_model.value)"
                 ),
+                {"type": "nionswift.color_chooser", "color": "@binding(_background_fill_color_model.value)"},
                 u.create_stretch()
             ),spacing=4
         )
