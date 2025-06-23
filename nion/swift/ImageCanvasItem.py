@@ -242,7 +242,8 @@ class ScaleMarkerCanvasItemComposer(CanvasItem.BaseComposer):
                  info_text: str, screen_pixel_per_image_pixel: typing.Optional[float],
                  get_font_metrics_fn: typing.Callable[[str, str], UISettings.FontMetrics],
                  scale_marker_position: bool,
-                 background_fill_color: bool,
+                 background_fill_color_enabled: bool,
+                 background_fill_color: str | None,
                  include_info_text: bool) -> None:
         super().__init__(canvas_item, layout_sizing, cache)
         self.__dimensional_calibration = dimensional_calibration
@@ -250,6 +251,7 @@ class ScaleMarkerCanvasItemComposer(CanvasItem.BaseComposer):
         self.__screen_pixel_per_image_pixel = screen_pixel_per_image_pixel
         self.__get_font_metrics_fn = get_font_metrics_fn
         self.__scale_marker_position = scale_marker_position
+        self.__background_fill_color_enabled = background_fill_color_enabled
         self.__background_fill_color = background_fill_color
         self.__include_info_text = include_info_text
 
@@ -293,14 +295,17 @@ class ScaleMarkerCanvasItemComposer(CanvasItem.BaseComposer):
                 drawing_context.translate(canvas_bounds.left + origin_x, canvas_bounds.top)
                 baseline = canvas_bounds.height
 
-                if self.__background_fill_color:
+                if self.__background_fill_color_enabled:
                     total_text_height = text_height * 2 + padding
                     total_height = scale_marker_height + padding + total_text_height
                     background_top = baseline - total_height
                     drawing_context.begin_path()
                     drawing_context.rect(0 - padding, background_top, content_width + padding * 2, total_height + padding)
                     drawing_context.close_path()
-                    drawing_context.fill_style = "rgba(255, 255, 255, 0.6)"
+                    if self.__background_fill_color is not None:
+                        drawing_context.fill_style = self.__background_fill_color
+                    else:
+                        drawing_context.fill_style = "rgba(255, 255, 255, 0.6)"
                     drawing_context.fill()
 
                 if self.__scale_marker_position:
@@ -317,7 +322,7 @@ class ScaleMarkerCanvasItemComposer(CanvasItem.BaseComposer):
                 drawing_context.fill_style = "#448"
                 drawing_context.fill()
                 drawing_context.font = scale_marker_font
-                if not self.__background_fill_color:
+                if not self.__background_fill_color_enabled:
                     drawing_context.fill_style = "#FFF"
                 drawing_context.stroke_style = "#000"
                 drawing_context.stroke()
@@ -352,8 +357,9 @@ class ScaleMarkerCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__screen_pixel_per_image_pixel_action = Stream.ValueStreamAction(screen_pixel_per_image_pixel_stream, lambda x: self.__update_sizing())
         self.__scale_marker_width = 0
         self._scale_marker_position = False
-        self._background_fill_color = False
+        self._background_fill_color_enabled = False
         self._include_info_text = True
+        self._background_fill_color = None
 
     def close(self) -> None:
         self.__screen_pixel_per_image_pixel_stream.remove_ref()
@@ -401,24 +407,27 @@ class ScaleMarkerCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def set_display_properties(self, display_properties: Persistence.PersistentDictType) -> None:
         scale_marker_position = display_properties.get("scale_marker_position",False)
-        background_fill_color = display_properties.get("show_scale_background_fill_color", False)
+        background_fill_color_enabled = display_properties.get("show_scale_background_fill_color_enabled", False)
+        background_fill_color = display_properties.get("scale_background_fill_color",None)
         include_info_text = display_properties.get("show_scale_info_text", True)
 
         needs_update = (
                 scale_marker_position != getattr(self, "_scale_marker_position", True) or
-                background_fill_color != getattr(self, "_background_fill_color", False) or
-                include_info_text != getattr(self, "_include_info_text", True)
+                background_fill_color_enabled != getattr(self, "_background_fill_color_enabled", False) or
+                include_info_text != getattr(self, "_include_info_text", True) or
+                background_fill_color != getattr(self, "_background_fill_color", True)
         )
 
         if needs_update:
             self._scale_marker_position = scale_marker_position
-            self._background_fill_color = background_fill_color
+            self._background_fill_color_enabled = background_fill_color_enabled
             self._include_info_text = include_info_text
+            self._background_fill_color = background_fill_color
             self.update()
 
     def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> typing.Optional[CanvasItem.BaseComposer]:
         return ScaleMarkerCanvasItemComposer(self, self.sizing, composer_cache, self.__dimensional_calibration,self.__info_text,self.__screen_pixel_per_image_pixel_stream.value,
-            self.__get_font_metrics_fn,scale_marker_position=getattr(self, "_scale_marker_position", True),background_fill_color=getattr(self, "_background_fill_color", False),include_info_text=getattr(self, "_include_info_text", True)
+            self.__get_font_metrics_fn,scale_marker_position=getattr(self, "_scale_marker_position", True),background_fill_color_enabled=getattr(self, "_background_fill_color_enabled", False),background_fill_color=getattr(self,"_background_fill_color", None),include_info_text=getattr(self, "_include_info_text", True)
         )
 
 
