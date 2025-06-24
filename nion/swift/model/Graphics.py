@@ -2008,7 +2008,12 @@ class IntervalGraphic(Graphic):
         o = mapping.map_point_widget_to_channel_norm(original)
         p = mapping.map_point_widget_to_channel_norm(current)
         constraints = self._constraints
-        if modifiers.alt:
+        if "shape" in constraints and "position" in constraints:
+            return
+        lock_centroid = modifiers.alt or "position" in constraints
+        if lock_centroid:
+            if "shape" in constraints:
+                return
             left = min(part[1], part[2]) - (p - o)
             right = max(part[1], part[2]) + (p - o)
             if "bounds" in constraints:
@@ -2104,7 +2109,7 @@ class ChannelGraphic(Graphic):
 class SpotGraphic(Graphic):
     CAN_REPOSITION = True
     CAN_RESHAPE = True
-    CAN_ROTATE = False
+    CAN_ROTATE = True
 
     def __init__(self) -> None:
         super().__init__("spot-graphic")
@@ -2436,6 +2441,8 @@ class WedgeGraphic(Graphic):
         self.__first_drag = False
 
     def adjust_part(self, mapping: CoordinateMappingLike, original: Geometry.FloatPoint, current: Geometry.FloatPoint, part: DragPartDataPlus, modifiers: ModifiersLike) -> None:
+        if self.is_rotation_locked and part[0] in {"all", "inverted-all"}:
+            return
         start_angle_original = part[1]
         end_angle_original = part[2]
         center = mapping.calibrated_origin_widget
@@ -2444,6 +2451,14 @@ class WedgeGraphic(Graphic):
         d_angle = angle_diff(o_angle, c_angle)
         if d_angle > math.pi:
             d_angle = -(math.pi * 2 - d_angle)
+
+        if self.is_shape_locked:
+            if part[0] == "all" or part[0] == "inverted-all":
+                dtheta = o_angle - c_angle
+                self.__start_angle_internal = start_angle_original - dtheta
+                self.__end_angle_internal = end_angle_original - dtheta
+            return
+
         inverted = self.__inverted_drag
         if (part[0] == "end-angle" and not inverted) or (part[0] == "inverted-end-angle" and inverted):
             self.__end_angle_internal = c_angle
@@ -2646,6 +2661,9 @@ class RingGraphic(Graphic):
         pass
 
     def adjust_part(self, mapping: CoordinateMappingLike, original: Geometry.FloatPoint, current: Geometry.FloatPoint, part: DragPartDataPlus, modifiers: ModifiersLike) -> None:
+        if self.is_shape_locked:
+            return
+
         calibrated_origin = mapping.calibrated_origin_image_norm
         current_norm = mapping.map_point_widget_to_image_norm(current)
         radius = math.sqrt((current_norm[1] - calibrated_origin[0]) ** 2 + (current_norm[0] - calibrated_origin[1]) ** 2)
@@ -2906,7 +2924,7 @@ class LatticeGraphic(Graphic):
         radius = part[3]
         size = Geometry.FloatSize(width=radius * 2, height=radius * 2)
 
-        if part[0] == "u-all" and not "shape" in constraints:
+        if part[0] == "u-all" and not "position" in constraints:
             dy = p_image.y - start_image.y
             dx = p_image[1] - start_image[1]
             if modifiers.shift:
@@ -2932,7 +2950,7 @@ class LatticeGraphic(Graphic):
             if "bounds" in constraints:
                 u_pos = Geometry.FloatPoint(min(max(u_pos.y, 0.0), 1.0), min(max(u_pos.x, 0.0), 1.0))
             self.u_pos = u_pos.as_size()
-        elif part[0] == "v-all" and not "shape" in constraints:
+        elif part[0] == "v-all" and not "position" in constraints:
             dy = p_image.y - start_image.y
             dx = p_image.x - start_image.x
             if modifiers.shift:
@@ -3045,9 +3063,9 @@ class LatticeGraphic(Graphic):
                 mx += 1
 
         if is_selected:
-            draw_marker(ctx, start_widget, is_focused, self.is_shape_locked)
-            draw_marker(ctx, u_pos_widget, is_focused, self.is_shape_locked)
-            draw_marker(ctx, v_pos_widget, is_focused, self.is_shape_locked)
+            draw_marker(ctx, start_widget, is_focused, self.is_position_locked)
+            draw_marker(ctx, u_pos_widget, is_focused, self.is_position_locked)
+            draw_marker(ctx, v_pos_widget, is_focused, self.is_position_locked)
             draw_rect_marker(ctx, Geometry.FloatRect.from_center_and_size(u_pos_widget, size_widget), is_focused, self.is_shape_locked)
             draw_rect_marker(ctx, Geometry.FloatRect.from_center_and_size(v_pos_widget, size_widget), is_focused, self.is_shape_locked)
         self.draw_label(ctx, ui_settings, mapping)
