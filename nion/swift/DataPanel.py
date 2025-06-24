@@ -441,12 +441,12 @@ class DataPanel(Panel.Panel):
         self.__view_button_group.current_index = 0
         self.__view_button_group.on_current_index_changed = lambda index: setattr(stack_canvas_item, "current_index", index)
 
-        self.__filter_description_combo_box = ui.create_combo_box_widget(item_getter=operator.attrgetter("title"), properties={"width": 200})
+        self.__filter_description_combo_box = ui.create_combo_box_widget(item_getter=operator.attrgetter("title"))
 
         status_row = ui.create_row_widget()
-        status_row.add_spacing(8)
+        status_row.add_spacing(4)
         status_row.add(self.__filter_description_combo_box)
-        status_row.add_stretch()
+        status_row.add_spacing(3)
 
         divider_widget = ui.create_canvas_widget(properties={"height": 2})
         divider_widget.canvas_item.add_canvas_item(CanvasItem.DividerCanvasItem(orientation="horizontal"))
@@ -454,7 +454,7 @@ class DataPanel(Panel.Panel):
         self.__status_section = ui.create_column_widget()
         self.__status_section.add_spacing(2)
         self.__status_section.add(status_row)
-        self.__status_section.add_spacing(2)
+        self.__status_section.add_spacing(4)
         self.__status_section.add(divider_widget)
 
         widget = ui.create_column_widget(properties=properties)
