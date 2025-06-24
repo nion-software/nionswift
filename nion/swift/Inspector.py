@@ -2363,31 +2363,42 @@ class SliceSectionHandler(Declarative.Handler):
         self.slice_center_model = DisplayDataChannelPropertyCommandModel(document_controller, display_data_channel, "slice_center", title=_("Change Slice"), command_id="change_slice_center")
         self.slice_width_model = DisplayDataChannelPropertyCommandModel(document_controller, display_data_channel, "slice_width", title=_("Change Slice"), command_id="change_slice_width")
 
-        self.slice_center_maximum = display_data_channel.data_item.dimensional_shape[-1] - 1 if display_data_channel.data_item else 0
-        self.slice_width_maximum = display_data_channel.data_item.dimensional_shape[-1] if display_data_channel.data_item else 0
+        slice_min = self.slice_center_model.value - math.floor((self.slice_width_model.value - 1) / 2)
+        slice_max = self.slice_center_model.value + math.ceil((self.slice_width_model.value - 1) / 2)
+        self.slice_min_model = Model.PropertyModel[int](slice_min)
+        self.slice_max_model = Model.PropertyModel[int](slice_max)
+
+        self.slice_center_data_maximum = display_data_channel.data_item.dimensional_shape[-1] - 1 if display_data_channel.data_item else 0
+        self.slice_width_data_maximum = display_data_channel.data_item.dimensional_shape[-1] if display_data_channel.data_item else 0
 
         self._int_to_string_converter = Converter.IntegerToStringConverter()
 
         u = Declarative.DeclarativeUI()
         self.ui_view = u.create_column(
+            u.create_spacing(48),
             u.create_row(
-                u.create_label(text=_("Slice"), width=60),
-                u.create_spacing(8),
-                u.create_line_edit(width=60,
-                                   text="@binding(slice_center_model.value, converter=_int_to_string_converter)"),
-                u.create_spacing(8),
-                u.create_slider(width=144, maximum=self.slice_center_maximum,
-                                value="@binding(slice_center_model.value)"),
+                u.create_spacing(2),
+                u.create_label(text="Min", width=24),
+                u.create_spacing(74),
+                u.create_label(text="Range", width=40),
+                u.create_line_edit(width=40, placeholder_text="Range", text="@binding(slice_width_model.value, converter=_int_to_string_converter)"),
+                u.create_spacing(72),
+                u.create_label(text="Max", width=24),
+                u.create_spacing(4),
                 u.create_stretch()
             ),
             u.create_row(
-                u.create_label(text=_("Width"), width=60),
-                u.create_spacing(8),
-                u.create_line_edit(width=60,
-                                   text="@binding(slice_width_model.value, converter=_int_to_string_converter)"),
-                u.create_spacing(8),
-                u.create_slider(width=144, minimum=1, maximum=self.slice_width_maximum,
-                                value="@binding(slice_width_model.value)"),
+                u.create_line_edit(width=32, placeholder_text="Min", text="@binding(slice_min_model.value, converter=_int_to_string_converter)"),
+                u.create_range_slider(width=212, minimum=0, maximum=self.slice_width_data_maximum, range_center="@binding(slice_center_model.value)", range_width="@binding(slice_width_model.value)", range_minimum="@binding(slice_min_model.value)", range_maximum="@binding(slice_max_model.value)"),
+                u.create_line_edit(width=32, placeholder_text="Max", text="@binding(slice_max_model.value, converter=_int_to_string_converter)"),
+                u.create_spacing(4),
+                u.create_stretch()
+            ),
+            u.create_row(
+                u.create_spacing(100),
+                u.create_label(text="Centre", width=40),
+                u.create_line_edit(width=40, placeholder_text="Center", text="@binding(slice_center_model.value, converter=_int_to_string_converter)"),
+                u.create_spacing(100),
                 u.create_stretch()
             )
         )
