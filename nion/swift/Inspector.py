@@ -1986,10 +1986,19 @@ class ChangeDisplayTypeCommand(Undo.UndoableCommand):
         return isinstance(command, self.__class__) and bool(self.command_id) and self.command_id == command.command_id and self.__display_item_uuid == command.__display_item_uuid
 
 
-class ScalebarOptionsHandler(Declarative.Handler):
+class ScaleMarkerOptionsHandler(Declarative.Handler):
     def __init__(self, display_item: DisplayItem.DisplayItem, document_controller: DocumentController.DocumentController) -> None:
         super().__init__()
-        # Ensure the property is initialized if not already set
+
+        class PositionCheckedToCheckedStateConverter(Converter.ConverterLike[str, bool]):
+            def convert(self, value: typing.Optional[str]) -> bool:
+                return value == "draw_bottom_right"
+
+            def convert_back(self, value: typing.Optional[bool]) -> str:
+                return "draw_bottom_right" if value else "draw_bottom_left"
+
+        self._position_checked_to_checked_state_converter = PositionCheckedToCheckedStateConverter()
+
         if display_item.get_display_property("show_scale_info_text") is None:
             display_item.set_display_property("show_scale_info_text", True)
 
@@ -2006,10 +2015,10 @@ class ScalebarOptionsHandler(Declarative.Handler):
             "scale_marker_position"
         )
 
-        self._background_fill_color_enabled_model = DisplayItemDisplayPropertyCommandModel(
+        self._is_background_enabled_model = DisplayItemDisplayPropertyCommandModel(
             document_controller,
             display_item,
-            "show_scale_background_fill_color_enabled"
+            "show_scale_is_background_enabled"
         )
         self._background_fill_color_model = DisplayItemDisplayPropertyCommandModel(
             document_controller,
@@ -2030,19 +2039,20 @@ class ScalebarOptionsHandler(Declarative.Handler):
             u.create_row(
                 u.create_check_box(
                     text=_("Draw on Right"),
-                    checked="@binding(_scale_marker_position_model.value)"
+                    checked="@binding(_scale_marker_position_model.value, converter=_position_checked_to_checked_state_converter)"
                 ),
                 u.create_stretch()
             ),
             u.create_row(
                 u.create_check_box(
                     text=_("Show Background"),
-                    checked="@binding(_background_fill_color_enabled_model.value)"
+                    checked="@binding(_is_background_enabled_model.value)"
                 ),
                 {"type": "nionswift.color_chooser", "color": "@binding(_background_fill_color_model.value)"},
                 u.create_stretch()
             ),spacing=4
         )
+
 
 
 
@@ -2142,7 +2152,7 @@ class ImageDisplayInspectorSection(InspectorSection):
 
     def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem) -> None:
         super().__init__(document_controller.ui, "display-limits", _("Image Display"))
-        self.__scale_marker_options_handler = ScalebarOptionsHandler(display_item, document_controller)
+        self.__scale_marker_options_handler = ScaleMarkerOptionsHandler(display_item, document_controller)
         self.__image_display_handler = DisplayTypeChooserHandler(display_item, document_controller)
         widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop,
                                                self.__image_display_handler)
