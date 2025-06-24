@@ -210,7 +210,7 @@ class Application(UIApplication.BaseApplication):
 
         ui.set_persistence_handler(PersistenceHandler())
         setattr(self.ui, "persistence_root", "3")  # sets of preferences
-        self.version_str = "16.15.1"
+        self.version_str = "16.16.0a0"
 
         self.document_model_available_event = Event.Event()
 
