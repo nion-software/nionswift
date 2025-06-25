@@ -932,7 +932,7 @@ class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
                     drawing_context.line_dash = 0
                     if region_selected:
                         draw_marker(drawing_context, Geometry.FloatPoint(level, mid_x), fill=selection_color, stroke=selection_color)
-                        drawing_context.fill_style = selection_color
+                        drawing_context.fill_style = region_color
                         drawing_context.font = "{0:d}px".format(font_size)
                         left_text = region.left_text
                         right_text = region.right_text
