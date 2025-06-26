@@ -12,6 +12,20 @@ them for evaluation and feedback. If you encounter an issue or have feedback abo
 please contact us or `file issues
 <https://github.com/nion-software/nionswift/issues>`_.
 
+Version 16.16.0 (2025-06-26)
+----------------------------
+* Add ability to switch collection directly from the data panel. (`#1295 <https://github.com/nion-software/nionswift/issues/1295>`_)
+* Add ability to change graphic selection using tab/backtab. (`#149 <https://github.com/nion-software/nionswift/issues/149>`_)
+* Fix tab handling in display panels to select next panel. (`#1549 <https://github.com/nion-software/nionswift/issues/1549>`_)
+* Add ability to change graphic stroke color, stroke width, and fill color. (`#763 <https://github.com/nion-software/nionswift/issues/763>`_)
+* Fix inspector issue with updating line plot display limits. (`#1505 <https://github.com/nion-software/nionswift/issues/1505>`_)
+* Fix inspector issue with updating data range when data changes. (`#1504 <https://github.com/nion-software/nionswift/issues/1504>`_)
+* Fix issue with masks being off by 0.5 pixel. (`#1472 <https://github.com/nion-software/nionswift/issues/1472>`_)
+* Fix issue with closing new project dialog when exiting dialog with Enter key. (`#1458 <https://github.com/nion-software/nionswift/issues/1458>`_)
+* Fix issue with reveal menu items on data items having both source and dependent. (`#1422 <https://github.com/nion-software/nionswift/issues/1422>`_)
+* Locked graphics now draw distinctly to indicate shape and/or position are locked. (`#960 <https://github.com/nion-software/nionswift/issues/960>`_)
+* Display performance improvements. (`#1538 <https://github.com/nion-software/nionswift/issues/1538>`_)
+
 Version 16.15.1 (2025-05-27)
 ----------------------------
 * Add ability to rename data group by hitting return or double clicking on list item. (`#1463 <https://github.com/nion-software/nionswift/issues/1463>`_)

@@ -1,7 +1,7 @@
 .. include:: defs.rst
 .. _index:
 
-|AppName| User's Guide (16.15)
+|AppName| User's Guide (16.16)
 ==============================
 |AppName| is an open-source scientific image-processing software that uses Python to integrate hardware control, data acquisition, visualization, processing, and analysis. It runs on Windows, Linux, and macOS.
 
