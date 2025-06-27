@@ -921,7 +921,8 @@ class DataItem(Persistence.PersistentObject):
 
     def queue_partial_update(self, partial_xdata: DataAndMetadata.DataAndMetadata, *, src_slice: typing.Sequence[slice],
                              dst_slice: typing.Sequence[slice], metadata: DataAndMetadata.DataMetadata) -> None:
-        assert not self._closed, _("Cannot update deleted data item")
+        if self._closed:
+            raise Exception(_("Cannot update deleted data item"))
         with self.__pending_xdata_lock:
             self.__pending_queue.append((partial_xdata, src_slice, dst_slice, metadata))
 
