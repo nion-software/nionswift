@@ -2369,7 +2369,7 @@ class SliceSectionHandler(Declarative.Handler):
         self.slice_max_model = Model.PropertyModel[int](slice_max)
 
         self.slice_center_data_maximum = display_data_channel.data_item.dimensional_shape[-1] - 1 if display_data_channel.data_item else 0
-        self.slice_width_data_maximum = display_data_channel.data_item.dimensional_shape[-1] if display_data_channel.data_item else 0
+        self.slice_width_data_maximum = display_data_channel.data_item.dimensional_shape[-1] - 1 if display_data_channel.data_item else 1
 
         self._int_to_string_converter = Converter.IntegerToStringConverter()
 
