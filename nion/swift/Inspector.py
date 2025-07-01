@@ -1992,10 +1992,10 @@ class ScaleMarkerOptionsHandler(Declarative.Handler):
 
         class PositionCheckedToCheckedStateConverter(Converter.ConverterLike[str, bool]):
             def convert(self, value: typing.Optional[str]) -> bool:
-                return value == "draw_bottom_right"
+                return value == "bottom-right"
 
             def convert_back(self, value: typing.Optional[bool]) -> str:
-                return "draw_bottom_right" if value else "draw_bottom_left"
+                return "bottom-right" if value else "bottom-left"
 
         self._position_checked_to_checked_state_converter = PositionCheckedToCheckedStateConverter()
 
@@ -2031,25 +2031,17 @@ class ScaleMarkerOptionsHandler(Declarative.Handler):
         self.ui_view = u.create_column(
             u.create_row(
                 u.create_check_box(
-                    text=_("Show Info Text"),
-                    checked="@binding(_show_info_text_model.value)"
-                ),
-                u.create_stretch()
-            ),
-            u.create_row(
-                u.create_check_box(
                     text=_("Draw on Right"),
                     checked="@binding(_scale_marker_position_model.value, converter=_position_checked_to_checked_state_converter)"
                 ),
                 u.create_stretch()
             ),
             u.create_row(
-                u.create_check_box(
-                    text=_("Show Background"),
-                    checked="@binding(_is_background_enabled_model.value)"
-                ),
+                u.create_label(text=_("Background color"),text_alignment_vertical="vcenter", text_alignment_horizontal="right"),
+                u.create_line_edit(text="@binding(_background_fill_color_model.value)", placeholder_text=_("None"), width=80),
                 {"type": "nionswift.color_chooser", "color": "@binding(_background_fill_color_model.value)"},
-                u.create_stretch()
+                u.create_stretch(),
+                spacing=8
             ),spacing=4
         )
 
