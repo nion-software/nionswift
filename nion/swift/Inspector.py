@@ -2375,7 +2375,7 @@ class SliceSectionHandler(Declarative.Handler):
 
         u = Declarative.DeclarativeUI()
         self.ui_view = u.create_column(
-            u.create_spacing(48),
+            u.create_spacing(8),
             u.create_row(
                 u.create_spacing(2),
                 u.create_label(text="Min", width=24),
