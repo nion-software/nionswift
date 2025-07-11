@@ -268,11 +268,11 @@ class ScaleMarkerCanvasItemComposer(CanvasItem.BaseComposer):
 
             text1 = dimensional_calibration.convert_to_calibrated_size_str(scale_marker_image_width)
             fm1 = get_font_metrics_fn(scale_marker_font, text1)
-            text_height = float(fm1.height-8)
+            text_height = float(fm1.height-4)
             text2 = info_text
             fm2 = get_font_metrics_fn(scale_marker_font, text2)
             text_width = max(fm1.width, fm2.width)
-            padding = 4
+            padding = 3
 
             content_width = max(scale_marker_calculated_width, text_width)
             # Set drawing origin
@@ -340,9 +340,28 @@ class ScaleMarkerCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__screen_pixel_per_image_pixel_stream = screen_pixel_per_image_pixel_stream.add_ref()
         self.__screen_pixel_per_image_pixel_action = Stream.ValueStreamAction(screen_pixel_per_image_pixel_stream, lambda x: self.__update_sizing())
         self.__scale_marker_width = 0
-        self._scale_marker_position = None
-        self._background_fill_color = None
+        self._scale_marker_position: typing.Optional[str] = None
+        self._background_fill_color: typing.Optional[str] = None
 
+    @property
+    def scale_marker_position(self) -> typing.Optional[str]:
+        return self._scale_marker_position
+
+    @scale_marker_position.setter
+    def scale_marker_position(self, value: typing.Optional[str]) -> None:
+        if value != self._scale_marker_position:
+            self._scale_marker_position = value
+            self.update()
+
+    @property
+    def background_fill_color(self) -> typing.Optional[str]:
+        return self._background_fill_color
+
+    @background_fill_color.setter
+    def background_fill_color(self, value: typing.Optional[str]) -> None:
+        if value != self._background_fill_color:
+            self._background_fill_color = value
+            self.update()
     def close(self) -> None:
         self.__screen_pixel_per_image_pixel_stream.remove_ref()
         self.__screen_pixel_per_image_pixel_stream = typing.cast(typing.Any, None)
@@ -391,20 +410,18 @@ class ScaleMarkerCanvasItem(CanvasItem.AbstractCanvasItem):
         scale_marker_position = display_properties.get("scale_marker_position", None)
         background_fill_color = display_properties.get("scale_background_fill_color",None)
 
-        needs_update = (
-                scale_marker_position != getattr(self, "_scale_marker_position", None) or
-                background_fill_color != getattr(self, "_background_fill_color", None)
-        )
-
-        if needs_update:
-            self._scale_marker_position = scale_marker_position
-            self._background_fill_color = background_fill_color
-            self.update()
+        if scale_marker_position is not None:
+            self.scale_marker_position = scale_marker_position
+        if background_fill_color is not None:
+            self.background_fill_color = background_fill_color
 
     def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> typing.Optional[CanvasItem.BaseComposer]:
-        return ScaleMarkerCanvasItemComposer(self, self.sizing, composer_cache, self.__dimensional_calibration,self.__info_text,self.__screen_pixel_per_image_pixel_stream.value,
-            self.__get_font_metrics_fn,scale_marker_position=getattr(self, "_scale_marker_position", None),background_fill_color=getattr(self,"_background_fill_color", None)
-        )
+        return ScaleMarkerCanvasItemComposer(self, self.sizing, composer_cache, self.__dimensional_calibration,
+                                             self.__info_text, self.__screen_pixel_per_image_pixel_stream.value,
+                                             self.__get_font_metrics_fn,
+                                             scale_marker_position=self.scale_marker_position,
+                                             background_fill_color=self.background_fill_color
+                                             )
 
 
 def calculate_origin_and_size(canvas_size: Geometry.IntSize, data_shape: DataAndMetadata.Shape2dType, image_canvas_mode: str, image_zoom: float, image_position: Geometry.FloatPoint) -> Geometry.IntRect:
