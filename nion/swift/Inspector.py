@@ -1989,16 +1989,9 @@ class ChangeDisplayTypeCommand(Undo.UndoableCommand):
 class ScaleMarkerOptionsHandler(Declarative.Handler):
     def __init__(self, display_item: DisplayItem.DisplayItem, document_controller: DocumentController.DocumentController) -> None:
         super().__init__()
-
-        class PositionCheckedToCheckedStateConverter(Converter.ConverterLike[str, bool]):
-            def convert(self, value: typing.Optional[str]) -> bool:
-                return value == "bottom-right"
-
-            def convert_back(self, value: typing.Optional[bool]) -> str:
-                return "bottom-right" if value else "bottom-left"
-
-        self._position_checked_to_checked_state_converter = PositionCheckedToCheckedStateConverter()
-
+        self._scale_marker_location_items = (_("Bottom Left"), _("Bottom Right"))
+        self._scale_marker_location_reverse_map = {"bottom-left": 0, "bottom-right": 1}
+        self._scale_marker_location_flags = ("bottom-left", "bottom-right")
         if display_item.get_display_property("show_scale_info_text") is None:
             display_item.set_display_property("show_scale_info_text", True)
 
@@ -2014,12 +2007,8 @@ class ScaleMarkerOptionsHandler(Declarative.Handler):
             display_item,
             "scale_marker_position"
         )
+        self._current_index = self._scale_marker_location_reverse_map.get(self._scale_marker_position_model.value or "bottom-left", 0)
 
-        self._is_background_enabled_model = DisplayItemDisplayPropertyCommandModel(
-            document_controller,
-            display_item,
-            "show_scale_is_background_enabled"
-        )
         self._background_fill_color_model = DisplayItemDisplayPropertyCommandModel(
             document_controller,
             display_item,
@@ -2030,22 +2019,25 @@ class ScaleMarkerOptionsHandler(Declarative.Handler):
 
         self.ui_view = u.create_column(
             u.create_row(
-                u.create_check_box(
-                    text=_("Draw on Right"),
-                    checked="@binding(_scale_marker_position_model.value, converter=_position_checked_to_checked_state_converter)"
+                u.create_label(text=_("Scale marker\n location"), text_alignment_vertical="vcenter", text_alignment_horizontal="right", width=100),
+                u.create_combo_box(
+                    items=self._scale_marker_location_items,
+                    on_current_index_changed="change_scale_marker_location",
+                    current_index="@binding(_current_index)", width=100
                 ),
-                u.create_stretch()
+                u.create_stretch(),
+                spacing=8
             ),
             u.create_row(
-                u.create_label(text=_("Background color"),text_alignment_vertical="vcenter", text_alignment_horizontal="right"),
-                u.create_line_edit(text="@binding(_background_fill_color_model.value)", placeholder_text=_("None"), width=80),
+                u.create_label(text=_("Scale marker \n background color"),text_alignment_vertical="vcenter", text_alignment_horizontal="right", width=100),
+                u.create_line_edit(text="@binding(_background_fill_color_model.value)", placeholder_text=_("None"), width=100),
                 {"type": "nionswift.color_chooser", "color": "@binding(_background_fill_color_model.value)"},
                 u.create_stretch(),
                 spacing=8
-            ),spacing=4
+            )
         )
-
-
+    def change_scale_marker_location(self, widget: Declarative.UIWidget, current_index: int) -> None:
+        self._scale_marker_position_model.value = self._scale_marker_location_flags[current_index]
 
 
 class DisplayTypeChooserHandler(Declarative.Handler):
@@ -2061,9 +2053,9 @@ class DisplayTypeChooserHandler(Declarative.Handler):
         u = Declarative.DeclarativeUI()
 
         self.ui_view = u.create_row(
-            u.create_label(text=_("Display Type:"), width=120),
-            u.create_combo_box(items=self._display_type_items, on_current_index_changed="change_display_type", current_index="@binding(_current_index)"),
-            u.create_stretch()
+            u.create_label(text=_("Display Type:"),text_alignment_vertical="vcenter", text_alignment_horizontal="right", width=100),
+            u.create_combo_box(items=self._display_type_items, on_current_index_changed="change_display_type", current_index="@binding(_current_index)",width=100),
+            u.create_stretch(),spacing=8
         )
 
     def change_display_type(self,  widget: Declarative.UIWidget, current_index: int) -> None:
