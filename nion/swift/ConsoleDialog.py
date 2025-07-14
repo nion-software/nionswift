@@ -62,7 +62,7 @@ class ConsoleWidgetStateController:
     def close(self) -> None:
         # through experimentation, this is how to ensure the locals are
         # garbage collected upon closing.
-        typing.cast(typing.Dict[str, typing.Any], self.__console.locals).clear()
+        self.__console.locals.clear()
         self.__console.locals = typing.cast(typing.Any, None)
         self.__console = typing.cast(typing.Any, None)
 
