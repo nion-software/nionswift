@@ -2222,11 +2222,22 @@ class SpotGraphic(Graphic):
 
     def _draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
         # origin is top left
+        used_stroke_style = self.used_stroke_style
+        used_stroke_width = self.used_stroke_width
+        used_fill_style = self.used_fill_style
+        is_shape_locked = self.is_shape_locked
+        is_position_locked = self.is_position_locked
+        rotation = self.rotation
         bounds = Geometry.FloatRect.make(self.bounds)
         origin = mapping.calibrated_origin_widget
         center = origin + mapping.map_size_image_norm_to_widget(bounds.center.as_size())
         size = mapping.map_size_image_norm_to_widget(bounds.size)
-        draw_ellipse_graphic(ctx, center, size, self.rotation, is_selected, is_focused, self.is_shape_locked , self.is_position_locked, self.used_stroke_style,  self.used_stroke_width,  self.used_fill_style)
+        draw_ellipse_graphic(ctx, center, size, rotation, is_selected, is_focused, is_shape_locked, is_position_locked, used_stroke_style, used_stroke_width, used_fill_style)
+        with ctx.saver():
+            ctx.translate(origin.x, origin.y)
+            ctx.rotate(math.pi)
+            ctx.translate(-origin.x, -origin.y)
+            draw_ellipse_graphic(ctx, center, size, rotation, is_selected, is_focused, is_shape_locked, is_position_locked, used_stroke_style, used_stroke_width, used_fill_style)
         self.draw_label(ctx, ui_settings, mapping)
 
     def label_position(self, mapping: CoordinateMappingLike, font_metrics: UISettings.FontMetrics, padding: float) -> typing.Optional[Geometry.FloatPoint]:
