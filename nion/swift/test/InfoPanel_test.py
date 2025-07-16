@@ -10,12 +10,14 @@ import numpy
 # local libraries
 from nion.data import Calibration
 from nion.data import DataAndMetadata
-from nion.swift import Application
+from nion.swift import Facade
 from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
 from nion.swift.model import Graphics
 from nion.swift.test import TestContext
-from nion.ui import TestUI
+
+
+Facade.initialize()
 
 
 class TestInfoPanelClass(unittest.TestCase):
@@ -296,3 +298,32 @@ class TestInfoPanelClass(unittest.TestCase):
             self.assertEqual("Value: 2 f", info_panel.label_row_2.text)
             self.assertIsNone(info_panel.label_row_3.text, None)
             display_panel.display_canvas_item.mouse_exited()
+
+    def test_cursor_over_fft_displays_polar_correctly(self):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            data_item = DataItem.DataItem(numpy.random.randn(12, 12))
+            data_item2 = DataItem.DataItem(numpy.random.randn(11, 11))
+            data_item.set_dimensional_calibrations([Calibration.Calibration(scale=1.0, units="a"), Calibration.Calibration(scale=1.0, units="a")])
+            data_item2.set_dimensional_calibrations([Calibration.Calibration(scale=1.0, units="a"), Calibration.Calibration(scale=1.0, units="a")])
+            document_model.append_data_item(data_item)
+            document_model.append_data_item(data_item2)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item2 = document_model.get_display_item_for_data_item(data_item2)
+            fft_data_item = document_model.get_fft_new(display_item, display_item.data_item)
+            fft_data_item2 = document_model.get_fft_new(display_item2, display_item2.data_item)
+            document_model.recompute_all()
+            fft_display_item = document_model.get_display_item_for_data_item(fft_data_item)
+            fft_display_item2 = document_model.get_display_item_for_data_item(fft_data_item2)
+            # the sign of the angle zero is not guaranteed, so don't check the sign
+            self.assertEqual("0.000 1/a, 0.0000° (polar)", fft_display_item.get_value_and_position_text((6, 6))[0].replace("-", ""))
+            self.assertEqual("0.000 1/a, 0.0000° (polar)", fft_display_item2.get_value_and_position_text((5, 5))[0].replace("-", ""))
+            # the distance is in 'a' not '1/a', when the distance > 0
+            self.assertEqual("12.00 a, 0.0000° (polar)", fft_display_item.get_value_and_position_text((6, 7))[0].replace("-", ""))
+            self.assertEqual("12.00 a, -180.0000° (polar)", fft_display_item.get_value_and_position_text((6, 5))[0])
+            self.assertEqual("12.00 a, -90.0000° (polar)", fft_display_item.get_value_and_position_text((7, 6))[0])
+            self.assertEqual("12.00 a, 90.0000° (polar)", fft_display_item.get_value_and_position_text((5, 6))[0])
+            self.assertEqual("11.00 a, 0.0000° (polar)", fft_display_item2.get_value_and_position_text((5, 6))[0].replace("-", ""))
+            self.assertEqual("11.00 a, -180.0000° (polar)", fft_display_item2.get_value_and_position_text((5, 4))[0])
+            self.assertEqual("11.00 a, -90.0000° (polar)", fft_display_item2.get_value_and_position_text((6, 5))[0])
+            self.assertEqual("11.00 a, 90.0000° (polar)", fft_display_item2.get_value_and_position_text((4, 5))[0])
