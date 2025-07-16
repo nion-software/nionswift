@@ -623,6 +623,7 @@ class NormalizedDataProcessor(ProcessorBase):
             m = 1 / (display_limit_high - display_limit_low) if display_limit_high != display_limit_low else 0.0
             b = -display_limit_low
             data_and_metadata = DataAndMetadata.new_data_and_metadata(data=float(m) * (display_data_and_metadata.data + float(b)),
+                                                                      dimensional_calibrations=display_data_and_metadata.dimensional_calibrations,
                                                                       timestamp=display_data_and_metadata.timestamp,
                                                                       timezone=display_data_and_metadata.timezone,
                                                                       timezone_offset=display_data_and_metadata.timezone_offset)
@@ -655,6 +656,7 @@ class AdjustedDataProcessor(ProcessorBase):
                         if display_data is not None:
                             adjusted_data_and_metadata = DataAndMetadata.new_data_and_metadata(
                                 adjustment.transform(display_data, display_range),
+                                dimensional_calibrations=adjusted_data_and_metadata.dimensional_calibrations,
                                 timestamp=adjusted_data_and_metadata.timestamp,
                                 timezone=adjusted_data_and_metadata.timezone,
                                 timezone_offset=adjusted_data_and_metadata.timezone_offset)
