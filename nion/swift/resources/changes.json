@@ -4,6 +4,16 @@
     "notes": [
       {
         "issues": [
+          "https://github.com/nion-software/nionswift/issues/1590"
+        ],
+        "summary": "Fix calibration issues when using display adjustments such as log or equalized."
+      },
+  },
+  {
+    "version": "16.16.0",
+    "notes": [
+      {
+        "issues": [
           "https://github.com/nion-software/nionswift/issues/1295"
         ],
         "summary": "Add ability to switch collection directly from the data panel."
