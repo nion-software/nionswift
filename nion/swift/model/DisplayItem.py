@@ -3499,8 +3499,10 @@ class DisplayItem(Persistence.PersistentObject):
                 if pos[0] >= 0 and pos[0] < dimensional_shape[0] and pos[1] >= 0 and pos[1] < dimensional_shape[1]:
                     is_polar = dimensional_calibrations[0].units.startswith("1/") and dimensional_calibrations[0].units == dimensional_calibrations[1].units
                     if is_polar:
-                        x = dimensional_calibrations[1].convert_to_calibrated_value(pos[1])
-                        y = dimensional_calibrations[0].convert_to_calibrated_value(pos[0])
+                        # pos will represent the top-left of the pixel, so add 0.5 to get the center of the pixel
+                        # which is what the user expects for polar coordinates.
+                        x = dimensional_calibrations[1].convert_to_calibrated_value(pos[1] + 0.5)
+                        y = dimensional_calibrations[0].convert_to_calibrated_value(pos[0] + 0.5)
                         r = math.sqrt(x * x + y * y)
                         angle = -math.atan2(y, x)
                         r_str = dimensional_calibrations[0].convert_to_calibrated_value_str(dimensional_calibrations[0].convert_from_calibrated_value(r), value_range=(0, dimensional_shape[0]), samples=dimensional_shape[0], display_inverted=True)
