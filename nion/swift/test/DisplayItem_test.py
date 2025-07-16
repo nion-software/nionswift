@@ -826,6 +826,18 @@ class TestDisplayItemClass(unittest.TestCase):
                     self.assertEqual(len(expected), len(document_model.display_items[-1].displayed_display_data_calibrations))
                     self.assertEqual(expected, DisplayItem.DisplayDataShapeCalculator(data_item.data_metadata).indexes)
 
+    def test_display_data_processor_retains_dimensional_calibrations(self) -> None:
+        dimensional_calibrations = (Calibration.Calibration(2, 4, "S"), Calibration.Calibration(3, 5, "S"))
+        xdata = DataAndMetadata.new_data_and_metadata(data=numpy.ones((16, 8)), dimensional_calibrations=dimensional_calibrations)
+        display_data_processor = DisplayItem.NormalizedDataProcessor(display_data=xdata, display_range=(0, 1))
+        display_data_processor.execute()
+        self.assertEqual(dimensional_calibrations[0], display_data_processor.get_result("data").dimensional_calibrations[0])
+        self.assertEqual(dimensional_calibrations[1], display_data_processor.get_result("data").dimensional_calibrations[1])
+        display_data_processor = DisplayItem.AdjustedDataProcessor(normalized_data=xdata, display_data=xdata, display_range=(0, 1), adjustments=[{"type": "log"}])
+        display_data_processor.execute()
+        self.assertEqual(dimensional_calibrations[0], display_data_processor.get_result("data").dimensional_calibrations[0])
+        self.assertEqual(dimensional_calibrations[1], display_data_processor.get_result("data").dimensional_calibrations[1])
+
     # test_transaction_does_not_cascade_to_data_item_refs
     # test_increment_data_ref_counts_cascades_to_data_item_refs
     # test_adding_data_item_twice_to_composite_item_fails
