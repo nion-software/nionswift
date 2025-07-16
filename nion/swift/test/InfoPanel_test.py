@@ -11,10 +11,12 @@ import numpy
 from nion.data import Calibration
 from nion.data import DataAndMetadata
 from nion.swift import Facade
+from nion.swift import LineGraphCanvasItem
 from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
 from nion.swift.model import Graphics
 from nion.swift.test import TestContext
+from nion.utils import Geometry
 
 
 Facade.initialize()
@@ -112,6 +114,33 @@ class TestInfoPanelClass(unittest.TestCase):
             display_panel.root_container.layout_immediate((1000 + header_height, 1000))
             display_panel.display_canvas_item.mouse_entered()
             display_panel.display_canvas_item.mouse_position_changed(500, 500, Graphics.NullModifiers())
+            display_panel.display_canvas_item.mouse_exited()
+
+    def test_cursor_over_1d_data_displays_proper_fractional_position(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.DataItem(numpy.zeros((10, )))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel.set_display_panel_display_item(display_item)
+            header_height = display_panel.header_canvas_item.header_height
+            info_panel = document_controller.find_dock_panel("info-panel")
+            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
+            line_graph_layer_canvas_item = next(i for i in display_panel.root_container.canvas_items_at_point(500, 500) if isinstance(i, LineGraphCanvasItem.LineGraphLayerCanvasItem))
+            p1 = line_graph_layer_canvas_item.map_to_canvas_item(Geometry.IntPoint(500, 20), display_panel.display_canvas_item)
+            p2 = line_graph_layer_canvas_item.map_to_canvas_item(Geometry.IntPoint(500, 70), display_panel.display_canvas_item)
+            p3 = line_graph_layer_canvas_item.map_to_canvas_item(Geometry.IntPoint(500, 140), display_panel.display_canvas_item)
+            # this section is a bit finicky - it seems to depend on the mouse text changing when cursor is moved, so
+            # it gets tested in p1, p3, p2 order.
+            display_panel.display_canvas_item.mouse_entered()
+            display_panel.display_canvas_item.mouse_position_changed(p1.x, p1.y, Graphics.NullModifiers())
+            self.assertTrue(self.__wait_for_cursor_position_text(document_controller, info_panel, "Position: 0.0"))
+            display_panel.display_canvas_item.mouse_position_changed(p3.x, p3.y, Graphics.NullModifiers())
+            self.assertTrue(self.__wait_for_cursor_position_text(document_controller, info_panel, "Position: 1.0"))
+            display_panel.display_canvas_item.mouse_position_changed(p2.x, p2.y, Graphics.NullModifiers())
+            self.assertTrue(self.__wait_for_cursor_position_text(document_controller, info_panel, "Position: 0.0"))
             display_panel.display_canvas_item.mouse_exited()
 
     def test_cursor_over_1d_multiple_data_displays_without_exception(self):
