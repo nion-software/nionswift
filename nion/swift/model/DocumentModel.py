@@ -930,7 +930,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         data_item_copy.category = data_item.category
         display_item = self.get_display_item_for_data_item(data_item_copy)
         assert display_item
-        data_item_copy.title = display_item.displayed_title + " (" + _("Copy") + ")"
+        data_item_copy.title = display_item.displayed_title + " (" + _("Duplicate") + ")"
         return data_item_copy
 
     def __handle_data_item_inserted(self, data_item: DataItem.DataItem) -> None:

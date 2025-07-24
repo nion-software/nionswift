@@ -2500,8 +2500,8 @@ class TestDocumentModelClass(unittest.TestCase):
                 self.assertEqual("test (Snapshot)", display_item_snapshot.displayed_title)
                 self.assertEqual("test (Display Snapshot)", display_snapshot.data_item.title)
                 self.assertEqual("test (Display Snapshot)", display_snapshot.displayed_title)
-                self.assertEqual("test (Copy)", display_copy.data_item.title)
-                self.assertEqual("test (Copy)", display_copy.displayed_title)
+                self.assertEqual("test (Duplicate)", display_copy.data_item.title)
+                self.assertEqual("test (Duplicate)", display_copy.displayed_title)
 
     def test_mapped_sum_connector_on_invalid_data(self):
         with TestContext.create_memory_context() as test_context:
