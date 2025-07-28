@@ -102,13 +102,11 @@ class ExportDialog(Declarative.Handler):
         self.viewmodel.writer.value = writer
 
     def on_prefix_changed(self, widget: Declarative.UIWidget, text: str) -> None:
-        self.validate_options()
+        self.validate_options(text)
 
-    def validate_options(self) -> bool:
+    def validate_options(self, prefix_text: str) -> bool:
         invalid_reason: str | None = None
-
-        prefix_text = self.viewmodel.prefix.value or ""
-        if prefix_text != Utility.simplify_filename(prefix_text) or "\\" in prefix_text or "/" in prefix_text:
+        if prefix_text != Utility.simplify_filename(prefix_text):
             invalid_reason = _("Prefix contains invalid characters")
 
         # Other validation options can go here, type validation, space validation etc
