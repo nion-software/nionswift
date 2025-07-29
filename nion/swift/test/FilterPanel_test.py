@@ -1,5 +1,6 @@
 # standard libraries
 import logging
+import typing
 import unittest
 
 # third party libraries
@@ -17,7 +18,7 @@ class TestFilterPanelClass(unittest.TestCase):
 
     def setUp(self):
         TestContext.begin_leaks()
-        self.app = Application.Application(TestUI.UserInterface(), set_global=False)
+        self._test_setup = TestContext.TestSetup()
         self.t = FilterPanel.TreeNode()
         self.t.insert_value(["1969", "02"], "Chris")
         self.t.insert_value(["1965", "12"], "Hans")
@@ -28,6 +29,7 @@ class TestFilterPanelClass(unittest.TestCase):
         self.t.insert_value(["2000", "06"], "Skywalker")
 
     def tearDown(self):
+        self._test_setup = typing.cast(typing.Any, None)
         TestContext.end_leaks(self)
 
     def test_basic_tree_construction(self):

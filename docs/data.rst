@@ -15,6 +15,8 @@ The data in a data item may be stored as floating point numbers, integer numbers
 
 A data item also stores metadata about the data. The metadata includes a title and description; the grouping of dimensions into data, collections, and sequences; dimensional and intensity calibrations; and creation and modification timestamps including time zone information. There may be other metadata stored as key-value pairs in more free-form manner.
 
+RGB and RGBA data items are used to represent color images. The RGB values are stored as 8-bit unsigned integers, while the alpha channel is stored as an 8-bit unsigned integer. The alpha channel is used to represent transparency. RGB and RGBA data items do not have an intensity calibration, but they do have a dimensional calibration for each dimension.
+
 Display Items
 -------------
 Display items represent a view of one or more data items and can be edited separately its associated data items.

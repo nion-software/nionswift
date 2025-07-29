@@ -1316,7 +1316,6 @@ class InspectComputationDialog(Declarative.WindowHandler):
         main_page = u.create_column(u.create_component_instance("@binding(stack_page_model.value)"), u.create_stretch())
         window = u.create_window(main_page, title=_("Computation"), margin=12, window_style="tool")
         self.run(window, parent_window=document_controller, persistent_id="computation_inspector")
-        self.__document_controller.register_dialog(self.window)
 
     def close(self) -> None:
         if self.__computation_about_to_be_removed_event_listener:

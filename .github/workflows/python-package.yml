@@ -26,6 +26,7 @@ jobs:
       run: |
         mkdir dist
         find . -name "*.whl" -exec cp {} dist \;
+        find . -name "*.tar.gz" -exec cp {} dist \;
         ls -lR .
     - name: Publish package distributions to PyPI
       uses: pypa/gh-action-pypi-publish@release/v1

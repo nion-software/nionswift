@@ -243,7 +243,6 @@ class ProjectItemsDialog(Declarative.WindowHandler):
 
         window = u.create_window(u.create_component_instance(identifier="content"), title=_("Project Items (Computations)"), margin=12, window_style="tool")
         self.run(window, parent_window=document_controller, persistent_id=self.dialog_id)
-        self.__document_controller.register_dialog(self.window)
 
     def close(self) -> None:
         setattr(self.__document_controller, f"_{self.dialog_id}_dialog", None)

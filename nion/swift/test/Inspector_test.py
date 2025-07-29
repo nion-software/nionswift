@@ -12,16 +12,15 @@ import numpy
 # local imports
 from nion.data import Calibration
 from nion.data import DataAndMetadata
-from nion.swift import Application
 from nion.swift import DisplayPanel
 from nion.swift import Facade
 from nion.swift import Inspector
+from nion.swift import LinePlotCanvasItem
 from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
 from nion.swift.model import Graphics
 from nion.swift.model import Symbolic
 from nion.swift.test import TestContext
-from nion.ui import TestUI
 from nion.utils import Binding
 from nion.utils import Converter
 from nion.utils import Geometry
@@ -35,9 +34,10 @@ class TestInspectorClass(unittest.TestCase):
 
     def setUp(self):
         TestContext.begin_leaks()
-        self.app = Application.Application(TestUI.UserInterface(), set_global=False)
+        self._test_setup = TestContext.TestSetup()
 
     def tearDown(self):
+        self._test_setup = typing.cast(typing.Any, None)
         TestContext.end_leaks(self)
 
     def test_info_inspector_section_follows_title_change(self):
@@ -546,6 +546,55 @@ class TestInspectorClass(unittest.TestCase):
             line_plot_canvas_item = display_panel.display_canvas_item
             line_plot_canvas_item._mouse_dragged(0.3, 0.5)
 
+    def test_line_plot_inspector_display_limits_undo(self):
+        # note: testing this manually you need to unfocus the field to undo, otherwise it is a text undo.
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.array([1,2]))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            # find the inspector panel
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            document_controller.periodic()  # needed to build the inspector
+            inspector_panel = document_controller.find_dock_panel("inspector-panel")
+            inspector_section = inspector_panel.widget.find_widget_by_id("line_plot_display_inspector_section")
+            self.assertEqual(None, inspector_section._line_plot_display_section_handler._y_min_model.value)
+            self.assertEqual(None, inspector_section._line_plot_display_section_handler._y_max_model.value)
+            # test undo after editing (only testing y_min field)
+            inspector_section._line_plot_display_section_handler.y_min_field.editing_finished("0.0")
+            self.assertEqual(0.0, inspector_section._line_plot_display_section_handler._y_min_model.value)
+            document_controller.handle_undo()
+            self.assertEqual(None, inspector_section._line_plot_display_section_handler._y_min_model.value)
+
+    def test_line_plot_inspector_display_limits_update_when_using_auto_display(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.array([1,2]))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            # find the inspector panel
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            document_controller.periodic()  # needed to build the inspector
+            inspector_panel = document_controller.find_dock_panel("inspector-panel")
+            inspector_section = inspector_panel.widget.find_widget_by_id("line_plot_display_inspector_section")
+            self.assertEqual(None, inspector_section._line_plot_display_section_handler._y_min_model.value)
+            self.assertEqual(None, inspector_section._line_plot_display_section_handler._y_max_model.value)
+            line_plot_canvas_item = typing.cast(LinePlotCanvasItem.LinePlotCanvasItem, display_panel.display_canvas_item)
+            line_plot_canvas_item.handle_auto_display()
+            # these values are manually determined by the auto display algorithm.
+            self.assertEqual(0.0, inspector_section._line_plot_display_section_handler._y_min_model.value)
+            self.assertEqual(2.4, inspector_section._line_plot_display_section_handler._y_max_model.value)
+            document_controller.handle_undo()
+            self.assertEqual(None, inspector_section._line_plot_display_section_handler._y_min_model.value)
+            self.assertEqual(None, inspector_section._line_plot_display_section_handler._y_max_model.value)
+            document_controller.handle_redo()
+            self.assertEqual(0.0, inspector_section._line_plot_display_section_handler._y_min_model.value)
+            self.assertEqual(2.4, inspector_section._line_plot_display_section_handler._y_max_model.value)
+
     def test_slice_inspector_section_uses_correct_dimension(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
@@ -621,6 +670,27 @@ class TestInspectorClass(unittest.TestCase):
             self.assertEqual(display_data_channel.display_limits, (None, 2.0))
             inspector_section.image_data_inspector_handler.display_limits_limit_high.editing_finished("")
             self.assertEqual(display_data_channel.display_limits, None)
+
+    def test_image_display_inspector_updates_data_range_when_data_changes(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.array([[1,2], [3,4]]))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_data_channel = display_item.display_data_channels[0]
+            # find the inspector panel
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            document_controller.periodic()  # needed to build the inspector
+            inspector_panel = document_controller.find_dock_panel("inspector-panel")
+            inspector_section = inspector_panel.widget.find_widget_by_id("image_data_inspector_section")
+            self.assertEqual(1, inspector_section.image_data_inspector_handler._model.data_range_low_model.value)
+            self.assertEqual(4, inspector_section.image_data_inspector_handler._model.data_range_high_model.value)
+            data_item.set_data(numpy.array([[5,6], [7,8]]))
+            document_controller.periodic()
+            self.assertEqual(5, inspector_section.image_data_inspector_handler._model.data_range_low_model.value)
+            self.assertEqual(8, inspector_section.image_data_inspector_handler._model.data_range_high_model.value)
 
     def test_image_data_inspector_handles_missing_color_table(self) -> None:
         with TestContext.create_memory_context() as test_context:

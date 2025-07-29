@@ -1,5 +1,6 @@
 # standard libraries
 import contextlib
+import typing
 import unittest
 
 # third party libraries
@@ -20,9 +21,10 @@ class TestRecorderPanelClass(unittest.TestCase):
 
     def setUp(self):
         TestContext.begin_leaks()
-        self.app = Application.Application(TestUI.UserInterface(), set_global=False)
+        self._test_setup = TestContext.TestSetup()
 
     def tearDown(self):
+        self._test_setup = typing.cast(typing.Any, None)
         TestContext.end_leaks(self)
 
     def test_recorder_records_live_data(self):

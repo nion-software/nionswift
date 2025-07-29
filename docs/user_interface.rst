@@ -250,7 +250,28 @@ Collections
 
 The Collections panel (:menuselection:`Window --> Collections`) allows you to filter items in the data panel by whether they are Live, Persistent, created in the Latest Session, or in one of your custom Data Groups.
 
-.. TODO: where are Data Groups covered?
+Standard Collections
+++++++++++++++++++++
+
+There are four standard collections that are always available in the Collections panel:
+
+- **All**: This collection shows all items in the data panel.
+- **Live**: This collection shows all items that are currently being acquired including downstream computed items.
+- **Persistent**: This collection shows all items that are not currently being acquired.
+- **Latest Session**: This collection shows all items that were created in the most recent session.
+
+Data Groups
++++++++++++
+
+In addition to the standard collections, you can create custom Data Groups to organize your items. You can create a new Data Group using :menuselection:`File --> Add Group`.
+
+You can add items to a Data Group by dragging them from either the data panel or a display panel into the Data Group in the Collections panel.
+
+You can remove items from a Data Group by clicking on the Data Group in the Collections panel, selecting the items you want to remove in the data panel, and pressing the delete key. This will not delete the items themselves, just their association with the Data Group.
+
+You can rename a Data Group by clicking on it and either hitting return or double-clicking the item.
+
+You can delete a Data Group by selecting it and pressing the delete key. This will not delete the items in the group, just the group itself.
 
 .. _Tool Panel:
 

@@ -1,4 +1,5 @@
 # standard libraries
+import asyncio
 import contextlib
 import logging
 import math
@@ -79,6 +80,8 @@ class TestDisplayPanelClass(unittest.TestCase):
 
     def setUp(self):
         TestContext.begin_leaks()
+        event_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(event_loop)
         self.test_context = TestContext.create_memory_context()
         self.test_context.__enter__()
         self.document_controller = self.test_context.create_document_controller_with_application()
@@ -94,6 +97,11 @@ class TestDisplayPanelClass(unittest.TestCase):
     def tearDown(self):
         self.test_context.__exit__(None, None, None)
         self.test_context.close()
+        event_loop = asyncio.get_event_loop()
+        event_loop.stop()
+        event_loop.run_forever()
+        asyncio.set_event_loop(None)
+        event_loop.close()
         TestContext.end_leaks(self)
 
     def setup_line_plot(self, canvas_shape=None, data_min=0.0, data_max=1.0):
@@ -1543,6 +1551,24 @@ class TestDisplayPanelClass(unittest.TestCase):
             document_controller.periodic()
             display_panel._handle_key_pressed(TestUI.Key(None, "up", None))
 
+    def test_display_panel_next_previous_graphic(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.DataItem(numpy.ones((8, 8), float))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel.set_display_panel_display_item(display_item)
+            display_item.add_graphic(Graphics.PointGraphic())
+            display_item.add_graphic(Graphics.PointGraphic())
+            display_item.graphic_selection.set(0)
+            self.assertEqual(display_item.graphics[0], display_item.selected_graphic)
+            display_panel._handle_key_pressed(TestUI.Key(None, "tab", None))
+            self.assertEqual(display_item.graphics[1], display_item.selected_graphic)
+            display_panel._handle_key_pressed(TestUI.Key(None, "backtab", None))
+            self.assertEqual(display_item.graphics[0], display_item.selected_graphic)
+
     def test_display_2d_updates_display_values_after_changing_display_type(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
@@ -1615,8 +1641,10 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_panel.root_container.layout_immediate(Geometry.IntSize(240, 240))
             document_controller.periodic()
             self.assertIsInstance(display_panel.display_canvas_item, ImageCanvasItem.ImageCanvasItem)
+            display_panel.display_canvas_item._wait_for_update()
             update_count = display_panel.display_canvas_item._update_count
             document_controller.periodic()
+            display_panel.display_canvas_item._wait_for_update()
             self.assertEqual(update_count, display_panel.display_canvas_item._update_count)
 
     def test_image_display_canvas_item_only_updates_once_if_data_changes(self):
@@ -1630,8 +1658,10 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_panel.set_display_panel_display_item(display_item)
             display_panel.root_container.repaint_immediate(DrawingContext.DrawingContext(), Geometry.IntSize(240, 640))
             self.assertIsInstance(display_panel.display_canvas_item, ImageCanvasItem.ImageCanvasItem)
+            display_panel.display_canvas_item._wait_for_update()
             update_count = display_panel.display_canvas_item._update_count
             data_item.set_xdata(DataAndMetadata.new_data_and_metadata(numpy.random.randn(8, 8)))
+            display_panel.display_canvas_item._wait_for_update()
             self.assertEqual(update_count + 1, display_panel.display_canvas_item._update_count)
 
     def test_image_display_canvas_item_only_updates_once_if_graphic_changes(self):
@@ -1648,8 +1678,10 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_panel.root_container.layout_immediate(Geometry.IntSize(240, 240))
             document_controller.periodic()
             self.assertIsInstance(display_panel.display_canvas_item, ImageCanvasItem.ImageCanvasItem)
+            display_panel.display_canvas_item._wait_for_update()
             update_count = display_panel.display_canvas_item._update_count
             graphic.bounds = Geometry.FloatRect.from_tlbr(0.1, 0.1, 0.2, 0.2)
+            display_panel.display_canvas_item._wait_for_update()
             self.assertEqual(update_count + 1, display_panel.display_canvas_item._update_count)
 
     def test_image_display_canvas_item_does_not_update_if_graphic_does_not_change(self):
@@ -1671,6 +1703,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             # click once
             display_panel.display_canvas_item.simulate_click(Geometry.IntPoint(120, 120))
             document_controller.periodic()
+            display_panel.display_canvas_item._wait_for_update()
             update_count = display_panel.display_canvas_item._update_count
 
             display_item_did_change = False
@@ -1685,6 +1718,7 @@ class TestDisplayPanelClass(unittest.TestCase):
                 document_controller.periodic()
                 display_panel.display_canvas_item.simulate_release(Geometry.IntPoint(120, 120))
                 document_controller.periodic()
+                display_panel.display_canvas_item._wait_for_update()
                 self.assertEqual(update_count, display_panel.display_canvas_item._update_count)
 
             self.assertFalse(display_item_did_change)
@@ -1701,8 +1735,10 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_panel.set_display_panel_display_item(display_item)
             display_panel.root_container.repaint_immediate(DrawingContext.DrawingContext(), Geometry.IntSize(240, 640))
             self.assertIsInstance(display_panel.display_canvas_item, ImageCanvasItem.ImageCanvasItem)
+            display_panel.display_canvas_item._wait_for_update()
             update_count = display_panel.display_canvas_item._update_count
             display_data_channel.color_map_id = "hsv"
+            display_panel.display_canvas_item._wait_for_update()
             self.assertEqual(update_count + 1, display_panel.display_canvas_item._update_count)
 
     def test_line_plot_image_display_canvas_item_only_updates_if_display_data_changes(self):
@@ -1717,9 +1753,11 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_panel.root_container.layout_immediate(Geometry.IntSize(240, 640))
             document_controller.periodic()
             self.assertIsInstance(display_panel.display_canvas_item, LinePlotCanvasItem.LinePlotCanvasItem)
+            display_panel.display_canvas_item._wait_for_update()
             update_count = display_panel.display_canvas_item._update_count
             document_controller.periodic()
             self.display_panel.root_container.refresh_layout_immediate()
+            display_panel.display_canvas_item._wait_for_update()
             self.assertEqual(update_count, display_panel.display_canvas_item._update_count)
 
     def test_focused_data_item_changes_when_display_changed_directly_in_content(self):
@@ -2775,7 +2813,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             document_controller.add_display_data_channel_to_or_create_composite(display_item1, display_item2, display_panel)
             new_display_item = document_model.display_items[-1]
             document_controller.add_display_data_channel_to_or_create_composite(new_display_item, display_item3, display_panel)
-            self.assertEqual("red", new_display_item.display_layers[0].fill_color)
+            self.assertEqual(None, new_display_item.display_layers[0].fill_color)
             self.assertEqual("red", new_display_item.display_layers[0].stroke_color)
             self.assertIsNone(new_display_item.display_layers[1].fill_color)
             self.assertEqual("green", new_display_item.display_layers[1].stroke_color)

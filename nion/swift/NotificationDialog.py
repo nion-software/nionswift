@@ -128,25 +128,30 @@ class NotificationDialog(Declarative.WindowHandler):
         self.__notification_removed_listener = self.notifications.item_removed_event.listen(notification_changed)
 
         u = Declarative.DeclarativeUI()
-        main_column = u.create_column(
-            u.create_stack(
-                u.create_column(
-                    u.create_label(text=_("No notifications.")),
-                    u.create_stretch(),
+        main_column = u.create_scroll_area(
+            u.create_column(
+                u.create_stack(
+                    u.create_column(
+                        u.create_label(text=_("No notifications.")),
+                        u.create_stretch(),
+                    ),
+                    u.create_column(
+                        u.create_column(items="notifications.items", item_component_id="notification", spacing=6),
+                        u.create_stretch(),
+                    ),
+                    current_index="@binding(stack_index.value)"
                 ),
-                u.create_column(
-                    u.create_column(items="notifications.items", item_component_id="notification", spacing=6),
-                    u.create_stretch(),
-                ),
-                current_index="@binding(stack_index.value)"
+                u.create_stretch(),
+                spacing=8,
+                margin=8,
             ),
-            u.create_stretch(),
-            spacing=8,
-            width=460,
-            min_height=260,
+            horizontal_scroll_bar_policy="off",
+            vertical_scroll_bar_policy="on",
+            width=480,
+            min_height = 260,
         )
 
-        window = u.create_window(main_column, title=_("Notifications"), margin=8, window_style="tool")
+        window = u.create_window(main_column, title=_("Notifications"), window_style="tool")
         self.run(window, app=app, persistent_id="notification_dialog")
 
     def close(self) -> None:

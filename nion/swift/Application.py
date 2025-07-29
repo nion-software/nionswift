@@ -46,6 +46,7 @@ from nion.swift.model import FileStorageSystem
 from nion.swift.model import PlugInManager
 from nion.swift.model import Profile
 from nion.swift.model import Symbolic
+from nion.swift.model import Utility
 from nion.ui import Application as UIApplication
 from nion.ui import CanvasItem
 from nion.ui import Declarative
@@ -209,7 +210,7 @@ class Application(UIApplication.BaseApplication):
 
         ui.set_persistence_handler(PersistenceHandler())
         setattr(self.ui, "persistence_root", "3")  # sets of preferences
-        self.version_str = "16.14.0"
+        self.version_str = "16.16.0"
 
         self.document_model_available_event = Event.Event()
 
@@ -437,6 +438,9 @@ class Application(UIApplication.BaseApplication):
             # calling open default project.
             def complete_find_existing_projects() -> None:
                 self.__open_default_project(profile_dir, is_created)
+                self._exit_prevent_close_state()
+
+            self._enter_prevent_close_state()
 
             window_handler = FindExistingProjectsWindowHandler(completion_fn=complete_find_existing_projects)
             window_handler.run(window, app=self)
@@ -491,6 +495,8 @@ class Application(UIApplication.BaseApplication):
             try:
                 document_controller = self.open_project_window(project_reference, update_last_project_reference)
             except Exception:
+                import traceback
+                traceback.print_exc()
                 self.show_ok_dialog(_("Error Opening Project"), _("Unable to open default project."), completion_fn=self.show_choose_project_dialog)
                 return True
 
@@ -618,6 +624,11 @@ class Application(UIApplication.BaseApplication):
                     self.__application = application
                     self.current_index = 0
                     self.list_property_model = ListModel.ListPropertyModel(project_reference_items_model)
+                    self.__application._enter_prevent_close_state()
+
+                def close(self) -> None:
+                    self.__application._exit_prevent_close_state()
+                    super().close()
 
                 def recent_item_selected(self, widget: Declarative.UIWidget, current_index: int) -> None:
                     if 0 <= current_index < len(project_reference_items_model.project_reference_items):
@@ -682,8 +693,9 @@ class Application(UIApplication.BaseApplication):
             if display_panel:
                 display_panel.set_display_panel_display_item(display_item)
         setattr(document_controller, "_dynamic_recent_project_actions", list())
-        document_controller.show()
+        # restore the ui state and geometry before show so that it pops up in the right location
         document_controller.restore_ui_state_and_geometry()
+        document_controller.show()
         return document_controller
 
     def _set_profile_for_test(self, profile: typing.Optional[Profile.Profile]) -> None:
@@ -942,15 +954,27 @@ class NewProjectAction(UIWindow.Action):
 
                 self.project_name = project_base_name + project_base_index_str
 
-                def safe_request_close() -> bool:
-                    event_loop.call_soon(self.request_close)
+                def handle_close() -> bool:
+                    self.request_close()
                     return True
 
                 def handle_new_and_close() -> bool:
                     app.create_project_reference(pathlib.Path(self.directory), self.__project_name_field.text or "untitled")
-                    safe_request_close()
+                    self.request_close()
                     return True
 
+                def verify_project_name(text: str) -> None:
+                    valid = text == Utility.simplify_filename(text)
+                    if valid:
+                        create_project_button.enabled = True
+                        create_project_button.tool_tip = None
+                        project_name_status_label.text = None
+                    else:
+                        create_project_button.enabled = False
+                        invalid_chars_str = _("Invalid Characters in Project Name")
+                        create_project_button.tool_tip = invalid_chars_str
+                        project_name_status_label.text = invalid_chars_str
+                        project_name_status_label.text_color = "red"
                 column = self.ui.create_column_widget()
 
                 directory_header_row = self.ui.create_row_widget()
@@ -984,10 +1008,18 @@ class NewProjectAction(UIWindow.Action):
                 project_name_field = self.ui.create_line_edit_widget(properties={"width": 400})
                 project_name_field.text = self.project_name
                 project_name_field.on_return_pressed = handle_new_and_close
-                project_name_field.on_escape_pressed = safe_request_close
+                project_name_field.on_escape_pressed = handle_close
+                project_name_field.on_text_edited = verify_project_name
                 project_name_row.add(project_name_field)
                 project_name_row.add_stretch()
                 project_name_row.add_spacing(13)
+
+                project_name_status_label = self.ui.create_label_widget()
+                project_name_status_row = self.ui.create_row_widget()
+                project_name_status_row.add_spacing(26)
+                project_name_status_row.add(project_name_status_label)
+                project_name_status_row.add_stretch()
+                project_name_status_row.add_spacing(13)
 
                 column.add_spacing(12)
                 column.add(directory_header_row)
@@ -999,6 +1031,8 @@ class NewProjectAction(UIWindow.Action):
                 column.add(project_name_header_row)
                 column.add_spacing(8)
                 column.add(project_name_row)
+                column.add_spacing(4)
+                column.add(project_name_status_row)
                 column.add_stretch()
                 column.add_spacing(16)
 
@@ -1012,11 +1046,16 @@ class NewProjectAction(UIWindow.Action):
                 choose_directory_button.on_clicked = choose
 
                 self.add_button(_("Cancel"), lambda: True)
-                self.add_button(_("Create Project"), handle_new_and_close)
+                create_project_button = self.add_button(_("Create Project"), handle_new_and_close)
 
                 self.content.add(column)
 
                 self.__project_name_field = project_name_field
+
+            def close(self) -> None:
+                if self.app:
+                    self.app._exit_prevent_close_state()
+                super().close()
 
             def show(self, *, size: typing.Optional[Geometry.IntSize] = None, position: typing.Optional[Geometry.IntPoint] = None) -> None:
                 super().show(size=size, position=position)
@@ -1025,6 +1064,7 @@ class NewProjectAction(UIWindow.Action):
 
         application = typing.cast(Application, context.application)
         profile = application.profile
+        application._enter_prevent_close_state()
         new_project_dialog = NewProjectDialog(application.ui, application, application.event_loop, profile)
         new_project_dialog.show()
 

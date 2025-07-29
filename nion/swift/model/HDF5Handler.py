@@ -164,6 +164,10 @@ class HDF5Handler(StorageHandler.StorageHandler):
     def factory(self) -> StorageHandler.StorageHandlerFactoryLike:
         return HDF5HandlerFactory()
 
+    @property
+    def storage_handler_type(self) -> str:
+        return "hdf5"
+
     # called before the file is moved; close but don't count.
     def prepare_move(self) -> None:
         with self.__lock:
@@ -287,6 +291,9 @@ class HDF5Handler(StorageHandler.StorageHandler):
 
 
 class HDF5HandlerFactory(StorageHandler.StorageHandlerFactoryLike):
+
+    def get_storage_handler_type(self) -> str:
+        return "hdf5"
 
     def is_matching(self, file_path: str) -> bool:
         if file_path.endswith(".h5") and os.path.exists(file_path):

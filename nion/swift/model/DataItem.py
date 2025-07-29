@@ -306,8 +306,8 @@ class DataItem(Persistence.PersistentObject):
 
         self.__placeholder_title_stream = Stream.CombineLatestStream([self.__source_title_stream, self.__computation_title_stream, self.__dynamic_title_stream], combine_placeholder_title)
 
-
     def close(self) -> None:
+        self.__title_stream_action = typing.cast(typing.Any, None)
         self.__title_stream = typing.cast(typing.Any, None)
         self.__dynamic_title = None
         self.__dynamic_title_persistence_action = None
@@ -316,8 +316,6 @@ class DataItem(Persistence.PersistentObject):
         self.__computation_title_stream = typing.cast(typing.Any, None)
         self.__dynamic_title_stream = typing.cast(typing.Any, None)
         self.__dynamic_title_enabled_stream = typing.cast(typing.Any, None)
-        self.__title_stream = typing.cast(typing.Any, None)
-        self.__title_stream_action = typing.cast(typing.Any, None)
         self.__placeholder_title_stream = typing.cast(typing.Any, None)
         self.__data = None
         super().close()
@@ -992,6 +990,9 @@ class DataItem(Persistence.PersistentObject):
     def session_metadata(self, value: DataAndMetadata.MetadataType) -> None:
         self._set_persistent_property_value("session", copy.deepcopy(value))
 
+    def _set_session_metadata(self, metadata: DataAndMetadata.MetadataType) -> None:
+        self.session_metadata = metadata
+
     @property
     def session_data(self) -> DataAndMetadata.MetadataType:
         return self.session_metadata
@@ -1130,24 +1131,24 @@ class DataItem(Persistence.PersistentObject):
             self.__metadata_property_changed("data_modified", value)
 
     @property
-    def timezone(self) -> typing.Optional[str]:
+    def timezone(self) -> str | None:
         data_metadata = self.__data_metadata
         return data_metadata.timezone if data_metadata else Utility.get_local_timezone()
 
     @timezone.setter
-    def timezone(self, value: str) -> None:
+    def timezone(self, value: str | None) -> None:
         if self.__data_metadata:
             self.__data_metadata._set_timezone(value)
             self._set_persistent_property_value("timezone", value)
             self.__timezone_property_changed("timezone", value)
 
     @property
-    def timezone_offset(self) -> typing.Optional[str]:
+    def timezone_offset(self) -> str | None:
         data_metadata = self.__data_metadata
         return data_metadata.timezone_offset if data_metadata else Utility.TimezoneMinutesToStringConverter().convert(Utility.local_utcoffset_minutes())
 
     @timezone_offset.setter
-    def timezone_offset(self, value: str) -> None:
+    def timezone_offset(self, value: str | None) -> None:
         if self.__data_metadata:
             self.__data_metadata._set_timezone_offset(value)
             self._set_persistent_property_value("timezone_offset", value)
@@ -1166,6 +1167,9 @@ class DataItem(Persistence.PersistentObject):
                 self.__data_metadata._set_metadata(metadata)
             self.__metadata = copy.deepcopy(metadata) if metadata else dict()
             self._set_persistent_property_value("metadata", self.__metadata)
+
+    def _set_metadata(self, metadata: DataAndMetadata.MetadataType) -> None:
+        self.metadata = metadata
 
     @property
     def has_data(self) -> bool:
@@ -1348,6 +1352,10 @@ class DataItem(Persistence.PersistentObject):
         return self.__data_metadata.data_dtype if self.__data_metadata else None
 
     @property
+    def data_descriptor(self) -> typing.Optional[DataAndMetadata.DataDescriptor]:
+        return self.__data_metadata.data_descriptor if self.__data_metadata else None
+
+    @property
     def dimensional_shape(self) -> DataAndMetadata.ShapeType:
         return self.__data_metadata.dimensional_shape if self.__data_metadata else tuple()
 
@@ -1443,7 +1451,7 @@ class DataItem(Persistence.PersistentObject):
                 TB = float(KB ** 4)  # 1,099,511,627,776
 
                 if B < KB:
-                    return '{0} {1}'.format(B, 'Bytes' if 0 == B > 1 else 'Byte')
+                    return '{0} {1}'.format(B, 'Bytes' if B != 1 else 'Byte')
                 elif KB <= B < MB:
                     return '{0:.2f} KB'.format(B / KB)
                 elif MB <= B < GB:

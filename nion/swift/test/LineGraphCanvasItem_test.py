@@ -61,9 +61,10 @@ class TestLineGraphCanvasItem(unittest.TestCase):
 
     def setUp(self):
         TestContext.begin_leaks()
-        self.app = Application.Application(TestUI.UserInterface(), set_global=False)
+        self._test_setup = TestContext.TestSetup()
 
     def tearDown(self):
+        self._test_setup = typing.cast(typing.Any, None)
         TestContext.end_leaks(self)
 
     def test_data_values_give_pretty_limits_when_auto(self):
@@ -249,7 +250,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             # test
             document_controller.tool_mode = "pointer"
             display_panel.display_canvas_item.simulate_click((240, 320))
-            display_panel._handle_key_pressed(typing.cast(TestUI.UserInterface, self.app.ui).create_key_by_id("left"))
+            display_panel._handle_key_pressed(typing.cast(TestUI.UserInterface, self._test_setup.app.ui).create_key_by_id("left"))
             interval_region = display_item.graphics[0]
             self.assertTrue(interval_region.start < 0.1)
             self.assertTrue(interval_region.end < 0.9)

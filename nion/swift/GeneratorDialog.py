@@ -144,7 +144,6 @@ class GenerateDataDialog(Declarative.WindowHandler):
         window = u.create_window(main_page, title=_("Generate Data"), margin=12, window_style="tool")
 
         self.run(window, parent_window=document_controller, persistent_id="generate_data")
-        self.__document_controller.register_dialog(self.window)
 
     def generate(self, widget: typing.Optional[Declarative.UIWidget] = None) -> None:
         data_shape: typing.Tuple[int, ...] = tuple()
@@ -193,11 +192,9 @@ class GenerateDataDialog(Declarative.WindowHandler):
             calibrations.append(Calibration.Calibration(units="nm"))
             calibrations.append(Calibration.Calibration(units="eV"))
 
-        is_large = numpy.prod(numpy.array(data_shape), dtype=numpy.int64).item() > 16 * 1024 * 1024
-
         document_model = self.__document_controller.document_model
 
-        data_item = DataItem.DataItem(large_format=is_large)
+        data_item = DataItem.DataItem()
         title_value = self.title_model.value
         if title_value:
             data_item.title = title_value

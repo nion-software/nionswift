@@ -125,9 +125,19 @@ class CollectionInfoController(Observable.Observable):
         oo.source(container).sequence_from_array("display_items", predicate=self.__filter_predicate.matches).len().action_fn(count_changed)
         self.__count_observer = typing.cast(Observer.AbstractItemSource, oo.make_observable())
 
+        def title_changed(key: str) -> None:
+            if key == "title":
+                if self.__data_group:
+                    self.__base_title = self.__data_group.title
+                    self.collection_info_stream.value = self.collection_info
+                    self.notify_property_changed("collection_info")
+
+        self.__title_changed_listener = self.__data_group.property_changed_event.listen(title_changed) if self.__data_group else None
+
     def close(self) -> None:
         self.__count_observer.close()
         self.__count_observer = typing.cast(typing.Any, None)
+        self.__title_changed_listener = None
         self.__data_group = None
 
     @property
@@ -559,6 +569,10 @@ class DocumentController(Window.Window):
         return listener
 
     def periodic(self) -> None:
+        # handle case where periodic gets called after close. Qt seems to do this occasionally.
+        # this is a hack and probably needs more thought as to why it is occurring.
+        if self.__closed:
+            return
         periodic_monitor = self.__periodic_monitor
         periodic_monitor.enter()
         try:
@@ -1257,6 +1271,11 @@ class DocumentController(Window.Window):
         if data_item and target_display_item:
             if target_display_item.display_data_channel:
                 new_display_item = target_display_item.snapshot()
+                display_layer = new_display_item.display_layers[0]
+                display_layer_color_str = display_layer.fill_color or display_layer.stroke_color or DisplayItem.DisplayItem.DEFAULT_COLORS[0]
+                display_layer.fill_color = None
+                display_layer.stroke_color = display_layer_color_str
+                display_layer.stroke_width = 2
                 self.document_model.append_display_item(new_display_item)
                 display_layer = copy.deepcopy(display_item.display_layers[0])
                 with contextlib.closing(display_layer):
@@ -1264,6 +1283,7 @@ class DocumentController(Window.Window):
                     display_layer_color_str = target_display_item.get_unique_display_layer_color(Color.Color(display_layer_color_str))
                     display_layer.fill_color = None
                     display_layer.stroke_color = display_layer_color_str
+                    display_layer.stroke_width = 2
                     display_layer_properties = display_layer.get_display_layer_properties()
                 new_display_item.append_display_data_channel_for_data_item(data_item, display_layer_properties)
                 command = DocumentController.InsertDisplayItemCommand(self, new_display_item, display_panel)
@@ -2771,19 +2791,19 @@ class DocumentController(Window.Window):
             source_data_items = self.document_model.get_source_data_items(data_item)
             if len(source_data_items) > 0:
                 menu.add_separator()
-                for data_item in source_data_items:
-                    menu.add_menu_item(make_reveal_menu_item_title(data_item, _("Source")), make_reveal_data_item_callback(data_item))
+                for data_item_ in source_data_items:
+                    menu.add_menu_item(make_reveal_menu_item_title(data_item_, _("Source")), make_reveal_data_item_callback(data_item_))
             dependent_data_items = self.document_model.get_dependent_data_items(data_item)
             if len(dependent_data_items) > 0:
                 menu.add_separator()
-                for data_item in dependent_data_items:
-                    menu.add_menu_item(make_reveal_menu_item_title(data_item, _("Dependent")), make_reveal_data_item_callback(data_item))
+                for data_item_ in dependent_data_items:
+                    menu.add_menu_item(make_reveal_menu_item_title(data_item_, _("Dependent")), make_reveal_data_item_callback(data_item_))
         display_item = action_context.display_item
         if display_item:
             if len(display_item.data_items) > 1:
                 menu.add_separator()
-                for data_item in display_item.data_items:
-                    menu.add_menu_item(make_reveal_menu_item_title(data_item, _("Component")), make_reveal_data_item_callback(data_item))
+                for data_item_ in display_item.data_items:
+                    menu.add_menu_item(make_reveal_menu_item_title(data_item_, _("Component")), make_reveal_data_item_callback(data_item_))
 
     class ActionContext(Window.ActionContext):
         """Action contact.
@@ -3455,10 +3475,9 @@ class WorkspaceChangeSplits(Window.Action):
         workspace_controller = window.workspace_controller
         if workspace_controller:
             splitter_canvas_item = typing.cast(CanvasItem.SplitterCanvasItem, context.parameters["splitter"])
-            splits = context.parameters["splits"]
+            splits = typing.cast(typing.Sequence[float], context.parameters["splits"])
             command = Workspace.ChangeWorkspaceContentsCommand(workspace_controller, _("Change Splits"))
-            splitter_canvas_item.splits = splits
-            workspace_controller._sync_layout()
+            workspace_controller.set_splits(splitter_canvas_item, splits)
             window.push_undo_command(command)
             return Window.ActionResult(Window.ActionStatus.FINISHED)
         raise ValueError("Missing workspace controller")
@@ -3550,6 +3569,11 @@ class WorkspaceNextAction(Window.Action):
             workspace_controller.change_to_next_workspace()
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        return len(window.project.workspaces) > 1
+
 
 class WorkspacePreviousAction(Window.Action):
     action_id = "workspace.previous"
@@ -3562,6 +3586,11 @@ class WorkspacePreviousAction(Window.Action):
         if workspace_controller:
             workspace_controller.change_to_previous_workspace()
         return Window.ActionResult(Window.ActionStatus.FINISHED)
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        return len(window.project.workspaces) > 1
 
 
 class WorkspaceRemoveAction(Window.Action):
@@ -3935,6 +3964,46 @@ class DisplayPanelDeleteGraphicsAction(Window.Action):
         return display_item is not None and display_item.graphic_selection.has_selection
 
 
+def adjust_display_panel_focus(context: Window.ActionContext, delta: int) -> Window.ActionResult:
+    context = typing.cast(DocumentController.ActionContext, context)
+    window = typing.cast(DocumentController, context.window)
+    workspace_controller = window.workspace_controller
+    assert workspace_controller
+    if context.display_panel:
+        index = workspace_controller.display_panels.index(context.display_panel)
+        index = (index + delta) % len(workspace_controller.display_panels)
+        window.selected_display_panel = workspace_controller.display_panels[index]
+        window.selected_display_panel.request_focus()
+    elif workspace_controller.display_panels:
+        window.selected_display_panel = workspace_controller.display_panels[0] if delta > 0 else workspace_controller.display_panels[-1]
+        window.selected_display_panel.request_focus()
+    return Window.ActionResult(Window.ActionStatus.FINISHED)
+
+
+class DisplayPanelFocusNextAction(Window.Action):
+    action_id = "display_panel.focus_next"
+    action_name = _("Move Focus to Next Display Panel")
+
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        return adjust_display_panel_focus(context, 1)
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return len(context.display_panels) > 0 or context.display_panel is not None
+
+
+class DisplayPanelFocusPreviousAction(Window.Action):
+    action_id = "display_panel.focus_previous"
+    action_name = _("Move Focus to Previous Display Panel")
+
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        return adjust_display_panel_focus(context, -1)
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return len(context.display_panels) > 0 or context.display_panel is not None
+
+
 class DisplayPanelSelectSiblings(Window.Action):
     action_id = "display_panel.select_siblings"
     action_name = _("Select More Display Panels")
@@ -4128,6 +4197,8 @@ Window.register_action(DisplayPanelClearAction())
 Window.register_action(DisplayPanelCloseAction())
 Window.register_action(DisplayPanelCycleAction())
 Window.register_action(DisplayPanelDeleteGraphicsAction())
+Window.register_action(DisplayPanelFocusNextAction())
+Window.register_action(DisplayPanelFocusPreviousAction())
 Window.register_action(DisplayPanelSelectSiblings())
 Window.register_action(DisplayPanelShowItemAction())
 Window.register_action(DisplayPanelShowGridBrowserAction())
@@ -4165,7 +4236,7 @@ class LineProfileGraphicAction(Window.Action):
         if not context.display_panel:
             return False
         graphic_type_set = {graphic.type for graphic in context.selected_graphics}
-        return len(graphic_type_set) == 1 and list(graphic_type_set)[0] == "line-profile"
+        return len(graphic_type_set) == 1 and list(graphic_type_set)[0] == "line-profile-graphic"
 
 
 class RasterDisplayCreateGraphicAction(Window.Action):

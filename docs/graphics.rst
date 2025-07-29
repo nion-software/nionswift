@@ -24,6 +24,8 @@ You can cut, copy, and paste graphics.
 
 If you have trouble selecting a graphic that is behind another graphic, try clicking on the control points of the graphic. The control points take priority over the middle of graphics further forward.
 
+You can also select graphics behind other graphics by selecting the graphic in the foreground and using the :kbd:`Tab` key to cycle through the graphics in the order they were added. The :kbd:`Shift` + :kbd:`Tab` keys will cycle through the graphics in reverse order.
+
 .. _Image Graphics:
 
 Image Graphics
@@ -75,6 +77,8 @@ You can edit the start, end, length, angle, and width of the line profile in the
 You can edit the end points of the line by dragging each end point. Holding the :kbd:`Shift` key while dragging will limit the line to be horizontal, vertical, or at a 45° angle.
 
 You can change the position of the line by dragging in the middle along the line.
+
+You can also change the width of the line profile by clicking on the line profile graphic and pressing :kbd:`+` or :kbd:`=` keys to increase the width or :kbd:`-` key to decrease the width.
 
 See See :ref:`Line Profile Computation`.
 
@@ -164,6 +168,8 @@ To create a mask, add one or more rectangle or ellipse graphics. Select the desi
 
 You can remove a graphic from a mask by selecting the graphic and choosing :menuselection:`Graphics -> Remove from Mask` or by just deleting the graphic.
 
+A pixel is considered to be contained within the mask if the center of the pixel is within any of the mask graphics.
+
 .. _Fourier Filtering:
 
 Fourier Filtering
@@ -171,6 +177,8 @@ Fourier Filtering
 A special type of masking is called Fourier filtering. You can place symmetric masks on complex-valued images and perform Fourier filtering using the menu item :menuselection:`Processing --> Fourier --> Fourier Filter`.
 
 The origin of the Fourier filter graphics will typically be in the middle of the center value of the complex-valued image. However, the origin can be changed by editing the spatial calibrations of the image.
+
+A pixel is considered to be contained within the mask if the center of the pixel is within any of the Fourier mask graphics.
 
 Four types of graphics are available for Fourier filter.
 
@@ -202,7 +210,7 @@ You can edit both angles in the :guilabel:`Inspector` panel.
 
 Ring
 ++++
-The wedge graphic is a pair of circles centered at the origin. It can be used to perform low pass, high pass, and band pass filters.
+The ring graphic is a pair of circles centered at the origin. It can be used to perform low pass, high pass, and band pass filters.
 
 You can drag the radius of either circle to adjust its filter frequency.
 

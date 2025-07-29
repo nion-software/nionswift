@@ -1249,6 +1249,7 @@ class AppendDisplayDataChannelCommand(Undo.UndoableCommand):
                 display_layer_color_str = display_item.get_unique_display_layer_color(Color.Color(display_layer_color_str))
                 display_layer.fill_color = None
                 display_layer.stroke_color = display_layer_color_str
+                display_layer.stroke_width = 2
                 display_layer_properties = display_layer.get_display_layer_properties()
             display_item.append_display_data_channel_for_data_item(data_item, display_layer_properties)
             self.__display_data_channel_index = display_item.display_data_channels.index(display_item.get_display_data_channel_for_data_item(data_item))
@@ -1754,9 +1755,17 @@ class PlaybackController:
                 max_index = data_metadata.max_sequence_index
                 if display_data_channel.sequence_index + 1 >= max_index:
                     self.index_adapter.set_index_int_value(display_data_channel, 0)
+                sequence_index = display_data_channel.sequence_index
+                # loop until the movie is finished; but also stop if sequence_index changes externally.
+                # stopping when sequence_index changes also prevents strange behavior if the user
+                # changes the sequence index while the movie is playing.
                 while display_data_channel.sequence_index + 1 < max_index:
                     await asyncio.sleep(0.05)
-                    self.index_adapter.set_index_int_value(display_data_channel, display_data_channel.sequence_index + 1)
+                    # this check goes after the sleep, the sequence index can change during the sleep.
+                    if sequence_index != display_data_channel.sequence_index:
+                        break
+                    sequence_index = sequence_index + 1
+                    self.index_adapter.set_index_int_value(display_data_channel, sequence_index)
         finally:
             display_data_channel.ghost_properties.subtract(["sequence_index"])
             self.__stop_playing()
@@ -1867,6 +1876,28 @@ class CreateGraphicInteractiveTask(DisplayCanvasItem.InteractiveTask):
         assert undo_command
         undo_command.perform()
         self.__display_panel.document_controller.push_undo_command(undo_command)
+
+
+class DisplayPanelListCanvasItem(ListCanvasItem.ListCanvasItem2):
+    def key_pressed(self, key: UserInterface.Key) -> bool:
+        if key.is_backtab:
+            self._adjust_selection_backward(1, False)
+            return True
+        if key.is_tab:
+            self._adjust_selection_forward(1, False)
+            return True
+        return super().key_pressed(key)
+
+
+class DisplayPanelGridCanvasItem(GridCanvasItem.GridCanvasItem2):
+    def key_pressed(self, key: UserInterface.Key) -> bool:
+        if key.is_backtab:
+            self._adjust_selection_backward(1, False)
+            return True
+        if key.is_tab:
+            self._adjust_selection_forward(1, False)
+            return True
+        return super().key_pressed(key)
 
 
 class DisplayPanel(CanvasItem.LayerCanvasItem):
@@ -2122,7 +2153,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         def strip_thumbnail_item_factory(item: typing.Any, is_selected_model: Model.PropertyModel[bool]) -> CanvasItem.AbstractCanvasItem:
             return DataPanel.DataPanelGridItem(typing.cast(DisplayItem.DisplayItem, item), document_controller.ui, DataPanel.DataPanelUISettings(document_controller.ui), draw_label=False)
 
-        strip_canvas_item = ListCanvasItem.ListCanvasItem2(Panel.ThreadSafeListModel(display_items_model, document_controller.event_loop), self.__selection, strip_thumbnail_item_factory, item_delegate, item_width=80, key="display_items", is_shared_selection=True)
+        strip_canvas_item = DisplayPanelListCanvasItem(Panel.ThreadSafeListModel(display_items_model, document_controller.event_loop), self.__selection, strip_thumbnail_item_factory, item_delegate, item_width=80, key="display_items", is_shared_selection=True)
         strip_canvas_item.on_focus_changed = ReferenceCounting.weak_partial(DisplayPanel.set_focused, self)
 
         strip_scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(strip_canvas_item)
@@ -2135,7 +2166,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         def grid_thumbnail_item_factory(item: typing.Any, is_selected_model: Model.PropertyModel[bool]) -> CanvasItem.AbstractCanvasItem:
             return DataPanel.DataPanelGridItem(typing.cast(DisplayItem.DisplayItem, item), document_controller.ui, DataPanel.DataPanelUISettings(document_controller.ui))
 
-        grid_canvas_item = GridCanvasItem.GridCanvasItem2(Panel.ThreadSafeListModel(display_items_model, document_controller.event_loop), self.__selection, grid_thumbnail_item_factory, item_delegate, item_size=Geometry.IntSize(80, 80), key="display_items", is_shared_selection=True)
+        grid_canvas_item = DisplayPanelGridCanvasItem(Panel.ThreadSafeListModel(display_items_model, document_controller.event_loop), self.__selection, grid_thumbnail_item_factory, item_delegate, item_size=Geometry.IntSize(80, 80), key="display_items", is_shared_selection=True)
         grid_canvas_item.on_focus_changed = ReferenceCounting.weak_partial(DisplayPanel.set_focused, self)
 
         grid_scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(grid_canvas_item)
@@ -2298,6 +2329,8 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
                 display_items.append(filtered_display_items[index])
         self.__display_items = display_items
         if self.__display_items != old_display_items:
+            if callable(self.on_contents_changed):
+                self.on_contents_changed()
             self.display_items_changed_event.fire()
 
     def save_contents(self) -> Persistence.PersistentDictType:
@@ -2604,11 +2637,12 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
 
     def set_selected(self, selected: bool) -> None:
         if self.__content_canvas_item:  # may be closed
-            self.__content_canvas_item.selected = selected
-            if selected:
-                self.__content_canvas_item.focused_style = "#4682B4"  # steel blue
-                self.__content_canvas_item.selection_number = None
-                self.__content_canvas_item.line_dash = None
+            if self.__content_canvas_item.selected is not selected:
+                self.__content_canvas_item.selected = selected
+                if selected:
+                    self.__content_canvas_item.focused_style = "#4682B4"  # steel blue
+                    self.__content_canvas_item.selection_number = None
+                    self.__content_canvas_item.line_dash = None
 
     def _is_selected(self) -> bool:
         """ Used for testing. """
@@ -2704,20 +2738,45 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         self.__display_composition_canvas_item.visible = True
         self.__horizontal_browser_canvas_item.visible = False
         self.__grid_browser_canvas_item.visible = False
+        self.__display_composition_canvas_item.request_focus()
 
     def __switch_to_horizontal_browser(self) -> None:
         self.__display_composition_canvas_item.visible = True
         self.__horizontal_browser_canvas_item.visible = True
         self.__grid_browser_canvas_item.visible = False
+        self.__horizontal_browser_canvas_item.request_focus()
 
     def __switch_to_grid_browser(self) -> None:
         self.__display_composition_canvas_item.visible = False
         self.__horizontal_browser_canvas_item.visible = False
         self.__grid_browser_canvas_item.visible = True
+        self.__grid_browser_canvas_item.request_focus()
 
     # from the canvas item directly. dispatches to the display canvas item. if the display canvas item
     # doesn't handle it, gives the display controller a chance to handle it.
     def _handle_key_pressed(self, key: UserInterface.Key) -> bool:
+        # handle tabs before anything else.
+        if key.is_tab:
+            display_item = self.display_item
+            selected_graphics = display_item.selected_graphics if display_item else None
+            if selected_graphics:
+                assert display_item
+                last_selected_graphic_index = max(display_item.graphic_selection.indexes)
+                display_item.graphic_selection.set((last_selected_graphic_index + 1) % len(display_item.graphics))
+            else:
+                self.document_controller.perform_action(Window.actions["display_panel.focus_next"])
+            return True
+        elif key.is_backtab:
+            display_item = self.display_item
+            selected_graphics = display_item.selected_graphics if display_item else None
+            if selected_graphics:
+                assert display_item
+                last_selected_graphic_index = min(display_item.graphic_selection.indexes)
+                display_item.graphic_selection.set((last_selected_graphic_index - 1) % len(display_item.graphics))
+            else:
+                self.document_controller.perform_action(Window.actions["display_panel.focus_previous"])
+            return True
+
         display_canvas_item = self.display_canvas_item
         if display_canvas_item:
             # Alt+Shift+L and Alt+Shift+F are not currently expressible using key config.
@@ -3300,5 +3359,6 @@ def preview(ui_settings: UISettings.UISettings, display_item: DisplayItem.Displa
             display_data_delta.mark_changed()
             display_canvas_item.update_display_data_delta(display_data_delta)
             with drawing_context.saver():
+                display_canvas_item._wait_for_update()
                 display_canvas_item.repaint_immediate(drawing_context, pixel_shape)
     return drawing_context

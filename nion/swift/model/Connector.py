@@ -47,7 +47,9 @@ class PropertyConnector:
                     if key == property_connector_item.property_name:
                         common_value = property_connector_item.get_common_value()
                         for i_property_connector_item in property_connector_items:
-                            if i_property_connector_item != property_connector_item:
+                            # don't set the value on the item that changed. also don't set the value if the value is None.
+                            # some items don't like to be set to None. this is a hack. see test_mapped_sum_connector_on_invalid_data.
+                            if i_property_connector_item != property_connector_item and common_value is not None:
                                 i_property_connector_item.set_common_value(common_value)
                 finally:
                     self.__suppress = False

@@ -11,15 +11,17 @@ Display panels are used to show display items.
 
 You can drag items from the data panel into a display panel.
 
-You can put keyboard focus on a display panel by clicking on it.
+The primary selected display panel will have a solid focus ring around it and will be the one that receives keyboard input.
 
-The display item with keyboard focus also serves as the primary selected item. Primary selections are indicated by a solid focus ring.
+You can make a display panel be the primary selected display panel by clicking on it.
 
-You can add secondary selected items by :kbd:`control` clicking (Windows/Linux) or :kbd:`command` (macOS) clicking on display panels. Secondary selections are indicated by a dotted focus ring.
+You can also change the primary selected display panel by using the :kbd:`Tab` key to cycle through the display panels. The :kbd:`Shift-Tab` key will cycle in reverse order.
 
-Processing and other commands apply to the primary selected items. Processing commands that need multiple inputs may use secondary selected items.
+You can add secondary selected display panels by :kbd:`control` clicking (Windows/Linux) or :kbd:`command` (macOS) clicking on additional display panels. Secondary selections are indicated by a dotted focus ring.
 
-To select multiple primary items, you need to use the data panel or a browser panel.
+Processing and other commands mostly apply to the display items in the primary selected display panel. Processing commands that need multiple inputs may use display items in the secondary selected display panels.
+
+To select multiple primary display items, you need to use the data panel or a browser panel.
 
 .. _Display Panel Browsers:
 
@@ -73,9 +75,11 @@ Once the adjustments have been applied, the data is scaled so that the lower dis
 
 The display limits may be specified or unspecified, in which case they are "auto" calculated, meaning that they will automatically adjust to the lowest and highest values of the data (once it has been converted to scalar and brightness, contrast, and gamma applied) in the image.
 
-The selection of indexes for sequences or collections, the conversion from complex to scalar, the adjustments such as brightness, contrast, and gamma, the display limits, and the color map are all selectable or editable using the inspector (see :ref:`Inspector Panel`).
+You can press the :kbd:`Enter` key to fix display limits limits to their current values if they are "auto" calculated.
 
-You can press the :kbd:`Enter` key to reset display limits.
+You can reset the display limits to "auto" by using the Inspector and deleting the values in the :guilabel:`Display Limits` section of the Inspector.
+
+The selection of indexes for sequences or collections, the conversion from complex to scalar, the adjustments such as brightness, contrast, and gamma, the display limits, and the color map are all selectable or editable using the inspector (see :ref:`Inspector Panel`).
 
 The Histogram panel (see :ref:`Histogram Panel`) shows the histogram of the image data. It can be used to set or reset the display limits by dragging within the histogram graph or by double clicking within the graph, respectively.
 
@@ -104,6 +108,10 @@ The axes may be configured so that they are specified with values or are "auto" 
 You can reset an axis to "auto" by double clicking on it.
 
 The display limits and display channels may be specified or unspecified, in which case they are "auto" calculated, meaning that they will automatically adjust to the lowest and highest values of the data (once it has been converted to scalar) in the plot.
+
+You can press the :kbd:`Enter` key to fix display limits and display channels to their current values if they are "auto" calculated.
+
+You can reset the display limits and channels "auto" by using the Inspector and deleting the values in the :guilabel:`Display` and :guilabel:`Channels` sections of the Inspector.
 
 The y-axis can be displayed as linear or logarithmic by clicking on the :guilabel:`Log Scale (Y)` checkbox in the :guilabel:`Line Plot Display` section of the Inspector.
 

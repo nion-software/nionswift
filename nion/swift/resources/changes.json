@@ -1,6 +1,94 @@
 [
   {
-    "version": "16.15.dev",
+    "version": "16.16.0",
+    "notes": [
+      {
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/1295"
+        ],
+        "summary": "Add ability to switch collection directly from the data panel."
+      },
+      {
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/149"
+        ],
+        "summary": "Add ability to change graphic selection using tab/backtab."
+      },
+      {
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/1549"
+        ],
+        "summary": "Fix tab handling in display panels to select next panel."
+      },
+      {
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/763"
+        ],
+        "summary": "Add ability to change graphic stroke color, stroke width, and fill color."
+      },
+      {
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/1505"
+        ],
+        "summary": "Fix inspector issue with updating line plot display limits."
+      },
+      {
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/1504"
+        ],
+        "summary": "Fix inspector issue with updating data range when data changes."
+      },
+      {
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/1472"
+        ],
+        "summary": "Fix issue with masks being off by 0.5 pixel."
+      },
+      {
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/1458"
+        ],
+        "summary": "Fix issue with closing new project dialog when exiting dialog with Enter key."
+      },
+      {
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/1422"
+        ],
+        "summary": "Fix issue with reveal menu items on data items having both source and dependent."
+      },
+      {
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/960"
+        ],
+        "summary": "Locked graphics now draw distinctly to indicate shape and/or position are locked."
+      },
+      {
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/1538"
+        ],
+        "summary": "Display performance improvements."
+      }
+    ]
+  },
+  {
+    "version": "16.15.1",
+    "notes": [
+      {
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/1463"
+        ],
+        "summary": "Add ability to rename data group by hitting return or double clicking on list item."
+      },
+      {
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/1483"
+        ],
+        "summary": "Fix issue with plus and minus key adjusting line profile widths."
+      }
+    ]
+  },
+  {
+    "version": "16.15.0",
     "notes": [
       {
         "issues": [
@@ -14,6 +102,12 @@
           "https://github.com/nion-software/nionswift/issues/620"
         ],
         "summary": "Improve metadata in computed data items to include computation and source (acquisition) metadata."
+      },
+      {
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/1391"
+        ],
+        "summary": "Changed default stroke/fill options to non-filled for all layers when initially making composite line plots."
       },
       {
         "issues": [
@@ -32,6 +126,40 @@
           "https://github.com/nion-software/nionswift/issues/1370"
         ],
         "summary": "Improve context menu on line plots to be able to reveal line plot 'component' display items."
+      },
+      {
+        "summary": "Improve performance of data and display panel list and grid browsers."
+      },
+      {
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/1140",
+          "https://github.com/nion-software/nionswift/issues/1143"
+        ],
+        "summary": "Fix issues with ring Fourier filter."
+      },
+      {
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/1428"
+        ],
+        "summary": "Fix another case where computations would be recomputed unnecessarily."
+      },
+      {
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/1384"
+        ],
+        "summary": "Improve internal handling of data item storage when size increases beyond 16MB."
+      },
+      {
+        "summary": "Fix issues with line plot drawing at first and last pixel."
+      },
+      {
+        "summary": "Fix issues with open dialogs preventing application closing."
+      },
+      {
+        "summary": "Fix issues with window returning to same location when application last exited."
+      },
+      {
+        "summary": "Fix issue where play-sequence would enter endless loop if adjusted while playing."
       },
       {
         "issues": [

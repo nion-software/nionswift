@@ -7,7 +7,6 @@ import copy
 import functools
 import gettext
 import math
-import operator
 import sys
 import threading
 import typing
@@ -525,7 +524,7 @@ class DisplayItemPropertyCommandModel(Model.PropertyChangedPropertyModel[typing.
         return getattr(self.__display_item, self.__property_name)
 
 
-class DisplayItemDisplayPropertyCommandModel(Model.PropertyChangedPropertyModel[typing.Any]):
+class DisplayItemDisplayPropertyCommandModel(Model.PropertyModel[typing.Any]):
     """Display item channel property command model.
 
     This model makes undoable changes to a display item property.
@@ -533,46 +532,72 @@ class DisplayItemDisplayPropertyCommandModel(Model.PropertyChangedPropertyModel[
 
     def __init__(self, document_controller: DocumentController.DocumentController,
                  display_item: DisplayItem.DisplayItem, property_name: str) -> None:
-        super().__init__(display_item, property_name)
+        super().__init__()
         self.__display_item = display_item
         self.__document_controller = document_controller
         self.__property_name = property_name
+        # avoid using display_properties_changed event, as it is not guaranteed to be called when the display
+        # properties change. instead just listen for display item property changes, respond to 'display_properties'
+        # changing. then let the PropertyModel machinery check for changes and send out notifications.
+        self.__listener = display_item.property_changed_event.listen(ReferenceCounting.weak_partial(DisplayItemDisplayPropertyCommandModel.__display_property_changed, self))
+        self.value = self._get_property_value()
 
-    def _set_property_value(self, value: typing.Optional[typing.Any]) -> None:
-        if value != self._get_property_value():
-            command = DisplayPanel.ChangeDisplayCommand(self.__document_controller.document_model, self.__display_item,
-                                                        title=_("Change Display"),
-                                                        command_id="change_display_" + self.__property_name, is_mergeable=True,
-                                                        **{self.__property_name: value})
-            command.perform()
-            self.__document_controller.push_undo_command(command)
+    def __display_property_changed(self, key: str) -> None:
+        if key == "display_properties":
+            # the PropertyModel does a similar check when setting the property value. but here we don't want to set
+            # the property value since that will trigger a command. this is being received as an outside change and
+            # should not post an undo command that can be undone. if the value change is received from the UI,
+            # then it should post an undo command.
+            value = self._get_property_value()
+            if self.value is None:
+                not_equal = value is not None
+            elif value is None:
+                not_equal = self.value is not None
+            else:
+                not_equal = value != self.value
+            if not_equal:
+                super()._set_value(self._get_property_value())
+
+    def _set_value(self, value: typing.Optional[typing.Any]) -> None:
+        # override this to generate the command. the _set_value sets the PropertyModel value, the command sets the
+        # actual value in the display item.
+        super()._set_value(value)
+        command = DisplayPanel.ChangeDisplayCommand(self.__document_controller.document_model, self.__display_item,
+                                                    title=_("Change Display"),
+                                                    command_id="change_display_" + self.__property_name, is_mergeable=True,
+                                                    **{self.__property_name: value})
+        command.perform()
+        self.__document_controller.push_undo_command(command)
 
     def _get_property_value(self) -> typing.Optional[typing.Any]:
         return self.__display_item.get_display_property(self.__property_name)
 
 
 class GraphicPropertyCommandModel(Model.PropertyModel[typing.Any]):
-
-    def __init__(self, document_controller: DocumentController.DocumentController,
-                 display_item: DisplayItem.DisplayItem, graphic: Graphics.Graphic, property_name: str, title: str,
-                 command_id: str) -> None:
-        super().__init__(getattr(graphic, property_name))
+    def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem, graphic: Graphics.Graphic,
+                 property_name: str, title: str,  command_id: str, read_property_name: str | None = None) -> None:
+        read_name = read_property_name if read_property_name else property_name
+        super().__init__(getattr(graphic, read_name))
         self.__property_name = property_name
+        self.__read_property_name = read_name
         self.__graphic = graphic
 
         def property_changed_from_user(value: typing.Any) -> None:
-            if value != getattr(graphic, property_name):
-                command = DisplayPanel.ChangeGraphicsCommand(document_controller.document_model, display_item, [graphic], title=title, command_id=command_id, is_mergeable=True, **{property_name: value})
+            if value != getattr(graphic, self.__read_property_name):
+                command = DisplayPanel.ChangeGraphicsCommand(document_controller.document_model, display_item, [graphic],
+                                                            title=title, command_id=command_id, is_mergeable=True,
+                                                            **{self.__property_name: value})
                 command.perform()
                 document_controller.push_undo_command(command)
+                self.value = getattr(graphic, self.__read_property_name)
 
         self.on_value_changed = property_changed_from_user
-
-        self.__changed_listener = graphic.property_changed_event.listen(ReferenceCounting.weak_partial(GraphicPropertyCommandModel.__property_changed_from_graphic, self))
+        self.__changed_listener = graphic.property_changed_event.listen(
+            ReferenceCounting.weak_partial(GraphicPropertyCommandModel.__property_changed_from_graphic, self))
 
     def __property_changed_from_graphic(self, name: str) -> None:
-        if name == self.__property_name:
-            self.value = getattr(self.__graphic, self.__property_name)
+        if name == self.__read_property_name:
+            self.value = getattr(self.__graphic, self.__read_property_name)
 
 
 class InfoInspectorHandler(Declarative.Handler):
@@ -880,22 +905,21 @@ class LinePlotDisplayLayerHandler(Declarative.Handler):
                 spacing=12
             ),
             u.create_row(
-                u.create_label(text=_("Fill Color"), width=80),
+                u.create_label(text=_("Fill Color"), width=80, text_alignment_vertical="vcenter", text_alignment_horizontal="right"),
+                u.create_line_edit(text="@binding(_line_plot_display_layer_model.fill_color_model.value)", placeholder_text=_("None"), width=80),
                 {"type": "nionswift.color_chooser", "color": "@binding(_line_plot_display_layer_model.fill_color_model.value)"},
-                u.create_line_edit(text="@binding(_line_plot_display_layer_model.fill_color_model.value)", placeholder_text="None", width=80),
                 u.create_stretch(),
                 spacing=8
             ),
             u.create_row(
-                u.create_label(text=_("Stroke Color"), width=80),
+                u.create_label(text=_("Stroke Color"), width=80, text_alignment_vertical="vcenter", text_alignment_horizontal="right"),
+                u.create_line_edit(text="@binding(_line_plot_display_layer_model.stroke_color_model.value)", placeholder_text=_("None"), width=80),
                 {"type": "nionswift.color_chooser", "color": "@binding(_line_plot_display_layer_model.stroke_color_model.value)"},
-                u.create_line_edit(text="@binding(_line_plot_display_layer_model.stroke_color_model.value)", placeholder_text="None", width=80),
                 u.create_stretch(),
                 spacing=8
             ),
             u.create_row(
-                u.create_label(text=_("Stroke Width"), width=80, height=30),
-                u.create_spacing(44 + 8),  # color push button width + spacing to avoid collapse
+                u.create_label(text=_("Stroke Width"), width=80, height=30, text_alignment_vertical="vcenter", text_alignment_horizontal="right"),
                 u.create_line_edit(text="@binding(_line_plot_display_layer_model.stroke_width_model.value, converter=float_to_string_converter)", width=36),
                 u.create_stretch(),
                 spacing=8
@@ -1125,8 +1149,8 @@ class ImageDataInspectorModel(Observable.Observable):
 
         self.data_range_low_model = Model.PropertyModel[float]()
         self.data_range_high_model = Model.PropertyModel[float]()
-        self._update_data_range(self._display_data_channel.get_latest_computed_display_values())
-        self._display_data_channel.subscribe_to_latest_computed_display_values(self._update_data_range)
+        self.__display_values_subscription = self._display_data_channel.subscribe_to_latest_computed_display_values(ReferenceCounting.weak_partial(ImageDataInspectorModel.__update_data_range, self))
+        self.__update_data_range(self._display_data_channel.get_latest_computed_display_values())
 
         display_limits_model = DisplayDataChannelPropertyCommandModel(document_controller, display_data_channel, "display_limits", title=_("Change Display Limits"), command_id="change_display_limits")
         self.display_limits_low_model = ImageDisplayLimitsModel(display_data_channel, display_limits_model, 0)
@@ -1153,9 +1177,9 @@ class ImageDataInspectorModel(Observable.Observable):
 
         self.gamma_model = DisplayDataChannelAdjustmentPropertyCommandModel(document_controller, display_data_channel, "gamma", 1.0)
 
-        self.listener = self._display_data_channel.property_changed_event.listen(ReferenceCounting.weak_partial(ImageDataInspectorModel._property_changed, self))
+        self.listener = self._display_data_channel.property_changed_event.listen(ReferenceCounting.weak_partial(ImageDataInspectorModel.__property_changed, self))
 
-    def _update_data_range(self, display_values: typing.Optional[DisplayItem.DisplayValues]) -> None:
+    def __update_data_range(self, display_values: typing.Optional[DisplayItem.DisplayValues]) -> None:
         if display_values is not None and display_values.data_range is not None:
             data_range = display_values.data_range
             self.data_range_low_model.value = data_range[0]
@@ -1173,7 +1197,7 @@ class ImageDataInspectorModel(Observable.Observable):
     def get_current_adjustment_index(self) -> int:
         return self._adjustment_options_reverse_map[self.get_current_adjustment_id()]
 
-    def _property_changed(self, name: str) -> None:
+    def __property_changed(self, name: str) -> None:
         if name == "color_map_id":
             self.current_colormap_index.value = self._color_map_reverse_map[self._display_data_channel.color_map_id]
         if name == "adjustments":
@@ -2125,20 +2149,20 @@ class LinePlotDisplaySectionHandler(Declarative.Handler):
         self.ui_view = u.create_column(
             u.create_row(
                 u.create_label(text=_("Display:"), width=120),
-                u.create_line_edit(text="@binding(_y_min_model.value, converter=_float_to_string_converter)", width=72, placeholder_text=_("Auto")),
+                u.create_line_edit(text="@binding(_y_min_model.value, converter=_float_to_string_converter)", width=72, placeholder_text=_("Auto"), name="y_min_field"),
                 u.create_spacing(8),
-                u.create_line_edit(text="@binding(_y_max_model.value, converter=_float_to_string_converter)", width=72, placeholder_text=_("Auto")),
+                u.create_line_edit(text="@binding(_y_max_model.value, converter=_float_to_string_converter)", width=72, placeholder_text=_("Auto"), name="y_max_field"),
                 u.create_stretch()
             ),
             u.create_row(
                 u.create_label(text=_("Channels:"), width=120),
-                u.create_line_edit(text="@binding(_left_channel_model.value, converter=_float_to_string_converter)", width=72, placeholder_text=_("Auto")),
+                u.create_line_edit(text="@binding(_left_channel_model.value, converter=_float_to_string_converter)", width=72, placeholder_text=_("Auto"), name="left_channel_field"),
                 u.create_spacing(8),
-                u.create_line_edit(text="@binding(_right_channel_model.value, converter=_float_to_string_converter)", width=72, placeholder_text=_("Auto")),
+                u.create_line_edit(text="@binding(_right_channel_model.value, converter=_float_to_string_converter)", width=72, placeholder_text=_("Auto"), name="right_channel_field"),
                 u.create_stretch()
             ),
             u.create_row(
-                u.create_check_box(text=_("Log Scale (Y)"), checked="@binding(_y_style_model.value, converter=_log_checked_to_check_state_converter)"),
+                u.create_check_box(text=_("Log Scale (Y)"), checked="@binding(_y_style_model.value, converter=_log_checked_to_check_state_converter)", name="log_scale_check_box"),
                 u.create_stretch()
             )
         )
@@ -2152,6 +2176,8 @@ class LinePlotDisplayInspectorSection(InspectorSection):
 
     def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem) -> None:
         super().__init__(document_controller.ui, "line-plot", _("Line Plot Display"))
+
+        self.widget_id = "line_plot_display_inspector_section"
 
         self._display_type_chooser = DisplayTypeChooserHandler(display_item, document_controller)
         display_type_chooser_widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop, self._display_type_chooser)
@@ -2847,13 +2873,18 @@ class GraphicsInspectorHandler(Declarative.Handler):
         self.__document_controller = document_controller
         self.__display_item = display_item
         self.__graphic = graphic
-
+        self._stroke_float_str_converter = Converter.FloatToStringConverter(pass_none=True)
         self._graphic_type_model = Model.PropertyModel[str]()
         self.__set_type_specifics()
-
         self._graphic_label_model = GraphicPropertyCommandModel(document_controller, display_item, graphic, "label", title=_("Change Label"), command_id="change_label")
         self._lock_position_model = GraphicPropertyCommandModel(self.__document_controller, self.__display_item, graphic, "is_position_locked", title=_(f"Change {self._graphic_type_model.value} Position Locked"), command_id=f"change_{self._graphic_type_model.value}_position_locked")
-        self._lock_shape_model = GraphicPropertyCommandModel(self.__document_controller, self.__display_item, graphic, "is_shape_locked", title=_(f"Change {self._graphic_type_model.value} Shape Locked"), command_id=f"change_{self._graphic_type_model.value}_shape_locked")
+        self._stroke_color_model = GraphicPropertyCommandModel(document_controller, display_item, graphic,"stroke_color", title=_("Change Stroke Color"), command_id="change_stroke_color")
+        self._used_stroke_color_model = GraphicPropertyCommandModel(document_controller, display_item, graphic,"stroke_color", title=_("Change Stroke Color"), command_id="change_stroke_color", read_property_name="used_stroke_style")
+        self._stroke_width_model = GraphicPropertyCommandModel(document_controller, display_item, graphic, "stroke_width", title=_("Change Stroke Width"), command_id="change_stroke_width")
+        self._used_fill_color_model = GraphicPropertyCommandModel(document_controller, display_item, graphic,"stroke_width", title=_("Change Stroke Width"), command_id="change_stroke_width", read_property_name="used_stroke_width")
+        self._fill_color_model = GraphicPropertyCommandModel(document_controller, display_item, graphic, "fill_color", title=_("Change Fill Color"), command_id="change_fill_color")
+        self._used_fill_color_model = GraphicPropertyCommandModel(document_controller, display_item, graphic,"fill_color", title=_("Change Fill Color"), command_id="change_fill_color", read_property_name="used_fill_style")
+        self._lock_shape_model = GraphicPropertyCommandModel(self.__document_controller, self.__display_item, graphic,"is_shape_locked", title=_(f"Change {self._graphic_type_model.value} Shape Locked"), command_id=f"change_{self._graphic_type_model.value}_shape_locked")
 
         u = Declarative.DeclarativeUI()
 
@@ -2865,15 +2896,21 @@ class GraphicsInspectorHandler(Declarative.Handler):
         )
 
         pos_shape_row = self.__create_position_and_shape_ui()
+        stroke_style_row = self.__create_stroke_style_ui()
+
+        disabled_tooltip_str: typing.Final[str] = _("This does not apply to this graphic type.")
+
+        position_lock_tooltip = str() if self.__graphic.CAN_REPOSITION else disabled_tooltip_str
+        shape_lock_tooltip = str() if self.__graphic.CAN_RESHAPE else disabled_tooltip_str
 
         lock_row = u.create_row(
             u.create_spacing(3),
             u.create_label(text=_("Lock"), width=60, text_alignment_vertical="center"),
-            u.create_check_box(text=_("Position"), checked="@binding(_lock_position_model.value)", text_alignment_vertical="center"),
+            u.create_check_box(text=_("Position"), checked="@binding(_lock_position_model.value)", enabled=self.__graphic.CAN_REPOSITION, tool_tip=position_lock_tooltip, text_alignment_vertical="center"),
             u.create_spacing(12),
-            u.create_check_box(text=_("Shape"), checked="@binding(_lock_shape_model.value)", text_alignment_vertical="center"),
+            u.create_check_box(text=_("Shape"), checked="@binding(_lock_shape_model.value)", enabled=self.__graphic.CAN_RESHAPE, tool_tip=shape_lock_tooltip, text_alignment_vertical="center"),
             u.create_stretch(),
-            u.create_push_button(text="\N{BULLSEYE}", on_clicked="_move_to_center_clicked", width=26, text_alignment_horizontal="center"),
+            u.create_push_button(text="\N{BULLSEYE}", on_clicked="_move_to_center_clicked", text_alignment_horizontal="center", style="minimal"),
             u.create_spacing(4)
         )
 
@@ -2883,6 +2920,8 @@ class GraphicsInspectorHandler(Declarative.Handler):
             pos_shape_row,
             u.create_spacing(4),
             lock_row,
+            u.create_spacing(4),
+            stroke_style_row,
             u.create_spacing(12),
             width=280
         )
@@ -3203,6 +3242,31 @@ class GraphicsInspectorHandler(Declarative.Handler):
         else:
             return self.__shape_and_pos_func()
 
+    def __create_stroke_style_ui(self) -> Declarative.UIDescription:
+        u = Declarative.DeclarativeUI()
+
+        return u.create_column(
+            u.create_row(
+                u.create_label(text=_("Stroke Color"), width=80, text_alignment_vertical="vcenter", text_alignment_horizontal="right"),
+                u.create_line_edit(text="@binding(_stroke_color_model.value)", placeholder_text=_("None"), width=80),
+                {"type": "nionswift.color_chooser", "color": "@binding(_used_stroke_color_model.value)"},
+                u.create_stretch(),
+                spacing=8
+            ),
+            u.create_row(
+                u.create_label(text=_("Stroke Width"), width=80, text_alignment_vertical="vcenter", text_alignment_horizontal="right"),
+                u.create_line_edit(text="@binding(_stroke_width_model.value, converter=_stroke_float_str_converter)", placeholder_text="1", width=80),
+                u.create_stretch(),
+                spacing=8
+            ),
+            u.create_row(
+                u.create_label(text=_("Fill Color"), width=80, text_alignment_vertical="vcenter", text_alignment_horizontal="right"),
+                u.create_line_edit(text="@binding(_fill_color_model.value)", placeholder_text=_("None"), width=80),
+                {"type": "nionswift.color_chooser", "color": "@binding(_used_fill_color_model.value)"},
+                u.create_stretch(),
+                spacing=8
+            )
+        )
 
 class GraphicsSectionHandler(Declarative.Handler):
     def __init__(self, document_controller: DocumentController.DocumentController,
@@ -3467,7 +3531,7 @@ class ChoiceVariableHandler(Declarative.Handler):
         self.float_str_converter = Converter.FloatToStringConverter()
         u = Declarative.DeclarativeUI()
         label = u.create_label(text="@binding(variable.display_label)")
-        combo_box = u.create_combo_box(items=["None", "Mapped"], current_index="@binding(combo_box_index)")
+        combo_box = u.create_combo_box(items=[_("None"), _("Mapped")], current_index="@binding(combo_box_index)")
         self.ui_view = u.create_column(label, combo_box, spacing=8)
         self.__variable_listener = variable.property_changed_event.listen(ReferenceCounting.weak_partial(ChoiceVariableHandler.__property_changed, self))
 
@@ -4693,6 +4757,7 @@ class DeclarativeTextPushButtonWidgetConstructor:
             if handler:
                 Declarative.connect_name(widget, d, handler)
                 Declarative.connect_reference_value(widget, d, handler, "on_button_clicked", finishes)
+                Declarative.connect_event(widget, widget, d, handler, "on_clicked", [])
                 Declarative.connect_attributes(widget, d, handler, finishes)
 
             return widget

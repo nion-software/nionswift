@@ -1,5 +1,6 @@
 # standard libraries
 import contextlib
+import typing
 import unittest
 
 # third party libraries
@@ -29,10 +30,11 @@ class TestFacadeClass(unittest.TestCase):
 
     def setUp(self):
         TestContext.begin_leaks()
-        self.app = Application.Application(TestUI.UserInterface(), set_global=True)
-        self.app.workspace_dir = str()
+        self._test_setup = TestContext.TestSetup(set_global=True)
+        self._test_setup.app.workspace_dir = str()
 
     def tearDown(self):
+        self._test_setup = typing.cast(typing.Any, None)
         TestContext.end_leaks(self)
 
     def test_basic_api_methods(self):

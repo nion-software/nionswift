@@ -719,11 +719,14 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             y_min = 0.0 if intensity_min > 0.0 else intensity_min * 1.2
             y_max = 0.0 if intensity_max < 0.0 else intensity_max * 1.2
 
-            assert self.delegate
-            self.delegate.update_display_properties({"left_channel": display_left_channel,
-                                                     "right_channel": display_right_channel,
-                                                     "y_min": y_min,
-                                                     "y_max": y_max})
+            delegate = self.delegate
+            assert delegate
+            command = delegate.create_change_display_command()
+            delegate.update_display_properties({"left_channel": display_left_channel,
+                                                "right_channel": display_right_channel,
+                                                "y_min": y_min,
+                                                "y_max": y_max})
+            delegate.push_undo_command(command)
 
     def __view_to_selected_graphics(self, data_and_metadata: DataAndMetadata.DataAndMetadata) -> None:
         """Change the view to encompass the selected graphic intervals."""

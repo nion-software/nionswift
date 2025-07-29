@@ -10,6 +10,7 @@ import copy
 import datetime
 import functools
 import gettext
+import logging
 import threading
 import types
 import typing
@@ -117,20 +118,26 @@ class TransactionManager:
     def item_transaction(self, item: Persistence.PersistentObject) -> Transaction:
         """Begin transaction state for item.
 
-        A transaction state is exists to prevent writing out to disk, mainly for performance reasons.
+        A transaction state exists to prevent writing out to disk, mainly for performance reasons.
         All changes to the object are delayed until the transaction state exits.
 
         This method is thread safe.
         """
-        items = self.__build_transaction_items(item)
-        transaction = Transaction(self, item, items)
-        self.__transactions.append(transaction)
-        return transaction
+        with self.__transactions_lock:
+            items = self.__build_transaction_items(item)
+            transaction = Transaction(self, item, items)
+            self.__transactions.append(transaction)
+            return transaction
 
     def _close_transaction(self, transaction: Transaction) -> None:
-        items = transaction.items
-        self.__close_transaction_items(items)
-        self.__transactions.remove(transaction)
+        with self.__transactions_lock:
+            # transaction can be closed when a data item is deleted, or explicitly as the transaction is closed.
+            # so check if it's still in the list of transactions, which means it has not been closed yet.
+            # this can occur in the acquisition test dashboard when the data item is deleted.
+            if transaction in self.__transactions:
+                items = transaction.items
+                self.__close_transaction_items(items)
+                self.__transactions.remove(transaction)
 
     def __build_transaction_items(self, item: Persistence.PersistentObject) -> typing.Set[Persistence.PersistentObject]:
         items: typing.Set[Persistence.PersistentObject] = set()
@@ -211,17 +218,19 @@ class TransactionManager:
         self._rebuild_transactions()
 
     def _remove_item(self, item: Persistence.PersistentObject) -> None:
-        for transaction in copy.copy(self.__transactions):
-            if transaction.item == item:
-                self._close_transaction(transaction)
-        self._rebuild_transactions()
+        with self.__transactions_lock:
+            for transaction in copy.copy(self.__transactions):
+                if transaction.item == item:
+                    self._close_transaction(transaction)
+            self._rebuild_transactions()
 
     def _rebuild_transactions(self) -> None:
-        for transaction in self.__transactions:
-            old_items = transaction.items
-            new_items = self.__build_transaction_items(transaction.item)
-            transaction.replace_items(new_items)
-            self.__close_transaction_items(old_items)
+        with self.__transactions_lock:
+            for transaction in self.__transactions:
+                old_items = transaction.items
+                new_items = self.__build_transaction_items(transaction.item)
+                transaction.replace_items(new_items)
+                self.__close_transaction_items(old_items)
 
 
 class UndeleteObjectSpecifier(Changes.UndeleteBase):
@@ -1745,7 +1754,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
     async def compute_immediate(self, event_loop: asyncio.AbstractEventLoop, computation: Symbolic.Computation, timeout: typing.Optional[float] = None) -> None:
         if computation:
             def sync_recompute() -> None:
-                computation.is_initial_computation_complete.wait(timeout)
+                if not computation.is_initial_computation_complete.wait(timeout):
+                    logging.warn("Initial compute failed.")
             await event_loop.run_in_executor(None, sync_recompute)
 
     def get_graphic_by_uuid(self, object_uuid: uuid.UUID) -> typing.Optional[Graphics.Graphic]:
@@ -1777,15 +1787,20 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             self.mutex = threading.RLock()
             self.data_item_reference_changed_event = Event.Event()
             self.__item_inserted_listener: typing.Optional[Event.EventListener] = None
+            self._test_delay = 0.0
 
             def item_unregistered(item: Persistence.PersistentObject) -> None:
                 # when this data item is removed, it can no longer be used.
                 # but to ensure that start/stop calls are matching in the case where this item
                 # is removed and then a new item is set, we need to copy the number of starts
-                # to the pending starts so when the new item is set, start gets called the right
+                # to the pending starts so when the new item gets set, start gets called the right
                 # number of times to match the stops that will eventually be called.
-                self.__pending_starts = self.__starts
-                self.__starts = 0
+                if self._test_delay:
+                    import time
+                    time.sleep(self._test_delay)
+                with self.mutex:
+                    self.__pending_starts = self.__starts
+                    self.__starts = 0
 
             self.__data_item_proxy.on_item_unregistered = item_unregistered
 
@@ -1798,17 +1813,18 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             return self.__key
 
         def set_data_item_specifier(self, project: Project.Project, data_item_specifier: typing.Optional[Persistence.PersistentObjectSpecifier]) -> None:
-            data_item_proxy = project.create_item_proxy(item_specifier=data_item_specifier)
             # data_item_proxy may be an old proxy, only update if it is valid and different from the existing one.
-            if data_item_proxy.item and data_item_proxy.item != self.__data_item:
-                assert self.__starts == 0
-                assert self.__pending_starts == 0
-                assert not self.__data_item_transaction
-                self.__stop()  # data item is changing; close existing one.
-                self.__data_item_proxy.close()
-                self.__data_item_proxy = data_item_proxy
-            else:
-                data_item_proxy.close()
+            with self.mutex:
+                data_item_proxy = project.create_item_proxy(item_specifier=data_item_specifier)
+                if data_item_proxy.item and data_item_proxy.item != self.__data_item:
+                    assert self.__starts == 0
+                    assert self.__pending_starts == 0
+                    assert not self.__data_item_transaction
+                    self.__stop()  # data item is changing; close existing one.
+                    self.__data_item_proxy.close()
+                    self.__data_item_proxy = data_item_proxy
+                else:
+                    data_item_proxy.close()
 
         @property
         def __data_item(self) -> typing.Optional[DataItem.DataItem]:
@@ -1823,10 +1839,11 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
             This call is thread safe.
             """
-            if self.__data_item:
-                self.__start()
-            else:
-                self.__pending_starts += 1
+            with self.mutex:
+                if self.__data_item:
+                    self.__start()
+                else:
+                    self.__pending_starts += 1
 
         def stop(self) -> None:
             """Stop using the data item reference. Must have called start a matching number of times.
@@ -1837,10 +1854,11 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
             This call is thread safe.
             """
-            if self.__data_item:
-                self.__stop()
-            else:
-                self.__pending_starts -= 1
+            with self.mutex:
+                if self.__data_item:
+                    self.__stop()
+                else:
+                    self.__pending_starts -= 1
 
         def __start(self) -> None:
             if self.__data_item:
@@ -1872,8 +1890,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             with self.mutex:
                 if self.__data_item != value:
                     self.__data_item_proxy.item = value
-                    # start (internal) for each pending start.
-                    for i in range(self.__pending_starts):
+                    # start (internal) for each pending start or existing start.
+                    # existing starts may be cleared in item_unregistered, but there is a race
+                    # between this method and item_unregistered. see _test_delay.
+                    for i in range(self.__pending_starts + self.__starts):
                         self.__start()
                     self.__pending_starts = 0
                     if self.__data_item in self.__document_model.data_items:
@@ -1933,8 +1953,14 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         with self.__pending_data_item_updates_lock:
             pending_data_item_updates = self.__pending_data_item_updates
             self.__pending_data_item_updates = list()
+        # a race condition exists if data_item is closed here. however, this method is always called on the main
+        # thread and data items should only be closed on the main thread.
         for data_item in pending_data_item_updates:
-            data_item.update_to_pending_xdata()
+            # on the other hand, _queue_data_item_update may be called from a thread on a data item that has already
+            # been closed. check for that here by confirming the data item to be updated is not closed. this was
+            # occurring with the acquisition test dashboard when the results were deleted immediately after acquisition.
+            if not data_item._closed:
+                data_item.update_to_pending_xdata()
 
     # for testing
     def _get_pending_data_item_updates_count(self) -> int:
