@@ -1923,11 +1923,15 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
 
         self.__header_canvas_item = Panel.HeaderCanvasItem(DisplayPanelUISettings(document_controller.ui), display_close_control=True, display_edit_control=True)
 
-        def header_double_clicked(x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        def edit_title() -> None:
             action_context = document_controller._get_action_context()
             action_context.display_panel = self
             action_context.display_item = self.display_item
             document_controller.perform_action_in_context("window.open_title_edit", action_context)
+
+        def header_double_clicked(x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
+            # Header double click just opens the mini-edit window
+            edit_title()
             return True
 
         self.__header_canvas_item.on_double_clicked = header_double_clicked
@@ -2022,16 +2026,10 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
                 command = workspace_controller.remove_display_panel(self)
                 document_controller.push_undo_command(command)
 
-        def edit() -> None:
-            action_context = document_controller._get_action_context()
-            action_context.display_panel = self
-            action_context.display_item = self.display_item
-            document_controller.perform_action_in_context("window.open_title_edit", action_context)
-
         self.__header_canvas_item.on_select_pressed = self._select
         self.__header_canvas_item.on_drag_pressed = self.__handle_begin_drag
         self.__header_canvas_item.on_close_clicked = close
-        self.__header_canvas_item.on_edit_clicked = edit
+        self.__header_canvas_item.on_edit_clicked = edit_title
 
         ui = document_controller.ui
 
