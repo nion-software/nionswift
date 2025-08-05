@@ -292,7 +292,7 @@ class EditButtonCell(CanvasItem.Cell):
         self.stroke_width = 3.0
 
     def _size_to_content(self, get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> Geometry.IntSize:
-        return Geometry.IntSize(20, 20)
+        return Geometry.IntSize(20, 12)
 
     def _paint_cell(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.FloatRect, style: set[str]) -> None:
         if not Platform.is_macos():
@@ -302,54 +302,15 @@ class EditButtonCell(CanvasItem.Cell):
         with drawing_context.saver():
             drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
             drawing_context.begin_path()
-            close_box_left = canvas_bounds.width - (20 - 5)
-            close_box_right = canvas_bounds.width - (20 - 15)
+            margin = 0
+            close_box_left = margin
+            close_box_right = canvas_bounds.width - margin
             close_box_top = canvas_bounds.height // 2 - 5 + 2
             close_box_bottom = canvas_bounds.height // 2 + 5 + 2
             drawing_context.move_to(close_box_left, (close_box_bottom + close_box_top + close_box_top) / 3)
             drawing_context.line_to((close_box_left + close_box_right)/2, (close_box_bottom + close_box_bottom + close_box_top) / 3)
             drawing_context.line_to(close_box_right, (close_box_bottom + close_box_top + close_box_top) / 3)
-            drawing_context.line_width = 1
-            drawing_context.line_cap = "butt"
-            drawing_context.stroke_style = control_style
-            drawing_context.stroke()
-
-class _EditButtonCell(CanvasItem.Cell):
-    def __init__(self) -> None:
-        super().__init__()
-        self.fill_style = "rgb(128, 128, 128)"
-        self.fill_style_pressed = "rgb(64, 64, 64)"
-        self.fill_style_disabled = "rgb(192, 192, 192)"
-        self.border_style: str | None = None
-        self.border_style_pressed: str | None = None
-        self.border_style_disabled: str | None = None
-        self.stroke_style = "#FFF"
-        self.stroke_width = 3.0
-
-    def _size_to_content(self, get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> Geometry.IntSize:
-        return Geometry.IntSize(20, 20)
-
-    def _paint_cell(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.FloatRect, style: set[str]) -> None:
-        if not Platform.is_macos():
-            control_style = '#000000'
-        else:
-            control_style = '#808080'
-        with drawing_context.saver():
-            drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
-            drawing_context.begin_path()
-            close_box_left = canvas_bounds.width - (20 - 5)
-            close_box_right = canvas_bounds.width - (20 - 15)
-            close_box_top = canvas_bounds.height // 2 - 5
-            close_box_bottom = canvas_bounds.height // 2 + 5
-            drawing_context.move_to(close_box_left, close_box_bottom)
-            drawing_context.line_to(close_box_left + 4, close_box_bottom - 1)
-            drawing_context.line_to(close_box_left + 10, close_box_bottom - 8)
-            drawing_context.line_to(close_box_left + 8, close_box_bottom - 10)
-            drawing_context.line_to(close_box_left + 1, close_box_bottom - 4)
-            drawing_context.line_to(close_box_left, close_box_bottom)
-            drawing_context.move_to(close_box_left + 4, close_box_bottom - 1)
-            drawing_context.line_to(close_box_left, close_box_bottom - 3)
-            drawing_context.line_width = 1
+            drawing_context.line_width = 2
             drawing_context.line_cap = "butt"
             drawing_context.stroke_style = control_style
             drawing_context.stroke()
@@ -692,6 +653,10 @@ class HeaderCanvasItem(CanvasItem.CanvasItemComposition):
     @title.setter
     def title(self, title: str) -> None:
         self.__title_canvas_item.title = title
+        if title and self.__edit_button_canvas_item:
+            self.__edit_button_canvas_item.visible = True
+        else:
+            self.__edit_button_canvas_item.visible = False
 
     @property
     def start_header_color(self) -> str:
