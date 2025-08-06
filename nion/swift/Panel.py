@@ -653,10 +653,11 @@ class HeaderCanvasItem(CanvasItem.CanvasItemComposition):
     @title.setter
     def title(self, title: str) -> None:
         self.__title_canvas_item.title = title
-        if title and self.__edit_button_canvas_item:
-            self.__edit_button_canvas_item.visible = True
-        else:
-            self.__edit_button_canvas_item.visible = False
+        if self.__edit_button_canvas_item:
+            if title:
+                self.__edit_button_canvas_item.visible = True
+            else:
+                self.__edit_button_canvas_item.visible = False
 
     @property
     def start_header_color(self) -> str:
