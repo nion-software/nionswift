@@ -1,44 +1,59 @@
 .. include:: defs.rst
 .. _index:
 
-|AppName| User's Guide (16.16)
-==============================
-|AppName| is an open-source scientific image-processing software that uses Python to integrate hardware control, data acquisition, visualization, processing, and analysis. It runs on Windows, Linux, and macOS.
+.. title:: Nion Swift Documentation
+
+|AppName|
+=========
+
+.. container:: page-intro
+
+    The Open Source Platform for Electron Microscopy
+
+Nion Swift is the open-source software meticulously designed to meet the rigorous demands of electron microscopists.
+
+It provides a comprehensive, Python-based solution for:
 
 .. image:: graphics/workspace.png
-  :width: 640
+  :class: float-right
+  :width: 320
   :alt: The Main Workspace
 
-|AppName| is designed to be an intuitive and user-friendly platform, making the acquisition of scientific data from a range of microscopes and instruments a straightforward process. Its sophisticated data visualization, processing, and analysis capabilities further enhance your confidence in handling complex scientific data.
+- **Hardware Control**: Streamline the operation of your scientific instruments.
+- **Data Acquisition**: Capture high-quality data with ease.
+- **Visualization & Analysis**: Process, visualize, and analyze images with powerful, built-in tools.
+- **Image Processing**: Enhance and manipulate your images for clearer results.
 
-Key Features
+Platform and Flexibility:
 
-- Handles various data, including images, line plots, and higher dimensional data.
-- Live computations applied during acquisition or used for parameter adjustment.
-- Low latency, high throughput data acquisition platform.
-- Customization via scripting and plug-ins using Python.
-- Open source, cross-platform (macOS, Windows, Linux), and Python-based scientific data processing.
+- **Cross-Platform**: Seamlessly run on Windows, macOS, and Linux.
+- **Open-Source**: Benefit from a collaborative community and flexible customization.
+- **Customization**: Python scripting and plug-ins.
 
-Who Uses |AppName|?
--------------------
+Performance & Data Handling:
 
-|AppName| has been primarily developed for the operation of Nion electron microscopes and also as an offline tool to visualize, process, and analyze scientific data from electron microscopes, other instrumentation, and other scientific fields.
+- **Low Latency**: High throughput data acquisition platform.
+- **Data Handling**: Supports images, line plots, and higher dimensional data.
+- **Live Computations**: Perform computations in real-time during data acquisition, allowing for immediate parameter adjustment and improved experimental outcomes.
 
-|AppName| is open source. You can find the source code on
-`GitHub nionswift <https://github.com/nion-software/nionswift/>`_.
-
-Installation/Upgrading
-----------------------
-The quickest and easiest way to get |AppName| running is to download a pre-built version that includes everything needed to run the basic application.
+Getting Started
+---------------
+The quickest and easiest way to get |AppName| running is to download a pre-packaged version that includes everything you need.
 
 * `Download for macOS, Linux, or Windows <https://nion.com/swift/downloads>`_.
 
-To install |AppName| from Python source code, you will need to install a Python environment and then install Python packages required for |AppName|.
+Once you've installed it, you can read the introduction to understand the basic ideas, follow the basic tutorial to try out key concepts, and consult the user guide for more advanced use.
 
-For specific installation details and download links, follow link below. Instructions to install additional packages to extend |AppName| are also covered.
+* :ref:`basic-use`
+* :ref:`user-guide`
 
-* :ref:`installation`
-* :ref:`upgrading`
+Designed for Scientists, by Scientists
+--------------------------------------
+|AppName| was primarily developed to meet the demanding needs of Nion electron microscope operators, providing them with a streamlined, comprehensive tool for instrument control and data acquisition.
+
+However, its open-source design makes it a versatile solution for any scientist looking for a robust platform to visualize, process, and analyze scientific data from diverse sources. We invite you to explore the source code on GitHub and become part of our growing community.
+
+* `GitHub nionswift <https://github.com/nion-software/nionswift/>`_
 
 Release Notes
 -------------
@@ -46,12 +61,14 @@ To see a list of changes for each version of |AppName|, follow the link below.
 
 * :ref:`release-notes`
 
-Using |AppName|
----------------
-Once you have installed |AppName| and successfully launched it, you can read the introduction to understand the basic ideas, follow through the basic tutorial to try out key concepts, and consult the user guide for more advanced use, Python scripting, and reference.
+Installing from Source Code
+---------------------------
+To install |AppName| from Python source code, you will need to install a Python environment and then install Python packages required for |AppName|.
 
-* :ref:`basic-use`
-* :ref:`user-guide`
+For specific installation details and download links, follow link below. Instructions to install additional packages to extend |AppName| are also covered.
+
+* :ref:`installation`
+* :ref:`upgrading`
 
 .. _python-scripting:
 

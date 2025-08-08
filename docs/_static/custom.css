@@ -9,3 +9,13 @@ div.sphinxsidebar {
 div.bodywrapper {
     margin: 0 0 0 320px;
 }
+
+.page-intro {
+    font-size: 1.4em; /* Adjust the size as needed */
+    font-weight: bold;
+}
+
+.float-right {
+  float: right;
+  margin-left: 15px; /* Add some space between the image and text */
+}
