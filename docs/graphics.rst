@@ -44,7 +44,7 @@ You can add a point by using the menu item :menuselection:`Graphics --> Add Poin
 
 You can edit the position of the point in the :guilabel:`Inspector` panel.
 
-You can edit the position of the point by dragging.
+You can edit the position of the point by dragging. You can limit the movement to be horizontal or vertical by holding the :kbd:`Shift` key while dragging.
 
 .. _Line Graphic:
 
@@ -60,7 +60,7 @@ You can edit the start, end, length, and angle of the line in the :guilabel:`Ins
 
 You can edit the end points of the line by dragging each end point. Holding the :kbd:`Shift` key while dragging will limit the line to be horizontal, vertical, or at a 45° angle.
 
-You can change the position of the line by dragging in the middle along the line.
+You can change the position of the line by dragging in the middle along the line. You can limit the movement to be horizontal or vertical by holding the :kbd:`Shift` key while dragging.
 
 .. _Line Profile Graphic:
 
@@ -76,7 +76,7 @@ You can edit the start, end, length, angle, and width of the line profile in the
 
 You can edit the end points of the line by dragging each end point. Holding the :kbd:`Shift` key while dragging will limit the line to be horizontal, vertical, or at a 45° angle.
 
-You can change the position of the line by dragging in the middle along the line.
+You can change the position of the line by dragging in the middle along the line. You can limit the movement to be horizontal or vertical by holding the :kbd:`Shift` key while dragging.
 
 You can also change the width of the line profile by clicking on the line profile graphic and pressing :kbd:`+` or :kbd:`=` keys to increase the width or :kbd:`-` key to decrease the width.
 
@@ -96,7 +96,7 @@ You can edit the center position, size, and rotation of the rectangle in the :gu
 
 You can edit the corners of the rectangle by dragging the corners.
 
-You can change the position of the rectangle by dragging in the middle of the rectangle.
+You can change the position of the rectangle by dragging in the middle of the rectangle. You can limit the movement to be horizontal or vertical by holding the :kbd:`Shift` key while dragging.
 
 You can rotate the rectangle by selecting it and dragging the rotation control at the top of the rectangle.
 
@@ -114,7 +114,7 @@ You can edit the center position, size, and rotation of the ellipse in the :guil
 
 You can edit the corners of the ellipse by dragging the corners.
 
-You can change the position of the ellipse by dragging in the middle of the ellipse.
+You can change the position of the ellipse by dragging in the middle of the ellipse. You can limit the movement to be horizontal or vertical by holding the :kbd:`Shift` key while dragging.
 
 You can rotate the ellipse by selecting it and dragging the rotation control at the top of the ellipse.
 
