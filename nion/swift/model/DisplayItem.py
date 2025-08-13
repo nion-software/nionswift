@@ -531,18 +531,18 @@ class DisplayDataProcessor(ProcessorBase):
 
 class DataRangeProcessor(ProcessorBase):
     def __init__(self, *,
-                 data: typing.Union[typing.Optional[DataAndMetadata._DataAndMetadataLike], ProcessorConnection] = None,
+                 data_metadata: DataAndMetadata.DataMetadata | ProcessorConnection | None = None,
                  display_data: typing.Union[typing.Optional[DataAndMetadata._DataAndMetadataLike], ProcessorConnection] = None) -> None:
-        super().__init__(data=data, display_data=display_data)
+        super().__init__(data_metadata=data_metadata, display_data=display_data)
 
     def _execute(self) -> None:
-        data_and_metadata = self._get_data_and_metadata_like("data")
+        data_metadata = typing.cast(DataAndMetadata.DataMetadata | None, self._get_parameter("data_metadata"))
         display_data_and_metadata = self._get_data_and_metadata_like("display_data")
         display_data = display_data_and_metadata.data if display_data_and_metadata else None
         data_range: typing.Optional[typing.Tuple[float, float]]
-        if display_data is not None and display_data.shape and data_and_metadata:
-            data_shape = data_and_metadata.data_shape
-            data_dtype = data_and_metadata.data_dtype
+        if display_data is not None and display_data.shape and data_metadata:
+            data_shape = data_metadata.data_shape
+            data_dtype = data_metadata.data_dtype
             if Image.is_shape_and_dtype_rgb_type(data_shape, data_dtype):
                 data_range = (0, 255)
             elif Image.is_shape_and_dtype_complex_type(data_shape, data_dtype):
@@ -746,6 +746,8 @@ class DisplayValues:
         self.__data_and_metadata = data_and_metadata
         self.__color_map_data = color_map_data
 
+        data_metadata = data_and_metadata.data_metadata if data_and_metadata else None
+
         self.__element_data_processor = ElementDataProcessor(data=data_and_metadata,
                                                              sequence_index=sequence_index,
                                                              collection_index=collection_index,
@@ -757,7 +759,7 @@ class DisplayValues:
             complex_display_type=complex_display_type)
 
         self.__data_range_processor = DataRangeProcessor(
-            data=data_and_metadata,
+            data_metadata=data_metadata,
             display_data=ProcessorConnection(self.__display_data_processor, "data", "display_data"),
         )
 
@@ -812,12 +814,13 @@ class DisplayValues:
         return self.__color_map_data
 
     @property
-    def data_and_metadata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
-        return self.__data_and_metadata
+    def data_metadata(self) -> DataAndMetadata.DataMetadata | None:
+        return self.__data_and_metadata.data_metadata if self.__data_and_metadata else None
 
     @property
     def display_rgba_timestamp(self) -> typing.Optional[datetime.datetime]:
-        return self.__data_and_metadata.timestamp if self.__data_and_metadata else None
+        data_metadata = self.data_metadata
+        return data_metadata.timestamp if data_metadata else None
 
     @property
     def element_data_and_metadata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
@@ -860,10 +863,12 @@ class DisplayValues:
         return typing.cast(typing.Tuple[float, float], self.__transformed_display_range_processor.get_result("display_range"))
 
     def get_calibration_styles(self) -> typing.Sequence[CalibrationStyle]:
-        return get_calibration_styles([self.display_data_and_metadata])
+        display_xdata = self.display_data_and_metadata
+        return get_calibration_styles([display_xdata.data_metadata if display_xdata else None])
 
     def get_intensity_calibration_styles(self) -> typing.Sequence[CalibrationStyle]:
-        return get_intensity_calibration_styles([self.display_data_and_metadata])
+        display_xdata = self.display_data_and_metadata
+        return get_intensity_calibration_styles([display_xdata.data_metadata if display_xdata else None])
 
 
 DisplayValuesSubscription = object
@@ -1813,16 +1818,16 @@ class CalibrationProvider(typing.Protocol):
     def get_calibration_descriptions(self, data_metadata: DataAndMetadata.DataMetadata) -> typing.Sequence[CalibrationDescriptionLike]: ...
 
 
-def get_calibration_descriptions(xdata_list: typing.Sequence[typing.Optional[DataAndMetadata.DataAndMetadata]]) -> typing.Sequence[CalibrationDescription]:
+def get_calibration_descriptions(data_metadata_list: typing.Sequence[DataAndMetadata.DataMetadata | None]) -> typing.Sequence[CalibrationDescription]:
     all_calibration_descriptions = list[CalibrationDescription]()
     common_calibration_descriptions = set[CalibrationDescription]()
-    for xdata in xdata_list:
-        if xdata:
+    for data_metadata in data_metadata_list:
+        if data_metadata:
             xdata_calibration_descriptions = list[CalibrationDescription]()
             for component in Registry.get_components_by_type("calibration-provider"):
                 calibration_provider = typing.cast(CalibrationProvider, component)
                 if calibration_provider:
-                    calibration_description_likes = calibration_provider.get_calibration_descriptions(xdata.data_metadata)
+                    calibration_description_likes = calibration_provider.get_calibration_descriptions(data_metadata)
                     for calibration_description_like in calibration_description_likes:
                         calibration_description = CalibrationDescription(
                             calibration_description_like.calibration_style_id,
@@ -1838,10 +1843,10 @@ def get_calibration_descriptions(xdata_list: typing.Sequence[typing.Optional[Dat
     return [calibration_description for calibration_description in all_calibration_descriptions if calibration_description in common_calibration_descriptions]
 
 
-def get_calibration_styles(xdata_list: typing.Sequence[typing.Optional[DataAndMetadata.DataAndMetadata]]) -> typing.Sequence[CalibrationStyle]:
+def get_calibration_styles(data_metadata_list: typing.Sequence[DataAndMetadata.DataMetadata | None]) -> typing.Sequence[CalibrationStyle]:
     calibration_styles = list[CalibrationStyle]()
     calibration_styles.append(CalibrationStyleNative())
-    calibration_descriptions = get_calibration_descriptions(xdata_list)
+    calibration_descriptions = get_calibration_descriptions(data_metadata_list)
     for calibration_description in calibration_descriptions:
         if calibration_description.calibration_style_id == "spatial":
             calibration_styles.append(CalibrationDescriptionCalibrationStyle(_("Spatial"), calibration_description))
@@ -1856,10 +1861,10 @@ def get_calibration_styles(xdata_list: typing.Sequence[typing.Optional[DataAndMe
     return calibration_styles
 
 
-def get_intensity_calibration_styles(xdata_list: typing.Sequence[typing.Optional[DataAndMetadata.DataAndMetadata]]) -> typing.Sequence[CalibrationStyle]:
+def get_intensity_calibration_styles(data_metadata_list: typing.Sequence[DataAndMetadata.DataMetadata | None]) -> typing.Sequence[CalibrationStyle]:
     calibration_styles = list[CalibrationStyle]()
     calibration_styles.append(CalibrationStyleNative())
-    calibration_descriptions = get_calibration_descriptions(xdata_list)
+    calibration_descriptions = get_calibration_descriptions(data_metadata_list)
     for calibration_description in calibration_descriptions:
         if calibration_description.calibration_style_id.startswith("intensity"):
             calibration_styles.append(CalibrationDescriptionCalibrationStyle(_("Calibrated"), calibration_description))
@@ -2100,53 +2105,54 @@ class DisplayDataDeltaStream(Stream.ValueStream[DisplayDataDelta]):
                 self.__display_properties = copy.deepcopy(new_display_properties)
                 self.__send_delta()
 
-    def __get_xdata_list(self) -> typing.Sequence[typing.Optional[DataAndMetadata.DataAndMetadata]]:
-        return [display_values.data_and_metadata if display_values else None for display_values in list(self.__display_values_list)]
+    # def __get_xdata_list(self) -> typing.Sequence[typing.Optional[DataAndMetadata.DataAndMetadata]]:
+    #     return [display_values.data_and_metadata if display_values else None for display_values in list(self.__display_values_list)]
 
     def __update(self) -> None:
-        xdata_list = self.__get_xdata_list()
+        display_values_list = self.__display_values_list
         dimensional_calibrations: typing.Optional[DataAndMetadata.CalibrationListType] = None
         intensity_calibration: typing.Optional[Calibration.Calibration] = None
         scales = 0.0, 1.0
         dimensional_shape: typing.Optional[DataAndMetadata.ShapeType] = None
         metadata: typing.Optional[DataAndMetadata.MetadataType] = None
-        if xdata_list:
-            xdata0 = xdata_list[0]
-            if xdata0 and len(xdata0.dimensional_calibrations) > 0:
-                dimensional_calibrations = list(xdata0.dimensional_calibrations)
+        if display_values_list:
+            data_metadata_list = [display_values.data_metadata if display_values else None for display_values in display_values_list]
+            data_metadata0 = data_metadata_list[0]
+            if data_metadata0 and len(data_metadata0.dimensional_calibrations) > 0:
+                dimensional_calibrations = list(data_metadata0.dimensional_calibrations)
                 if len(dimensional_calibrations) > 1:
-                    intensity_calibration = xdata0.intensity_calibration
-                    scales = 0, xdata0.dimensional_shape[-1]
-                    dimensional_shape = xdata0.dimensional_shape
+                    intensity_calibration = data_metadata0.intensity_calibration
+                    scales = 0, data_metadata0.dimensional_shape[-1]
+                    dimensional_shape = data_metadata0.dimensional_shape
                 else:
                     units = dimensional_calibrations[-1].units
                     mn = math.inf
                     mx = -math.inf
-                    for xdata in xdata_list:
-                        if xdata and xdata.dimensional_calibrations[-1].units == units:
+                    for data_metadata in data_metadata_list:
+                        if data_metadata and data_metadata.dimensional_calibrations[-1].units == units:
                             v = dimensional_calibrations[0].convert_from_calibrated_value(
-                                xdata.dimensional_calibrations[-1].convert_to_calibrated_value(0))
+                                data_metadata.dimensional_calibrations[-1].convert_to_calibrated_value(0))
                             mn = min(mn, v)
                             mx = max(mx, v)
                             v = dimensional_calibrations[0].convert_from_calibrated_value(
-                                xdata.dimensional_calibrations[-1].convert_to_calibrated_value(xdata.dimensional_shape[-1]))
+                                data_metadata.dimensional_calibrations[-1].convert_to_calibrated_value(data_metadata.dimensional_shape[-1]))
                             mn = min(mn, v)
                             mx = max(mx, v)
-                    intensity_calibration = xdata0.intensity_calibration
+                    intensity_calibration = data_metadata0.intensity_calibration
                     if math.isfinite(mn) and math.isfinite(mx):
                         scales = mn, mx
                         dimensional_shape = (int(mx - mn),)
                     else:
-                        scales = 0, xdata0.dimensional_shape[-1]
-                        dimensional_shape = xdata0.dimensional_shape
-            if xdata0 and len(xdata_list) == 1:
-                metadata = xdata0.metadata
+                        scales = 0, data_metadata0.dimensional_shape[-1]
+                        dimensional_shape = data_metadata0.dimensional_shape
+            if data_metadata0 and len(data_metadata_list) == 1:
+                metadata = data_metadata0.metadata
         self.__dimensional_calibrations = dimensional_calibrations
         self.__intensity_calibration = intensity_calibration
         self.__scales = scales
         self.__dimensional_shape = dimensional_shape
         self.__metadata = metadata
-        self.__is_composite_data = len(xdata_list) > 1
+        self.__is_composite_data = len(display_values_list) > 1
         self.__display_layers_list = self.__display_item.display_layer_info_list
 
     def __get_display_calibration_info(self) -> DisplayCalibrationInfo:
@@ -2169,18 +2175,23 @@ class DisplayDataDeltaStream(Stream.ValueStream[DisplayDataDelta]):
 
     @property
     def display_data_shape(self) -> typing.Optional[DataAndMetadata.ShapeType]:
-        xdata_list = self.__get_xdata_list()
-        if len(xdata_list) == 1 and (d := xdata_list[0]):
-            return DisplayDataShapeCalculator(d.data_metadata).shape
+        display_values_list = self.__display_values_list
+        data_metadata_list = [display_values.data_metadata if display_values else None for display_values in display_values_list]
+        if len(data_metadata_list) == 1 and (data_metadata := data_metadata_list[0]):
+            return DisplayDataShapeCalculator(data_metadata).shape
         return self.dimensional_shape if self.is_composite_data else None
 
     @property
     def calibration_styles(self) -> typing.Sequence[CalibrationStyle]:
-        return get_calibration_styles(self.__get_xdata_list())
+        display_values_list = self.__display_values_list
+        data_metadata_list = [display_values.data_metadata if display_values else None for display_values in display_values_list]
+        return get_calibration_styles(data_metadata_list)
 
     @property
     def intensity_calibration_styles(self) -> typing.Sequence[CalibrationStyle]:
-        return get_intensity_calibration_styles(self.__get_xdata_list())
+        display_values_list = self.__display_values_list
+        data_metadata_list = [display_values.data_metadata if display_values else None for display_values in display_values_list]
+        return get_intensity_calibration_styles(data_metadata_list)
 
     def get_calibration_style_for_id(self, calibration_style_id: typing.Optional[str]) -> typing.Optional[CalibrationStyle]:
         for calibration_style in self.calibration_styles:
@@ -2244,18 +2255,20 @@ class DisplayDataDeltaStream(Stream.ValueStream[DisplayDataDelta]):
     def displayed_display_data_calibrations(self) -> typing.Optional[typing.Sequence[Calibration.Calibration]]:
         """The calibrations for only datum dimensions, in the displayed calibration style."""
         displayed_dimensional_calibrations = self.displayed_dimensional_calibrations
-        xdata_list = self.__get_xdata_list()
-        if len(xdata_list) == 1 and (d := xdata_list[0]):
-            indexes = DisplayDataShapeCalculator(d.data_metadata).indexes
+        display_values_list = self.__display_values_list
+        data_metadata_list = [display_values.data_metadata if display_values else None for display_values in display_values_list]
+        if len(data_metadata_list) == 1 and (data_metadata := data_metadata_list[0]):
+            indexes = DisplayDataShapeCalculator(data_metadata).indexes
             return [displayed_dimensional_calibrations[i] for i in indexes] if indexes else None
         return displayed_dimensional_calibrations if self.is_composite_data else None
 
     @property
     def datum_calibrations(self) -> typing.Sequence[Calibration.Calibration]:
         """The calibrations for only datum dimensions."""
-        xdata_list = self.__get_xdata_list()
-        if len(xdata_list) == 1 and (d := xdata_list[0]):
-            datum_calibrations = DisplayDataShapeCalculator(d.data_metadata).calibrations
+        display_values_list = self.__display_values_list
+        data_metadata_list = [display_values.data_metadata if display_values else None for display_values in display_values_list]
+        if len(data_metadata_list) == 1 and (data_metadata := data_metadata_list[0]):
+            datum_calibrations = DisplayDataShapeCalculator(data_metadata).calibrations
             if datum_calibrations is not None:
                 return datum_calibrations
         dimensional_calibrations = self.dimensional_calibrations

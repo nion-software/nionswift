@@ -1151,8 +1151,8 @@ class DisplayValueProcessor:
         else:
             data_rgba = display_values.display_rgba
             bitmap_canvas_item.set_rgba_bitmap_data(data_rgba)
-        data_and_metadata = display_values.data_and_metadata
-        metadata_d = data_and_metadata.metadata if data_and_metadata else dict()
+        data_metadata = display_values.data_metadata
+        metadata_d = data_metadata.metadata if data_metadata else dict()
         timestamp_ns = metadata_d.get("hardware_source", dict()).get("system_time_ns", time.perf_counter_ns()) if display_latency_model.value else 0
         timestamp_canvas_item.timestamp_ns = timestamp_ns
 
@@ -1286,8 +1286,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
     def __update_display_properties_and_layers(self, display_calibration_info: DisplayItem.DisplayCalibrationInfo, display_properties: Persistence.PersistentDictType, display_layers: typing.Sequence[DisplayItem.DisplayLayerInfo]) -> None:
         # thread-safe
-        data_and_metadata = self.__display_values.data_and_metadata if self.__display_values else None
-        data_metadata = data_and_metadata.data_metadata if data_and_metadata else None
+        data_metadata = self.__display_values.data_metadata if self.__display_values else None
         if data_metadata:
             frame_info = get_frame_info(data_metadata)
 
