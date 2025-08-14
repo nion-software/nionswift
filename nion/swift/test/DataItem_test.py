@@ -563,7 +563,7 @@ class TestDataItemClass(unittest.TestCase):
             with data_item.data_ref() as data_ref:
                 data_ref.data[:] = 1
                 data_ref.data_updated()
-            self.assertEqual(data_descriptor, data_item.xdata.data_descriptor)
+            self.assertEqual(data_descriptor, data_item.data_descriptor)
 
     def test_removing_dependent_data_item_with_graphic(self):
         with TestContext.create_memory_context() as test_context:

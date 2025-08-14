@@ -44,8 +44,8 @@ class TestRecorderPanelClass(unittest.TestCase):
                         data_item.set_data(data_item.data + 1)
             self.assertEqual(2, len(document_model.data_items))
             recorded_data_item = document_model.data_items[1]
-            self.assertTrue(recorded_data_item.xdata.is_sequence)
-            self.assertEqual((4, 8, 8), recorded_data_item.xdata.dimensional_shape)
+            self.assertTrue(recorded_data_item.is_sequence)
+            self.assertEqual((4, 8, 8), recorded_data_item.dimensional_shape)
 
     def test_recorder_puts_recorded_data_item_under_transaction(self):
         with TestContext.create_memory_context() as test_context:

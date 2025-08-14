@@ -2706,10 +2706,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         return self.__make_computation("transpose-flip", [(display_item, data_item, crop_region)])
 
     def get_rebin_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
-        if data_item and data_item.xdata:
-            if len(data_item.xdata.data_shape) == 2:
+        if data_item and data_item.data_metadata:
+            if len(data_item.data_metadata.data_shape) == 2:
                 return self.__make_computation("rebin_factor", [(display_item, data_item, crop_region)])
-            elif len(data_item.xdata.data_shape) == 1:
+            elif len(data_item.data_metadata.data_shape) == 1:
                 return self.__make_computation("rebin_factor_1d", [(display_item, data_item, crop_region)])
         return None
 

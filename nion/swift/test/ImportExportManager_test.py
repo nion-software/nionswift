@@ -255,9 +255,9 @@ class TestImportExportManagerClass(unittest.TestCase):
             self.assertEqual(data_item.is_sequence, True)
             self.assertEqual(data_item.collection_dimension_count, 0)
             self.assertEqual(data_item.datum_dimension_count, 2)
-            self.assertEqual(data_item.xdata.is_sequence, True)
-            self.assertEqual(data_item.xdata.collection_dimension_count, 0)
-            self.assertEqual(data_item.xdata.datum_dimension_count, 2)
+            self.assertEqual(data_item.is_sequence, True)
+            self.assertEqual(data_item.collection_dimension_count, 0)
+            self.assertEqual(data_item.datum_dimension_count, 2)
 
     def test_creating_data_element_with_sequence_and_implicit_datum_size_data_makes_correct_data_item(self):
         data_element = dict()
@@ -268,9 +268,9 @@ class TestImportExportManagerClass(unittest.TestCase):
             self.assertEqual(data_item.is_sequence, True)
             self.assertEqual(data_item.collection_dimension_count, 0)
             self.assertEqual(data_item.datum_dimension_count, 2)
-            self.assertEqual(data_item.xdata.is_sequence, True)
-            self.assertEqual(data_item.xdata.collection_dimension_count, 0)
-            self.assertEqual(data_item.xdata.datum_dimension_count, 2)
+            self.assertEqual(data_item.is_sequence, True)
+            self.assertEqual(data_item.collection_dimension_count, 0)
+            self.assertEqual(data_item.datum_dimension_count, 2)
 
     def test_data_element_to_extended_data_conversion(self):
         data = numpy.ones((8, 6), int)
@@ -362,7 +362,7 @@ class TestImportExportManagerClass(unittest.TestCase):
             self.assertTrue(os.path.exists(file_path))
             try:
                 saved_data = numpy.genfromtxt(file_path, delimiter=", ")
-                self.assertSequenceEqual(saved_data.shape, (max(data_item.xdata.data_shape[0], data_item2.xdata.data_shape[0]), 3))
+                self.assertSequenceEqual(saved_data.shape, (max(data_item.data_shape[0], data_item2.data_shape[0]), 3))
                 self.assertTrue(numpy.allclose(saved_data[:, 0], numpy.linspace(0, 99, 100)))
                 self.assertTrue(numpy.allclose(saved_data[:50, 1], 10))
                 self.assertTrue(numpy.allclose(saved_data[:, 2], 7))
@@ -390,7 +390,7 @@ class TestImportExportManagerClass(unittest.TestCase):
             self.assertTrue(os.path.exists(file_path))
             try:
                 saved_data = numpy.genfromtxt(file_path, delimiter=", ")
-                self.assertSequenceEqual(saved_data.shape, (max(data_item.xdata.data_shape[0], data_item2.xdata.data_shape[0]), 4))
+                self.assertSequenceEqual(saved_data.shape, (max(data_item.data_shape[0], data_item2.data_shape[0]), 4))
                 self.assertTrue(numpy.allclose(saved_data[:50, 0], numpy.linspace(0, 49, 50)))
                 self.assertTrue(numpy.allclose(saved_data[:50, 1], 10))
                 self.assertTrue(numpy.allclose(saved_data[:, 2], numpy.linspace(-10, 188, 100)))
