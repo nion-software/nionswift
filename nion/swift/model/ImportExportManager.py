@@ -635,10 +635,10 @@ def build_table(display_item: DisplayItem.DisplayItem) -> typing.Tuple[typing.Li
     def make_x_data(calibration: Calibration.Calibration, length: int) -> _DataArrayType:
         return numpy.linspace(calibration.offset, calibration.offset + (length - 1) * calibration.scale, length)
 
-    xdata0 = data_items[0].xdata
-    calibration0 = xdata0.dimensional_calibrations[0] if xdata0 else Calibration.Calibration()
-    if all([calibration0 == (data_item.xdata.dimensional_calibrations[0] if data_item.xdata else Calibration.Calibration()) for data_item in data_items]):
-        length = max([data_item.xdata.data_shape[0] if data_item.xdata else 0 for data_item in data_items])
+    data_metadata0 = data_items[0].data_metadata
+    calibration0 = data_metadata0.dimensional_calibrations[0] if data_metadata0 else Calibration.Calibration()
+    if all([calibration0 == (data_item.data_metadata.dimensional_calibrations[0] if data_item.data_metadata else Calibration.Calibration()) for data_item in data_items]):
+        length = max([data_item.data_metadata.data_shape[0] if data_item.data_metadata else 0 for data_item in data_items])
         data_list = [make_x_data(calibration0, length)]
         headers = [f"X ({calibration0.units or 'pixel'})"]
         for index in range(len(display_item.display_layers)):

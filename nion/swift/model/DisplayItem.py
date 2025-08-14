@@ -1249,11 +1249,11 @@ class DisplayDataChannel(Persistence.PersistentObject):
     def get_display_position_as_data_position(self, pos: typing.Tuple[int, ...]) -> typing.Tuple[int, ...]:
         data_item = self.__data_item
         if data_item:
-            data_and_metadata = data_item.xdata
-            if data_and_metadata:
-                is_sequence = data_and_metadata.is_sequence
-                collection_dimension_count = data_and_metadata.collection_dimension_count
-                datum_dimension_count = data_and_metadata.datum_dimension_count
+            data_metadata = data_item.data_metadata
+            if data_metadata:
+                is_sequence = data_metadata.is_sequence
+                collection_dimension_count = data_metadata.collection_dimension_count
+                datum_dimension_count = data_metadata.datum_dimension_count
                 if self.is_sliced:
                     pos = pos + (self.slice_center, )
                 else:
@@ -1264,9 +1264,9 @@ class DisplayDataChannel(Persistence.PersistentObject):
                     pos = tuple(self.collection_index[0:collection_dimension_count]) + pos
                 if is_sequence:
                     pos = (self.sequence_index, ) + pos
-                while len(pos) < data_and_metadata.datum_dimension_count:
+                while len(pos) < data_metadata.datum_dimension_count:
                     pos = (0,) + tuple(pos)
-                assert len(pos) == len(data_and_metadata.dimensional_shape)
+                assert len(pos) == len(data_metadata.dimensional_shape)
         return pos
 
     @property

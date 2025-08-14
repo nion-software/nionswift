@@ -423,7 +423,7 @@ class TestStorageClass(unittest.TestCase):
                 display_data_channel = display_item.display_data_channels[0]
                 self.assertEqual(display_data_channel.slice_center, 7)
                 self.assertEqual(display_data_channel.slice_width, 1)
-                self.assertIsNotNone(document_model.data_items[0].data)
+                self.assertTrue(document_model.data_items[0].has_data)
                 self.assertEqual(display_data_channel.get_latest_computed_display_values().data_range, (1, 1))
 
     def test_save_load_document_to_files(self):
@@ -4218,9 +4218,9 @@ class TestStorageClass(unittest.TestCase):
                 document_model.append_data_item(data_item)
                 data_item.set_data(numpy.ones((2, 2)))
                 # simulate situation in the histogram panel where xdata is stored and used later
-                data_and_metadata = data_item.data_and_metadata  # this xdata contains ability to reload from data item
+                has_data = data_item.has_data  # this xdata contains ability to reload from data item
                 data_item.set_data(numpy.ones((2, 2)))  # but it is overwritten here and may be unloaded
-                self.assertIsNotNone(data_and_metadata.data)  # ensure that it isn't actually unloaded
+                self.assertIsNotNone(has_data)  # ensure that it isn't actually unloaded
 
     def test_partial_data_on_new_data_item_writes(self):
         with create_temp_profile_context() as profile_context:
@@ -4239,7 +4239,7 @@ class TestStorageClass(unittest.TestCase):
                 document_model.begin_data_item_live(data_item)
                 # update
                 data_and_metadata = DataAndMetadata.new_data_and_metadata(numpy.ones((1, 4)), metadata={"abc": 44})
-                data_metadata = copy.deepcopy(data_item.data_and_metadata.data_metadata)
+                data_metadata = copy.deepcopy(data_item.data_metadata)
                 metadata_copy = dict(data_metadata.metadata)
                 metadata_copy["abc"] = "ABC"
                 data_metadata._set_metadata(metadata_copy)

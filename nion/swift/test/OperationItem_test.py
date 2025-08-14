@@ -1024,8 +1024,8 @@ class TestProcessingClass(unittest.TestCase):
             document_controller._perform_redimension(display_item, DataAndMetadata.DataDescriptor(False, 1, 2))
             document_model.recompute_all()
             redim_data_item = document_model.data_items[1]
-            self.assertEqual(redim_data_item.xdata.data_descriptor, DataAndMetadata.DataDescriptor(False, 1, 2))
-            self.assertEqual(list(redim_data_item.xdata.dimensional_calibrations), [Calibration.Calibration(1), Calibration.Calibration(2), Calibration.Calibration(3)])
+            self.assertEqual(redim_data_item.data_descriptor, DataAndMetadata.DataDescriptor(False, 1, 2))
+            self.assertEqual(list(redim_data_item.dimensional_calibrations), [Calibration.Calibration(1), Calibration.Calibration(2), Calibration.Calibration(3)])
 
     def test_squeeze_removes_proper_dimensions(self):
         with TestContext.create_memory_context() as test_context:
@@ -1046,8 +1046,8 @@ class TestProcessingClass(unittest.TestCase):
             document_controller._perform_squeeze(display_item)
             document_model.recompute_all()
             squeezed_data_item = document_model.data_items[1]
-            self.assertEqual(squeezed_data_item.xdata.data_descriptor, DataAndMetadata.DataDescriptor(False, 1, 1))
-            self.assertEqual(list(squeezed_data_item.xdata.dimensional_calibrations), [Calibration.Calibration(2), Calibration.Calibration(4)])
+            self.assertEqual(squeezed_data_item.data_descriptor, DataAndMetadata.DataDescriptor(False, 1, 1))
+            self.assertEqual(list(squeezed_data_item.dimensional_calibrations), [Calibration.Calibration(2), Calibration.Calibration(4)])
 
     def test_squeeze_removes_proper_dimensions_when_both_datum_is_1(self):
         with TestContext.create_memory_context() as test_context:
@@ -1069,8 +1069,8 @@ class TestProcessingClass(unittest.TestCase):
             document_controller._perform_squeeze(display_item)
             document_model.recompute_all()
             squeezed_data_item = document_model.data_items[1]
-            self.assertEqual(squeezed_data_item.xdata.data_descriptor, DataAndMetadata.DataDescriptor(False, 1, 1))
-            self.assertEqual(list(squeezed_data_item.xdata.dimensional_calibrations), [Calibration.Calibration(2), Calibration.Calibration(5)])
+            self.assertEqual(squeezed_data_item.data_descriptor, DataAndMetadata.DataDescriptor(False, 1, 1))
+            self.assertEqual(list(squeezed_data_item.dimensional_calibrations), [Calibration.Calibration(2), Calibration.Calibration(5)])
 
     def test_invalid_processing_produces_no_output(self):
         with TestContext.create_memory_context() as test_context:
