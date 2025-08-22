@@ -59,7 +59,6 @@ from nion.utils import Geometry
 from nion.utils import ListModel
 from nion.utils import Model
 from nion.utils import Registry
-from nion.utils import Stream
 
 if typing.TYPE_CHECKING:
     from nion.swift.model import DisplayItem
@@ -96,6 +95,53 @@ class PersistenceHandler(UserInterface.PersistenceHandler):
         return False
 
 
+@dataclasses.dataclass
+class AboutDialogTab:
+    label: str
+    markdown: str
+    uuid: uuid.UUID = dataclasses.field(default_factory=uuid.uuid4, init=False, repr=False)
+
+    def __hash__(self) -> int:
+        return hash(self.uuid)
+
+
+def build_recent_changes_tab() -> AboutDialogTab:
+    markdown = str()
+
+    changes_json_data = pkgutil.get_data(__name__, "resources/changes.json")
+    assert changes_json_data is not None
+    changes_data: typing.Sequence[typing.Mapping[str, typing.Any]] = json.loads(changes_json_data)
+
+    for version_d in changes_data:
+        changes_version_str = version_d["version"]
+        release_date_str = version_d.get("release_date")
+        markdown += "\n" + "### " + changes_version_str + (
+            f" ({release_date_str})" if release_date_str else "") + "\n"
+        for notes_d in version_d.get("notes", list()):
+            summary_line = notes_d["summary"]
+            issue_thunks = list()
+            for issue_url in notes_d.get("issues", list()):
+                numbers = re.findall(r"\d+", issue_url)
+                if numbers:
+                    issue_number = numbers[-1]
+                    issue_thunks.append(f"[#{issue_number}]({issue_url})")
+            if issue_thunks:
+                summary_line += " (" + ", ".join(issue_thunks) + ")"
+            author_thunks = list()
+            for author_d in notes_d.get("authors", list()):
+                author = author_d.get("github")
+                if author:
+                    author_thunks.append(f"[{author}](https://github.com/{author})")
+            if author_thunks:
+                summary_line += " by " + ", ".join(author_thunks)
+            markdown += "* " + summary_line + "\n"
+
+    return AboutDialogTab(_("Recent Changes"), markdown)
+
+
+Registry.register_component(build_recent_changes_tab(), {"about-box-markdown-tabs"})
+
+
 class AboutDialog(Dialog.OkCancelDialog):
     def __init__(self, ui: UserInterface.UserInterface, parent_window: UIWindow.Window, version_str: str):
         super().__init__(ui, include_cancel=False, parent_window=parent_window)
@@ -109,13 +155,21 @@ class AboutDialog(Dialog.OkCancelDialog):
 
                 self.icon = CanvasItem.load_rgba_data_from_bytes(logo_png)
 
-                changes_json_data = pkgutil.get_data(__name__, "resources/changes.json")
-                assert changes_json_data is not None
-                changes_data: typing.Sequence[typing.Mapping[str, typing.Any]] = json.loads(changes_json_data)
-
                 u = Declarative.DeclarativeUI()
 
                 base_prefix_label = [u.create_spacing(13), u.create_label(text=sys.base_prefix)] if sys.base_prefix else [u.create_spacing(0)]
+
+                about_dialog_tabs = typing.cast(list[AboutDialogTab], list(Registry.get_components_by_type("about-box-markdown-tabs")))
+
+                markdown_tabs = list[Declarative.UIDescriptionResult]()
+
+                for i, markdown_tab in enumerate(about_dialog_tabs):
+                    markdown_tabs.append(u.create_tab(label=markdown_tab.label,
+                                                      content=u.create_column(u.create_scroll_area(u.create_column(
+                                                          u.create_text_browser(markdown=f"@binding(_markdown_tab_{i})",
+                                                                                on_anchor_clicked="handle_anchor_clicked",
+                                                                                size_policy_vertical="expanding"))))))
+                    setattr(self, f"_markdown_tab_{i}", markdown_tab.markdown)
 
                 package_names = []
                 package_versions = []
@@ -123,31 +177,6 @@ class AboutDialog(Dialog.OkCancelDialog):
                 for __, package_name, package_version in Application.get_nion_swift_version_info():
                     package_names.append(u.create_label(text=package_name))
                     package_versions.append(u.create_label(text=package_version))
-
-                self.markdown = str()
-
-                for version_d in changes_data:
-                    changes_version_str = version_d["version"]
-                    release_date_str = version_d.get("release_date")
-                    self.markdown += "\n" + "### " + changes_version_str + (f" ({release_date_str})" if release_date_str else "") + "\n"
-                    for notes_d in version_d.get("notes", list()):
-                        summary_line = notes_d["summary"]
-                        issue_thunks = list()
-                        for issue_url in notes_d.get("issues", list()):
-                            numbers = re.findall(r"\d+", issue_url)
-                            if numbers:
-                                issue_number = numbers[-1]
-                                issue_thunks.append(f"[#{issue_number}]({issue_url})")
-                        if issue_thunks:
-                            summary_line += " (" + ", ".join(issue_thunks) + ")"
-                        author_thunks = list()
-                        for author_d in notes_d.get("authors", list()):
-                            author = author_d.get("github")
-                            if author:
-                                author_thunks.append(f"[{author}](https://github.com/{author})")
-                        if author_thunks:
-                            summary_line += " by " + ", ".join(author_thunks)
-                        self.markdown += "* " + summary_line + "\n"
 
                 packages_scroll_area = u.create_scroll_area(u.create_row(u.create_column(*package_names), u.create_spacing(8),
                                                          u.create_column(*package_versions), u.create_stretch(),
@@ -161,11 +190,13 @@ class AboutDialog(Dialog.OkCancelDialog):
                                                       margin_top=4,
                                                       margin_bottom=4,
                                                       spacing=8)
+
                 recent_changes_content_column = u.create_column(u.create_scroll_area(u.create_column(
                     u.create_text_browser(markdown="@binding(markdown)", on_anchor_clicked="handle_anchor_clicked", size_policy_vertical="expanding"))))
+
                 main_tabs = u.create_tabs(
                     u.create_tab(label=_("About"), content=main_content_column),
-                    u.create_tab(label=_("Recent Changes"), content=recent_changes_content_column),
+                    *markdown_tabs,
                     style="minimal"
                 )
                 self.ui_view = u.create_column(
