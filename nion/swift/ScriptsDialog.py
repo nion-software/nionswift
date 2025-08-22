@@ -632,6 +632,7 @@ class RunScriptDialog(Dialog.ActionDialog):
                         if do_reload:
                             importlib.reload(module)
                     except Exception:
+                        self.print(traceback.format_stack())
                         self.print(traceback.format_exc())
                         self.__stack.current_index = 1
                         self.continue_after_parse_error(script_path)
@@ -735,6 +736,7 @@ class RunScriptDialog(Dialog.ActionDialog):
                     except ScriptCancelException as e:
                         self.print(_("Script canceled by user."))
             except Exception:
+                self.print(traceback.format_stack())
                 self.print("{}: {}".format(_("Error"), traceback.format_exc()))
 
         self.__stack.current_index = 1
