@@ -30,6 +30,7 @@ requirements:
     - scipy
     - numpy >=2.0,<3.0
     - h5py
+    - hdf5plugin
     - imageio >=2.19.0
     - pytz
     - tzlocal
