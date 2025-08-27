@@ -70,7 +70,7 @@ def get_write_chunk_shape_for_data(data_shape: tuple[int, ...], data_dtype: nump
     else:
         is_2d_data = False
 
-    target_chunk_size = target_chunk_size/data_dtype.itemsize
+    target_chunk_size = int(round(target_chunk_size / data_dtype.itemsize))
     divisors = [1] * len(data_shape)
     if len(data_shape) > 2 and (
         (numpy.prod(data_shape[-3:]) > 8 * target_chunk_size and is_2d_data) or
@@ -82,7 +82,6 @@ def get_write_chunk_shape_for_data(data_shape: tuple[int, ...], data_dtype: nump
         else:
             divisors[-1] = 4
             is_2d_data = True
-
 
     chunk_size = 1
     counter = len(data_shape)
