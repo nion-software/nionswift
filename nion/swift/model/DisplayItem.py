@@ -2263,7 +2263,7 @@ class DisplayDataDeltaStream(Stream.ValueStream[DisplayDataDelta]):
 
 
 class DisplayItem(Persistence.PersistentObject):
-    DEFAULT_COLORS = ("#1E90FF", "#FF0000", "#00FF00", "#0000FF", "#FFFF00", "#00FFFF", "#FF00FF", "#888888", "#880000", "#008800", "#000088", "#CCCCCC", "#888800", "#008888", "#880088", "#964B00")
+    DEFAULT_COLORS = ("dodgerblue", "red", "limegreen", "blue", "coral", "darkturquoise", "mediumvioletred", "gray", "darkred", "green", "darkblue", "darkgoldenrod", "olive", "darkcyan", "darkmagenta", "saddlebrown")
 
     def __init__(self, item_uuid: typing.Optional[uuid.UUID] = None, *, data_item: typing.Optional[DataItem.DataItem] = None) -> None:
         super().__init__()
