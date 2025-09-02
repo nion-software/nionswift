@@ -310,7 +310,7 @@ class ScaleMarkerCanvasItemComposer(CanvasItem.BaseComposer):
                 drawing_context.font = scale_marker_font
                 drawing_context.stroke_style = "#000"
                 drawing_context.stroke()
-
+                drawing_context.fill_style = "#FFF"
                 if self.__scale_marker_position == "bottom-right":
                     drawing_context.text_align = "right"
                     drawing_context.fill_text(text1, content_width, baseline - scale_marker_height - padding)
@@ -340,27 +340,27 @@ class ScaleMarkerCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__screen_pixel_per_image_pixel_stream = screen_pixel_per_image_pixel_stream.add_ref()
         self.__screen_pixel_per_image_pixel_action = Stream.ValueStreamAction(screen_pixel_per_image_pixel_stream, lambda x: self.__update_sizing())
         self.__scale_marker_width = 0
-        self._scale_marker_position: typing.Optional[str] = None
-        self._background_fill_color: typing.Optional[str] = None
+        self.__scale_marker_position: str | None = None
+        self.__background_fill_color: str | None = None
 
     @property
     def scale_marker_position(self) -> typing.Optional[str]:
-        return self._scale_marker_position
+        return self.__scale_marker_position
 
     @scale_marker_position.setter
     def scale_marker_position(self, value: typing.Optional[str]) -> None:
-        if value != self._scale_marker_position:
-            self._scale_marker_position = value
+        if value != self.__scale_marker_position:
+            self.__scale_marker_position = value
             self.update()
 
     @property
     def background_fill_color(self) -> typing.Optional[str]:
-        return self._background_fill_color
+        return self.__background_fill_color
 
     @background_fill_color.setter
     def background_fill_color(self, value: typing.Optional[str]) -> None:
-        if value != self._background_fill_color:
-            self._background_fill_color = value
+        if value != self.__background_fill_color:
+            self.__background_fill_color = value
             self.update()
     def close(self) -> None:
         self.__screen_pixel_per_image_pixel_stream.remove_ref()
