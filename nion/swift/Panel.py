@@ -279,6 +279,50 @@ class CloseButtonCanvasItem(CanvasItem.CellCanvasItem):
         self.wants_mouse_events = True
         self.size_to_content(typing.cast(typing.Callable[[str, str], UserInterface.FontMetrics], ui_settings.get_font_metrics))
 
+class EditButtonCell(CanvasItem.Cell):
+    def __init__(self) -> None:
+        super().__init__()
+        self.fill_style = "rgb(128, 128, 128)"
+        self.fill_style_pressed = "rgb(64, 64, 64)"
+        self.fill_style_disabled = "rgb(192, 192, 192)"
+        self.border_style: str | None = None
+        self.border_style_pressed: str | None = None
+        self.border_style_disabled: str | None = None
+        self.stroke_style = "#FFF"
+        self.stroke_width = 3.0
+
+    def _size_to_content(self, get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> Geometry.IntSize:
+        return Geometry.IntSize(20, 12)
+
+    def _paint_cell(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.FloatRect, style: set[str]) -> None:
+        if not Platform.is_macos():
+            control_style = '#000000'
+        else:
+            control_style = '#808080'
+        with drawing_context.saver():
+            drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
+            drawing_context.begin_path()
+            margin = 0
+            close_box_left = margin
+            close_box_right = canvas_bounds.width - margin
+            close_box_top = canvas_bounds.height // 2 - 5 + 2
+            close_box_bottom = canvas_bounds.height // 2 + 5 + 2
+            drawing_context.move_to(close_box_left, (close_box_bottom + close_box_top + close_box_top) / 3)
+            drawing_context.line_to((close_box_left + close_box_right)/2, (close_box_bottom + close_box_bottom + close_box_top) / 3)
+            drawing_context.line_to(close_box_right, (close_box_bottom + close_box_top + close_box_top) / 3)
+            drawing_context.line_width = 2
+            drawing_context.line_cap = "butt"
+            drawing_context.stroke_style = control_style
+            drawing_context.stroke()
+
+
+class EditButtonCanvasItem(CanvasItem.CellCanvasItem):
+
+    def __init__(self, ui_settings: UISettings.UISettings) -> None:
+        super().__init__(EditButtonCell())
+        self.wants_mouse_events = True
+        self.size_to_content(typing.cast(typing.Callable[[str, str], UserInterface.FontMetrics], ui_settings.get_font_metrics))
+
 
 class HeaderBackgroundCanvasItemComposer(CanvasItem.BaseComposer):
     def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing,
@@ -430,6 +474,13 @@ class HeaderTitleCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__font = font
         self.__text_offset = text_offset
         self.update_sizing(self.sizing.with_fixed_height(height))
+        self.wants_mouse_events = True
+        self.on_select_pressed: typing.Callable[[], None] | None = None
+        self.on_drag_pressed: typing.Callable[[], None] | None = None
+        self.on_context_menu_clicked: typing.Callable[[int, int, int, int], bool] | None = None
+        self.on_double_clicked: typing.Callable[[int, int, UserInterface.KeyboardModifiers], bool] | None = None
+        self.on_tool_tip: typing.Callable[[], str | None] | None = None
+        self.__mouse_pressed_position: Geometry.IntPoint | None = None
 
     def __str__(self) -> str:
         return self.__title
@@ -450,6 +501,50 @@ class HeaderTitleCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> CanvasItem.BaseComposer | None:
         return HeaderTitleCanvasItemComposer(self, self.sizing, composer_cache, self.title, self.__font, self.__text_offset, self.__ui_settings)
+
+    def mouse_entered(self) -> bool:
+        if callable(self.on_tool_tip):
+            self.tool_tip = self.on_tool_tip()
+        return super().mouse_entered()
+
+    def mouse_exited(self) -> bool:
+        self.tool_tip = None
+        return super().mouse_exited()
+
+    def mouse_pressed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        self.__mouse_pressed_position = Geometry.IntPoint(y=y, x=x)
+        return False
+
+    def mouse_double_clicked(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        if callable(self.on_double_clicked):
+            return self.on_double_clicked(x, y, modifiers)
+        return False
+
+    def mouse_position_changed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        pt = Geometry.FloatPoint(y=y, x=x)
+        mouse_pressed_pos = self.__mouse_pressed_position
+        if mouse_pressed_pos and Geometry.distance(mouse_pressed_pos.to_float_point(), pt) > 12:
+            on_drag_pressed = self.on_drag_pressed
+            if callable(on_drag_pressed):
+                self.__mouse_pressed_position = None
+                on_drag_pressed()
+                return True
+        return False
+
+    def mouse_released(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        canvas_size = self.canvas_size
+        if self.__mouse_pressed_position is not None:
+            on_select_pressed = self.on_select_pressed
+            if callable(on_select_pressed):
+                on_select_pressed()
+        self.__mouse_pressed_position = None
+        return True
+
+    def context_menu_event(self, x: int, y: int, gx: int, gy: int) -> bool:
+        if callable(self.on_context_menu_clicked):
+            return self.on_context_menu_clicked(x, y, gx, gy)
+        return False
+
 
 
 class HeaderOverlayCanvasItem(CanvasItem.EmptyCanvasItem):
@@ -510,7 +605,7 @@ class HeaderOverlayCanvasItem(CanvasItem.EmptyCanvasItem):
 
 class HeaderCanvasItem(CanvasItem.CanvasItemComposition):
 
-    def __init__(self, ui_settings: UISettings.UISettings, title: str | None = None, display_close_control: bool = False) -> None:
+    def __init__(self, ui_settings: UISettings.UISettings, title: str | None = None, display_close_control: bool = False, display_edit_control: bool = False) -> None:
         super().__init__()
         self.__ui_settings = ui_settings
         if not Platform.is_macos():
@@ -525,10 +620,13 @@ class HeaderCanvasItem(CanvasItem.CanvasItemComposition):
         self.__overlay_canvas_item = HeaderOverlayCanvasItem(height)
         self.__header_background_canvas_item = HeaderBackgroundCanvasItem(height)
         self.__close_button_canvas_item = CloseButtonCanvasItem(self.__ui_settings) if display_close_control else None
+        self.__edit_button_canvas_item = EditButtonCanvasItem(self.__ui_settings) if display_edit_control else None
         title_row = CanvasItem.CanvasItemComposition()
         title_row.layout = CanvasItem.CanvasItemRowLayout()
         title_row.add_stretch()
         title_row.add_canvas_item(self.__title_canvas_item)
+        if self.__edit_button_canvas_item:
+            title_row.add_canvas_item(self.__edit_button_canvas_item)
         title_row.add_stretch()
         title_row.update_sizing(title_row.sizing.with_minimum_width(0))
         header_row = CanvasItem.CanvasItemComposition()
@@ -536,7 +634,7 @@ class HeaderCanvasItem(CanvasItem.CanvasItemComposition):
         header_row.add_spacing(6)
         header_overlay = CanvasItem.CanvasItemComposition()
         header_overlay.add_canvas_item(title_row)
-        header_overlay.add_canvas_item(self.__overlay_canvas_item)
+        # header_overlay.add_canvas_item(self.__overlay_canvas_item) #
         header_row.add_canvas_item(header_overlay)
         if self.__close_button_canvas_item:
             header_row.add_canvas_item(self.__close_button_canvas_item)
@@ -555,6 +653,11 @@ class HeaderCanvasItem(CanvasItem.CanvasItemComposition):
     @title.setter
     def title(self, title: str) -> None:
         self.__title_canvas_item.title = title
+        if self.__edit_button_canvas_item:
+            if title:
+                self.__edit_button_canvas_item.visible = True
+            else:
+                self.__edit_button_canvas_item.visible = False
 
     @property
     def start_header_color(self) -> str:
@@ -577,43 +680,43 @@ class HeaderCanvasItem(CanvasItem.CanvasItemComposition):
 
     @property
     def on_select_pressed(self) -> typing.Callable[[], None] | None:
-        return self.__overlay_canvas_item.on_select_pressed
+        return self.__title_canvas_item.on_select_pressed
 
     @on_select_pressed.setter
     def on_select_pressed(self, value: typing.Callable[[], None] | None) -> None:
-        self.__overlay_canvas_item.on_select_pressed = value
+        self.__title_canvas_item.on_select_pressed = value
 
     @property
     def on_drag_pressed(self) -> typing.Callable[[], None] | None:
-        return self.__overlay_canvas_item.on_drag_pressed
+        return self.__title_canvas_item.on_drag_pressed
 
     @on_drag_pressed.setter
     def on_drag_pressed(self, value: typing.Callable[[], None] | None) -> None:
-        self.__overlay_canvas_item.on_drag_pressed = value
+        self.__title_canvas_item.on_drag_pressed = value
 
     @property
     def on_context_menu_clicked(self) -> typing.Callable[[int, int, int, int], bool] | None:
-        return self.__overlay_canvas_item.on_context_menu_clicked
+        return self.__title_canvas_item.on_context_menu_clicked
 
     @on_context_menu_clicked.setter
     def on_context_menu_clicked(self, value: typing.Callable[[int, int, int, int], bool] | None) -> None:
-        self.__overlay_canvas_item.on_context_menu_clicked = value
+        self.__title_canvas_item.on_context_menu_clicked = value
 
     @property
     def on_double_clicked(self) -> typing.Callable[[int, int, UserInterface.KeyboardModifiers], bool] | None:
-        return self.__overlay_canvas_item.on_double_clicked
+        return self.__title_canvas_item.on_double_clicked
 
     @on_double_clicked.setter
     def on_double_clicked(self, value: typing.Callable[[int, int, UserInterface.KeyboardModifiers], bool] | None) -> None:
-        self.__overlay_canvas_item.on_double_clicked = value
+        self.__title_canvas_item.on_double_clicked = value
 
     @property
     def on_tool_tip(self) -> typing.Callable[[], str | None] | None:
-        return self.__overlay_canvas_item.on_tool_tip
+        return self.__title_canvas_item.on_tool_tip
 
     @on_tool_tip.setter
     def on_tool_tip(self, value: typing.Callable[[], str | None] | None) -> None:
-        self.__overlay_canvas_item.on_tool_tip = value
+        self.__title_canvas_item.on_tool_tip = value
 
     @property
     def on_close_clicked(self) -> typing.Callable[[], None] | None:
@@ -624,9 +727,18 @@ class HeaderCanvasItem(CanvasItem.CanvasItemComposition):
         if self.__close_button_canvas_item:
             self.__close_button_canvas_item.on_clicked = value
 
+    @property
+    def on_edit_clicked(self) -> typing.Callable[[], None] | None:
+        return self.__edit_button_canvas_item.on_clicked if self.__edit_button_canvas_item else None
+
+    @on_edit_clicked.setter
+    def on_edit_clicked(self, value: typing.Callable[[], None] | None) -> None:
+        if self.__edit_button_canvas_item:
+            self.__edit_button_canvas_item.on_clicked = value
+
     # for testing
     def simulate_click(self, p: Geometry.IntPointTuple, modifiers: typing.Optional[UserInterface.KeyboardModifiers] = None) -> None:
-        self.__overlay_canvas_item.simulate_click(p, modifiers)
+        self.__title_canvas_item.simulate_click(p, modifiers)
 
 
 class PanelSectionFactory(typing.Protocol):
