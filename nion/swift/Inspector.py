@@ -2915,7 +2915,7 @@ class GraphicsInspectorHandler(Declarative.Handler):
             u.create_check_box(text=_("Rotation"), checked="@binding(_lock_rotation_model.value)", enabled=self.__graphic.CAN_ROTATE, tool_tip=rotation_lock_tooltip, text_alignment_vertical="center"),
             u.create_spacing(3),
             u.create_push_button(text="\N{BULLSEYE}", on_clicked="_move_to_center_clicked", text_alignment_horizontal="center", style="minimal"),
-
+            u.create_spacing(3),
         )
 
         self.ui_view = u.create_column(
