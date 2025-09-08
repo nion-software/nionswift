@@ -333,10 +333,6 @@
                 "action_id": "window.edit_data_item_script"
             },
             {
-                "type": "item",
-                "action_id": "window.edit_display_script"
-            },
-            {
                 "type": "separator"
             },
             {

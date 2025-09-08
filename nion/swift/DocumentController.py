@@ -26,7 +26,6 @@ from nion.data import DataAndMetadata
 from nion.swift import ComputationPanel
 from nion.swift import ConsoleDialog
 from nion.swift import DataPanel
-from nion.swift import DisplayEditorPanel
 from nion.swift import DisplayPanel
 from nion.swift import EntityBrowser
 from nion.swift import ExportDialog
@@ -1119,13 +1118,6 @@ class DocumentController(Window.Window):
         Notification.notify(Notification.Notification("nion.inspector.no-target", "\N{WARNING SIGN} Edit Computation",
                                                       "No associated computation",
                                                       "The selected display/data item has no associated computation"))
-
-    def new_display_editor_dialog(self, display_item: typing.Optional[DisplayItem.DisplayItem] = None) -> None:
-        if not display_item:
-            display_item = self.selected_display_item
-        if display_item:
-            edit_display_dialog = DisplayEditorPanel.DisplayEditorDialog(self, display_item)
-            edit_display_dialog.show()
 
     def new_recorder_dialog(self, data_item: typing.Optional[DataItem.DataItem] = None) -> None:
         if not data_item:
@@ -3290,19 +3282,6 @@ class EditDataItemScriptAction(Window.Action):
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
-class EditDisplayScriptAction(Window.Action):
-    action_id = "window.edit_display_script"
-    action_name = _("Edit Display Script")
-
-    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
-        raise NotImplementedError()
-
-    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
-        window = typing.cast(DocumentController, context.window)
-        window.new_display_editor_dialog()
-        return Window.ActionResult(Window.ActionStatus.FINISHED)
-
-
 class GenerateDataAction(Window.Action):
     action_id = "window.generate_data_dialog"
     action_name = _("Generate Data...")
@@ -3418,7 +3397,6 @@ class ToggleFilterAction(Window.Action):
 Window.register_action(DataItemRecorderAction())
 Window.register_action(EditComputationAction())
 Window.register_action(EditDataItemScriptAction())
-Window.register_action(EditDisplayScriptAction())
 Window.register_action(GenerateDataAction())
 Window.register_action(OpenConsoleAction())
 Window.register_action(OpenNotificationsAction())
