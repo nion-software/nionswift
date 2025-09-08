@@ -21,7 +21,6 @@ from nion.data import Image
 from nion.swift import DataItemThumbnailWidget
 from nion.swift import DataPanel
 from nion.swift import DisplayCanvasItem
-from nion.swift import DisplayScriptCanvasItem
 from nion.swift import ImageCanvasItem
 from nion.swift import LinePlotCanvasItem
 from nion.swift import MimeTypes
@@ -536,14 +535,12 @@ def create_display_canvas_item(display_item: DisplayItem.DisplayItem, ui_setting
         return LinePlotCanvasItem.LinePlotCanvasItem(ui_settings, delegate)
     elif display_type == "image":
         return ImageCanvasItem.ImageCanvasItem(ui_settings, delegate, event_loop, draw_background)
-    elif display_type == "display_script":
-        return DisplayScriptCanvasItem.ScriptDisplayCanvasItem(ui_settings, delegate)
     else:
         return MissingDisplayCanvasItem(delegate)
 
 
 def is_valid_display_type(display_type: str) -> bool:
-    return display_type in ("image", "line_plot", "display_script")
+    return display_type in ("image", "line_plot")
 
 
 class DisplayTypeMonitor:

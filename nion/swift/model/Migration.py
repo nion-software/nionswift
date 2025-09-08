@@ -181,8 +181,6 @@ def migrate_to_v13(reader_info_list: typing.List[FileStorageSystem.ReaderInfo], 
                         new_display_properties["right_channel"] = display_properties.pop("right_channel")
                     if "legend_labels" in display_properties:
                         new_display_properties["legend_labels"] = display_properties.pop("legend_labels")
-                    if "display_script" in display_properties:
-                        new_display_properties["display_script"] = display_properties.pop("display_script")
                     if new_display_properties:
                         display_item_properties["display_properties"] = new_display_properties
                     display_data_properties["data_item_reference"] = data_item_uuid_str
