@@ -43,7 +43,7 @@ def make_directory_if_needed(directory_path: str) -> None:
         os.makedirs(directory_path)
 
 
-def get_write_chunk_shape_for_data(data_shape: tuple[int, ...], data_dtype: numpy.typing.DTypeLike, target_chunk_size: int=240000) -> typing.Optional[tuple[int, ...]]:
+def get_write_chunk_shape_for_data(data_shape: DataAndMetadata.ShapeType, data_dtype: numpy.typing.DTypeLike, target_chunk_size: int=240000) -> typing.Optional[DataAndMetadata.ShapeType]:
     """
     Calculate an appropriate write chunk shape for a given data shape and dtype.
 
@@ -75,13 +75,11 @@ def get_write_chunk_shape_for_data(data_shape: tuple[int, ...], data_dtype: nump
     if len(data_shape) > 2 and (
         (numpy.prod(data_shape[-3:]) > 8 * target_chunk_size and is_2d_data) or
         (numpy.prod(data_shape[-2:]) > 2 * target_chunk_size)):
-        if data_shape[-1] <= 1.5 * data_shape[-2]:
+        if is_2d_data:
             # Assume these are 2D camera frames if the x-dimension is not much larger than the y-dimension
             divisors[-2:] = [4, 4]
-            is_2d_data = True
         else:
             divisors[-1] = 4
-            is_2d_data = True
 
     chunk_size = 1
     counter = len(data_shape)
@@ -111,7 +109,6 @@ def get_write_chunk_shape_for_data(data_shape: tuple[int, ...], data_dtype: nump
         chunk_shape[:-2] = [1] * (len(data_shape) - 2)
 
     return tuple(chunk_shape)
-
 
 
 _HDF5FilePointer = typing.Any
