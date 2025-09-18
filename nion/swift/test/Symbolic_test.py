@@ -1750,6 +1750,23 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertEqual(2, document_model.computations[-2]._evaluation_count_for_test)
             self.assertEqual(2, document_model.computations[-1]._evaluation_count_for_test)
 
+    def test_changing_data_updates_filter_data_compute(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((8, 8)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            ring_graphic = Graphics.RingGraphic()
+            display_item.add_graphic(ring_graphic)
+            masked_display_item = document_model.get_masked_new(display_item, display_item.data_item)
+            document_model.recompute_all()
+            self.assertEqual(1, document_model.computations[-1]._evaluation_count_for_test)
+            with data_item.data_ref() as dr:
+                dr.data += 1.5
+            document_model.recompute_all()
+            self.assertEqual(2, document_model.computations[-1]._evaluation_count_for_test)
+
     def test_inserting_and_changing_unrelated_graphic_does_not_trigger_pick_recompute(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()

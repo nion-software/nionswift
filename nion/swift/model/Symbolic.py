@@ -3231,10 +3231,14 @@ class ComputationProcessorSource:
                 return event_type in (BoundDataEventType.UNSPECIFIED, BoundDataEventType.DISPLAY_DATA)
             case ("element_xdata" | "display_xdata" | "cropped_display_xdata" | "transformed_xdata" | "cropped_transformed_xdata" | "display_rgba"), True:
                 return event_type in (BoundDataEventType.UNSPECIFIED, BoundDataEventType.DISPLAY_DATA, BoundDataEventType.CROP_REGION)
-            case ("filtered_xdata" | "filter_xdata"), False:
-                return event_type in (BoundDataEventType.UNSPECIFIED, BoundDataEventType.FILTER)
-            case ("filtered_xdata" | "filter_xdata"), True:
-                return event_type in (BoundDataEventType.UNSPECIFIED, BoundDataEventType.FILTER, BoundDataEventType.CROP_REGION)
+            case "filter_xdata", False:
+                return event_type in (BoundDataEventType.UNSPECIFIED, BoundDataEventType.FILTER, BoundDataEventType.DATA)
+            case "filter_xdata", True:
+                return event_type in (BoundDataEventType.UNSPECIFIED, BoundDataEventType.FILTER, BoundDataEventType.DATA, BoundDataEventType.CROP_REGION)
+            case "filtered_xdata", False:
+                return event_type in (BoundDataEventType.UNSPECIFIED, BoundDataEventType.FILTER, BoundDataEventType.DATA)
+            case "filtered_xdata", True:
+                return event_type in (BoundDataEventType.UNSPECIFIED, BoundDataEventType.FILTER, BoundDataEventType.DATA, BoundDataEventType.CROP_REGION)
             case _:
                 return True
 
