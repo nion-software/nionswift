@@ -3377,7 +3377,7 @@ class OpenTitleEditAction(Window.Action):
                 header_canvas_item = display_panel.header_canvas_item
                 canvas_bounds = header_canvas_item.canvas_bounds
                 assert canvas_bounds
-                pos = Geometry.IntPoint(x=canvas_bounds.center.x - size.width // 2, y=canvas_bounds.top)
+                pos = Geometry.IntPoint(x=canvas_bounds.center.x - size.width // 2, y=canvas_bounds.top + header_canvas_item.header_height)
                 global_pos = header_canvas_item.map_to_global(pos)
             DisplayEditPopup.pose_title_edit_popup(window, display_item, global_pos, size)
             return Window.ActionResult(Window.ActionStatus.FINISHED)
