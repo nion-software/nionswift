@@ -5087,7 +5087,7 @@ class NegateAction(ProcessingAction):
 
 class PickAction(ProcessingAction):
     action_id = "processing.pick"
-    action_name = _("Pick")
+    action_name = _("Pick (Point)")
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)

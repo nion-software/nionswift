@@ -114,7 +114,7 @@
         "window": "Ctrl+D"
     },
     "processing.pick": {
-        "raster_display": "P"
+        "raster_display": "Shift+P"
     },
     "processing.pick_average": {
         "raster_display": "p"
