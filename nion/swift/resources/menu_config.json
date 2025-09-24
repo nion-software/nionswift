@@ -294,12 +294,19 @@
             {
                 "type": "item",
                 "action_id": "graphics.add_channel_graphic"
-             },
-             {
-                 "type": "separator"
-             },
-             {
-                 "type": "item",
+            },
+            {
+                "type": "separator"
+            },
+            {
+                "type": "item",
+                "action_id": "display_panel.center_graphics"
+            },
+            {
+                "type": "separator"
+            },
+            {
+                "type": "item",
                 "action_id": "graphics.add_graphic_mask"
             },
             {

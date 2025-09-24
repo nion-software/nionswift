@@ -2,6 +2,9 @@
     "display.snapshot_display": {
         "window": "Ctrl+S"
     },
+    "display_panel.center_graphics": {
+        "raster_display_graphics": "Ctrl+Shift+C"
+    },
     "display_panel.delete_graphics": {
         "display_panel": "delete"
     },

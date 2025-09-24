@@ -2985,8 +2985,6 @@ class GraphicsInspectorHandler(Declarative.Handler):
             u.create_spacing(12),
             u.create_check_box(text=_("Shape"), checked="@binding(_lock_shape_model.value)", enabled=self.__graphic.CAN_RESHAPE, tool_tip=shape_lock_tooltip, text_alignment_vertical="center"),
             u.create_stretch(),
-            u.create_push_button(text="\N{BULLSEYE}", on_clicked="_move_to_center_clicked", text_alignment_horizontal="center", style="minimal"),
-            u.create_spacing(4)
         )
 
         self.ui_view = u.create_column(
@@ -3305,10 +3303,6 @@ class GraphicsInspectorHandler(Declarative.Handler):
             ),
             spacing=4
         )
-
-    def _move_to_center_clicked(self, widget: typing.Any) -> None:
-        action_context = self.__document_controller._get_action_context_for_display_items([self.__display_item], None, graphics=[self.__graphic])
-        self.__document_controller.perform_action_in_context("display_panel.center_graphics", action_context)
 
     def __create_position_and_shape_ui(self) -> Declarative.UIDescriptionResult:
         if self.__shape_and_pos_func is None:
