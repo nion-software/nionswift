@@ -1527,7 +1527,8 @@ class LineTypeGraphic(Graphic):
     def adjust_part(self, mapping: CoordinateMappingLike, original: Geometry.FloatPoint, current: Geometry.FloatPoint, part: DragPartDataPlus, modifiers: ModifiersLike) -> None:
         p_image = mapping.map_point_widget_to_image(current)
         constraints = self._constraints
-        if not modifiers.alt:
+        lock_centroid = modifiers.alt or "position" in constraints
+        if not lock_centroid:
             pivot = part[2] if part[0] == "start" else part[1]
         else:
             pivot = Geometry.midpoint(part[1], part[2])
@@ -1557,18 +1558,38 @@ class LineTypeGraphic(Graphic):
             if part[0] == "start":
                 start = mapping.map_point_image_to_image_norm(p_image)
                 start_vec = start - pivot
-                end = (pivot - start_vec) if modifiers.alt else pivot
+                end = (pivot - start_vec) if lock_centroid else pivot
             else:
                 end = mapping.map_point_image_to_image_norm(p_image)
                 end_vec = end - pivot
-                start = (pivot - end_vec) if modifiers.alt else pivot
+                start = (pivot - end_vec) if lock_centroid else pivot
 
             if "bounds" in constraints:
                 start = Geometry.FloatPoint(min(max(start.y, 0.0), 1.0), min(max(start.x, 0.0), 1.0))
                 end = Geometry.FloatPoint(min(max(end.y, 0.0), 1.0), min(max(end.x, 0.0), 1.0))
             self.vector = (start, end)
 
+        elif (part[0] in ["all", "line"] or "shape" in constraints) and "position" not in constraints:
+            o = mapping.map_point_widget_to_image_norm(original)
+            p = mapping.map_point_widget_to_image_norm(current)
+            delta_v = p.y - o.y
+            delta_h = p.x - o.x
+            y0 = part[1][0]
+            x0 = part[1][1]
+            y1 = part[2][0]
+            x1 = part[2][1]
+            if "bounds" in constraints:
+                delta_v = min(max(delta_v, -y0), 1.0 - y0)
+                delta_v = min(max(delta_v, -y1), 1.0 - y1)
+                delta_h = min(max(delta_h, -x0), 1.0 - x0)
+                delta_h = min(max(delta_h, -x1), 1.0 - x1)
+            start = Geometry.FloatPoint(y0 + delta_v, x0 + delta_h)
+            end = Geometry.FloatPoint(y1 + delta_v, x1 + delta_h)
+            self.vector = start, end
+
         elif part[0] in ["all", "line"] or "shape" in constraints:
+            if"position" in constraints:
+                return  # Prevent dragging
             o = mapping.map_point_widget_to_image_norm(original)
             p = mapping.map_point_widget_to_image_norm(current)
             delta_v = p.y - o.y
