@@ -3,10 +3,58 @@
     "version": "16.16.1",
     "notes": [
       {
+        "summary": "Ensure line position locking works.",
+        "date": "2025-09-25",
+        "repository": "nionswift"
+      },
+      {
+        "summary": "Show more available key overloads in menus.",
+        "date": "2025-09-24",
+        "repository": "nionswift"
+      },
+      {
+        "summary": "Move center graphic command from inspector to menu w/ key overload.",
+        "date": "2025-09-23",
+        "repository": "nionswift"
+      },
+      {
+        "summary": "Fix issue with processing operations using filtered masks not updating properly.",
+        "date": "2025-09-18",
+        "repository": "nionswift"
+      },
+      {
+        "summary": "Improve line plot colors, eliminate use of difficult-to-see yellow.",
+        "date": "2025-08-27",
+        "repository": "nionswift"
+      },
+      {
+        "summary": "Fix issue with cursor on small 1D line plots.",
+        "date": "2025-08-16",
+        "repository": "nionswift",
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/1568"
+        ]
+      },
+      {
+        "summary": "Fix issues of display calibration when using log or gamma adjustments.",
+        "date": "2025-08-16",
+        "repository": "nionswift",
         "issues": [
           "https://github.com/nion-software/nionswift/issues/1590"
-        ],
-        "summary": "Fix calibration issues when using display adjustments such as log or equalized."
+        ]
+      },
+      {
+        "summary": "Fix display of FFT coordinates (easiest to see on small images).",
+        "date": "2025-08-16",
+        "repository": "nionswift",
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/1600"
+        ]
+      },
+      {
+        "summary": "Add checkbox to lock rotation in inspector.",
+        "date": "2025-06-19",
+        "repository": "nionswift"
       }
     ]
   },

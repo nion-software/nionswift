@@ -12,6 +12,18 @@ them for evaluation and feedback. If you encounter an issue or have feedback abo
 please contact us or `file issues
 <https://github.com/nion-software/nionswift/issues>`_.
 
+Version 16.16.1 (2025-09-25)
+----------------------------
+* Ensure line position locking works.
+* Show more available key overloads in menus.
+* Move center graphic command from inspector to menu w/ key overload.
+* Fix issue with processing operations using filtered masks not updating properly.
+* Improve line plot colors, eliminate use of difficult-to-see yellow.
+* Fix issue with cursor on small 1D line plots. [nion-software/nionswift#1568](https://github.com/nion-software/nionswift/issues/1568)
+* Fix issues of display calibration when using log or gamma adjustments. [nion-software/nionswift#1590](https://github.com/nion-software/nionswift/issues/1590)
+* Fix display of FFT coordinates (easiest to see on small images). [nion-software/nionswift#1600](https://github.com/nion-software/nionswift/issues/1600)
+* Add checkbox to lock rotation in inspector.
+
 Version 16.16.0 (2025-06-26)
 ----------------------------
 * Add ability to switch collection directly from the data panel. (`#1295 <https://github.com/nion-software/nionswift/issues/1295>`_)
