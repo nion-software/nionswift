@@ -101,25 +101,18 @@ class ExportDialog(Declarative.Handler):
         writer = self.__writers[current_index]
         self.viewmodel.writer.value = writer
 
-    def on_prefix_changed(self, widget: Declarative.UIWidget, text: str) -> None:
-        self.validate_options(text)
-
-    def validate_options(self, prefix_text: str) -> bool:
+    def _handle_prefix_changed(self, widget: Declarative.UIWidget, prefix_text: str) -> None:
         invalid_reason: str | None = None
         if prefix_text != Utility.simplify_filename(prefix_text):
             invalid_reason = _("Prefix contains invalid characters")
 
         # Other validation options can go here, type validation, space validation etc
-
         if invalid_reason:
             self.__export_button.enabled = False
             self.__export_button.tool_tip = invalid_reason
-            return False
         else:
             self.__export_button.tool_tip = None
             self.__export_button.enabled = True
-            return True
-
 
     def _build_ui(self, u: Declarative.DeclarativeUI) -> None:
         writers_names = [getattr(writer, "name") for writer in self.__writers]
@@ -151,7 +144,7 @@ class ExportDialog(Declarative.Handler):
 
         # Prefix
         prefix_label = u.create_label(text=_("Prefix:"))
-        prefix_textbox = u.create_line_edit(text=f"@binding(viewmodel.prefix.value)", placeholder_text=_("None"), width=230, on_text_edited="on_prefix_changed")
+        prefix_textbox = u.create_line_edit(text=f"@binding(viewmodel.prefix.value)", placeholder_text=_("None"), width=230, on_text_edited="_handle_prefix_changed")
         self.__prefix_textbox = prefix_textbox
         prefix_row = u.create_row(prefix_label, prefix_textbox, u.create_stretch(), spacing=10)
 
