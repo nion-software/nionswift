@@ -601,9 +601,11 @@ class Profile(Persistence.PersistentObject):
         project_reference.load_project(self.profile_context, self.__cache_dir_path, cache_factory=self.__cache_factory)
 
     def create_project(self, project_dir: pathlib.Path, library_name: str) -> typing.Optional[ProjectReference]:
-        project_name = pathlib.Path(library_name)
+        # the library name may contain multiple periods. be careful with using `with_suffix` which will treat
+        # everything after the last period as the suffix. remove trailing periods.
+        library_name = library_name.rstrip(".")
         project_data_path = pathlib.Path(library_name + " Data")
-        project_path = project_dir / project_name.with_suffix(".nsproj")
+        project_path = project_dir / pathlib.Path(library_name + ".nsproj")
         project_dir.mkdir(parents=True, exist_ok=True)
         project_uuid = uuid.uuid4()
         project_data_json = json.dumps({"version": FileStorageSystem.PROJECT_VERSION, "uuid": str(project_uuid),
