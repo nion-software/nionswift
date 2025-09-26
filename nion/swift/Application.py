@@ -989,8 +989,15 @@ class NewProjectAction(UIWindow.Action):
                     self.request_close()
                     return True
 
-                def handle_new_and_close() -> bool:
+                # this is invoked by the button. the dialog will be closed by returning True. see Dialog.add_button.
+                # it should not explicitly close the dialog.
+                def handle_new() -> bool:
                     app.create_project_reference(pathlib.Path(self.directory), self.__project_name_field.text or "untitled")
+                    return True
+
+                # this is invoked by pressing return in the project name field. it will create the project and close the dialog.
+                def handle_new_and_close() -> bool:
+                    handle_new()
                     self.request_close()
                     return True
 
@@ -1077,7 +1084,7 @@ class NewProjectAction(UIWindow.Action):
                 choose_directory_button.on_clicked = choose
 
                 self.add_button(_("Cancel"), lambda: True)
-                create_project_button = self.add_button(_("Create Project"), handle_new_and_close)
+                create_project_button = self.add_button(_("Create Project"), handle_new)
 
                 self.content.add(column)
 
