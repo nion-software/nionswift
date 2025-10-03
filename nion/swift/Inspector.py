@@ -7,6 +7,7 @@ import copy
 import functools
 import gettext
 import math
+import pkgutil
 import sys
 import threading
 import typing
@@ -2971,6 +2972,20 @@ class GraphicsInspectorHandler(Declarative.Handler):
             u.create_spacing(4)
         )
 
+        align_center_icon_data = pkgutil.get_data(__name__, "resources/align_center_12x12.png")
+        assert align_center_icon_data is not None
+        self._align_center_icon_png = CanvasItem.load_rgba_data_from_bytes(align_center_icon_data, "png")
+
+        align_row = u.create_row(
+            u.create_label(text=_("Align"), text_alignment_vertical="center"),
+            u.create_row(
+                u.create_push_button(icon="@binding(_align_center_icon_png)", style="minimal", on_clicked="_align_center_clicked", tool_tip=_("Move Graphic to Center")),
+            ),
+            u.create_stretch(),
+            spacing=12,
+            margin_horizontal=6
+        )
+
         pos_shape_row = self.__create_position_and_shape_ui()
         stroke_style_row = self.__create_stroke_style_ui()
 
@@ -2987,7 +3002,7 @@ class GraphicsInspectorHandler(Declarative.Handler):
             u.create_check_box(text=_("Rotation"), checked="@binding(_lock_rotation_model.value)", enabled=self.__graphic.CAN_ROTATE, tool_tip=rotation_lock_tooltip, text_alignment_vertical="center"),
             u.create_stretch(),
             spacing=12,
-            margin=6
+            margin_horizontal=6
         )
 
         self.ui_view = u.create_column(
@@ -2996,6 +3011,8 @@ class GraphicsInspectorHandler(Declarative.Handler):
             pos_shape_row,
             u.create_spacing(4),
             lock_row,
+            u.create_spacing(4),
+            align_row,
             u.create_spacing(4),
             stroke_style_row,
             u.create_spacing(12),
@@ -3306,6 +3323,10 @@ class GraphicsInspectorHandler(Declarative.Handler):
             ),
             spacing=4
         )
+
+    def _align_center_clicked(self, widget: typing.Any) -> None:
+        action_context = self.__document_controller._get_action_context_for_display_items([self.__display_item], None, graphics=[self.__graphic])
+        self.__document_controller.perform_action_in_context("display_panel.center_graphics", action_context)
 
     def __create_position_and_shape_ui(self) -> Declarative.UIDescriptionResult:
         if self.__shape_and_pos_func is None:
@@ -3974,7 +3995,8 @@ class GraphicHandler(Declarative.Handler):
             rotation_row = u.create_row(
                 u.create_label(text=_("Rotation (deg)")),
                 u.create_line_edit(text="@binding(graphic.rotation_deg)", width=90),
-                u.create_stretch(), spacing=12)
+                u.create_stretch(),
+                spacing=12)
             return u.create_column(position_row, size_row, rotation_row, spacing=8)
         if isinstance(graphic, Graphics.LineProfileGraphic):
             start_row = u.create_row(
