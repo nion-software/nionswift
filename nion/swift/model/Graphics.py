@@ -2216,7 +2216,7 @@ class SpotGraphic(Graphic):
         center = origin - mapping.map_size_image_norm_to_widget(bounds.center.as_size())
         size = mapping.map_size_image_norm_to_widget(bounds.size)
 
-        part, specific = test_rectangle(p, ui_settings.cursor_tolerance, center, size, rotation)
+        part, specific = test_rectangle(p, ui_settings.cursor_tolerance, center, size, rotation + math.pi)
         if part is not None:
             if part == "top-left":
                 part = "inverted-bottom-right"
