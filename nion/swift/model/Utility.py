@@ -298,7 +298,17 @@ class AtomicFileWriter:
                 pass
         else:
             try:
-                os.replace(self.__temp_filepath, self.__filepath)
+                MAX_RETRIES = 4
+                backoff = 0.05
+                for attempt in range(MAX_RETRIES):
+                    try:
+                        os.replace(self.__temp_filepath, self.__filepath)
+                        break
+                    except PermissionError:
+                        if attempt == MAX_RETRIES - 1:
+                            raise
+                        time.sleep(backoff)
+                        backoff *= 2
                 if hasattr(os, "O_DIRECTORY"):
                     # ensure the directory has been updated. not available all the time on Windows.
                     dirfd = os.open(os.path.dirname(self.__filepath), os.O_DIRECTORY)
