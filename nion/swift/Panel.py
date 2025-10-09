@@ -279,6 +279,7 @@ class CloseButtonCanvasItem(CanvasItem.CellCanvasItem):
         self.wants_mouse_events = True
         self.size_to_content(typing.cast(typing.Callable[[str, str], UserInterface.FontMetrics], ui_settings.get_font_metrics))
 
+
 class EditButtonCell(CanvasItem.Cell):
 
     def __init__(self, height: int, baseline: float) -> None:
@@ -617,6 +618,7 @@ class HeaderCanvasItem(CanvasItem.CanvasItemComposition):
         title_row.add_stretch()
         title_row.add_canvas_item(self.__title_canvas_item)
         if self.__edit_button_canvas_item:
+            title_row.add_spacing(2)
             title_row.add_canvas_item(self.__edit_button_canvas_item)
         title_row.add_stretch()
         title_row.update_sizing(title_row.sizing.with_minimum_width(0))
@@ -625,7 +627,6 @@ class HeaderCanvasItem(CanvasItem.CanvasItemComposition):
         header_row.add_spacing(6)
         header_overlay = CanvasItem.CanvasItemComposition()
         header_overlay.add_canvas_item(title_row)
-        # header_overlay.add_canvas_item(self.__overlay_canvas_item) #
         header_row.add_canvas_item(header_overlay)
         if self.__close_button_canvas_item:
             header_row.add_canvas_item(self.__close_button_canvas_item)
