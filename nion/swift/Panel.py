@@ -466,13 +466,6 @@ class HeaderTitleCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__font = font
         self.__text_offset = text_offset
         self.update_sizing(self.sizing.with_fixed_height(height))
-        self.wants_mouse_events = True
-        self.on_select_pressed: typing.Callable[[], None] | None = None
-        self.on_drag_pressed: typing.Callable[[], None] | None = None
-        self.on_context_menu_clicked: typing.Callable[[int, int, int, int], bool] | None = None
-        self.on_double_clicked: typing.Callable[[int, int, UserInterface.KeyboardModifiers], bool] | None = None
-        self.on_tool_tip: typing.Callable[[], str | None] | None = None
-        self.__mouse_pressed_position: Geometry.IntPoint | None = None
 
     def __str__(self) -> str:
         return self.__title
@@ -493,50 +486,6 @@ class HeaderTitleCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> CanvasItem.BaseComposer | None:
         return HeaderTitleCanvasItemComposer(self, self.sizing, composer_cache, self.title, self.__font, self.__text_offset, self.__ui_settings)
-
-    def mouse_entered(self) -> bool:
-        if callable(self.on_tool_tip):
-            self.tool_tip = self.on_tool_tip()
-        return super().mouse_entered()
-
-    def mouse_exited(self) -> bool:
-        self.tool_tip = None
-        return super().mouse_exited()
-
-    def mouse_pressed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
-        self.__mouse_pressed_position = Geometry.IntPoint(y=y, x=x)
-        return False
-
-    def mouse_double_clicked(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
-        if callable(self.on_double_clicked):
-            return self.on_double_clicked(x, y, modifiers)
-        return False
-
-    def mouse_position_changed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
-        pt = Geometry.FloatPoint(y=y, x=x)
-        mouse_pressed_pos = self.__mouse_pressed_position
-        if mouse_pressed_pos and Geometry.distance(mouse_pressed_pos.to_float_point(), pt) > 12:
-            on_drag_pressed = self.on_drag_pressed
-            if callable(on_drag_pressed):
-                self.__mouse_pressed_position = None
-                on_drag_pressed()
-                return True
-        return False
-
-    def mouse_released(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
-        canvas_size = self.canvas_size
-        if self.__mouse_pressed_position is not None:
-            on_select_pressed = self.on_select_pressed
-            if callable(on_select_pressed):
-                on_select_pressed()
-        self.__mouse_pressed_position = None
-        return True
-
-    def context_menu_event(self, x: int, y: int, gx: int, gy: int) -> bool:
-        if callable(self.on_context_menu_clicked):
-            return self.on_context_menu_clicked(x, y, gx, gy)
-        return False
-
 
 
 class HeaderOverlayCanvasItem(CanvasItem.EmptyCanvasItem):
@@ -626,6 +575,7 @@ class HeaderCanvasItem(CanvasItem.CanvasItemComposition):
         header_row.layout = CanvasItem.CanvasItemRowLayout()
         header_row.add_spacing(6)
         header_overlay = CanvasItem.CanvasItemComposition()
+        header_overlay.add_canvas_item(self.__overlay_canvas_item)
         header_overlay.add_canvas_item(title_row)
         header_row.add_canvas_item(header_overlay)
         if self.__close_button_canvas_item:
@@ -672,43 +622,43 @@ class HeaderCanvasItem(CanvasItem.CanvasItemComposition):
 
     @property
     def on_select_pressed(self) -> typing.Callable[[], None] | None:
-        return self.__title_canvas_item.on_select_pressed
+        return self.__overlay_canvas_item.on_select_pressed
 
     @on_select_pressed.setter
     def on_select_pressed(self, value: typing.Callable[[], None] | None) -> None:
-        self.__title_canvas_item.on_select_pressed = value
+        self.__overlay_canvas_item.on_select_pressed = value
 
     @property
     def on_drag_pressed(self) -> typing.Callable[[], None] | None:
-        return self.__title_canvas_item.on_drag_pressed
+        return self.__overlay_canvas_item.on_drag_pressed
 
     @on_drag_pressed.setter
     def on_drag_pressed(self, value: typing.Callable[[], None] | None) -> None:
-        self.__title_canvas_item.on_drag_pressed = value
+        self.__overlay_canvas_item.on_drag_pressed = value
 
     @property
     def on_context_menu_clicked(self) -> typing.Callable[[int, int, int, int], bool] | None:
-        return self.__title_canvas_item.on_context_menu_clicked
+        return self.__overlay_canvas_item.on_context_menu_clicked
 
     @on_context_menu_clicked.setter
     def on_context_menu_clicked(self, value: typing.Callable[[int, int, int, int], bool] | None) -> None:
-        self.__title_canvas_item.on_context_menu_clicked = value
+        self.__overlay_canvas_item.on_context_menu_clicked = value
 
     @property
     def on_double_clicked(self) -> typing.Callable[[int, int, UserInterface.KeyboardModifiers], bool] | None:
-        return self.__title_canvas_item.on_double_clicked
+        return self.__overlay_canvas_item.on_double_clicked
 
     @on_double_clicked.setter
     def on_double_clicked(self, value: typing.Callable[[int, int, UserInterface.KeyboardModifiers], bool] | None) -> None:
-        self.__title_canvas_item.on_double_clicked = value
+        self.__overlay_canvas_item.on_double_clicked = value
 
     @property
     def on_tool_tip(self) -> typing.Callable[[], str | None] | None:
-        return self.__title_canvas_item.on_tool_tip
+        return self.__overlay_canvas_item.on_tool_tip
 
     @on_tool_tip.setter
     def on_tool_tip(self, value: typing.Callable[[], str | None] | None) -> None:
-        self.__title_canvas_item.on_tool_tip = value
+        self.__overlay_canvas_item.on_tool_tip = value
 
     @property
     def on_close_clicked(self) -> typing.Callable[[], None] | None:
@@ -730,7 +680,7 @@ class HeaderCanvasItem(CanvasItem.CanvasItemComposition):
 
     # for testing
     def simulate_click(self, p: Geometry.IntPointTuple, modifiers: typing.Optional[UserInterface.KeyboardModifiers] = None) -> None:
-        self.__title_canvas_item.simulate_click(p, modifiers)
+        self.__overlay_canvas_item.simulate_click(p, modifiers)
 
 
 class PanelSectionFactory(typing.Protocol):
