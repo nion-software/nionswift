@@ -14,6 +14,7 @@ import uuid
 import numpy
 
 # local libraries
+from nion.data import DataAndMetadata
 from nion.swift.model import NDataHandler
 from nion.swift.model import Cache
 
@@ -40,13 +41,13 @@ class TestNDataHandlerClass(unittest.TestCase):
                 self.assertEqual(h.read_properties(), p)
                 self.assertIsNone(h.read_data())
                 # write data
-                h.write_data(numpy.zeros((4,4), dtype=numpy.float64), now)
+                h.write_data(numpy.zeros((4,4), dtype=numpy.float64), DataAndMetadata.DataDescriptor(False, 0, 2), now)
                 self.assertEqual(h.read_properties(), p)
                 d = h.read_data()
                 self.assertEqual(d.shape, (4, 4))
                 self.assertEqual(d.dtype, numpy.float64)
                 # rewrite data
-                h.write_data(numpy.zeros((12,12), dtype=numpy.float32), now)
+                h.write_data(numpy.zeros((12,12), dtype=numpy.float32), DataAndMetadata.DataDescriptor(False, 0, 2), now)
                 self.assertEqual(h.read_properties(), p)
                 d = h.read_data()
                 self.assertEqual(d.shape, (12, 12))
@@ -133,7 +134,7 @@ class TestNDataHandlerClass(unittest.TestCase):
                 # write properties
                 h.write_properties(p, now)
                 # write data
-                h.write_data(data, now)
+                h.write_data(data, DataAndMetadata.DataDescriptor(False, 0, 2), now)
                 d = h.read_data()
                 self.assertEqual(d.shape, data.shape)
                 self.assertEqual(d.dtype, data.dtype)

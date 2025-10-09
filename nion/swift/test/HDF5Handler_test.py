@@ -10,6 +10,7 @@ import uuid
 import numpy
 
 # local libraries
+from nion.data import DataAndMetadata
 from nion.swift.model import HDF5Handler
 from nion.swift.model import Cache
 
@@ -64,13 +65,13 @@ class TestHDF5Handler(unittest.TestCase):
                 self.assertEqual(h.read_properties(), p)
                 self.assertIsNone(h.read_data())
                 # write data
-                h.write_data(numpy.zeros((4,4), dtype=numpy.float64), now)
+                h.write_data(numpy.zeros((4,4), dtype=numpy.float64), DataAndMetadata.DataDescriptor(False, 0, 2), now)
                 self.assertEqual(h.read_properties(), p)
                 d = h.read_data()
                 self.assertEqual(d.shape, (4, 4))
                 self.assertEqual(d.dtype, numpy.float64)
                 # rewrite data
-                h.write_data(numpy.zeros((12,12), dtype=numpy.float32), now)
+                h.write_data(numpy.zeros((12,12), dtype=numpy.float32), DataAndMetadata.DataDescriptor(False, 0, 2), now)
                 self.assertEqual(h.read_properties(), p)
                 d = h.read_data()
                 self.assertEqual(d.shape, (12, 12))
@@ -82,7 +83,7 @@ class TestHDF5Handler(unittest.TestCase):
                 self.assertEqual(d.shape, (12, 12))
                 self.assertEqual(d.dtype, numpy.float32)
                 # reserve data
-                h.reserve_data((3, 15), numpy.float32, now)
+                h.reserve_data((3, 15), numpy.float32, DataAndMetadata.DataDescriptor(False, 0, 2), now)
                 self.assertEqual(h.read_properties(), p)
                 d = h.read_data()
                 self.assertEqual(d.shape, (3, 15))

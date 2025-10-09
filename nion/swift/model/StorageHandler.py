@@ -9,6 +9,8 @@ import uuid
 import numpy
 import numpy.typing
 
+from nion.data import DataAndMetadata
+
 
 PersistentDictType = typing.Dict[str, typing.Any]
 _NDArray = numpy.typing.NDArray[typing.Any]
@@ -49,9 +51,9 @@ class StorageHandler(typing.Protocol):
 
     def write_properties(self, properties: PersistentDictType, file_datetime: datetime.datetime) -> None: ...
 
-    def write_data(self, data: _NDArray, file_datetime: datetime.datetime) -> None: ...
+    def write_data(self, data: _NDArray, data_descriptor: DataAndMetadata.DataDescriptor, file_datetime: datetime.datetime) -> None: ...
 
-    def reserve_data(self, data_shape: typing.Tuple[int, ...], data_dtype: numpy.typing.DTypeLike, file_datetime: datetime.datetime) -> None: ...
+    def reserve_data(self, data_shape: typing.Tuple[int, ...], data_dtype: numpy.typing.DTypeLike, data_descriptor: DataAndMetadata.DataDescriptor, file_datetime: datetime.datetime) -> None: ...
 
     def prepare_move(self) -> None: ...
 
