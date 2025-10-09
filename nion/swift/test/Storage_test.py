@@ -3186,7 +3186,7 @@ class TestStorageClass(unittest.TestCase):
             handler = file_handler_factory.make(file_path)
             with contextlib.closing(handler):
                 handler.write_properties(data_item_dict, DateTime.utcnow())
-                handler.write_data(numpy.zeros((8,8)), DateTime.utcnow())
+                handler.write_data(numpy.zeros((8,8)), DataAndMetadata.DataDescriptor(False, 0, 2), DateTime.utcnow())
             # read workspace
             document_model = profile_context.create_document_model(auto_close=False)
             with document_model.ref():
@@ -3242,7 +3242,7 @@ class TestStorageClass(unittest.TestCase):
             handler = file_handler_factory.make(file_path)
             with contextlib.closing(handler):
                 handler.write_properties(data_item_dict, DateTime.utcnow())
-                handler.write_data(numpy.zeros((8,8)), DateTime.utcnow())
+                handler.write_data(numpy.zeros((8,8)), DataAndMetadata.DataDescriptor(False, 0, 2), DateTime.utcnow())
             # read workspace
             document_model = profile_context.create_document_model(auto_close=False)
             with document_model.ref():
@@ -3279,7 +3279,7 @@ class TestStorageClass(unittest.TestCase):
             handler = file_handler_factory.make(pathlib.Path(data_path, "File").with_suffix(file_handler_factory.get_extension()))
             with contextlib.closing(handler):
                 handler.write_properties(data_item_dict, DateTime.utcnow())
-                handler.write_data(numpy.zeros((8,8)), DateTime.utcnow())
+                handler.write_data(numpy.zeros((8,8)), DataAndMetadata.DataDescriptor(False, 0, 2), DateTime.utcnow())
             # auto migrate workspace
             document_model = profile_context.create_document_model(auto_close=False)
             with document_model.ref():
@@ -3314,7 +3314,7 @@ class TestStorageClass(unittest.TestCase):
             handler = file_handler_factory.make(pathlib.Path(data_path, "File").with_suffix(file_handler_factory.get_extension()))
             with contextlib.closing(handler):
                 handler.write_properties(data_item_dict, DateTime.utcnow())
-                handler.write_data(numpy.zeros((8,8)), DateTime.utcnow())
+                handler.write_data(numpy.zeros((8,8)), DataAndMetadata.DataDescriptor(False, 0, 2), DateTime.utcnow())
             # auto migrate workspace
             document_model = profile_context.create_document_model(auto_close=False)
             with document_model.ref():
@@ -3347,7 +3347,7 @@ class TestStorageClass(unittest.TestCase):
             handler = file_handler_factory.make(pathlib.Path(data_path, "File").with_suffix(file_handler_factory.get_extension()))
             with contextlib.closing(handler):
                 handler.write_properties(data_item_dict, DateTime.utcnow())
-                handler.write_data(numpy.zeros((8,8)), DateTime.utcnow())
+                handler.write_data(numpy.zeros((8,8)), DataAndMetadata.DataDescriptor(False, 0, 2), DateTime.utcnow())
             # make new library
             document_model = profile_context.create_document_model(auto_close=False)
             with document_model.ref():
@@ -3392,7 +3392,7 @@ class TestStorageClass(unittest.TestCase):
             handler = file_handler_factory.make(pathlib.Path(data_path, "File").with_suffix(file_handler_factory.get_extension()))
             with contextlib.closing(handler):
                 handler.write_properties(data_item_dict, DateTime.utcnow())
-                handler.write_data(numpy.zeros((8,8)), DateTime.utcnow())
+                handler.write_data(numpy.zeros((8,8)), DataAndMetadata.DataDescriptor(False, 0, 2), DateTime.utcnow())
             # auto migrate workspace
             document_model = profile_context.create_document_model(auto_close=False)
             with document_model.ref():
@@ -3426,7 +3426,7 @@ class TestStorageClass(unittest.TestCase):
             handler = file_handler_factory.make(pathlib.Path(data_path, "File").with_suffix(file_handler_factory.get_extension()))
             with contextlib.closing(handler):
                 handler.write_properties(data_item_dict, DateTime.utcnow())
-                handler.write_data(numpy.zeros((8,8)), DateTime.utcnow())
+                handler.write_data(numpy.zeros((8,8)), DataAndMetadata.DataDescriptor(False, 0, 2), DateTime.utcnow())
             # write a newer item with same uuid
             data_item = DataItem.DataItem(numpy.zeros((8,8)), item_uuid=uuid.UUID(src_uuid_str))
             with contextlib.closing(data_item):
@@ -3438,7 +3438,7 @@ class TestStorageClass(unittest.TestCase):
                     storage_handler_attributes = FileStorageSystem.make_storage_handler_attributes(data_item)
                     with contextlib.closing(document_model._project.project_storage_system._make_storage_handler(storage_handler_attributes)) as handler:
                         handler.write_properties(data_item.write_to_dict(), DateTime.utcnow())
-                        handler.write_data(numpy.zeros((8,8)), DateTime.utcnow())
+                        handler.write_data(numpy.zeros((8,8)), DataAndMetadata.DataDescriptor(False, 0, 2), DateTime.utcnow())
             # read the document and migrate
             document_model = profile_context.create_document_model(auto_close=False)
             with document_model.ref():
@@ -3477,7 +3477,7 @@ class TestStorageClass(unittest.TestCase):
             handler = file_handler_factory.make(pathlib.Path(data_path, "File").with_suffix(file_handler_factory.get_extension()))
             with contextlib.closing(handler):
                 handler.write_properties(data_item_dict, DateTime.utcnow())
-                handler.write_data(numpy.zeros((8,8)), DateTime.utcnow())
+                handler.write_data(numpy.zeros((8,8)), DataAndMetadata.DataDescriptor(False, 0, 2), DateTime.utcnow())
             # auto migrate workspace
             document_model = profile_context.create_document_model(auto_close=False)
             with document_model.ref():
@@ -3615,7 +3615,7 @@ class TestStorageClass(unittest.TestCase):
             handler = file_handler_factory.make(pathlib.Path(data_path, "File").with_suffix(file_handler_factory.get_extension()))
             with contextlib.closing(handler):
                 handler.write_properties(data_item_dict, DateTime.utcnow())
-                handler.write_data(numpy.zeros((8,8)), DateTime.utcnow())
+                handler.write_data(numpy.zeros((8,8)), DataAndMetadata.DataDescriptor(False, 0, 2), DateTime.utcnow())
             # auto migrate workspace
             document_model = profile_context.create_document_model(auto_close=False)
             with document_model.ref():

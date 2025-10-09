@@ -3,7 +3,6 @@ from __future__ import annotations
 import abc
 import contextlib
 import copy
-import dataclasses
 import datetime
 import json
 import logging
@@ -18,6 +17,7 @@ import threading
 import typing
 import uuid
 
+from nion.data import DataAndMetadata
 from nion.swift.model import DataItem
 from nion.swift.model import HDF5Handler
 from nion.swift.model import Migration
@@ -81,14 +81,14 @@ class DataItemStorageAdapter:
         file_datetime = getattr(item, "created_local")
         self.__storage_handler.write_properties(Migration.transform_from_latest(copy.deepcopy(self.__properties)), file_datetime)
 
-    def update_data(self, item: Persistence.PersistentObject, data: typing.Optional[_NDArray]) -> None:
+    def update_data(self, item: Persistence.PersistentObject, data: _NDArray | None, data_descriptor: DataAndMetadata.DataDescriptor | None) -> None:
         file_datetime = getattr(item, "created_local")
-        if data is not None:
-            self.__storage_handler.write_data(data, file_datetime)
+        if data is not None and data_descriptor:
+            self.__storage_handler.write_data(data, data_descriptor, file_datetime)
 
-    def reserve_data(self, item: Persistence.PersistentObject, data_shape: typing.Tuple[int, ...], data_dtype: numpy.typing.DTypeLike) -> None:
+    def reserve_data(self, item: Persistence.PersistentObject, data_shape: typing.Tuple[int, ...], data_dtype: numpy.typing.DTypeLike, data_descriptor: DataAndMetadata.DataDescriptor) -> None:
         file_datetime = getattr(item, "created_local")
-        self.__storage_handler.reserve_data(data_shape, data_dtype, file_datetime)
+        self.__storage_handler.reserve_data(data_shape, data_dtype, data_descriptor, file_datetime)
 
     def load_data(self, item: Persistence.PersistentObject) -> typing.Optional[_NDArray]:
         return self.__storage_handler.read_data()
@@ -450,8 +450,7 @@ class PersistentStorageSystem(Persistence.PersistentStorageInterface):
     def write_external_data(self, item: Persistence.PersistentObject, name: str, value: _NDArray) -> None:
         pass
 
-    def reserve_external_data(self, item: Persistence.PersistentObject, name: str, data_shape: typing.Tuple[int, ...],
-                              data_dtype: numpy.typing.DTypeLike) -> None:
+    def reserve_external_data(self, item: Persistence.PersistentObject, name: str, data_shape: typing.Tuple[int, ...], data_dtype: numpy.typing.DTypeLike, data_descriptor: tuple[bool, int, int]) -> None:
         pass
 
     def enter_write_delay(self, object: Persistence.PersistentObject) -> None:
@@ -757,12 +756,11 @@ class ProjectStorageSystem(PersistentStorageSystem):
             super().write_external_data(item, name, value)
 
     # override
-    def reserve_external_data(self, item: Persistence.PersistentObject, name: str, data_shape: typing.Tuple[int, ...],
-                              data_dtype: numpy.typing.DTypeLike) -> None:
+    def reserve_external_data(self, item: Persistence.PersistentObject, name: str, data_shape: typing.Tuple[int, ...], data_dtype: numpy.typing.DTypeLike, data_descriptor: tuple[bool, int, int]) -> None:
         if isinstance(item, DataItem.DataItem) and name == "data":
-            self.__reserve_data_item_data(item, data_shape, numpy.dtype(data_dtype))
+            self.__reserve_data_item_data(item, data_shape, numpy.dtype(data_dtype), DataAndMetadata.DataDescriptor(data_descriptor[0], data_descriptor[1], data_descriptor[2]))
         else:
-            super().reserve_external_data(item, name, data_shape, data_dtype)
+            super().reserve_external_data(item, name, data_shape, data_dtype, data_descriptor)
 
     # override
     def rewrite_item(self, item: Persistence.PersistentObject) -> None:
@@ -821,12 +819,12 @@ class ProjectStorageSystem(PersistentStorageSystem):
         if not self.is_write_delayed(data_item):
             n_bytes = typing.cast(int, numpy.prod(data.shape, dtype=numpy.int64)) * numpy.dtype(data.dtype).itemsize if data is not None else 0
             storage_adapter = self.__ensure_valid_storage_adapter(data_item, n_bytes, False)
-            storage_adapter.update_data(data_item, data)
+            storage_adapter.update_data(data_item, data, data_item.data_descriptor)
 
-    def __reserve_data_item_data(self, data_item: DataItem.DataItem, data_shape: typing.Tuple[int, ...], data_dtype: numpy.typing.DTypeLike) -> None:
+    def __reserve_data_item_data(self, data_item: DataItem.DataItem, data_shape: typing.Tuple[int, ...], data_dtype: numpy.typing.DTypeLike, data_descriptor: DataAndMetadata.DataDescriptor) -> None:
         n_bytes = typing.cast(int, numpy.prod(data_shape, dtype=numpy.int64)) * numpy.dtype(data_dtype).itemsize
         storage_adapter = self.__ensure_valid_storage_adapter(data_item, n_bytes, False)
-        storage_adapter.reserve_data(data_item, data_shape, data_dtype)
+        storage_adapter.reserve_data(data_item, data_shape, data_dtype, data_descriptor)
 
     def __rewrite_data_item_properties(self, data_item: DataItem.DataItem) -> None:
         if not self.is_write_delayed(data_item):
@@ -1157,10 +1155,10 @@ class MemoryStorageHandler(StorageHandler.StorageHandler):
     def write_properties(self, properties: PersistentDictType, file_datetime: datetime.datetime) -> None:
         self.__data_properties_map[self.__uuid] = Utility.clean_dict(properties)
 
-    def write_data(self, data: _NDArray, file_datetime: datetime.datetime) -> None:
+    def write_data(self, data: _NDArray, data_descriptor: DataAndMetadata.DataDescriptor, file_datetime: datetime.datetime) -> None:
         self.__data_map[self.__uuid] = numpy.copy(data)
 
-    def reserve_data(self, data_shape: typing.Tuple[int, ...], data_dtype: numpy.typing.DTypeLike, file_datetime: datetime.datetime) -> None:
+    def reserve_data(self, data_shape: typing.Tuple[int, ...], data_dtype: numpy.typing.DTypeLike, data_descriptor: DataAndMetadata.DataDescriptor, file_datetime: datetime.datetime) -> None:
         self.__data_map[self.__uuid] = numpy.zeros(data_shape, data_dtype)
 
     def prepare_move(self) -> None:

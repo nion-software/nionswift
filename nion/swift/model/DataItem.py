@@ -1282,7 +1282,7 @@ class DataItem(Persistence.PersistentObject):
         self.increment_data_ref_count()
         try:
             if self.persistent_object_context:
-                self.reserve_external_data("data", data_shape, data_dtype)
+                self.reserve_external_data("data", data_shape, data_dtype, (data_descriptor.is_sequence, data_descriptor.collection_dimension_count, data_descriptor.datum_dimension_count))
                 data_shape_and_dtype = data_shape, data_dtype
                 timezone = Utility.get_local_timezone()
                 timezone_offset = Utility.TimezoneMinutesToStringConverter().convert(Utility.local_utcoffset_minutes())
