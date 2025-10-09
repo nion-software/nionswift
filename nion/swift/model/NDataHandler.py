@@ -19,6 +19,7 @@ import time
 import typing
 
 # local libraries
+from nion.data import DataAndMetadata
 from nion.swift.model import StorageHandler
 from nion.swift.model import Utility
 from nion.utils import Geometry
@@ -415,7 +416,7 @@ class NDataHandler(StorageHandler.StorageHandler):
     def get_extension(self) -> str:
         return ".ndata"
 
-    def write_data(self, data: _NDArray, file_datetime: datetime.datetime) -> None:
+    def write_data(self, data: _NDArray, data_descriptor: DataAndMetadata.DataDescriptor, file_datetime: datetime.datetime) -> None:
         """
             Write data to the ndata file specified by reference.
 
@@ -435,8 +436,8 @@ class NDataHandler(StorageHandler.StorageHandler):
             timestamp = calendar.timegm(file_datetime.timetuple()) - tz_minutes * 60
             os.utime(absolute_file_path, (time.time(), timestamp))
 
-    def reserve_data(self, data_shape: typing.Tuple[int, ...], data_dtype: numpy.typing.DTypeLike, file_datetime: datetime.datetime) -> None:
-        self.write_data(numpy.zeros(data_shape, data_dtype), file_datetime)
+    def reserve_data(self, data_shape: typing.Tuple[int, ...], data_dtype: numpy.typing.DTypeLike, data_descriptor: DataAndMetadata.DataDescriptor, file_datetime: datetime.datetime) -> None:
+        self.write_data(numpy.zeros(data_shape, data_dtype), data_descriptor, file_datetime)
 
     def write_properties(self, properties: PersistentDictType, file_datetime: datetime.datetime) -> None:
         """

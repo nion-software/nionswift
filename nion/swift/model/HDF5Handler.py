@@ -16,6 +16,7 @@ import h5py
 import numpy
 import numpy.typing
 
+from nion.data import DataAndMetadata
 from nion.swift.model import StorageHandler
 from nion.swift.model import Utility
 from nion.utils import DateTime
@@ -210,7 +211,7 @@ class HDF5Handler(StorageHandler.StorageHandler):
                 else:
                     self.__dataset = self.__file.fp.create_dataset("data", data=numpy.empty((0,)))
 
-    def write_data(self, data: _NDArray, file_datetime: datetime.datetime) -> None:
+    def write_data(self, data: _NDArray, data_descriptor: DataAndMetadata.DataDescriptor, file_datetime: datetime.datetime) -> None:
         with self.__lock:
             assert data is not None
             json_properties = None
@@ -237,7 +238,7 @@ class HDF5Handler(StorageHandler.StorageHandler):
                 self.__dataset.attrs["properties"] = json_properties
             self.__file.fp.flush()
 
-    def reserve_data(self, data_shape: DataAndMetadata.ShapeType, data_dtype: numpy.typing.DTypeLike, file_datetime: datetime.datetime) -> None:
+    def reserve_data(self, data_shape: DataAndMetadata.ShapeType, data_dtype: numpy.typing.DTypeLike, data_descriptor: DataAndMetadata.DataDescriptor, file_datetime: datetime.datetime) -> None:
         # reserve data of the given shape and dtype, filled with zeros
         with self.__lock:
             json_properties = None
@@ -329,6 +330,11 @@ class HDFImportExportDriver:
                 if "uuid" in data_item_properties:
                     uuid_map[uuid.UUID(data_item_properties["uuid"])] = data_item_uuid
                 data_item_properties["uuid"] = str(data_item_uuid)
+                is_sequence = data_item_properties.get("is_sequence", False)
+                collection_dimension_count = data_item_properties.get("collection_dimension_count", 0)
+                datum_dimension_count = data_item_properties.get("datum_dimension_count", 0)
+                data_descriptor = DataAndMetadata.DataDescriptor(is_sequence, collection_dimension_count, datum_dimension_count)
+                assert data_descriptor.expected_dimension_count == len(ds.shape)
                 storage_handler_attributes = StorageHandler.StorageHandlerAttributes(
                     data_item_uuid,
                     DateTime.utcnow(),
@@ -336,7 +342,7 @@ class HDFImportExportDriver:
                     ds.nbytes
                 )
                 storage_handler = storage_handler_provider.make_storage_handler(storage_handler_attributes)
-                storage_handler.write_data(data_item_data, storage_handler_attributes.created_local)
+                storage_handler.write_data(data_item_data, data_descriptor, storage_handler_attributes.created_local)
                 storage_handler.write_properties(data_item_properties, storage_handler_attributes.created_local)
                 storage_handlers.append(storage_handler)
         if "index" in fp:

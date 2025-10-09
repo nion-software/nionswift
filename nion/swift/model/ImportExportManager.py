@@ -76,10 +76,11 @@ class ImportExportHandler:
             storage_handler_attributes = FileStorageSystem.make_storage_handler_attributes(data_item)
             storage_handler = project_storage_system._make_storage_handler(storage_handler_attributes)
             data_item_data = data_item.data
+            data_item_data_descriptor = data_item.data_descriptor
             data_item_properties = data_item.write_to_dict()
             data_item_properties["modified"] = data_item.modified.isoformat()
-            if data_item_data is not None:
-                storage_handler.write_data(data_item_data, data_item.created)
+            if data_item_data is not None and data_item_data_descriptor:
+                storage_handler.write_data(data_item_data, data_item_data_descriptor, data_item.created)
                 storage_handler.write_properties(data_item_properties, data_item.created)
             storage_handlers.append(storage_handler)
             data_item.close()

@@ -314,7 +314,7 @@ class PersistentStorageInterface(typing.Protocol):
     def write_external_data(self, item: PersistentObject, name: str, value: _NDArray) -> None: ...
 
     @abc.abstractmethod
-    def reserve_external_data(self, item: PersistentObject, name: str, data_shape: typing.Tuple[int, ...], data_dtype: numpy.typing.DTypeLike) -> None: ...
+    def reserve_external_data(self, item: PersistentObject, name: str, data_shape: typing.Tuple[int, ...], data_dtype: numpy.typing.DTypeLike, data_descriptor: tuple[bool, int, int]) -> None: ...
 
     @abc.abstractmethod
     def enter_write_delay(self, object: PersistentObject) -> None: ...
@@ -1252,10 +1252,10 @@ class PersistentObject(Observable.Observable):
         assert self.persistent_storage
         self.persistent_storage.write_external_data(self, name, value)
 
-    def reserve_external_data(self, name: str, data_shape: typing.Tuple[int, ...], data_dtype: numpy.typing.DTypeLike) -> None:
+    def reserve_external_data(self, name: str, data_shape: typing.Tuple[int, ...], data_dtype: numpy.typing.DTypeLike, data_descriptor: tuple[bool, int, int]) -> None:
         """ Call this to notify reserve external data value with name to an item in persistent storage. """
         assert self.persistent_storage
-        self.persistent_storage.reserve_external_data(self, name, data_shape, numpy.dtype(data_dtype))
+        self.persistent_storage.reserve_external_data(self, name, data_shape, numpy.dtype(data_dtype), data_descriptor)
 
     def enter_write_delay(self) -> None:
         """ Call this to notify this context that the object should be write delayed. """
