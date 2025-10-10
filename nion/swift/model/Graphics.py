@@ -2004,8 +2004,12 @@ class IntervalGraphic(Graphic):
         o = mapping.map_point_widget_to_channel_norm(original)
         p = mapping.map_point_widget_to_channel_norm(current)
         constraints = self._constraints
+        if "shape" in constraints and "position" in constraints:
+            return
         lock_centroid = modifiers.alt or "position" in constraints
         if lock_centroid:
+            if "shape" in constraints:
+                return
             left = min(part[1], part[2]) - (p - o)
             right = max(part[1], part[2]) + (p - o)
             if "bounds" in constraints:
@@ -2101,7 +2105,7 @@ class ChannelGraphic(Graphic):
 class SpotGraphic(Graphic):
     CAN_REPOSITION = True
     CAN_RESHAPE = True
-    CAN_ROTATE = False
+    CAN_ROTATE = True
 
     def __init__(self) -> None:
         super().__init__("spot-graphic")
@@ -2433,6 +2437,8 @@ class WedgeGraphic(Graphic):
         self.__first_drag = False
 
     def adjust_part(self, mapping: CoordinateMappingLike, original: Geometry.FloatPoint, current: Geometry.FloatPoint, part: DragPartDataPlus, modifiers: ModifiersLike) -> None:
+        if self.is_rotation_locked and part[0] in {"all", "inverted-all"}:
+            return
         start_angle_original = part[1]
         end_angle_original = part[2]
         center = mapping.calibrated_origin_widget
