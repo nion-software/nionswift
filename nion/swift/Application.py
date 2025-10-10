@@ -503,6 +503,27 @@ class Application(UIApplication.BaseApplication):
             # continue with opening the default project
             return self.__open_default_project(profile_dir, is_created)
 
+    def __show_project_error_dialog(self, title: str, message: str, *, completion_fn: typing.Optional[typing.Callable[[], None]] = None) -> None:
+        # during project management dialogs, we want to prevent the application from closing.
+        # so we enter a 'prevent close state', and then show the dialog. when the dialog completes,
+        # we exit the 'prevent close state'. if an exception occurs, we also exit the prevent close state
+        # and re-raise the exception.
+        def handle_complete() -> None:
+            self._exit_prevent_close_state()
+            if callable(completion_fn):
+                completion_fn()
+        self._enter_prevent_close_state()
+        try:
+            # show_ok_dialog will present the dialog and return immediately. the completion function
+            # will not be called until after this function returns. so handle exceptions here by exiting
+            # the close prevent state and re-raising. once the dialog is shown, the user must interact with it
+            # to dismiss it, at which point the completion function will be called, and the close prevent state
+            # can be exited. there is no risk of the close state being exited twice in this design.
+            self.show_ok_dialog(title, message, completion_fn=handle_complete)
+        except Exception:
+            self._exit_prevent_close_state()
+            raise
+
     def __open_default_project(self, profile_dir: typing.Optional[pathlib.Path], is_created: bool) -> bool:
         # if the default project is known, open it.
         # if it fails, ask the user to select another project.
@@ -528,7 +549,7 @@ class Application(UIApplication.BaseApplication):
             except Exception:
                 import traceback
                 traceback.print_exc()
-                self.show_ok_dialog(_("Error Opening Project"), _("Unable to open default project."), completion_fn=self.show_choose_project_dialog)
+                self.__show_project_error_dialog(_("Error Opening Project"), _("Unable to open default project."), completion_fn=self.show_choose_project_dialog)
                 return True
 
             if profile_dir is None:
@@ -583,7 +604,7 @@ class Application(UIApplication.BaseApplication):
                 if project_reference:
                     self.open_project_reference(project_reference)
                 else:
-                    self.show_ok_dialog(_("Error Opening Project"), _("Unable to open project."), completion_fn=self.show_choose_project_dialog)
+                    self.__show_project_error_dialog(_("Error Opening Project"), _("Unable to open project."), completion_fn=self.show_choose_project_dialog)
 
     def show_choose_project_dialog(self) -> None:
         with self.prevent_close():
@@ -824,11 +845,11 @@ class Application(UIApplication.BaseApplication):
                             new_project_reference = profile.upgrade(project_reference)
                         except FileExistsError:
                             message = _("Upgraded project already exists.")
-                            self.show_ok_dialog(_("Error Upgrading Project"), f"{message}\n{project_reference.path}")
+                            self.__show_project_error_dialog(_("Error Upgrading Project"), f"{message}\n{project_reference.path}")
                             logging.getLogger("loader").info(f"Project already exists: {project_reference.path}")
                             new_project_reference = None
                         except Exception as e:
-                            self.show_ok_dialog(_("Error Upgrading Project"), _("Unable to upgrade project."))
+                            self.__show_project_error_dialog(_("Error Upgrading Project"), _("Unable to upgrade project."))
                             import traceback
                             traceback.print_exc()
                             new_project_reference = None
@@ -840,7 +861,7 @@ class Application(UIApplication.BaseApplication):
                                            ok_text=_("Upgrade"),
                                            completion_fn=handle_upgrade)
             else:
-                self.show_ok_dialog(_("Error Opening Project"), _("Unable to open project."), completion_fn=self.show_choose_project_dialog)
+                self.__show_project_error_dialog(_("Error Opening Project"), _("Unable to open project."), completion_fn=self.show_choose_project_dialog)
 
     def switch_project_reference(self, project_reference: Profile.ProjectReference) -> None:
         for window in self.windows:
@@ -849,7 +870,7 @@ class Application(UIApplication.BaseApplication):
         try:
             self.open_project_window(project_reference)
         except Exception:
-            self.show_ok_dialog(_("Error Opening Project"), _("Unable to open project."), completion_fn=self.show_choose_project_dialog)
+            self.__show_project_error_dialog(_("Error Opening Project"), _("Unable to open project."), completion_fn=self.show_choose_project_dialog)
 
     @classmethod
     def get_nion_swift_version_info(cls) -> typing.List[typing.Tuple[str, str, str]]:
