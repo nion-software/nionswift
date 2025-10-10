@@ -31,13 +31,13 @@ class TestHDF5Handler(unittest.TestCase):
                                   ((1024, 1024, 1032), 'float32'),
                                   ((512, 512), 'float32'),
                                   ((int(1e12),), 'int64')]
-        expected_chunk_shapes = [(1, 8, 130, 130),
-                                 (1, 8, 130, 130),
-                                 (1, 17, 130, 260),
-                                 (1, 288, 1030),
-                                 (1, 143, 1032),
+        expected_chunk_shapes = [(1, 58, 32, 32),
+                                 (1, 58, 32, 32),
+                                 (1, 1, 130, 260),
+                                 (1, 256, 257),
+                                 (1, 232, 258),
                                  None,
-                                 (74240,)]
+                                 (30000,)]
 
         for shape_dtype, expected_chunk_shape in zip(data_shapes_and_dtypes, expected_chunk_shapes):
             with self.subTest(shape=shape_dtype[0], dtype=shape_dtype[1]):
