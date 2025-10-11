@@ -2252,6 +2252,7 @@ class SpotGraphic(Graphic):
         original_bounds = Geometry.FloatRect.make(part[1])
         original_rotation = part[2]
         origin = mapping.calibrated_origin_image_norm
+        rotation = self.rotation
         inverted = part_name.startswith("inverted")
         if part_name not in ("all", "inverted-all"):
             constraints = constraints.union({"position"})
@@ -2261,15 +2262,16 @@ class SpotGraphic(Graphic):
             original_bounds = origin + original_bounds
             current = origin_widget - (current - origin_widget)
             original = origin_widget - (original - origin_widget)
+            rotation = (rotation + math.pi) % (2 * math.pi)
         else:
             original_bounds = origin + original_bounds
         original_image = mapping.map_point_widget_to_image(original)
         current_image = mapping.map_point_widget_to_image(current)
-        new_bounds, new_rotation = adjust_rectangle_like(part_name, Geometry.FloatSize.make(mapping.data_shape), original_bounds, self.rotation, False, original_image, current_image, original_rotation, modifiers, constraints)
+        new_bounds, new_rotation = adjust_rectangle_like(part_name, Geometry.FloatSize.make(mapping.data_shape), original_bounds, rotation, False, original_image, current_image, original_rotation, modifiers, constraints)
         new_bounds = Geometry.FloatRect.make(new_bounds) - origin
         if new_bounds != self.bounds:
             self.bounds = new_bounds
-        if new_rotation != self.rotation:
+        if new_rotation != rotation:
             self.rotation = new_rotation
 
     def nudge(self, mapping: CoordinateMappingLike, delta: Geometry.FloatSize) -> None:

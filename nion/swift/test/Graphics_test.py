@@ -422,12 +422,22 @@ class TestGraphicsClass(unittest.TestCase):
             display_item.add_graphic(spot_graphic)
             initial_bounds = Geometry.FloatRect.from_center_and_size((0.25, 0.25), (0.25, 0.25))
             spot_graphic.bounds = initial_bounds
+            # test dragging middle, then inverted middle
             display_panel.display_canvas_item.simulate_drag((250, 250), (250, 500))
             document_controller.periodic()
-            self.assertNotEqual(initial_bounds, Geometry.FloatRect.make(spot_graphic.bounds))
+            expected_bounds = Geometry.FloatRect.from_center_and_size((0.25, 0.5), (0.25, 0.25))
+            self.assertAlmostEqualRect(expected_bounds, spot_graphic.bounds)
             display_panel.display_canvas_item.simulate_drag((-250, -500), (-250, -250))
             document_controller.periodic()
-            self.assertEqual(initial_bounds, Geometry.FloatRect.make(spot_graphic.bounds))
+            self.assertAlmostEqualRect(initial_bounds, spot_graphic.bounds)
+            # test dragging corner, then inverted corner
+            display_panel.display_canvas_item.simulate_drag((125, 125), (175, 125))
+            document_controller.periodic()
+            expected_bounds = Geometry.FloatRect.from_center_and_size((0.25, 0.25), (0.15, 0.25))
+            self.assertAlmostEqualRect(expected_bounds, spot_graphic.bounds)
+            display_panel.display_canvas_item.simulate_drag((-175, -125), (-125, -125))
+            document_controller.periodic()
+            self.assertAlmostEqualRect(initial_bounds, spot_graphic.bounds)
 
     def test_spot_mask_is_sensible_when_smaller_than_one_pixel(self):
         spot_graphic = Graphics.SpotGraphic()
