@@ -12,6 +12,15 @@ them for evaluation and feedback. If you encounter an issue or have feedback abo
 please contact us or `file issues
 <https://github.com/nion-software/nionswift/issues>`_.
 
+Version 16.16.2 (2025-10-12)
+----------------------------
+* Restore move graphic to center button in graphic inspector. [nion-software/nionswift#1613](https://github.com/nion-software/nionswift/issues/1613)
+* Add wedge button to display panel to open data item info dialog. [nion-software/nionswift#1028](https://github.com/nion-software/nionswift/issues/1028)
+* Fix issue with dragging spot Fourier filter graphics. [nion-software/nionswift#1602](https://github.com/nion-software/nionswift/issues/1602), [nion-software/nionswift#1683](https://github.com/nion-software/nionswift/issues/1683)
+* Fix issue with new project dialog not updating properly when entering project name with periods. [nion-software/nionswift#1625](https://github.com/nion-software/nionswift/issues/1625)
+* Improve handling of periods in new project names. [nion-software/nionswift#1665](https://github.com/nion-software/nionswift/issues/1665)
+* Fix issue with new project dialog when clicking 'Create Project' button.
+
 Version 16.16.1 (2025-09-25)
 ----------------------------
 * Ensure line position locking works.
