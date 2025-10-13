@@ -50,7 +50,7 @@ key_map = {
     'stem.beam_current_a': {'paths': ['instrument.beam_current', 'hardware_source.beam_current_a'], 'type': 'real'},
     'stem.defocus': {'paths': ['instrument.defocus', 'hardware_source.defocus_m'], 'type': 'real'},
     'stem.defocus_m': {'paths': ['instrument.defocus', 'hardware_source.defocus_m'], 'type': 'real'},
-    'stem.axis_details': {'paths': ['instrument.axis_details'], 'type': 'map'},
+    'stem.axis_transformation_matrices': {'paths': ['instrument.axis_transformation_matrices'], 'type': 'map'},
 
     'stem.eels.spectrum_type': {'paths': ['hardware_source.eels_spectrum_type'], 'type': 'string'},
     'stem.eels.resolution_eV': {'paths': ['hardware_source.eels_resolution_eV'], 'type': 'string'},
