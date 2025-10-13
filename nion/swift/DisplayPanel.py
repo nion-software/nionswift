@@ -3048,7 +3048,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
                         position_text, value_text = await display_item.get_value_and_position_text_async(pos)
                     update_cursor_(document_controller, position_text, value_text)
 
-                self.__cursor_task = asyncio.get_event_loop_policy().get_event_loop().create_task(update_cursor(weakref.ref(self.__document_controller), weakref.ref(self.__display_item)))
+                self.__cursor_task = asyncio.get_event_loop().create_task(update_cursor(weakref.ref(self.__document_controller), weakref.ref(self.__display_item)))
             else:
                 display_item = self.__display_item
                 position_text, value_text = str(), str()
