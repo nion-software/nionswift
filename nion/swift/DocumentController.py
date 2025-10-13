@@ -3857,7 +3857,7 @@ class DisplayPanelCenterGraphicsAction(Window.Action):
         context = typing.cast(DocumentController.ActionContext, context)
         window = typing.cast(DocumentController, context.window)
         display_item = window.selected_display_item
-        return display_item is not None and display_item.graphic_selection.has_selection
+        return display_item is not None and bool(context.selected_graphics)
 
 
 class DisplayPanelClearAction(Window.Action):
