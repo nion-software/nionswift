@@ -938,11 +938,11 @@ class TestWorkspaceClass(unittest.TestCase):
             workspace3 = workspace_controller.new_workspace(*get_layout("2x1"))
             workspace1.name = "1"
             utcnow = DateTime.utcnow()
-            workspace1._set_modified(utcnow + datetime.timedelta(seconds=2))
+            workspace1._set_created(utcnow + datetime.timedelta(seconds=2))
             workspace2.name = "2"
-            workspace2._set_modified(utcnow + datetime.timedelta(seconds=1))
+            workspace2._set_created(utcnow + datetime.timedelta(seconds=1))
             workspace3.name = "3"
-            workspace3._set_modified(utcnow + datetime.timedelta(seconds=3))
+            workspace3._set_created(utcnow + datetime.timedelta(seconds=3))
             # needs to fail here, sorted order needs to be different from added order
             self.assertEqual(["3", "1", "2"], [w.name for w in document_controller.project.sorted_workspaces])
             workspace_controller.change_workspace(workspace3)

@@ -24,19 +24,43 @@ class WorkspaceLayout(Persistence.PersistentObject):
     def __init__(self) -> None:
         super().__init__()
         self.define_type("workspace")
-        self.define_property("created", None, hidden=True, converter=Converter.DatetimeToStringConverter())
+        self.define_property("created", DateTime.utcnow(), hidden=True, converter=Converter.DatetimeToStringConverter())
         self.define_property("name", str(), hidden=True)
         self.define_property("layout", dict(), hidden=True)
         self.define_property("workspace_id", str(uuid.uuid4()), hidden=True)
+        # created was not originally available, so now we always set created when creating a new object.
+        # however, there is special logic so that if we load an old object without created, we set it
+        # when the object context is set. this variable is used to facilitate that. this scheme avoids
+        # writing the file until there is another reason to write the file.
+        self.__needs_created_update = False
 
     def read_from_dict(self, properties: PersistentDictType) -> None:
         super().read_from_dict(properties)
-        if self.created is None:  # invalid timestamp -- set property to modified but don't trigger change
-            self._get_persistent_property("created").value = self.modified
+        # we're reading an old object, so check if it contained 'created'. if not, we will set it
+        # when the object context is set.
+        self.__needs_created_update = properties.get("created") is None
+
+    def persistent_object_context_changed(self) -> None:
+        super().persistent_object_context_changed()
+        if self.__needs_created_update:
+            # update 'created' in a way so that if the project properties get written out due to
+            # other changes, the 'created' property gets written out too. do this by marking it as
+            # a ghost property while setting it.
+            self.ghost_properties.update(["created"])
+            try:
+                # update like this to avoid updating modified time on parent objects.
+                self._get_persistent_property("created").value = self.modified
+                self._update_persistent_object_context_property("created")
+            finally:
+                self.ghost_properties.subtract("created")
+            self.__needs_created_update = False
 
     @property
     def created(self) -> datetime.datetime:
         return typing.cast(datetime.datetime, self._get_persistent_property_value("created"))
+
+    def _set_created(self, value: datetime.datetime) -> None:
+        self._set_persistent_property_value("created", value)
 
     @property
     def timestamp_for_sorting(self) -> datetime.datetime:
