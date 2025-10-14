@@ -148,6 +148,7 @@ class CloneWorkspaceCommand(Undo.UndoableCommand):
         self.__workspace_layout_uuid = workspace_controller._workspace.uuid
         self.__new_name = name
         self.__new_layout = workspace_controller._workspace.layout
+        self.__new_created = workspace_controller._workspace.created
         self.__new_workspace_id: typing.Optional[str] = None
         self.initialize()
 
@@ -159,6 +160,7 @@ class CloneWorkspaceCommand(Undo.UndoableCommand):
 
     def _perform(self) -> None:
         new_workspace = self.__workspace_controller.new_workspace(name=self.__new_name, layout=self.__new_layout, workspace_id=self.__new_workspace_id)
+        new_workspace._set_created(self.__new_created)
         self.__workspace_controller._change_workspace(new_workspace)
 
     def _undo(self) -> None:

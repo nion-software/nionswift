@@ -955,6 +955,22 @@ class TestWorkspaceClass(unittest.TestCase):
             self.assertEqual(2, len(document_controller.project.workspaces))
             self.assertEqual("1", workspace_controller._workspace.name)
 
+    def test_workspace_clone_creation_date(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            # create two workspaces
+            workspace_controller = document_controller.workspace_controller
+            workspace1 = workspace_controller._workspace
+            workspace1.name = "1"
+            workspace1._set_created(datetime.datetime(2000, 6, 30))
+            # perform create command
+            command = Workspace.CloneWorkspaceCommand(workspace_controller, "1 clone")
+            command.perform()
+            document_controller.push_undo_command(command)
+            # check things
+            self.assertEqual(2, len(document_controller.project.workspaces))
+            self.assertEqual(datetime.datetime(2000, 6, 30), document_controller.project.workspaces[1].created)
+
     def test_workspace_records_and_reloads_image_panel_contents(self):
         with create_memory_profile_context() as profile_context:
             document_controller = profile_context.create_document_controller(auto_close=False)
