@@ -1,8 +1,7 @@
 <?xml version="1.0"?>
 
 <!--
-batik-rasterizer -h 48 -w 48 artwork/align_center_12x12.svg -d temp.png
-magick temp.png -resize 25% -colorspace RGB -define png:color-type=6 nion/swift/resources/align_center_12x12.png
+batik-rasterizer -h 48 -w 48 artwork/align_center_12x12.svg -d nion/swift/resources/align_center_48x48.png
  -->
 
 <svg viewBox="0 0 12 12" width="12" height="12" version="1.1" xmlns="http://www.w3.org/2000/svg">
