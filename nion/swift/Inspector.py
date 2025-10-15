@@ -36,6 +36,7 @@ from nion.swift.model import Graphics
 from nion.swift.model import Observer
 from nion.swift.model import Schema
 from nion.swift.model import Symbolic
+from nion.ui import Bitmap
 from nion.ui import CanvasItem
 from nion.ui import Declarative
 from nion.ui import DrawingContext
@@ -2972,14 +2973,14 @@ class GraphicsInspectorHandler(Declarative.Handler):
             u.create_spacing(4)
         )
 
-        align_center_icon_data = pkgutil.get_data(__name__, "resources/align_center_12x12.png")
+        align_center_icon_data = pkgutil.get_data(__name__, "resources/align_center_48x48.png")
         assert align_center_icon_data is not None
-        self._align_center_icon_png = CanvasItem.load_rgba_data_from_bytes(align_center_icon_data, "png")
+        self._align_center_icon = Bitmap.Bitmap(rgba_bitmap_data=CanvasItem.load_rgba_data_from_bytes(align_center_icon_data, "png"), shape=Geometry.IntSize(width=12, height=12))
 
         align_row = u.create_row(
             u.create_label(text=_("Align"), text_alignment_vertical="center"),
             u.create_row(
-                u.create_push_button(icon="@binding(_align_center_icon_png)", style="minimal", on_clicked="_align_center_clicked", tool_tip=_("Move Graphic to Center")),
+                u.create_push_button(icon="@binding(_align_center_icon)", style="minimal", on_clicked="_align_center_clicked", tool_tip=_("Move Graphic to Center")),
             ),
             u.create_stretch(),
             spacing=12,
