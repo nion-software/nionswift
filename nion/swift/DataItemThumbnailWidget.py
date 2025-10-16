@@ -132,8 +132,15 @@ class BitmapOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
 
 
 class BitmapOverlayCanvasItemComposition(CanvasItem.CanvasItemComposition):
+    """A canvas item composition that contains a bitmap canvas item and an overlay canvas item.
 
-    def __init__(self) -> None:
+    The overlay canvas item is used to handle drag and drop and focus events.
+
+    The caller can also add additional overlay canvas items using set_overlay_canvas_items that will be displayed
+    above the bitmap but below the overlay canvas item used for drag and drop and focus events.
+    """
+
+    def __init__(self, bitmap_canvas_item: CanvasItem.BitmapCanvasItem) -> None:
         super().__init__()
         self.focusable = True
         self.wants_drag_events = True
@@ -143,6 +150,7 @@ class BitmapOverlayCanvasItemComposition(CanvasItem.CanvasItemComposition):
         self.on_delete: typing.Optional[typing.Callable[[], None]] = None
         self.on_drag_pressed: typing.Optional[typing.Callable[[int, int, UserInterface.KeyboardModifiers], None]] = None
         self.__overlay_canvas_item = BitmapOverlayCanvasItem()
+        self.add_canvas_item(bitmap_canvas_item)
         self.add_canvas_item(self.__overlay_canvas_item)
 
     def close(self) -> None:
@@ -210,6 +218,15 @@ class BitmapOverlayCanvasItemComposition(CanvasItem.CanvasItemComposition):
                 return True
         return False
 
+    def set_overlay_canvas_items(self, overlay_canvas_items: typing.Sequence[CanvasItem.AbstractCanvasItem]) -> None:
+        # remove all existing overlay canvas items except for the bitmap, which will be item 0 and the drag/drop
+        # overlay, which will be the last item. do this by removing items at index 1 until only these two remain,
+        # then insert the new overlay canvas items before the last item.
+        while self.canvas_items_count > 2:
+            self.remove_canvas_item(self.canvas_items[1])
+        for overlay_canvas_item in overlay_canvas_items:
+            self.insert_canvas_item(self.canvas_items_count - 1, overlay_canvas_item)
+
 
 class ThumbnailCanvasItem(CanvasItem.CanvasItemComposition):
     """A canvas item that displays a thumbnail and allows dragging the thumbnail.
@@ -224,7 +241,9 @@ class ThumbnailCanvasItem(CanvasItem.CanvasItemComposition):
     def __init__(self, ui: UserInterface.UserInterface, thumbnail_source: AbstractThumbnailSource, size: typing.Optional[Geometry.IntSize] = None) -> None:
         super().__init__()
         self.__ui = ui
-        self.__thumbnail_source = thumbnail_source
+
+        # initialize the thumbnail source and size so that when set_thumbnail_source is called later, this can be replaced.
+        self.__thumbnail_source = AbstractThumbnailSource()
         self.__thumbnail_size = size
 
         # define the callbacks
@@ -232,17 +251,10 @@ class ThumbnailCanvasItem(CanvasItem.CanvasItemComposition):
         self.on_drop_mime_data: typing.Optional[typing.Callable[[UserInterface.MimeData, int, int], str]] = None
         self.on_delete: typing.Optional[typing.Callable[[], None]] = None
 
-        # set up the initial bitmap and overlay canvas items.
-        bitmap_overlay_canvas_item = BitmapOverlayCanvasItemComposition()
+        # set up the initial bitmap and overlay canvas items. BitmapOverlayCanvasItemComposition is a composition
+        # containing a bitmap, optional overlays, and a specific overlay that handles drag and drop and focus events.
         bitmap_canvas_item = CanvasItem.BitmapCanvasItem(background_color="#CCC", border_color="#444")
-        bitmap_overlay_canvas_item.insert_canvas_item(bitmap_overlay_canvas_item.canvas_items_count - 1, bitmap_canvas_item)
-        if size is not None:
-            bitmap_canvas_item.update_sizing(bitmap_canvas_item.sizing.with_fixed_size(size))
-            bitmap_overlay_canvas_item.update_sizing(bitmap_overlay_canvas_item.sizing.with_fixed_size(size))
-            for overlay_canvas_item in thumbnail_source.overlay_canvas_items:
-                overlay_canvas_item.update_sizing(overlay_canvas_item.sizing.with_fixed_size(size))
-        for overlay_canvas_item in thumbnail_source.overlay_canvas_items:
-            bitmap_overlay_canvas_item.insert_canvas_item(bitmap_overlay_canvas_item.canvas_items_count - 1, overlay_canvas_item)
+        bitmap_overlay_canvas_item = BitmapOverlayCanvasItemComposition(bitmap_canvas_item)
 
         # handle overlay drop callback by forwarding to the callback set by the caller.
         def drop_mime_data(mime_data: UserInterface.MimeData, x: int, y: int) -> str:
@@ -265,12 +277,10 @@ class ThumbnailCanvasItem(CanvasItem.CanvasItemComposition):
         self.__bitmap_canvas_item = bitmap_canvas_item
         self.__bitmap_overlay_canvas_item = bitmap_overlay_canvas_item
 
-        # connect the thumbnail source data changed event to a handler and call the handler to initialize.
-        self.__thumbnail_source.on_thumbnail_data_changed = ReferenceCounting.weak_partial(ThumbnailCanvasItem.__thumbnail_data_changed, self)
-        self.__thumbnail_data_changed(self.__thumbnail_source.thumbnail_data)
-
         # add the overlay canvas item (with the bitmap canvas item) to this canvas item.
         self.add_canvas_item(bitmap_overlay_canvas_item)
+
+        self.set_thumbnail_source(thumbnail_source)
 
     def __drag_pressed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> None:
         # handle drag by forwarding to the callback set by the caller.
@@ -297,10 +307,7 @@ class ThumbnailCanvasItem(CanvasItem.CanvasItemComposition):
             if self.__thumbnail_size is not None:
                 for overlay_canvas_item in thumbnail_source.overlay_canvas_items:
                     overlay_canvas_item.update_sizing(overlay_canvas_item.sizing.with_fixed_size(self.__thumbnail_size))
-            while self.__bitmap_overlay_canvas_item.canvas_items_count > 1:
-                self.__bitmap_overlay_canvas_item.remove_canvas_item(self.__bitmap_overlay_canvas_item.canvas_items[0])
-            for overlay_canvas_item in thumbnail_source.overlay_canvas_items:
-                self.__bitmap_overlay_canvas_item.insert_canvas_item(self.__bitmap_overlay_canvas_item.canvas_items_count - 1, overlay_canvas_item)
+            self.__bitmap_overlay_canvas_item.set_overlay_canvas_items(thumbnail_source.overlay_canvas_items)
             self.__thumbnail_source.on_thumbnail_data_changed = ReferenceCounting.weak_partial(ThumbnailCanvasItem.__thumbnail_data_changed, self)
             self.__thumbnail_data_changed(self.__thumbnail_source.thumbnail_data)
 
@@ -322,13 +329,13 @@ class ThumbnailWidget(Widgets.CompositeWidgetBase):
     # minimum size is present so that it always uses at least 32x32 pixels. the square canvas layout ensures that the
     # thumbnail area is always square and aligned to the top-left of the container.
 
-    def __init__(self, ui: UserInterface.UserInterface, thumbnail_source: AbstractThumbnailSource,
+    def __init__(self, ui: UserInterface.UserInterface, thumbnail_source: AbstractThumbnailSource | None,
                  size: typing.Optional[Geometry.IntSize] = None,
                  properties: typing.Optional[Persistence.PersistentDictType] = None) -> None:
         content_widget = ui.create_column_widget()
         super().__init__(content_widget)
         size = size or Geometry.IntSize(width=80, height=80)
-        thumbnail_canvas_item = ThumbnailCanvasItem(ui, thumbnail_source, size)
+        thumbnail_canvas_item = ThumbnailCanvasItem(ui, thumbnail_source or AbstractThumbnailSource(), size)
         thumbnail_canvas_item.update_sizing(thumbnail_canvas_item.sizing.with_preferred_aspect_ratio(1.0))
         properties = properties or ({"height": size.height, "width": size.width} if size else dict())
         bitmap_canvas_widget = ui.create_canvas_widget(properties=properties)
@@ -365,11 +372,18 @@ class ThumbnailWidget(Widgets.CompositeWidgetBase):
         thumbnail_canvas_item.on_drag = drag
         thumbnail_canvas_item.on_delete = delete
 
+        self.__thumbnail_canvas_item = thumbnail_canvas_item
+
     def close(self) -> None:
+        self.__thumbnail_canvas_item = typing.cast(typing.Any, None)
         self.on_drop_mime_data = None
         self.on_drag = None
         self.on_delete = None
         super().close()
+
+    def set_thumbnail_source(self, thumbnail_source: AbstractThumbnailSource) -> None:
+        if self.__thumbnail_canvas_item:
+            self.__thumbnail_canvas_item.set_thumbnail_source(thumbnail_source)
 
 
 class IsLiveOverlayCanvasItemComposer(CanvasItem.BaseComposer):
@@ -515,32 +529,58 @@ class DataItemThumbnailSource(AbstractThumbnailSource):
 
 
 class DataItemReferenceThumbnailSource(DataItemThumbnailSource):
-    """Used to track a data item referenced by a data item reference.
+    """Provide a thumbnail for a data item specified by a data item reference.
 
-    Useful, for instance, for displaying a live update thumbnail that can be dragged to other locations."""
+    Useful, for instance, for displaying a live update thumbnail that can be dragged to other locations.
 
-    def __init__(self, document_controller: DocumentController.DocumentController, data_item_reference: DocumentModel.DocumentModel.DataItemReference) -> None:
-        data_item = data_item_reference.data_item
-        document_model = document_controller.document_model
-        display_item = document_model.get_display_item_for_data_item(data_item) if data_item else None
-        super().__init__(document_controller.ui, display_item=display_item)
+    The data item reference can be changed by setting the data_item_reference property.
 
-        async def async_data_item_changed() -> None:
+    The data_item_reference_changed_event is observed so that when the data item changes, the set_display_item method
+    of the DataItemThumbnailSource base class is called to update the thumbnail source. However,
+    the data_item_reference_changed_event may be called on a different thread. This class uses the event loop of the
+    document controller to schedule the update of the display item on the correct thread.
+    """
+
+    def __init__(self, document_controller: DocumentController.DocumentController, data_item_reference: DocumentModel.DocumentModel.DataItemReference | None = None) -> None:
+        super().__init__(document_controller.ui)
+
+        self.__data_item_reference: DocumentModel.DocumentModel.DataItemReference | None = None
+        self.__event_loop = document_controller.event_loop
+        self.__document_model = document_controller.document_model
+
+        self.__data_item_reference_changed_event_listener: Event.EventListener | None = None
+
+        self.data_item_reference = data_item_reference
+
+    @property
+    def data_item_reference(self) -> DocumentModel.DocumentModel.DataItemReference | None:
+        return self.__data_item_reference
+
+    @data_item_reference.setter
+    def data_item_reference(self, data_item_reference: DocumentModel.DocumentModel.DataItemReference | None) -> None:
+        self.__data_item_reference = data_item_reference
+
+        if data_item_reference:
+            document_model = self.__document_model
+
+            async def async_data_item_changed() -> None:
+                data_item = data_item_reference.data_item
+                display_item = document_model.get_display_item_for_data_item(data_item) if data_item else None
+                self.set_display_item(display_item)
+
+            def data_item_changed() -> None:
+                # in addition to making this thread safe, this is also a messy hack. the display item may not be
+                # available at the time this method is called since it may not have been added to the document yet;
+                # so this also delays the call to set_display_item until the next event loop iteration.
+                self.__event_loop.create_task(async_data_item_changed())
+
+            self.__data_item_reference_changed_event_listener = data_item_reference.data_item_reference_changed_event.listen(data_item_changed)
+
             data_item = data_item_reference.data_item
-            display_item = document_model.get_display_item_for_data_item(data_item) if data_item else None
-            self.set_display_item(display_item)
-
-        def data_item_changed() -> None:
-            # this is a messy hack. the display item may not be available at the time this method is called; so delay
-            # the call to set_display_item until the next event loop iteration.
-            document_controller.event_loop.create_task(async_data_item_changed())
-
-        self.__data_item_reference_changed_event_listener = data_item_reference.data_item_reference_changed_event.listen(data_item_changed)
-
-    def close(self) -> None:
-        self.__data_item_reference_changed_event_listener.close()
-        self.__data_item_reference_changed_event_listener = typing.cast(typing.Any, None)
-        super().close()
+            self.display_item = self.__document_model.get_display_item_for_data_item(data_item) if data_item else None
+        else:
+            self.__data_item_reference_changed_event_listener = None
+            self.display_item = None
 
 
 DataItemThumbnailWidget = ThumbnailWidget
