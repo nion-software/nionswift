@@ -30,34 +30,62 @@ class StorageHandlerFactoryLike(typing.Protocol):
 
 
 class StorageHandler(typing.Protocol):
+    """
+    Protocol for storage handler implementations that manage reading and writing data and properties
+    to persistent storage backends.
+    """
 
-    def close(self) -> None: ...
-
-    @property
-    def factory(self) -> StorageHandlerFactoryLike: raise NotImplementedError()
-
-    @property
-    def storage_handler_type(self) -> str: raise NotImplementedError()
-
-    @property
-    def reference(self) -> str: raise NotImplementedError()
+    def close(self) -> None:
+        """Close the storage handler and release any resources."""
+        ...
 
     @property
-    def is_valid(self) -> bool: raise NotImplementedError()
+    def factory(self) -> StorageHandlerFactoryLike:
+        """Return the factory that created this storage handler. Used for moving and restoring items."""
+        raise NotImplementedError()
 
-    def read_properties(self) -> PersistentDictType: ...
+    @property
+    def storage_handler_type(self) -> str:
+        """Return the type identifier for this storage handler."""
+        raise NotImplementedError()
 
-    def read_data(self) -> typing.Optional[_NDArray]: ...
+    @property
+    def reference(self) -> str:
+        """Return a unique reference string for this storage handler. Represents the file on disk."""
+        raise NotImplementedError()
 
-    def write_properties(self, properties: PersistentDictType, file_datetime: datetime.datetime) -> None: ...
+    @property
+    def is_valid(self) -> bool:
+        """Return True if the storage handler is valid and usable."""
+        raise NotImplementedError()
 
-    def write_data(self, data: _NDArray, data_descriptor: DataAndMetadata.DataDescriptor, file_datetime: datetime.datetime) -> None: ...
+    def read_properties(self) -> PersistentDictType:
+        """Read and return the persistent properties from storage."""
+        ...
 
-    def reserve_data(self, data_shape: typing.Tuple[int, ...], data_dtype: numpy.typing.DTypeLike, data_descriptor: DataAndMetadata.DataDescriptor, file_datetime: datetime.datetime) -> None: ...
+    def read_data(self) -> typing.Optional[_NDArray]:
+        """Read and return the data array from storage, or None if not available."""
+        ...
 
-    def prepare_move(self) -> None: ...
+    def write_properties(self, properties: PersistentDictType, file_datetime: datetime.datetime) -> None:
+        """Write the given properties to storage with the specified file datetime."""
+        ...
 
-    def remove(self) -> None: ...
+    def write_data(self, data: _NDArray, data_descriptor: DataAndMetadata.DataDescriptor, file_datetime: datetime.datetime) -> None:
+        """Write the given data array and descriptor to storage with the specified file datetime."""
+        ...
+
+    def reserve_data(self, data_shape: typing.Tuple[int, ...], data_dtype: numpy.typing.DTypeLike, data_descriptor: DataAndMetadata.DataDescriptor, file_datetime: datetime.datetime) -> None:
+        """Reserve space for data in storage with the given shape, dtype, descriptor, and file datetime."""
+        ...
+
+    def prepare_move(self) -> None:
+        """Prepare the storage handler for moving or renaming the underlying storage."""
+        ...
+
+    def remove(self) -> None:
+        """Remove the storage and all associated data."""
+        ...
 
 
 @dataclasses.dataclass
