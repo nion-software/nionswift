@@ -2,6 +2,58 @@
 requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
 
+[project]
+name = "nionswift"
+version = "16.16.2"
+authors = [
+    { name = "Nion Software", email = "swift@nion.com" }
+]
+description = "Nion Swift: Scientific Image Processing."
+readme = "README.rst"
+requires-python = ">=3.12"
+license = "GPL-3.0-only"
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14"
+]
+urls = { "Homepage" = "https://github.com/nion-software/nionswift" }
+dependencies = [
+    "h5py",
+    "imageio >=2.19.0",
+    "niondata >=15.9,<16.0",
+    "nionswift-io >=15.5,<16.0",
+    "nionui >=10.2,<11.0",
+    "nionutils >=4.14,<5.0",
+    "numpy >=2.0,<3.0",
+    "pillow",
+    "pytz",
+    "scipy",
+    "tzlocal"
+]
+
+[project.scripts]
+nionswift = "nion.swift.command:main"
+
+[tool.setuptools.packages.find]
+include = [
+    "nion",
+    "nion.swift",
+    "nion.swift.model",
+    "nion.swift.test",
+    "nionui_app.nionswift",
+    "nionswift_plugin.none",
+    "nionlib",
+    "nion.typeshed",
+    "nionswift"
+]
+
+[tool.setuptools.package-data]
+"nion.swift" = ["resources/*", "py.typed"]
+"nion.swift.model" = ["resources/color_maps/*"]
+
 [tool.pytest.ini_options]
 testpaths = [
     "nion/swift"
