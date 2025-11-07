@@ -31,6 +31,7 @@ class FeatureManager(Observable.Observable, metaclass=Utility.Singleton):
         super().__init__()
         self.__features = list[Feature]()
         self.__feature_listeners = list[Event.EventListener]()
+        self.__enabled_features = dict[str, bool]()
 
     @property
     def enabled_feature_str(self) -> str:
@@ -39,11 +40,11 @@ class FeatureManager(Observable.Observable, metaclass=Utility.Singleton):
     @enabled_feature_str.setter
     def enabled_feature_str(self, enabled_features_str: str) -> None:
         try:
-            enabled_features = json.loads(enabled_features_str)
-            for enabled_feature in enabled_features.keys():
+            self.__enabled_features = json.loads(enabled_features_str)
+            for enabled_feature in self.__enabled_features.keys():
                 feature = self.get_feature(enabled_feature)
                 if feature:
-                    feature.enabled = enabled_features[enabled_feature]
+                    feature.enabled = self.__enabled_features[enabled_feature]
         except Exception as e:
             pass  # don't fail to launch due to bad json
 
@@ -52,6 +53,9 @@ class FeatureManager(Observable.Observable, metaclass=Utility.Singleton):
         return list(self.__features)
 
     def add_feature(self, feature: Feature) -> None:
+        # set initial enabled state from saved state, in case feature is registered after enabled_feature_str has been set
+        if feature.feature_id in self.__enabled_features:
+            feature.enabled = self.__enabled_features[feature.feature_id]
         self.__features.append(feature)
         self.__feature_listeners.append(feature.property_changed_event.listen(self.__feature_property_changed))
 
