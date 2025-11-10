@@ -53,6 +53,7 @@ class FeatureManager(Observable.Observable, metaclass=Utility.Singleton):
         return list(self.__features)
 
     def add_feature(self, feature: Feature) -> None:
+        assert feature.feature_id not in [f.feature_id for f in self.__features]
         # set initial enabled state from saved state, in case feature is registered after enabled_feature_str has been set
         if feature.feature_id in self.__enabled_features:
             feature.enabled = self.__enabled_features[feature.feature_id]
