@@ -192,6 +192,154 @@ class TestGraphicsClass(unittest.TestCase):
             final_midpoint = Geometry.midpoint(line_graphic.start, line_graphic.end)
             self.assertAlmostEqualPoint(original_midpoint, final_midpoint)
 
+    def test_wedge_graphic_position_locked(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.DataItem(numpy.zeros((1000, 1000)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel.set_display_panel_display_item(display_item)
+            display_panel.root_container.layout_immediate((1000 + display_panel.header_canvas_item.header_height, 1000))
+
+            wedge_graphic = Graphics.WedgeGraphic()
+            wedge_graphic.start_angle = math.radians(30)
+            wedge_graphic.end_angle = math.radians(60)
+            wedge_graphic.is_position_locked = True
+            display_item.add_graphic(wedge_graphic)
+
+            display_panel.display_canvas_item.simulate_click((500, 500))
+            document_controller.periodic()
+
+            original_interval = wedge_graphic.angle_interval
+
+            display_panel.display_canvas_item.simulate_drag((500, 500), (600, 600))
+            document_controller.periodic()
+
+            self.assertEqual(wedge_graphic.angle_interval, original_interval)
+
+    def test_wedge_graphic_shape_locked(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.DataItem(numpy.zeros((1000, 1000)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel.set_display_panel_display_item(display_item)
+            display_panel.root_container.layout_immediate((1000 + display_panel.header_canvas_item.header_height, 1000))
+            wedge_graphic = Graphics.WedgeGraphic()
+            wedge_graphic.start_angle = math.radians(30)
+            wedge_graphic.end_angle = math.radians(60)
+            wedge_graphic.is_shape_locked = True
+            display_item.add_graphic(wedge_graphic)
+            display_panel.display_canvas_item.simulate_click((500, 500))
+            document_controller.periodic()
+            original_interval = wedge_graphic.angle_interval
+            display_panel.display_canvas_item.simulate_drag((500, 500), (600, 600))
+            document_controller.periodic()
+            self.assertEqual(wedge_graphic.angle_interval, original_interval)
+
+    def test_spot_graphic_rotation_locked(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.DataItem(numpy.zeros((1000, 1000)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel.set_display_panel_display_item(display_item)
+            display_panel.root_container.layout_immediate((1000 + display_panel.header_canvas_item.header_height, 1000))
+            spot_graphic = Graphics.SpotGraphic()
+            spot_graphic.bounds = ((0.25, 0.25), (0.5, 0.5))
+            spot_graphic.rotation = math.radians(45)
+            spot_graphic.is_rotation_locked = True
+            display_item.add_graphic(spot_graphic)
+            display_panel.display_canvas_item.simulate_click((500, 500))
+            document_controller.periodic()
+            original_rotation = spot_graphic.rotation
+            display_panel.display_canvas_item.simulate_drag((500, 500), (600, 600))
+            document_controller.periodic()
+            self.assertEqual(spot_graphic.rotation, original_rotation)
+
+    def test_ring_graphic_shape_locked(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.DataItem(numpy.zeros((1000, 1000)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel.set_display_panel_display_item(display_item)
+            display_panel.root_container.layout_immediate((1000 + display_panel.header_canvas_item.header_height, 1000))
+            ring_graphic = Graphics.RingGraphic()
+            ring_graphic.radius_1 = 0.2
+            ring_graphic.radius_2 = 0.3
+            ring_graphic.is_shape_locked = True
+            display_item.add_graphic(ring_graphic)
+            display_panel.display_canvas_item.simulate_click((500, 500))
+            document_controller.periodic()
+            original_radii = (ring_graphic.radius_1, ring_graphic.radius_2)
+            display_panel.display_canvas_item.simulate_drag((750, 500), (800, 500))
+            document_controller.periodic()
+            self.assertEqual((ring_graphic.radius_1, ring_graphic.radius_2), original_radii)
+
+    def test_lattice_graphic_position_locked(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.DataItem(numpy.zeros((1000, 1000)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel.set_display_panel_display_item(display_item)
+            display_panel.root_container.layout_immediate((1000 + display_panel.header_canvas_item.header_height, 1000))
+            lattice_graphic = Graphics.LatticeGraphic()
+            lattice_graphic.u_pos = Geometry.FloatPoint(0.1, 0.3)
+            lattice_graphic.v_pos = Geometry.FloatPoint(-0.2, -0.2)
+            lattice_graphic.is_position_locked = True
+            display_item.add_graphic(lattice_graphic)
+            display_panel.display_canvas_item.simulate_click((500, 500))
+            document_controller.periodic()
+
+            original_u = Geometry.FloatPoint.make(lattice_graphic.u_pos)
+            original_v = Geometry.FloatPoint.make(lattice_graphic.v_pos)
+
+            display_panel.display_canvas_item.simulate_drag((500, 500), (650, 650))
+            document_controller.periodic()
+
+            self.assertAlmostEqualPoint(original_u, lattice_graphic.u_pos)
+            self.assertAlmostEqualPoint(original_v, lattice_graphic.v_pos)
+
+    def test_lattice_graphic_shape_locked(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.DataItem(numpy.zeros((1000, 1000)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel.set_display_panel_display_item(display_item)
+            display_panel.root_container.layout_immediate((1000 + display_panel.header_canvas_item.header_height, 1000))
+
+            lattice_graphic = Graphics.LatticeGraphic()
+            lattice_graphic.u_pos = Geometry.FloatPoint(0.1, 0.3)
+            lattice_graphic.v_pos = Geometry.FloatPoint(-0.2, -0.2)
+            lattice_graphic.radius = 0.05
+            lattice_graphic.is_shape_locked = True
+            display_item.add_graphic(lattice_graphic)
+
+            display_panel.display_canvas_item.simulate_click((500, 500))
+            document_controller.periodic()
+
+            original_radius = lattice_graphic.radius
+
+            display_panel.display_canvas_item.simulate_drag((700, 700), (750, 750))
+            document_controller.periodic()
+
+            self.assertEqual(lattice_graphic.radius, original_radius)
+
     def test_point_test(self):
         mapping = self.__get_mapping()
         point_graphic = Graphics.PointGraphic()
