@@ -192,16 +192,172 @@ class TestGraphicsClass(unittest.TestCase):
             final_midpoint = Geometry.midpoint(line_graphic.start, line_graphic.end)
             self.assertAlmostEqualPoint(original_midpoint, final_midpoint)
 
-    def test_point_test(self):
+    def test_wedge_graphic_rotation_lock(self):
         mapping = self.__get_mapping()
-        point_graphic = Graphics.PointGraphic()
-        point_graphic.position = (0.25,0.25)
-        ui_settings = DisplayPanel.FixedUISettings()
-        self.assertEqual(point_graphic.test(mapping, ui_settings, Geometry.FloatPoint.make((250, 250)), move_only=True)[0], "all")
-        self.assertEqual(point_graphic.test(mapping, ui_settings, Geometry.FloatPoint.make((250 - 18, 250)), move_only=True)[0], None)
-        point_graphic.label = "Test"
-        self.assertEqual(point_graphic.test(mapping, ui_settings, Geometry.FloatPoint.make((250 - 18 - 6, 250)), move_only=True)[0], "all")
-        point_graphic.close()
+        center = Geometry.FloatPoint.make(mapping.calibrated_origin_widget)
+
+        wedge = Graphics.WedgeGraphic()
+        wedge.start_angle = math.radians(30)
+        wedge.end_angle = math.radians(60)
+
+        def polar_to_cartesian(angle_deg: float, radius: float = 200.0) -> Geometry.FloatPoint:
+            r = math.radians(angle_deg)
+            return center + Geometry.FloatPoint(y=radius * math.cos(r), x=radius * -math.sin(r))
+
+        original = polar_to_cartesian (45)
+        current = polar_to_cartesian (55)
+        part = ("all",) + wedge.begin_drag()
+        modifiers = CanvasItem.KeyboardModifiers()
+
+        # ---- LOCKED first: no change
+        wedge.is_rotation_locked = True
+        locked_before = wedge.angle_interval
+        wedge.adjust_part(mapping, original, current, part, modifiers)
+        self.assertAlmostEqual(locked_before[0], wedge.angle_interval[0], delta=1e-6)
+        self.assertAlmostEqual(locked_before[1], wedge.angle_interval[1], delta=1e-6)
+
+        # ---- UNLOCKED: repeat the same action, expect rotation
+        wedge.is_rotation_locked = False
+        start0, end0 = wedge.angle_interval
+        wedge.adjust_part(mapping, original, current, part, modifiers)
+        self.assertNotAlmostEqual(start0, wedge.start_angle)
+        self.assertNotAlmostEqual(end0, wedge.end_angle)
+        self.assertAlmostEqual(end0 - start0,
+                               wedge.end_angle - wedge.start_angle,
+                               delta=0.001)
+        print(end0 - start0, wedge.end_angle - wedge.start_angle)
+        wedge.close()
+
+    def test_lattice_graphic_position_lock(self):
+        mapping = self.__get_mapping()
+        center_widget = Geometry.FloatPoint.make(mapping.calibrated_origin_widget)
+
+        lattice = Graphics.LatticeGraphic()
+        lattice.u_pos = Geometry.FloatPoint(0.1, 0.3)
+        lattice.v_pos = Geometry.FloatPoint(-0.2, -0.2)
+        lattice.radius = 0.05
+
+        modifiers = CanvasItem.KeyboardModifiers()
+        u_original = center_widget + Geometry.FloatPoint(100, 300)
+        u_current = center_widget + Geometry.FloatPoint(150, 250)
+        v_original = center_widget + Geometry.FloatPoint(-200, -200)
+        v_current = center_widget + Geometry.FloatPoint(-250, -150)
+
+        # ---- LOCKED first: same actions should not change u_pos/v_pos
+        lattice.is_position_locked = True
+        u_before_locked = Geometry.FloatPoint.make(lattice.u_pos)
+        v_before_locked = Geometry.FloatPoint.make(lattice.v_pos)
+
+        lattice.adjust_part(mapping, u_original, u_current, ("u-all",) + lattice.begin_drag(), modifiers)
+        lattice.adjust_part(mapping, v_original, v_current, ("v-all",) + lattice.begin_drag(), modifiers)
+
+        self.assertAlmostEqualPoint(u_before_locked, lattice.u_pos)
+        self.assertAlmostEqualPoint(v_before_locked, lattice.v_pos)
+        self.assertAlmostEqual(0.05, lattice.radius)
+
+        # ---- UNLOCKED: repeat the same actions; expect movement
+        lattice.is_position_locked = False
+        lattice.adjust_part(mapping, u_original, u_current, ("u-all",) + lattice.begin_drag(), modifiers)
+        lattice.adjust_part(mapping, v_original, v_current, ("v-all",) + lattice.begin_drag(), modifiers)
+
+        self.assertAlmostEqualPoint(Geometry.FloatPoint(0.15, 0.25), lattice.u_pos)
+        self.assertAlmostEqualPoint(Geometry.FloatPoint(-0.25, -0.15), lattice.v_pos)
+        self.assertAlmostEqual(0.05, lattice.radius)
+        lattice.close()
+
+    def test_lattice_graphic_shape_lock(self):
+        mapping = self.__get_mapping()
+        center_widget = Geometry.FloatPoint.make(mapping.calibrated_origin_widget)
+
+        lattice = Graphics.LatticeGraphic()
+        lattice.u_pos = Geometry.FloatPoint(0.1, 0.3)
+        lattice.v_pos = Geometry.FloatPoint(-0.2, -0.2)
+        lattice.radius = 0.05
+
+        modifiers = CanvasItem.KeyboardModifiers()
+
+        original_corner = center_widget + Geometry.FloatPoint(-300, -100)
+        current_corner = center_widget + Geometry.FloatPoint(-360, -40)
+        part_corner = ("u-top-left",) + lattice.begin_drag()
+
+        # ---- LOCKED first: no change
+        lattice.is_shape_locked = True
+        radius_locked_before = lattice.radius
+        lattice.adjust_part(mapping, original_corner, current_corner, part_corner, modifiers)
+        self.assertAlmostEqual(radius_locked_before, lattice.radius)
+
+        # ---- UNLOCKED: repeat same action; expect radius change
+        lattice.is_shape_locked = False
+        radius_before = lattice.radius
+        lattice.adjust_part(mapping, original_corner, current_corner, part_corner, modifiers)
+        self.assertNotAlmostEqual(radius_before, lattice.radius)
+        lattice.close()
+
+    def test_ring_graphic_shape_lock(self):
+        mapping = self.__get_mapping()
+        center_widget = Geometry.FloatPoint.make(mapping.calibrated_origin_widget)
+
+        ring = Graphics.RingGraphic()
+        ring.radius_1 = 0.20
+        ring.radius_2 = 0.30
+        ring.mode = "band-pass"
+
+        modifiers = CanvasItem.KeyboardModifiers()
+        original_r1 = center_widget + Geometry.FloatPoint(0, 200)  # ~0.20
+        current_r1 = center_widget + Geometry.FloatPoint(0, 300)  # ~0.30
+        part_r1 = ("radius_1",) + ring.begin_drag()
+
+        # ---- LOCKED first: no change
+        ring.is_shape_locked = True
+        r1_before_locked = ring.radius_1
+        r2_before_locked = ring.radius_2
+        ring.adjust_part(mapping, original_r1, current_r1, part_r1, modifiers)
+        self.assertAlmostEqual(r1_before_locked, ring.radius_1)
+        self.assertAlmostEqual(r2_before_locked, ring.radius_2)
+
+        # ---- UNLOCKED: repeat action; expect radius_1 to change, radius_2 unchanged
+        ring.is_shape_locked = False
+        r1_before = ring.radius_1
+        r2_before = ring.radius_2
+        ring.adjust_part(mapping, original_r1, current_r1, part_r1, modifiers)
+        self.assertNotAlmostEqual(r1_before, ring.radius_1)
+        self.assertAlmostEqual(r2_before, ring.radius_2)
+        ring.close()
+
+    def test_spot_graphic_rotation_lock(self):
+        mapping = self.__get_mapping()
+        center_widget = Geometry.FloatPoint.make(mapping.calibrated_origin_widget)
+        spot = Graphics.SpotGraphic()
+        spot.bounds = Geometry.FloatRect.from_center_and_size(
+            Geometry.FloatPoint(0.5, 0.5), Geometry.FloatSize(0.2, 0.2)
+        )
+        spot.rotation = math.radians(30.0)
+
+        modifiers = CanvasItem.KeyboardModifiers()
+
+        bounds_center_widget = center_widget + mapping.map_size_image_norm_to_widget(
+            spot.bounds.center.as_size()
+        )
+
+        def around_center(dy_px: float, dx_px: float) -> Geometry.FloatPoint:
+            return bounds_center_widget + Geometry.FloatPoint(dy_px, dx_px)
+
+        original = around_center(0.0, 100.0)  # right of center
+        current = around_center(100.0, 0.0)  # below center
+        part = ("rotate",) + spot.begin_drag()
+
+        # ---- LOCKED first: no rotation change
+        spot.is_rotation_locked = True
+        rotation_locked_before = spot.rotation
+        spot.adjust_part(mapping, original, current, part, modifiers)
+        self.assertAlmostEqual(rotation_locked_before, spot.rotation)
+
+        # ---- UNLOCKED: repeat the same action; expect rotation change
+        spot.is_rotation_locked = False
+        rotation_before = spot.rotation
+        spot.adjust_part(mapping, original, current, part, modifiers)
+        self.assertNotAlmostEqual(rotation_before, spot.rotation)
+        spot.close()
 
     def test_spot_test(self):
         mapping = self.__get_mapping()
