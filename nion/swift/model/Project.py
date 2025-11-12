@@ -172,6 +172,10 @@ class Project(Persistence.PersistentObject):
     def open(self) -> None:
         self.__storage_system.reset()  # this makes storage reusable during tests
 
+    @property
+    def is_read_only(self) -> bool:
+        return self.__storage_system.is_read_only
+
     def create_proxy(self) -> Persistence.PersistentObjectProxy[Project]:
         container = self.container
         assert container
