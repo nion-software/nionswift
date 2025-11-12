@@ -896,7 +896,7 @@ class FileProjectStorageSystem(ProjectStorageSystem):
         self.__write_properties_inner(Model.transform_backward(copy.deepcopy(self.get_storage_properties())))
 
     def __write_properties_inner(self, properties: PersistentDictType) -> None:
-        if self.__project_path:
+        if self.__project_path and os.access(self.__project_path, os.W_OK):
             # atomically overwrite
             with Utility.AtomicFileWriter(self.__project_path) as fp:
                 properties = Utility.clean_dict(properties)
