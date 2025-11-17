@@ -256,6 +256,10 @@ class ThumbnailCanvasItem(CanvasItem.CanvasItemComposition):
         bitmap_canvas_item = CanvasItem.BitmapCanvasItem(background_color="#CCC", border_color="#444")
         bitmap_overlay_canvas_item = BitmapOverlayCanvasItemComposition(bitmap_canvas_item)
 
+        if size is not None:
+            bitmap_canvas_item.update_sizing(bitmap_canvas_item.sizing.with_fixed_size(size))
+            bitmap_overlay_canvas_item.update_sizing(bitmap_overlay_canvas_item.sizing.with_fixed_size(size))
+
         # handle overlay drop callback by forwarding to the callback set by the caller.
         def drop_mime_data(mime_data: UserInterface.MimeData, x: int, y: int) -> str:
             if callable(self.on_drop_mime_data):
