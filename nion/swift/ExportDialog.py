@@ -87,7 +87,7 @@ class ExportDialog(Declarative.Handler):
         title_text = f"{export_text} ({len(display_items)} {items_text})"
         dialog = typing.cast(Dialog.ActionDialog, Declarative.construct(document_controller.ui, document_controller, u.create_modeless_dialog(self.ui_view, title=title_text), self))
         dialog.add_button(_("Cancel"), self.cancel)
-        dialog.add_button(_("Export"), handle_export_clicked)
+        self.__export_button = dialog.add_button(_("Export"), handle_export_clicked)
         dialog.show()
 
     def choose_directory(self, widget: Declarative.UIWidget) -> None:
@@ -100,6 +100,19 @@ class ExportDialog(Declarative.Handler):
     def on_writer_changed(self, widget: Declarative.UIWidget, current_index: int) -> None:
         writer = self.__writers[current_index]
         self.viewmodel.writer.value = writer
+
+    def _handle_prefix_changed(self, widget: Declarative.UIWidget, prefix_text: str) -> None:
+        invalid_reason: str | None = None
+        if prefix_text != Utility.simplify_filename(prefix_text):
+            invalid_reason = _("Prefix contains invalid characters")
+
+        # Other validation options can go here, type validation, space validation etc
+        if invalid_reason:
+            self.__export_button.enabled = False
+            self.__export_button.tool_tip = invalid_reason
+        else:
+            self.__export_button.tool_tip = None
+            self.__export_button.enabled = True
 
     def _build_ui(self, u: Declarative.DeclarativeUI) -> None:
         writers_names = [getattr(writer, "name") for writer in self.__writers]
@@ -131,7 +144,8 @@ class ExportDialog(Declarative.Handler):
 
         # Prefix
         prefix_label = u.create_label(text=_("Prefix:"))
-        prefix_textbox = u.create_line_edit(text=f"@binding(viewmodel.prefix.value)", placeholder_text=_("None"), width=230)
+        prefix_textbox = u.create_line_edit(text=f"@binding(viewmodel.prefix.value)", placeholder_text=_("None"), width=230, on_text_edited="_handle_prefix_changed")
+        self.__prefix_textbox = prefix_textbox
         prefix_row = u.create_row(prefix_label, prefix_textbox, u.create_stretch(), spacing=10)
 
         # File Type
