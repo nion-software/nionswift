@@ -227,16 +227,30 @@ class ComputationOutput(Persistence.PersistentObject):
 
     @property
     def label(self) -> str:
-        # for registered computations, the computation class takes precedence in defining the labels.
+        """Return the label for this output.
+
+        This will be used in the UI to refer to this output.
+
+        The label is determined in the following preferred order:
+            - using the processor description if it exists and includes this output
+            - using the computation handler if it exists and includes this output
+            - using the label property if it exists
+            - using the name property if it exists
+        """
         computation = self.container
+        name = self.name
         if isinstance(computation, Computation) and computation.processing_id:
+            if processor := computation._processor_description:
+                if name and (output := processor.get_output(name)):
+                    if label := output.label:
+                        return label
             compute_class = _computation_types.get(computation.processing_id)
             if compute_class:
-                label = typing.cast(typing.Optional[str], getattr(compute_class, "outputs", dict()).get(self.name, dict()).get("label", str()))
+                label = typing.cast(typing.Optional[str], getattr(compute_class, "outputs", dict()).get(name, dict()).get("label", str()))
                 if label:
                     return label
         # not a registered computation, fall back to label or name.
-        return typing.cast(str, self._get_persistent_property_value("label") or self.name or str())
+        return typing.cast(str, self._get_persistent_property_value("label") or name or str())
 
     @label.setter
     def label(self, value: str) -> None:
@@ -1026,17 +1040,35 @@ class ComputationVariable(Persistence.PersistentObject):
 
     @property
     def display_label(self) -> str:
-        # for registered computations, the computation class takes precedence in defining the labels.
+        """Return the display label for this computation source/parameter.
+
+        This will be used in the UI to refer to this computation source/parameter.
+
+        The display label is determined in the following preferred order:
+            - using the processor description if it exists and includes this source or parameter
+            - using the computation handler if it exists and includes this input
+            - using the label property if it exists
+            - using the name property if it exists
+        """
         computation = self.container
+        name = self.name
+        label: str | None
         if isinstance(computation, Computation):
+            if processor := computation._processor_description:
+                if name and (source := processor.get_source(name)):
+                    if label := source.label:
+                        return label
+                if name and (parameter := processor.get_parameter(name)):
+                    if label := parameter.label:
+                        return label
             processing_id = computation.processing_id
             compute_class = _computation_types.get(processing_id) if processing_id else None
             if compute_class:
-                label = typing.cast(typing.Optional[str], getattr(compute_class, "inputs", dict()).get(self.name, dict()).get("label", str()))
+                label = typing.cast(typing.Optional[str], getattr(compute_class, "inputs", dict()).get(name, dict()).get("label", str()))
                 if label:
                     return label
         # not a registered computation, fall back to label or name.
-        return self.label or self.name or str()
+        return self.label or name or str()
 
     @property
     def entity_id(self) -> typing.Optional[str]:
@@ -2082,21 +2114,40 @@ class Computation(Persistence.PersistentObject):
 
     @property
     def label(self) -> typing.Optional[str]:
-        label = typing.cast(typing.Optional[str], self._get_persistent_property_value("label"))
-        if not label:
-            processing_id = self.processing_id
-            compute_class = _computation_types.get(processing_id) if processing_id else None
-            if compute_class:
-                label = typing.cast(typing.Optional[str], getattr(compute_class, "label", None))
-        return label
+        """Return the label for this computation.
+
+        This will be used in the UI to refer to this computation.
+
+        The label is determined in the following preferred order:
+            - using the processor description if it exists
+            - using the computation handler if it exists
+            - using the label property if it exists
+        """
+        if processor := self.__processor:
+            if title := processor.title:
+                return title
+        processing_id = self.processing_id
+        compute_class = _computation_types.get(processing_id) if processing_id else None
+        if compute_class:
+            label = typing.cast(str | None, getattr(compute_class, "label", None))
+            if label:
+                return label
+        return typing.cast(str | None, self._get_persistent_property_value("label"))
 
     @label.setter
     def label(self, value: typing.Optional[str]) -> None:
         self._set_persistent_property_value("label", value)
 
     def get_computation_attribute(self, attribute: str, default: typing.Any = None) -> typing.Any:
-        """Returns the attribute for the computation."""
+        """Return an attribute for this computation.
+
+        The attribute is determined in the following preferred order:
+            - using the processor description if it exists
+            - using the computation handler if it exists
+        """
         processing_id = self.processing_id
+        if self.__processor and attribute in self.__processor.attributes:
+            return self.__processor.attributes.get(attribute)
         compute_class = _computation_types.get(processing_id) if processing_id else None
         if compute_class:
             return getattr(compute_class, "attributes", dict()).get(attribute, default)
@@ -3258,14 +3309,27 @@ class ComputationProcessorParameter:
         return cls(param_type, name, label, value, value_default, value_min, value_max, control_type)
 
 
+class ComputationProcessorOutput:
+    def __init__(self, name: str, label: str | None) -> None:
+        self.name = name
+        self.label = label
+
+    @classmethod
+    def from_dict(cls, d: PersistentDictType) -> ComputationProcessorOutput:
+        name = d["name"]
+        label = d.get("label", None)
+        return cls(name, label)
+
+
 class ComputationProcessor:
-    def __init__(self, expression: typing.Optional[str], title: typing.Optional[str], sources: typing.Sequence[ComputationProcessorSource], parameters: typing.Sequence[ComputationProcessorParameter], attributes: typing.Mapping[str, typing.Any], out_regions: typing.Sequence[ComputationProcessorRegion]) -> None:
+    def __init__(self, expression: typing.Optional[str], title: typing.Optional[str], sources: typing.Sequence[ComputationProcessorSource], parameters: typing.Sequence[ComputationProcessorParameter], attributes: typing.Mapping[str, typing.Any], out_regions: typing.Sequence[ComputationProcessorRegion], outputs: typing.Sequence[ComputationProcessorOutput]) -> None:
         self.expression: typing.Optional[str] = expression
         self.title: typing.Optional[str] = title
         self.sources = list(sources)
         self.parameters = list(parameters)
         self.attributes = dict(attributes)
         self.out_regions = list(out_regions)
+        self.outputs = list(outputs)
 
     @classmethod
     def from_dict(cls, d: PersistentDictType) -> ComputationProcessor:
@@ -3275,7 +3339,8 @@ class ComputationProcessor:
         parameters = [ComputationProcessorParameter.from_dict(parameter_d) for parameter_d in d.get("parameters", list())]
         attributes = d.get("attributes", dict())
         out_regions = [ComputationProcessorRegion.from_dict(region_d) for region_d in d.get("out_regions", list())]
-        return cls(expression, title, sources, parameters, attributes, out_regions)
+        outputs = [ComputationProcessorOutput.from_dict(source_d) for source_d in d.get("outputs", list())]
+        return cls(expression, title, sources, parameters, attributes, out_regions, outputs)
 
     def needs_update_for_event(self, input_key: str, event_type: BoundDataEventType) -> bool:
         for source in self.sources:
@@ -3283,10 +3348,22 @@ class ComputationProcessor:
                 return source.needs_update_for_event(event_type)
         return True
 
-    def get_source(self, name: str) -> typing.Optional[ComputationProcessorSource]:
+    def get_source(self, name: str) -> ComputationProcessorSource | None:
         for source in self.sources:
             if source.name == name:
                 return source
+        return None
+
+    def get_parameter(self, name: str) -> ComputationProcessorParameter | None:
+        for parameter in self.parameters:
+            if parameter.name == name:
+                return parameter
+        return None
+
+    def get_output(self, name: str) -> ComputationProcessorOutput | None:
+        for output in self.outputs:
+            if output.name == name:
+                return output
         return None
 
 
