@@ -192,3 +192,17 @@ nionswift-video-capture  Yes    No   Capture video from your computer's camera o
                                      Requires conda opencv.
 nionswift-experimental   Yes    Yes  Experimental tools (see project home page for details).
 =======================  =====  ===  =================================================================
+
+.. _installing-extensions-prebuilt:
+
+Installing Extensions or other Python Packages in a pre-built version of Nion Swift
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+If you are using a pre-built version of Nion Swift, you will not have a traditional Python environment available. However, you can still install additional Python packages by using the ``pip`` tool included in the installation folder.
+First, open a command line terminal (Command Prompt on Windows, Terminal on macOS or Linux) and navigate to the installation folder of Nion Swift. There should be a Python executable available in the installation folder. Then run the following command to install a package (for example, the Nion STEM microscope simulator): ::
+
+    $ path\to\nionswift\python -m pip install nionswift-usim
+
+Similarly you can install any other python package that is either available on PyPI or as a wheel file.
+Note that you should always use the ``python -m pip`` command instead of just ``pip``, because the latter does not work reliably with pre-built versions of Nion Swift.
+
+Depending on the installation method you chose, the path where you will find the Python executable can differ.
