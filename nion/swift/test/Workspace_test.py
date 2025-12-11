@@ -583,10 +583,37 @@ class TestWorkspaceClass(unittest.TestCase):
             # compare against new layout
             self.assertEqual(new_workspace_layout, workspace_controller._workspace_layout)
 
-    def test_workspace_remove_bottom_two_in_2x2_undo_and_redo_works_cleanly(self):
+    def test_workspace_updates_layout_after_creation(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
             document_model = document_controller.document_model
+            document_model.append_data_item(DataItem.DataItem(numpy.zeros((12, 12))))
+            document_model.append_data_item(DataItem.DataItem(numpy.zeros((12, 12))))
+            root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+            workspace_controller = document_controller.workspace_controller
+            display_panel = workspace_controller.display_panels[0]
+            document_controller.selected_display_panel = display_panel
+            document_controller.perform_action("workspace.split_horizontal")
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+            # put the data items in the workspace display panels
+            workspace_controller.display_panels[0].set_display_panel_display_item(document_model.get_display_item_for_data_item(document_model.data_items[0]))
+            workspace_controller.display_panels[1].set_display_panel_display_item(document_model.get_display_item_for_data_item(document_model.data_items[1]))
+            # confirm they are there
+            self.assertEqual(document_model.data_items[0], workspace_controller.display_panels[0].data_item)
+            self.assertEqual(document_model.data_items[1], workspace_controller.display_panels[1].data_item)
+            # now create a new workspace, switch to it, then switch back to the original
+            workspace_0 = document_controller.project.workspaces[0]
+            workspace_1 = document_controller.workspace_controller.new_workspace(*get_layout("2x1"))
+            document_controller.workspace_controller.change_workspace(workspace_1)
+            document_controller.workspace_controller.change_workspace(workspace_0)
+            # confirm the data items are still in the workspace display panels
+            self.assertEqual(document_model.data_items[0], workspace_controller.display_panels[0].data_item)
+            self.assertEqual(document_model.data_items[1], workspace_controller.display_panels[1].data_item)
+
+    def test_workspace_remove_bottom_two_in_2x2_undo_and_redo_works_cleanly(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
             root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             workspace_controller = document_controller.workspace_controller
