@@ -280,6 +280,9 @@ class Workspace:
     def __insert_display_panel(self, index: int, display_panel: DisplayPanel.DisplayPanel) -> None:
         self.__display_panels.insert(index, display_panel)
 
+        # when display panel contents change, write the layout to persistent storage
+        display_panel.on_contents_changed = self.__sync_layout
+
         def handle_display_items_changed() -> None:
             self.display_panel_content_changed_event.fire(display_panel)
 
@@ -287,7 +290,8 @@ class Workspace:
 
     def __remove_display_panel_at_index(self, index: int) -> None:
         self.__display_panel_display_items_changed_event_listeners.pop(index).close()
-        self.__display_panels.pop(index)
+        display_panel = self.__display_panels.pop(index)
+        display_panel.on_contents_changed = None
 
     @property
     def dock_widgets(self) -> typing.List[UserInterface.DockWidget]:
@@ -398,9 +402,8 @@ class Workspace:
             post_children_adjust = splitter_post_children_adjust
             container = splitter_canvas_item
         elif type == "image":
+            # note: display panels constructed here will eventually get added with __insert_display_panel
             display_panel = DisplayPanel.DisplayPanel(self.document_controller, desc)
-            # when display panel contents change, write the layout to persistent storage
-            display_panel.on_contents_changed = self.__sync_layout
             display_panels.append(display_panel)
             if desc.get("selected", False):
                 selected_display_panel = display_panel
