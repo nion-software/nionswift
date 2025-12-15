@@ -74,6 +74,10 @@ it into your Python environment using one of two techniques. ::
     $ python setup.py /path/to/your/extension  # for end users
     $ pip install -e /path/to/your/extension  # for development
 
+
+If you are using a pre-built version of Nion Swift, you can still install custom packages as described here: :ref:`installing-extensions-prebuilt`
+
+
 If parts of your package may be reusable in other packages (e.g. a library of processing functions), then you will
 want to split your package into different namespaces so that other packages can import your library independently of
 the user interface or other Nion Swift specific code.
