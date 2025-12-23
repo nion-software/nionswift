@@ -2443,6 +2443,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                     "sources": processing_component.sources,
                     "parameters": processing_component.parameters,
                     "attributes": processing_component.attributes,
+                    "outputs": processing_component.outputs
                 }
                 # if processing is mappable, it can be applied to elements of a sequence/collection (navigable) data item
                 # this also create a UI element to indicate whether the operation _should_ be mapped if it is able to be mapped.
