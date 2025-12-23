@@ -19,7 +19,6 @@ import difflib
 import enum
 import functools
 import gettext
-import numpy
 import sys
 import threading
 import time
