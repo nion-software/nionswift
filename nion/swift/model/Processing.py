@@ -32,7 +32,7 @@ if typing.TYPE_CHECKING:
 
 PersistentDictType = typing.Dict[str, typing.Any]
 _ImageDataType = DataAndMetadata._ImageDataType
-_ProcessingResult = typing.Union[DataAndMetadata.DataAndMetadata, DataAndMetadata.ScalarAndMetadata, None]
+_ProcessingResult = DataAndMetadata.DataAndMetadata | DataAndMetadata.ScalarAndMetadata | None
 
 _ = gettext.gettext
 
@@ -68,51 +68,57 @@ class ProcessingDataSource:
 
 
 class ProcessingComputation:
+    """A computation handler that applies a processing base subclass point by point over navigable data.
+
+    An individual processing computation is created for each processing base subclass when it is registered.
+    """
     def __init__(self, processing_component: ProcessingBase, computation: Facade.Computation, **kwargs: typing.Any) -> None:
         self.computation = computation
         self.processing_component = processing_component
-        self.__data: typing.Optional[_ImageDataType] = None
-        self.__xdata: typing.Optional[_ProcessingResult] = None
+        self.__data_map = dict[str, _ImageDataType]()
+        self.__xdata_map = dict[str, DataAndMetadata.DataAndMetadata]()
 
     def execute(self, **kwargs: typing.Any) -> None:
         # let the processing component do the processing and store result in the xdata field.
         # TODO: handle multiple sources (broadcasting)
         is_mapped = self.processing_component.is_scalar or kwargs.get("mapping", "none") != "none"
+        output_keys = [output["name"] for output in self.processing_component.outputs]
         if is_mapped and len(self.processing_component.sources) == 1 and kwargs[self.processing_component.sources[0]["name"]].xdata.is_navigable:
             src_name = self.processing_component.sources[0]["name"]
             data_source = typing.cast("Facade.DataSource", kwargs[src_name])
             xdata = data_source.xdata
             assert xdata
-            self.__xdata = None
             indexes = numpy.ndindex(xdata.navigation_dimension_shape)
             for index in indexes:
                 index_data_source = ProcessingDataSource(data_source, xdata[index])
                 index_kw_args = {next(iter(kwargs.keys())): index_data_source}
                 for k, v in list(kwargs.items())[1:]:
                     index_kw_args[k] = v
-                processed_data = self.processing_component.process(**index_kw_args)
-                if isinstance(processed_data, DataAndMetadata.DataAndMetadata):
-                    # handle array data
-                    index_xdata = processed_data
-                    if self.__xdata is None:
-                        self.__data = numpy.empty(xdata.navigation_dimension_shape + index_xdata.datum_dimension_shape, dtype=index_xdata.data_dtype)
-                        self.__xdata = DataAndMetadata.new_data_and_metadata(
-                            self.__data, index_xdata.intensity_calibration,
-                            tuple(xdata.navigation_dimensional_calibrations) + tuple(index_xdata.datum_dimensional_calibrations),
-                            None, None, DataAndMetadata.DataDescriptor(xdata.is_sequence, xdata.collection_dimension_count, index_xdata.datum_dimension_count))
-                    if self.__data is not None:
-                        self.__data[index] = index_xdata.data
-                elif isinstance(processed_data, DataAndMetadata.ScalarAndMetadata):
-                    # handle scalar data
-                    index_scalar = processed_data
-                    if self.__xdata is None:
-                        self.__data = numpy.empty(xdata.navigation_dimension_shape, dtype=type(index_scalar.value))
-                        self.__xdata = DataAndMetadata.new_data_and_metadata(
-                            self.__data, index_scalar.calibration,
-                            tuple(xdata.navigation_dimensional_calibrations),
-                            None, None, DataAndMetadata.DataDescriptor(xdata.is_sequence, 0, xdata.collection_dimension_count))
-                    if self.__data is not None:
-                        self.__data[index] = index_scalar.value
+                processed_data_map = self.processing_component.process(**index_kw_args)
+                for key, processed_data in processed_data_map.items():
+                    assert key in output_keys
+                    if isinstance(processed_data, DataAndMetadata.DataAndMetadata):
+                        # handle array data
+                        index_xdata = processed_data
+                        if key not in self.__xdata_map:
+                            self.__data_map[key] = numpy.empty(xdata.navigation_dimension_shape + index_xdata.datum_dimension_shape, dtype=index_xdata.data_dtype)
+                            self.__xdata_map[key] = DataAndMetadata.new_data_and_metadata(
+                                self.__data_map[key], index_xdata.intensity_calibration,
+                                tuple(xdata.navigation_dimensional_calibrations) + tuple(index_xdata.datum_dimensional_calibrations),
+                                None, None, DataAndMetadata.DataDescriptor(xdata.is_sequence, xdata.collection_dimension_count, index_xdata.datum_dimension_count))
+                        self.__data_map[key][index] = index_xdata.data
+                    elif isinstance(processed_data, DataAndMetadata.ScalarAndMetadata):
+                        # handle scalar data
+                        index_scalar = processed_data
+                        if key not in self.__xdata_map:
+                            self.__data_map[key] = numpy.empty(xdata.navigation_dimension_shape, dtype=type(index_scalar.value))
+                            is_sequence = xdata.is_sequence and xdata.collection_dimension_count == 2
+                            datum_dimension_count = min(2, xdata.navigation_dimension_count)
+                            self.__xdata_map[key] = DataAndMetadata.new_data_and_metadata(
+                                self.__data_map[key], index_scalar.calibration,
+                                tuple(xdata.navigation_dimensional_calibrations),
+                                None, None, DataAndMetadata.DataDescriptor(is_sequence, 0, datum_dimension_count))
+                        self.__data_map[key][index] = index_scalar.value
         elif not self.processing_component.is_scalar:
             src_name = self.processing_component.sources[0]["name"]
             data_source = typing.cast("Facade.DataSource", kwargs[src_name])
@@ -121,21 +127,29 @@ class ProcessingComputation:
             element_data_source = ProcessingDataSource(data_source, xdata)
             new_kwargs = dict(kwargs)
             new_kwargs["src"] = element_data_source
-            self.__xdata = self.processing_component.process(**new_kwargs)
+            processed_data_map = self.processing_component.process(**new_kwargs)
+            for key, processed_data in processed_data_map.items():
+                assert key in output_keys
+                if isinstance(processed_data, DataAndMetadata.DataAndMetadata):
+                    self.__xdata_map[key] = processed_data
 
     def commit(self) -> None:
-        # store the xdata into the target. this is guaranteed to run on the main thread.
-        if self.__xdata:
-            self.computation.set_referenced_xdata("target", typing.cast(DataAndMetadata.DataAndMetadata, self.__xdata))
+        # this is guaranteed to run on the main thread.
+        for output_d in self.processing_component.outputs:
+            key = output_d["name"]
+            xdata = self.__xdata_map.get(key, None)
+            if xdata:
+                self.computation.set_referenced_xdata(key, xdata)
 
 
 class ProcessingBase:
     def __init__(self) -> None:
         self.processing_id = str()
         self.title = str()
-        self.sections: typing.Set[str] = set()
-        self.sources: typing.List[PersistentDictType] = list()
-        self.parameters: typing.List[PersistentDictType] = list()
+        self.sections = set[str]()
+        self.sources = list[PersistentDictType]()
+        self.parameters = list[PersistentDictType]()
+        self.outputs = list[PersistentDictType]()
         self.attributes: PersistentDictType = dict()
         # if processing is mappable, it can be applied to elements of a sequence/collection (navigable) data item
         self.is_mappable = False
@@ -145,7 +159,8 @@ class ProcessingBase:
     def register_computation(self) -> None:
         Symbolic.register_computation_type(self.processing_id, functools.partial(ProcessingComputation, self))
 
-    def process(self, *, src: ProcessingDataSource, **kwargs: typing.Any) -> _ProcessingResult: ...
+    def process(self, *, src: ProcessingDataSource, **kwargs: typing.Any) -> typing.Mapping[str, _ProcessingResult]:
+        raise NotImplementedError()
 
 
 class ProcessingFFT(ProcessingBase):
@@ -155,13 +170,16 @@ class ProcessingFFT(ProcessingBase):
         self.title = _("FFT")
         self.sections = {"fourier"}
         self.sources = [
-            {"name": "src", "label": _("Source"), "croppable": True, "requirements": [{"type": "datum_rank", "values": (1, 2)}]},
+            {"name": "src", "label": _("Source"), "croppable": True, "data_type": "xdata", "requirements": [{"type": "datum_rank", "values": (1, 2)}]},
+        ]
+        self.outputs = [
+            {"name": "target", "label": _("Result")},
         ]
         self.is_mappable = True
 
-    def process(self, *, src: ProcessingDataSource, **kwargs: typing.Any) -> _ProcessingResult:
+    def process(self, *, src: ProcessingDataSource, **kwargs: typing.Any) -> typing.Mapping[str, _ProcessingResult]:
         cropped_display_xdata = src.cropped_display_xdata
-        return xd.fft(cropped_display_xdata) if cropped_display_xdata else None
+        return {"target": xd.fft(cropped_display_xdata) if cropped_display_xdata else None}
 
 
 class ProcessingIFFT(ProcessingBase):
@@ -171,12 +189,15 @@ class ProcessingIFFT(ProcessingBase):
         self.title = _("Inverse FFT")
         self.sections = {"fourier"}
         self.sources = [
-            {"name": "src", "label": _("Source"), "use_display_data": False, "requirements": [{"type": "datum_rank", "values": (1, 2)}]},
+            {"name": "src", "label": _("Source"), "use_display_data": False, "data_type": "xdata", "requirements": [{"type": "datum_rank", "values": (1, 2)}]},
+        ]
+        self.outputs = [
+            {"name": "target", "label": _("Result")},
         ]
 
-    def process(self, *, src: ProcessingDataSource, **kwargs: typing.Any) -> _ProcessingResult:
+    def process(self, *, src: ProcessingDataSource, **kwargs: typing.Any) -> typing.Mapping[str, _ProcessingResult]:
         src_xdata = src.xdata
-        return xd.ifft(src_xdata) if src_xdata else None
+        return {"target": xd.ifft(src_xdata) if src_xdata else None}
 
 
 class ProcessingGaussianWindow(ProcessingBase):
@@ -190,6 +211,7 @@ class ProcessingGaussianWindow(ProcessingBase):
                 "name": "src",
                 "label": _("Source"),
                 "croppable": True,
+                "data_type": "xdata",
                 "requirements": [
                     {"type": "datum_rank", "values": (1, 2)},
                     {"type": "datum_calibrations", "units": "equal"},
@@ -199,22 +221,25 @@ class ProcessingGaussianWindow(ProcessingBase):
         self.parameters = [
             {"name": "sigma", "type": "real", "value": 1.0}
         ]
+        self.outputs = [
+            {"name": "target", "label": _("Result")},
+        ]
         self.is_mappable = True
 
-    def process(self, *, src: ProcessingDataSource, **kwargs: typing.Any) -> _ProcessingResult:
+    def process(self, *, src: ProcessingDataSource, **kwargs: typing.Any) -> typing.Mapping[str, _ProcessingResult]:
         sigma = kwargs.get("sigma", 1.0)
         src_xdata = src.xdata
         if src_xdata and src_xdata.datum_dimension_count == 1:
             w = src_xdata.datum_dimension_shape[0]
-            return src_xdata * scipy.signal.windows.gaussian(src_xdata.datum_dimension_shape[0], std=w / 2)  # type: ignore
+            return {"target": src_xdata * scipy.signal.windows.gaussian(src_xdata.datum_dimension_shape[0], std=w / 2)}
         elif src_xdata and src_xdata.datum_dimension_count == 2:
             # uses circularly rotated approach of generating 2D filter from 1D
             h, w = src_xdata.datum_dimension_shape
             y, x = numpy.meshgrid(numpy.linspace(-h / 2, h / 2, h), numpy.linspace(-w / 2, w / 2, w), indexing='ij')
             s = 1 / (min(w, h) * sigma)
             r = numpy.sqrt(y * y + x * x) * s
-            return src_xdata * numpy.exp(-0.5 * r * r)  # type: ignore
-        return None
+            return {"target": src_xdata * numpy.exp(-0.5 * r * r)}
+        return dict()
 
 
 class ProcessingHammingWindow(ProcessingBase):
@@ -224,21 +249,24 @@ class ProcessingHammingWindow(ProcessingBase):
         self.title = _("Hamming Window")
         self.sections = {"windows"}
         self.sources = [
-            {"name": "src", "label": _("Source"), "croppable": True, "requirements": [{"type": "datum_rank", "values": (1, 2)}]},
+            {"name": "src", "label": _("Source"), "croppable": True, "data_type": "xdata", "requirements": [{"type": "datum_rank", "values": (1, 2)}]},
+        ]
+        self.outputs = [
+            {"name": "target", "label": _("Result")},
         ]
         self.is_mappable = True
 
-    def process(self, *, src: ProcessingDataSource, **kwargs: typing.Any) -> _ProcessingResult:
+    def process(self, *, src: ProcessingDataSource, **kwargs: typing.Any) -> typing.Mapping[str, _ProcessingResult]:
         src_xdata = src.xdata
         if src_xdata and src_xdata.datum_dimension_count == 1:
-            return src_xdata * scipy.signal.windows.hamming(src_xdata.datum_dimension_shape[0])  # type: ignore
+            return {"target": src_xdata * scipy.signal.windows.hamming(src_xdata.datum_dimension_shape[0])}
         elif src_xdata and src_xdata.datum_dimension_count == 2:
             # uses outer product approach of generating 2D filter from 1D
             h, w = src_xdata.datum_dimension_shape
             w0 = numpy.reshape(scipy.signal.windows.hamming(w), (1, w))
             w1 = numpy.reshape(scipy.signal.windows.hamming(h), (h, 1))
-            return src_xdata * w0 * w1
-        return None
+            return {"target": src_xdata * w0 * w1}
+        return dict()
 
 
 class ProcessingHannWindow(ProcessingBase):
@@ -248,21 +276,24 @@ class ProcessingHannWindow(ProcessingBase):
         self.title = _("Hann Window")
         self.sections = {"windows"}
         self.sources = [
-            {"name": "src", "label": _("Source"), "croppable": True, "requirements": [{"type": "datum_rank", "values": (1, 2)}]},
+            {"name": "src", "label": _("Source"), "croppable": True, "data_type": "xdata", "requirements": [{"type": "datum_rank", "values": (1, 2)}]},
+        ]
+        self.outputs = [
+            {"name": "target", "label": _("Result")},
         ]
         self.is_mappable = True
 
-    def process(self, *, src: ProcessingDataSource, **kwargs: typing.Any) -> _ProcessingResult:
+    def process(self, *, src: ProcessingDataSource, **kwargs: typing.Any) -> typing.Mapping[str, _ProcessingResult]:
         src_xdata = src.xdata
         if src_xdata and  src_xdata.datum_dimension_count == 1:
-            return src_xdata * scipy.signal.windows.hann(src_xdata.datum_dimension_shape[0])  # type: ignore
+            return {"target": src_xdata * scipy.signal.windows.hann(src_xdata.datum_dimension_shape[0])}
         elif src_xdata and src_xdata.datum_dimension_count == 2:
             # uses outer product approach of generating 2D filter from 1D
             h, w = src_xdata.datum_dimension_shape
             w0 = numpy.reshape(scipy.signal.windows.hann(w), (1, w))
             w1 = numpy.reshape(scipy.signal.windows.hann(h), (h, 1))
-            return src_xdata * w0 * w1
-        return None
+            return {"target": src_xdata * w0 * w1}
+        return dict()
 
 
 class ProcessingMappedSum(ProcessingBase):
@@ -272,17 +303,20 @@ class ProcessingMappedSum(ProcessingBase):
         self.title = _("Mapped Sum")
         self.sections = {"scalar-maps"}
         self.sources = [
-            {"name": "src", "label": _("Source"), "croppable": True, "requirements": [{"type": "datum_rank", "values": (1, 2)}]},
+            {"name": "src", "label": _("Source"), "croppable": True, "data_type": "xdata", "requirements": [{"type": "datum_rank", "values": (1, 2)}]},
+        ]
+        self.outputs = [
+            {"name": "target", "label": _("Result")},
         ]
         self.is_mappable = True
         self.is_scalar = True
         self.attributes["connection_type"] = "map"
 
-    def process(self, *, src: ProcessingDataSource, **kwargs: typing.Any) -> _ProcessingResult:
+    def process(self, *, src: ProcessingDataSource, **kwargs: typing.Any) -> typing.Mapping[str, _ProcessingResult]:
         filtered_xdata = src.filtered_xdata
         if filtered_xdata:
-            return DataAndMetadata.ScalarAndMetadata.from_value(numpy.sum(filtered_xdata), filtered_xdata.intensity_calibration)
-        return None
+            return {"target": DataAndMetadata.ScalarAndMetadata.from_value(numpy.sum(filtered_xdata), filtered_xdata.intensity_calibration)}
+        return dict()
 
 
 class ProcessingMappedAverage(ProcessingBase):
@@ -292,17 +326,21 @@ class ProcessingMappedAverage(ProcessingBase):
         self.title = _("Mapped Average")
         self.sections = {"scalar-maps"}
         self.sources = [
-            {"name": "src", "label": _("Source"), "croppable": True, "requirements": [{"type": "datum_rank", "values": (1, 2)}]},
+            {"name": "src", "label": _("Source"), "croppable": True, "data_type": "xdata", "requirements": [{"type": "datum_rank", "values": (1, 2)}]},
+        ]
+        self.outputs = [
+            {"name": "target", "label": _("Result")}
         ]
         self.is_mappable = True
         self.is_scalar = True
         self.attributes["connection_type"] = "map"
 
-    def process(self, *, src: ProcessingDataSource, **kwargs: typing.Any) -> _ProcessingResult:
+    def process(self, *, src: ProcessingDataSource, **kwargs: typing.Any) -> typing.Mapping[str, _ProcessingResult]:
         filtered_xdata = src.filtered_xdata
         if filtered_xdata:
-            return DataAndMetadata.ScalarAndMetadata.from_value(numpy.average(filtered_xdata), filtered_xdata.intensity_calibration)
-        return None
+            return {"target": DataAndMetadata.ScalarAndMetadata.from_value(numpy.average(filtered_xdata), filtered_xdata.intensity_calibration)}
+        return dict()
+
 
 # registered components show up in two places in the UI:
 #  - in the Processing > Fourier sub-menu if they have 'windows' in the 'sections' property.
