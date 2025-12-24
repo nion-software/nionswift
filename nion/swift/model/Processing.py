@@ -49,6 +49,45 @@ class ProcessingComputation:
         self.__xdata_map = dict[str, DataAndMetadata.DataAndMetadata]()
         self.__filter_xdata: DataAndMetadata.DataAndMetadata | None = None
 
+    def __get_input_navigation_dimension_shape(self, **kwargs: typing.Any) -> DataAndMetadata.ShapeType | None:
+        # return the common navigation dimension shape for all sources, ensuring that they are compatible.
+        # if not input exists, or if inputs are mismatched in navigation dimension shape, datum dimension shape,
+        # or the calibrations of either, raise an error.
+        navigation_dimension_shape: DataAndMetadata.ShapeType | None = None
+        navigation_calibrations: DataAndMetadata.CalibrationListType | None = None
+        datum_dimension_shape: DataAndMetadata.ShapeType | None = None
+        datum_calibrations: DataAndMetadata.CalibrationListType | None = None
+        for source_d in self.processing_component.sources:
+            source = Symbolic.ComputationProcessorSource.from_dict(source_d)
+            data_source = typing.cast("Facade.DataSource | None", kwargs.get(source.name, None))
+            xdata = data_source.xdata if data_source else None
+            if xdata:
+                if navigation_dimension_shape is None:
+                    navigation_dimension_shape = xdata.navigation_dimension_shape
+                if datum_dimension_shape is None:
+                    datum_dimension_shape = xdata.datum_dimension_shape
+                if navigation_calibrations is None:
+                    navigation_calibrations = xdata.navigation_dimensional_calibrations
+                if datum_calibrations is None:
+                    datum_calibrations = xdata.datum_dimensional_calibrations
+                # check whether all items have the same navigation dimension shapes
+                if navigation_dimension_shape != xdata.navigation_dimension_shape:
+                    raise ValueError("Mismatched navigation dimension shapes between sources.")
+                # check whether all items have the same datum dimension shapes
+                if datum_dimension_shape != xdata.datum_dimension_shape:
+                    raise ValueError("Mismatched datum dimension shapes between sources.")
+                # check whether all items have the same navigation dimension calibrations
+                for i, cal in enumerate(xdata.navigation_dimensional_calibrations):
+                    if navigation_calibrations[i] != cal:
+                        raise ValueError("Mismatched navigation dimension calibrations between sources.")
+                # check whether all items have the same datum dimension calibrations
+                for i, cal in enumerate(xdata.datum_dimensional_calibrations):
+                    if datum_calibrations[i] != cal:
+                        raise ValueError("Mismatched datum dimension calibrations between sources.")
+        if navigation_dimension_shape is None or datum_dimension_shape is None or navigation_calibrations is None or datum_calibrations is None:
+            raise ValueError("Could not determine navigation and datum dimension shapes and calibrations from sources.")
+        return navigation_dimension_shape
+
     def __get_input_data(self, index: tuple[slice | int | numpy.int32 | numpy.int64] | None, **kwargs: typing.Any) -> dict[str, DataAndMetadata.DataAndMetadata]:
         # return a map of source name to xdata for the given index. if index is None, return the full xdata for each source.
         data_map = dict[str, DataAndMetadata.DataAndMetadata]()
@@ -82,11 +121,11 @@ class ProcessingComputation:
         return data_map
 
     def execute(self, **kwargs: typing.Any) -> None:
-        # let the processing component do the processing and store result in the xdata field.
-        # TODO: handle multiple sources (broadcasting)
+        # let the processing component do the processing and store results in the xdata map.
         is_mapped = self.processing_component.is_scalar or kwargs.get("mapping", "none") != "none"
         output_keys = [output["name"] for output in self.processing_component.outputs]
-        if is_mapped and len(self.processing_component.sources) == 1 and kwargs[self.processing_component.sources[0]["name"]].xdata.is_navigable:
+        navigation_dimension_shape = self.__get_input_navigation_dimension_shape(**kwargs)
+        if is_mapped and navigation_dimension_shape is not None:
             src_name = self.processing_component.sources[0]["name"]
             data_source = typing.cast("Facade.DataSource", kwargs[src_name])
             xdata = data_source.xdata
@@ -124,7 +163,6 @@ class ProcessingComputation:
                                 None, None, DataAndMetadata.DataDescriptor(is_sequence, 0, datum_dimension_count))
                         self.__data_map[key][index] = index_scalar.value
         elif not self.processing_component.is_scalar:
-            src_name = self.processing_component.sources[0]["name"]
             data_sources = self.__get_input_data(None, **kwargs)
             index_kw_args = dict[str, typing.Any]()
             for k, v in list(kwargs.items()):
