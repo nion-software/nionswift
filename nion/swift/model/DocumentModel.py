@@ -2436,30 +2436,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                                                                {"type": "bool", "operator": "and",
                                                                 "operands": [requirement_is_sequence, requirement_4d]}]}
 
-            for processing_component in typing.cast(typing.Sequence[Processing.ProcessingBase], Registry.get_components_by_type("processing-component")):
-                processing_component.register_computation()
-                vs[processing_component.processing_id] = {
-                    "title": processing_component.title,
-                    "sources": processing_component.sources,
-                    "parameters": processing_component.parameters,
-                    "attributes": processing_component.attributes,
-                    "outputs": processing_component.outputs
-                }
-                # if processing is mappable, it can be applied to elements of a sequence/collection (navigable) data item
-                # this also create a UI element to indicate whether the operation _should_ be mapped if it is able to be mapped.
-                if processing_component.is_mappable and not processing_component.is_scalar:
-                    mapping_param = {"name": "mapping", "label": _("Sequence/Collection Mapping"), "type": "string", "value": "none", "value_default": "none", "control_type": "choice"}
-                    vs[processing_component.processing_id].setdefault("parameters", list()).insert(0, mapping_param)
-                # if processing produces scalar data, it must be applied to a sequence/collection (navigable) data item
-                # this also creates a connection between a pick point on the output to the navigable location on the source.
-                if processing_component.is_mappable and processing_component.is_scalar:
-                    map_out_region = {"name": "pick_point", "type": "point", "params": {"label": _("Pick"), "role": "collection_index"}}
-                    vs[processing_component.processing_id]["out_regions"] = [map_out_region]
-                    # TODO: generalize this so that other sequence/collections can be accepted by making a coordinate system monitor or similar
-                    # TODO: processing should declare its relationship to input coordinate system and swift should automatically connect pickers
-                    # TODO: in appropriate places.
-                    vs[processing_component.processing_id]["requirements"] = [requirement_4d]
-
             vs["fft"] = {"title": _("FFT"), "expression": "xd.fft({src}.cropped_display_xdata)", "sources": [{"name": "src", "label": _("Source"), "croppable": True, "data_type": "cropped_display_xdata"}]}
             vs["inverse-fft"] = {"title": _("Inverse FFT"), "expression": "xd.ifft({src}.xdata)",
                 "sources": [{"name": "src", "label": _("Source"), "data_type": "xdata"}]}
@@ -3018,6 +2994,42 @@ class ImplicitLineProfileIntervalsConnection:
 
 
 DocumentModel.register_processors(DocumentModel._get_builtin_processors())
+
+
+def handle_processing_component_registered(component: Registry._ComponentType, component_types: typing.Set[str]) -> None:
+    if "processing-component" in component_types:
+        processing_component = typing.cast(Processing.ProcessingBase, component)
+        processing_component.register_computation()
+        d = {
+            "title": processing_component.title,
+            "sources": processing_component.sources,
+            "parameters": processing_component.parameters,
+            "attributes": processing_component.attributes,
+            "outputs": processing_component.outputs
+        }
+        # if processing is mappable, it can be applied to elements of a sequence/collection (navigable) data item
+        # this also create a UI element to indicate whether the operation _should_ be mapped if it is able to be mapped.
+        if processing_component.is_mappable and not processing_component.is_scalar:
+            mapping_param = {"name": "mapping", "label": _("Sequence/Collection Mapping"), "type": "string",
+                             "value": "none", "value_default": "none", "control_type": "choice"}
+            d["parameters"] = [mapping_param] + typing.cast(list[Processing.PersistentDictType], d["parameters"])
+        # if processing produces scalar data, it must be applied to a sequence/collection (navigable) data item
+        # this also creates a connection between a pick point on the output to the navigable location on the source.
+        if processing_component.is_mappable and processing_component.is_scalar:
+            map_out_region = {"name": "pick_point", "type": "point",
+                              "params": {"label": _("Pick"), "role": "collection_index"}}
+            d["out_regions"] = [map_out_region]
+            # TODO: generalize this so that other sequence/collections can be accepted by making a coordinate system monitor or similar
+            # TODO: processing should declare its relationship to input coordinate system and swift should automatically connect pickers
+            # TODO: in appropriate places.
+            d["requirements"] = [{"type": "dimensionality", "min": 4, "max": 4}]
+        DocumentModel.register_processors({processing_component.processing_id: Symbolic.ComputationProcessor.from_dict(d)})
+
+
+_handle_processing_component_registered_listener = Registry.listen_component_registered_event(handle_processing_component_registered)
+# listening to processing-component is used in two places, so do not use `fire_existing_...`
+for component in Registry.get_components_by_type("processing-component"):
+    handle_processing_component_registered(component, {"processing-component"})
 
 
 def evaluate_data(computation: Symbolic.Computation) -> DataAndMetadata.DataAndMetadata:

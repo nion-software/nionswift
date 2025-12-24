@@ -5522,7 +5522,9 @@ def component_changed(component: typing.Any, component_types: typing.Set[str]) -
 
 
 component_registered_event_listener = Registry.listen_component_registered_event(component_changed)
-Registry.fire_existing_component_registered_events("processing-component")
+# listening to processing-component is used in two places, so do not use `fire_existing_...`
+for component in Registry.get_components_by_type("processing-component"):
+    component_changed(component, {"processing-component"})
 
 try:
     data = pkgutil.get_data(__name__, "resources/key_config.json")
