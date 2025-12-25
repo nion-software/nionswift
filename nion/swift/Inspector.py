@@ -3039,6 +3039,9 @@ class GraphicsInspectorHandler(Declarative.Handler):
         elif isinstance(self.__graphic, Graphics.IntervalGraphic):
             self.__shape_and_pos_func = self.__create_interval_shape_and_pos
             self._graphic_type_model.value = _("Interval")
+        elif isinstance(self.__graphic, Graphics.ChannelGraphic):
+            self.__shape_and_pos_func = self.__create_channel_pos
+            self._graphic_type_model.value = _("Position")
         elif isinstance(self.__graphic, Graphics.SpotGraphic):
             self.__shape_and_pos_func = self.__create_spot_shape_and_pos
             self._graphic_type_model.value = _("Spot")
@@ -3223,6 +3226,26 @@ class GraphicsInspectorHandler(Declarative.Handler):
                 u.create_spacing(20),
                 u.create_label(text=_("End"), width=52),
                 u.create_line_edit(text="@binding(_end_model.value)", width=98),
+                u.create_stretch()
+            ),
+            spacing=4
+        )
+
+    def __create_channel_pos(self) -> Declarative.UIDescriptionResult:
+        converter = CalibratedValueFloatToStringConverter(self.__display_item, -1)
+        self._position_model = DisplayItemCalibratedValueModel(
+            GraphicPropertyCommandModel(self.__document_controller, self.__display_item, self.__graphic, "position",
+                                        title=_(f"Change {self._graphic_type_model.value} Position"),
+                                        command_id=f"change_{self._graphic_type_model.value}_position"),
+            converter, self.__display_item)
+
+        u = Declarative.DeclarativeUI()
+
+        return u.create_column(
+            u.create_row(
+                u.create_spacing(20),
+                u.create_label(text=_("Position"), width=52),
+                u.create_line_edit(text="@binding(_position_model.value)", width=98),
                 u.create_stretch()
             ),
             spacing=4
