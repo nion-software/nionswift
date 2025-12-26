@@ -301,7 +301,7 @@ class ProcessingMappedAverage(ProcessingBase):
     def process(self, *, src: ProcessingDataSource, **kwargs: typing.Any) -> _ProcessingResult:
         filtered_xdata = src.filtered_xdata
         if filtered_xdata:
-            return DataAndMetadata.ScalarAndMetadata.from_value(numpy.average(filtered_xdata), filtered_xdata.intensity_calibration)  # type: ignore
+            return DataAndMetadata.ScalarAndMetadata.from_value(numpy.average(filtered_xdata), filtered_xdata.intensity_calibration)
         return None
 
 # registered components show up in two places in the UI:

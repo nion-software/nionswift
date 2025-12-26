@@ -3188,7 +3188,7 @@ class WedgeMaskItem(MaskItem):
         # 4) the negative half-plane rotated by the end angle + pi
         # 3+4) give the wedge between the start and end angle in the negative direction.
 
-        return (numpy.where(y * s_sign <= numpy.tan(-s) * x * s_sign, 1, 0) &  # type: ignore
+        return (numpy.where(y * s_sign <= numpy.tan(-s) * x * s_sign, 1, 0) &
                 numpy.where(y * e_sign <= numpy.tan(-e) * x * e_sign, 0, 1)) | (
                     numpy.where(-y * s_sign <= numpy.tan(-s) * -x * s_sign, 1, 0) &
                     numpy.where(-y * e_sign <= numpy.tan(-e) * -x * e_sign, 0, 1))
