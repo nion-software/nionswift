@@ -206,7 +206,7 @@ class ProcessingGaussianWindow(ProcessingBase):
         src_xdata = src.xdata
         if src_xdata and src_xdata.datum_dimension_count == 1:
             w = src_xdata.datum_dimension_shape[0]
-            return src_xdata * scipy.signal.gaussian(src_xdata.datum_dimension_shape[0], std=w / 2)  # type: ignore
+            return src_xdata * scipy.signal.windows.gaussian(src_xdata.datum_dimension_shape[0], std=w / 2)  # type: ignore
         elif src_xdata and src_xdata.datum_dimension_count == 2:
             # uses circularly rotated approach of generating 2D filter from 1D
             h, w = src_xdata.datum_dimension_shape
@@ -231,7 +231,7 @@ class ProcessingHammingWindow(ProcessingBase):
     def process(self, *, src: ProcessingDataSource, **kwargs: typing.Any) -> _ProcessingResult:
         src_xdata = src.xdata
         if src_xdata and src_xdata.datum_dimension_count == 1:
-            return src_xdata * scipy.signal.hamming(src_xdata.datum_dimension_shape[0])  # type: ignore
+            return src_xdata * scipy.signal.windows.hamming(src_xdata.datum_dimension_shape[0])  # type: ignore
         elif src_xdata and src_xdata.datum_dimension_count == 2:
             # uses outer product approach of generating 2D filter from 1D
             h, w = src_xdata.datum_dimension_shape
@@ -255,7 +255,7 @@ class ProcessingHannWindow(ProcessingBase):
     def process(self, *, src: ProcessingDataSource, **kwargs: typing.Any) -> _ProcessingResult:
         src_xdata = src.xdata
         if src_xdata and  src_xdata.datum_dimension_count == 1:
-            return src_xdata * scipy.signal.hann(src_xdata.datum_dimension_shape[0])  # type: ignore
+            return src_xdata * scipy.signal.windows.hann(src_xdata.datum_dimension_shape[0])  # type: ignore
         elif src_xdata and src_xdata.datum_dimension_count == 2:
             # uses outer product approach of generating 2D filter from 1D
             h, w = src_xdata.datum_dimension_shape

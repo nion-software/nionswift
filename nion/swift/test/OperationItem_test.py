@@ -1108,18 +1108,24 @@ class TestProcessingClass(unittest.TestCase):
             self.assertIsNotNone(line_profile_data_item.xdata)
             self.assertEqual((5, ), line_profile_data_item.xdata.data_shape)
 
-    def test_windows(self):
+    def test_window_functions(self):
         with TestContext.create_memory_context() as test_context:
             data_and_metadata_list = [
-                DataAndMetadata.new_data_and_metadata(numpy.zeros((16, 16)), data_descriptor=DataAndMetadata.DataDescriptor(False, 0, 2)),
-                DataAndMetadata.new_data_and_metadata(numpy.zeros((4, 16, 16)), data_descriptor=DataAndMetadata.DataDescriptor(True, 0, 2)),
-                DataAndMetadata.new_data_and_metadata(numpy.zeros((4, 3, 16, 16)), data_descriptor=DataAndMetadata.DataDescriptor(False, 2, 2)),
-                DataAndMetadata.new_data_and_metadata(numpy.zeros((17, 23)), data_descriptor=DataAndMetadata.DataDescriptor(False, 0, 2)),
-                DataAndMetadata.new_data_and_metadata(numpy.zeros((4, 17, 23)), data_descriptor=DataAndMetadata.DataDescriptor(True, 0, 2)),
-                DataAndMetadata.new_data_and_metadata(numpy.zeros((4, 3, 17, 23)), data_descriptor=DataAndMetadata.DataDescriptor(False, 2, 2)),
-                DataAndMetadata.new_data_and_metadata(numpy.zeros((23, 17)), data_descriptor=DataAndMetadata.DataDescriptor(False, 0, 2)),
-                DataAndMetadata.new_data_and_metadata(numpy.zeros((4, 23, 17)), data_descriptor=DataAndMetadata.DataDescriptor(True, 0, 2)),
-                DataAndMetadata.new_data_and_metadata(numpy.zeros((4, 3, 23, 17)), data_descriptor=DataAndMetadata.DataDescriptor(False, 2, 2)),
+                # 1D data is 12
+                # 2D data is 10x12
+                # 1D collection is 8
+                # 2D collection is 6x8
+                # sequence is 4
+                DataAndMetadata.new_data_and_metadata(numpy.zeros((8, 12)), data_descriptor=DataAndMetadata.DataDescriptor(False, 1, 1)),
+                DataAndMetadata.new_data_and_metadata(numpy.zeros((6, 8, 12)), data_descriptor=DataAndMetadata.DataDescriptor(False, 2, 1)),
+                DataAndMetadata.new_data_and_metadata(numpy.zeros((4, 12)), data_descriptor=DataAndMetadata.DataDescriptor(True, 0, 1)),
+                DataAndMetadata.new_data_and_metadata(numpy.zeros((4, 8, 12)), data_descriptor=DataAndMetadata.DataDescriptor(True, 1, 1)),
+                DataAndMetadata.new_data_and_metadata(numpy.zeros((4, 6, 8, 12)), data_descriptor=DataAndMetadata.DataDescriptor(True, 2, 1)),
+                DataAndMetadata.new_data_and_metadata(numpy.zeros((8, 10, 12)), data_descriptor=DataAndMetadata.DataDescriptor(False, 1, 2)),
+                DataAndMetadata.new_data_and_metadata(numpy.zeros((6, 8, 10, 12)), data_descriptor=DataAndMetadata.DataDescriptor(False, 2, 2)),
+                DataAndMetadata.new_data_and_metadata(numpy.zeros((4, 10, 12)), data_descriptor=DataAndMetadata.DataDescriptor(True, 0, 2)),
+                DataAndMetadata.new_data_and_metadata(numpy.zeros((4, 8, 10, 12)), data_descriptor=DataAndMetadata.DataDescriptor(True, 1, 2)),
+                DataAndMetadata.new_data_and_metadata(numpy.zeros((4, 6, 8, 10, 12)), data_descriptor=DataAndMetadata.DataDescriptor(True, 2, 2)),
             ]
             document_model = test_context.create_document_model()
             for data_and_metadata in data_and_metadata_list:
@@ -1132,13 +1138,16 @@ class TestProcessingClass(unittest.TestCase):
                     document_model.recompute_all()
                     self.assertEqual(data_and_metadata.data_shape, document_model.data_items[-1].data_shape)
                     self.assertFalse(document_model.computations[-1].error_text)
-                    # test the non-mapped version
+                    # test the non-mapped version. this will be in the shape of the element data.
                     data_item = DataItem.new_data_item(data_and_metadata)
                     document_model.append_data_item(data_item)
                     display_item = document_model.get_display_item_for_data_item(data_item)
+                    display_data_channel = display_item.display_data_channel
                     document_model.get_processing_new(window_type, display_item, display_item.data_item)
                     document_model.recompute_all()
-                    self.assertEqual(data_and_metadata.datum_dimension_shape, document_model.data_items[-1].data_shape)
+                    display_values = display_data_channel.get_latest_computed_display_values()
+                    element_xdata = display_values.element_data_and_metadata
+                    self.assertEqual(element_xdata.data_shape, document_model.data_items[-1].data_shape)
                     self.assertFalse(document_model.computations[-1].error_text)
 
 
