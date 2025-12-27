@@ -1194,14 +1194,22 @@ class DataSource:
 
     @property
     def filter_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
-        shape = self.__display_data_shape_calculator.shape
+        xdata = self.__xdata
+        assert xdata
+        shape = xdata.datum_dimension_shape
         assert shape is not None
-        datum_calibrations = self.__display_data_shape_calculator.calibrations
+        datum_calibrations = xdata.datum_dimensional_calibrations
         if datum_calibrations is None:
-            datum_calibrations = [Calibration.Calibration(), Calibration.Calibration()]
-        calibrated_origin = Geometry.FloatPoint(
-            y=datum_calibrations[0].convert_from_calibrated_value(0.0),
-            x=datum_calibrations[1].convert_from_calibrated_value(0.0))
+            datum_calibrations = [Calibration.Calibration() for _ in range(len(shape))]
+        calibrated_origin: Graphics.CalibratedOriginType
+        if len(shape) == 1:
+            calibrated_origin = datum_calibrations[0].convert_from_calibrated_value(0.0)
+        elif len(shape) == 2:
+            calibrated_origin = Geometry.FloatPoint(
+                y=datum_calibrations[0].convert_from_calibrated_value(0.0),
+                x=datum_calibrations[1].convert_from_calibrated_value(0.0))
+        else:
+            raise NotImplementedError("Filtering not implemented for data with more than two dimensions.")
         mask = None
         for mask_item in self.__mask_items:
             if mask is None:
