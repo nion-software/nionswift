@@ -7,6 +7,7 @@ import copy
 import enum
 import gettext
 import math
+import numbers
 import uuid
 
 # third party libraries
@@ -33,6 +34,9 @@ _ = gettext.gettext
 
 
 _LinearGradientLike = typing.Any
+
+
+CalibratedOriginType = Geometry.FloatPoint | float
 
 
 class DrawingContextLike(typing.Protocol):
@@ -936,7 +940,7 @@ class Graphic(Persistence.PersistentObject):
     def get_mask_item(self) -> MaskItem:
         return EmptyMaskItem()
 
-    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: typing.Optional[Geometry.FloatPoint] = None) -> DataAndMetadata._ImageDataType:
+    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: CalibratedOriginType | None = None) -> DataAndMetadata._ImageDataType:
         return self.get_mask_item().get_mask_data(data_shape, calibrated_origin)
 
     def has_attribute(self, attribute: GraphicAttributeEnum) -> bool:
@@ -3067,12 +3071,12 @@ def create_mask_data(graphics: typing.Sequence[Graphic], shape: DataAndMetadata.
 
 
 class MaskItem:
-    def get_mask_data(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: typing.Optional[Geometry.FloatPoint] = None) -> DataAndMetadata._ImageDataType:
+    def get_mask_data(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: CalibratedOriginType | None = None) -> DataAndMetadata._ImageDataType:
         raise NotImplementedError("get_mask")
 
 
 class EmptyMaskItem(MaskItem):
-    def get_mask_data(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: typing.Optional[Geometry.FloatPoint] = None) -> DataAndMetadata._ImageDataType:
+    def get_mask_data(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: CalibratedOriginType | None = None) -> DataAndMetadata._ImageDataType:
         return numpy.zeros(data_shape)
 
 
@@ -3081,7 +3085,7 @@ class RectangleMaskItem(MaskItem):
         self.bounds = bounds
         self.rotation = rotation
 
-    def get_mask_data(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: typing.Optional[Geometry.FloatPoint] = None) -> DataAndMetadata._ImageDataType:
+    def get_mask_data(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: CalibratedOriginType | None = None) -> DataAndMetadata._ImageDataType:
         bounds = self.bounds
         mask = Core.function_make_rectangular_mask(data_shape, bounds.center, bounds.size, self.rotation).data
         assert mask is not None
@@ -3093,7 +3097,7 @@ class EllipseMaskItem(MaskItem):
         self.bounds = bounds
         self.rotation = rotation
 
-    def get_mask_data(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: typing.Optional[Geometry.FloatPoint] = None) -> DataAndMetadata._ImageDataType:
+    def get_mask_data(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: CalibratedOriginType | None = None) -> DataAndMetadata._ImageDataType:
         bounds = Geometry.FloatRect.make(self.bounds)
         mask_xdata = Core.function_make_elliptical_mask(data_shape, bounds.center.as_tuple(), bounds.size.as_tuple(), self.rotation)
         mask_data = mask_xdata.data
@@ -3106,7 +3110,7 @@ class LineMaskItem(MaskItem):
         self.start = start
         self.end = end
 
-    def get_mask_data(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: typing.Optional[Geometry.FloatPoint] = None) -> DataAndMetadata._ImageDataType:
+    def get_mask_data(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: CalibratedOriginType | None = None) -> DataAndMetadata._ImageDataType:
         data_rect = Geometry.FloatRect(origin=Geometry.FloatPoint(), size=Geometry.FloatSize.make(typing.cast(Geometry.SizeFloatTuple, data_shape)))
         start = Geometry.map_point(self.start, Geometry.FloatRect.unit_rect(), data_rect)
         end = Geometry.map_point(self.end, Geometry.FloatRect.unit_rect(), data_rect)
@@ -3125,7 +3129,7 @@ class PointMaskItem(MaskItem):
     def __init__(self, position: Geometry.FloatPoint) -> None:
         self.position = position
 
-    def get_mask_data(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: typing.Optional[Geometry.FloatPoint] = None) -> DataAndMetadata._ImageDataType:
+    def get_mask_data(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: CalibratedOriginType | None = None) -> DataAndMetadata._ImageDataType:
         size = Geometry.FloatSize(1.5 / data_shape[0], 1.5 / data_shape[1])
         mask_xdata = Core.function_make_elliptical_mask(tuple(data_shape), self.position.as_tuple(), size.as_tuple(), 0.0)
         mask_data = mask_xdata.data
@@ -3138,9 +3142,9 @@ class SpotMaskItem(MaskItem):
         self.bounds = bounds
         self.rotation = rotation
 
-    def get_mask_data(self, data_shape_: DataAndMetadata.ShapeType, calibrated_origin: typing.Optional[Geometry.FloatPoint] = None) -> DataAndMetadata._ImageDataType:
+    def get_mask_data(self, data_shape_: DataAndMetadata.ShapeType, calibrated_origin: CalibratedOriginType | None = None) -> DataAndMetadata._ImageDataType:
         data_shape = Geometry.IntSize.make((data_shape_[0], data_shape_[1]))
-        calibrated_origin = calibrated_origin or Geometry.FloatPoint(y=data_shape[0] * 0.5 + 0.5, x=data_shape[1] * 0.5 + 0.5)
+        calibrated_origin = calibrated_origin if isinstance(calibrated_origin, Geometry.FloatPoint) else Geometry.FloatPoint(y=data_shape[0] * 0.5 + 0.5, x=data_shape[1] * 0.5 + 0.5)
         data_rect = Geometry.FloatRect(origin=Geometry.FloatPoint(), size=data_shape.to_float_size())
         origin = Geometry.map_point(calibrated_origin, data_rect, Geometry.FloatRect.unit_rect())
         bounds = Geometry.FloatRect.make(self.bounds)
@@ -3159,10 +3163,9 @@ class WedgeMaskItem(MaskItem):
         self.end_angle = end_angle
 
 
-    def get_mask_data(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: typing.Optional[Geometry.FloatPoint] = None) -> DataAndMetadata._ImageDataType:
+    def get_mask_data(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: CalibratedOriginType | None = None) -> DataAndMetadata._ImageDataType:
         # a and b will be the calibrated pixel origin, expressed as pixels from top left
-        calibrated_origin = calibrated_origin or Geometry.FloatPoint(y=data_shape[0] * 0.5 + 0.5,
-                                                                     x=data_shape[1] * 0.5 + 0.5)
+        calibrated_origin = calibrated_origin if isinstance(calibrated_origin, Geometry.FloatPoint) else Geometry.FloatPoint(y=data_shape[0] * 0.5 + 0.5, x=data_shape[1] * 0.5 + 0.5)
         a, b = calibrated_origin.y - 0.5, calibrated_origin.x - 0.5
 
         # x and y will be pixel ramps increasing from top left to bottom right and zero at the origin
@@ -3200,8 +3203,8 @@ class RingMaskItem(MaskItem):
         self.radius_2 = radius_2
         self.mode = mode
 
-    def get_mask_data(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: typing.Optional[Geometry.FloatPoint] = None) -> DataAndMetadata._ImageDataType:
-        calibrated_origin = calibrated_origin or Geometry.FloatPoint(y=data_shape[0] * 0.5 + 0.5, x=data_shape[1] * 0.5 + 0.5)
+    def get_mask_data(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: CalibratedOriginType | None = None) -> DataAndMetadata._ImageDataType:
+        calibrated_origin = calibrated_origin if isinstance(calibrated_origin, Geometry.FloatPoint) else Geometry.FloatPoint(y=data_shape[0] * 0.5 + 0.5, x=data_shape[1] * 0.5 + 0.5)
         mask: numpy.typing.NDArray[numpy.float64] = numpy.zeros(data_shape, dtype=float)
         bounds_int = ((0, 0), (int(data_shape[0]), int(data_shape[1])))
         a, b = calibrated_origin.y - 0.5, calibrated_origin.x - 0.5
@@ -3232,8 +3235,8 @@ class LatticeMaskItem(MaskItem):
         self.size = size
         self.rotation = rotation
 
-    def get_mask_data(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: typing.Optional[Geometry.FloatPoint] = None) -> DataAndMetadata._ImageDataType:
-        calibrated_origin = calibrated_origin or Geometry.FloatPoint(y=data_shape[0] * 0.5 + 0.5, x=data_shape[1] * 0.5 + 0.5)
+    def get_mask_data(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: CalibratedOriginType | None = None) -> DataAndMetadata._ImageDataType:
+        calibrated_origin = calibrated_origin if isinstance(calibrated_origin, Geometry.FloatPoint) else Geometry.FloatPoint(y=data_shape[0] * 0.5 + 0.5, x=data_shape[1] * 0.5 + 0.5)
         mask = numpy.zeros(data_shape)
 
         start = Geometry.FloatPoint(y=calibrated_origin.y / data_shape[0], x=calibrated_origin.x / data_shape[1])
@@ -3259,11 +3262,15 @@ class LatticeMaskItem(MaskItem):
 
 
 class RegionBase:
-    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: Geometry.FloatPoint | None = None) -> DataAndMetadata._ImageDataType:
+    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: CalibratedOriginType | None = None) -> DataAndMetadata._ImageDataType:
         raise NotImplementedError("get_mask")
 
-    def mask_xdata_with_shape(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: Geometry.FloatPoint | None = None) -> DataAndMetadata.DataAndMetadata:
-        calibrated_origin = calibrated_origin or Geometry.FloatPoint(y=data_shape[0] * 0.5 + 0.5, x=data_shape[1] * 0.5 + 0.5)
+    def mask_xdata_with_shape(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: CalibratedOriginType | None = None) -> DataAndMetadata.DataAndMetadata:
+        assert len(data_shape) in (1, 2)
+        if len(data_shape) == 1:
+            calibrated_origin = calibrated_origin if isinstance(calibrated_origin, numbers.Real) else data_shape[0] * 0.5 + 0.5
+        else:
+            calibrated_origin = calibrated_origin if isinstance(calibrated_origin, Geometry.FloatPoint) else Geometry.FloatPoint(y=data_shape[0] * 0.5 + 0.5, x=data_shape[1] * 0.5 + 0.5)
         mask_data = self.get_mask(data_shape, calibrated_origin)
         return DataAndMetadata.new_data_and_metadata(mask_data)
 
@@ -3272,7 +3279,7 @@ class RegionBase:
 
 
 class EmptyRegion(RegionBase):
-    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: Geometry.FloatPoint | None = None) -> DataAndMetadata._ImageDataType:
+    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: CalibratedOriginType | None = None) -> DataAndMetadata._ImageDataType:
         return EmptyMaskItem().get_mask_data(data_shape, calibrated_origin)
 
 
@@ -3283,12 +3290,12 @@ class RectangleLikeRegion(RegionBase):
 
 
 class RectangleRegion(RectangleLikeRegion):
-    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: Geometry.FloatPoint | None = None) -> DataAndMetadata._ImageDataType:
+    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: CalibratedOriginType | None = None) -> DataAndMetadata._ImageDataType:
         return RectangleMaskItem(self.bounds, self.rotation).get_mask_data(data_shape, calibrated_origin)
 
 
 class EllipseRegion(RectangleLikeRegion):
-    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: Geometry.FloatPoint | None = None) -> DataAndMetadata._ImageDataType:
+    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: CalibratedOriginType | None = None) -> DataAndMetadata._ImageDataType:
         return EllipseMaskItem(self.bounds, self.rotation).get_mask_data(data_shape, calibrated_origin)
 
 
@@ -3303,7 +3310,7 @@ class LineTypeRegion(RegionBase):
 
 
 class LineRegion(LineTypeRegion):
-    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: Geometry.FloatPoint | None = None) -> DataAndMetadata._ImageDataType:
+    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: CalibratedOriginType | None = None) -> DataAndMetadata._ImageDataType:
         return LineMaskItem(self.start, self.end).get_mask_data(data_shape, calibrated_origin)
 
 
@@ -3312,7 +3319,7 @@ class LineProfileRegion(LineTypeRegion):
         super().__init__(start, end)
         self.line_width = line_width
 
-    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: Geometry.FloatPoint | None = None) -> DataAndMetadata._ImageDataType:
+    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: CalibratedOriginType | None = None) -> DataAndMetadata._ImageDataType:
         return LineMaskItem(self.start, self.end).get_mask_data(data_shape, calibrated_origin)
 
 
@@ -3320,7 +3327,7 @@ class PointRegion(RegionBase):
     def __init__(self, position: Geometry.FloatPoint) -> None:
         self.position = position
 
-    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: Geometry.FloatPoint | None = None) -> DataAndMetadata._ImageDataType:
+    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: CalibratedOriginType | None = None) -> DataAndMetadata._ImageDataType:
         return PointMaskItem(self.position).get_mask_data(data_shape, calibrated_origin)
 
 
@@ -3344,7 +3351,7 @@ class SpotRegion(RegionBase):
         self.bounds = bounds
         self.rotation = rotation
 
-    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: Geometry.FloatPoint | None = None) -> DataAndMetadata._ImageDataType:
+    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: CalibratedOriginType | None = None) -> DataAndMetadata._ImageDataType:
         return SpotMaskItem(self.bounds, self.rotation).get_mask_data(data_shape, calibrated_origin)
 
 
@@ -3353,7 +3360,7 @@ class WedgeRegion(RegionBase):
         self.start_angle = start_angle
         self.end_angle = end_angle
 
-    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: Geometry.FloatPoint | None = None) -> DataAndMetadata._ImageDataType:
+    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: CalibratedOriginType | None = None) -> DataAndMetadata._ImageDataType:
         return WedgeMaskItem(self.start_angle, self.end_angle).get_mask_data(data_shape, calibrated_origin)
 
 
@@ -3363,7 +3370,7 @@ class RingRegion(RegionBase):
         self.radius_1 = radius_1
         self.radius_2 = radius_2
 
-    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: Geometry.FloatPoint | None = None) -> DataAndMetadata._ImageDataType:
+    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: CalibratedOriginType | None = None) -> DataAndMetadata._ImageDataType:
         return RingMaskItem(self.mode, self.radius_1, self.radius_2).get_mask_data(data_shape, calibrated_origin)
 
 
@@ -3374,7 +3381,7 @@ class LatticeRegion(RegionBase):
         self.size = size
         self.rotation = rotation
 
-    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: Geometry.FloatPoint | None = None) -> DataAndMetadata._ImageDataType:
+    def get_mask(self, data_shape: DataAndMetadata.ShapeType, calibrated_origin: CalibratedOriginType | None = None) -> DataAndMetadata._ImageDataType:
         return LatticeMaskItem(self.u_pos, self.v_pos, self.size, self.rotation).get_mask_data(data_shape, calibrated_origin)
 
 

@@ -1150,6 +1150,36 @@ class TestProcessingClass(unittest.TestCase):
                     self.assertEqual(element_xdata.data_shape, document_model.data_items[-1].data_shape)
                     self.assertFalse(document_model.computations[-1].error_text)
 
+    def test_scalar_processing_function_against_collections(self):
+        with TestContext.create_memory_context() as test_context:
+            data_and_metadata_list = [
+                # 1D data is 12
+                # 2D data is 10x12
+                # 1D collection is 8
+                # 2D collection is 6x8
+                # sequence is 4
+                DataAndMetadata.new_data_and_metadata(numpy.zeros((8, 12)), data_descriptor=DataAndMetadata.DataDescriptor(False, 1, 1)),
+                DataAndMetadata.new_data_and_metadata(numpy.zeros((6, 8, 12)), data_descriptor=DataAndMetadata.DataDescriptor(False, 2, 1)),
+                DataAndMetadata.new_data_and_metadata(numpy.zeros((4, 12)), data_descriptor=DataAndMetadata.DataDescriptor(True, 0, 1)),
+                DataAndMetadata.new_data_and_metadata(numpy.zeros((4, 8, 12)), data_descriptor=DataAndMetadata.DataDescriptor(True, 1, 1)),
+                DataAndMetadata.new_data_and_metadata(numpy.zeros((4, 6, 8, 12)), data_descriptor=DataAndMetadata.DataDescriptor(True, 2, 1)),
+                DataAndMetadata.new_data_and_metadata(numpy.zeros((8, 10, 12)), data_descriptor=DataAndMetadata.DataDescriptor(False, 1, 2)),
+                DataAndMetadata.new_data_and_metadata(numpy.zeros((6, 8, 10, 12)), data_descriptor=DataAndMetadata.DataDescriptor(False, 2, 2)),
+                DataAndMetadata.new_data_and_metadata(numpy.zeros((4, 10, 12)), data_descriptor=DataAndMetadata.DataDescriptor(True, 0, 2)),
+                DataAndMetadata.new_data_and_metadata(numpy.zeros((4, 8, 10, 12)), data_descriptor=DataAndMetadata.DataDescriptor(True, 1, 2)),
+                DataAndMetadata.new_data_and_metadata(numpy.zeros((4, 6, 8, 10, 12)), data_descriptor=DataAndMetadata.DataDescriptor(True, 2, 2)),
+            ]
+            document_model = test_context.create_document_model()
+            for data_and_metadata in data_and_metadata_list:
+                # test the mapped version
+                data_item = DataItem.new_data_item(data_and_metadata)
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                document_model.get_processing_new("mapped_sum", display_item, display_item.data_item, None, {"mapping": "mapped"})
+                document_model.recompute_all()
+                self.assertEqual(data_and_metadata.navigation_dimension_shape, document_model.data_items[-1].data_shape)
+                self.assertFalse(document_model.computations[-1].error_text)
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
