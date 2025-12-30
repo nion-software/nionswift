@@ -598,7 +598,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.computation_updated_event = Event.Event()
         self.project_loaded_event = Event.Event()
 
-        self.__computation_thread_pool = ThreadPool.ThreadPool()
         self.__computation_thread_pool_executor = concurrent.futures.ThreadPoolExecutor(max_workers=8)
 
         self.__project = project
@@ -644,10 +643,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.__pending_data_item_updates: typing.List[DataItem.DataItem] = list()
 
         self.__computation_queue_lock = threading.RLock()
-        self.__computation_queue: typing.List[Symbolic.Computation] = list()
-        self.__pending_computation_lock = threading.RLock()
-        self.__pending_computation_executor: typing.Optional[Symbolic.ComputationExecutor] = None
-        self.__current_computation_executor: typing.Optional[Symbolic.ComputationExecutor] = None
 
         self.__computation_tasks = set[asyncio.Task[typing.Any]]()
 
@@ -738,15 +733,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             self.event_loop.stop()
             self.event_loop.run_forever()
 
-        # stop computations
-        with self.__computation_queue_lock:
-            self.__computation_queue.clear()
-        with self.__pending_computation_lock:
-            if self.__pending_computation_executor:
-                self.__pending_computation_executor.abort()
-                self.__pending_computation_executor.close()
-            self.__pending_computation_executor = None
-
         # r_vars
         MappedItemManager().unregister_document(self)
 
@@ -762,9 +748,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         for data_item_reference in self.__data_item_references.values():
             data_item_reference.close()
         self.__data_item_references = typing.cast(typing.Any, None)
-
-        self.__computation_thread_pool.close()
-        self.__computation_thread_pool = typing.cast(typing.Any, None)
 
         self.__transaction_manager.close()
         self.__transaction_manager = typing.cast(typing.Any, None)
@@ -950,9 +933,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
     def __handle_data_item_removed(self, data_item: DataItem.DataItem) -> None:
         self.__transaction_manager._remove_item(data_item)
-        computation = self.get_data_item_computation(data_item)
-        if computation:
-            self.__remove_computation_from_queue(computation)
         with self.__pending_data_item_updates_lock:
             if data_item in self.__pending_data_item_updates:
                 self.__pending_data_item_updates.remove(data_item)
@@ -1277,7 +1257,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                     output_deleted = not items_set.isdisjoint(computation.output_items)
                     computation._inputs -= items_set
                     computation._outputs -= items_set
-                    if computation not in items and (not self.__current_computation_executor or computation != self.__current_computation_executor.computation):
+                    if computation not in items and not computation.is_running:
                         # computations are auto deleted if any input or output is deleted.
                         if output_deleted or not computation._inputs or input_deleted:
                             self.__build_cascade(computation, items, dependencies)
@@ -1635,37 +1615,23 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
     def create_computation(self, expression: typing.Optional[str] = None) -> Symbolic.Computation:
         return Symbolic.Computation(expression)
 
-    def dispatch_task(self, task: ThreadPool._OptionalThreadPoolTask, description: typing.Optional[str] = None) -> None:
-        self.__computation_thread_pool.queue_fn(task, description)
+    def recompute_all(self) -> None:
+        while self.event_loop and self.__computation_tasks:
+            self.event_loop.stop()
+            self.event_loop.run_forever()
 
-    def recompute_all(self, merge: bool = True) -> None:
-        while True:
-            self.__computation_thread_pool.run_all()
-            while self.event_loop and self.__computation_tasks:
-                self.event_loop.stop()
-                self.event_loop.run_forever()
-            if merge:
-                self.commit_pending_computation()
-                with self.__computation_queue_lock:
-                    if not (self.__computation_queue or self.__pending_computation_executor):
-                        break
-            else:
-                break
-
-    def start_dispatcher(self) -> None:
-        self.__computation_thread_pool.start(1)
-
-    def __start_computation(self, computation: Symbolic.Computation) -> bool:
-        # start the computation asynchronously if asynchronous computations are enabled.
+    def __start_computation(self, computation: Symbolic.Computation) -> None:
+        # start the computation asynchronously.
         # this is only called on the main thread, so state can be managed without locks.
         # assumes self.__computation_queue_lock is held.
 
-        async def run_computation(event_loop: asyncio.AbstractEventLoop, computation_thread_pool_executor: concurrent.futures.ThreadPoolExecutor, computation: Symbolic.Computation) -> None:
+        async def run_computation(event_loop: asyncio.AbstractEventLoop, computation_thread_pool_executor: concurrent.futures.ThreadPoolExecutor, computation_queue_lock: threading.RLock, computation: Symbolic.Computation) -> None:
             # this runs on the main thread
             # run the computation execute on a thread by calling computation.async_evaluate
             # then commit the result in the same thread as this function is called (the main thread).
             while event_loop and not computation._closed:
-                computation.is_pending = False  # TODO: race?
+                computation.is_running = True
+                computation.is_pending = False
                 computation_executor = await computation.async_evaluate(event_loop, computation_thread_pool_executor)
                 if not computation._closed and computation_executor:
                     try:
@@ -1679,81 +1645,37 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 # by putting this before the break from the loop, we ensure that the computation is not run too often.
                 # otherwise the computation may run, finish, and be requested again faster than the sleep time.
                 await asyncio.sleep(0.1)
-                if computation._closed or not computation.is_pending:
-                    break
-            computation.is_running = False
+                # check for exit conditions.
+                with computation_queue_lock:
+                    if computation._closed or not computation.is_pending:
+                        # once we make this check and decide to exit the loop, it is ok to launch another async
+                        # computation if needed. so set is_running to false.
+                        computation.is_running = False
+                        break
 
-        if Feature.FeatureManager().is_feature_enabled("feature.asynchronous_computations") and self.event_loop:
-            if not computation.is_running:
+        if not computation.is_running and not computation.is_pending:
+            # only start another computation if one is not already running or pending.
+            # schedule the computation to be run via run_computation on the main thread via the event loop.
+            computation_task = self.event_loop.create_task(run_computation(self.event_loop, self.__computation_thread_pool_executor, self.__computation_queue_lock, computation))
+            computation.is_pending = True
+            self.__computation_tasks.add(computation_task)
 
-                # schedule the computation to be run via run_computation on the main thread via the event loop.
-                computation.is_running = True
-                computation.is_pending = False
-                computation_task = self.event_loop.create_task(run_computation(self.event_loop, self.__computation_thread_pool_executor, computation))
-                self.__computation_tasks.add(computation_task)
-
-                def discard_task(document_model_ref: weakref.ReferenceType[DocumentModel], computation_task: asyncio.Task[typing.Any]) -> None:
-                    document_model = document_model_ref()
-                    if document_model:
+            def discard_task(document_model_ref: weakref.ReferenceType[DocumentModel], computation_queue_lock: threading.RLock, computation_task: asyncio.Task[typing.Any]) -> None:
+                document_model = document_model_ref()
+                if document_model:
+                    with computation_queue_lock:
                         document_model.__computation_tasks.discard(computation_task)
 
-                computation_task.add_done_callback(functools.partial(discard_task, weakref.ref(self)))
-            else:
-                computation.is_pending = True
-            return True
-
-        return False
+            # when the task is finished, remove it from the set of computation tasks.
+            computation_task.add_done_callback(functools.partial(discard_task, weakref.ref(self), self.__computation_queue_lock))
+        else:
+            # this will cause the computation to be restarted when the current run finishes.
+            computation.is_pending = True
 
     def __computation_needs_update(self, computation: Symbolic.Computation) -> None:
-        # When a computation needs an update due to changing parameters, this function will be called. This function
-        # looks through the existing pending computation queue, and if this computation is not already in the queue,
-        # it schedules the computation for execution.
+        # when a computation needs an update due to changing parameters, this function will be called.
         with self.__computation_queue_lock:
-            for computation_queue_item in self.__computation_queue:
-                if computation_queue_item == computation:
-                    return
-            # give the __start_computation method a chance to start it. if it doesn't (indicated by returning False),
-            # add it to the synchronous queue.
-            if not self.__start_computation(computation):
-                self.__computation_queue.append(computation)
-        self.dispatch_task(self.__recompute)
-
-    def __recompute(self) -> None:
-        # this runs on a thread
-        while True:
-            computation_queue_item = None
-            with self.__computation_queue_lock:
-                if not self.__pending_computation_executor and self.__computation_queue:
-                    computation_queue_item = self.__computation_queue.pop(0)
-
-            if computation_queue_item:
-                # an item was put into the active queue, so compute it, then merge
-                pending_computation_executor = computation_queue_item.recompute()
-                if pending_computation_executor:
-                    with self.__pending_computation_lock:
-                        if self.__pending_computation_executor:
-                            self.__pending_computation_executor.abort()
-                            self.__pending_computation_executor.close()
-                        self.__pending_computation_executor = pending_computation_executor
-                    self.__call_soon(self.commit_pending_computation)
-            else:
-                break
-
-    def commit_pending_computation(self) -> None:
-        with self.__pending_computation_lock:
-            pending_computation_executor = self.__pending_computation_executor
-            self.__pending_computation_executor = None
-        if pending_computation_executor:
-            self.__current_computation_executor = pending_computation_executor
-            try:
-                # a commit may result in deleting the computation being committed.
-                # the current_computation is used to avoid that situation.
-                pending_computation_executor.commit()
-            finally:
-                self.__current_computation_executor = None
-                pending_computation_executor.mark_initial_computation_complete()
-                pending_computation_executor.close()
-        self.dispatch_task(self.__recompute)
+            self.__start_computation(computation)
 
     async def compute_immediate(self, event_loop: asyncio.AbstractEventLoop, computation: Symbolic.Computation, timeout: typing.Optional[float] = None) -> None:
         if computation:
@@ -2210,7 +2132,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
     def __handle_computation_removed(self, computation: Symbolic.Computation) -> None:
         # remove it from any computation queues
-        self.__remove_computation_from_queue(computation)
         computation_changed_listener = self.__computation_changed_listeners.pop(computation, None)
         if computation_changed_listener: computation_changed_listener.close()
         computation_output_changed_listener = self.__computation_output_changed_listeners.pop(computation, None)
@@ -2220,19 +2141,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.notify_remove_item("computations", computation, index)
         # remove from internal list
         self.__computations.remove(computation)
-
-    def __remove_computation_from_queue(self, computation: Symbolic.Computation) -> None:
-        with self.__computation_queue_lock:
-            computation_pending_queue = self.__computation_queue
-            self.__computation_queue = list()
-            for computation_queue_item in computation_pending_queue:
-                if not computation_queue_item is computation:
-                    self.__computation_queue.append(computation_queue_item)
-            with self.__pending_computation_lock:
-                if self.__pending_computation_executor and computation is self.__pending_computation_executor.computation:
-                    self.__pending_computation_executor.abort()
-                    self.__pending_computation_executor.close()
-                    self.__pending_computation_executor = None
 
     def __computation_changed(self, computation: Symbolic.Computation) -> None:
         # when the computation is mutated, this function is called. it calls the handle computation
@@ -3116,6 +3024,3 @@ DocumentModel.register_processors(DocumentModel._get_builtin_processors())
 
 def evaluate_data(computation: Symbolic.Computation) -> DataAndMetadata.DataAndMetadata:
     return Symbolic.evaluate_data(computation)
-
-
-Feature.FeatureManager().add_feature(Feature.Feature("feature.asynchronous_computations", "Asynchronous (threaded) computations (requires relaunch)", True))

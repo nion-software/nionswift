@@ -2604,23 +2604,6 @@ class Computation(Persistence.PersistentObject):
     def reset(self) -> None:
         self.needs_update = False
 
-    def recompute(self) -> typing.Optional[ComputationExecutor]:
-        # evaluate the computation in a thread safe manner
-        # returns a list of functions that must be called on the main thread to finish the recompute action
-        # threadsafe
-        if self.needs_update:
-            try:
-                api = PlugInManager.api_broker_fn("~1.0", None)
-                executor = self.evaluate(api)
-                if executor:
-                    throttle_time = max(computation_min_period - (time.perf_counter() - self.last_evaluate_data_time), 0) if not executor.error_text else 0.0
-                    time.sleep(max(throttle_time, min(executor.last_execution_time * computation_min_factor, 1.0)))
-                    return executor
-            except Exception as e:
-                import traceback
-                traceback.print_exc()
-        return None
-
     @property
     def _processor_description(self) -> typing.Optional[ComputationProcessor]:
         return self.__processor

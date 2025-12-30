@@ -598,7 +598,6 @@ class Application(UIApplication.BaseApplication):
         assert document_model
 
         document_model.create_default_data_groups()
-        document_model.start_dispatcher()
 
         # create the document controller
         document_controller = self.create_document_controller(document_model, "library", project_reference=project_reference)

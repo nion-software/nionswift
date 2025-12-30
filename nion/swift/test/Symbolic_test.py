@@ -1504,9 +1504,6 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.append_data_item(computed_data_item)
             document_model.set_data_item_computation(computed_data_item, computation)
             document_model.recompute_all()
-            if False and not computation.is_threaded:  # always threaded
-                document_model.start_dispatcher()
-                continue_event.wait(10.0)
             listener.close()
             listener = None
             document_controller.periodic()
@@ -1598,7 +1595,6 @@ class TestSymbolicClass(unittest.TestCase):
             computation1.create_input_item("src_xdata", Symbolic.make_item(data_item, type="xdata"))
             computation1.processing_id = "compute_error"
             document_model.append_computation(computation1)
-            document_model.start_dispatcher()
             continue_event.wait(10.0)
             listener.close()
             document_controller.periodic()
@@ -1644,7 +1640,6 @@ class TestSymbolicClass(unittest.TestCase):
             computation1.create_input_item("src_xdata", Symbolic.make_item(data_item, type="xdata"))
             computation1.processing_id = "compute_delayed_error"
             document_model.append_computation(computation1)
-            document_model.start_dispatcher()
             started_event.wait(5)
             # computation will be in execute now
             document_model.remove_computation(computation1)
