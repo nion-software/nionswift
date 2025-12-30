@@ -70,7 +70,6 @@ def convert_tuples_to_lists(i: typing.Any) -> typing.Any:
 
 class TestSetup:
     def __init__(self, set_global: bool = False) -> None:
-        Feature.FeatureManager().get_feature("feature.asynchronous_computations").enabled = False
         self.app = Application.Application(TestUI.UserInterface(), set_global=set_global)
         event_loop = asyncio.new_event_loop()
         asyncio.set_event_loop(event_loop)
