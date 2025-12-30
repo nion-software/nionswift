@@ -224,12 +224,12 @@ _component_unregistered_listener = Registry.listen_component_unregistered_event(
 
 Registry.fire_existing_component_registered_events("notification-source")
 
-_app: Application.BaseApplication = typing.cast(typing.Any, None)
+_app: Application.BaseApplication | None = None
 
 
 def open_notification_dialog() -> None:
     global notification_dialog
-    if not notification_dialog:
+    if not notification_dialog and _app:
         notification_dialog = NotificationDialog(_app)
 
 

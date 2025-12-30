@@ -509,31 +509,6 @@ class TraceCloseable:
             print("^^^^^^^^^^^^^^^^^^^^^^^^^^")
 
 
-class TestEventLoop:
-    def __init__(self, event_loop: typing.Optional[asyncio.AbstractEventLoop] = None):
-        logging.disable(logging.CRITICAL)  # suppress new_event_loop debug message
-        self.__event_loop = event_loop if event_loop else asyncio.new_event_loop()
-        logging.disable(logging.NOTSET)
-
-    def close(self) -> None:
-        # give cancelled tasks a chance to finish
-        self.__event_loop.stop()
-        self.__event_loop.run_forever()
-        self.__event_loop.run_until_complete(asyncio.gather(*asyncio.all_tasks(loop=self.__event_loop)))
-        # now close
-        # due to a bug in Python libraries, the default executor needs to be shutdown explicitly before the event loop
-        # see http://bugs.python.org/issue28464
-        default_executor = getattr(self.__event_loop, "_default_executor", None)
-        if default_executor:
-            default_executor.shutdown()
-        self.__event_loop.close()
-        self.__event_loop = typing.cast(asyncio.AbstractEventLoop, None)
-
-    @property
-    def event_loop(self) -> asyncio.AbstractEventLoop:
-        return self.__event_loop
-
-
 class Timer:
     def __init__(self, *, threshold: float = 0.0) -> None:
         self.start_time_ns = time.perf_counter_ns()

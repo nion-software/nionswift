@@ -1,6 +1,5 @@
 # system libraries
 import asyncio
-import dataclasses
 import gc
 import typing
 import unittest
@@ -15,6 +14,7 @@ from nion.swift.model import Changes
 from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
+from nion.swift.model import Feature
 from nion.swift.model import FileStorageSystem
 from nion.swift.model import HDF5Handler
 from nion.swift.model import NDataHandler
@@ -70,6 +70,7 @@ def convert_tuples_to_lists(i: typing.Any) -> typing.Any:
 
 class TestSetup:
     def __init__(self, set_global: bool = False) -> None:
+        Feature.FeatureManager().get_feature("feature.asynchronous_computations").enabled = False
         self.app = Application.Application(TestUI.UserInterface(), set_global=set_global)
         event_loop = asyncio.new_event_loop()
         asyncio.set_event_loop(event_loop)
@@ -153,7 +154,7 @@ class MemoryProfileContext:
             library_properties = {"version": FileStorageSystem.PROFILE_VERSION}
             storage_system = self.__storage_system
             storage_system.set_library_properties(library_properties)
-            profile = Profile.Profile(storage_system=storage_system, cache_factory=CacheFactory(self.storage_cache))
+            profile = Profile.Profile(asyncio.get_event_loop(), storage_system=storage_system, cache_factory=CacheFactory(self.storage_cache))
             profile.storage_system = storage_system
             profile.profile_context = self
             if add_project:
@@ -164,7 +165,7 @@ class MemoryProfileContext:
         else:
             storage_system = self.__storage_system
             storage_system.load_properties()
-            profile = Profile.Profile(storage_system=storage_system, cache_factory=CacheFactory(self.storage_cache))
+            profile = Profile.Profile(asyncio.get_event_loop(), storage_system=storage_system, cache_factory=CacheFactory(self.storage_cache))
             profile.storage_system = storage_system
             profile.profile_context = self
             self.__items_exit.append(profile.close)

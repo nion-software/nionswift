@@ -33,11 +33,12 @@ class ThumbnailSource:
     """Produce a thumbnail for a display."""
     _executor = concurrent.futures.ThreadPoolExecutor()
 
-    def __init__(self, ui: UserInterface.UserInterface, display_item: DisplayItem.DisplayItem, will_close_fn: typing.Callable[[uuid.UUID], None]) -> None:
+    def __init__(self, ui: UserInterface.UserInterface, display_item: DisplayItem.DisplayItem, will_close_fn: typing.Callable[[uuid.UUID], None], *, _suppress_recompute: bool = False) -> None:
         super().__init__()
         self._ui = ui
         self._display_item = display_item
         self.__will_close_fn = will_close_fn
+        self.__suppress_recompute = _suppress_recompute
 
         self.width = 256
         self.height = 256
@@ -82,7 +83,8 @@ class ThumbnailSource:
     def __recompute_on_thread(self) -> None:
         with self.__recompute_lock:
             if not self.__recompute_future or self.__recompute_future.done():
-                self.__recompute_future = self._executor.submit(self.__recompute_data_if_needed)
+                if not self.__suppress_recompute:
+                    self.__recompute_future = self._executor.submit(self.__recompute_data_if_needed)
 
     def __graphics_changed(self, graphic_selection: DisplayItem.GraphicSelection) -> None:
         self.__thumbnail_changed()
@@ -172,7 +174,7 @@ class ThumbnailManager(metaclass=Utility.Singleton):
         with self.__lock:
             self.__thumbnail_sources.clear()
 
-    def thumbnail_source_for_display_item(self, ui: UserInterface.UserInterface, display_item: DisplayItem.DisplayItem) -> ThumbnailSource:
+    def thumbnail_source_for_display_item(self, ui: UserInterface.UserInterface, display_item: DisplayItem.DisplayItem, *, _suppress_recompute: bool = False) -> ThumbnailSource:
         """Returned ThumbnailSource must be closed."""
         with self.__lock:
             thumbnail_source = self.__thumbnail_sources.get(display_item.uuid)
@@ -181,7 +183,7 @@ class ThumbnailManager(metaclass=Utility.Singleton):
                     with self.__lock:
                         del self.__thumbnail_sources[display_item_uuid]
 
-                thumbnail_source = ThumbnailSource(ui, display_item, will_close_fn)
+                thumbnail_source = ThumbnailSource(ui, display_item, will_close_fn, _suppress_recompute=_suppress_recompute)
                 self.__thumbnail_sources[display_item.uuid] = thumbnail_source
             else:
                 assert thumbnail_source._ui == ui

@@ -272,7 +272,6 @@ class DocumentController(Window.Window):
         # to determine when to close it.
         self.document_model = document_model
         self.document_model.add_ref()
-        self.document_model.event_loop = self.event_loop
         app_version = getattr(app, "version_str", "")
         self.__base_title = _("Nion Swift") + ((" " + app_version) if app else "")
         self.title = self.__base_title

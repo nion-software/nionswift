@@ -54,7 +54,8 @@ class ApplicationData:
         return False
 
     def __write_data_dict(self) -> None:
-        if self.__file_path:
+        # it is possible for the file path to be relative in some cases (e.g., testing). check for absolute.
+        if self.__file_path and self.__file_path.is_absolute():
             with Utility.AtomicFileWriter(self.__file_path) as fp:
                 json.dump(self.__data_dict, fp, skipkeys=True, indent=4)
 
