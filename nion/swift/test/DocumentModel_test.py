@@ -15,18 +15,15 @@ import numpy
 
 # local libraries
 from nion.data import DataAndMetadata
-from nion.swift import Application
 from nion.swift import Facade
 from nion.swift.model import Connection
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
-from nion.swift.model import DataStructure
 from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.swift.model import Symbolic
 from nion.swift.test import TestContext
-from nion.ui import TestUI
 from nion.utils import Recorder
 
 

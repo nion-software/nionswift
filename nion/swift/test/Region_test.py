@@ -3,6 +3,7 @@ import contextlib
 import copy
 import logging
 import math
+import typing
 import unittest
 
 # third party libraries
@@ -15,6 +16,14 @@ from nion.swift.test import TestContext
 
 
 class TestRegionClass(unittest.TestCase):
+
+    def setUp(self):
+        TestContext.begin_leaks()
+        self._test_setup = TestContext.TestSetup()
+
+    def tearDown(self):
+        self._test_setup = typing.cast(typing.Any, None)
+        TestContext.end_leaks(self)
 
     def test_changing_point_region_updates_drawn_graphic(self):
         with TestContext.create_memory_context() as test_context:

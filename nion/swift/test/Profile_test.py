@@ -456,7 +456,7 @@ class TestProfileClass(unittest.TestCase):
             # use lower level calls to create the profile and open the window via the app
             profile = profile_context.create_profile(add_project=False)
             profile.read_profile()
-            app = Application.Application(TestUI.UserInterface(), set_global=False)
+            app = Application.Application(TestUI.UserInterface(), set_global=False, use_existing_event_loop=True)
             app._set_profile_for_test(profile)
             TestContext.add_project_memory(profile, load=False)
             TestContext.add_project_memory(profile, load=False)
@@ -521,7 +521,7 @@ class TestProfileClass(unittest.TestCase):
                     # use lower level calls to create the profile and open the window via the app
                     profile = profile_context.create_profile(add_project=False)
                     profile.read_profile()
-                    app = Application.Application(TestUI.UserInterface(), set_global=False)
+                    app = Application.Application(TestUI.UserInterface(), set_global=False, use_existing_event_loop=True)
                     app._set_profile_for_test(profile)
                     TestContext.add_project_memory(profile, load=False)
                     TestContext.add_project_memory(profile, load=False)

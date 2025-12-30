@@ -581,11 +581,11 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
     """
     count = 0  # useful for detecting leaks in tests
 
-    def __init__(self, project: Project.Project) -> None:
+    def __init__(self, project: Project.Project, event_loop: asyncio.AbstractEventLoop) -> None:
         super().__init__()
         self.__class__.count += 1
 
-        self.event_loop: asyncio.AbstractEventLoop | None = None
+        self.__event_loop = event_loop
 
         self.about_to_close_event = Event.Event()
 
@@ -795,6 +795,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.__class__.count -= 1
 
         super().about_to_delete()
+
+    @property
+    def event_loop(self) -> asyncio.AbstractEventLoop:
+        return self.__event_loop
 
     def __call_soon(self, fn: typing.Callable[[], None]) -> None:
         # add the function to the queue of items to call on the main thread.

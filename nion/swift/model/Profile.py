@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 # standard libraries
+import asyncio
 import contextlib
 import datetime
 import gettext
@@ -8,7 +9,6 @@ import json
 import logging
 import os
 import pathlib
-import types
 import typing
 import uuid
 
@@ -151,7 +151,7 @@ class ProjectReference(Persistence.PersistentObject):
                     self.__project_state = project.project_state
             self.__has_project_info_been_read = True
 
-    def load_project(self, profile_context: typing.Optional[ProfileContext], cache_dir_path: typing.Optional[pathlib.Path], *, cache_factory: typing.Optional[Cache.CacheFactory]) -> None:
+    def load_project(self, profile_context: typing.Optional[ProfileContext], event_loop: asyncio.AbstractEventLoop, cache_dir_path: typing.Optional[pathlib.Path], *, cache_factory: typing.Optional[Cache.CacheFactory]) -> None:
         """Read project.
 
         The profile context is used during testing.
@@ -179,7 +179,7 @@ class ProjectReference(Persistence.PersistentObject):
                 project = Project.Project(project_storage_system, cache_factory)
 
             if project:
-                self.__document_model = DocumentModel.DocumentModel(project)
+                self.__document_model = DocumentModel.DocumentModel(project, event_loop)
 
                 project.prepare_read_project()  # sets up the uuid, used next.
 
@@ -443,12 +443,16 @@ def script_item_factory(lookup_id: typing.Callable[[str], str]) -> typing.Option
 class Profile(Persistence.PersistentObject):
     count = 0  # useful for detecting leaks in tests
 
-    def __init__(self, storage_system: typing.Optional[Persistence.PersistentStorageInterface] = None,
+    def __init__(self,
+                 event_loop: asyncio.AbstractEventLoop,
+                 storage_system: typing.Optional[Persistence.PersistentStorageInterface] = None,
                  cache_dir_path: typing.Optional[pathlib.Path] = None, *,
                  cache_factory: typing.Optional[Cache.CacheFactory] = None,
                  profile_context: typing.Optional[ProfileContext] = None) -> None:
         super().__init__()
         self.__class__.count += 1
+
+        self.__event_loop = event_loop
 
         self.define_root_context()
         self.define_type("profile")
@@ -493,6 +497,10 @@ class Profile(Persistence.PersistentObject):
         self.profile_context = None
         self.__class__.count -= 1
         super().close()
+
+    @property
+    def event_loop(self) -> asyncio.AbstractEventLoop:
+        return self.__event_loop
 
     @property
     def last_project_reference(self) -> typing.Optional[uuid.UUID]:
@@ -598,7 +606,7 @@ class Profile(Persistence.PersistentObject):
             self.storage_system.set_property(self, "version", FileStorageSystem.PROFILE_VERSION)
 
     def read_project(self, project_reference: ProjectReference) -> None:
-        project_reference.load_project(self.profile_context, self.__cache_dir_path, cache_factory=self.__cache_factory)
+        project_reference.load_project(self.profile_context, self.__event_loop, self.__cache_dir_path, cache_factory=self.__cache_factory)
 
     def create_project(self, project_dir: pathlib.Path, library_name: str) -> typing.Optional[ProjectReference]:
         # the library name may contain multiple periods. be careful with using `with_suffix` which will treat
@@ -664,7 +672,7 @@ class Profile(Persistence.PersistentObject):
         else:
             project_reference.close()
             if load:
-                existing_project_reference.load_project(self.profile_context, self.__cache_dir_path, cache_factory=self.__cache_factory)
+                existing_project_reference.load_project(self.profile_context, self.__event_loop, self.__cache_dir_path, cache_factory=self.__cache_factory)
             return existing_project_reference
 
     def add_project_index(self, project_path: pathlib.Path, load: bool = True) -> ProjectReference:

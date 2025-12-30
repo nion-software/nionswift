@@ -382,7 +382,7 @@ class TestDataItemClass(unittest.TestCase):
             data_item_inverted = document_model.get_invert_new(display_item, display_item.data_item)
             inverted_display_item = document_model.get_display_item_for_data_item(data_item_inverted)
             document_model.recompute_all()
-            thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self._test_setup.app.ui, inverted_display_item)
+            thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self._test_setup.app.ui, inverted_display_item, _suppress_recompute=True)
             thumbnail_source.recompute_data()
             thumbnail_source.thumbnail_data
             # here the data should be computed and the thumbnail should not be dirty

@@ -1,8 +1,8 @@
 # standard libraries
+import asyncio
 import contextlib
 import copy
 import datetime
-import functools
 import gc
 import json
 import logging
@@ -85,7 +85,7 @@ class TempProfileContext:
             project_path.write_text(project_data_json, "utf-8")
             storage_system = FileStorageSystem.make_file_persistent_storage_system(profile_path)
             storage_system.load_properties()
-            profile = Profile.Profile(storage_system=storage_system, cache_factory=Cache.DbCacheFactory(self.profiles_dir, "X"))
+            profile = Profile.Profile(asyncio.get_event_loop(), storage_system=storage_system, cache_factory=Cache.DbCacheFactory(self.profiles_dir, "X"))
             profile.storage_system = storage_system
             profile.profile_context = self
             profile.add_project_index(project_path)
@@ -96,7 +96,7 @@ class TempProfileContext:
             profile_path = self.profiles_dir / pathlib.Path(profile_name or "Profile").with_suffix(".nsprof")
             storage_system = FileStorageSystem.make_file_persistent_storage_system(profile_path)
             storage_system.load_properties()
-            profile = Profile.Profile(storage_system=storage_system, cache_factory=Cache.DbCacheFactory(self.profiles_dir, "X"))
+            profile = Profile.Profile(asyncio.get_event_loop(), storage_system=storage_system, cache_factory=Cache.DbCacheFactory(self.profiles_dir, "X"))
             profile.storage_system = storage_system
             profile.profile_context = self
             self.__items_to_close.append(profile)

@@ -224,9 +224,12 @@ class AboutDialog(Dialog.OkCancelDialog):
 class Application(UIApplication.BaseApplication):
     count = 0  # useful for detecting leaks in tests
 
-    def __init__(self, ui: UserInterface.UserInterface, set_global: bool = True) -> None:
+    def __init__(self, ui: UserInterface.UserInterface, set_global: bool = True, use_existing_event_loop: bool = False) -> None:
         super().__init__(ui)
         self.__class__.count += 1
+
+        self.__use_existing_event_loop = use_existing_event_loop
+        self.__existing_event_loop: asyncio.AbstractEventLoop | None = None
 
         # reset these values for tests. otherwise tests run slower after app.start is called in any previous test.
         Symbolic.computation_min_period = 0.0
@@ -293,6 +296,21 @@ class Application(UIApplication.BaseApplication):
             logging.error(f"Error purging log files: {e}")
             # do not raise here; otherwise an error here will prevent launch.
 
+    def _get_event_loop(self) -> asyncio.AbstractEventLoop | None:
+        return self.__existing_event_loop if self.__use_existing_event_loop else super()._get_event_loop()
+
+    def _initialize_event_loop(self) -> None:
+        if self.__use_existing_event_loop:
+            self.__existing_event_loop = asyncio.get_event_loop()
+        else:
+            super()._initialize_event_loop()
+
+    def _deinitialize_event_loop(self) -> None:
+        if self.__use_existing_event_loop:
+            self.__existing_event_loop = None
+        else:
+            super()._deinitialize_event_loop()
+
     def initialize(self, *, load_plug_ins: bool = True, use_root_dir: bool = True) -> None:
         super().initialize()
         NotificationDialog._app = self
@@ -344,6 +362,7 @@ class Application(UIApplication.BaseApplication):
     def deinitialize(self) -> None:
         # shut down hardware source manager, unload plug-ins, and really exit ui
         NotificationDialog.close_notification_dialog()
+        NotificationDialog._app = None
         Registry.unregister_component(self, {"application"})
         if self.__profile:
             self.__profile.close()
@@ -770,7 +789,7 @@ class Application(UIApplication.BaseApplication):
             old_cache_path.unlink()
         cache_dir_path = profile_path.parent / "Cache"
         cache_dir_path.mkdir(parents=True, exist_ok=True)
-        profile = Profile.Profile(storage_system=storage_system, cache_dir_path=cache_dir_path)
+        profile = Profile.Profile(self.event_loop, storage_system=storage_system, cache_dir_path=cache_dir_path)
         profile.read_profile()
         return profile, create_new_profile
 

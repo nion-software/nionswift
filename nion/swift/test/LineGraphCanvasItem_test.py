@@ -481,11 +481,9 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             self.assertEqual(2, len(display_item1.display_layers))
 
     def test_line_plot_width_doesnt_jitter_for_small_vertical_bounds_changes(self):
-        """
-        Create a line plot with data that has been shown, when dragged vertically, produces bounds with
-        a reasonable distribution of different digits. Verify that the layout calclated for these bounds
-        does not change for moderate sized drags.
-        """
+        # Create a line plot with data that has been shown, when dragged vertically, produces bounds with a
+        # reasonable distribution of different digits. Verify that the layout calclated for these bounds does not
+        # change for moderate sized drags.
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
             document_model = document_controller.document_model

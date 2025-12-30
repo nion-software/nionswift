@@ -4,6 +4,7 @@ import operator
 import random
 import threading
 import time
+import typing
 import unittest
 
 # third party libraries
@@ -26,6 +27,14 @@ class TestDataItemsModelModule(unittest.TestCase):
     values = ["DEF", "ABC", "GHI", "DFG", "ACD", "GIJ"]
     indexes = [0, 0, 1, 1, 2, 4]
     result = ["ABC", "DFG", "ACD", "GHI", "GIJ", "DEF"]
+
+    def setUp(self):
+        TestContext.begin_leaks()
+        self._test_setup = TestContext.TestSetup()
+
+    def tearDown(self):
+        self._test_setup = typing.cast(typing.Any, None)
+        TestContext.end_leaks(self)
 
     def test_inserting_items_into_model_index0_with_sort_key_puts_them_in_correct_order(self):
         list_model = ListModel.ListModel("data_items")
