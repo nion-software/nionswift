@@ -3648,7 +3648,7 @@ class ChoiceVariableHandler(Declarative.Handler):
         self.float_str_converter = Converter.FloatToStringConverter()
         u = Declarative.DeclarativeUI()
         label = u.create_label(text="@binding(variable.display_label)")
-        combo_box = u.create_combo_box(items=[_("None"), _("Mapped")], current_index="@binding(combo_box_index)")
+        combo_box = u.create_row(u.create_combo_box(items=[_("None"), _("Mapped")], current_index="@binding(combo_box_index)"), u.create_stretch())
         self.ui_view = u.create_column(label, combo_box, spacing=8)
         self.__variable_listener = variable.property_changed_event.listen(ReferenceCounting.weak_partial(ChoiceVariableHandler.__property_changed, self))
 
