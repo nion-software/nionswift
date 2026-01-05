@@ -71,6 +71,9 @@ As a convenience you can specify the size of the SVG file in pixels, inches, or 
 
 The SVG file is resolution independent and can be opened in a web browser or a vector graphics program for further editing.
 
+.. note::
+    You cannot import SVG files into Nion Swift. SVG files are only for exporting graphics and visual representations of data. They do not contain the underlying data or metadata necessary to recreate the display in Nion Swift.
+
 .. _Managing Projects:
 
 Managing Projects
