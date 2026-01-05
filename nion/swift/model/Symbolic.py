@@ -2197,22 +2197,21 @@ class Computation(Persistence.PersistentObject):
     def update_status(self, error_text: typing.Optional[str], error_stack_trace: typing.Optional[str], elapsed_time: typing.Optional[float]) -> None:
         self.__elapsed_time = elapsed_time
         self.__last_timestamp = DateTime.utcnow()
+        self.notify_property_changed("last_computed_elapsed_time")
+        self.notify_property_changed("last_computed_timestamp")
         if self.error_text != error_text:
             self.error_text = error_text
         error_stack_trace = error_stack_trace or str()
         if self.error_stack_trace != error_stack_trace:
             self.error_stack_trace = error_stack_trace
-        self.notify_property_changed("status")
 
     @property
-    def status(self) -> str:
-        if self.error_text:
-            return _("Error: ") + self.error_text
-        if self.__elapsed_time and self.__last_timestamp:
-            local_modified_datetime = self.__last_timestamp + datetime.timedelta(minutes=Utility.local_utcoffset_minutes(self.__last_timestamp))
-            time_str = local_modified_datetime.strftime('%Y-%m-%d %H:%M:%S')
-            return f"Last: {time_str} ({round(self.__elapsed_time * 1000)}ms)"
-        return str()
+    def last_computed_elapsed_time(self) -> float | None:
+        return self.__elapsed_time
+
+    @property
+    def last_computed_timestamp(self) -> datetime.datetime | None:
+        return self.__last_timestamp
 
     def __error_changed(self, name: str, value: typing.Optional[str]) -> None:
         self.notify_property_changed(name)
