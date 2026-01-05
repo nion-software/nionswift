@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 # standard libraries
+import datetime
 import functools
 import gettext
 import operator
@@ -28,6 +29,7 @@ from nion.swift.model import DocumentModel
 from nion.swift.model import Notification
 from nion.swift.model import Persistence
 from nion.swift.model import Symbolic
+from nion.swift.model import Utility
 from nion.ui import CanvasItem
 from nion.ui import Declarative
 from nion.ui import Dialog
@@ -1162,10 +1164,24 @@ class ComputationInspectorModel(Observable.Observable):
         self.__property_changed("error_text")
 
     def __property_changed(self, key: str) -> None:
-        if key == "error_text":
+        if key in ("error_text", "last_computed_elapsed_time", "last_computed_elapsed_time"):
             self.__is_error = self.computation.error_text is not None and self.computation.error_text != str()
+            self.notify_property_changed("status")
             self.notify_property_changed("status_color")
             self.error_state_model.value = 1 if self.__is_error else 0
+
+    @property
+    def status(self) -> str:
+        computation = self.computation
+        if computation.error_text:
+            return _("Error: ") + computation.error_text
+        last_computed_elapsed_time = computation.last_computed_elapsed_time
+        last_computed_timestamp = computation.last_computed_timestamp
+        if last_computed_elapsed_time and last_computed_timestamp:
+            local_modified_datetime = last_computed_timestamp + datetime.timedelta(minutes=Utility.local_utcoffset_minutes(last_computed_timestamp))
+            time_str = local_modified_datetime.strftime('%Y-%m-%d %H:%M:%S')
+            return f"Last Computed: {time_str} ({round(last_computed_elapsed_time * 1000)}ms)"
+        return _("Last Computed: N/A")
 
     @property
     def status_color(self) -> str:
@@ -1191,7 +1207,7 @@ class ComputationInspectorHandler(Declarative.Handler):
         u = Declarative.DeclarativeUI()
         label = u.create_label(text=self.model.computation.label)
         source_line = [u.create_component_instance("source_component")] if self.__computation_inspector_context.do_references else []
-        status = u.create_label(text="@binding(model.computation.status)", color="@binding(model.status_color)", max_width=300)
+        status = u.create_label(text="@binding(model.status)", color="@binding(model.status_color)", max_width=300)
         inputs = u.create_column(items="model.computation_inputs_model.items", item_component_id="variable", spacing=8, size_policy_vertical="expanding")
         results = u.create_column(items="model.computation.results", item_component_id="result", spacing=8, size_policy_vertical="expanding")
         input_output_row = u.create_row(
@@ -1237,7 +1253,7 @@ class ComputationErrorInspectorHandler(Declarative.Handler):
             u.create_stack(
                 u.create_column(u.create_row(u.create_label(text=_("No Error")), u.create_stretch()), u.create_stretch()),
                 u.create_column(u.create_row(u.create_label(text=_("Error")), u.create_stretch()),
-                                u.create_row(u.create_label(text="@binding(model.computation.status)", color="@binding(model.status_color)", max_width=300), u.create_stretch()),
+                                u.create_row(u.create_label(text="@binding(model.status)", color="@binding(model.status_color)", max_width=300), u.create_stretch()),
                                 u.create_text_edit(editable=False, placeholder_text=_("No stack trace."), text="@binding(model.computation.error_stack_trace)"),
                                 u.create_stretch(),
                                 spacing=8),
