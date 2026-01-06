@@ -642,9 +642,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.__pending_data_item_updates_lock = threading.RLock()
         self.__pending_data_item_updates: typing.List[DataItem.DataItem] = list()
 
-        self.__computation_queue_lock = threading.RLock()
-
-        self.__computation_tasks = set[asyncio.Task[typing.Any]]()
+        # only accessible from main thread.
+        self.__computation_tasks = dict[Symbolic.Computation, asyncio.Task[typing.Any]]()
 
         self.__call_soon_queue: typing.List[typing.Callable[[], None]] = list()
         self.__call_soon_queue_lock = threading.RLock()
@@ -724,12 +723,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         # notify listeners
         self.about_to_close_event.fire()
 
-        # stop computations
-        with self.__computation_queue_lock:
-            for computation_task in self.__computation_tasks:
-                computation_task.cancel()
-            self.__computation_tasks.clear()
-        if self.event_loop:
+        # stop computations. first cancel each computation task. then wait for them to finish.
+        for computation, computation_task in self.__computation_tasks.items():
+            computation_task.cancel()
+        while self.event_loop and self.__computation_tasks:
             self.event_loop.stop()
             self.event_loop.run_forever()
 
@@ -1619,16 +1616,14 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
     def __start_computation(self, computation: Symbolic.Computation) -> None:
         # start the computation asynchronously.
-        # this is only called on the main thread, so state can be managed without locks.
-        # assumes self.__computation_queue_lock is held.
+        # this is only called on the main thread, so state can be managed without locks or races.
 
-        async def run_computation(event_loop: asyncio.AbstractEventLoop, computation_thread_pool_executor: concurrent.futures.ThreadPoolExecutor, computation_queue_lock: threading.RLock, computation: Symbolic.Computation) -> None:
+        async def run_computation(event_loop: asyncio.AbstractEventLoop, computation_thread_pool_executor: concurrent.futures.ThreadPoolExecutor, computation: Symbolic.Computation) -> None:
             # this runs on the main thread
             # run the computation execute on a thread by calling computation.async_evaluate
             # then commit the result in the same thread as this function is called (the main thread).
-            while event_loop and not computation._closed:
+            while event_loop and not computation._closed and computation.needs_update:
                 computation.is_running = True
-                computation.is_pending = False
                 computation_executor = await computation.async_evaluate(event_loop, computation_thread_pool_executor)
                 if not computation._closed and computation_executor:
                     try:
@@ -1642,37 +1637,28 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 # by putting this before the break from the loop, we ensure that the computation is not run too often.
                 # otherwise the computation may run, finish, and be requested again faster than the sleep time.
                 await asyncio.sleep(0.1)
-                # check for exit conditions.
-                with computation_queue_lock:
-                    if computation._closed or not computation.is_pending:
-                        # once we make this check and decide to exit the loop, it is ok to launch another async
-                        # computation if needed. so set is_running to false.
-                        computation.is_running = False
-                        break
+            computation.is_running = False
 
-        if not computation.is_running and not computation.is_pending:
+        if computation not in self.__computation_tasks:
             # only start another computation if one is not already running or pending.
             # schedule the computation to be run via run_computation on the main thread via the event loop.
-            computation_task = self.event_loop.create_task(run_computation(self.event_loop, self.__computation_thread_pool_executor, self.__computation_queue_lock, computation))
-            computation.is_pending = True
-            self.__computation_tasks.add(computation_task)
+            computation_task = self.event_loop.create_task(run_computation(self.event_loop, self.__computation_thread_pool_executor, computation))
+            self.__computation_tasks[computation] = computation_task
 
-            def discard_task(document_model_ref: weakref.ReferenceType[DocumentModel], computation_queue_lock: threading.RLock, computation_task: asyncio.Task[typing.Any]) -> None:
+            def discard_task(document_model_ref: weakref.ReferenceType[DocumentModel], computation: Symbolic.Computation, computation_task: asyncio.Task[typing.Any]) -> None:
+                # this will run on the main thread since it is called as a callback to the computation task, which runs on the main thread.
+                # computation tasks are only added and removed on the main thread, so there is no risk of a race condition here.
                 document_model = document_model_ref()
                 if document_model:
-                    with computation_queue_lock:
-                        document_model.__computation_tasks.discard(computation_task)
+                    document_model.__computation_tasks.pop(computation)
 
             # when the task is finished, remove it from the set of computation tasks.
-            computation_task.add_done_callback(functools.partial(discard_task, weakref.ref(self), self.__computation_queue_lock))
-        else:
-            # this will cause the computation to be restarted when the current run finishes.
-            computation.is_pending = True
+            computation_task.add_done_callback(functools.partial(discard_task, weakref.ref(self), computation))
 
     def __computation_needs_update(self, computation: Symbolic.Computation) -> None:
         # when a computation needs an update due to changing parameters, this function will be called.
-        with self.__computation_queue_lock:
-            self.__start_computation(computation)
+        assert threading.current_thread() == threading.main_thread()
+        self.__start_computation(computation)
 
     async def compute_immediate(self, event_loop: asyncio.AbstractEventLoop, computation: Symbolic.Computation, timeout: typing.Optional[float] = None) -> None:
         if computation:
