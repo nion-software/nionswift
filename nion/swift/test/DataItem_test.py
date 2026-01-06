@@ -1506,7 +1506,7 @@ class TestDataItemClass(unittest.TestCase):
         def __init__(self, computation: Facade.Computation, **kwargs: typing.Any) -> None:
             self.computation = computation
 
-        def execute(self) -> None:
+        def execute(self, **kwargs: typing.Any) -> None:
             pass
 
         def commit(self) -> None:
@@ -1542,7 +1542,7 @@ class TestDataItemClass(unittest.TestCase):
         def __init__(self, computation, **kwargs):
             self.computation = computation
 
-        def execute(self, src1, src2):
+        def execute(self, *, src1, src2, **kwargs):
             self.__new_data = src1.data + src2.data
 
         def commit(self):

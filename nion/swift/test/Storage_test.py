@@ -3955,7 +3955,7 @@ class TestStorageClass(unittest.TestCase):
         def __init__(self, computation, **kwargs):
             self.computation = computation
 
-        def execute(self, src):
+        def execute(self, *, src, **kwargs):
             TestStorageClass.computation1_eval_count += 1
             self.__xdata = -src.xdata
 
@@ -4044,7 +4044,7 @@ class TestStorageClass(unittest.TestCase):
         def __init__(self, computation, **kwargs):
             self.computation = computation
 
-        def execute(self, src_list):
+        def execute(self, *, src_list, **kwargs):
             if len(set(src.display_xdata.data_shape for src in src_list)) == 1:
                 self.__new_data = numpy.sum([src.display_xdata.data for src in src_list], axis=0)
             else:
@@ -4084,7 +4084,7 @@ class TestStorageClass(unittest.TestCase):
         def __init__(self, computation, **kwargs):
             self.computation = computation
 
-        def execute(self, src, value):
+        def execute(self, *, src, value, **kwargs):
             self.__value = value
 
         def commit(self):

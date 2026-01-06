@@ -1568,7 +1568,7 @@ class TestSymbolicClass(unittest.TestCase):
         def __init__(self, computation, **kwargs):
             self.computation = computation
 
-        def execute(self, src_xdata):
+        def execute(self, *, src_xdata, **kwargs):
             raise RuntimeError()
 
         def commit(self):
@@ -1618,7 +1618,7 @@ class TestSymbolicClass(unittest.TestCase):
             self.started_event = started_event
             self.continue_event = continue_event
 
-        def execute(self, src_xdata):
+        def execute(self, *, src_xdata, **kwargs):
             self.started_event.set()
             self.continue_event.wait(5)
             raise RuntimeError()
