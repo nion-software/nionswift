@@ -2046,7 +2046,6 @@ class Computation(Persistence.PersistentObject):
         self.__error_notification: typing.Optional[Notification.Notification] = None
         # manage the state of asynchronous computations. these can only be modified on main thread.
         self.is_running = False
-        self.is_pending = False
 
     @property
     def variables(self) -> typing.Sequence[ComputationVariable]:
