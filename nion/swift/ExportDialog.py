@@ -2,7 +2,6 @@ from __future__ import annotations
 
 # standard libraries
 import dataclasses
-import enum
 import gettext
 import logging
 import os
@@ -29,6 +28,7 @@ from nion.utils import Converter
 from nion.utils import Geometry
 from nion.utils import Model
 from nion.utils import Observable
+from nion.utils import Stream
 
 if typing.TYPE_CHECKING:
     from nion.swift.model import DisplayItem
@@ -37,16 +37,53 @@ _ = gettext.gettext
 
 
 class ExportDialogViewModel:
+    """Represents the export dialog model."""
 
-    def __init__(self, title: bool, date: bool, dimensions: bool, sequence: bool, writer: typing.Optional[ImportExportManager.ImportExportHandler], prefix: str = "", directory: str = ""):
+    def __init__(self, title: bool, date: bool, dimensions: bool, sequence: bool, writer: ImportExportManager.ImportExportHandler | None, prefix: str | None, directory: str | None) -> None:
         self.include_title = Model.PropertyModel(title)
         self.include_date = Model.PropertyModel(date)
         self.include_dimensions = Model.PropertyModel(dimensions)
         self.include_sequence = Model.PropertyModel(sequence)
         self.include_prefix = Model.PropertyModel(prefix is not None)
-        self.prefix = Model.PropertyModel(prefix)
+        self.prefix = Model.PropertyModel[str](prefix)
         self.directory = Model.PropertyModel(directory)
+        self.directory_warning = Model.PropertyModel(str())
+        self.export_button_enabled = Model.PropertyModel(False)
+        self.export_button_tool_tip = Model.PropertyModel(str())
         self.writer = Model.PropertyModel(writer)
+
+        directory_stream = Stream.PropertyChangedEventStream[str](self.directory, "value")
+        prefix_stream = Stream.PropertyChangedEventStream[str](self.prefix, "value")
+
+        def validate_directory(directory: str | None) -> bool:
+            return directory is not None and pathlib.Path(directory).is_dir()
+
+        self.is_directory_valid = Model.StreamValueModel(Stream.MapStream(directory_stream, validate_directory))
+
+        def update_export_button(__: typing.Any) -> None:
+            invalid_reasons = list[str]()
+
+            prefix_str = self.prefix.value or str()
+            if prefix_str != Utility.simplify_filename(prefix_str):
+                invalid_reasons.append(_("Prefix contains invalid characters"))
+
+            is_directory_valid = self.is_directory_valid.value or False
+            if not is_directory_valid:
+                invalid_reasons.append(_("Directory does not exist"))
+
+            if invalid_reasons:
+                self.export_button_enabled.value = False
+                self.export_button_tool_tip.value = ", ".join(invalid_reasons)
+                self.directory_warning.value = ", ".join(invalid_reasons)
+            else:
+                self.export_button_enabled.value = True
+                self.export_button_tool_tip.value = None
+                self.directory_warning.value = str()
+
+        self.__is_directory_valid_action = Stream.ValueStreamAction(Stream.PropertyChangedEventStream[str](self.is_directory_valid, "value"), update_export_button)
+        self.__prefix_action = Stream.ValueStreamAction(prefix_stream, update_export_button)
+
+        update_export_button(None)
 
 
 class ExportDialog(Declarative.Handler):
@@ -67,14 +104,16 @@ class ExportDialog(Declarative.Handler):
         directory = self.ui.get_persistent_string("export_directory", self.ui.get_document_location())
 
         # the viewmodel is the data model for the dialog. no other variables are needed.
-        self.viewmodel = ExportDialogViewModel(True, True, True, True, writer, "", directory)
+        self.viewmodel = ExportDialogViewModel(True, True, True, True, writer, None, directory)
 
         # build the UI
         u = Declarative.DeclarativeUI()
-        self._build_ui(u)
+        self.__build_ui(u)
 
         # perform export, but save the last used writer
         def handle_export_clicked() -> bool:
+            if not self.viewmodel.is_directory_valid.value:
+                return False
             selected_writer = self.viewmodel.writer.value
             writer_id = selected_writer.io_handler_id if selected_writer else "png-io-handler"
             self.export_clicked(display_items, self.viewmodel, ui, document_controller)
@@ -90,6 +129,18 @@ class ExportDialog(Declarative.Handler):
         self.__export_button = dialog.add_button(_("Export"), handle_export_clicked)
         dialog.show()
 
+        # manually update export button since it is not part of the declarative setup
+        # the logic is still in the model.
+        def update_export_button(__: typing.Any) -> None:
+            self.__export_button.enabled = self.viewmodel.export_button_enabled.value or False
+            self.__export_button.tool_tip = self.viewmodel.export_button_tool_tip.value or str()
+
+        self.__export_button_enabled_action = Stream.ValueStreamAction(Stream.PropertyChangedEventStream(self.viewmodel.export_button_enabled, "value"), update_export_button)
+        self.__export_button_tool_tip_action = Stream.ValueStreamAction(Stream.PropertyChangedEventStream(self.viewmodel.export_button_tool_tip, "value"), update_export_button)
+
+        # initialize the export button state
+        update_export_button(None)
+
     def choose_directory(self, widget: Declarative.UIWidget) -> None:
         directory = self.viewmodel.directory.value or str()
         selected_directory, directory = self.ui.get_existing_directory_dialog(_("Choose Export Directory"), directory)
@@ -101,25 +152,17 @@ class ExportDialog(Declarative.Handler):
         writer = self.__writers[current_index]
         self.viewmodel.writer.value = writer
 
-    def _handle_prefix_changed(self, widget: Declarative.UIWidget, text: str) -> None:
-        invalid_reason: str | None = None
-        if text != Utility.simplify_filename(text):
-            invalid_reason = _("Prefix contains invalid characters")
+    def __build_ui(self, u: Declarative.DeclarativeUI) -> None:
+        """Build the UI and store it in self.ui_view. This is called from __init__."""
 
-        # Other validation options can go here, type validation, space validation etc
-        if invalid_reason:
-            self.__export_button.enabled = False
-            self.__export_button.tool_tip = invalid_reason
-        else:
-            self.__export_button.tool_tip = None
-            self.__export_button.enabled = True
-
-    def _build_ui(self, u: Declarative.DeclarativeUI) -> None:
         writers_names = [getattr(writer, "name") for writer in self.__writers]
 
         # Export Folder
         directory_label = u.create_row(u.create_label(text="Location:", font='bold'))
-        directory_text = u.create_row(u.create_column(u.create_label(text=f"@binding(viewmodel.directory.value)", min_width=280, height=48, word_wrap=True, size_policy_horizontal='min-expanding', text_alignment_vertical='top')))
+        directory_text = u.create_row(u.create_column(
+            u.create_label(text="@binding(viewmodel.directory.value)", min_width=280, height=48, word_wrap=True, size_policy_horizontal='min-expanding', text_alignment_vertical='top'),
+            u.create_label(text="@binding(viewmodel.directory_warning.value)", color="red"),
+        ))
         self.directory_text_label = directory_text
         directory_button = u.create_row(u.create_push_button(text=_("Select Path..."), on_clicked="choose_directory"), u.create_stretch())
 
@@ -128,29 +171,29 @@ class ExportDialog(Declarative.Handler):
 
         # Title
         title_checkbox = u.create_row(
-            u.create_check_box(text="Include Title", checked=f"@binding(viewmodel.include_title.value)"), u.create_stretch())
+            u.create_check_box(text="Include Title", checked="@binding(viewmodel.include_title.value)"), u.create_stretch())
 
         # Date
         date_checkbox = u.create_row(
-            u.create_check_box(text="Include Date", checked=f"@binding(viewmodel.include_date.value)"), u.create_stretch())
+            u.create_check_box(text="Include Date", checked="@binding(viewmodel.include_date.value)"), u.create_stretch())
 
         # Dimensions
         dimension_checkbox = u.create_row(
-            u.create_check_box(text="Include Dimensions", checked=f"@binding(viewmodel.include_dimensions.value)"), u.create_stretch())
+            u.create_check_box(text="Include Dimensions", checked="@binding(viewmodel.include_dimensions.value)"), u.create_stretch())
 
         # Sequence Number
         sequence_checkbox = u.create_row(
-            u.create_check_box(text="Include Sequence Number", checked=f"@binding(viewmodel.include_sequence.value)"), u.create_stretch())
+            u.create_check_box(text="Include Sequence Number", checked="@binding(viewmodel.include_sequence.value)"), u.create_stretch())
 
-        # Prefix
+        # Prefix. Include a messy callback so that prefix gets updated during typing.
         prefix_label = u.create_label(text=_("Prefix:"))
-        prefix_textbox = u.create_line_edit(text=f"@binding(viewmodel.prefix.value)", placeholder_text=_("None"), width=230, on_text_edited="_handle_prefix_changed")
+        prefix_textbox = u.create_line_edit(text="@binding(viewmodel.prefix.value)", placeholder_text=_("None"), width=230)
         prefix_row = u.create_row(prefix_label, prefix_textbox, u.create_stretch(), spacing=10)
 
         # File Type
         file_type_combobox = u.create_combo_box(
             items=writers_names,
-            current_index=f"@binding(writer_index)",
+            current_index="@binding(writer_index)",
             on_current_index_changed="_handle_writer_changed")
         file_type_label = u.create_label(text=_("File Format:"), font='bold')
         file_type_row = u.create_row(file_type_combobox, u.create_stretch())
@@ -203,7 +246,7 @@ class ExportDialog(Declarative.Handler):
             last_test_filepath = test_filepath  # in case we have a bug
             next_index = next_index + 1
 
-        # We have no option here but to just go with the overwrite, either we ran out of index options or had none to begin with
+        # We have no option here but to just overwrite, either we ran out of index options or had none to begin with
         print(f"Warning: Overwriting file {test_filepath}")
         return test_filepath
 
@@ -213,11 +256,16 @@ class ExportDialog(Declarative.Handler):
         directory_path = pathlib.Path(viewmodel.directory.value or str())
         writer_model = viewmodel.writer
         writer = writer_model.value
-        if directory_path.is_dir() and writer:
+        if writer:
             export_results = list()
+            is_directory_valid = viewmodel.is_directory_valid.value or False
             for index, display_item in enumerate(display_items):
+                if not is_directory_valid:
+                    error_message = _("Directory does not exist")
+                    export_results.append(ExportResult(display_item.displayed_title, f"{error_message}"))
+                    continue
+
                 data_item = display_item.data_item
-                file_name: str = ''
                 try:
                     components = list()
                     if viewmodel.prefix.value is not None and viewmodel.prefix.value != '':
@@ -247,7 +295,7 @@ class ExportDialog(Declarative.Handler):
                     logging.debug("Could not export image %s / %s", str(data_item), str(e))
                     traceback.print_exc()
                     traceback.print_stack()
-                    export_results.append(ExportResult(file_name, str(e)))
+                    export_results.append(ExportResult(display_item.displayed_title, str(e)))
 
             ExportResultDialog(ui, document_controller, export_results, directory_path)
 
