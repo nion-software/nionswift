@@ -3276,6 +3276,17 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             DisplayPanel.preview(DisplayPanel.DisplayPanelUISettings(document_controller.ui), display_item, Geometry.IntSize(128, 128))
 
+    def test_preview_produces_expected_data_on_orphan_display_item(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((10, 10)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            with contextlib.closing(display_item.snapshot()) as display_item_snapshot:
+                drawing_context = DisplayPanel.preview(DisplayPanel.DisplayPanelUISettings(document_controller.ui), display_item_snapshot, Geometry.IntSize(256, 256))
+                self.assertIsNotNone(display_item_snapshot.display_data_channels[0].get_display_values_stream().value)
+
     def test_adding_fourier_filter_is_undoable(self):
         with TestContext.create_memory_context() as test_context:
             # set up the layout
