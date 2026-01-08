@@ -50,12 +50,12 @@ class ExportDialogViewModel:
         if self.is_directory_invalid.value:
             self.directory.value = ''
 
-        def on_directory_changed(_:str | None) -> None:
+        def on_directory_changed(_: str | None) -> None:
             self.is_directory_invalid.value = not self.validate_directory()
 
         self.directory.on_value_changed = on_directory_changed
 
-    def validate_directory(self)->bool:
+    def validate_directory(self) -> bool:
         return os.path.isdir(self.directory.value or '')
 
 
@@ -102,7 +102,7 @@ class ExportDialog(Declarative.Handler):
         dialog.show()
 
         def handle_is_invalid_changed(is_invalid: bool | None) -> None:
-            assert(is_invalid is not None)
+            assert (is_invalid is not None)
             self.export_button.enabled = not is_invalid
         self.viewmodel.is_directory_invalid.on_value_changed = handle_is_invalid_changed
 
@@ -221,9 +221,9 @@ class ExportDialog(Declarative.Handler):
         writer = writer_model.value
         if writer:
             export_results = list()
-            directory_exists = directory_path.is_dir()
+            is_directory_valid = viewmodel.validate_directory()
             for index, display_item in enumerate(display_items):
-                if directory_exists:
+                if is_directory_valid:
                     data_item = display_item.data_item
                     try:
                         components = list()
