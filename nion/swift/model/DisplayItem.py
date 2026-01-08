@@ -977,6 +977,9 @@ class DisplayDataChannel(Persistence.PersistentObject):
         if self.__data_item_reference.item:
             connect_data_item(typing.cast(DataItem.DataItem, self.__data_item_reference.item))
 
+        # update the initial display values stream value
+        self.__update_display_values_stream_value()
+
     def close(self) -> None:
         # ensure display data channel is disconnected from the data item in case it was never added to document
         # and subsequently about_to_be_removed is not called.
@@ -1136,6 +1139,8 @@ class DisplayDataChannel(Persistence.PersistentObject):
             if callable(display_data_channel.__data_item_reference.on_item_registered):
                 display_data_channel.__data_item_reference.on_item_registered(self.__data_item)
         memo[id(self)] = display_data_channel
+        # update the display values stream value since we have new properties that were not handled in the regular way
+        display_data_channel.__update_display_values_stream_value()
         return display_data_channel
 
     @property
@@ -1553,6 +1558,23 @@ class DisplayDataChannel(Persistence.PersistentObject):
     def subscribe_to_latest_display_values(self, callback: typing.Callable[[typing.Optional[DisplayValues]], None]) -> DisplayValuesSubscription:
         return Stream.ValueStreamAction(self.__display_values_stream, callback)
 
+    def __update_display_values_stream_value(self) -> DisplayValues | None:
+        # update the display values stream with a new display values stream value.
+        with self.__display_values_update_lock:
+            if self.__data_item:
+                display_values = DisplayValues(self.__data_item.xdata,
+                                               self.sequence_index,
+                                               self.collection_index,
+                                               self.slice_center, self.slice_width,
+                                               self.display_limits,
+                                               self.complex_display_type,
+                                               self.__color_map_data, self.brightness,
+                                               self.contrast, self.adjustments)
+                self.__has_pending_display_values = True
+                self.__display_values_stream.send_value(display_values)
+                return display_values
+        return None
+
     def __queue_display_values_update(self) -> None:
         # queue a display values update.
         # there are two display values streams: one for the latest possibly-not-yet-computed display values, and one
@@ -1561,19 +1583,6 @@ class DisplayDataChannel(Persistence.PersistentObject):
         # computed display values are computed on the callers thread (which should not be the main thread).
         # an overarching goal is to never compute the display values on the main thread, which would prevent the
         # rest of the UI from activity, which would prevent smooth updating.
-
-        # make display values. this can be converted to a method as it gets more complicated.
-        def make_display_values() -> typing.Optional[DisplayValues]:
-            if self.__data_item:
-                return DisplayValues(self.__data_item.xdata,
-                                     self.sequence_index,
-                                     self.collection_index,
-                                     self.slice_center, self.slice_width,
-                                     self.display_limits,
-                                     self.complex_display_type,
-                                     self.__color_map_data, self.brightness,
-                                     self.contrast, self.adjustments)
-            return None
 
         # the method to compute the display values on the background thread.
         # as long as this display data channel is not closing, check whether there are pending display values to
@@ -1604,10 +1613,7 @@ class DisplayDataChannel(Persistence.PersistentObject):
         display_values_future: typing.Optional[concurrent.futures.Future[typing.Optional[DisplayValues]]] = None
 
         with self.__display_values_update_lock:
-            display_values = make_display_values()
-            self.__has_pending_display_values = True
-            # send the display values to the latest possibly-not-yet-computed display values stream.
-            self.__display_values_stream.send_value(display_values)
+            display_values = self.__update_display_values_stream_value()
             if not self.__display_values_future:
                 if self.__computed_display_values_subscription_count > 0:
                     # if not already computing display values, start computing display values on the background thread.
@@ -2583,7 +2589,8 @@ class DisplayItem(Persistence.PersistentObject):
         for graphic in self.graphics:
             display_item.add_graphic(copy.deepcopy(graphic))
         for display_data_channel in self.display_data_channels:
-            display_item.append_display_data_channel(copy.deepcopy(display_data_channel))
+            display_data_channel_copy = copy.deepcopy(display_data_channel)
+            display_item.append_display_data_channel(display_data_channel_copy)
         # this goes after the display data channels so that the layers don't get adjusted
         for i, display_layer in enumerate(self.display_layers):
             data_index = self.display_data_channels.index(self.get_display_layer_display_data_channel(i))
