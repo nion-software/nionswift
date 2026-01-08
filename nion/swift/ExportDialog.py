@@ -46,7 +46,14 @@ class ExportDialogViewModel:
         self.prefix = Model.PropertyModel(prefix)
         self.directory = Model.PropertyModel(directory)
         self.writer = Model.PropertyModel(writer)
-        self.invalid_directory = Model.PropertyModel(not self.validate_directory())
+        self.is_directory_invalid = Model.PropertyModel(not self.validate_directory())
+        if self.is_directory_invalid.value:
+            self.directory.value = ''
+
+        def on_directory_changed(_:str | None) -> None:
+            self.is_directory_invalid.value = not self.validate_directory()
+
+        self.directory.on_value_changed = on_directory_changed
 
     def validate_directory(self)->bool:
         return os.path.isdir(self.directory.value or '')
@@ -91,16 +98,19 @@ class ExportDialog(Declarative.Handler):
         dialog = typing.cast(Dialog.ActionDialog, Declarative.construct(document_controller.ui, document_controller, u.create_modeless_dialog(self.ui_view, title=title_text), self))
         dialog.add_button(_("Cancel"), self.cancel)
         self.export_button = dialog.add_button(_("Export"), handle_export_clicked)
-        self.export_button.enabled = not self.viewmodel.invalid_directory.value
+        self.export_button.enabled = self.viewmodel.validate_directory()
         dialog.show()
+
+        def handle_is_invalid_changed(is_invalid: bool | None) -> None:
+            assert(is_invalid is not None)
+            self.export_button.enabled = not is_invalid
+        self.viewmodel.is_directory_invalid.on_value_changed = handle_is_invalid_changed
 
     def choose_directory(self, widget: Declarative.UIWidget) -> None:
         directory = self.viewmodel.directory.value or str()
         selected_directory, directory = self.ui.get_existing_directory_dialog(_("Choose Export Directory"), directory)
         if selected_directory:
             self.viewmodel.directory.value = selected_directory
-            self.viewmodel.invalid_directory.value = False
-            self.export_button.enabled = True
             self.ui.set_persistent_string("export_directory", selected_directory)
 
     def on_writer_changed(self, widget: Declarative.UIWidget, current_index: int) -> None:
@@ -114,7 +124,7 @@ class ExportDialog(Declarative.Handler):
         directory_label = u.create_row(u.create_label(text="Location:", font='bold'))
         directory_text = u.create_row(u.create_column(
             u.create_label(text=f"@binding(viewmodel.directory.value)", min_width=280, height=48, word_wrap=True, size_policy_horizontal='min-expanding', text_alignment_vertical='top'),
-            u.create_label(text=_(f"Warning: Directory is not valid."), color="red", visible="@binding(viewmodel.invalid_directory.value)"),
+            u.create_label(text=_(f"Warning: Directory is not valid."), color="red", visible="@binding(viewmodel.is_directory_invalid.value)"),
         ))
         self.directory_text_label = directory_text
         directory_button = u.create_row(u.create_push_button(text=_("Select Path..."), on_clicked="choose_directory"), u.create_stretch())
