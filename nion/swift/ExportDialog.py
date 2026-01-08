@@ -2,7 +2,6 @@ from __future__ import annotations
 
 # standard libraries
 import dataclasses
-import enum
 import gettext
 import logging
 import os
@@ -12,8 +11,6 @@ import re
 import subprocess
 import traceback
 import typing
-from logging import exception
-
 import unicodedata
 
 # third party libraries
@@ -96,7 +93,6 @@ class ExportDialog(Declarative.Handler):
         self.export_button = dialog.add_button(_("Export"), handle_export_clicked)
         self.export_button.enabled = not self.viewmodel.invalid_directory.value
         dialog.show()
-
 
     def choose_directory(self, widget: Declarative.UIWidget) -> None:
         directory = self.viewmodel.directory.value or str()
