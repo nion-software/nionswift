@@ -52,7 +52,7 @@ def are_axes_equal(axes1: typing.Optional[LineGraphCanvasItem.LineGraphAxes], ax
         return False
     if axes1.y_calibration != axes2.y_calibration:
         return False
-    if axes1.data_style != axes2.data_style:
+    if axes1.data_style.style_id != axes2.data_style.style_id:
         return False
     return True
 
@@ -116,12 +116,12 @@ MAX_LAYER_COUNT = 16
 class LinePlotDisplayInfo:
     def __init__(self, display_calibration_info: typing.Optional[DisplayItem.DisplayCalibrationInfo], display_properties: Persistence.PersistentDictType, display_values_list: typing.Sequence[typing.Optional[DisplayItem.DisplayValues]], display_layers: typing.Sequence[DisplayItem.DisplayLayerInfo]) -> None:
         self.__display_calibration_info = display_calibration_info
-        self.__y_min = display_properties.get("y_min", None)
-        self.__y_max = display_properties.get("y_max", None)
-        self.__y_style = display_properties.get("y_style", "linear")
-        self.__left_channel = display_properties.get("left_channel", None)
-        self.__right_channel = display_properties.get("right_channel", None)
-        self.__legend_position: typing.Optional[str] = display_properties.get("legend_position", None)
+        self.__y_min: float | None = display_properties.get("y_min", None)
+        self.__y_max: float | None = display_properties.get("y_max", None)
+        self.__y_style: str | None = display_properties.get("y_style", "linear")
+        self.__left_channel: int | None = display_properties.get("left_channel", None)
+        self.__right_channel: int | None = display_properties.get("right_channel", None)
+        self.__legend_position: str | None = display_properties.get("legend_position", None)
         self.__display_values_list = list(display_values_list)
         self.__display_layers = list(display_layers)
 
@@ -1019,7 +1019,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             self.__tracking_start_calibrated_data_per_pixel = (self.__tracking_start_calibrated_data_max - self.__tracking_start_calibrated_data_min) / plot_height
             plot_origin = self.__line_graph_vertical_axis_group_canvas_item.map_to_canvas_item(Geometry.IntPoint(), self)
             plot_rect = v_axis_canvas_bounds.translated(plot_origin)
-            if 0.0 >= self.__tracking_start_calibrated_data_min and 0.0 <= self.__tracking_start_calibrated_data_max and not axes.data_style == "log":
+            if 0.0 >= self.__tracking_start_calibrated_data_min and 0.0 <= self.__tracking_start_calibrated_data_max and axes.data_style.style_id == "linear":
                 calibrated_unit_per_pixel = (self.__tracking_start_calibrated_data_max - self.__tracking_start_calibrated_data_min) / (plot_rect.height - 1) if plot_rect.height > 1 else 1.0
                 calibrated_unit_per_pixel = calibrated_unit_per_pixel if calibrated_unit_per_pixel else 1.0  # handle case where calibrated_unit_per_pixel is zero
                 origin_offset_pixels = (0.0 - self.__tracking_start_calibrated_data_min) / calibrated_unit_per_pixel

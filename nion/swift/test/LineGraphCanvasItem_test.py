@@ -165,7 +165,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
         data[3:] = range(3,16,1)
         segments, baseline = LineGraphCanvasItem.calculate_line_graph(
             100, 32, 0, 0, DataAndMetadata.new_data_and_metadata(data),
-            0, 16, 0, 16, Calibration.Calibration(), None, "linear"
+            0, 16, 0, 16, Calibration.Calibration(), None, LineGraphCanvasItem._get_data_style("linear")
         )
         self.assertEqual(2, len(segments))
         # make a rough check to ensure that the first segment is minimal; and the second one has some content.
@@ -329,7 +329,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             display_panel.set_display_panel_display_item(display_item)
             display_panel.layout_immediate((640, 480))
             axes = display_panel.display_canvas_item._axes
-            self.assertEqual(axes.data_style, "log")
+            self.assertEqual(axes.data_style.style_id, "log")
             drawing_context = DrawingContext.DrawingContext()
             line_graph_layer = LineGraphCanvasItem.LineGraphLayer(data_item.xdata, axes, Color.Color("black"), Color.Color("black"), None)
             canvas_bounds = Geometry.IntRect.from_tlbr(0, 0, 480, 640)
