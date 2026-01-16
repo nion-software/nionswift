@@ -225,7 +225,6 @@ class TestGraphicsClass(unittest.TestCase):
         self.assertAlmostEqual(end0 - start0,
                                wedge.end_angle - wedge.start_angle,
                                delta=0.001)
-        print(end0 - start0, wedge.end_angle - wedge.start_angle)
         wedge.close()
 
     def test_lattice_graphic_position_lock(self):
