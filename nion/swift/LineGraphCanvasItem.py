@@ -62,19 +62,28 @@ def nice_label(value: float, precision: int) -> str:
 
 
 class DataStyle(typing.Protocol):
+
     @property
     def style_id(self) -> str: ...
+
     def min_calibrated_value_from_uncalibrated(self, uncalibrated_data: _NDArray, intensity_calibration: Calibration.Calibration) -> float: ...
+
     def max_calibrated_value_from_uncalibrated(self, uncalibrated_data: _NDArray, intensity_calibration: Calibration.Calibration) -> float: ...
+
     def make_ticker(self, display_min: float, display_max: float) -> Geometry.Ticker: ...
-    def to_display(self, value_cal: float) -> float: ...
-    def from_display(self, value_disp: float) -> float: ...
-    def transform_intensity_for_plot(self, xdata: DataAndMetadata.DataAndMetadata) -> typing.Optional[DataAndMetadata.DataAndMetadata]: ...
+
+    def convert_calibrated_value_to_display_value(self, value_cal: float) -> float: ...
+
+    def convert_display_value_to_calibrated_value(self, value_disp: float) -> float: ...
+
+    def transform_intensity_for_graph(self, xdata: DataAndMetadata.DataAndMetadata) -> DataAndMetadata.DataAndMetadata | None: ...
+
     def display_origin(self, display_min: float, display_max: float) -> float: ...
-    def adjust_calibrated_limits(self, cal_min: float, cal_max: float, min_specified: bool, max_specified: bool) -> typing.Tuple[float, float]: ...
+
+    def adjust_calibrated_limits(self, cal_min: float, cal_max: float, min_specified: bool, max_specified: bool) -> tuple[float, float]: ...
 
 
-class _LinearStyle:
+class _LinearStyle(DataStyle):
     style_id = "linear"
 
     def min_calibrated_value_from_uncalibrated(self, uncalibrated_data: _NDArray, intensity_calibration: Calibration.Calibration) -> float:
@@ -88,13 +97,13 @@ class _LinearStyle:
     def make_ticker(self, display_min: float, display_max: float) -> Geometry.Ticker:
         return Geometry.LinearTicker(display_min, display_max)
 
-    def to_display(self, value_cal: float) -> float:
+    def convert_calibrated_value_to_display_value(self, value_cal: float) -> float:
         return value_cal
 
-    def from_display(self, value_disp: float) -> float:
+    def convert_display_value_to_calibrated_value(self, value_disp: float) -> float:
         return value_disp
 
-    def transform_intensity_for_plot(self, xdata: DataAndMetadata.DataAndMetadata) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+    def transform_intensity_for_graph(self, xdata: DataAndMetadata.DataAndMetadata) -> DataAndMetadata.DataAndMetadata | None:
         intensity_calibration = xdata.intensity_calibration
         if intensity_calibration:
             data = xdata.data if not xdata.is_data_rgb_type else Image.convert_to_grayscale(xdata.data)
@@ -111,7 +120,7 @@ class _LinearStyle:
             return 0.0
         return display_min if 0.0 < display_min else display_max
 
-    def adjust_calibrated_limits(self, cal_min: float, cal_max: float, min_specified: bool, max_specified: bool) -> typing.Tuple[float, float]:
+    def adjust_calibrated_limits(self, cal_min: float, cal_max: float, min_specified: bool, max_specified: bool) -> tuple[float, float]:
         if not min_specified and cal_min > 0.0:
             cal_min = 0.0
         if not max_specified and cal_max < 0.0:
@@ -119,7 +128,7 @@ class _LinearStyle:
         return cal_min, cal_max
 
 
-class _LogStyle:
+class _LogStyle(DataStyle):
     style_id = "log"
 
     def min_calibrated_value_from_uncalibrated(self, uncalibrated_data: _NDArray, intensity_calibration: Calibration.Calibration) -> float:
@@ -135,13 +144,13 @@ class _LogStyle:
     def make_ticker(self, display_min: float, display_max: float) -> Geometry.Ticker:
         return Geometry.LogTicker(display_min, display_max)
 
-    def to_display(self, value_cal: float) -> float:
+    def convert_calibrated_value_to_display_value(self, value_cal: float) -> float:
         return math.log10(value_cal) if value_cal > 0 else float("-inf")
 
-    def from_display(self, value_disp: float) -> float:
+    def convert_display_value_to_calibrated_value(self, value_disp: float) -> float:
         return math.pow(10, value_disp)
 
-    def transform_intensity_for_plot(self, xdata: DataAndMetadata.DataAndMetadata) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+    def transform_intensity_for_graph(self, xdata: DataAndMetadata.DataAndMetadata) -> DataAndMetadata.DataAndMetadata | None:
         intensity_calibration = xdata.intensity_calibration
         if intensity_calibration:
             data = xdata.data if not xdata.is_data_rgb_type else Image.convert_to_grayscale(xdata.data)
@@ -158,24 +167,29 @@ class _LogStyle:
     def display_origin(self, display_min: float, display_max: float) -> float:
         return display_min
 
-    def adjust_calibrated_limits(self, cal_min: float, cal_max: float, min_specified: bool, max_specified: bool) -> typing.Tuple[float, float]:
+    def adjust_calibrated_limits(self, cal_min: float, cal_max: float, min_specified: bool, max_specified: bool) -> tuple[float, float]:
         return cal_min, cal_max
 
 
-_styles: dict[str, DataStyle] = {
+_data_styles: dict[str, DataStyle] = {
     "linear": _LinearStyle(),
     "log": _LogStyle(),
 }
 
+def _get_data_style(data_style_id: str | None) -> DataStyle:
+    # return the data style for the optional data_style_id, or the linear style if not found
+    data_style = _data_styles.get(data_style_id, None) if data_style_id else None
+    return data_style if data_style else _LinearStyle()
 
-def calculate_y_axis(xdata_list: typing.Sequence[typing.Optional[DataAndMetadata.DataAndMetadata]], data_min: typing.Optional[float], data_max: typing.Optional[float], data_style: typing.Optional[str]) -> typing.Tuple[float, float, Geometry.Ticker]:
+
+def calculate_y_axis(xdata_list: typing.Sequence[typing.Optional[DataAndMetadata.DataAndMetadata]], data_min: typing.Optional[float], data_max: typing.Optional[float], data_style_id: str | None) -> typing.Tuple[float, float, Geometry.Ticker]:
     """Calculate the calibrated min/max and y-axis ticker for list of xdata.
 
     xdata_list is the original calibrated data
     data_min and data_max are calibrated values
     """
+    data_style = _get_data_style(data_style_id)
 
-    style = _styles[data_style or "linear"]
     min_specified = data_min is not None
     max_specified = data_max is not None
 
@@ -188,7 +202,7 @@ def calculate_y_axis(xdata_list: typing.Sequence[typing.Optional[DataAndMetadata
                 # force the uncalibrated_data to be float so that numpy.amin with a numpy.inf initial value works.
                 uncalibrated_data = xdata.data if numpy.issubdtype(xdata.data.dtype, numpy.floating) else xdata.data.astype(float)
                 if uncalibrated_data is not None and xdata.intensity_calibration:
-                    v = style.min_calibrated_value_from_uncalibrated(uncalibrated_data, xdata.intensity_calibration)
+                    v = data_style.min_calibrated_value_from_uncalibrated(uncalibrated_data, xdata.intensity_calibration)
                     calibrated_min_opt = v if calibrated_min_opt is None else min(calibrated_min_opt, v)
         calibrated_min = calibrated_min_opt if (calibrated_min_opt is not None and numpy.isfinite(calibrated_min_opt)) else 0.0
 
@@ -201,15 +215,15 @@ def calculate_y_axis(xdata_list: typing.Sequence[typing.Optional[DataAndMetadata
                 # force the uncalibrated_data to be float so that numpy.amin with a numpy.inf initial value works.
                 uncalibrated_data = xdata.data if numpy.issubdtype(xdata.data.dtype, numpy.floating) else xdata.data.astype(float)
                 if uncalibrated_data is not None and xdata.intensity_calibration:
-                    v = style.max_calibrated_value_from_uncalibrated(uncalibrated_data, xdata.intensity_calibration)
+                    v = data_style.max_calibrated_value_from_uncalibrated(uncalibrated_data, xdata.intensity_calibration)
                     calibrated_max_opt = v if calibrated_max_opt is None else max(calibrated_max_opt, v)
         calibrated_max = calibrated_max_opt if (calibrated_max_opt is not None and numpy.isfinite(calibrated_max_opt)) else 0.0
 
-    calibrated_min, calibrated_max = style.adjust_calibrated_limits(calibrated_min, calibrated_max, min_specified, max_specified)
+    calibrated_min, calibrated_max = data_style.adjust_calibrated_limits(calibrated_min, calibrated_max, min_specified, max_specified)
 
     # Convert calibrated limits to display space
-    display_min = style.to_display(calibrated_min)
-    display_max = style.to_display(calibrated_max)
+    display_min = data_style.convert_calibrated_value_to_display_value(calibrated_min)
+    display_max = data_style.convert_calibrated_value_to_display_value(calibrated_max)
     if (math.isnan(display_min) or math.isnan(display_max) or math.isinf(display_min) or math.isinf(display_max)):
         display_min, display_max = 0.0, 0.0
     display_min, display_max = min(display_min, display_max), max(display_min, display_max)
@@ -217,7 +231,7 @@ def calculate_y_axis(xdata_list: typing.Sequence[typing.Optional[DataAndMetadata
         display_min -= 1.0
         display_max += 1.0
 
-    ticker = style.make_ticker(display_min, display_max)
+    ticker = data_style.make_ticker(display_min, display_max)
     if not min_specified:
         display_min = ticker.minimum
     if not max_specified:
@@ -238,7 +252,7 @@ class LineGraphAxes:
 
     def __init__(self, data_scale: float, calibrated_data_min: float, calibrated_data_max: float, data_left: int,
                  data_right: int, x_calibration: typing.Optional[Calibration.Calibration],
-                 y_calibration: typing.Optional[Calibration.Calibration], data_style: typing.Optional[str],
+                 y_calibration: typing.Optional[Calibration.Calibration], data_style_id: typing.Optional[str],
                  y_ticker: Geometry.Ticker) -> None:
         assert x_calibration is None or x_calibration.is_valid
         assert y_calibration is None or y_calibration.is_valid
@@ -248,7 +262,7 @@ class LineGraphAxes:
         self.__uncalibrated_right_channel = data_right
         self.x_calibration = x_calibration
         self.y_calibration = y_calibration
-        self.data_style = data_style if data_style else "linear"
+        self.data_style = _get_data_style(data_style_id)
         self.__calibrated_data_min = calibrated_data_min
         self.__calibrated_data_max = calibrated_data_max
         self.__y_ticker = y_ticker
@@ -264,13 +278,13 @@ class LineGraphAxes:
                 self.__uncalibrated_right_channel == other.__uncalibrated_right_channel and
                 self.x_calibration == other.x_calibration and
                 self.y_calibration == other.y_calibration and
-                self.data_style == other.data_style and
+                self.data_style.style_id == other.data_style.style_id and
                 self.__calibrated_data_min == other.__calibrated_data_min and
                 self.__calibrated_data_max == other.__calibrated_data_max and
                 self.__y_ticker == other.__y_ticker)
 
     def __hash__(self) -> int:
-        return hash((self.data_scale, self.__uncalibrated_left_channel, self.__uncalibrated_right_channel, self.x_calibration, self.y_calibration, self.data_style, self.__calibrated_data_min, self.__calibrated_data_max, self.__y_ticker))
+        return hash((self.data_scale, self.__uncalibrated_left_channel, self.__uncalibrated_right_channel, self.x_calibration, self.y_calibration, self.data_style.style_id, self.__calibrated_data_min, self.__calibrated_data_max, self.__y_ticker))
 
     @property
     def y_ticker(self) -> Geometry.Ticker:
@@ -279,15 +293,13 @@ class LineGraphAxes:
     @property
     def uncalibrated_data_min(self) -> float:
         y_calibration = self.y_calibration if self.y_calibration else Calibration.Calibration()
-        style = _styles[self.data_style or "linear"]
-        calibrated_value_min = style.from_display(self.calibrated_data_min)
+        calibrated_value_min = self.data_style.convert_display_value_to_calibrated_value(self.calibrated_data_min)
         return y_calibration.convert_from_calibrated_value(calibrated_value_min)
 
     @property
     def uncalibrated_data_max(self) -> float:
         y_calibration = self.y_calibration if self.y_calibration else Calibration.Calibration()
-        style = _styles[self.data_style or "linear"]
-        calibrated_value_max = style.from_display(self.calibrated_data_max)
+        calibrated_value_max = self.data_style.convert_display_value_to_calibrated_value(self.calibrated_data_max)
         return y_calibration.convert_from_calibrated_value(calibrated_value_max)
 
     @property
@@ -300,13 +312,11 @@ class LineGraphAxes:
 
     @property
     def calibrated_value_max(self) -> float:
-        style = _styles[self.data_style or "linear"]
-        return style.from_display(self.__calibrated_data_max)
+        return self.data_style.convert_display_value_to_calibrated_value(self.__calibrated_data_max)
 
     @property
     def calibrated_value_min(self) -> float:
-        style = _styles[self.data_style or "linear"]
-        return style.from_display(self.__calibrated_data_min)
+        return self.data_style.convert_display_value_to_calibrated_value(self.__calibrated_data_min)
 
     @property
     def drawn_left_channel(self) -> int:
@@ -348,8 +358,7 @@ class LineGraphAxes:
         return y_ticks
 
     def uncalibrate_y(self, calibrated_y_value: float) -> float:
-        style = _styles[self.data_style or "linear"]
-        value_cal = style.from_display(calibrated_y_value)
+        value_cal = self.data_style.convert_display_value_to_calibrated_value(calibrated_y_value)
         y_calibration = self.y_calibration
         if y_calibration:
             return y_calibration.convert_from_calibrated_value(value_cal)
@@ -387,8 +396,7 @@ class LineGraphAxes:
 
          The 'calibrated xdata' is the xdata (with a calibration) but with a new intensity calibration where origin=0 and scale=1.
          """
-        style = _styles[self.data_style or "linear"]
-        return style.transform_intensity_for_plot(xdata)
+        return self.data_style.transform_intensity_for_graph(xdata)
 
 
 def draw_background(drawing_context: DrawingContext.DrawingContext, plot_rect: Geometry.IntRect, background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]) -> None:
@@ -487,7 +495,7 @@ def calculate_line_graph(plot_height: int, plot_width: int, plot_origin_y: int, 
                     calibrated_data_range: float, calibrated_left_channel: float, calibrated_right_channel: float,
                     x_calibration: Calibration.Calibration,
                     rebin_cache: typing.Optional[typing.Dict[str, typing.Any]],
-                    data_style: str) -> typing.Tuple[typing.List[LineGraphSegment], int]:
+                    data_style: DataStyle) -> typing.Tuple[typing.List[LineGraphSegment], int]:
     # calculate how the data is displayed
     xdata_calibration = calibrated_xdata.dimensional_calibrations[-1]
     assert xdata_calibration.units == x_calibration.units
@@ -527,8 +535,7 @@ def calculate_line_graph(plot_height: int, plot_width: int, plot_origin_y: int, 
     # segment_path = segment.path  # partially optimized; see note below
     # note: testing performance using a loop around drawing commands in test_line_plot_handle_calibrated_x_axis_with_negative_scale
     if calibrated_data_range != 0.0 and uncalibrated_width > 0.0:
-        style = _styles[data_style or "linear"]
-        origin_display = style.display_origin(calibrated_data_min, calibrated_data_min + calibrated_data_range)
+        origin_display = data_style.display_origin(calibrated_data_min, calibrated_data_min + calibrated_data_range)
         baseline = plot_origin_y + plot_height - int(plot_height * float(origin_display - calibrated_data_min) / calibrated_data_range)
 
         baseline = min(plot_origin_y + plot_height, baseline)
