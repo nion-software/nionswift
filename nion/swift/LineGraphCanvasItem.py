@@ -175,7 +175,7 @@ def calculate_y_axis(xdata_list: typing.Sequence[typing.Optional[DataAndMetadata
     data_min and data_max are calibrated values
     """
 
-    style = _styles.get(data_style or "linear", _styles["linear"])
+    style = _styles[data_style or "linear"]
     min_specified = data_min is not None
     max_specified = data_max is not None
 
@@ -279,14 +279,14 @@ class LineGraphAxes:
     @property
     def uncalibrated_data_min(self) -> float:
         y_calibration = self.y_calibration if self.y_calibration else Calibration.Calibration()
-        style = _styles.get(self.data_style or "linear", _styles["linear"])
+        style = _styles[self.data_style or "linear"]
         calibrated_value_min = style.from_display(self.calibrated_data_min)
         return y_calibration.convert_from_calibrated_value(calibrated_value_min)
 
     @property
     def uncalibrated_data_max(self) -> float:
         y_calibration = self.y_calibration if self.y_calibration else Calibration.Calibration()
-        style = _styles.get(self.data_style or "linear", _styles["linear"])
+        style = _styles[self.data_style or "linear"]
         calibrated_value_max = style.from_display(self.calibrated_data_max)
         return y_calibration.convert_from_calibrated_value(calibrated_value_max)
 
@@ -300,12 +300,12 @@ class LineGraphAxes:
 
     @property
     def calibrated_value_max(self) -> float:
-        style = _styles.get(self.data_style or "linear", _styles["linear"])
+        style = _styles[self.data_style or "linear"]
         return style.from_display(self.__calibrated_data_max)
 
     @property
     def calibrated_value_min(self) -> float:
-        style = _styles.get(self.data_style or "linear", _styles["linear"])
+        style = _styles[self.data_style or "linear"]
         return style.from_display(self.__calibrated_data_min)
 
     @property
@@ -348,7 +348,7 @@ class LineGraphAxes:
         return y_ticks
 
     def uncalibrate_y(self, calibrated_y_value: float) -> float:
-        style = _styles.get(self.data_style or "linear", _styles["linear"])
+        style = _styles[self.data_style or "linear"]
         value_cal = style.from_display(calibrated_y_value)
         y_calibration = self.y_calibration
         if y_calibration:
@@ -387,7 +387,7 @@ class LineGraphAxes:
 
          The 'calibrated xdata' is the xdata (with a calibration) but with a new intensity calibration where origin=0 and scale=1.
          """
-        style = _styles.get(self.data_style or "linear", _styles["linear"])
+        style = _styles[self.data_style or "linear"]
         return style.transform_intensity_for_plot(xdata)
 
 
@@ -527,7 +527,7 @@ def calculate_line_graph(plot_height: int, plot_width: int, plot_origin_y: int, 
     # segment_path = segment.path  # partially optimized; see note below
     # note: testing performance using a loop around drawing commands in test_line_plot_handle_calibrated_x_axis_with_negative_scale
     if calibrated_data_range != 0.0 and uncalibrated_width > 0.0:
-        style = _styles.get(data_style or "linear", _styles["linear"])
+        style = _styles[data_style or "linear"]
         origin_display = style.display_origin(calibrated_data_min, calibrated_data_min + calibrated_data_range)
         baseline = plot_origin_y + plot_height - int(plot_height * float(origin_display - calibrated_data_min) / calibrated_data_range)
 
