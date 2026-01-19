@@ -2113,7 +2113,7 @@ class SpotGraphic(Graphic):
 
     def __init__(self) -> None:
         super().__init__("spot-graphic")
-        self.title = _("Spot")
+        self.title = _("Spot Filter")
         self.define_property("bounds", ((0.0, 0.0), (1.0, 1.0)), validate=self.__validate_bounds, changed=self.__bounds_changed, hidden=True)
         self.define_property("rotation", 0.0, changed=self._property_changed, hidden=True)
         self._default_drag_part = "bottom-right"
@@ -2327,7 +2327,7 @@ class WedgeGraphic(Graphic):
 
     def __init__(self) -> None:
         super().__init__("wedge-graphic")
-        self.title = _("Wedge")
+        self.title = _("Angular Filter")
 
         def validate_angles(value: typing.Tuple[float, float]) -> typing.Tuple[float, float]:
             start_angle = float(value[0])
@@ -2552,7 +2552,7 @@ class RingGraphic(Graphic):
 
     def __init__(self) -> None:
         super().__init__("ring-graphic")
-        self.title = _("Annular Ring")
+        self.title = _("Band-Pass Filter")
 
         def validate_angles(value: float) -> float:
             return abs(float(value))
@@ -2772,7 +2772,7 @@ class LatticeGraphic(Graphic):
 
     def __init__(self) -> None:
         super().__init__("lattice-graphic")
-        self.title = _("Lattice")
+        self.title = _("Lattice Filter")
         self.define_property("u_pos", (0.0, 0.25), validate=lambda value: tuple(value), changed=self._property_changed, hidden=True)
         self.define_property("v_pos", (-0.25, 0.0), validate=lambda value: tuple(value), changed=self._property_changed, hidden=True)
         self.define_property("radius", 0.1, changed=self._property_changed, hidden=True)
