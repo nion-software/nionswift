@@ -78,6 +78,8 @@ class DataStyle(typing.Protocol):
 
     def transform_intensity_for_graph(self, xdata: DataAndMetadata.DataAndMetadata) -> DataAndMetadata.DataAndMetadata | None: ...
 
+    def convert_calibrated_array_to_display(self, arr: _NDArray) -> None: ...
+
     def display_origin(self, display_min: float, display_max: float) -> float: ...
 
     def adjust_calibrated_limits(self, cal_min: float, cal_max: float, min_specified: bool, max_specified: bool) -> tuple[float, float]: ...
@@ -114,6 +116,9 @@ class _LinearStyle(DataStyle):
                 dimensional_calibrations=xdata.dimensional_calibrations
             )
         return xdata
+
+    def convert_calibrated_array_to_display(self, arr: _NDArray) -> None:
+        return
 
     def display_origin(self, display_min: float, display_max: float) -> float:
         if display_min <= 0.0 <= display_max:
@@ -155,14 +160,16 @@ class _LogStyle(DataStyle):
         if intensity_calibration:
             data = xdata.data if not xdata.is_data_rgb_type else Image.convert_to_grayscale(xdata.data)
             calibrated = intensity_calibration.offset + intensity_calibration.scale * data
-            calibrated[calibrated <= 0] = numpy.nan
-            numpy.log10(calibrated, out=calibrated)
             return DataAndMetadata.new_data_and_metadata(
                 calibrated,
                 intensity_calibration=Calibration.Calibration(units=intensity_calibration.units),
                 dimensional_calibrations=xdata.dimensional_calibrations
             )
         return xdata
+
+    def convert_calibrated_array_to_display(self, arr: _NDArray) -> None:
+        arr[arr <= 0] = numpy.nan
+        numpy.log10(arr, out=arr)
 
     def display_origin(self, display_min: float, display_max: float) -> float:
         return display_min
@@ -171,9 +178,106 @@ class _LogStyle(DataStyle):
         return cal_min, cal_max
 
 
+class _IE2Style(DataStyle):
+    """I(E) · E^2 weighting.
+    - Returns calibrated intensity equal to (offset + scale*I) * E^2.
+    - Units become '<intensity_units>·<energy_units>²' when x-units present.
+    """
+
+    style_id = "ie2"
+
+    def min_calibrated_value_from_uncalibrated(self, uncalibrated_data: _NDArray, intensity_calibration: Calibration.Calibration) -> float:
+        v_uncal = numpy.amin(uncalibrated_data)
+        return typing.cast(float, intensity_calibration.convert_to_calibrated_value(v_uncal))
+
+    def max_calibrated_value_from_uncalibrated(self, uncalibrated_data: _NDArray, intensity_calibration: Calibration.Calibration) -> float:
+        v_uncal = numpy.amax(uncalibrated_data)
+        return typing.cast(float, intensity_calibration.convert_to_calibrated_value(v_uncal))
+
+    def make_ticker(self, display_min: float, display_max: float) -> Geometry.Ticker:
+        return Geometry.LinearTicker(display_min, display_max)
+
+    def convert_calibrated_value_to_display_value(self, value_cal: float) -> float:
+        return value_cal
+
+    def convert_display_value_to_calibrated_value(self, value_disp: float) -> float:
+        return value_disp
+
+    def transform_intensity_for_graph(self, xdata: DataAndMetadata.DataAndMetadata) -> DataAndMetadata.DataAndMetadata | None:
+        """Produce the  array for IE^2 plotting: (a + b*I) * E^2.
+
+        - I is the raw intensity
+        - a,b are taken from intensity_calibration (offset, scale)
+        - E is the x-axis  formed from its calibration.
+        """
+        ic = xdata.intensity_calibration
+        if not ic:
+            return xdata
+
+        y_raw = xdata.data if not xdata.is_data_rgb_type else Image.convert_to_grayscale(xdata.data)
+        y_cal = ic.offset + ic.scale * y_raw  # (a + b*I)
+
+        x_cal = xdata.dimensional_calibrations[-1] if xdata.dimensional_calibrations else Calibration.Calibration()
+
+        n = y_cal.shape[-1]
+        idx = numpy.arange(n, dtype=float)
+        E = x_cal.offset + x_cal.scale * idx
+        E = E.reshape((1,) * (y_cal.ndim - 1) + (n,))  # broadcast over leading dims
+        y_ie2 = y_cal * (E ** 2)
+        y_units = ic.units or ""
+        e_units = x_cal.units or ""
+        if e_units:
+            units = f"{y_units}·{e_units}²" if y_units else f"{e_units}²"
+        else:
+            units = y_units
+
+        return DataAndMetadata.new_data_and_metadata(
+            y_ie2,
+            intensity_calibration=Calibration.Calibration(units=units),
+            dimensional_calibrations=xdata.dimensional_calibrations
+        )
+
+    def display_origin(self, display_min: float, display_max: float) -> float:
+        if display_min <= 0.0 <= display_max:
+            return 0.0
+        return display_min if 0.0 < display_min else display_max
+
+    def adjust_calibrated_limits(self, cal_min: float, cal_max: float, min_specified: bool, max_specified: bool) -> tuple[float, float]:
+        if not min_specified and cal_min > 0.0:
+            cal_min = 0.0
+        if not max_specified and cal_max < 0.0:
+            cal_max = 0.0
+        return cal_min, cal_max
+
+    def convert_calibrated_array_to_display(self, arr: _NDArray) -> None:
+        return
+
+    def limits_from_xdata(self, xdata: DataAndMetadata.DataAndMetadata) -> typing.Optional[tuple[float, float]]:
+        """Return (min,max) over CALIBRATED IE^2 values for axis scaling."""
+        ic = xdata.intensity_calibration
+        if not ic:
+            return None
+
+        # Calibrated intensity: a + b*I
+        y_raw = xdata.data if not xdata.is_data_rgb_type else Image.convert_to_grayscale(xdata.data)
+        y_cal = ic.offset + ic.scale * y_raw
+
+        # Calibrated energy vector E (last axis)
+        x_cal = xdata.dimensional_calibrations[-1] if xdata.dimensional_calibrations else Calibration.Calibration()
+        n = y_cal.shape[-1]
+        idx = numpy.arange(n, dtype=float)
+        E = x_cal.offset + x_cal.scale * idx
+        E = E.reshape((1,) * (y_cal.ndim - 1) + (n,))
+        y_ie2 = y_cal * (E ** 2)
+        vmin = float(numpy.nanmin(y_ie2))
+        vmax = float(numpy.nanmax(y_ie2))
+        return vmin, vmax
+
+
 _data_styles: dict[str, DataStyle] = {
     "linear": _LinearStyle(),
     "log": _LogStyle(),
+    "ie2": _IE2Style()
 }
 
 def _get_data_style(data_style_id: str | None) -> DataStyle:
@@ -193,8 +297,24 @@ def calculate_y_axis(xdata_list: typing.Sequence[typing.Optional[DataAndMetadata
     min_specified = data_min is not None
     max_specified = data_max is not None
 
+    style_min_opt: typing.Optional[float] = None
+    style_max_opt: typing.Optional[float] = None
+    style_limits_fn = getattr(data_style, "limits_from_xdata", None)
+
+    if callable(style_limits_fn) and (not min_specified or not max_specified):
+        for xdata in xdata_list:
+            if xdata and xdata.data_shape[-1] > 0 and xdata.intensity_calibration:
+                r = style_limits_fn(xdata)
+                if r is not None:
+                    vmin, vmax = r
+                    if numpy.isfinite(vmin):
+                        style_min_opt = vmin if style_min_opt is None else min(style_min_opt, vmin)
+                    if numpy.isfinite(vmax):
+                        style_max_opt = vmax if style_max_opt is None else max(style_max_opt, vmax)
     if min_specified:
         calibrated_min = typing.cast(float, data_min)
+    elif style_min_opt is not None:
+        calibrated_min = style_min_opt
     else:
         calibrated_min_opt: typing.Optional[float] = None
         for xdata in xdata_list:
@@ -208,6 +328,8 @@ def calculate_y_axis(xdata_list: typing.Sequence[typing.Optional[DataAndMetadata
 
     if max_specified:
         calibrated_max = typing.cast(float, data_max)
+    elif style_max_opt is not None:
+        calibrated_max = style_max_opt
     else:
         calibrated_max_opt: typing.Optional[float] = None
         for xdata in xdata_list:
@@ -546,9 +668,9 @@ def calculate_line_graph(plot_height: int, plot_width: int, plot_origin_y: int, 
         did_draw = False
         if binned_length > 0:
             binned_data = Image.rebin_1d(calibrated_data, binned_length, rebin_cache)
+            data_style.convert_calibrated_array_to_display(binned_data)
             binned_data_is_nan = numpy.isnan(binned_data)
             binned_left = int(uncalibrated_left_channel * plot_width / uncalibrated_width)
-            # draw the plot
             last_py = baseline
             for i in range(0, plot_width):
                 px = plot_origin_x + i
