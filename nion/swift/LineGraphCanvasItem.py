@@ -78,8 +78,6 @@ class DataStyle(typing.Protocol):
 
     def transform_intensity_for_graph(self, xdata: DataAndMetadata.DataAndMetadata) -> DataAndMetadata.DataAndMetadata | None: ...
 
-    def convert_calibrated_array_to_display(self, arr: _NDArray) -> None: ...
-
     def display_origin(self, display_min: float, display_max: float) -> float: ...
 
     def adjust_calibrated_limits(self, cal_min: float, cal_max: float, min_specified: bool, max_specified: bool) -> tuple[float, float]: ...
@@ -117,9 +115,6 @@ class _LinearStyle(DataStyle):
             )
         return xdata
 
-    def convert_calibrated_array_to_display(self, arr: _NDArray) -> None:
-        return
-
     def display_origin(self, display_min: float, display_max: float) -> float:
         if display_min <= 0.0 <= display_max:
             return 0.0
@@ -156,20 +151,22 @@ class _LogStyle(DataStyle):
         return math.pow(10, value_disp)
 
     def transform_intensity_for_graph(self, xdata: DataAndMetadata.DataAndMetadata) -> DataAndMetadata.DataAndMetadata | None:
+        # Apply calibration, then produce the *display* log10 values here so tests and downstream code see logged data.
         intensity_calibration = xdata.intensity_calibration
         if intensity_calibration:
             data = xdata.data if not xdata.is_data_rgb_type else Image.convert_to_grayscale(xdata.data)
+            # calibrated = a + b*I
             calibrated = intensity_calibration.offset + intensity_calibration.scale * data
+            # ensure float array; mask non-positive, then log10
+            arr = calibrated.astype(float, copy=True)
+            arr[arr <= 0] = numpy.nan
+            numpy.log10(arr, out=arr)
             return DataAndMetadata.new_data_and_metadata(
-                calibrated,
+                arr,
                 intensity_calibration=Calibration.Calibration(units=intensity_calibration.units),
                 dimensional_calibrations=xdata.dimensional_calibrations
             )
         return xdata
-
-    def convert_calibrated_array_to_display(self, arr: _NDArray) -> None:
-        arr[arr <= 0] = numpy.nan
-        numpy.log10(arr, out=arr)
 
     def display_origin(self, display_min: float, display_max: float) -> float:
         return display_min
@@ -248,9 +245,6 @@ class _IE2Style(DataStyle):
         if not max_specified and cal_max < 0.0:
             cal_max = 0.0
         return cal_min, cal_max
-
-    def convert_calibrated_array_to_display(self, arr: _NDArray) -> None:
-        return
 
     def limits_from_xdata(self, xdata: DataAndMetadata.DataAndMetadata) -> typing.Optional[tuple[float, float]]:
         """Return (min,max) over CALIBRATED IE^2 values for axis scaling."""
@@ -518,6 +512,12 @@ class LineGraphAxes:
 
          The 'calibrated xdata' is the xdata (with a calibration) but with a new intensity calibration where origin=0 and scale=1.
          """
+        if xdata and not xdata.intensity_calibration and self.y_calibration:
+            xdata = DataAndMetadata.new_data_and_metadata(
+                xdata.data,
+                intensity_calibration=self.y_calibration,
+                dimensional_calibrations=xdata.dimensional_calibrations
+            )
         return self.data_style.transform_intensity_for_graph(xdata)
 
 
@@ -668,7 +668,6 @@ def calculate_line_graph(plot_height: int, plot_width: int, plot_origin_y: int, 
         did_draw = False
         if binned_length > 0:
             binned_data = Image.rebin_1d(calibrated_data, binned_length, rebin_cache)
-            data_style.convert_calibrated_array_to_display(binned_data)
             binned_data_is_nan = numpy.isnan(binned_data)
             binned_left = int(uncalibrated_left_channel * plot_width / uncalibrated_width)
             last_py = baseline
