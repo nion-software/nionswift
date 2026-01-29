@@ -862,15 +862,16 @@ class FileProjectStorageSystem(ProjectStorageSystem):
         super().load_properties()
         project_data_folder_paths = list()
         existing_project_data_folder_paths = list()
+        # always prefer the index file root with " Data" suffix first
+        project_data_folder_path = self.__project_path.with_name(self.__project_path.stem + " Data")
+        if not project_data_folder_path.is_absolute():
+            project_data_folder_path = self.__project_path.parent / project_data_folder_path
+        project_data_folder_paths.append(project_data_folder_path)
+        if project_data_folder_path.exists():
+            existing_project_data_folder_paths.append(project_data_folder_path)
+        # now check for any folders listed in the properties
         for project_data_folder in self.get_storage_properties().get("project_data_folders", list()):
             project_data_folder_path = pathlib.Path(project_data_folder)
-            if not project_data_folder_path.is_absolute():
-                project_data_folder_path = self.__project_path.parent / project_data_folder_path
-            project_data_folder_paths.append(project_data_folder_path)
-            if project_data_folder_path.exists():
-                existing_project_data_folder_paths.append(project_data_folder_path)
-        if not existing_project_data_folder_paths:
-            project_data_folder_path = self.__project_path.with_name(self.__project_path.stem + " Data")
             if not project_data_folder_path.is_absolute():
                 project_data_folder_path = self.__project_path.parent / project_data_folder_path
             project_data_folder_paths.append(project_data_folder_path)
