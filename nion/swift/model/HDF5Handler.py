@@ -311,6 +311,30 @@ class HDF5HandlerFactory(StorageHandler.StorageHandlerFactoryLike):
         return ".h5"
 
 
+def _create_dataset(data_group: typing.Any, dataset_id: str, data: numpy.typing.NDArray[typing.Any]) -> typing.Any:
+    data_shape = data.shape
+
+    # create the dataset, preallocate space.
+    ds = data_group.create_dataset(dataset_id, shape=data_shape, dtype=data.dtype)
+
+    # search for the chunk size by iterating backwards through the shape and finding the
+    # largest chunk size that is less than 64MB.
+    index_count = 0
+    chunk_size = 1
+    for n in reversed(data_shape):
+        if chunk_size * n > 64 * 1024 * 1024:
+            break
+        index_count += 1
+        chunk_size *= n
+
+    # iterate over the remaining dimensions so that we can write the data in chunks.
+    for index in numpy.ndindex(*data_shape[:len(data_shape) - index_count]):
+        selection = tuple(index) + (slice(None),) * index_count
+        ds[selection] = data[selection]
+
+    return ds
+
+
 class HDFImportExportDriver:
     def __init__(self) -> None:
         pass
@@ -361,7 +385,7 @@ class HDFImportExportDriver:
         for index, item in enumerate(items):
             index_group.attrs["1"] = json.dumps(item.write_to_dict())
             for data_item in item.data_items:
-                ds = data_group.create_dataset(str(data_index), data=data_item.data)
+                ds = _create_dataset(data_group, str(data_index), data_item.data)
                 ds.attrs["properties"] = json.dumps(data_item.write_to_dict())
                 data_index += 1
         fp.close()
