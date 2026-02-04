@@ -638,12 +638,6 @@ class Profile(Persistence.PersistentObject):
                 return project_reference
         return None
 
-    def get_project_reference_by_project_uuid(self, project_uuid: uuid.UUID) -> typing.Optional[ProjectReference]:
-        for project_reference in self.project_references:
-            if project_reference.project_uuid == project_uuid:
-                return project_reference
-        return None
-
     def get_project_reference_by_path(self, path: pathlib.Path) -> typing.Optional[ProjectReference]:
         for project_reference in self.project_references:
             if project_reference.path == path:
