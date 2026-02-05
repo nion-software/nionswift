@@ -126,6 +126,10 @@ class ProjectReference(Persistence.PersistentObject):
     def project_reference_parts(self) -> typing.Sequence[str]:
         raise NotImplementedError()
 
+    @property
+    def project_reference_id(self) -> str:
+        return ".".join(self.project_reference_parts)
+
     def make_storage(self, profile_context: typing.Optional[ProfileContext]) -> typing.Optional[FileStorageSystem.ProjectStorageSystem]:
         raise NotImplementedError()
 
@@ -646,7 +650,7 @@ class Profile(Persistence.PersistentObject):
 
     def append_project_reference(self, project_reference: ProjectReference) -> None:
         assert not self.get_item_by_uuid("project_references", project_reference.uuid)
-        assert project_reference.project_uuid not in {project_reference.project_uuid for project_reference in self.project_references}
+        assert project_reference.project_reference_id not in {project_reference.project_reference_id for project_reference in self.project_references}
         self.append_item("project_references", project_reference)
 
     def remove_project_reference(self, project_reference: ProjectReference) -> None:
@@ -657,7 +661,8 @@ class Profile(Persistence.PersistentObject):
     def add_project_reference(self, project_reference: ProjectReference, load: bool = True) -> ProjectReference:
         # add the project reference if a project reference with the same project uuid
         # is not already present; otherwise activate the existing one.
-        existing_project_reference = next(filter(lambda x: x.project_uuid == project_reference.project_uuid, self.project_references), None)
+        existing_project_reference = next(filter(lambda x: x.project_reference_id == project_reference.project_reference_id, self.project_references), None)
+        # existing_project_reference = next(filter(lambda x: x.project_uuid == project_reference.project_uuid, self.project_references), None)
         if not existing_project_reference:
             self.append_project_reference(project_reference)
             if load:

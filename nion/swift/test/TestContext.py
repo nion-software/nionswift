@@ -231,12 +231,24 @@ class MemoryProfileContext:
 
 class MemoryProjectReference(Profile.ProjectReference):
     type = "project_memory"
+    index = 1000
 
     def __init__(self, d: typing.Optional[typing.Dict[str, typing.Any]] = None, make_storage_error: bool = False, valid: bool = True):
         super().__init__(self.__class__.type)
+        self.define_property("_path", hidden=True)
         self.__d = d or dict()
         self.__make_storage_error = make_storage_error
         self.__valid = valid
+        self._path = str(MemoryProjectReference.index)  # represents the "file path" of the memory project, unique for each project reference
+        MemoryProjectReference.index += 1
+
+    @property
+    def _path(self) -> str | None:
+        return typing.cast(str | None, self._get_persistent_property_value("_path"))
+
+    @_path.setter
+    def _path(self, value: str | None) -> None:
+        self._set_persistent_property_value("_path", value)
 
     @property
     def is_valid(self) -> bool:
@@ -244,7 +256,7 @@ class MemoryProjectReference(Profile.ProjectReference):
 
     @property
     def project_reference_parts(self) -> typing.Tuple[str]:
-        return ("memory",)
+        return ("memory", self._path)
 
     def make_storage(self, profile_context: typing.Optional[MemoryProfileContext]) -> typing.Optional[Persistence.PersistentStorageInterface]:
         if self.__make_storage_error:
