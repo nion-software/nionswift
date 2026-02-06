@@ -566,6 +566,10 @@ class ProjectStorageSystem(PersistentStorageSystem):
             storage_adapter.close()
         self.__storage_adapter_map.clear()
 
+    @property
+    def is_read_only(self) -> bool:
+        return False
+
     @abc.abstractmethod
     def _get_storage_handler_factory(self, storage_handler_attributes: StorageHandler.StorageHandlerAttributes) -> StorageHandler.StorageHandlerFactoryLike: ...
 
@@ -852,6 +856,10 @@ class FileProjectStorageSystem(ProjectStorageSystem):
         self.__project_path = project_path
         self.__project_data_path = project_data_path
 
+    @property
+    def is_read_only(self) -> bool:
+        return not os.access(self.__project_path, os.W_OK)
+
     def load_properties(self) -> None:
         # in order to be resilient to name changes, first make a list of folders in project_data_folders which
         # (1) can be constructed and (2) which exist. if none actually exist, see if one exists based on the
@@ -897,7 +905,7 @@ class FileProjectStorageSystem(ProjectStorageSystem):
         self.__write_properties_inner(Model.transform_backward(copy.deepcopy(self.get_storage_properties())))
 
     def __write_properties_inner(self, properties: PersistentDictType) -> None:
-        if self.__project_path:
+        if self.__project_path and os.access(self.__project_path, os.W_OK):
             # atomically overwrite
             with Utility.AtomicFileWriter(self.__project_path) as fp:
                 properties = Utility.clean_dict(properties)
