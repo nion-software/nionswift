@@ -1173,11 +1173,10 @@ class ComputationInspectorModel(Observable.Observable):
 
 
 class ComputationInspectorHandler(Declarative.Handler):
-    def __init__(self, context: EntityBrowser.Context, computation: Symbolic.Computation):
+    def __init__(self, computation_inspector_context: Inspector.ComputationInspectorContext, computation: Symbolic.Computation):
         super().__init__()
-        assert isinstance(context, Inspector.ComputationInspectorContext)
-        self.context = context
-        self.document_controller = typing.cast("DocumentController.DocumentController", context.values["window"])
+        self.__computation_inspector_context = computation_inspector_context
+        self.document_controller = computation_inspector_context.window
         self.model = ComputationInspectorModel(computation)
         self.delete_state_model = Model.PropertyModel(0)
         self.ui_view = self.__make_ui()
@@ -1191,7 +1190,7 @@ class ComputationInspectorHandler(Declarative.Handler):
     def __make_ui(self) -> Declarative.UIDescriptionResult:
         u = Declarative.DeclarativeUI()
         label = u.create_label(text=self.model.computation.label)
-        source_line = [u.create_component_instance("source_component")] if self.context.values.get("do_references", False) else []
+        source_line = [u.create_component_instance("source_component")] if self.__computation_inspector_context.do_references else []
         status = u.create_label(text="@binding(model.computation.status)", color="@binding(model.status_color)", max_width=300)
         inputs = u.create_column(items="model.computation_inputs_model.items", item_component_id="variable", spacing=8, size_policy_vertical="expanding")
         results = u.create_column(items="model.computation.results", item_component_id="result", spacing=8, size_policy_vertical="expanding")
@@ -1212,18 +1211,17 @@ class ComputationInspectorHandler(Declarative.Handler):
 
     def create_handler(self, component_id: str, container: typing.Optional[Symbolic.ComputationVariable] = None, item: typing.Any = None, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
         if component_id == "variable":
-            return VariableHandler(self.context, self.model.computation, typing.cast(Symbolic.ComputationVariable, item))
+            return VariableHandler(self.__computation_inspector_context, self.model.computation, typing.cast(Symbolic.ComputationVariable, item))
         elif component_id == "result":
             return ResultHandler(self.document_controller, self.model.computation, typing.cast(Symbolic.ComputationOutput, item))
         elif component_id == "source_component":
-            return EntityBrowser.ReferenceHandler(self.context, _("Source"), self.model.computation.source)
+            return EntityBrowser.ReferenceHandler(self.__computation_inspector_context, _("Source"), self.model.computation.source)
         return None
 
 
 class ComputationErrorInspectorHandler(Declarative.Handler):
-    def __init__(self, context: EntityBrowser.Context, computation: Symbolic.Computation):
+    def __init__(self, computation_inspector_context: Inspector.ComputationInspectorContext, computation: Symbolic.Computation):
         super().__init__()
-        self.context = context
         self.model = ComputationInspectorModel(computation)
         self.ui_view = self.__make_ui()
         self.model.finish_init()
@@ -1252,7 +1250,7 @@ class ComputationErrorInspectorHandler(Declarative.Handler):
 class ComputationHandler(Declarative.Handler):
     def __init__(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation):
         super().__init__()
-        self.context = Inspector.ComputationInspectorContext(document_controller, document_controller, False)
+        self.__computation_inspector_context = Inspector.ComputationInspectorContext(document_controller, document_controller, False)
         self.computation = computation
         u = Declarative.DeclarativeUI()
         self.ui_view = u.create_tabs(
@@ -1263,9 +1261,9 @@ class ComputationHandler(Declarative.Handler):
 
     def create_handler(self, component_id: str, container: typing.Optional[Symbolic.ComputationVariable] = None, item: typing.Any = None, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
         if component_id == "edit":
-            return ComputationInspectorHandler(self.context, self.computation)
+            return ComputationInspectorHandler(self.__computation_inspector_context, self.computation)
         if component_id == "errors":
-            return ComputationErrorInspectorHandler(self.context, self.computation)
+            return ComputationErrorInspectorHandler(self.__computation_inspector_context, self.computation)
         return None
 
 

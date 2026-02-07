@@ -175,7 +175,7 @@ class DataStructureInspectorHandlerFactory(EntityBrowser.ItemInspectorHandlerFac
 
 class ComputationInspectorHandlerFactory(EntityBrowser.ItemInspectorHandlerFactory):
     def make_sections(self, context: EntityBrowser.Context, item: typing.Any) -> typing.Sequence[typing.Tuple[str, Declarative.HandlerLike]]:
-        if isinstance(item, Symbolic.Computation):
+        if isinstance(item, Symbolic.Computation) and isinstance(context, Inspector.ComputationInspectorContext):
             return [
                 (_("Edit"), ComputationPanel.ComputationInspectorHandler(context, item)),
                 (_("Errors"), ComputationPanel.ComputationErrorInspectorHandler(context, item)),
