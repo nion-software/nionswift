@@ -2015,9 +2015,11 @@ class Computation(Persistence.PersistentObject):
         self.define_type("computation")
         self.define_property("source_specifier", changed=self.__source_specifier_changed, key="source_uuid", hidden=True)
         self.define_property("original_expression", expression, hidden=True)
-        self.define_property("error_text", changed=self.__error_changed, hidden=True)
-        self.define_property("label", changed=self.__label_changed, hidden=True)
+        self.define_property("error_text", changed=self.__property_changed, hidden=True)
+        self.define_property("label", changed=self.__property_changed, hidden=True)
         self.define_property("processing_id", hidden=True)  # see note above
+        self.define_property("needs_recompute", False, changed=self.__property_changed, hidden=True)
+        self.define_property("auto_update", True, changed=self.__property_changed, hidden=True)
         self.define_relationship("variables", variable_factory, insert=self.__variable_inserted, remove=self.__variable_removed, hidden=True)
         self.define_relationship("results", result_factory, insert=self.__result_inserted, remove=self.__result_removed, hidden=True)
         self.attributes: Persistence.PersistentDictType = dict()  # not persistent, defined by underlying class
@@ -2029,7 +2031,8 @@ class Computation(Persistence.PersistentObject):
         self.__result_base_item_removed_event_listeners: typing.List[Event.EventListener] = list()
         self.__processor: typing.Optional[ComputationProcessor] = None
         self.last_evaluate_data_time = 0.0
-        self.needs_update = expression is not None
+        self.__recompute_enabled = True  # used for disabling recompute machinery while close document
+        self.__needs_update = True
         self.computation_mutated_event = Event.Event()
         self.computation_output_changed_event = Event.Event()
         self.is_initial_computation_complete = threading.Event()  # helpful for waiting for initial computation
@@ -2046,6 +2049,28 @@ class Computation(Persistence.PersistentObject):
         self.__error_notification: typing.Optional[Notification.Notification] = None
         # manage the state of asynchronous computations. these can only be modified on main thread.
         self.is_running = False
+
+    @property
+    def needs_update(self) -> bool:
+        return self.__needs_update
+
+    @needs_update.setter
+    def needs_update(self, value: bool) -> None:
+        if value != self.__needs_update:
+            self.__needs_update = value
+            self.notify_property_changed("needs_update")
+            if self.__recompute_enabled:
+                self._set_persistent_property_value("needs_recompute", value)
+
+    def reset(self) -> None:
+        # called after the model (project) is loaded. this ensures the state of needs_update is correctly set
+        # since it may have been udpated due to inputs becoming available.
+        self.needs_update = self._get_persistent_property_value("needs_recompute") or False
+
+    def about_to_be_deleted(self) -> None:
+        # called when computation is about to be deleted via model closing. this ensures that input objects to
+        # this computation do not trigger recompute.
+        self.__recompute_enabled = False
 
     @property
     def variables(self) -> typing.Sequence[ComputationVariable]:
@@ -2100,6 +2125,14 @@ class Computation(Persistence.PersistentObject):
 
     def __source_specifier_changed(self, name: str, d: Persistence.PersistentDictType) -> None:
         self.__source_reference.item_specifier = Persistence.read_persistent_specifier(d)
+
+    @property
+    def auto_update(self) -> bool:
+        return typing.cast(bool | None, self._get_persistent_property_value("auto_update")) == True
+
+    @auto_update.setter
+    def auto_update(self, value: bool) -> None:
+        self._set_persistent_property_value("auto_update", value)
 
     @property
     def processing_id(self) -> typing.Optional[str]:
@@ -2212,11 +2245,7 @@ class Computation(Persistence.PersistentObject):
     def last_computed_timestamp(self) -> datetime.datetime | None:
         return self.__last_timestamp
 
-    def __error_changed(self, name: str, value: typing.Optional[str]) -> None:
-        self.notify_property_changed(name)
-        self.computation_mutated_event.fire()
-
-    def __label_changed(self, name: str, value: typing.Optional[str]) -> None:
+    def __property_changed(self, name: str, value: typing.Optional[str]) -> None:
         self.notify_property_changed(name)
         self.computation_mutated_event.fire()
 
@@ -2648,9 +2677,6 @@ class Computation(Persistence.PersistentObject):
                 script = xdata_expression(expression)
                 script = script.format(**dict(zip(src_names, src_names)))
                 self._get_persistent_property("original_expression").value = script
-
-    def reset(self) -> None:
-        self.needs_update = False
 
     @property
     def _processor_description(self) -> typing.Optional[ComputationProcessor]:

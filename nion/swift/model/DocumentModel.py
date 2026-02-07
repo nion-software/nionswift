@@ -768,6 +768,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         for computation in self.__computations:
             self.__computation_changed_listeners.pop(computation).close()
             self.__computation_output_changed_listeners.pop(computation).close()
+            computation.about_to_be_deleted()
 
         self.__project.persistent_object_context = None
         self.__project.close()
@@ -1614,7 +1615,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             self.event_loop.stop()
             self.event_loop.run_forever()
 
-    def __start_computation(self, computation: Symbolic.Computation) -> None:
+    def _start_computation(self, computation: Symbolic.Computation) -> None:
         # start the computation asynchronously.
         # this is only called on the main thread, so state can be managed without locks or races.
 
@@ -1637,6 +1638,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 # by putting this before the break from the loop, we ensure that the computation is not run too often.
                 # otherwise the computation may run, finish, and be requested again faster than the sleep time.
                 await asyncio.sleep(0.1)
+                # if the computation is not set to auto update, then only run it once, even if it needs an update again by the time it finishes.
+                if not computation.auto_update:
+                    break
             computation.is_running = False
 
         if computation not in self.__computation_tasks:
@@ -1658,7 +1662,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
     def __computation_needs_update(self, computation: Symbolic.Computation) -> None:
         # when a computation needs an update due to changing parameters, this function will be called.
         assert threading.current_thread() == threading.main_thread()
-        self.__start_computation(computation)
+        if computation.auto_update:
+            self._start_computation(computation)
 
     async def compute_immediate(self, event_loop: asyncio.AbstractEventLoop, computation: Symbolic.Computation, timeout: typing.Optional[float] = None) -> None:
         if computation:
