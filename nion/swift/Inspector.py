@@ -4277,6 +4277,7 @@ class ComputationInspectorContext(EntityBrowser.Context):
         super().__init__()
         self.values["reference_handler"] = reference_handler or document_controller
         self.values["window"] = document_controller
+        self.values["event_loop"] = document_controller.event_loop
         self.values["document_model"] = document_controller.document_model
         self.values["do_references"] = provide_reference_links
 
@@ -4287,6 +4288,10 @@ class ComputationInspectorContext(EntityBrowser.Context):
     @property
     def window(self) -> DocumentController.DocumentController:
         return typing.cast("DocumentController.DocumentController", self.values["window"])
+
+    @property
+    def event_loop(self) -> asyncio.AbstractEventLoop:
+        return typing.cast(asyncio.AbstractEventLoop, self.values["event_loop"])
 
     @property
     def document_model(self) -> DocumentModel.DocumentModel:
