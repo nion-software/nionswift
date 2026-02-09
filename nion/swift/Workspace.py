@@ -133,9 +133,11 @@ class RenameWorkspaceCommand(Undo.UndoableCommand):
 
     def _perform(self) -> None:
         self.__workspace_controller._workspace.name = self.__new_name
+        self.__workspace_controller.document_controller._workspace_changed(self.__workspace_controller._workspace)
 
     def _undo(self) -> None:
         self.__workspace_controller._workspace.name = self.__old_name
+        self.__workspace_controller.document_controller._workspace_changed(self.__workspace_controller._workspace)
 
     def _redo(self) -> None:
         self.perform()
