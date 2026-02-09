@@ -44,7 +44,7 @@ from nion.swift.model import Notification
 from nion.swift.model import Persistence
 from nion.swift.model import PlugInManager
 from nion.swift.model import Schema
-from nion.swift.model import Utility
+from nion.utils import Converter
 from nion.utils import DateTime
 from nion.utils import Event
 from nion.utils import Geometry
@@ -1985,6 +1985,14 @@ class ComputationErrorNotification(Notification.Notification):
         self.computation = computation
 
 
+# an enumeration of the computation status
+class ComputationResultStatusEnum(enum.StrEnum):
+    PENDING   = "pending"     # pending
+    SUCCESS   = "successful"  # finished successfully
+    CANCELLED = "cancelled"   # cancelled, result indeterminate
+    ERROR     = "error"       # encountered error, result indeterminate
+
+
 class Computation(Persistence.PersistentObject):
     """A computation on data and other inputs.
 
@@ -2016,6 +2024,9 @@ class Computation(Persistence.PersistentObject):
         self.define_property("source_specifier", changed=self.__source_specifier_changed, key="source_uuid", hidden=True)
         self.define_property("original_expression", expression, hidden=True)
         self.define_property("error_text", changed=self.__property_changed, hidden=True)
+        self.define_property("last_computed_elapsed_time", changed=self.__property_changed, hidden=True)
+        self.define_property("last_computed_timestamp", converter=Converter.DatetimeToStringConverter(), changed=self.__property_changed, hidden=True)
+        self.define_property("last_computed_status", ComputationResultStatusEnum.PENDING.value, changed=self.__property_changed, hidden=True)
         self.define_property("label", changed=self.__property_changed, hidden=True)
         self.define_property("processing_id", hidden=True)  # see note above
         self.define_property("needs_recompute", False, changed=self.__property_changed, hidden=True)
@@ -2043,8 +2054,6 @@ class Computation(Persistence.PersistentObject):
         self._inputs: typing.Set[Persistence.PersistentObject] = set()  # used by document model for tracking dependencies
         self._outputs: typing.Set[Persistence.PersistentObject] = set()
         self.pending_project: typing.Optional[Project.Project] = None  # used for new computations to tell them where they'll end up
-        self.__elapsed_time: typing.Optional[float] = None
-        self.__last_timestamp: typing.Optional[datetime.datetime] = None
         self.__error_stack_trace = str()
         self.__error_notification: typing.Optional[Notification.Notification] = None
         # manage the state of asynchronous computations. these can only be modified on main thread.
@@ -2226,11 +2235,13 @@ class Computation(Persistence.PersistentObject):
             self.__error_stack_trace = value
             self.notify_property_changed("error_stack_trace")
 
-    def update_status(self, error_text: typing.Optional[str], error_stack_trace: typing.Optional[str], elapsed_time: typing.Optional[float]) -> None:
-        self.__elapsed_time = elapsed_time
-        self.__last_timestamp = DateTime.utcnow()
+    def update_status(self, computed_status: ComputationResultStatusEnum, error_text: str | None, error_stack_trace: str | None, timestamp: datetime.datetime | None, elapsed_time: float | None) -> None:
+        self._set_persistent_property_value("last_computed_status", computed_status.value)
+        self._set_persistent_property_value("last_computed_elapsed_time", elapsed_time)
+        self._set_persistent_property_value("last_computed_timestamp", timestamp)
         self.notify_property_changed("last_computed_elapsed_time")
         self.notify_property_changed("last_computed_timestamp")
+        self.notify_property_changed("last_computed_status")
         if self.error_text != error_text:
             self.error_text = error_text
         error_stack_trace = error_stack_trace or str()
@@ -2239,11 +2250,19 @@ class Computation(Persistence.PersistentObject):
 
     @property
     def last_computed_elapsed_time(self) -> float | None:
-        return self.__elapsed_time
+        return typing.cast(float | None, self._get_persistent_property_value("last_computed_elapsed_time"))
 
     @property
     def last_computed_timestamp(self) -> datetime.datetime | None:
-        return self.__last_timestamp
+        return typing.cast(datetime.datetime | None, self._get_persistent_property_value("last_computed_timestamp"))
+
+    @property
+    def last_computed_status(self) -> ComputationResultStatusEnum:
+        status_str = typing.cast(str | None, self._get_persistent_property_value("last_computed_status"))
+        try:
+            return ComputationResultStatusEnum(status_str or "pending")
+        except ValueError:
+            return ComputationResultStatusEnum.PENDING
 
     def __property_changed(self, name: str, value: typing.Optional[str]) -> None:
         self.notify_property_changed(name)
@@ -2954,14 +2973,21 @@ class Computation(Persistence.PersistentObject):
         return None
 
 
+class ComputationCancelledException(Exception):
+    def __init__(self) -> None:
+        super().__init__("Computation Canceled Exception")
+
+
 class ComputationExecutor:
 
     def __init__(self, computation: Computation) -> None:
-        self.__computation: typing.Optional[Computation] = computation
-        self.error_text: typing.Optional[str] = None
-        self.error_stack_trace = str()
-        self.__last_execution_time: float = 0.0
-        self.__aborted = False
+        self.__computation: Computation | None = computation
+        self.__error_text: str | None = None
+        self.__error_stack_trace = str()
+        self.__duration: float = 0.0
+        self.__timestamp = self.__computation.last_computed_timestamp
+        self.__status = ComputationResultStatusEnum.PENDING
+        self.__is_aborted = False
         self.__activity_lock = threading.RLock()
         self.__activity: typing.Optional[ComputationActivity] = ComputationActivity(computation)
         self.__activity.state = "computing"
@@ -2996,14 +3022,21 @@ class ComputationExecutor:
             with Process.audit(f"execute.{self.__computation.processing_id if self.__computation else 'unknown'}"):
                 start_time = time.perf_counter()
                 self._execute(**kwargs)
-                self.__last_execution_time = time.perf_counter() - start_time
+                self.__status = ComputationResultStatusEnum.SUCCESS
+                self.__duration = time.perf_counter() - start_time
+                self.__timestamp = DateTime.utcnow()
+        except ComputationCancelledException as e:
+            self.__status = ComputationResultStatusEnum.CANCELLED
+            self.__error_stack_trace = str()
+            self.__error_text = None
         except Exception as e:
-            self.__last_execution_time = 0.0
-            self.error_stack_trace = "".join(traceback.format_exception(*sys.exc_info()))
-            self.error_text = str(e) or "Unable to evaluate script."  # a stack trace would be too much information right now
+            self.__status = ComputationResultStatusEnum.ERROR
+            self.__duration = 0.0
+            self.__error_stack_trace = "".join(traceback.format_exception(*sys.exc_info()))
+            self.__error_text = str(e) or "Unable to evaluate script."  # a stack trace would be too much information right now
 
     def commit(self) -> None:
-        if not self.error_text and not self.__aborted:
+        if not self.__error_text and not self.__is_aborted:
             try:
                 self._commit()
             finally:
@@ -3011,18 +3044,42 @@ class ComputationExecutor:
                     Activity.activity_finished(self.__activity)
                     self.__activity = None
         if self.__computation:
-            self.__computation.update_status(self.error_text, self.error_stack_trace, self.__last_execution_time)
+            self.__computation.update_status(self.__status, self.__error_text, self.__error_stack_trace, self.__timestamp, self.__duration)
 
     def abort(self) -> None:
-        self.__aborted = True
+        self.__is_aborted = True
         with self.__activity_lock:
             if self.__activity:
                 Activity.activity_finished(self.__activity)
                 self.__activity = None
 
     @property
-    def last_execution_time(self) -> float:
-        return self.__last_execution_time
+    def error_text(self) -> str | None:
+        return self.__error_text
+
+    @error_text.setter
+    def error_text(self, value: str | None) -> None:
+        self.__error_text = value
+
+    @property
+    def error_stack_trace(self) -> str:
+        return self.__error_stack_trace
+
+    @property
+    def duration(self) -> float:
+        return self.__duration
+
+    @property
+    def timestamp(self) -> datetime.datetime | None:
+        return self.__timestamp
+
+    @property
+    def status(self) -> ComputationResultStatusEnum:
+        return self.__status
+
+    @property
+    def is_aborted(self) -> bool:
+        return self.__is_aborted
 
     @property
     def _target_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
