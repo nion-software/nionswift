@@ -2213,11 +2213,11 @@ class LinePlotDisplaySectionHandler(Declarative.Handler):
 
             def convert(self, value: typing.Optional[str]) -> typing.Optional[bool]:
                 """ Convert bool to checked or unchecked string """
-                return value == "log"
+                return value == "ie2"
 
             def convert_back(self, value: typing.Optional[bool]) -> typing.Optional[str]:
                 """ Convert checked or unchecked string to bool """
-                return "log" if value else "linear"
+                return "ie2" if value else "linear"
 
         self._log_checked_to_check_state_converter = LogCheckedToCheckStateConverter()
 
