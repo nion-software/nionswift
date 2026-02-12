@@ -92,7 +92,7 @@ class DataStyle(ABC):
     @abstractmethod
     def adjust_calibrated_limits(self, cal_min: float, cal_max: float, min_specified: bool, max_specified: bool) -> tuple[float, float]: ...
 
-    def calculate_y_axis(self, xdata_list: typing.Sequence[typing.Optional[DataAndMetadata.DataAndMetadata]], data_min: typing.Optional[float], data_max: typing.Optional[float]) -> typing.Tuple[float, float, Geometry.Ticker]:
+    def calculate_y_axis(self, xdata_list: typing.Sequence[DataAndMetadata.DataAndMetadata|None], data_min: float|None, data_max: float|None) -> typing.Tuple[float, float, Geometry.Ticker]:
         """Calculate the calibrated min/max and y-axis ticker for list of xdata.
 
         xdata_list is the original calibrated data
@@ -149,7 +149,7 @@ class DataStyle(ABC):
         return display_min, display_max, ticker
 
 
-class _LinearStyle(DataStyle, ABC):
+class _LinearStyle(DataStyle):
 
     @property
     def style_id(self) -> str:
@@ -197,7 +197,7 @@ class _LinearStyle(DataStyle, ABC):
         return cal_min, cal_max
 
 
-class _LogStyle(DataStyle, ABC):
+class _LogStyle(DataStyle):
     @property
     def style_id(self) -> str:
         return "log"
