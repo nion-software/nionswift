@@ -53,6 +53,7 @@ from nion.utils import Process
 from nion.utils import ReferenceCounting
 
 if typing.TYPE_CHECKING:
+    from nion.swift import Facade
     from nion.swift.model import Project
 
 computation_min_period = 0.0
@@ -2054,6 +2055,8 @@ class Computation(Persistence.PersistentObject):
         self._inputs: typing.Set[Persistence.PersistentObject] = set()  # used by document model for tracking dependencies
         self._outputs: typing.Set[Persistence.PersistentObject] = set()
         self.pending_project: typing.Optional[Project.Project] = None  # used for new computations to tell them where they'll end up
+        self.__progress: float | None = None
+        self._stop_computation_event = Event.Event()
         self.__error_stack_trace = str()
         self.__error_notification: typing.Optional[Notification.Notification] = None
         # manage the state of asynchronous computations. these can only be modified on main thread.
@@ -2263,6 +2266,20 @@ class Computation(Persistence.PersistentObject):
             return ComputationResultStatusEnum(status_str or "pending")
         except ValueError:
             return ComputationResultStatusEnum.PENDING
+
+    @property
+    def progress(self) -> float | None:
+        return self.__progress
+
+    def _set_progress(self, value: float | None) -> None:
+        # this is a method instead of a property as a reminder that this is an internal property and should not be
+        # set by external code.
+        if self.__progress != value:
+            self.__progress = value
+            self.notify_property_changed("progress")
+
+    def stop(self) -> None:
+        self._stop_computation_event.fire()
 
     def __property_changed(self, name: str, value: typing.Optional[str]) -> None:
         self.notify_property_changed(name)
@@ -2514,11 +2531,15 @@ class Computation(Persistence.PersistentObject):
                 executor = RegisteredComputationExecutor(self, api)
             kwargs, is_resolved = self.__resolve_inputs(api)
             if is_resolved:
-                def execute(kwargs: dict[str, typing.Any]) -> None:
+                def execute(context: ComputationExecutorContext, kwargs: dict[str, typing.Any]) -> None:
                     # execute is not allowed to raise exceptions.
-                    executor.execute(**kwargs)
+                    executor.execute(context)
+                    self._set_progress(None)
 
-                await event_loop.run_in_executor(thread_pool_executor, execute, kwargs)
+                self._set_progress(0.0)
+                context = ComputationExecutorContext(self, kwargs)
+
+                await event_loop.run_in_executor(thread_pool_executor, execute, context, kwargs)
             else:
                 executor.error_text = _("Missing parameters.")
             self._evaluation_count_for_test += 1
@@ -2536,7 +2557,7 @@ class Computation(Persistence.PersistentObject):
                 executor = RegisteredComputationExecutor(self, api)
             kwargs, is_resolved = self.__resolve_inputs(api)
             if is_resolved:
-                executor.execute(**kwargs)
+                executor.execute(ComputationExecutorContext(self, kwargs))
             else:
                 executor.error_text = _("Missing parameters.")
             self._evaluation_count_for_test += 1
@@ -2973,9 +2994,116 @@ class Computation(Persistence.PersistentObject):
         return None
 
 
-class ComputationCancelledException(Exception):
+class ComputationCanceledException(Exception):
     def __init__(self) -> None:
         super().__init__("Computation Canceled Exception")
+
+
+class ComputationParameters:
+    """Provide access to typed computation parameters.
+
+    The computation parameters should be considered to be a snapshot of the parameters at the time of execution.
+    Changes to the underlying computation parameters during execution may not be reflected in this object.
+
+    The get_value method can be used to access parameters with type checking. The get_bool_value, get_int_value,
+    get_float_value, and get_str_value methods are convenience methods for accessing parameters of those types.
+    """
+    def __init__(self, parameter_map: typing.Mapping[str, typing.Any]) -> None:
+        self.__parameter_map = parameter_map
+
+    @property
+    def parameter_map(self) -> typing.Mapping[str, typing.Any]:
+        return self.__parameter_map
+
+    def get_value[T](self, key: str, expected_type: type[T], default: T) -> T:
+        if key not in self.__parameter_map:
+            return default
+
+        value = self.__parameter_map[key]
+
+        if not isinstance(value, expected_type):
+            raise TypeError(f"Key '{key}' expected {expected_type}, got {type(value)}")
+
+        return value
+
+    def get_bool_value(self, key: str, default: bool) -> bool:
+        value = self.__parameter_map.get(key, default)
+        if isinstance(value, bool):
+            return value
+        raise TypeError(f"Key '{key}' expected a boolean value, got {type(value)} with value '{value}'")
+
+    def get_int_value(self, key: str, default: int) -> int:
+        value = self.__parameter_map.get(key, default)
+        if isinstance(value, int):
+            return value
+        raise TypeError(f"Key '{key}' expected an integer value, got {type(value)} with value '{value}'")
+
+    def get_float_value(self, key: str, default: float) -> float:
+        value = self.__parameter_map.get(key, default)
+        if isinstance(value, float):
+            return value
+        raise TypeError(f"Key '{key}' expected a float value, got {type(value)} with value '{value}'")
+
+    def get_str_value(self, key: str, default: str) -> str:
+        value = self.__parameter_map.get(key, default)
+        if isinstance(value, str):
+            return value
+        raise TypeError(f"Key '{key}' expected a string value, got {type(value)} with value '{value}'")
+
+    def get_data_and_metadata(self, key: str) -> DataAndMetadata.DataAndMetadata:
+        value = self.__parameter_map.get(key, None)
+        if isinstance(value, DataAndMetadata.DataAndMetadata):
+            return value
+        raise TypeError(f"Key '{key}' expected a DataAndMetadata object, got {type(value)} with value '{value}'")
+
+    def get_data_source(self, key: str) -> Facade.DataSource | None:
+        return typing.cast("Facade.DataSource | None", self.__parameter_map.get(key, None))
+
+
+class ComputationExecutorContext:
+    """Provide utility context for executing computations.
+
+    The context includes access to parameters, a synchronization method, and a progress updater.
+
+    The context does not allow access to the underlying computation is not accessible during execution.
+
+    The sync_execution method should  be called continuously to allow cancellation, scheduling, and pausing. This
+    method will raise ComputationCanceledException if the computation execution is cancelled.
+
+    The progress property should be called continuously to update progress of the computation if the computation
+    takes more than a few seconds.
+    """
+    def __init__(self, computation: Computation, parameter_map: typing.Mapping[str, typing.Any]) -> None:
+        self.__computation = computation
+        self.__parameters = ComputationParameters(parameter_map)
+        self.__is_canceled = False
+        self.__computation_will_close_listener = self.__computation.about_to_close_event.listen(ReferenceCounting.weak_partial(ComputationExecutorContext.__handle_computation_will_close, self))
+        self.__computation_stop_listener = self.__computation._stop_computation_event.listen(ReferenceCounting.weak_partial(ComputationExecutorContext.__handle_stop, self))
+
+    def __handle_computation_will_close(self) -> None:
+        self.__is_canceled = True
+
+    def sync_execution(self) -> None:
+        # executors should call this continuously to allow sync, scheduling, and pausing.
+        if self.__is_canceled:
+            raise ComputationCanceledException()
+
+    def __handle_stop(self) -> None:
+        self.__is_canceled = True
+
+    @property
+    def progress(self) -> float:
+        return self.__computation.progress or 0.0
+
+    @progress.setter
+    def progress(self, value: float) -> None:
+        # executors should call this continuously to update progress.
+        self.__computation._set_progress(value)
+
+    @property
+    def parameters(self) -> ComputationParameters:
+        # executors should access their parameters through this object
+        return self.__parameters
 
 
 class ComputationExecutor:
@@ -3013,22 +3141,23 @@ class ComputationExecutor:
     def computation(self) -> typing.Optional[Computation]:
         return self.__computation
 
-    def _execute(self, **kwargs: typing.Any) -> None: raise NotImplementedError()
+    def _execute(self, context: ComputationExecutorContext) -> None: raise NotImplementedError()
 
     def _commit(self) -> None: raise NotImplementedError()
 
-    def execute(self, **kwargs: typing.Any) -> None:
+    def execute(self, context: ComputationExecutorContext) -> None:
         try:
             with Process.audit(f"execute.{self.__computation.processing_id if self.__computation else 'unknown'}"):
                 start_time = time.perf_counter()
-                self._execute(**kwargs)
+                self._execute(context)
                 self.__status = ComputationResultStatusEnum.SUCCESS
                 self.__duration = time.perf_counter() - start_time
                 self.__timestamp = DateTime.utcnow()
-        except ComputationCancelledException as e:
+        except ComputationCanceledException as e:
             self.__status = ComputationResultStatusEnum.CANCELLED
             self.__error_stack_trace = str()
             self.__error_text = None
+            self.abort()
         except Exception as e:
             self.__status = ComputationResultStatusEnum.ERROR
             self.__duration = 0.0
@@ -3132,11 +3261,11 @@ class ScriptExpressionComputationExecutor(ComputationExecutor):
             self.__data_item_created = False
         super().close()
 
-    def _execute(self, **kwargs: typing.Any) -> None:
+    def _execute(self, context: ComputationExecutorContext) -> None:
         assert self.__data_item_target is not None
         if self.__expression:
             code_lines = []
-            g = kwargs
+            g = dict(context.parameters.parameter_map)
             g["api"] = self.__api
             g["target"] = self.__data_item_target
             l: typing.Dict[str, typing.Any] = dict()
@@ -3458,9 +3587,14 @@ class RegisteredComputationExecutor(ComputationExecutor):
         if not self.__computation_handler:
             self.error_text = "Missing computation (" + (processing_id or "unknown") + ")."
 
-    def _execute(self, **kwargs: typing.Any) -> None:
+    def _execute(self, context: ComputationExecutorContext) -> None:
         if self.__computation_handler:
-            self.__computation_handler.execute(**kwargs)
+            execute_task_method = getattr(self.__computation_handler, "execute_task", None)
+            execute_method = getattr(self.__computation_handler, "execute", None)
+            if execute_task_method:
+                execute_task_method(context)
+            elif execute_method:
+                execute_method(**context.parameters.parameter_map)
 
     def _commit(self) -> None:
         if self.__computation_handler:
@@ -3496,12 +3630,28 @@ _processors = dict[str, ComputationProcessor]()
 # for computations
 
 class ComputationHandlerLike(typing.Protocol):
+    # old style computation handler, still supported but new style with context is preferred.
     def execute(self, **kwargs: typing.Any) -> None: ...
     def commit(self) -> None: ...
 
-_computation_types: typing.Dict[str, typing.Callable[[_APIComputation], ComputationHandlerLike]] = dict()
 
-def register_computation_type(computation_type_id: str, compute_class: typing.Callable[[_APIComputation], ComputationHandlerLike]) -> None:
+class ComputationTaskHandler(typing.Protocol):
+    # new style computation handler with context, preferred for new computations.
+    def execute_task(self, context: ComputationExecutorContext) -> None: ...
+    def commit(self) -> None: ...
+
+
+# registered computation types
+_computation_types: typing.Dict[str, typing.Callable[[_APIComputation], ComputationHandlerLike | ComputationTaskHandler]] = dict()
+
+def register_computation_type(computation_type_id: str, compute_class: typing.Callable[[_APIComputation], ComputationHandlerLike | ComputationTaskHandler]) -> None:
+    """Register a computation task handler.
+
+    A computation task handler is used to execute a computation and commit the results to the model.
+
+    The compute_class should be a callable that takes an API computation object and returns either a
+    ComputationHandlerLike (old style, deprecated) or ComputationTaskHandler (new style, recommended) instance.
+    """
     _computation_types[computation_type_id] = compute_class
 
 
