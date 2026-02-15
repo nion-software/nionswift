@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 # standard libraries
+import asyncio
 import datetime
 import functools
 import gettext
@@ -8,6 +9,7 @@ import operator
 import random
 import string
 import sys
+import time
 import typing
 import uuid
 import weakref
@@ -44,6 +46,7 @@ from nion.utils import Model
 from nion.utils import Observable
 from nion.utils import ReferenceCounting
 from nion.utils import Registry
+from nion.utils import Stream
 
 if typing.TYPE_CHECKING:
     from nion.swift import DocumentController
@@ -1142,16 +1145,54 @@ class RemoveComputationCommand(Undo.UndoableCommand):
 
 
 class ComputationInspectorModel(Observable.Observable):
-    def __init__(self, computation: Symbolic.Computation) -> None:
+    """A model for the computation inspector.
+
+    Provides the following static properties:
+    - computation_inputs_model: a ListModel of the computation data source inputs
+    - computation_parameters_model: a ListModel of the computation parameter inputs
+    - is_custom: a boolean indicating whether the computation is custom (has a script expression)
+
+    Provides the following dynamic properties that are updated based on the computation state:
+    - error_state_model: a PropertyModel that is 1 if there is an error and 0 otherwise
+    - update_button_enabled: whether the update button should be enabled, i.e. when the computation is not up-to-date
+    - progress_value: the progress of the computation as an integer between 0 and 100, or 0 if there is no progress information
+    - is_stoppable: whether the computation is currently stoppable
+    - last_computed_status: a string indicating the last computed status, primarily the timestamp and duration
+    - status: a string indicating the current status of the computation, such as computing or up-to-date
+    - status_color: a color string, red for error, black for success
+
+    The model tries to be stable during fast updates.
+
+    The model also tries to avoid in between states during initial computation progress.
+    """
+
+    def __init__(self, computation: Symbolic.Computation, event_loop: asyncio.AbstractEventLoop) -> None:
         super().__init__()
         self.computation = computation
+        self.__event_loop = event_loop
         self.computation_inputs_model = ListModel.FilteredListModel(container=computation, master_items_key="variables")
         self.computation_inputs_model.filter = ListModel.PredicateFilter(lambda v: v.variable_type in Symbolic._data_source_types)
         self.computation_parameters_model = ListModel.FilteredListModel(container=computation, master_items_key="variables")
         self.computation_parameters_model.filter = ListModel.PredicateFilter(lambda v: v.variable_type not in Symbolic._data_source_types)
         self.is_custom = computation.expression is not None
+
+        # configure the is_stoppable stream that is True when the computation is stoppable. used to enable button.
+        # the low level value is debounced and exposed as the is_stoppable property to avoid rapid changes during fast updates.
+        # the debounced listener is used to trigger property changed notifications.
+        self.__is_stoppable_stream = Stream.ValueStream(False)
+        self.__is_stoppable_debounced_stream = Stream.DebounceStream(self.__is_stoppable_stream, 0.5, self.__event_loop)
+        self.__is_stoppable_debounced_stream_listener = Stream.ValueStreamAction(self.__is_stoppable_debounced_stream, ReferenceCounting.weak_partial(ComputationInspectorModel.__is_stoppable_changed, self))
+
+        # configure the status stream that gives a user-friendly status string.
+        # the debounced listener is used to trigger property changed notifications.
+        self.__status_stream = Stream.ValueStream(str())
+        self.__status_debounced_stream = Stream.DebounceStream(self.__status_stream, 0.5, self.__event_loop)
+        self.__status_debounced_stream_listener = Stream.ValueStreamAction(self.__status_debounced_stream, ReferenceCounting.weak_partial(ComputationInspectorModel.__status_changed, self))
+
+        # configure a listener for changes to the computation properties that affect the model state.
+        self.__computation_property_changed_listener = computation.property_changed_event.listen(ReferenceCounting.weak_partial(ComputationInspectorModel.__computation_property_changed, self))
+
         self.error_state_model = Model.PropertyModel(0)
-        self.__error_state_listener = computation.property_changed_event.listen(ReferenceCounting.weak_partial(ComputationInspectorModel.__property_changed, self))
         self.__is_error = self.computation.error_text is not None and self.computation.error_text != str()
 
     def close(self) -> None:
@@ -1161,27 +1202,102 @@ class ComputationInspectorModel(Observable.Observable):
         self.computation_parameters_model = typing.cast(typing.Any, None)
 
     def finish_init(self) -> None:
-        self.__property_changed("error_text")
+        self.__computation_property_changed("error_text")
 
-    def __property_changed(self, key: str) -> None:
-        if key in ("error_text", "last_computed_elapsed_time", "last_computed_elapsed_time"):
+    def __computation_property_changed(self, key: str) -> None:
+        # observe computation property changes, update the model state, and send out property changed notifications as needed.
+
+        def update_status_str() -> None:
+            # this will update the status string and after a short delay send the notification,
+            # which allows it to avoid rapid changes during fast updates and also ensures that the final status is shown after the initial computation finishes.
+            self.__status_stream.value = self.__get_status_str()
+
+        if key in ("last_computed_status", "error_text", "last_computed_elapsed_time", "last_computed_elapsed_time"):
             self.__is_error = self.computation.error_text is not None and self.computation.error_text != str()
-            self.notify_property_changed("status")
+            self.notify_property_changed("last_computed_status")
+            update_status_str()
             self.notify_property_changed("status_color")
             self.error_state_model.value = 1 if self.__is_error else 0
+        if key in ("needs_update", ):
+            update_status_str()
+        if key in ("progress", ):
+            self.notify_property_changed("progress_value")
+            computation = self.computation
+            progress = computation.progress
+            self.__is_stoppable_stream.value = progress is not None
+            update_status_str()
+        if key in ("last_computed_status", "auto_update", "needs_update"):
+            self.notify_property_changed("update_button_enabled")
+
+    def __is_stoppable_changed(self, value: bool | None) -> None:
+        self.notify_property_changed("is_stoppable")
+
+    def __status_changed(self, value: bool | None) -> None:
+        self.notify_property_changed("status")
+
+    @property
+    def update_button_enabled(self) -> bool:
+        return (not self.computation.auto_update and self.computation.needs_update) or self.computation.last_computed_status != Symbolic.ComputationResultStatusEnum.SUCCESS
+
+    @property
+    def progress_value(self) -> int:
+        computation = self.computation
+        progress = computation.progress
+        if progress is not None:
+            return round(progress * 100)
+        else:
+            return 0
+
+    @property
+    def is_stoppable(self) -> bool:
+        return self.__is_stoppable_debounced_stream.value or False
+
+    @property
+    def last_computed_status(self) -> str:
+        # return a string like "2023-01-01 12:34:56 (123ms)" or "Error" or "Unknown"
+        computation = self.computation
+        if computation.error_text:
+            return computation.error_text
+        last_computed_elapsed_time = computation.last_computed_elapsed_time
+        last_computed_timestamp = computation.last_computed_timestamp
+        if last_computed_elapsed_time is not None and last_computed_timestamp:
+            local_modified_datetime = last_computed_timestamp + datetime.timedelta(minutes=Utility.local_utcoffset_minutes(last_computed_timestamp))
+            time_str = local_modified_datetime.strftime('%Y-%m-%d %H:%M:%S')
+            return f"{time_str} ({round(last_computed_elapsed_time * 1000)}ms)"
+        return _("Unknown")
+
+    def __get_status_str(self) -> str:
+        # return a string like "Computing (50%)", "Needs Update", "Up to Date" or "Error"
+        computation = self.computation
+        progress = computation.progress
+        status_str: str
+        if progress is not None and progress > 0.0:
+            computing_str = f"Computing ({round(progress * 100)}%)"
+            if computation.needs_update:
+                status_str = computing_str + ", " + _("Needs Update")
+            else:
+                status_str = computing_str
+        elif computation.last_computed_status == Symbolic.ComputationResultStatusEnum.ERROR:
+            return _("Error")
+        elif computation.last_computed_status == Symbolic.ComputationResultStatusEnum.CANCELLED:
+            status_str = _("Stopped")
+            if computation.needs_update:
+                status_str += ", " + _("Needs Update")
+            return status_str
+        elif computation.last_computed_status == Symbolic.ComputationResultStatusEnum.PENDING:
+            status_str = _("Pending")
+            if computation.needs_update:
+                status_str += ", " + _("Needs Update")
+            return status_str
+        elif computation.needs_update:
+            status_str = _("Needs Update")
+        else:
+            status_str = _("Up to Date")
+        return status_str
 
     @property
     def status(self) -> str:
-        computation = self.computation
-        if computation.error_text:
-            return _("Error: ") + computation.error_text
-        last_computed_elapsed_time = computation.last_computed_elapsed_time
-        last_computed_timestamp = computation.last_computed_timestamp
-        if last_computed_elapsed_time and last_computed_timestamp:
-            local_modified_datetime = last_computed_timestamp + datetime.timedelta(minutes=Utility.local_utcoffset_minutes(last_computed_timestamp))
-            time_str = local_modified_datetime.strftime('%Y-%m-%d %H:%M:%S')
-            return f"Last Computed: {time_str} ({round(last_computed_elapsed_time * 1000)}ms)"
-        return _("Last Computed: N/A")
+        return self.__status_stream.value or str()
 
     @property
     def status_color(self) -> str:
@@ -1193,7 +1309,7 @@ class ComputationInspectorHandler(Declarative.Handler):
         super().__init__()
         self.__computation_inspector_context = computation_inspector_context
         self.document_controller = computation_inspector_context.window
-        self.model = ComputationInspectorModel(computation)
+        self.model = ComputationInspectorModel(computation, computation_inspector_context.event_loop)
         self.delete_state_model = Model.PropertyModel(0)
         self.ui_view = self.__make_ui()
         self.model.finish_init()
@@ -1207,7 +1323,14 @@ class ComputationInspectorHandler(Declarative.Handler):
         u = Declarative.DeclarativeUI()
         label = u.create_label(text=self.model.computation.label)
         source_line = [u.create_component_instance("source_component")] if self.__computation_inspector_context.do_references else []
-        status = u.create_label(text="@binding(model.status)", color="@binding(model.status_color)", max_width=300)
+        auto_update = u.create_check_box(text=_("Auto Update"), checked="@binding(model.computation.auto_update)")
+        update_button = u.create_push_button(text=_("Update"), on_clicked="update_computation", enabled="@binding(model.update_button_enabled)")
+        auto_update_row = u.create_row(auto_update, update_button, u.create_stretch(), spacing=12)
+        progress = u.create_progress_bar(value="@binding(model.progress_value)", width=160, height=8)
+        stop_button = u.create_push_button(text=_("Stop"), visible="@binding(model.is_stoppable)", on_clicked="stop_computation")
+        control_row = u.create_row(progress, stop_button, u.create_stretch(), spacing=12)
+        last_computed_row = u.create_row(u.create_label(text=_("Last Computed: ")), u.create_label(text="@binding(model.last_computed_status)"), u.create_stretch())
+        status = u.create_label(text="@binding(model.status)", max_width=300)
         inputs = u.create_column(items="model.computation_inputs_model.items", item_component_id="variable", spacing=8, size_policy_vertical="expanding")
         results = u.create_column(items="model.computation.results", item_component_id="result", spacing=8, size_policy_vertical="expanding")
         input_output_row = u.create_row(
@@ -1221,9 +1344,16 @@ class ComputationInspectorHandler(Declarative.Handler):
             note = u.create_row(u.create_label(text=_("Use Command+Shift+E to edit data item script.")), visible="@binding(model.is_custom)")
         else:
             note = u.create_row(u.create_label(text=_("Use Ctrl+Shift+E to edit data item script.")), visible="@binding(model.is_custom)")
-        controls = u.create_row(u.create_column(status, note, u.create_stretch(), spacing=12), u.create_stretch())
+        controls = u.create_row(u.create_column(last_computed_row, status, auto_update_row, control_row, note, u.create_stretch(), spacing=12), u.create_stretch())
         inspector_column = u.create_column(label, *source_line, u.create_column(input_output_row, parameters, u.create_divider(orientation="horizontal"), controls, spacing=12), spacing=12)
         return inspector_column
+
+    def update_computation(self, widget: UserInterface.PushButtonWidget) -> None:
+        self.model.computation.needs_update = True
+        self.document_controller.document_model._start_computation(self.model.computation)
+
+    def stop_computation(self, widget: UserInterface.PushButtonWidget) -> None:
+        self.model.computation.stop()
 
     def create_handler(self, component_id: str, container: typing.Optional[Symbolic.ComputationVariable] = None, item: typing.Any = None, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
         if component_id == "variable":
@@ -1238,7 +1368,7 @@ class ComputationInspectorHandler(Declarative.Handler):
 class ComputationErrorInspectorHandler(Declarative.Handler):
     def __init__(self, computation_inspector_context: Inspector.ComputationInspectorContext, computation: Symbolic.Computation):
         super().__init__()
-        self.model = ComputationInspectorModel(computation)
+        self.model = ComputationInspectorModel(computation, computation_inspector_context.event_loop)
         self.ui_view = self.__make_ui()
         self.model.finish_init()
 
