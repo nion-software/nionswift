@@ -195,31 +195,53 @@ def calculate_y_axis(xdata_list: typing.Sequence[DataAndMetadata.DataAndMetadata
     min_specified = data_min is not None
     max_specified = data_max is not None
 
+    tmin_opt: typing.Optional[float] = None
+    tmax_opt: typing.Optional[float] = None
+    for xdata in xdata_list:
+        if xdata and xdata.data_shape[-1] > 0:
+            tx = data_style.transform_intensity_for_graph(xdata)
+            if tx is not None:
+                arr = tx.data if numpy.issubdtype(tx.data.dtype, numpy.floating) else tx.data.astype(float)
+                if arr is not None and arr.size > 0:
+                    vmin = float(numpy.nanmin(arr))
+                    vmax = float(numpy.nanmax(arr))
+                    if numpy.isfinite(vmin):
+                        tmin_opt = vmin if tmin_opt is None else min(tmin_opt, vmin)
+                    if numpy.isfinite(vmax):
+                        tmax_opt = vmax if tmax_opt is None else max(tmax_opt, vmax)
+
     if min_specified:
         calibrated_min = typing.cast(float, data_min)
     else:
-        calibrated_min_opt: typing.Optional[float] = None
-        for xdata in xdata_list:
-            if xdata and xdata.data_shape[-1] > 0:
-                # force the uncalibrated_data to be float so that numpy.amin with a numpy.inf initial value works.
-                uncalibrated_data = xdata.data if numpy.issubdtype(xdata.data.dtype, numpy.floating) else xdata.data.astype(float)
-                if uncalibrated_data is not None and xdata.intensity_calibration:
-                    v = data_style.min_calibrated_value_from_uncalibrated(uncalibrated_data, xdata.intensity_calibration)
-                    calibrated_min_opt = v if calibrated_min_opt is None else min(calibrated_min_opt, v)
-        calibrated_min = calibrated_min_opt if (calibrated_min_opt is not None and numpy.isfinite(calibrated_min_opt)) else 0.0
+        if tmin_opt is not None:
+            calibrated_min = data_style.convert_display_value_to_calibrated_value(tmin_opt)
+        else:
+            calibrated_min_opt: typing.Optional[float] = None
+            for xdata in xdata_list:
+                if xdata and xdata.data_shape[-1] > 0:
+                    # force the uncalibrated_data to be float so that numpy.amin with a numpy.inf initial value works.
+                    uncalibrated_data = xdata.data if numpy.issubdtype(xdata.data.dtype, numpy.floating) else xdata.data.astype(float)
+                    if uncalibrated_data is not None and xdata.intensity_calibration:
+                        v = data_style.min_calibrated_value_from_uncalibrated(uncalibrated_data, xdata.intensity_calibration)
+                        calibrated_min_opt = v if calibrated_min_opt is None else min(calibrated_min_opt, v)
+            calibrated_min = calibrated_min_opt if (calibrated_min_opt is not None and numpy.isfinite(calibrated_min_opt)) else 0.0
 
     if max_specified:
         calibrated_max = typing.cast(float, data_max)
     else:
-        calibrated_max_opt: typing.Optional[float] = None
-        for xdata in xdata_list:
-            if xdata and xdata.data_shape[-1] > 0:
-                # force the uncalibrated_data to be float so that numpy.amin with a numpy.inf initial value works.
-                uncalibrated_data = xdata.data if numpy.issubdtype(xdata.data.dtype, numpy.floating) else xdata.data.astype(float)
-                if uncalibrated_data is not None and xdata.intensity_calibration:
-                    v = data_style.max_calibrated_value_from_uncalibrated(uncalibrated_data, xdata.intensity_calibration)
-                    calibrated_max_opt = v if calibrated_max_opt is None else max(calibrated_max_opt, v)
-        calibrated_max = calibrated_max_opt if (calibrated_max_opt is not None and numpy.isfinite(calibrated_max_opt)) else 0.0
+        # Prefer transformed maxima (invert display->calibrated); else original path.
+        if tmax_opt is not None:
+            calibrated_max = data_style.convert_display_value_to_calibrated_value(tmax_opt)
+        else:
+            calibrated_max_opt: typing.Optional[float] = None
+            for xdata in xdata_list:
+                if xdata and xdata.data_shape[-1] > 0:
+                    # force the uncalibrated_data to be float so that numpy.amin with a numpy.inf initial value works.
+                    uncalibrated_data = xdata.data if numpy.issubdtype(xdata.data.dtype, numpy.floating) else xdata.data.astype(float)
+                    if uncalibrated_data is not None and xdata.intensity_calibration:
+                        v = data_style.max_calibrated_value_from_uncalibrated(uncalibrated_data, xdata.intensity_calibration)
+                        calibrated_max_opt = v if calibrated_max_opt is None else max(calibrated_max_opt, v)
+            calibrated_max = calibrated_max_opt if (calibrated_max_opt is not None and numpy.isfinite(calibrated_max_opt)) else 0.0
 
     calibrated_min, calibrated_max = data_style.adjust_calibrated_limits(calibrated_min, calibrated_max, min_specified, max_specified)
 
