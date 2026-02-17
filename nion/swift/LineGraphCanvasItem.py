@@ -171,9 +171,86 @@ class _LogStyle(DataStyle):
         return cal_min, cal_max
 
 
+class _IE2Style(DataStyle):
+    """I(E) · E^2 weighting.
+    - Returns CALIBRATED intensity equal to (offset + scale*I) * E^2.
+    - Display mapping is linear (no log).
+    - Units become '<intensity_units>·<energy_units>²' when x-units are present.
+    """
+
+    @property
+    def style_id(self) -> str:
+        return "ie2"
+
+    def min_calibrated_value_from_uncalibrated(self, uncalibrated_data: _NDArray,
+                                               intensity_calibration: Calibration.Calibration) -> float:
+        v_uncal = numpy.amin(uncalibrated_data)
+        return typing.cast(float, intensity_calibration.convert_to_calibrated_value(v_uncal))
+
+    def max_calibrated_value_from_uncalibrated(self, uncalibrated_data: _NDArray,
+                                               intensity_calibration: Calibration.Calibration) -> float:
+        v_uncal = numpy.amax(uncalibrated_data)
+        return typing.cast(float, intensity_calibration.convert_to_calibrated_value(v_uncal))
+
+    def make_ticker(self, display_min: float, display_max: float) -> Geometry.Ticker:
+        return Geometry.LinearTicker(display_min, display_max)
+
+    def convert_calibrated_value_to_display_value(self, value_cal: float) -> float:
+        return value_cal
+
+    def convert_display_value_to_calibrated_value(self, value_disp: float) -> float:
+        return value_disp
+
+    def transform_intensity_for_graph(self, xdata: DataAndMetadata.DataAndMetadata
+                                      ) -> DataAndMetadata.DataAndMetadata | None:
+        """Produce the array for IE^2 plotting: (a + b*I) * E^2.
+        - I is the raw intensity
+        - a,b are taken from intensity_calibration (offset, scale).
+        - E is the calibrated x-axis
+        """
+        ic = xdata.intensity_calibration
+        if not ic:
+            return xdata
+
+        y_cal = ic.offset + ic.scale * xdata.data
+
+        x_cal = xdata.dimensional_calibrations[-1] if xdata.dimensional_calibrations else Calibration.Calibration()
+        n = y_cal.shape[-1]
+        idx = numpy.arange(n, dtype=float)
+        E = x_cal.offset + x_cal.scale * idx
+        E = E.reshape((1,) * (y_cal.ndim - 1) + (n,))      # broadcast over leading dims
+        y_ie2 = y_cal * (E ** 2)
+
+        y_units = ic.units or ""
+        e_units = x_cal.units or ""
+        if e_units:
+            units = f"{y_units}·{e_units}²" if y_units else f"{e_units}²"
+        else:
+            units = y_units
+
+        return DataAndMetadata.new_data_and_metadata(
+            y_ie2,
+            intensity_calibration=Calibration.Calibration(units=units),
+            dimensional_calibrations=xdata.dimensional_calibrations
+        )
+
+    def display_origin(self, display_min: float, display_max: float) -> float:
+        if display_min <= 0.0 <= display_max:
+            return 0.0
+        return display_min if 0.0 < display_min else display_max
+
+    def adjust_calibrated_limits(self, cal_min: float, cal_max: float,
+                                 min_specified: bool, max_specified: bool) -> tuple[float, float]:
+        if not min_specified and cal_min > 0.0:
+            cal_min = 0.0
+        if not max_specified and cal_max < 0.0:
+            cal_max = 0.0
+        return cal_min, cal_max
+
 _data_styles: dict[str, DataStyle] = {
     "linear": _LinearStyle(),
     "log": _LogStyle(),
+    "ie2": _IE2Style(),
 }
 
 def _get_data_style(data_style_id: str | None) -> DataStyle:
