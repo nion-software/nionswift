@@ -77,7 +77,7 @@ class DataStyle(typing.Protocol):
 
     def display_origin(self, display_min: float, display_max: float) -> float: ...
 
-    def adjust_calibrated_limits(self, cal_min: float, cal_max: float, min_specified: bool, max_specified: bool) -> tuple[float, float]: ...
+    def adjust_calibrated_limits(self, cal_min: float | None, cal_max: float | None, min_specified: bool, max_specified: bool) -> tuple[float, float]: ...
 
 
 class _LinearStyle(DataStyle):
@@ -109,10 +109,10 @@ class _LinearStyle(DataStyle):
             return 0.0
         return display_min if 0.0 < display_min else display_max
 
-    def adjust_calibrated_limits(self, cal_min: float, cal_max: float, min_specified: bool, max_specified: bool) -> tuple[float, float]:
-        if not min_specified and cal_min > 0.0:
+    def adjust_calibrated_limits(self, cal_min: float | None, cal_max: float | None, min_specified: bool, max_specified: bool) -> tuple[float, float]:
+        if (cal_min is None) or (not min_specified and cal_min > 0.0):
             cal_min = 0.0
-        if not max_specified and cal_max < 0.0:
+        if (cal_max is None) or (not max_specified and cal_max < 0.0):
             cal_max = 0.0
         return cal_min, cal_max
 
@@ -146,8 +146,10 @@ class _LogStyle(DataStyle):
     def display_origin(self, display_min: float, display_max: float) -> float:
         return display_min
 
-    def adjust_calibrated_limits(self, cal_min: float, cal_max: float, min_specified: bool, max_specified: bool) -> tuple[float, float]:
-        return cal_min, cal_max
+    def adjust_calibrated_limits(self, cal_min: float | None, cal_max: float | None, min_specified: bool, max_specified: bool) -> tuple[float, float]:
+        min_val = cal_min if cal_min is not None else 0.0
+        max_val = cal_max if cal_max is not None else 0.0
+        return min_val, max_val
 
 
 class _IE2Style(DataStyle):
@@ -208,11 +210,11 @@ class _IE2Style(DataStyle):
             return 0.0
         return display_min if 0.0 < display_min else display_max
 
-    def adjust_calibrated_limits(self, cal_min: float, cal_max: float,
+    def adjust_calibrated_limits(self, cal_min: float | None, cal_max: float | None,
                                  min_specified: bool, max_specified: bool) -> tuple[float, float]:
-        if not min_specified and cal_min > 0.0:
+        if (cal_min is None) or (not min_specified and cal_min > 0.0):
             cal_min = 0.0
-        if not max_specified and cal_max < 0.0:
+        if (cal_max is None) or (not max_specified and cal_max < 0.0):
             cal_max = 0.0
         return cal_min, cal_max
 
@@ -264,7 +266,7 @@ def calculate_y_axis(xdata_list: typing.Sequence[typing.Optional[DataAndMetadata
         if calibrated_min_opt is not None:
             calibrated_min = data_style.convert_display_value_to_calibrated_value(calibrated_min_opt)
         else:
-           calibrated_min =  0.0
+           calibrated_min = None
 
     if max_specified:
         calibrated_max = typing.cast(float, data_max)
@@ -272,7 +274,7 @@ def calculate_y_axis(xdata_list: typing.Sequence[typing.Optional[DataAndMetadata
         if calibrated_max_opt is not None:
             calibrated_max = data_style.convert_display_value_to_calibrated_value(calibrated_max_opt)
         else:
-          calibrated_max =  0.0
+          calibrated_max = None
 
     calibrated_min, calibrated_max = data_style.adjust_calibrated_limits(calibrated_min, calibrated_max, min_specified, max_specified)
 
