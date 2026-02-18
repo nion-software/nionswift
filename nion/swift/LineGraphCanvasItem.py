@@ -247,16 +247,16 @@ def calculate_y_axis(xdata_list: typing.Sequence[typing.Optional[DataAndMetadata
         if xdata and xdata.data_shape[-1] > 0:
             calibrated_xdata = data_style.transform_intensity_for_graph(xdata)
             if calibrated_xdata is not None:
-                transformed_data = calibrated_xdata.data if numpy.issubdtype(calibrated_xdata.data.dtype, numpy.floating) else calibrated_xdata.data.astype(float)
-                if transformed_data is not None and transformed_data.size > 0:
+                calibrated_data = calibrated_xdata.data if numpy.issubdtype(calibrated_xdata.data.dtype, numpy.floating) else calibrated_xdata.data.astype(float)
+                if calibrated_data is not None and calibrated_data.size > 0:
                     with warnings.catch_warnings():
                         warnings.simplefilter("ignore", category=RuntimeWarning)
-                        vmin = float(numpy.nanmin(transformed_data))
-                        vmax = float(numpy.nanmax(transformed_data))
-                        if numpy.isfinite(vmin):
-                            calibrated_min_opt = vmin if calibrated_min_opt is None else min(calibrated_min_opt, vmin)
-                        if numpy.isfinite(vmax):
-                            calibrated_max_opt = vmax if calibrated_max_opt is None else max(calibrated_max_opt, vmax)
+                        vmin = float(numpy.nanmin(calibrated_data))
+                        vmax = float(numpy.nanmax(calibrated_data))
+                    if numpy.isfinite(vmin):
+                        calibrated_min_opt = vmin if calibrated_min_opt is None else min(calibrated_min_opt, vmin)
+                    if numpy.isfinite(vmax):
+                        calibrated_max_opt = vmax if calibrated_max_opt is None else max(calibrated_max_opt, vmax)
 
     if min_specified:
         calibrated_min = typing.cast(float, data_min)
