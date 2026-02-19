@@ -238,13 +238,14 @@ class LinePlotDisplayInfo:
                                                                                                       y_min_calibrated,
                                                                                                       y_max_calibration,
                                                                                                       y_style)
+            y_calibration = LineGraphCanvasItem.calculate_y_calibration(xdata_list, y_style)
             self.__axes = LineGraphCanvasItem.LineGraphAxes(data_scale,
                                                             mapped_calibrated_data_min,
                                                             mapped_calibrated_data_max,
                                                             left_channel,
                                                             right_channel,
                                                             displayed_dimensional_calibration,
-                                                            displayed_intensity_calibration,
+                                                            y_calibration,
                                                             y_style,
                                                             y_ticker)
         return self.__axes

@@ -79,6 +79,8 @@ class DataStyle(typing.Protocol):
 
     def adjust_calibrated_limits(self, cal_min: float | None, cal_max: float | None, min_specified: bool, max_specified: bool) -> tuple[float, float]: ...
 
+    def make_y_calibration(self, xdata: DataAndMetadata.DataAndMetadata) -> Calibration.Calibration: ...
+
 
 class _LinearStyle(DataStyle):
     style_id = "linear"
@@ -116,6 +118,10 @@ class _LinearStyle(DataStyle):
             cal_max = 0.0
         return cal_min, cal_max
 
+    def make_y_calibration(self, xdata: DataAndMetadata.DataAndMetadata) -> Calibration.Calibration:
+        intensity_calibration = xdata.intensity_calibration or Calibration.Calibration()
+        return Calibration.Calibration(intensity_calibration.offset, intensity_calibration.scale, intensity_calibration.units)
+
 
 class _LogStyle(DataStyle):
     style_id = "log"
@@ -150,6 +156,10 @@ class _LogStyle(DataStyle):
         min_val = cal_min if cal_min is not None else 0.0
         max_val = cal_max if cal_max is not None else 0.0
         return min_val, max_val
+
+    def make_y_calibration(self, xdata: DataAndMetadata.DataAndMetadata) -> Calibration.Calibration:
+        intensity_calibration = xdata.intensity_calibration or Calibration.Calibration()
+        return Calibration.Calibration(intensity_calibration.offset, intensity_calibration.scale, intensity_calibration.units)
 
 
 class _IE2Style(DataStyle):
@@ -216,6 +226,20 @@ class _IE2Style(DataStyle):
         if (cal_max is None) or (not max_specified and cal_max < 0.0):
             cal_max = 0.0
         return cal_min, cal_max
+
+    def make_y_calibration(self, xdata: DataAndMetadata.DataAndMetadata) -> Calibration.Calibration:
+        intensity_calibration = xdata.intensity_calibration or Calibration.Calibration()
+        x_cal = xdata.dimensional_calibrations[-1] if xdata.dimensional_calibrations else Calibration.Calibration()
+        y_units = intensity_calibration.units or ""
+        e_units = x_cal.units or ""
+        if e_units:
+            units = f"{y_units}·{e_units}²" if y_units else f"{e_units}²"
+        else:
+            units = y_units
+        # IE² mapping is not a simple linear transform of raw
+        # intensity so use identity offset/scale for conversions.
+        return Calibration.Calibration(0.0, 1.0, units)
+
 
 
 _data_styles: dict[str, DataStyle] = {
@@ -297,6 +321,19 @@ def calculate_y_axis(xdata_list: typing.Sequence[DataAndMetadata.DataAndMetadata
         mapped_calibrated_data_max = ticker.maximum
 
     return mapped_calibrated_data_min, mapped_calibrated_data_max, ticker
+
+
+def calculate_y_calibration(
+    xdata_list: typing.Sequence[DataAndMetadata.DataAndMetadata | None],data_style_id: str | None) -> typing.Optional[Calibration.Calibration]:
+    """
+    Decide the Y-axis calibration (units) based on the data style and the first available xdata.
+    Returns a Calibration or None if no data is present.
+    """
+    data_style = _get_data_style(data_style_id)
+    for xdata in xdata_list:
+        if xdata is not None and xdata.data_shape[-1] > 0:
+            return data_style.make_y_calibration(xdata)
+    return None
 
 
 @dataclasses.dataclass
