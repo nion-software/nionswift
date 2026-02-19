@@ -166,14 +166,13 @@ class _IE2Style(DataStyle):
     def make_ticker(self, display_min: float, display_max: float) -> Geometry.Ticker:
         return Geometry.LinearTicker(display_min, display_max)
 
-    def convert_calibrated_value_to_display_value(self, value_cal: float) -> float:
+    def convert_calibrated_value_to_mapped_calibrated_value(self, value_cal: float) -> float:
         return value_cal
 
-    def convert_display_value_to_calibrated_value(self, value_disp: float) -> float:
+    def convert_mapped_calibrated_value_to_calibrated_value(self, value_disp: float) -> float:
         return value_disp
 
-    def transform_intensity_for_graph(self, xdata: DataAndMetadata.DataAndMetadata
-                                      ) -> DataAndMetadata.DataAndMetadata | None:
+    def convert_uncalibrated_array_to_mapped_calibrated_values(self, xdata: DataAndMetadata.DataAndMetadata) -> DataAndMetadata.DataAndMetadata | None:
         """Produce the array for IE^2 plotting: (a + b*I) * E^2.
         - I is the raw intensity
         - a,b are taken from intensity_calibration (offset, scale).
@@ -218,6 +217,7 @@ class _IE2Style(DataStyle):
             cal_max = 0.0
         return cal_min, cal_max
 
+
 _data_styles: dict[str, DataStyle] = {
     "linear": _LinearStyle(),
     "log": _LogStyle(),
@@ -241,40 +241,40 @@ def calculate_y_axis(xdata_list: typing.Sequence[typing.Optional[DataAndMetadata
     min_specified = data_min is not None
     max_specified = data_max is not None
 
-    calibrated_min_opt: typing.Optional[float] = None
-    calibrated_max_opt: typing.Optional[float] = None
+    mapped_calibrated_data_min_opt: typing.Optional[float] = None
+    mapped_calibrated_data_max_opt: typing.Optional[float] = None
 
     # Determine min/max in calibrated data space before converting to display space
     for xdata in xdata_list:
         if xdata and xdata.data_shape[-1] > 0:
-            calibrated_xdata = data_style.transform_intensity_for_graph(xdata)
-            if calibrated_xdata is not None:
-                calibrated_data = calibrated_xdata.data if numpy.issubdtype(calibrated_xdata.data.dtype, numpy.floating) else calibrated_xdata.data.astype(float)
-                if calibrated_data is not None and calibrated_data.size > 0:
+            mapped_calibrated_xdata = data_style.convert_uncalibrated_array_to_mapped_calibrated_values(xdata)
+            if mapped_calibrated_xdata is not None:
+                mapped_calibrated_data = mapped_calibrated_xdata.data if numpy.issubdtype(mapped_calibrated_xdata.data.dtype, numpy.floating) else mapped_calibrated_xdata.data.astype(float)
+                if mapped_calibrated_data is not None and mapped_calibrated_data.size > 0:
                     with warnings.catch_warnings():
                         warnings.simplefilter("ignore", category=RuntimeWarning)
-                        vmin = float(numpy.nanmin(calibrated_data))
-                        vmax = float(numpy.nanmax(calibrated_data))
-                    if numpy.isfinite(vmin):
-                        calibrated_min_opt = vmin if calibrated_min_opt is None else min(calibrated_min_opt, vmin)
-                    if numpy.isfinite(vmax):
-                        calibrated_max_opt = vmax if calibrated_max_opt is None else max(calibrated_max_opt, vmax)
+                        mapped_calibrated_data_min = float(numpy.nanmin(mapped_calibrated_data))
+                        mapped_calibrated_data_max = float(numpy.nanmax(mapped_calibrated_data))
+                    if numpy.isfinite(mapped_calibrated_data_min):
+                        mapped_calibrated_data_min_opt = mapped_calibrated_data_min if mapped_calibrated_data_min_opt is None else min(mapped_calibrated_data_min_opt, mapped_calibrated_data_min)
+                    if numpy.isfinite(mapped_calibrated_data_max):
+                        mapped_calibrated_data_max_opt = mapped_calibrated_data_max if mapped_calibrated_data_max_opt is None else max(mapped_calibrated_data_max_opt, mapped_calibrated_data_max)
 
     if min_specified:
         calibrated_min = typing.cast(float, data_min)
     else:
-        if calibrated_min_opt is not None:
-            calibrated_min = data_style.convert_display_value_to_calibrated_value(calibrated_min_opt)
+        if mapped_calibrated_data_min_opt is not None:
+            calibrated_min = data_style.convert_mapped_calibrated_value_to_calibrated_value(mapped_calibrated_data_min_opt)
         else:
-           calibrated_min = None
+            calibrated_min = None
 
     if max_specified:
         calibrated_max = typing.cast(float, data_max)
     else:
-        if calibrated_max_opt is not None:
-            calibrated_max = data_style.convert_display_value_to_calibrated_value(calibrated_max_opt)
+        if mapped_calibrated_data_max_opt is not None:
+            calibrated_max = data_style.convert_mapped_calibrated_value_to_calibrated_value(mapped_calibrated_data_max_opt)
         else:
-          calibrated_max = None
+            calibrated_max = None
 
     calibrated_min, calibrated_max = data_style.adjust_calibrated_limits(calibrated_min, calibrated_max, min_specified, max_specified)
 
