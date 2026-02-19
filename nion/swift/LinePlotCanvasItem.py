@@ -44,9 +44,9 @@ def are_axes_equal(axes1: typing.Optional[LineGraphCanvasItem.LineGraphAxes], ax
         return False
     if axes1.drawn_right_channel != axes2.drawn_right_channel:
         return False
-    if axes1.calibrated_data_min != axes2.calibrated_data_min:
+    if axes1.mapped_calibrated_data_min != axes2.mapped_calibrated_data_min:
         return False
-    if axes1.calibrated_data_max != axes2.calibrated_data_max:
+    if axes1.mapped_calibrated_data_max != axes2.mapped_calibrated_data_max:
         return False
     if axes1.x_calibration != axes2.x_calibration:
         return False
@@ -234,14 +234,19 @@ class LinePlotDisplayInfo:
                 y_max_calibration = displayed_intensity_calibration.convert_to_calibrated_value(y_max)
             else:
                 y_max_calibration = None
-            calibrated_data_min, calibrated_data_max, y_ticker = LineGraphCanvasItem.calculate_y_axis(xdata_list,
+            mapped_calibrated_data_min, mapped_calibrated_data_max, y_ticker = LineGraphCanvasItem.calculate_y_axis(xdata_list,
                                                                                                       y_min_calibrated,
                                                                                                       y_max_calibration,
                                                                                                       y_style)
-            self.__axes = LineGraphCanvasItem.LineGraphAxes(data_scale, calibrated_data_min, calibrated_data_max,
+            self.__axes = LineGraphCanvasItem.LineGraphAxes(data_scale,
+                                                            mapped_calibrated_data_min,
+                                                            mapped_calibrated_data_max,
                                                             left_channel,
-                                                            right_channel, displayed_dimensional_calibration,
-                                                            displayed_intensity_calibration, y_style, y_ticker)
+                                                            right_channel,
+                                                            displayed_dimensional_calibration,
+                                                            displayed_intensity_calibration,
+                                                            y_style,
+                                                            y_ticker)
         return self.__axes
 
     @property
@@ -1014,8 +1019,8 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             self.__tracking_vertical = True
             self.__tracking_rescale = rescale
             self.__tracking_start_pos = pos
-            self.__tracking_start_calibrated_data_min = axes.calibrated_data_min
-            self.__tracking_start_calibrated_data_max = axes.calibrated_data_max
+            self.__tracking_start_calibrated_data_min = axes.mapped_calibrated_data_min
+            self.__tracking_start_calibrated_data_max = axes.mapped_calibrated_data_max
             self.__tracking_start_calibrated_data_per_pixel = (self.__tracking_start_calibrated_data_max - self.__tracking_start_calibrated_data_min) / plot_height
             plot_origin = self.__line_graph_vertical_axis_group_canvas_item.map_to_canvas_item(Geometry.IntPoint(), self)
             plot_rect = v_axis_canvas_bounds.translated(plot_origin)
@@ -1114,16 +1119,16 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                     new_calibrated_data_per_pixel = calibrated_offset / pixel_offset
                     calibrated_data_min = self.__tracking_start_calibrated_origin - new_calibrated_data_per_pixel * self.__tracking_start_origin_y
                     calibrated_data_max = self.__tracking_start_calibrated_origin + new_calibrated_data_per_pixel * (plot_rect.height - 1 - self.__tracking_start_origin_y)
-                    uncalibrated_data_min = axes.uncalibrate_y(calibrated_data_min)
-                    uncalibrated_data_max = axes.uncalibrate_y(calibrated_data_max)
+                    uncalibrated_data_min = axes.convert_mapped_calibrated_y_value_to_uncalibrated_value(calibrated_data_min)
+                    uncalibrated_data_max = axes.convert_mapped_calibrated_y_value_to_uncalibrated_value(calibrated_data_max)
                     delegate.update_display_properties({"y_min": uncalibrated_data_min, "y_max": uncalibrated_data_max})
                     return True
                 else:
                     delta = pos - self.__tracking_start_pos
                     calibrated_data_min = self.__tracking_start_calibrated_data_min + self.__tracking_start_calibrated_data_per_pixel * delta.y
                     calibrated_data_max = self.__tracking_start_calibrated_data_max + self.__tracking_start_calibrated_data_per_pixel * delta.y
-                    uncalibrated_data_min = axes.uncalibrate_y(calibrated_data_min)
-                    uncalibrated_data_max = axes.uncalibrate_y(calibrated_data_max)
+                    uncalibrated_data_min = axes.convert_mapped_calibrated_y_value_to_uncalibrated_value(calibrated_data_min)
+                    uncalibrated_data_max = axes.convert_mapped_calibrated_y_value_to_uncalibrated_value(calibrated_data_max)
                     delegate.update_display_properties({"y_min": uncalibrated_data_min, "y_max": uncalibrated_data_max})
                     return True
         return False
