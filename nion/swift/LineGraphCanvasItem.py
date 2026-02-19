@@ -15,6 +15,7 @@ import gettext
 import math
 import re
 import typing
+import warnings
 
 # third party libraries
 import numpy
@@ -66,10 +67,6 @@ class DataStyle(typing.Protocol):
     @property
     def style_id(self) -> str: ...
 
-    def min_calibrated_value_from_uncalibrated(self, uncalibrated_data: _NDArray, intensity_calibration: Calibration.Calibration) -> float: ...
-
-    def max_calibrated_value_from_uncalibrated(self, uncalibrated_data: _NDArray, intensity_calibration: Calibration.Calibration) -> float: ...
-
     def make_ticker(self, display_min: float, display_max: float) -> Geometry.Ticker: ...
 
     def convert_calibrated_value_to_mapped_calibrated_value(self, value_cal: float) -> float: ...
@@ -80,19 +77,13 @@ class DataStyle(typing.Protocol):
 
     def display_origin(self, display_min: float, display_max: float) -> float: ...
 
-    def adjust_calibrated_limits(self, cal_min: float, cal_max: float, min_specified: bool, max_specified: bool) -> tuple[float, float]: ...
+    def adjust_calibrated_limits(self, cal_min: float | None, cal_max: float | None, min_specified: bool, max_specified: bool) -> tuple[float, float]: ...
+
+    def make_y_calibration(self, xdata: DataAndMetadata.DataAndMetadata) -> Calibration.Calibration: ...
 
 
 class _LinearStyle(DataStyle):
     style_id = "linear"
-
-    def min_calibrated_value_from_uncalibrated(self, uncalibrated_data: _NDArray, intensity_calibration: Calibration.Calibration) -> float:
-        value_uncal = numpy.amin(uncalibrated_data)
-        return typing.cast(float, intensity_calibration.convert_to_calibrated_value(value_uncal))
-
-    def max_calibrated_value_from_uncalibrated(self, uncalibrated_data: _NDArray, intensity_calibration: Calibration.Calibration) -> float:
-        value_uncal = numpy.amax(uncalibrated_data)
-        return typing.cast(float, intensity_calibration.convert_to_calibrated_value(value_uncal))
 
     def make_ticker(self, display_min: float, display_max: float) -> Geometry.Ticker:
         return Geometry.LinearTicker(display_min, display_max)
@@ -120,26 +111,20 @@ class _LinearStyle(DataStyle):
             return 0.0
         return display_min if 0.0 < display_min else display_max
 
-    def adjust_calibrated_limits(self, cal_min: float, cal_max: float, min_specified: bool, max_specified: bool) -> tuple[float, float]:
-        if not min_specified and cal_min > 0.0:
+    def adjust_calibrated_limits(self, cal_min: float | None, cal_max: float | None, min_specified: bool, max_specified: bool) -> tuple[float, float]:
+        if (cal_min is None) or (not min_specified and cal_min > 0.0):
             cal_min = 0.0
-        if not max_specified and cal_max < 0.0:
+        if (cal_max is None) or (not max_specified and cal_max < 0.0):
             cal_max = 0.0
         return cal_min, cal_max
+
+    def make_y_calibration(self, xdata: DataAndMetadata.DataAndMetadata) -> Calibration.Calibration:
+        intensity_calibration = xdata.intensity_calibration or Calibration.Calibration()
+        return Calibration.Calibration(intensity_calibration.offset, intensity_calibration.scale, intensity_calibration.units)
 
 
 class _LogStyle(DataStyle):
     style_id = "log"
-
-    def min_calibrated_value_from_uncalibrated(self, uncalibrated_data: _NDArray, intensity_calibration: Calibration.Calibration) -> float:
-        origin_uncal = intensity_calibration.convert_from_calibrated_value(0.0)
-        partial_min = numpy.amin(uncalibrated_data[uncalibrated_data > origin_uncal], initial=numpy.inf)
-        return typing.cast(float, intensity_calibration.convert_to_calibrated_value(partial_min))
-
-    def max_calibrated_value_from_uncalibrated(self, uncalibrated_data: _NDArray, intensity_calibration: Calibration.Calibration) -> float:
-        origin_uncal = intensity_calibration.convert_from_calibrated_value(0.0)
-        partial_max = numpy.amax(uncalibrated_data[uncalibrated_data > origin_uncal], initial=-numpy.inf)
-        return typing.cast(float, intensity_calibration.convert_to_calibrated_value(partial_max))
 
     def make_ticker(self, display_min: float, display_max: float) -> Geometry.Ticker:
         return Geometry.LogTicker(display_min, display_max)
@@ -167,13 +152,100 @@ class _LogStyle(DataStyle):
     def display_origin(self, display_min: float, display_max: float) -> float:
         return display_min
 
-    def adjust_calibrated_limits(self, cal_min: float, cal_max: float, min_specified: bool, max_specified: bool) -> tuple[float, float]:
+    def adjust_calibrated_limits(self, cal_min: float | None, cal_max: float | None, min_specified: bool, max_specified: bool) -> tuple[float, float]:
+        min_val = cal_min if cal_min is not None else 0.0
+        max_val = cal_max if cal_max is not None else 0.0
+        return min_val, max_val
+
+    def make_y_calibration(self, xdata: DataAndMetadata.DataAndMetadata) -> Calibration.Calibration:
+        intensity_calibration = xdata.intensity_calibration or Calibration.Calibration()
+        return Calibration.Calibration(intensity_calibration.offset, intensity_calibration.scale, intensity_calibration.units)
+
+
+class _IE2Style(DataStyle):
+    """I(E) · E^2 weighting.
+    - Returns CALIBRATED intensity equal to (offset + scale*I) * E^2.
+    - Display mapping is linear (no log).
+    - Units become '<intensity_units>·<energy_units>²' when x-units are present.
+    """
+
+    @property
+    def style_id(self) -> str:
+        return "ie2"
+
+    def make_ticker(self, display_min: float, display_max: float) -> Geometry.Ticker:
+        return Geometry.LinearTicker(display_min, display_max)
+
+    def convert_calibrated_value_to_mapped_calibrated_value(self, value_cal: float) -> float:
+        return value_cal
+
+    def convert_mapped_calibrated_value_to_calibrated_value(self, value_disp: float) -> float:
+        return value_disp
+
+    def convert_uncalibrated_array_to_mapped_calibrated_values(self, xdata: DataAndMetadata.DataAndMetadata) -> DataAndMetadata.DataAndMetadata | None:
+        """Produce the array for IE^2 plotting: (a + b*I) * E^2.
+        - I is the raw intensity
+        - a,b are taken from intensity_calibration (offset, scale).
+        - E is the calibrated x-axis
+        """
+        ic = xdata.intensity_calibration
+        if not ic:
+            return xdata
+
+        y_cal = ic.offset + ic.scale * xdata.data
+
+        x_cal = xdata.dimensional_calibrations[-1] if xdata.dimensional_calibrations else Calibration.Calibration()
+        n = y_cal.shape[-1]
+        idx = numpy.arange(n, dtype=float)
+        E = x_cal.offset + x_cal.scale * idx
+        E = E.reshape((1,) * (y_cal.ndim - 1) + (n,))      # broadcast over leading dims
+        y_ie2 = y_cal * (E ** 2)
+
+        y_units = ic.units or ""
+        e_units = x_cal.units or ""
+        if e_units:
+            units = f"{y_units}·{e_units}²" if y_units else f"{e_units}²"
+        else:
+            units = y_units
+
+        return DataAndMetadata.new_data_and_metadata(
+            y_ie2,
+            intensity_calibration=Calibration.Calibration(units=units),
+            dimensional_calibrations=xdata.dimensional_calibrations
+        )
+
+    def display_origin(self, display_min: float, display_max: float) -> float:
+        if display_min <= 0.0 <= display_max:
+            return 0.0
+        return display_min if 0.0 < display_min else display_max
+
+    def adjust_calibrated_limits(self, cal_min: float | None, cal_max: float | None,
+                                 min_specified: bool, max_specified: bool) -> tuple[float, float]:
+        if (cal_min is None) or (not min_specified and cal_min > 0.0):
+            cal_min = 0.0
+        if (cal_max is None) or (not max_specified and cal_max < 0.0):
+            cal_max = 0.0
         return cal_min, cal_max
+
+    def make_y_calibration(self, xdata: DataAndMetadata.DataAndMetadata) -> Calibration.Calibration:
+        intensity_calibration = xdata.intensity_calibration or Calibration.Calibration()
+        x_cal = xdata.dimensional_calibrations[-1] if xdata.dimensional_calibrations else Calibration.Calibration()
+        y_units = intensity_calibration.units or ""
+        e_units = x_cal.units or ""
+        if e_units:
+            units = f"{y_units}·{e_units}²" if y_units else f"{e_units}²"
+        else:
+            units = y_units
+        # IE² mapping is not a simple linear transform of raw
+        # intensity so use identity offset/scale for conversions.
+        return Calibration.Calibration(0.0, 1.0, units)
+
 
 
 _data_styles: dict[str, DataStyle] = {
     "linear": _LinearStyle(),
     "log": _LogStyle(),
+    "ie2": _IE2Style(),
 }
 
 def _get_data_style(data_style_id: str | None) -> DataStyle:
@@ -195,31 +267,40 @@ def calculate_y_axis(xdata_list: typing.Sequence[DataAndMetadata.DataAndMetadata
     min_specified = data_min is not None
     max_specified = data_max is not None
 
+    mapped_calibrated_data_min_opt: typing.Optional[float] = None
+    mapped_calibrated_data_max_opt: typing.Optional[float] = None
+
+    # Determine min/max in calibrated data space before converting to display space
+    for xdata in xdata_list:
+        if xdata and xdata.data_shape[-1] > 0:
+            mapped_calibrated_xdata = data_style.convert_uncalibrated_array_to_mapped_calibrated_values(xdata)
+            if mapped_calibrated_xdata is not None:
+                mapped_calibrated_data = mapped_calibrated_xdata.data if numpy.issubdtype(mapped_calibrated_xdata.data.dtype, numpy.floating) else mapped_calibrated_xdata.data.astype(float)
+                if mapped_calibrated_data is not None and mapped_calibrated_data.size > 0:
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore", category=RuntimeWarning)
+                        mapped_calibrated_data_min = float(numpy.nanmin(mapped_calibrated_data))
+                        mapped_calibrated_data_max = float(numpy.nanmax(mapped_calibrated_data))
+                    if numpy.isfinite(mapped_calibrated_data_min):
+                        mapped_calibrated_data_min_opt = mapped_calibrated_data_min if mapped_calibrated_data_min_opt is None else min(mapped_calibrated_data_min_opt, mapped_calibrated_data_min)
+                    if numpy.isfinite(mapped_calibrated_data_max):
+                        mapped_calibrated_data_max_opt = mapped_calibrated_data_max if mapped_calibrated_data_max_opt is None else max(mapped_calibrated_data_max_opt, mapped_calibrated_data_max)
+
     if min_specified:
         calibrated_min = typing.cast(float, data_min)
     else:
-        calibrated_min_opt: typing.Optional[float] = None
-        for xdata in xdata_list:
-            if xdata and xdata.data_shape[-1] > 0:
-                # force the uncalibrated_data to be float so that numpy.amin with a numpy.inf initial value works.
-                uncalibrated_data = xdata.data if numpy.issubdtype(xdata.data.dtype, numpy.floating) else xdata.data.astype(float)
-                if uncalibrated_data is not None and xdata.intensity_calibration:
-                    v = data_style.min_calibrated_value_from_uncalibrated(uncalibrated_data, xdata.intensity_calibration)
-                    calibrated_min_opt = v if calibrated_min_opt is None else min(calibrated_min_opt, v)
-        calibrated_min = calibrated_min_opt if (calibrated_min_opt is not None and numpy.isfinite(calibrated_min_opt)) else 0.0
+        if mapped_calibrated_data_min_opt is not None:
+            calibrated_min = data_style.convert_mapped_calibrated_value_to_calibrated_value(mapped_calibrated_data_min_opt)
+        else:
+            calibrated_min = None
 
     if max_specified:
         calibrated_max = typing.cast(float, data_max)
     else:
-        calibrated_max_opt: typing.Optional[float] = None
-        for xdata in xdata_list:
-            if xdata and xdata.data_shape[-1] > 0:
-                # force the uncalibrated_data to be float so that numpy.amin with a numpy.inf initial value works.
-                uncalibrated_data = xdata.data if numpy.issubdtype(xdata.data.dtype, numpy.floating) else xdata.data.astype(float)
-                if uncalibrated_data is not None and xdata.intensity_calibration:
-                    v = data_style.max_calibrated_value_from_uncalibrated(uncalibrated_data, xdata.intensity_calibration)
-                    calibrated_max_opt = v if calibrated_max_opt is None else max(calibrated_max_opt, v)
-        calibrated_max = calibrated_max_opt if (calibrated_max_opt is not None and numpy.isfinite(calibrated_max_opt)) else 0.0
+        if mapped_calibrated_data_max_opt is not None:
+            calibrated_max = data_style.convert_mapped_calibrated_value_to_calibrated_value(mapped_calibrated_data_max_opt)
+        else:
+            calibrated_max = None
 
     calibrated_min, calibrated_max = data_style.adjust_calibrated_limits(calibrated_min, calibrated_max, min_specified, max_specified)
 
@@ -240,6 +321,19 @@ def calculate_y_axis(xdata_list: typing.Sequence[DataAndMetadata.DataAndMetadata
         mapped_calibrated_data_max = ticker.maximum
 
     return mapped_calibrated_data_min, mapped_calibrated_data_max, ticker
+
+
+def calculate_y_calibration(
+    xdata_list: typing.Sequence[DataAndMetadata.DataAndMetadata | None],data_style_id: str | None) -> typing.Optional[Calibration.Calibration]:
+    """
+    Decide the Y-axis calibration (units) based on the data style and the first available xdata.
+    Returns a Calibration or None if no data is present.
+    """
+    data_style = _get_data_style(data_style_id)
+    for xdata in xdata_list:
+        if xdata is not None and xdata.data_shape[-1] > 0:
+            return data_style.make_y_calibration(xdata)
+    return None
 
 
 @dataclasses.dataclass
