@@ -1568,7 +1568,7 @@ class TestSymbolicClass(unittest.TestCase):
         def __init__(self, computation, **kwargs):
             self.computation = computation
 
-        def execute(self, src_xdata):
+        def execute(self, *, src_xdata, **kwargs):
             raise RuntimeError()
 
         def commit(self):
@@ -1618,7 +1618,7 @@ class TestSymbolicClass(unittest.TestCase):
             self.started_event = started_event
             self.continue_event = continue_event
 
-        def execute(self, src_xdata):
+        def execute(self, *, src_xdata, **kwargs):
             self.started_event.set()
             self.continue_event.wait(5)
             raise RuntimeError()
@@ -1820,6 +1820,85 @@ class TestSymbolicClass(unittest.TestCase):
             display_item.add_graphic(graphic)
             # at this stage the data source monitor was corrupt
             graphic.position = 0.2, 0.2  # this triggered an exception
+
+    def test_computation_auto_update_basic_functionality(self):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            data_item = DataItem.DataItem(data=numpy.zeros((8, 8), numpy.float32))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            document_model.get_gaussian_blur_new(display_item, display_item.data_item)
+            document_model.recompute_all()
+            computation = document_model.computations[-1]
+            # ensure changing parameter updates the computation
+            last_computed_timestamp = computation.last_computed_timestamp
+            computation.set_input_value("sigma", 3.1)
+            document_model.recompute_all()
+            self.assertLess(last_computed_timestamp, computation.last_computed_timestamp)
+            # disable auto_update and ensure changing parameter does not update the computation
+            last_computed_timestamp = computation.last_computed_timestamp
+            computation.auto_update = False
+            computation.set_input_value("sigma", 3.2)
+            document_model.recompute_all()
+            self.assertEqual(last_computed_timestamp, computation.last_computed_timestamp)
+            # enable auto_update and ensure it updates immediately
+            last_computed_timestamp = computation.last_computed_timestamp
+            computation.auto_update = True
+            document_model.recompute_all()
+            self.assertLess(last_computed_timestamp, computation.last_computed_timestamp)
+            # finally ensure changing parameter updates the computation again
+            last_computed_timestamp = computation.last_computed_timestamp
+            computation.set_input_value("sigma", 3.3)
+            document_model.recompute_all()
+            self.assertLess(last_computed_timestamp, computation.last_computed_timestamp)
+
+    def test_computation_with_pending_update_recomputes_automatically_after_relaunch(self):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                data_item = DataItem.DataItem(data=numpy.zeros((8, 8), numpy.float32))
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                document_model.get_gaussian_blur_new(display_item, display_item.data_item)
+                document_model.recompute_all()
+                computation = document_model.computations[-1]
+                computation.set_input_value("sigma", 3.1)
+                self.assertTrue(computation.needs_update)
+            # check automatic recompute
+            document_model = test_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                computation = document_model.computations[-1]
+                self.assertTrue(computation.needs_update)
+                document_model.recompute_all()
+                self.assertFalse(computation.needs_update)
+                computation.set_input_value("sigma", 3.0)
+                self.assertTrue(computation.needs_update)
+                document_model.recompute_all()
+                self.assertFalse(computation.needs_update)
+
+    def test_computation_with_pending_update_recomputes_manually_after_relaunch(self):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                data_item = DataItem.DataItem(data=numpy.zeros((8, 8), numpy.float32))
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                document_model.get_gaussian_blur_new(display_item, display_item.data_item)
+                document_model.recompute_all()
+                computation = document_model.computations[-1]
+                computation.auto_update = False
+                computation.set_input_value("sigma", 3.1)
+                self.assertTrue(computation.needs_update)
+            # check manual recompute
+            document_model = test_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                computation = document_model.computations[-1]
+                self.assertTrue(computation.needs_update)
+                document_model.recompute_all()
+                self.assertTrue(computation.needs_update)
+                document_model._start_computation(computation)
+                document_model.recompute_all()
+                self.assertFalse(computation.needs_update)
 
     def disabled_test_reshape_rgb(self):
         assert False

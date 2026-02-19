@@ -258,6 +258,8 @@ class Workspace:
         self.__change_splitter_command: typing.Optional[Undo.UndoableCommand] = None
         self.__change_splitter_splits: typing.List[float] = list()
 
+        self.property_changed_event = Event.Event()
+
     def close(self) -> None:
         for message_box_widget in copy.copy(list(self.__message_boxes.values())):
             self.message_column.remove(message_box_widget)
@@ -564,7 +566,8 @@ class Workspace:
 
     def _change_workspace(self, workspace_layout: WorkspaceLayout.WorkspaceLayout) -> None:
         assert workspace_layout is not None
-        # save the current workspace
+        # save the current workspace so we know to fire the property changed event below.
+        old_workspace = self.__workspace
         self.__workspace = None
         # remove existing layout and canvas item
         while len(self.__display_panels) > 0:
@@ -614,7 +617,10 @@ class Workspace:
                 self.image_row.add(canvas_widget)
         self.document_controller.selected_display_panel = selected_display_panel
         self.document_controller.project.workspace_uuid = workspace_layout.uuid
-        self.document_controller._workspace_changed(workspace_layout)
+        # fire the property changed event if the workspace layout changed. use the more accurate 'workspace_layout'
+        # name until the workspace, workspace controller, and workspace layout naming is cleaned up.
+        if old_workspace != workspace_layout:
+            self.property_changed_event.fire("workspace_layout")
 
     def restore(self, workspace_uuid: typing.Optional[uuid.UUID]) -> None:
         """

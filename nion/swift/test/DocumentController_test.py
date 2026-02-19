@@ -1109,7 +1109,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         def __init__(self, computation, **kwargs):
             self.computation = computation
 
-        def execute(self, src, graphics_list):
+        def execute(self, *, src, graphics_list, **kwargs):
             self.__data = numpy.full((4, 4), len(graphics_list))
 
         def commit(self):

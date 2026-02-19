@@ -72,11 +72,11 @@ class DataStyle(typing.Protocol):
 
     def make_ticker(self, display_min: float, display_max: float) -> Geometry.Ticker: ...
 
-    def convert_calibrated_value_to_display_value(self, value_cal: float) -> float: ...
+    def convert_calibrated_value_to_mapped_calibrated_value(self, value_cal: float) -> float: ...
 
-    def convert_display_value_to_calibrated_value(self, value_disp: float) -> float: ...
+    def convert_mapped_calibrated_value_to_calibrated_value(self, value_disp: float) -> float: ...
 
-    def transform_intensity_for_graph(self, xdata: DataAndMetadata.DataAndMetadata) -> DataAndMetadata.DataAndMetadata | None: ...
+    def convert_uncalibrated_array_to_mapped_calibrated_values(self, xdata: DataAndMetadata.DataAndMetadata) -> DataAndMetadata.DataAndMetadata | None: ...
 
     def display_origin(self, display_min: float, display_max: float) -> float: ...
 
@@ -97,13 +97,13 @@ class _LinearStyle(DataStyle):
     def make_ticker(self, display_min: float, display_max: float) -> Geometry.Ticker:
         return Geometry.LinearTicker(display_min, display_max)
 
-    def convert_calibrated_value_to_display_value(self, value_cal: float) -> float:
+    def convert_calibrated_value_to_mapped_calibrated_value(self, value_cal: float) -> float:
         return value_cal
 
-    def convert_display_value_to_calibrated_value(self, value_disp: float) -> float:
+    def convert_mapped_calibrated_value_to_calibrated_value(self, value_disp: float) -> float:
         return value_disp
 
-    def transform_intensity_for_graph(self, xdata: DataAndMetadata.DataAndMetadata) -> DataAndMetadata.DataAndMetadata | None:
+    def convert_uncalibrated_array_to_mapped_calibrated_values(self, xdata: DataAndMetadata.DataAndMetadata) -> DataAndMetadata.DataAndMetadata | None:
         intensity_calibration = xdata.intensity_calibration
         if intensity_calibration:
             data = xdata.data if not xdata.is_data_rgb_type else Image.convert_to_grayscale(xdata.data)
@@ -144,13 +144,13 @@ class _LogStyle(DataStyle):
     def make_ticker(self, display_min: float, display_max: float) -> Geometry.Ticker:
         return Geometry.LogTicker(display_min, display_max)
 
-    def convert_calibrated_value_to_display_value(self, value_cal: float) -> float:
+    def convert_calibrated_value_to_mapped_calibrated_value(self, value_cal: float) -> float:
         return math.log10(value_cal) if value_cal > 0 else float("-inf")
 
-    def convert_display_value_to_calibrated_value(self, value_disp: float) -> float:
+    def convert_mapped_calibrated_value_to_calibrated_value(self, value_disp: float) -> float:
         return math.pow(10, value_disp)
 
-    def transform_intensity_for_graph(self, xdata: DataAndMetadata.DataAndMetadata) -> DataAndMetadata.DataAndMetadata | None:
+    def convert_uncalibrated_array_to_mapped_calibrated_values(self, xdata: DataAndMetadata.DataAndMetadata) -> DataAndMetadata.DataAndMetadata | None:
         intensity_calibration = xdata.intensity_calibration
         if intensity_calibration:
             data = xdata.data if not xdata.is_data_rgb_type else Image.convert_to_grayscale(xdata.data)
@@ -182,11 +182,13 @@ def _get_data_style(data_style_id: str | None) -> DataStyle:
     return data_style if data_style else _LinearStyle()
 
 
-def calculate_y_axis(xdata_list: typing.Sequence[typing.Optional[DataAndMetadata.DataAndMetadata]], data_min: typing.Optional[float], data_max: typing.Optional[float], data_style_id: str | None) -> typing.Tuple[float, float, Geometry.Ticker]:
+def calculate_y_axis(xdata_list: typing.Sequence[DataAndMetadata.DataAndMetadata | None], data_min: float | None, data_max: float | None, data_style_id: str | None) -> tuple[float, float, Geometry.Ticker]:
     """Calculate the calibrated min/max and y-axis ticker for list of xdata.
 
     xdata_list is the original calibrated data
     data_min and data_max are calibrated values
+
+    Returns mapped_calibrated_data_min, mapped_calibrated_data_max, ticker
     """
     data_style = _get_data_style(data_style_id)
 
@@ -222,22 +224,22 @@ def calculate_y_axis(xdata_list: typing.Sequence[typing.Optional[DataAndMetadata
     calibrated_min, calibrated_max = data_style.adjust_calibrated_limits(calibrated_min, calibrated_max, min_specified, max_specified)
 
     # Convert calibrated limits to display space
-    display_min = data_style.convert_calibrated_value_to_display_value(calibrated_min)
-    display_max = data_style.convert_calibrated_value_to_display_value(calibrated_max)
-    if (math.isnan(display_min) or math.isnan(display_max) or math.isinf(display_min) or math.isinf(display_max)):
-        display_min, display_max = 0.0, 0.0
-    display_min, display_max = min(display_min, display_max), max(display_min, display_max)
-    if display_min == display_max:
-        display_min -= 1.0
-        display_max += 1.0
+    mapped_calibrated_data_min = data_style.convert_calibrated_value_to_mapped_calibrated_value(calibrated_min)
+    mapped_calibrated_data_max = data_style.convert_calibrated_value_to_mapped_calibrated_value(calibrated_max)
+    if (math.isnan(mapped_calibrated_data_min) or math.isnan(mapped_calibrated_data_max) or math.isinf(mapped_calibrated_data_min) or math.isinf(mapped_calibrated_data_max)):
+        mapped_calibrated_data_min, mapped_calibrated_data_max = 0.0, 0.0
+    mapped_calibrated_data_min, mapped_calibrated_data_max = min(mapped_calibrated_data_min, mapped_calibrated_data_max), max(mapped_calibrated_data_min, mapped_calibrated_data_max)
+    if mapped_calibrated_data_min == mapped_calibrated_data_max:
+        mapped_calibrated_data_min -= 1.0
+        mapped_calibrated_data_max += 1.0
 
-    ticker = data_style.make_ticker(display_min, display_max)
+    ticker = data_style.make_ticker(mapped_calibrated_data_min, mapped_calibrated_data_max)
     if not min_specified:
-        display_min = ticker.minimum
+        mapped_calibrated_data_min = ticker.minimum
     if not max_specified:
-        display_max = ticker.maximum
+        mapped_calibrated_data_max = ticker.maximum
 
-    return display_min, display_max, ticker
+    return mapped_calibrated_data_min, mapped_calibrated_data_max, ticker
 
 
 @dataclasses.dataclass
@@ -250,7 +252,7 @@ class LegendEntry:
 class LineGraphAxes:
     """Track information about line graph axes."""
 
-    def __init__(self, data_scale: float, calibrated_data_min: float, calibrated_data_max: float, data_left: int,
+    def __init__(self, data_scale: float, mapped_calibrated_data_min: float, mapped_calibrated_data_max: float, data_left: int,
                  data_right: int, x_calibration: typing.Optional[Calibration.Calibration],
                  y_calibration: typing.Optional[Calibration.Calibration], data_style_id: typing.Optional[str],
                  y_ticker: Geometry.Ticker) -> None:
@@ -263,12 +265,12 @@ class LineGraphAxes:
         self.x_calibration = x_calibration
         self.y_calibration = y_calibration
         self.data_style = _get_data_style(data_style_id)
-        self.__calibrated_data_min = calibrated_data_min
-        self.__calibrated_data_max = calibrated_data_max
+        self.__mapped_calibrated_data_min = mapped_calibrated_data_min
+        self.__mapped_calibrated_data_max = mapped_calibrated_data_max
         self.__y_ticker = y_ticker
 
     def __repr__(self) -> str:
-        return f"Axes {self.drawn_left_channel}:{self.drawn_right_channel} [{self.calibrated_data_min},{self.calibrated_data_max} {self.x_calibration} {self.y_calibration} {self.data_style} {self.data_scale}"
+        return f"Axes {self.drawn_left_channel}:{self.drawn_right_channel} [{self.mapped_calibrated_data_min},{self.mapped_calibrated_data_max} {self.x_calibration} {self.y_calibration} {self.data_style} {self.data_scale}"
 
     def __eq__(self, other: typing.Any) -> bool:
         if not isinstance(other, LineGraphAxes):
@@ -279,12 +281,12 @@ class LineGraphAxes:
                 self.x_calibration == other.x_calibration and
                 self.y_calibration == other.y_calibration and
                 self.data_style.style_id == other.data_style.style_id and
-                self.__calibrated_data_min == other.__calibrated_data_min and
-                self.__calibrated_data_max == other.__calibrated_data_max and
+                self.__mapped_calibrated_data_min == other.__mapped_calibrated_data_min and
+                self.__mapped_calibrated_data_max == other.__mapped_calibrated_data_max and
                 self.__y_ticker == other.__y_ticker)
 
     def __hash__(self) -> int:
-        return hash((self.data_scale, self.__uncalibrated_left_channel, self.__uncalibrated_right_channel, self.x_calibration, self.y_calibration, self.data_style.style_id, self.__calibrated_data_min, self.__calibrated_data_max, self.__y_ticker))
+        return hash((self.data_scale, self.__uncalibrated_left_channel, self.__uncalibrated_right_channel, self.x_calibration, self.y_calibration, self.data_style.style_id, self.__mapped_calibrated_data_min, self.__mapped_calibrated_data_max, self.__y_ticker))
 
     @property
     def y_ticker(self) -> Geometry.Ticker:
@@ -293,30 +295,30 @@ class LineGraphAxes:
     @property
     def uncalibrated_data_min(self) -> float:
         y_calibration = self.y_calibration if self.y_calibration else Calibration.Calibration()
-        calibrated_value_min = self.data_style.convert_display_value_to_calibrated_value(self.calibrated_data_min)
+        calibrated_value_min = self.data_style.convert_mapped_calibrated_value_to_calibrated_value(self.mapped_calibrated_data_min)
         return y_calibration.convert_from_calibrated_value(calibrated_value_min)
 
     @property
     def uncalibrated_data_max(self) -> float:
         y_calibration = self.y_calibration if self.y_calibration else Calibration.Calibration()
-        calibrated_value_max = self.data_style.convert_display_value_to_calibrated_value(self.calibrated_data_max)
+        calibrated_value_max = self.data_style.convert_mapped_calibrated_value_to_calibrated_value(self.mapped_calibrated_data_max)
         return y_calibration.convert_from_calibrated_value(calibrated_value_max)
 
     @property
-    def calibrated_data_min(self) -> float:
-        return self.__calibrated_data_min
+    def mapped_calibrated_data_min(self) -> float:
+        return self.__mapped_calibrated_data_min
 
     @property
-    def calibrated_data_max(self) -> float:
-        return self.__calibrated_data_max
+    def mapped_calibrated_data_max(self) -> float:
+        return self.__mapped_calibrated_data_max
 
     @property
     def calibrated_value_max(self) -> float:
-        return self.data_style.convert_display_value_to_calibrated_value(self.__calibrated_data_max)
+        return self.data_style.convert_mapped_calibrated_value_to_calibrated_value(self.__mapped_calibrated_data_max)
 
     @property
     def calibrated_value_min(self) -> float:
-        return self.data_style.convert_display_value_to_calibrated_value(self.__calibrated_data_min)
+        return self.data_style.convert_mapped_calibrated_value_to_calibrated_value(self.__mapped_calibrated_data_min)
 
     @property
     def drawn_left_channel(self) -> int:
@@ -337,8 +339,8 @@ class LineGraphAxes:
     def calculate_y_ticks(self, plot_height: int, flag_minor: bool = False) -> typing.Sequence[typing.Tuple[float, str, bool]]:
         """Calculate the y-axis items dependent on the plot height."""
 
-        calibrated_data_min = self.calibrated_data_min
-        calibrated_data_max = self.calibrated_data_max
+        calibrated_data_min = self.mapped_calibrated_data_min
+        calibrated_data_max = self.mapped_calibrated_data_max
         calibrated_data_range = calibrated_data_max - calibrated_data_min
 
         ticker = self.y_ticker
@@ -357,12 +359,12 @@ class LineGraphAxes:
 
         return y_ticks
 
-    def uncalibrate_y(self, calibrated_y_value: float) -> float:
-        value_cal = self.data_style.convert_display_value_to_calibrated_value(calibrated_y_value)
+    def convert_mapped_calibrated_y_value_to_uncalibrated_value(self, mapped_calibrated_y_value: float) -> float:
+        calibrated_y_value = self.data_style.convert_mapped_calibrated_value_to_calibrated_value(mapped_calibrated_y_value)
         y_calibration = self.y_calibration
         if y_calibration:
-            return y_calibration.convert_from_calibrated_value(value_cal)
-        return value_cal
+            return y_calibration.convert_from_calibrated_value(calibrated_y_value)
+        return calibrated_y_value
 
     def calculate_x_ticks(self, plot_width: int) -> typing.Sequence[typing.Tuple[float, str]]:
         """Calculate the x-axis items dependent on the plot width."""
@@ -391,12 +393,12 @@ class LineGraphAxes:
 
         return x_ticks
 
-    def calculate_calibrated_xdata(self, xdata: DataAndMetadata.DataAndMetadata) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+    def convert_uncalibrated_array_to_mapped_calibrated_values(self, xdata: DataAndMetadata.DataAndMetadata) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
         """Calculate the 'calibrated xdata'.
 
          The 'calibrated xdata' is the xdata (with a calibration) but with a new intensity calibration where origin=0 and scale=1.
          """
-        return self.data_style.transform_intensity_for_graph(xdata)
+        return self.data_style.convert_uncalibrated_array_to_mapped_calibrated_values(xdata)
 
 
 def draw_background(drawing_context: DrawingContext.DrawingContext, plot_rect: Geometry.IntRect, background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]) -> None:
@@ -491,63 +493,73 @@ class LineGraphSegment:
 
 
 def calculate_line_graph(plot_height: int, plot_width: int, plot_origin_y: int, plot_origin_x: int,
-                    calibrated_xdata: DataAndMetadata.DataAndMetadata, calibrated_data_min: float,
-                    calibrated_data_range: float, calibrated_left_channel: float, calibrated_right_channel: float,
-                    x_calibration: Calibration.Calibration,
+                    mapped_calibrated_xdata: DataAndMetadata.DataAndMetadata, mapped_calibrated_data_min: float,
+                    mapped_calibrated_data_range: float, calibrated_left_channel: float, calibrated_right_channel: float,
+                    line_graph_x_calibration: Calibration.Calibration,
                     rebin_cache: typing.Optional[typing.Dict[str, typing.Any]],
                     data_style: DataStyle) -> typing.Tuple[typing.List[LineGraphSegment], int]:
-    # calculate how the data is displayed
-    xdata_calibration = calibrated_xdata.dimensional_calibrations[-1]
-    assert xdata_calibration.units == x_calibration.units
-    if x_calibration.scale < 0:
-        displayed_calibrated_left_channel = min(calibrated_left_channel, xdata_calibration.convert_to_calibrated_value(0))
-        displayed_calibrated_right_channel = max(calibrated_right_channel, xdata_calibration.convert_to_calibrated_value(calibrated_xdata.dimensional_shape[-1]))
-        if displayed_calibrated_left_channel <= calibrated_right_channel or displayed_calibrated_right_channel >= calibrated_left_channel:
+    """Calculate the line graph segments for the given parameters.
+
+    Note: line_graph_x_calibration may not match the calibration of mapped_calibrated_xdata since the x_calibration
+    represents the calibration of the graph itself, which may include multiple data items with different
+    calibrations. the units will match.
+    """
+    x_calibration = mapped_calibrated_xdata.dimensional_calibrations[-1]
+    assert x_calibration.units == line_graph_x_calibration.units
+    if line_graph_x_calibration.scale < 0:
+        # note: x_calibration is the same as calibrated_xdata_calibration. it is the x-dimension. use short names.
+        calibrated_min_channel = min(calibrated_left_channel, x_calibration.convert_to_calibrated_value(0))
+        calibrated_max_channel = max(calibrated_right_channel, x_calibration.convert_to_calibrated_value(mapped_calibrated_xdata.dimensional_shape[-1]))
+        if calibrated_min_channel <= calibrated_right_channel or calibrated_max_channel >= calibrated_left_channel:
             return list(), 0  # data is outside drawing area
     else:
-        displayed_calibrated_left_channel = max(calibrated_left_channel, xdata_calibration.convert_to_calibrated_value(0))
-        displayed_calibrated_right_channel = min(calibrated_right_channel, xdata_calibration.convert_to_calibrated_value(calibrated_xdata.dimensional_shape[-1]))
-        if displayed_calibrated_left_channel >= calibrated_right_channel or displayed_calibrated_right_channel <= calibrated_left_channel:
+        # note: x_calibration is the same as calibrated_xdata_calibration. it is the x-dimension. use short names.
+        calibrated_min_channel = max(calibrated_left_channel, x_calibration.convert_to_calibrated_value(0))
+        calibrated_max_channel = min(calibrated_right_channel, x_calibration.convert_to_calibrated_value(mapped_calibrated_xdata.dimensional_shape[-1]))
+        if calibrated_min_channel >= calibrated_right_channel or calibrated_max_channel <= calibrated_left_channel:
             return list(), 0  # data is outside drawing area
-    data_left_channel = round(xdata_calibration.convert_from_calibrated_value(displayed_calibrated_left_channel))
-    data_right_channel = round(xdata_calibration.convert_from_calibrated_value(displayed_calibrated_right_channel))
-    left = round((displayed_calibrated_left_channel - calibrated_left_channel) / (calibrated_right_channel - calibrated_left_channel) * plot_width + plot_origin_x)
-    right = round((displayed_calibrated_right_channel - calibrated_left_channel) / (calibrated_right_channel - calibrated_left_channel) * plot_width + plot_origin_x)
+    # calculate the left/right channels as indexes into the data arrays and the left/right pixels for drawing.
+    left_channel_index = round(x_calibration.convert_from_calibrated_value(calibrated_min_channel))
+    right_channel_index = round(x_calibration.convert_from_calibrated_value(calibrated_max_channel))
+    left_pixel = round((calibrated_min_channel - calibrated_left_channel) / (calibrated_right_channel - calibrated_left_channel) * plot_width + plot_origin_x)
+    right_pixel = round((calibrated_max_channel - calibrated_left_channel) / (calibrated_right_channel - calibrated_left_channel) * plot_width + plot_origin_x)
 
     # update input parameters, then fall back to old algorithm
-    plot_width = right - left
-    plot_origin_x = left
-    if 0 <= data_left_channel < data_right_channel and data_right_channel <= calibrated_xdata.dimensional_shape[-1]:
-        calibrated_xdata = calibrated_xdata[data_left_channel:data_right_channel]
+    plot_width = right_pixel - left_pixel
+    plot_origin_x = left_pixel
+    # calculate the subset of data that is visible in the graph
+    if 0 <= left_channel_index < right_channel_index and right_channel_index <= mapped_calibrated_xdata.dimensional_shape[-1]:
+        visible_mapped_calibrated_xdata = mapped_calibrated_xdata[left_channel_index:right_channel_index]
     else:
         return list(), 0
-    x_calibration = calibrated_xdata.dimensional_calibrations[-1]
-    calibrated_left_channel = x_calibration.convert_to_calibrated_value(0)
-    calibrated_right_channel = x_calibration.convert_to_calibrated_value(calibrated_xdata.dimensional_shape[-1])
+    visible_x_calibration = visible_mapped_calibrated_xdata.dimensional_calibrations[-1]
+    # these variables are repurposed. TODO: pick better names
+    visible_calibrated_left_channel = visible_x_calibration.convert_to_calibrated_value(0)
+    visible_calibrated_right_channel = visible_x_calibration.convert_to_calibrated_value(visible_mapped_calibrated_xdata.dimensional_shape[-1])
 
-    uncalibrated_left_channel = x_calibration.convert_from_calibrated_value(calibrated_left_channel)
-    uncalibrated_right_channel = x_calibration.convert_from_calibrated_value(calibrated_right_channel)
-    uncalibrated_width = uncalibrated_right_channel - uncalibrated_left_channel
+    uncalibrated_visible_left_channel = visible_x_calibration.convert_from_calibrated_value(visible_calibrated_left_channel)
+    uncalibrated_visible_right_channel = visible_x_calibration.convert_from_calibrated_value(visible_calibrated_right_channel)
+    uncalibrated_visible_width = uncalibrated_visible_right_channel - uncalibrated_visible_left_channel
     segments: typing.List[LineGraphSegment] = list()
     segment = LineGraphSegment()
     # use line_commands as an optimization for adding line commands to the path. this is critical for performance.
     line_commands = segment.line_commands
     # segment_path = segment.path  # partially optimized; see note below
     # note: testing performance using a loop around drawing commands in test_line_plot_handle_calibrated_x_axis_with_negative_scale
-    if calibrated_data_range != 0.0 and uncalibrated_width > 0.0:
-        origin_display = data_style.display_origin(calibrated_data_min, calibrated_data_min + calibrated_data_range)
-        baseline = plot_origin_y + plot_height - int(plot_height * float(origin_display - calibrated_data_min) / calibrated_data_range)
+    if mapped_calibrated_data_range != 0.0 and uncalibrated_visible_width > 0.0:
+        origin_display = data_style.display_origin(mapped_calibrated_data_min, mapped_calibrated_data_min + mapped_calibrated_data_range)
+        baseline = plot_origin_y + plot_height - int(plot_height * float(origin_display - mapped_calibrated_data_min) / mapped_calibrated_data_range)
 
         baseline = min(plot_origin_y + plot_height, baseline)
         baseline = max(plot_origin_y, baseline)
-        # rebin so that uncalibrated_width corresponds to plot width
-        calibrated_data = calibrated_xdata._data_ex
-        binned_length = int(calibrated_data.shape[-1] * plot_width / uncalibrated_width)
+        # rebin so that uncalibrated_visible_width corresponds to plot width
+        calibrated_data = visible_mapped_calibrated_xdata._data_ex
+        binned_length = int(calibrated_data.shape[-1] * plot_width / uncalibrated_visible_width)
         did_draw = False
         if binned_length > 0:
             binned_data = Image.rebin_1d(calibrated_data, binned_length, rebin_cache)
             binned_data_is_nan = numpy.isnan(binned_data)
-            binned_left = int(uncalibrated_left_channel * plot_width / uncalibrated_width)
+            binned_left = int(uncalibrated_visible_left_channel * plot_width / uncalibrated_visible_width)
             # draw the plot
             last_py = baseline
             for i in range(0, plot_width):
@@ -557,7 +569,7 @@ def calculate_line_graph(plot_height: int, plot_width: int, plot_origin_y: int, 
                     data_value = binned_data[binned_index]
                     # plot_origin_y is the TOP of the drawing
                     # py extends DOWNWARDS
-                    py = plot_origin_y + plot_height - (plot_height * (data_value - calibrated_data_min) / calibrated_data_range)
+                    py = plot_origin_y + plot_height - (plot_height * (data_value - mapped_calibrated_data_min) / mapped_calibrated_data_range)
                     py = max(plot_origin_y, py)
                     py = min(plot_origin_y + plot_height, py)
                     if did_draw:
@@ -664,7 +676,7 @@ class LineGraphBackgroundCanvasItem(CanvasItem.AbstractCanvasItem):
 
 
 @dataclasses.dataclass(frozen=True)
-class CalibratedDataAndMetadataCacheItem:
+class MappedCalibratedDataAndMetadataCacheItem:
     xdata: typing.Optional[DataAndMetadata.DataAndMetadata]
     axes: typing.Optional[LineGraphAxes]
 
@@ -672,34 +684,34 @@ class CalibratedDataAndMetadataCacheItem:
         return id(self.xdata.data) if self.xdata else None, self.axes
 
     def calculate(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
-        return self.axes.calculate_calibrated_xdata(self.xdata) if self.axes and self.xdata else None
+        return self.axes.convert_uncalibrated_array_to_mapped_calibrated_values(self.xdata) if self.axes and self.xdata else None
 
 
 @dataclasses.dataclass(frozen=True)
 class SegmentsCacheItem:
-    calibrated_xdata: typing.Optional[DataAndMetadata.DataAndMetadata]
+    mapped_calibrated_xdata: typing.Optional[DataAndMetadata.DataAndMetadata]
     axes: typing.Optional[LineGraphAxes]
     canvas_bounds: Geometry.IntRect
 
     def key(self) -> typing.Tuple[typing.Optional[int], typing.Optional[LineGraphAxes], Geometry.IntRect]:
-        return id(self.calibrated_xdata.data) if self.calibrated_xdata else None, self.axes, self.canvas_bounds
+        return id(self.mapped_calibrated_xdata.data) if self.mapped_calibrated_xdata else None, self.axes, self.canvas_bounds
 
     def calculate(self) -> typing.Tuple[typing.List[LineGraphSegment], float]:
-        calibrated_xdata = self.calibrated_xdata
+        mapped_calibrated_xdata = self.mapped_calibrated_xdata
         axes = self.axes
         canvas_bounds = self.canvas_bounds
         segments: typing.List[LineGraphSegment] = list()
         baseline = 0.0
-        if calibrated_xdata is not None and axes:
+        if mapped_calibrated_xdata is not None and axes:
             plot_width = canvas_bounds.width - 1
             plot_height = canvas_bounds.height - 1
             plot_origin_x = canvas_bounds.left
             plot_origin_y = canvas_bounds.top
 
             # extract the data we need for drawing y-axis
-            calibrated_data_min = axes.calibrated_data_min
-            calibrated_data_max = axes.calibrated_data_max
-            calibrated_data_range = calibrated_data_max - calibrated_data_min
+            mapped_calibrated_data_min = axes.mapped_calibrated_data_min
+            mapped_calibrated_data_max = axes.mapped_calibrated_data_max
+            mapped_calibrated_data_range = mapped_calibrated_data_max - mapped_calibrated_data_min
 
             # extract the data we need for drawing x-axis
             calibrated_left_channel = axes.calibrated_left_channel
@@ -707,10 +719,10 @@ class SegmentsCacheItem:
             x_calibration = axes.x_calibration
 
             # draw the line plot itself
-            if x_calibration and x_calibration.units == calibrated_xdata.dimensional_calibrations[-1].units:
+            if x_calibration and x_calibration.units == mapped_calibrated_xdata.dimensional_calibrations[-1].units:
                 segments, baseline = calculate_line_graph(plot_height, plot_width, plot_origin_y, plot_origin_x,
-                                                          calibrated_xdata,
-                                                          calibrated_data_min, calibrated_data_range,
+                                                          mapped_calibrated_xdata,
+                                                          mapped_calibrated_data_min, mapped_calibrated_data_range,
                                                           calibrated_left_channel,
                                                           calibrated_right_channel, x_calibration,
                                                           None, axes.data_style)
@@ -774,28 +786,28 @@ class LineGraphLayer:
 
     def draw_fills(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> typing.Tuple[CanvasItem.CacheValue, ...]:
         if self.fill_color:
-            calibrated_data_and_metadata_cache_item = CalibratedDataAndMetadataCacheItem(self.__xdata, self.__axes)
-            calibrated_xdata_cache_value = composer_cache.get_cache_value(calibrated_data_and_metadata_cache_item)
-            calibrated_xdata = typing.cast(typing.Optional[DataAndMetadata.DataAndMetadata], calibrated_xdata_cache_value.value)
-            segments_cache_item = SegmentsCacheItem(calibrated_xdata, self.__axes, canvas_bounds)
+            mapped_calibrated_data_and_metadata_cache_item = MappedCalibratedDataAndMetadataCacheItem(self.__xdata, self.__axes)
+            mapped_calibrated_xdata_cache_value = composer_cache.get_cache_value(mapped_calibrated_data_and_metadata_cache_item)
+            mapped_calibrated_xdata = typing.cast(typing.Optional[DataAndMetadata.DataAndMetadata], mapped_calibrated_xdata_cache_value.value)
+            segments_cache_item = SegmentsCacheItem(mapped_calibrated_xdata, self.__axes, canvas_bounds)
             segments_cache_value = composer_cache.get_cache_value(segments_cache_item)
             segments, baseline = typing.cast(typing.Tuple[typing.List[LineGraphSegment], float], segments_cache_value.value)
             for segment in segments:
                 segment.fill(drawing_context, baseline, Color.Color(self.fill_color))
-            return calibrated_xdata_cache_value, segments_cache_value
+            return mapped_calibrated_xdata_cache_value, segments_cache_value
         return tuple()
 
     def draw_strokes(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> typing.Tuple[CanvasItem.CacheValue, ...]:
         if self.stroke_color:
-            calibrated_data_and_metadata_cache_item = CalibratedDataAndMetadataCacheItem(self.__xdata, self.__axes)
-            calibrated_xdata_cache_value = composer_cache.get_cache_value(calibrated_data_and_metadata_cache_item)
-            calibrated_xdata = typing.cast(typing.Optional[DataAndMetadata.DataAndMetadata], calibrated_xdata_cache_value.value)
-            segments_cache_item = SegmentsCacheItem(calibrated_xdata, self.__axes, canvas_bounds)
+            mapped_calibrated_data_and_metadata_cache_item = MappedCalibratedDataAndMetadataCacheItem(self.__xdata, self.__axes)
+            mapped_calibrated_xdata_cache_value = composer_cache.get_cache_value(mapped_calibrated_data_and_metadata_cache_item)
+            mapped_calibrated_xdata = typing.cast(typing.Optional[DataAndMetadata.DataAndMetadata], mapped_calibrated_xdata_cache_value.value)
+            segments_cache_item = SegmentsCacheItem(mapped_calibrated_xdata, self.__axes, canvas_bounds)
             segments_cache_value = composer_cache.get_cache_value(segments_cache_item)
             segments, baseline = typing.cast(typing.Tuple[typing.List[LineGraphSegment], float], segments_cache_value.value)
             for segment in segments:
                 segment.stroke(drawing_context, baseline, Color.Color(self.stroke_color), self.stroke_width)
-            return calibrated_xdata_cache_value, segments_cache_value
+            return mapped_calibrated_xdata_cache_value, segments_cache_value
         return tuple()
 
 
@@ -849,8 +861,8 @@ class LineGraphLayerCanvasItem(CanvasItem.AbstractCanvasItem):
             self.update()
 
     @property
-    def calibrated_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
-        return CalibratedDataAndMetadataCacheItem(self._xdata, self._axes).calculate()
+    def mapped_calibrated_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+        return MappedCalibratedDataAndMetadataCacheItem(self._xdata, self._axes).calculate()
 
 
 class LineGraphLayersCanvasItemCompositionComposer(CanvasItem.CanvasItemCompositionComposer):
@@ -914,8 +926,8 @@ class LineGraphLayersCanvasItem(CanvasItem.CanvasItemComposition):
             line_graph_layer_canvas_item.update_line_graph_layer(line_graph_layer, False)
 
     @property
-    def calibrated_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
-        return CalibratedDataAndMetadataCacheItem(self._xdata, self._axes).calculate()
+    def mapped_calibrated_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+        return MappedCalibratedDataAndMetadataCacheItem(self._xdata, self._axes).calculate()
 
     def _get_composition_composer(self, child_composers: typing.Sequence[CanvasItem.BaseComposer], composer_cache: CanvasItem.ComposerCache) -> CanvasItem.BaseComposer:
         return LineGraphLayersCanvasItemCompositionComposer(self, self.layout_sizing, composer_cache, self.layout.copy(), child_composers, self.background_color, self.border_color, self.__display_frame_rate_id)

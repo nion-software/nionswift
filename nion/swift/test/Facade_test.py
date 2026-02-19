@@ -329,7 +329,7 @@ class TestFacadeClass(unittest.TestCase):
         def __init__(self, computation, **kwargs):
             self.computation = computation
 
-        def execute(self, src):
+        def execute(self, *, src, **kwargs):
             pass
 
         def commit(self):
@@ -356,7 +356,7 @@ class TestFacadeClass(unittest.TestCase):
         def __init__(self, computation, **kwargs):
             self.computation = computation
 
-        def execute(self, src, value):
+        def execute(self, *, src, value, **kwargs):
             self.__value = value
 
         def commit(self):
@@ -389,7 +389,7 @@ class TestFacadeClass(unittest.TestCase):
         def __init__(self, computation, **kwargs):
             self.computation = computation
 
-        def execute(self, src):
+        def execute(self, *, src, **kwargs):
             self.__data = src.data
 
         def commit(self):
@@ -420,7 +420,7 @@ class TestFacadeClass(unittest.TestCase):
         def __init__(self, computation, **kwargs):
             self.computation = computation
 
-        def execute(self, src):
+        def execute(self, *, src, **kwargs):
             assert isinstance(src, Facade.DataSource)
             self.__data = src.data
 

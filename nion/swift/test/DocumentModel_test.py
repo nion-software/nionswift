@@ -380,7 +380,7 @@ class TestDocumentModelClass(unittest.TestCase):
         def __init__(self, computation, **kwargs):
             self.computation = computation
 
-        def execute(self, src):
+        def execute(self, *, src, **kwargs):
             d = src.data
             max_pos = list(numpy.unravel_index(numpy.argmax(d), d.shape))
             max_pos = max_pos[0] / d.shape[0], max_pos[1] / d.shape[1]
@@ -476,7 +476,7 @@ class TestDocumentModelClass(unittest.TestCase):
         def __init__(self, computation, **kwargs):
             self.computation = computation
 
-        def execute(self, src, value):
+        def execute(self, *, src, value, **kwargs):
             self.__new_data = numpy.full(src.data.shape, value)
 
         def commit(self):
@@ -510,7 +510,7 @@ class TestDocumentModelClass(unittest.TestCase):
         def __init__(self, computation, **kwargs):
             self.computation = computation
 
-        def execute(self, src, data_structure):
+        def execute(self, *, src, data_structure, **kwargs):
             self.__new_data = numpy.full(src.data.shape, data_structure.get_property("value"))
 
         def commit(self):
@@ -591,7 +591,7 @@ class TestDocumentModelClass(unittest.TestCase):
         def __init__(self, computation, **kwargs):
             self.computation = computation
 
-        def execute(self, src, value):
+        def execute(self, *, src, value, **kwargs):
             self.__value = value
 
         def commit(self):
@@ -656,7 +656,7 @@ class TestDocumentModelClass(unittest.TestCase):
         def __init__(self, computation, **kwargs):
             self.computation = computation
 
-        def execute(self, src, value):
+        def execute(self, *, src, value, **kwargs):
             self.__value = value
 
         def commit(self):
@@ -805,7 +805,7 @@ class TestDocumentModelClass(unittest.TestCase):
             self.computation = computation
             self.property = property
 
-        def execute(self, src1, src2):
+        def execute(self, *, src1, src2, **kwargs):
             src1_xdata = getattr(src1, self.property)
             src2_xdata = getattr(src2, self.property)
             self.__new_data = src1_xdata.data + src2_xdata.data
@@ -969,7 +969,7 @@ class TestDocumentModelClass(unittest.TestCase):
         def __init__(self, computation, **kwargs):
             self.computation = computation
 
-        def execute(self, src):
+        def execute(self, *, src, **kwargs):
             pass
 
         def commit(self):
@@ -1096,7 +1096,7 @@ class TestDocumentModelClass(unittest.TestCase):
         def __init__(self, computation, **kwargs):
             self.computation = computation
 
-        def execute(self, src_list):
+        def execute(self, *, src_list, **kwargs):
             if len(set(src.display_xdata.data_shape for src in src_list)) == 1:
                 self.__new_data = numpy.sum([src.display_xdata.data for src in src_list], axis=0)
             else:
@@ -1283,7 +1283,7 @@ class TestDocumentModelClass(unittest.TestCase):
         def __init__(self, computation, **kwargs):
             self.computation = computation
 
-        def execute(self, src):
+        def execute(self, *, src, **kwargs):
             self.__new_data = src.data
 
         def commit(self):
@@ -1415,7 +1415,7 @@ class TestDocumentModelClass(unittest.TestCase):
             self.computation = computation
             self.property = property
 
-        def execute(self, src):
+        def execute(self, *, src, **kwargs):
             src_xdata = getattr(src, self.property)
             self.__new_data = numpy.copy(src_xdata.data)
 
@@ -1498,7 +1498,7 @@ class TestDocumentModelClass(unittest.TestCase):
         def __init__(self, computation, **kwargs):
             self.computation = computation
 
-        def execute(self, src, graphic):
+        def execute(self, *, src, graphic, **kwargs):
             self.__new_data = numpy.full(src.data.shape, graphic.position[0])
 
         def commit(self):
@@ -1529,7 +1529,7 @@ class TestDocumentModelClass(unittest.TestCase):
         def __init__(self, computation, **kwargs):
             self.computation = computation
 
-        def execute(self, rect):
+        def execute(self, *, rect, **kwargs):
             size = int(rect.bounds[1][0] * 100), int(rect.bounds[1][1] * 100)
             self.__new_data = numpy.zeros(size)
 
@@ -1568,7 +1568,7 @@ class TestDocumentModelClass(unittest.TestCase):
             self.property = property
             self.computation = computation
 
-        def execute(self, src):
+        def execute(self, *, src, **kwargs):
             src_xdata = getattr(src, self.property)
             top = src_xdata.dimensional_shape[0] // 4
             left = src_xdata.dimensional_shape[1] // 4
@@ -1793,7 +1793,7 @@ class TestDocumentModelClass(unittest.TestCase):
         def __init__(self, computation, **kwargs):
             self.computation = computation
 
-        def execute(self, s, i1, i2l):
+        def execute(self, *, s, i1, i2l, **kwargs):
             pass
 
         def commit(self):
@@ -1911,7 +1911,7 @@ class TestDocumentModelClass(unittest.TestCase):
         def __init__(self, computation, **kwargs):
             self.computation = computation
 
-        def execute(self, src):
+        def execute(self, *, src, **kwargs):
             self.__new_data = -src.xdata.data
 
         def commit(self):

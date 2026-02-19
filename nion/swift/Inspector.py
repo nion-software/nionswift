@@ -3648,7 +3648,7 @@ class ChoiceVariableHandler(Declarative.Handler):
         self.float_str_converter = Converter.FloatToStringConverter()
         u = Declarative.DeclarativeUI()
         label = u.create_label(text="@binding(variable.display_label)")
-        combo_box = u.create_combo_box(items=[_("None"), _("Mapped")], current_index="@binding(combo_box_index)")
+        combo_box = u.create_row(u.create_combo_box(items=[_("None"), _("Mapped")], current_index="@binding(combo_box_index)"), u.create_stretch())
         self.ui_view = u.create_column(label, combo_box, spacing=8)
         self.__variable_listener = variable.property_changed_event.listen(ReferenceCounting.weak_partial(ChoiceVariableHandler.__property_changed, self))
 
@@ -4277,6 +4277,7 @@ class ComputationInspectorContext(EntityBrowser.Context):
         super().__init__()
         self.values["reference_handler"] = reference_handler or document_controller
         self.values["window"] = document_controller
+        self.values["event_loop"] = document_controller.event_loop
         self.values["document_model"] = document_controller.document_model
         self.values["do_references"] = provide_reference_links
 
@@ -4287,6 +4288,10 @@ class ComputationInspectorContext(EntityBrowser.Context):
     @property
     def window(self) -> DocumentController.DocumentController:
         return typing.cast("DocumentController.DocumentController", self.values["window"])
+
+    @property
+    def event_loop(self) -> asyncio.AbstractEventLoop:
+        return typing.cast(asyncio.AbstractEventLoop, self.values["event_loop"])
 
     @property
     def document_model(self) -> DocumentModel.DocumentModel:

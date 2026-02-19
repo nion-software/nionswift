@@ -3955,7 +3955,7 @@ class TestStorageClass(unittest.TestCase):
         def __init__(self, computation, **kwargs):
             self.computation = computation
 
-        def execute(self, src):
+        def execute(self, *, src, **kwargs):
             TestStorageClass.computation1_eval_count += 1
             self.__xdata = -src.xdata
 
@@ -4044,7 +4044,7 @@ class TestStorageClass(unittest.TestCase):
         def __init__(self, computation, **kwargs):
             self.computation = computation
 
-        def execute(self, src_list):
+        def execute(self, *, src_list, **kwargs):
             if len(set(src.display_xdata.data_shape for src in src_list)) == 1:
                 self.__new_data = numpy.sum([src.display_xdata.data for src in src_list], axis=0)
             else:
@@ -4084,7 +4084,7 @@ class TestStorageClass(unittest.TestCase):
         def __init__(self, computation, **kwargs):
             self.computation = computation
 
-        def execute(self, src, value):
+        def execute(self, *, src, value, **kwargs):
             self.__value = value
 
         def commit(self):
@@ -4526,6 +4526,47 @@ class TestStorageClass(unittest.TestCase):
             document_model._profile_for_test = profile
             with document_model.ref():
                 self.assertEqual(1, len(document_model.data_items))
+
+    def test_copied_and_renamed_project_index_and_data_folder_loads(self) -> None:
+        # create a project, rename it, add a new project reference, reload, ensure data items loaded.
+        with create_temp_profile_context() as profile_context:
+            document_model = profile_context.create_document_model(project_name="P", project_data_name="P Data", auto_close=False)
+            profile = typing.cast(Profile.Profile, document_model._profile_for_test)
+            with document_model.ref():
+                data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+                document_model.append_data_item(data_item)
+                self.assertEqual(1, len(document_model.data_items))
+            target_project_path = profile_context.projects_dir / "P2.nsproj"
+            shutil.copy(profile_context.projects_dir / "P.nsproj", target_project_path)
+            shutil.copytree(profile_context.projects_dir / "P Data", profile_context.projects_dir / "P2 Data")
+            project_reference = Profile.IndexProjectReference()
+            project_reference.project_path = target_project_path
+            project_reference.project_uuid = uuid.uuid4()
+            profile.add_project_reference(project_reference)
+            document_model = project_reference.document_model
+            document_model._profile_for_test = profile
+            with document_model.ref():
+                self.assertEqual(1, len(document_model.data_items))
+                self.assertIn("P2", document_model.data_items[0]._test_get_file_path())
+
+    def test_copied_and_renamed_project_index_and_data_folder_with_same_uuid_opens(self) -> None:
+        # create a project, rename it, add a new project reference, reload, ensure data items loaded.
+        with create_temp_profile_context() as profile_context:
+            document_model = profile_context.create_document_model(project_name="P", project_data_name="P Data", auto_close=False)
+            profile = typing.cast(Profile.Profile, document_model._profile_for_test)
+            with document_model.ref():
+                data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+                document_model.append_data_item(data_item)
+                self.assertEqual(1, len(document_model.data_items))
+            target_project_path = profile_context.projects_dir / "P2.nsproj"
+            shutil.copy(profile_context.projects_dir / "P.nsproj", target_project_path)
+            shutil.copytree(profile_context.projects_dir / "P Data", profile_context.projects_dir / "P2 Data")
+            project_reference = profile.open_project(target_project_path)
+            profile.read_project(project_reference)
+            # self._test_setup.app.open_project_reference(project_reference)
+            document_model = project_reference.document_model
+            self.assertEqual(1, len(document_model.data_items))
+            self.assertIn("P2", document_model.data_items[0]._test_get_file_path())
 
     def disabled_test_document_controller_disposes_threads(self):
         thread_count = threading.activeCount()
