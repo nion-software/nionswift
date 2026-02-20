@@ -411,6 +411,7 @@ class ExportSizeModel(Observable.Observable):
         self.__unit_id_model = unit_id_model
         display_size = calculate_display_size_in_pixels(display_item)
         self.__aspect_ratio = (display_size.width / display_size.height if display_size.height > 0 else 1.0) if display_size.width > 0 else 1.0
+        self.aspect_ratio_mode = Model.PropertyModel("default")
         self.__float_to_string_converter = Converter.FloatToStringConverter()
         self.__primary_field = 'width'
         unit_description = pixel_unit_description
@@ -418,9 +419,10 @@ class ExportSizeModel(Observable.Observable):
             if unit_description_.unit_id == unit_id_model.value:
                 unit_description = unit_description_
                 break
-        min_pixels = inch_unit_description.convert_value_to_pixels(3.0)
-        max_pixels = inch_unit_description.convert_value_to_pixels(12.0)
-        self.__last_quantity = get_quantity_from_pixels(max(min_pixels, min(max_pixels, display_size.width)), unit_description)
+        self.aspect_ratio_locked = Model.PropertyModel(True)
+        self.is_line_plot = (display_item.used_display_type == "line_plot")
+        self.__width_quantity = get_quantity_from_pixels(display_size.width, unit_description)
+        self.__height_quantity = get_quantity_from_pixels(display_size.height, unit_description)
 
     @property
     def title(self) -> typing.Optional[str]:
@@ -444,25 +446,34 @@ class ExportSizeModel(Observable.Observable):
             return ""
 
     @property
+    def aspect_ratio_mode_index(self) -> int:
+        modes = ["default", "16:9", "4:3", "1:1", "custom"]
+        try:
+            mode = self.aspect_ratio_mode.value or "default"
+            return modes.index(mode)
+        except ValueError:
+            return 0
+
+    @aspect_ratio_mode_index.setter
+    def aspect_ratio_mode_index(self, index: int) -> None:
+        modes = ["default", "16:9", "4:3", "1:1", "custom"]
+        if 0 <= index < len(modes):
+            self.set_aspect_ratio_mode(modes[index])
+
+    @property
     def _width(self) -> float:
         """Return the width in pixels.
 
-        If the primary field is width, return the last quantity value directly.
+        If the primary field is width or aspect ratio unlocked, return the last quantity value directly.
 
-        Otherwise, calculated the width from the last quantity value and the aspect ratio.
+        Otherwise, calculate the width from the last quantity value and the aspect ratio.
 
         If the last quantity is in pixels, round the value.
         """
-        if self.__last_quantity.is_pixels:
-            if self.__primary_field == 'width':
-                return round(self.__last_quantity.value)
-            else:
-                return round(self.__last_quantity.value * self.__aspect_ratio)
-        else:
-            if self.__primary_field == 'width':
-                return self.__last_quantity.value
-            else:
-                return self.__last_quantity.value * self.__aspect_ratio
+        width_quant = self.__width_quantity
+        if self.aspect_ratio_locked.value and self.__primary_field == 'height':
+            width_quant = self.__width_quantity.with_value(self.__height_quantity.value * self.__aspect_ratio)
+        return round(width_quant.value) if width_quant.is_pixels else width_quant.value
 
     @property
     def _height(self) -> float:
@@ -474,20 +485,18 @@ class ExportSizeModel(Observable.Observable):
 
         If the last quantity is in pixels, round the value.
         """
-        if self.__last_quantity.is_pixels:
-            if self.__primary_field == 'height':
-                return round(self.__last_quantity.value)
-            else:
-                return round(self.__last_quantity.value / self.__aspect_ratio)
-        else:
-            if self.__primary_field == 'height':
-                return self.__last_quantity.value
-            else:
-                return self.__last_quantity.value / self.__aspect_ratio
+        height_quant = self.__height_quantity
+        if self.aspect_ratio_locked.value and self.__primary_field == 'width':
+            height_quant = self.__height_quantity.with_value(self.__width_quantity.value / self.__aspect_ratio)
+        return round(height_quant.value) if height_quant.is_pixels else height_quant.value
 
     @property
     def width_text(self) -> typing.Optional[str]:
-        """Return the width as a string if the primary field is width, otherwise None."""
+        """Return the width as a string if the primary field is width or aspect ratio unlocked,
+         otherwise None."""
+        if not self.aspect_ratio_locked.value:
+            # editable even when not primary
+            return self.__float_to_string_converter.convert(self._width)
         if self.__primary_field == 'width':
             return self.__float_to_string_converter.convert(self._width)
         return None
@@ -496,12 +505,23 @@ class ExportSizeModel(Observable.Observable):
     def width_text(self, value_str: typing.Optional[str]) -> None:
         """Sets the width from a string and sets the primary field to width.
 
-        Also updates the last quantity and signals that all the text fields have changed.
-        """
-        if value_str:
-            value = self.__float_to_string_converter.convert_back(value_str) or 0.0
-            self.__last_quantity = self.__last_quantity.with_value(value)
-            self.__primary_field = 'width'
+              Else sets the width from string and updates the width quantity.
+
+              Signals that all the text fields have changed.
+              """
+        if value_str is None or value_str == "":
+            return
+        value = self.__float_to_string_converter.convert_back(value_str)
+
+        if value is None:
+            return
+
+        self.__primary_field = 'width'
+        self.__width_quantity = self.__width_quantity.with_value(value)
+
+        if self.aspect_ratio_locked.value:
+            self.__height_quantity = self.__height_quantity.with_value(value / self.__aspect_ratio)
+
         self.notify_property_changed("width_text")
         self.notify_property_changed("height_text")
         self.notify_property_changed("placeholder_width_text")
@@ -514,21 +534,32 @@ class ExportSizeModel(Observable.Observable):
 
     @property
     def height_text(self) -> typing.Optional[str]:
-        """Return the height as a string if the primary field is height, otherwise None."""
-        if self.__primary_field == 'height':
+        """Return the height as a string if the primary field is height or aspect ratio unlocked,
+         otherwise None."""
+        if not self.aspect_ratio_locked.value or self.__primary_field == 'height':
+            # editable even when not primary
             return self.__float_to_string_converter.convert(self._height)
         return None
 
     @height_text.setter
     def height_text(self, value_str: typing.Optional[str]) -> None:
-        """Sets the height from a string and sets the primary field to height.
+        """If aspect ratio locked sets the height from a string, sets the primary field to height
+        and updates the height and width quantity.
 
-        Also updates the last quantity and signals that all the text fields have changed.
+        Else sets the height from string and updates the height quantity.
+
+        Signals that all the text fields have changed.
         """
-        if value_str:
-            value = self.__float_to_string_converter.convert_back(value_str) or 0.0
-            self.__last_quantity = self.__last_quantity.with_value(value)
-            self.__primary_field = 'height'
+        if value_str is None or value_str == "":
+            return
+        value = self.__float_to_string_converter.convert_back(value_str)
+        if value is None:
+            return
+
+        self.__primary_field = 'height'
+        self.__height_quantity = self.__height_quantity.with_value(value)
+        if self.aspect_ratio_locked.value:
+            self.__width_quantity = self.__width_quantity.with_value(value * self.__aspect_ratio)
         self.notify_property_changed("width_text")
         self.notify_property_changed("height_text")
         self.notify_property_changed("placeholder_width_text")
@@ -566,7 +597,9 @@ class ExportSizeModel(Observable.Observable):
             self.__unit_id_model.value = svg_export_unit_descriptions[unit_index].unit_id
         else:
             self.__unit_id_model.value = pixel_unit_description.unit_id
-        self.__last_quantity = self.__last_quantity.with_unit_description(self.unit_description)
+        self.__width_quantity = self.__width_quantity.with_unit_description(self.unit_description)
+        self.__height_quantity = self.__height_quantity.with_unit_description(self.unit_description)
+
         self.notify_property_changed("width_text")
         self.notify_property_changed("height_text")
         self.notify_property_changed("placeholder_width_text")
@@ -574,10 +607,59 @@ class ExportSizeModel(Observable.Observable):
 
     @property
     def pixel_shape(self) -> Geometry.IntSize:
-        if self.__primary_field == 'width':
-            return Geometry.IntSize(h=round(self.__last_quantity.pixels / self.__aspect_ratio), w=round(self.__last_quantity.pixels))
+        """Return the export pixel shape honoring the current units and aspect lock."""
+        if not self.aspect_ratio_locked.value:
+            h_pixels = self.__height_quantity.pixels
+            w_pixels = self.__width_quantity.pixels
         else:
-            return Geometry.IntSize(h=round(self.__last_quantity.pixels), w=round(self.__last_quantity.pixels * self.__aspect_ratio))
+            if self.__primary_field == 'width':
+                w_pixels = self.__width_quantity.pixels
+                h_pixels = w_pixels / self.__aspect_ratio
+            else:
+                h_pixels = self.__height_quantity.pixels
+                w_pixels = h_pixels * self.__aspect_ratio
+        return Geometry.IntSize(height=round(h_pixels), width=round(w_pixels))
+
+    def snap_dimensions_to_aspect_ratio(self) -> None:
+        if self.__primary_field == 'width':
+            self.__height_quantity = self.__height_quantity.with_value(self.__width_quantity.value / self.__aspect_ratio)
+        else:
+            self.__width_quantity = self.__width_quantity.with_value(self.__height_quantity.value * self.__aspect_ratio)
+        self.notify_property_changed("width_text")
+        self.notify_property_changed("height_text")
+        self.notify_property_changed("placeholder_width_text")
+        self.notify_property_changed("placeholder_height_text")
+
+    def set_aspect_ratio_mode(self, mode: str) -> None:
+        self.aspect_ratio_mode.value = mode
+        if mode == "default":
+            display_size = calculate_display_size_in_pixels(self.__display_item)
+            self.__aspect_ratio = display_size.width / display_size.height
+            self.aspect_ratio_locked.value = True
+            self.snap_dimensions_to_aspect_ratio()
+
+        elif mode == "16:9":
+            self.__aspect_ratio = 16 / 9
+            self.aspect_ratio_locked.value = True
+            self.snap_dimensions_to_aspect_ratio()
+
+        elif mode == "4:3":
+            self.__aspect_ratio = 4 / 3
+            self.aspect_ratio_locked.value = True
+            self.snap_dimensions_to_aspect_ratio()
+
+        elif mode == "1:1":
+            self.__aspect_ratio = 1.0
+            self.aspect_ratio_locked.value = True
+            self.snap_dimensions_to_aspect_ratio()
+
+        elif mode == "custom":
+            # unlock
+            self.aspect_ratio_locked.value = False
+
+        self.notify_property_changed("aspect_ratio_mode")
+        self.notify_property_changed("width_text")
+        self.notify_property_changed("height_text")
 
 
 class ExportSVGHandler(Declarative.Handler):
@@ -585,7 +667,6 @@ class ExportSVGHandler(Declarative.Handler):
         super().__init__()
         self.model = model
         u = Declarative.DeclarativeUI()
-
         left_column_width = get_font_metrics_fn("normal", "Shape (calibrated units)").width + 20
 
         right_column_strings = [model.title, model.shape_str, model.calibrated_shape_str]
@@ -599,11 +680,11 @@ class ExportSVGHandler(Declarative.Handler):
 
         self.ui_view = u.create_column(
             u.create_row(
-                    u.create_label(text="Title", width=left_column_width),
-                    u.create_label(text="@binding(model.title)", width=right_column_width),
-                    u.create_stretch(),
-                    spacing=8
-                ),
+                u.create_label(text="Title", width=left_column_width),
+                u.create_label(text="@binding(model.title)", width=right_column_width),
+                u.create_stretch(),
+                spacing=8
+            ),
             u.create_row(
                 u.create_label(text="Data shape (Pixels) ", width=left_column_width),
                 u.create_label(text="@binding(model.shape_str)", width=right_column_width),
@@ -616,6 +697,18 @@ class ExportSVGHandler(Declarative.Handler):
                 u.create_stretch(),
                 spacing=8,
                 visible="@binding(has_calibrated_shape_str)"
+            ),
+            u.create_row(
+                u.create_label(text=_("Aspect Ratio"), width=left_column_width),
+                u.create_combo_box(
+                    items=["Default (5:3)", "16:9", "4:3", "1:1", "Custom"],
+                    current_index="@binding(model.aspect_ratio_mode_index)",
+                    on_current_index_changed="on_aspect_ratio_changed",
+                    width=140
+                ),
+                u.create_stretch(),
+                spacing=8,
+                visible = "@binding(model.is_line_plot)"
             ),
             u.create_row(
                 u.create_label(text=_("Width"), width=left_column_width),
@@ -650,6 +743,15 @@ class ExportSVGHandler(Declarative.Handler):
             spacing=8,
             margin=12,
         )
+
+    def on_aspect_ratio_changed(self, widget: Declarative.UIWidget, current_index: int) -> None:
+        modes = ["default", "16:9", "4:3", "1:1", "custom"]
+        mode = modes[current_index] if 0 <= current_index < len(modes) else "default"
+        self.model.set_aspect_ratio_mode(mode)
+
+    def on_lock_check_changed(self, widget: Declarative.UIWidget, check_state: str) -> None:
+        if check_state == "checked":
+            self.model.snap_dimensions_to_aspect_ratio()
 
 
 class ExportSVGDialog:
