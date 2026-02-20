@@ -25,9 +25,9 @@ class WorkspaceLayout(Persistence.PersistentObject):
         super().__init__()
         self.define_type("workspace")
         self.define_property("created", DateTime.utcnow(), hidden=True, converter=Converter.DatetimeToStringConverter())
-        self.define_property("name", str(), hidden=True)
-        self.define_property("layout", dict(), hidden=True)
-        self.define_property("workspace_id", str(uuid.uuid4()), hidden=True)
+        self.define_property("name", str(), changed=self.__property_changed, hidden=True)
+        self.define_property("layout", dict(), changed=self.__property_changed, hidden=True)
+        self.define_property("workspace_id", str(uuid.uuid4()), changed=self.__property_changed, hidden=True)
         # created was not originally available, so now we always set created when creating a new object.
         # however, there is special logic so that if we load an old object without created, we set it
         # when the object context is set. this variable is used to facilitate that. this scheme avoids
@@ -54,6 +54,9 @@ class WorkspaceLayout(Persistence.PersistentObject):
             finally:
                 self.ghost_properties.subtract("created")
             self.__needs_created_update = False
+
+    def __property_changed(self, name: str, value: typing.Any) -> None:
+        self.notify_property_changed(name)
 
     @property
     def created(self) -> datetime.datetime:

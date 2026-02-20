@@ -375,7 +375,6 @@ class Project(Persistence.PersistentObject):
         computation.finish_reading()
         if not self.get_item_by_uuid("computations", computation.uuid):
             self.load_item("computations", len(self.computations), computation)
-            # TODO: handle update script and bind after reload in document model
             computation.update_script()
             computation.reset()
         else:

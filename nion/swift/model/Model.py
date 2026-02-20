@@ -251,8 +251,13 @@ Computation = Schema.entity("computation", None, None, {
     "source": Schema.reference(),
     "original_expression": Schema.prop(Schema.STRING),
     "error_text": Schema.prop(Schema.STRING),
+    "last_computed_elapsed_time": Schema.prop(Schema.FLOAT),
+    "last_computed_timestamp": Schema.prop(Schema.TIMESTAMP),
+    "last_computed_status": Schema.prop(Schema.STRING),
     "label": Schema.prop(Schema.STRING),
     "processing_id": Schema.prop(Schema.STRING),
+    "auto_update": Schema.prop(Schema.BOOLEAN),
+    "needs_recompute": Schema.prop(Schema.BOOLEAN),
     "variables": Schema.array(Schema.component(ComputationVariable)),
     "results": Schema.array(Schema.component(ComputationResult)),
 })

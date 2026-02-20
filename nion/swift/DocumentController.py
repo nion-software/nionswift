@@ -278,7 +278,6 @@ class DocumentController(Window.Window):
         if project_reference:
             self.window_file_path = project_reference.path
         self.__workspace_controller: typing.Optional[Workspace.Workspace] = None
-        self.__workspace_display_panel_content_changed_event_listener: typing.Optional[Event.EventListener] = None
         self.replaced_display_panel_content_flag = False  # whether to set replaced display panel content
         self.replaced_display_panel_content: typing.Optional[Persistence.PersistentDictType] = None  # used to facilitate display panel functionality to exchange displays
         self.__selected_display_panel: typing.Optional[DisplayPanel.DisplayPanel] = None
@@ -386,7 +385,13 @@ class DocumentController(Window.Window):
         elif filter_id := self.project.filter_id:
             self.set_filter(filter_id)
 
-        if workspace_id:  # used only when testing reference counting
+        # declare the workspace listeners here outside the 'if' statement below, which is used for testing
+        # reference counting.
+        self.__workspace_display_panel_content_changed_event_listener: Event.EventListener | None = None
+        self.__workspace_controller_property_changed_listener: Event.EventListener | None = None
+        self.__workspace_property_changed_listener: Event.EventListener | None = None
+
+        if workspace_id:  # this 'if' is used only when testing reference counting
             self.__workspace_controller = Workspace.Workspace(self, workspace_id)
             self.__workspace_controller.restore(self.project.workspace_uuid)
 
@@ -394,6 +399,27 @@ class DocumentController(Window.Window):
                 self.__update_selected_display_items()
 
             self.__workspace_display_panel_content_changed_event_listener = self.__workspace_controller.display_panel_content_changed_event.listen(handle_workspace_display_panel_content_changed_event)
+
+            # handle property changes on the workspace by watching for name changes and updating the window title.
+            def handle_workspace_property_changed(key: str) -> None:
+                if key == "name":
+                    if self.__workspace_controller:
+                        self.__update_title(self.__workspace_controller._workspace)
+
+            # handle the workspace layout change by connecting a listener for the workspace properties. this
+            # facilitates observing title changes on the current workspace layout. also immediately trigger the 'name'
+            # update so the window title get updated the first time.
+            def handle_workspace_controller_property_changed(key: str) -> None:
+                if key == "workspace_layout":
+                    if self.__workspace_controller:
+                        self.__workspace_property_changed_listener = self.__workspace_controller._workspace.property_changed_event.listen(handle_workspace_property_changed)
+                        handle_workspace_property_changed("name")
+
+            # connect a listener to the workspace controller to listen for a change to its workspace_layout
+            # property. this facilitates observing title changes.
+            self.__workspace_controller_property_changed_listener = self.__workspace_controller.property_changed_event.listen(handle_workspace_controller_property_changed)
+
+            handle_workspace_controller_property_changed("workspace_layout")  # trigger initial workspace setup
 
         if app:
             for menu_handler in app.menu_handlers:  # use 'handler' to avoid name collision
@@ -433,9 +459,9 @@ class DocumentController(Window.Window):
         if self.__workspace_controller:
             self.__workspace_controller.close()
             self.__workspace_controller = None
-        if self.__workspace_display_panel_content_changed_event_listener:
-            self.__workspace_display_panel_content_changed_event_listener.close()
-            self.__workspace_display_panel_content_changed_event_listener = None
+        self.__workspace_display_panel_content_changed_event_listener = None
+        self.__workspace_controller_property_changed_listener = None
+        self.__workspace_property_changed_listener = None
         self.__undo_stack.close()
         self.__undo_stack = typing.cast(typing.Any, None)
         self.__call_soon_event_listener.close()
@@ -636,14 +662,17 @@ class DocumentController(Window.Window):
     def workspace(self) -> typing.Optional[Workspace.Workspace]:
         return self.__workspace_controller
 
-    def _workspace_changed(self, workspace: WorkspaceLayout.WorkspaceLayout) ->  None:
+    def __update_title(self, workspace: WorkspaceLayout.WorkspaceLayout) ->  None:
+        # construct the workspace title from the base title, project title, and workspace name.
+        # if the title changes, set the title.
         title = self.__base_title
         project_title = self.__project_reference.title if self.__project_reference else None
         if project_title:
             title += " - " + project_title
         if workspace and workspace.name:
             title += ": " + workspace.name
-        self.title = title
+        if title != self.title:
+            self.title = title
 
     def refocus_widget(self, widget: UserInterface.Widget) -> None:
         display_panel = self.selected_display_panel
@@ -5522,7 +5551,9 @@ def component_changed(component: typing.Any, component_types: typing.Set[str]) -
 
 
 component_registered_event_listener = Registry.listen_component_registered_event(component_changed)
-Registry.fire_existing_component_registered_events("processing-component")
+# listening to processing-component is used in two places, so do not use `fire_existing_...`
+for component in Registry.get_components_by_type("processing-component"):
+    component_changed(component, {"processing-component"})
 
 try:
     data = pkgutil.get_data(__name__, "resources/key_config.json")
