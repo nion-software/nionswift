@@ -986,7 +986,7 @@ class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
                         drawing_context.line_dash = 2
                     drawing_context.stroke()
 
-                    mid_x = (left + right) // 2
+                    mid_x = (left + right) / 2
                     drawing_context.move_to(left, level)
                     drawing_context.line_to(mid_x - 3, level)
                     drawing_context.move_to(mid_x + 3, level)
