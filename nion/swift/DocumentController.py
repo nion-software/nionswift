@@ -3462,10 +3462,10 @@ Window.register_action(SetToolModeAction("rectangle", _("Rectangle"), "rectangle
 Window.register_action(SetToolModeAction("point", _("Point"), "point_icon.png", _("Point tool for making point regions on images")))
 Window.register_action(SetToolModeAction("line-profile", _("Line Profile"), "line_profile_icon.png", _("Line profile tool for making line profiles on images")))
 Window.register_action(SetToolModeAction("interval", _("Interval"), "interval_icon.png", _("Interval tool for making intervals on line plots")))
-Window.register_action(SetToolModeAction("spot", _("Spot"), "spot_icon.png", _("Spot tool for creating spot masks")))
-Window.register_action(SetToolModeAction("wedge", _("Wedge"), "wedge_icon.png", _("Wedge tool for creating wedge masks")))
-Window.register_action(SetToolModeAction("ring", _("Ring"), "annular_ring.png", _("Ring tool for creating ring masks")))
-Window.register_action(SetToolModeAction("lattice", _("Lattice"), "lattice_icon.png", _("Lattice tool for creating periodic lattice masks")))
+Window.register_action(SetToolModeAction("spot", _("Spot Filter"), "spot_icon.png", _("Spot filter tool for creating spot filter masks")))
+Window.register_action(SetToolModeAction("wedge", _("Angular Filter"), "wedge_icon.png", _("Angular filter tool for creating a angular filter masks")))
+Window.register_action(SetToolModeAction("ring", _("Band-Pass Filter"), "annular_ring.png", _("Band-pass filter tool for creating band-pass filter masks")))
+Window.register_action(SetToolModeAction("lattice", _("Lattice Filter"), "lattice_icon.png", _("Lattice filter tool for creating periodic lattice filter masks")))
 
 
 class WorkspaceChangeSplits(Window.Action):
@@ -4710,7 +4710,7 @@ class AddSpotGraphicAction(Window.Action):
 
 class AddAngleGraphicAction(Window.Action):
     action_id = "graphics.add_angle_graphic"
-    action_name = _("Add Angle Filter")
+    action_name = _("Add Angular Filter")
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
@@ -4721,7 +4721,7 @@ class AddAngleGraphicAction(Window.Action):
 
 class AddBandPassGraphicAction(Window.Action):
     action_id = "graphics.add_band_pass_graphic"
-    action_name = _("Add Band Pass Filter")
+    action_name = _("Add Band-Pass Filter")
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
