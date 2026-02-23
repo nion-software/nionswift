@@ -49,6 +49,9 @@ class RegionInfo:
     label: typing.Optional[str]
     style: typing.Optional[str]
     color: typing.Optional[str]
+    fill_color: typing.Optional[str]
+    stroke_width: float
+    show_width: bool
 
 
 _ = gettext.gettext
@@ -954,7 +957,7 @@ class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
                 px = c * data_scale
                 return canvas_size.width * (px - data_left) / (data_right - data_left)
 
-            def _get_text_rectangle(text: str, x: float, y: float, text_baseline: str, margin: int = 3) -> Geometry.FloatRect:
+            def _get_text_rectangle(text: str, x: float, y: float, margin: int = 3) -> Geometry.FloatRect:
                 """Gets the rectangle that surrounds a text string
 
                 The positions returned are offset by x, y.
@@ -967,25 +970,33 @@ class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
                 descent = float(metrics.descent)
                 height = ascent + descent
 
-                if text_baseline == "top":
+                if drawing_context.text_baseline == "top":
                     top = y
-                elif text_baseline == "bottom":
+                elif drawing_context.text_baseline == "bottom":
                     top = y - ascent
                 else:  # Center by default
-                    top = y - height / 2.0
+                    top = y - height + descent
 
-                return Geometry.FloatRect.from_tlhw(top, x - width / 2.0, height, width)
+                if drawing_context.text_align == "right":
+                    rect_left = x - width + margin
+                elif drawing_context.text_align == "left":
+                    rect_left = x - margin
+                else:
+                    rect_left = x - width / 2.0
 
-            def _padded_number_rectangle(text: str, x: float, y: float, text_baseline: str) -> Geometry.FloatRect:
+                return Geometry.FloatRect.from_tlhw(top, rect_left, height, width)
+
+            def _padded_number_rectangle(text: str, x: float, y: float) -> Geometry.FloatRect:
                 """Gets the text rectangle for numbers
 
                 Replaces the digits with 0 so the size doesn't flicker between numbers
                 """
                 num_chars = len(text) - 2
                 padded_text = '0' * num_chars + ".0"
-                return _get_text_rectangle(padded_text, x, y, text_baseline, 2)
+                return _get_text_rectangle(padded_text, x, y, 2)
 
             def _draw_text_blocked_line(x_pos: float, width_text_rect: Geometry.FloatRect | None, label_text_rect: Geometry.FloatRect | None) -> None:
+                """Draws a single interval vertical line leaving gaps for the width and text rectangles if present"""
                 with drawing_context.saver():
                     drawing_context.move_to(x_pos, plot_origin_y)
                     if width_text_rect:
@@ -998,8 +1009,22 @@ class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
                     drawing_context.line_to(x_pos, plot_origin_y + plot_height)
                     drawing_context.stroke()
 
+            def _draw_text_background(text_rect: Geometry.FloatRect, background_color: str):
+                with drawing_context.saver():
+                    drawing_context.fill_style = background_color
+                    drawing_context.move_to(text_rect.left, text_rect.top)
+                    drawing_context.line_to(text_rect.right, text_rect.top)
+                    drawing_context.line_to(text_rect.right, text_rect.bottom)
+                    drawing_context.line_to(text_rect.left, text_rect.bottom)
+                    drawing_context.line_to(text_rect.left, text_rect.top)
+                    drawing_context.fill()
+
             def _draw_interval_lines(left_x: float, right_x: float, width_text_rect: Geometry.FloatRect | None, label_text_rect: Geometry.FloatRect | None) -> None:
-                if width_text_rect and (left_x < width_text_rect.left or width_text_rect.right < right_x):  # Split the lines if the left or right intersects the rectangle
+                """Draws the intervals vertical lines
+
+                Determines if the width and label text intersects with either the left or right of the vertical lines
+                """
+                if width_text_rect and (left_x < width_text_rect.left or width_text_rect.right < right_x):
                     width_text_rect = None
                 if label_text_rect and (left_x < label_text_rect.left or label_text_rect.right < right_x):
                     label_text_rect = None
@@ -1028,7 +1053,7 @@ class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
                         p = 0.25
                         selection_color = f"#{min(255, int(r * p + 255 * (1 - p))):02x}{min(255, int(g * p + 255 * (1 - p))):02x}{min(255, int(b * p + 255 * (1 - p))):02x}"
 
-                    drawing_context.line_width = 1
+                    drawing_context.line_width = region.stroke_width
                     drawing_context.stroke_style = region_color
                     if not region_selected:
                         drawing_context.line_dash = 2
@@ -1042,27 +1067,38 @@ class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
                     drawing_context.line_to(right - 3, level)
                     drawing_context.stroke()
                     drawing_context.line_dash = 0
-                    if region_selected:
-                        draw_marker(drawing_context, Geometry.FloatPoint(level, mid_x), fill=selection_color, stroke=selection_color)
-                        drawing_context.fill_style = region_color
-                        drawing_context.font = "{0:d}px".format(font_size)
-                        left_text = region.left_text
-                        right_text = region.right_text
-                        middle_text = region.middle_text
+
+                    drawing_context.fill_style = region_color
+                    drawing_context.font = "{0:d}px".format(font_size)
+                    left_text = region.left_text
+                    right_text = region.right_text
+                    middle_text = region.middle_text
+                    if region_selected or region.show_width:
                         if middle_text and region.style != "tag":
                             drawing_context.text_align = "center"
-                            baseline = "bottom"
-                            drawing_context.text_baseline = baseline
+                            drawing_context.text_baseline = "bottom"
                             mid_y = level - 15
-                            mid_text_rect = _get_text_rectangle(middle_text, mid_x, mid_y, baseline)
+                            mid_text_rect = _padded_number_rectangle(middle_text, mid_x, mid_y)
+                            if region.fill_color:
+                                _draw_text_background(mid_text_rect, region.fill_color)
                             drawing_context.fill_text(middle_text, mid_x, mid_y)
+
+                    if region_selected:
+                        draw_marker(drawing_context, Geometry.FloatPoint(level, mid_x), fill=selection_color, stroke=selection_color)
+
                         if left_text and region.style != "tag":
                             drawing_context.text_align = "right"
                             drawing_context.text_baseline = "center"
+                            if region.fill_color:
+                                left_text_rect = _padded_number_rectangle(left_text, left - 5, level)
+                                _draw_text_background(left_text_rect, region.fill_color)
                             drawing_context.fill_text(left_text, left - 5, level)
                         if right_text:
                             drawing_context.text_align = "left"
                             drawing_context.text_baseline = "center"
+                            if region.fill_color:
+                                right_text_rect = _padded_number_rectangle(right_text, right + 5, level)
+                                _draw_text_background(right_text_rect, region.fill_color)
                             drawing_context.fill_text(right_text, right + 5, level)
                     else:
                         draw_marker(drawing_context, Geometry.FloatPoint(level, mid_x), stroke=selection_color)
@@ -1074,10 +1110,14 @@ class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
                         drawing_context.font = "{0:d}px".format(font_size)
                         drawing_context.text_align = "center"
                         label_y = level + 10
-                        baseline = "top"
-                        drawing_context.text_baseline = baseline
-                        label_rect = _get_text_rectangle(label, mid_x, label_y, baseline)
+                        drawing_context.text_baseline = "top"
+                        label_rect = _get_text_rectangle(label, mid_x, label_y)
+                        if region.fill_color:
+                            _draw_text_background(label_rect, region.fill_color)
                         drawing_context.fill_text(label, mid_x, label_y)
+
+                    if not region_selected:
+                        drawing_context.line_dash = 2
                     _draw_interval_lines(left, right, mid_text_rect, label_rect)
 
 
