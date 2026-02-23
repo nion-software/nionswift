@@ -922,6 +922,7 @@ class LineGraphLayersCanvasItem(CanvasItem.CanvasItemComposition):
 
 
 class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
+    DIGIT_MAPPING = str.maketrans("0123456789", "0000000000")
     def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing, cache: CanvasItem.ComposerCache, axes: typing.Optional[LineGraphAxes], regions: typing.Sequence[RegionInfo], is_focused: bool, ui_settings: UISettings.UISettings) -> None:
         super().__init__(canvas_item, layout_sizing, cache)
         self.__cache_values = list[typing.Tuple[CanvasItem.CacheValue, ...]]()
@@ -975,15 +976,6 @@ class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
                     top = y - height / 2.0
 
                 return Geometry.FloatRect.from_tlhw(top, x - width / 2.0, height, width)
-
-            def _padded_number_rectangle(text: str, x: float, y: float, text_baseline: str) -> Geometry.FloatRect:
-                """Gets the text rectangle for numbers
-
-                Replaces the digits with 0 so the size doesn't flicker between numbers
-                """
-                num_chars = len(text) - 2
-                padded_text = '0' * num_chars + ".0"
-                return _get_text_rectangle(padded_text, x, y, text_baseline, 2)
 
             def _draw_text_blocked_line(x_pos: float, width_text_rect: Geometry.FloatRect | None, label_text_rect: Geometry.FloatRect | None) -> None:
                 with drawing_context.saver():
@@ -1054,7 +1046,7 @@ class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
                             baseline = "bottom"
                             drawing_context.text_baseline = baseline
                             mid_y = level - 15
-                            mid_text_rect = _get_text_rectangle(middle_text, mid_x, mid_y, baseline)
+                            mid_text_rect = _get_text_rectangle(middle_text.translate(self.DIGIT_MAPPING), mid_x, mid_y, baseline, 2)
                             drawing_context.fill_text(middle_text, mid_x, mid_y)
                         if left_text and region.style != "tag":
                             drawing_context.text_align = "right"
