@@ -954,9 +954,15 @@ class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
                 px = c * data_scale
                 return canvas_size.width * (px - data_left) / (data_right - data_left)
 
-            def _get_text_rectangle(text: str, x: float, y: float, text_baseline: str) -> Geometry.FloatRect:
+            def _get_text_rectangle(text: str, x: float, y: float, text_baseline: str, margin: int = 3) -> Geometry.FloatRect:
+                """Gets the rectangle that surrounds a text string
+
+                The positions returned are offset by x, y.
+                The text_baseline is the vertical alignment of the text, 'top', 'bottom' otherwise center
+                Margin is added to the x-axis
+                """
                 metrics = self.__ui_settings.get_font_metrics(f"{font_size:d}px", text)
-                width = float(metrics.width) + 6  # Margin around the text for legibility
+                width = float(metrics.width) + 2 * margin  # Margin around the text for legibility
                 ascent = float(metrics.ascent)
                 descent = float(metrics.descent)
                 height = ascent + descent
@@ -969,6 +975,15 @@ class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
                     top = y - height / 2.0
 
                 return Geometry.FloatRect.from_tlhw(top, x - width / 2.0, height, width)
+
+            def _padded_number_rectangle(text: str, x: float, y: float, text_baseline: str) -> Geometry.FloatRect:
+                """Gets the text rectangle for numbers
+
+                Replaces the digits with 0 so the size doesn't flicker between numbers
+                """
+                num_chars = len(text) - 2
+                padded_text = '0' * num_chars + ".0"
+                return _get_text_rectangle(padded_text, x, y, text_baseline, 2)
 
             def _draw_text_blocked_line(x_pos: float, width_text_rect: Geometry.FloatRect | None, label_text_rect: Geometry.FloatRect | None) -> None:
                 with drawing_context.saver():
