@@ -25,24 +25,28 @@ class TestHDF5Handler(unittest.TestCase):
 
     def test_get_write_chunk_shape_for_data(self):
 
-        data_shapes_and_dtypes = [((512, 512, 130, 130), 'float32'),
-                                  ((971, 971, 130, 130), 'float32'),
-                                  ((1024, 1024, 130, 260), 'uint8'),
-                                  ((1024, 1024, 1030), 'int16'),
-                                  ((1024, 1024, 1032), 'float32'),
-                                  ((512, 512), 'float32'),
-                                  ((int(1e12),), 'int64')]
-        expected_chunk_shapes = [(1, 8, 130, 130),
-                                 (1, 8, 130, 130),
-                                 (1, 17, 130, 260),
-                                 (1, 288, 1030),
-                                 (1, 143, 1032),
+        data_shapes_and_dtypes = [((512, 512, 130, 130), 'float32', DataAndMetadata.DataDescriptor(False, 2, 2)),
+                                  ((971, 971, 130, 130), 'float32', DataAndMetadata.DataDescriptor(False, 2, 2)),
+                                  ((1024, 1024, 130, 260), 'uint8', DataAndMetadata.DataDescriptor(True, 2, 1)),
+                                  ((1024, 1024, 1030), 'int16', DataAndMetadata.DataDescriptor(False, 2, 1)),
+                                  ((1024, 1024, 1032), 'float32', DataAndMetadata.DataDescriptor(False, 2, 1)),
+                                  ((512, 512), 'float32', DataAndMetadata.DataDescriptor(False, 0, 2)),
+                                  ((int(1e12),), 'int64', DataAndMetadata.DataDescriptor(False, 0, 1)),
+                                  ((10, 1024, 1024, 1030), 'float32', DataAndMetadata.DataDescriptor(True, 2, 1)),
+                                  ((3, 123, 17, 31, 29), 'float32', DataAndMetadata.DataDescriptor(False, 2, 2))]
+        expected_chunk_shapes = [(1, 58, 32, 32),
+                                 (1, 58, 32, 32),
+                                 (1, 1, 130, 260),
+                                 (1, 466, 257),
+                                 (1, 232, 258),
                                  None,
-                                 (74240,)]
+                                 (30000,),
+                                 (1, 1, 233, 257),
+                                 (1, 1, 17, 31, 29)]
 
-        for shape_dtype, expected_chunk_shape in zip(data_shapes_and_dtypes, expected_chunk_shapes):
-            with self.subTest(shape=shape_dtype[0], dtype=shape_dtype[1]):
-                chunk_shape = HDF5Handler.get_write_chunk_shape_for_data(*shape_dtype)
+        for shape_dtype_descriptor, expected_chunk_shape in zip(data_shapes_and_dtypes, expected_chunk_shapes):
+            with self.subTest(shape=shape_dtype_descriptor[0], dtype=shape_dtype_descriptor[1], data_descriptor=shape_dtype_descriptor[2]):
+                chunk_shape = HDF5Handler.get_write_chunk_shape_for_data(*shape_dtype_descriptor)
 
                 if expected_chunk_shape is None:
                     self.assertIsNone(chunk_shape)
