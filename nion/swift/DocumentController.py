@@ -2194,6 +2194,7 @@ class DocumentController(Window.Window):
                     if data_descriptor.expected_dimension_count == data_metadata.data_descriptor.expected_dimension_count and data_descriptor != data_metadata.data_descriptor:
                         data_type_name = describe_data_descriptor(data_descriptor, data_metadata.data_shape)
                         action = menu.add_menu_item(_("Redimension to {}").format(data_type_name), functools.partial(self._perform_redimension, display_item, data_descriptor))
+                        action.enabled = not self.project.is_read_only
                         self.__data_menu_actions.append(action)
 
             # add squeeze menu item if available
@@ -2213,7 +2214,9 @@ class DocumentController(Window.Window):
                         del data_shape[data_descriptor.datum_dimension_index_slice.start + index]
                         data_descriptor.datum_dimension_count -= 1
                     data_type_name = describe_data_descriptor(data_descriptor, data_shape)
-                    self.__data_menu_actions.append(menu.add_menu_item(_("Squeeze to {}").format(data_type_name), functools.partial(self._perform_squeeze, display_item)))
+                    action = menu.add_menu_item(_("Squeeze to {}").format(data_type_name), functools.partial(self._perform_squeeze, display_item))
+                    action.enabled = not self.project.is_read_only
+                    self.__data_menu_actions.append(action)
         else:
             action = menu.add_menu_item(_("No Data Selected"), lambda: None)
             action.enabled = False
@@ -4816,6 +4819,10 @@ class ProcessingAction(Window.Action):
                                                                                      crop_graphic3, fn)
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return not typing.cast(DocumentController, context.window).project.is_read_only
+
 
 class AddAction(ProcessingAction):
     action_id = "processing.add"
@@ -4967,7 +4974,7 @@ class FourierFilterAction(ProcessingAction):
 
     def is_enabled(self, context: Window.ActionContext) -> bool:
         context = typing.cast(DocumentController.ActionContext, context)
-        return context.data_item is not None
+        return super().is_enabled(context) and context.data_item is not None
 
 
 class FFTAction(ProcessingAction):
@@ -5488,7 +5495,7 @@ class ProcessingComponentAction(ProcessingAction):
 
     def is_enabled(self, context: Window.ActionContext) -> bool:
         context = typing.cast(DocumentController.ActionContext, context)
-        return context.data_item is not None
+        return super().is_enabled(context) and context.data_item is not None
 
 
 Window.register_action(AddAction())
