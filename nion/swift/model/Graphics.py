@@ -186,6 +186,7 @@ class ModifiersLike(typing.Protocol):
 def adjust_rectangle_like(part_name: str, data_shape: Geometry.FloatSize, bounds: Geometry.FloatRect, rotation: float,
                           is_center_constant_by_default: bool, original_image: Geometry.FloatPoint,
                           current_image: Geometry.FloatPoint, original_rotation: float, modifiers: ModifiersLike,
+                          key_delegate,
                           constraints: typing.Set[str]) -> typing.Tuple[Geometry.FloatRect, float]:
     # NOTE: all sizes/points are assumed to be in image coordinates
     delta = current_image - original_image
@@ -207,8 +208,10 @@ def adjust_rectangle_like(part_name: str, data_shape: Geometry.FloatSize, bounds
     if part_name == "top-left" and not "shape" in constraints:  # top left
         delta = rotate(delta, Geometry.FloatPoint(), -rotation)
         new_top_left = bounds_image.top_left + delta
-        if (bool(modifiers.alt) != bool(is_center_constant_by_default)) or "position" in constraints:
-            if modifiers.shift or "square" in constraints:
+        center_locked = key_delegate.is_key_mode_enabled(modifiers, "Alt", "resize-from-center") != is_center_constant_by_default
+        constrain_square = key_delegate.is_key_mode_enabled(modifiers, "Shift", "constrain-to-square") or "square" in constraints
+        if (center_locked) or "position" in constraints:
+            if  key_delegate.is_key_mode_enabled(modifiers, "Shift", "constrain-to-square") or "square" in constraints:
                 # shape constrained to square; hold center constant
                 half_size = (bounds_image.center - new_top_left).as_size()
                 if half_size.height > half_size.width:  # size will be width
@@ -226,7 +229,7 @@ def adjust_rectangle_like(part_name: str, data_shape: Geometry.FloatSize, bounds
             new_bottom_right = 2 * bounds_image.center - new_top_left
             new_bounds_image = Geometry.FloatRect(origin=new_top_left, size=(new_bottom_right - new_top_left).as_size())
         else:
-            if modifiers.shift or "square" in constraints:
+            if key_delegate.is_key_mode_enabled(modifiers, "Shift", "constrain-to-square") or "square" in constraints:
                 if "bounds" in constraints and rotation == 0.0:
                     # find the minimum distance of bottom-right from origin and opposite corner of data
                     min_from_00 = min(bounds_image.bottom, bounds_image.right)
@@ -254,7 +257,7 @@ def adjust_rectangle_like(part_name: str, data_shape: Geometry.FloatSize, bounds
         delta = rotate(delta, Geometry.FloatPoint(), -rotation)
         new_top_right = bounds_image.top_right + delta
         if (bool(modifiers.alt) != bool(is_center_constant_by_default)) or "position" in constraints:
-            if modifiers.shift or "square" in constraints:
+            if key_delegate.is_key_mode_enabled(modifiers, "Shift", "constrain-to-square") or "square" in constraints:
                 # shape constrained to square; hold center constant
                 half_size = Geometry.FloatSize(height=bounds_image.center.y - new_top_right.y, width=new_top_right.x - bounds_image.center.x)
                 if half_size.height > half_size.width:  # size will be width
@@ -272,7 +275,7 @@ def adjust_rectangle_like(part_name: str, data_shape: Geometry.FloatSize, bounds
             new_bottom_left = 2 * bounds_image.center - new_top_right
             new_bounds_image = Geometry.FloatRect(origin=new_top_right, size=(new_bottom_left - new_top_right).as_size())
         else:
-            if modifiers.shift or "square" in constraints:
+            if key_delegate.is_key_mode_enabled(modifiers, "Shift", "constrain-to-square") or "square" in constraints:
                 if "bounds" in constraints:
                     # find the minimum distance of bottom-left from bottom-left and opposite corner of data
                     min_from_10 = min(data_shape.height - bounds_image.bottom, bounds_image.left)
@@ -300,7 +303,7 @@ def adjust_rectangle_like(part_name: str, data_shape: Geometry.FloatSize, bounds
         delta = rotate(delta, Geometry.FloatPoint(), -rotation)
         new_bottom_right = bounds_image.bottom_right + delta
         if (bool(modifiers.alt) != bool(is_center_constant_by_default)) or "position" in constraints:
-            if modifiers.shift or "square" in constraints:
+            if key_delegate.is_key_mode_enabled(modifiers, "Shift", "constrain-to-square") or "square" in constraints:
                 # shape constrained to square; hold center constant
                 half_size = (new_bottom_right - bounds_image.center).as_size()
                 if half_size.height > half_size.width:  # size will be width
@@ -318,7 +321,7 @@ def adjust_rectangle_like(part_name: str, data_shape: Geometry.FloatSize, bounds
             new_top_left = 2 * bounds_image.center - new_bottom_right
             new_bounds_image = Geometry.FloatRect(origin=new_top_left, size=(new_bottom_right - new_top_left).as_size())
         else:
-            if modifiers.shift or "square" in constraints:
+            if key_delegate.is_key_mode_enabled(modifiers, "Shift", "constrain-to-square") or "square" in constraints:
                 if "bounds" in constraints:
                     # find the minimum distance of bottom-right from bottom-right and opposite corner of data
                     min_from_00 = min(bounds_image.top, bounds_image.left)
@@ -346,7 +349,7 @@ def adjust_rectangle_like(part_name: str, data_shape: Geometry.FloatSize, bounds
         delta = rotate(delta, Geometry.FloatPoint(), -rotation)
         new_bottom_left = bounds_image.bottom_left + delta
         if (bool(modifiers.alt) != bool(is_center_constant_by_default)) or "position" in constraints:
-            if modifiers.shift or "square" in constraints:
+            if key_delegate.is_key_mode_enabled(modifiers, "Shift", "constrain-to-square") or "square" in constraints:
                 # shape constrained to square; hold center constant
                 half_size = Geometry.FloatSize(height=new_bottom_left.y - bounds_image.center.y, width=bounds_image.center.x - new_bottom_left.x)
                 if half_size.height > half_size.width:  # size will be width
@@ -364,7 +367,7 @@ def adjust_rectangle_like(part_name: str, data_shape: Geometry.FloatSize, bounds
             new_top_right = 2 * bounds_image.center - new_bottom_left
             new_bounds_image = Geometry.FloatRect(origin=Geometry.FloatPoint(y=new_top_right.y, x=new_bottom_left.x), size=Geometry.FloatSize(height=new_bottom_left.y - new_top_right.y, width=new_top_right.x - new_bottom_left.x))
         else:
-            if modifiers.shift or "square" in constraints:
+            if key_delegate.is_key_mode_enabled(modifiers, "Shift", "constrain-to-square") or "square" in constraints:
                 if "bounds" in constraints:
                     # find the minimum distance of top-right from top-right and opposite corner of data
                     min_from_01 = min(bounds_image.top, data_shape.width - bounds_image.right)
@@ -394,10 +397,10 @@ def adjust_rectangle_like(part_name: str, data_shape: Geometry.FloatSize, bounds
         original_angle = math.atan2(-original_delta.y, original_delta.x)
         current_angle = math.atan2(-current_delta.y, current_delta.x)
         new_rotation = original_rotation + (current_angle - original_angle)
-        if modifiers.shift:
+        if key_delegate.is_key_mode_enabled(modifiers, "Shift", "constrain-to-square") or "square" in constraints:
             new_rotation = 2 * math.pi * int(8 * (new_rotation / (2 * math.pi)) + 0.5) / 8
     elif (part_name == "all" or "shape" in constraints) and not "position" in constraints:
-        if modifiers.shift:
+        if key_delegate.is_key_mode_enabled(modifiers, "Shift", "constrain-to-square") or "square" in constraints:
             if abs(delta.y) > abs(delta.x):
                 origin = Geometry.FloatPoint(y=bounds_image.top + delta.y, x=bounds_image.left)
             else:

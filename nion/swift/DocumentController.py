@@ -48,6 +48,7 @@ from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.swift.model import ImportExportManager
+from nion.swift.model import KeybindingEvaluator
 from nion.swift.model import Notification
 from nion.swift.model import Observer
 from nion.swift.model import Persistence
@@ -296,6 +297,17 @@ class DocumentController(Window.Window):
         self.__display_items_model = ListModel.FilteredListModel(container=self.document_model, items_key="display_items")
         typing.cast(typing.Any, self.__display_items_model).filter_id = None  # extra tracking field. fix typing in 3.8.
         self.__filtered_display_items_model = ListModel.FilteredListModel(items_key="display_items", container=self.__display_items_model)
+        try:
+            data = pkgutil.get_data(__name__, "resources/key_config.json")
+            assert data is not None
+            action_shortcuts_dict = json.loads(data.decode("utf8"))
+            Window.register_action_shortcuts(action_shortcuts_dict)
+            self.__keybinding_evaluator = KeybindingEvaluator.KeybindingEvaluator(action_shortcuts_dict)
+        except Exception as e:
+            logging.error("Could not read key configuration.")
+
+        def is_key_mode_enabled(self, modifiers: UserInterface.KeyboardModifiers, key: str, mode_name: str, context: typing.Optional[str] = None) -> bool:
+            return self.__keybinding_evaluator.is_key_mode_enabled(modifiers, key, mode_name, context)
 
         def filtered_display_items_item_removed(selection: Selection.IndexedSelection, key: str, value: DisplayItem.DisplayItem, index: int) -> None:
             selection.remove_index(index)
@@ -5555,10 +5567,4 @@ component_registered_event_listener = Registry.listen_component_registered_event
 for component in Registry.get_components_by_type("processing-component"):
     component_changed(component, {"processing-component"})
 
-try:
-    data = pkgutil.get_data(__name__, "resources/key_config.json")
-    assert data is not None
-    action_shortcuts_dict = json.loads(data.decode("utf8"))
-    Window.register_action_shortcuts(action_shortcuts_dict)
-except Exception as e:
-    logging.error("Could not read key configuration.")
+
