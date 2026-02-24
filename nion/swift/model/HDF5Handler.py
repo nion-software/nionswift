@@ -24,6 +24,7 @@ from nion.utils import DateTime
 from nion.utils import Geometry
 from nion.utils import Registry
 
+
 if typing.TYPE_CHECKING:
     from nion.data import DataAndMetadata
 
@@ -43,7 +44,7 @@ def make_directory_if_needed(directory_path: str) -> None:
         os.makedirs(directory_path)
 
 
-def get_write_chunk_shape_for_data(data_shape: DataAndMetadata.ShapeType, data_dtype: numpy.typing.DTypeLike, target_chunk_size: int=240000) -> typing.Optional[DataAndMetadata.ShapeType]:
+def get_write_chunk_shape_for_data(data_shape: DataAndMetadata.ShapeType, data_dtype: numpy.typing.DTypeLike, data_descriptor: DataAndMetadata.DataDescriptor, target_chunk_size: int=240000) -> typing.Optional[DataAndMetadata.ShapeType]:
     """
     Calculate an appropriate write chunk shape for a given data shape and dtype.
 
@@ -65,10 +66,7 @@ def get_write_chunk_shape_for_data(data_shape: DataAndMetadata.ShapeType, data_d
     """
     data_dtype = numpy.dtype(data_dtype)
 
-    if len(data_shape) > 1:
-        is_2d_data = data_shape[-1] <= 1.5 * data_shape[-2]
-    else:
-        is_2d_data = False
+    is_2d_data = data_descriptor.datum_dimension_count == 2
 
     target_chunk_size = int(round(target_chunk_size / data_dtype.itemsize))
     divisors = [1] * len(data_shape)
@@ -76,7 +74,6 @@ def get_write_chunk_shape_for_data(data_shape: DataAndMetadata.ShapeType, data_d
         (numpy.prod(data_shape[-3:]) > 8 * target_chunk_size and is_2d_data) or
         (numpy.prod(data_shape[-2:]) > 2 * target_chunk_size)):
         if is_2d_data:
-            # Assume these are 2D camera frames if the x-dimension is not much larger than the y-dimension
             divisors[-2:] = [4, 4]
         else:
             divisors[-1] = 4
@@ -257,7 +254,7 @@ class HDF5Handler(StorageHandler.StorageHandler):
             #   3 - 'data' exists and is the same size (overwrite)
             if not "data" in self.__file.fp:
                 # case 1
-                chunks = get_write_chunk_shape_for_data(data.shape, data.dtype)
+                chunks = get_write_chunk_shape_for_data(data.shape, data.dtype, data_descriptor)
                 self.__dataset = self.__file.fp.require_dataset("data", shape=data.shape, dtype=data.dtype, chunks=chunks, compression=self.__get_compressor())
             else:
                 if self.__dataset is None:
@@ -267,7 +264,7 @@ class HDF5Handler(StorageHandler.StorageHandler):
                     json_properties = self.__dataset.attrs.get("properties", "")
                     self.__close_fp()
                     os.remove(self.__file_path)
-                    chunks = get_write_chunk_shape_for_data(data.shape, data.dtype)
+                    chunks = get_write_chunk_shape_for_data(data.shape, data.dtype, data_descriptor)
                     self.__dataset = self.__file.fp.require_dataset("data", shape=data.shape, dtype=data.dtype, chunks=chunks, compression=self.__get_compressor())
             self.__copy_data(data)
             if json_properties is not None:
@@ -287,7 +284,7 @@ class HDF5Handler(StorageHandler.StorageHandler):
                 os.remove(self.__file_path)
                 self.__file.open()
             # reserve the data
-            chunks = get_write_chunk_shape_for_data(data_shape, data_dtype)
+            chunks = get_write_chunk_shape_for_data(data_shape, data_dtype, data_descriptor)
             self.__dataset = self.__file.fp.require_dataset("data", shape=data_shape, dtype=data_dtype, fillvalue=0, chunks=chunks, compression=self.__get_compressor())
             if json_properties is not None:
                 self.__dataset.attrs["properties"] = json_properties
