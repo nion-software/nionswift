@@ -955,7 +955,7 @@ class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
                 px = c * data_scale
                 return canvas_size.width * (px - data_left) / (data_right - data_left)
 
-            def _get_text_rectangle(text: str, x: float, y: float, text_baseline: str, margin: int = 3) -> Geometry.FloatRect:
+            def _get_text_rectangle(text: str, x: float, y: float, baseline: str = "center", align: str = "center", margin: int = 1) -> Geometry.FloatRect:
                 """Gets the rectangle that surrounds a text string
 
                 The positions returned are offset by x, y.
@@ -968,14 +968,23 @@ class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
                 descent = float(metrics.descent)
                 height = ascent + descent
 
-                if text_baseline == "top":
-                    top = y
-                elif text_baseline == "bottom":
-                    top = y - ascent
-                else:  # Center by default
-                    top = y - height / 2.0
+                if baseline == "top":
+                    rect_top = y
+                elif baseline == "bottom":
+                    rect_top = y - ascent  # There is a bug in nionui-tool that means 'bottom' baseline is actually alphabetic
+                elif baseline == "center":
+                    rect_top = y - height / 2
+                else: # alphabetic or ideographic
+                    rect_top = y - ascent
 
-                return Geometry.FloatRect.from_tlhw(top, x - width / 2.0, height, width)
+                if align == "right":
+                    rect_left = x - width + margin
+                elif align == "left":
+                    rect_left = x - margin
+                else:
+                    rect_left = x - width / 2.0  # center
+
+                return Geometry.FloatRect.from_tlhw(rect_top, rect_left, height, width)
 
             def _draw_text_blocked_line(x_pos: float, width_text_rect: Geometry.FloatRect | None, label_text_rect: Geometry.FloatRect | None) -> None:
                 with drawing_context.saver():
@@ -1042,12 +1051,13 @@ class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
                         right_text = region.right_text
                         middle_text = region.middle_text
                         if middle_text and region.style != "tag":
-                            drawing_context.text_align = "center"
-                            baseline = "bottom"
-                            drawing_context.text_baseline = baseline
-                            mid_y = level - 15
-                            mid_text_rect = _get_text_rectangle(middle_text.translate(self.DIGIT_MAPPING), mid_x, mid_y, baseline, 2)
-                            drawing_context.fill_text(middle_text, mid_x, mid_y)
+                            text_align = "center"
+                            text_baseline = "bottom"
+                            drawing_context.text_baseline = text_baseline
+                            drawing_context.text_align = text_align
+                            middle_text_bottom = level - 15
+                            mid_text_rect = _get_text_rectangle(middle_text.translate(self.DIGIT_MAPPING), mid_x, middle_text_bottom, text_baseline, text_align)
+                            drawing_context.fill_text(middle_text, mid_x, middle_text_bottom)
                         if left_text and region.style != "tag":
                             drawing_context.text_align = "right"
                             drawing_context.text_baseline = "center"
@@ -1064,11 +1074,12 @@ class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
                         drawing_context.line_dash = 0
                         drawing_context.fill_style = region_color
                         drawing_context.font = "{0:d}px".format(font_size)
-                        drawing_context.text_align = "center"
+                        text_align = "center"
                         label_y = level + 10
-                        baseline = "top"
-                        drawing_context.text_baseline = baseline
-                        label_rect = _get_text_rectangle(label, mid_x, label_y, baseline)
+                        text_baseline = "top"
+                        drawing_context.text_baseline = text_baseline
+                        drawing_context.text_align = text_align
+                        label_rect = _get_text_rectangle(label, mid_x, label_y, text_baseline, text_align)
                         drawing_context.fill_text(label, mid_x, label_y)
                     _draw_interval_lines(left, right, mid_text_rect, label_rect)
 
