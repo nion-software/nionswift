@@ -1767,6 +1767,30 @@ class TestWorkspaceClass(unittest.TestCase):
             display_panel._handle_key_pressed(TestUI.Key(None, "backtab", None))
             self.assertEqual(workspace_controller.display_panels[2], document_controller.selected_display_panel)
 
+    def test_changing_workspace_title_updates_window_title(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            # create three workspaces
+            workspace_controller = document_controller.workspace_controller
+            workspace = workspace_controller._workspace
+            # check assumptions
+            original_name = workspace.name
+            new_name = original_name + " new"
+            self.assertTrue(document_controller.title.endswith(original_name))
+            # change the name and check that the title updates
+            command = Workspace.RenameWorkspaceCommand(workspace_controller, new_name)
+            command.perform()
+            document_controller.push_undo_command(command)
+            self.assertTrue(document_controller.title.endswith(new_name))
+            # undo
+            document_controller.handle_undo()
+            document_controller.periodic()
+            self.assertTrue(document_controller.title.endswith(original_name))
+            # redo
+            document_controller.handle_redo()
+            document_controller.periodic()
+            self.assertTrue(document_controller.title.endswith(new_name))
+
     # def test_display_panel_controller_initially_displays_existing_data(self):
     #     # cannot implement until common code for display controllers is moved into document model
     #     pass

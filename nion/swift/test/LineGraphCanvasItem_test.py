@@ -84,8 +84,8 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             data[:] = data_min + (data_max - data_min) * (irow / 15.0)
             # auto on min/max
             xdata = DataAndMetadata.new_data_and_metadata(data)
-            calibrated_data_min, calibrated_data_max, y_ticker = LineGraphCanvasItem.calculate_y_axis([xdata], None, None, None)
-            axes = LineGraphCanvasItem.LineGraphAxes(1.0, calibrated_data_min, calibrated_data_max, 0, 100, None, None, None, y_ticker)
+            mapped_calibrated_data_min, mapped_calibrated_data_max, y_ticker = LineGraphCanvasItem.calculate_y_axis([xdata], None, None, None)
+            axes = LineGraphCanvasItem.LineGraphAxes(1.0, mapped_calibrated_data_min, mapped_calibrated_data_max, 0, 100, None, None, None, y_ticker)
             self.assertEqual(axes.uncalibrated_data_min, expected_uncalibrated_data_min)
             self.assertEqual(axes.uncalibrated_data_max, expected_uncalibrated_data_max)
 
@@ -105,15 +105,15 @@ class TestLineGraphCanvasItem(unittest.TestCase):
                 data = numpy.linspace(data_in[0], data_in[1], 100, endpoint=False)
                 data_style = "log"
                 xdata = DataAndMetadata.new_data_and_metadata(data)
-                calibrated_data_min, calibrated_data_max, y_ticker = LineGraphCanvasItem.calculate_y_axis([xdata], None, None, data_style)
-                axes = LineGraphCanvasItem.LineGraphAxes(1.0, calibrated_data_min, calibrated_data_max, 0, 100, None, None, data_style, y_ticker)
+                mapped_calibrated_data_min, mapped_calibrated_data_max, y_ticker = LineGraphCanvasItem.calculate_y_axis([xdata], None, None, data_style)
+                axes = LineGraphCanvasItem.LineGraphAxes(1.0, mapped_calibrated_data_min, mapped_calibrated_data_max, 0, 100, None, None, data_style, y_ticker)
                 self.assertAlmostEqual(axes.uncalibrated_data_min, data_out[0], places=1)
                 self.assertAlmostEqual(axes.uncalibrated_data_max, data_out[1], places=1)
-                calibrated_data = axes.calculate_calibrated_xdata(DataAndMetadata.new_data_and_metadata(data)).data
-                assert calibrated_data is not None
+                mapped_calibrated_data = axes.convert_uncalibrated_array_to_mapped_calibrated_values(DataAndMetadata.new_data_and_metadata(data)).data
+                assert mapped_calibrated_data is not None
                 data[data <= 0] = numpy.nan
-                self.assertAlmostEqual(numpy.nanmin(calibrated_data), math.log10(numpy.nanmin(data)))
-                self.assertAlmostEqual(numpy.nanmax(calibrated_data), math.log10(numpy.nanmax(data)))
+                self.assertAlmostEqual(numpy.nanmin(mapped_calibrated_data), math.log10(numpy.nanmin(data)))
+                self.assertAlmostEqual(numpy.nanmax(mapped_calibrated_data), math.log10(numpy.nanmax(data)))
 
     def test_display_limits_are_reasonable_when_using_calibrated_log_scale(self):
 
@@ -132,15 +132,15 @@ class TestLineGraphCanvasItem(unittest.TestCase):
                 intensity_calibration = Calibration.Calibration(-5, 2)
                 data_style = "log"
                 xdata = DataAndMetadata.new_data_and_metadata(data, intensity_calibration=intensity_calibration)
-                calibrated_data_min, calibrated_data_max, y_ticker = LineGraphCanvasItem.calculate_y_axis([xdata], None, None, data_style)
-                axes = LineGraphCanvasItem.LineGraphAxes(1.0, calibrated_data_min, calibrated_data_max, 0, 100, None, intensity_calibration, data_style, y_ticker)
+                mapped_calibrated_data_min, mapped_calibrated_data_max, y_ticker = LineGraphCanvasItem.calculate_y_axis([xdata], None, None, data_style)
+                axes = LineGraphCanvasItem.LineGraphAxes(1.0, mapped_calibrated_data_min, mapped_calibrated_data_max, 0, 100, None, intensity_calibration, data_style, y_ticker)
                 self.assertAlmostEqual(axes.uncalibrated_data_min, data_out[0], places=1)
                 self.assertAlmostEqual(axes.uncalibrated_data_max, data_out[1], places=1)
-                calibrated_data = axes.calculate_calibrated_xdata(DataAndMetadata.new_data_and_metadata(data)).data
-                assert calibrated_data is not None
+                mapped_calibrated_data = axes.convert_uncalibrated_array_to_mapped_calibrated_values(DataAndMetadata.new_data_and_metadata(data)).data
+                assert mapped_calibrated_data is not None
                 data[data <= 0] = numpy.nan
-                self.assertAlmostEqual(numpy.nanmin(calibrated_data), math.log10(numpy.nanmin(data)))
-                self.assertAlmostEqual(numpy.nanmax(calibrated_data), math.log10(numpy.nanmax(data)))
+                self.assertAlmostEqual(numpy.nanmin(mapped_calibrated_data), math.log10(numpy.nanmin(data)))
+                self.assertAlmostEqual(numpy.nanmax(mapped_calibrated_data), math.log10(numpy.nanmax(data)))
 
     def test_line_plot_with_log_scale_displays_integers(self):
         data = numpy.array([1,2,3], dtype=int)
@@ -148,13 +148,13 @@ class TestLineGraphCanvasItem(unittest.TestCase):
         xdata = DataAndMetadata.new_data_and_metadata(data)
         # at some point, calculate_y_axis failed to return without exception when the data type was int.
         # so the main point of this test is to ensure that the function returns without exception.
-        calibrated_data_min, calibrated_data_max, y_ticker = LineGraphCanvasItem.calculate_y_axis([xdata], None, None, data_style)
+        mapped_calibrated_data_min, mapped_calibrated_data_max, y_ticker = LineGraphCanvasItem.calculate_y_axis([xdata], None, None, data_style)
         # the asserts below are a sanity check to ensure that the function is returning reasonable values.
         # note: these are calibrated values for the AXES not the original data. furthermore they will be log10.
         # so checking that the first value is negative (original axes value is less than 1), and the second value
         # is positive (original axes value is greater than 1) is a reasonable check.
-        self.assertLess(calibrated_data_min, 0.0)
-        self.assertGreater(calibrated_data_max, 0.0)
+        self.assertLess(mapped_calibrated_data_min, 0.0)
+        self.assertGreater(mapped_calibrated_data_max, 0.0)
 
     def test_graph_segments_are_calculated_correctly_with_nans(self):
         # this was a bug in the original implementation
@@ -269,8 +269,8 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             display_panel.set_display_panel_display_item(display_item)
             display_panel.layout_immediate((640, 480))
             axes = display_panel.display_canvas_item._axes
-            self.assertAlmostEqual(axes.calibrated_data_min, 0.0)
-            self.assertAlmostEqual(axes.calibrated_data_max, 80.0)
+            self.assertAlmostEqual(axes.mapped_calibrated_data_min, 0.0)
+            self.assertAlmostEqual(axes.mapped_calibrated_data_max, 80.0)
             self.assertAlmostEqual(axes.uncalibrated_data_min, 0.0)
             self.assertAlmostEqual(axes.uncalibrated_data_max, 80.0)
 
@@ -288,8 +288,8 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             display_panel.set_display_panel_display_item(display_item)
             display_panel.layout_immediate((640, 480))
             axes = display_panel.display_canvas_item._axes
-            self.assertAlmostEqual(axes.calibrated_data_min, 0.0)
-            self.assertAlmostEqual(axes.calibrated_data_max, 40.0)
+            self.assertAlmostEqual(axes.mapped_calibrated_data_min, 0.0)
+            self.assertAlmostEqual(axes.mapped_calibrated_data_max, 40.0)
             self.assertAlmostEqual(axes.uncalibrated_data_min, 0.0)
             self.assertAlmostEqual(axes.uncalibrated_data_max, 80.0)
 
@@ -363,10 +363,10 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_display_item(display_item)
             display_panel.layout_immediate((640, 480))
-            self.assertTrue(numpy.array_equal(display_panel.display_canvas_item.line_graph_layers_canvas_item.calibrated_xdata.data, numpy.full((8, ), 10)))
+            self.assertTrue(numpy.array_equal(display_panel.display_canvas_item.line_graph_layers_canvas_item.mapped_calibrated_xdata.data, numpy.full((8, ), 10)))
             display_item.intensity_calibration_style_id = "uncalibrated"
             display_panel.layout_immediate((640, 480))
-            self.assertTrue(numpy.array_equal(display_panel.display_canvas_item.line_graph_layers_canvas_item.calibrated_xdata.data, numpy.ones((8, ))))
+            self.assertTrue(numpy.array_equal(display_panel.display_canvas_item.line_graph_layers_canvas_item.mapped_calibrated_xdata.data, numpy.ones((8, ))))
 
     def test_line_plot_handles_calibrated_vs_uncalibrated_display(self):
         with TestContext.create_memory_context() as test_context:
@@ -379,10 +379,10 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_display_item(display_item)
             display_panel.layout_immediate((640, 480))
-            self.assertEqual(display_panel.display_canvas_item.line_graph_layers_canvas_item.calibrated_xdata.dimensional_calibrations[-1].units, "nm")
+            self.assertEqual(display_panel.display_canvas_item.line_graph_layers_canvas_item.mapped_calibrated_xdata.dimensional_calibrations[-1].units, "nm")
             display_item.calibration_style_id = "pixels-top-left"
             display_panel.layout_immediate((640, 480))
-            self.assertFalse(display_panel.display_canvas_item.line_graph_layers_canvas_item.calibrated_xdata.dimensional_calibrations[-1].units)
+            self.assertFalse(display_panel.display_canvas_item.line_graph_layers_canvas_item.mapped_calibrated_xdata.dimensional_calibrations[-1].units)
 
     def test_line_plot_with_no_data_handles_clicks(self):
         with TestContext.create_memory_context() as test_context:
