@@ -1920,6 +1920,7 @@ class IntervalGraphic(Graphic):
 
         # interval is stored in image normalized coordinates
         self.define_property("interval", (0.0, 1.0), changed=self.__interval_changed, reader=read_interval, writer=write_interval, validate=validate_interval, hidden=True)
+        self.define_property("show_width", False, changed=self._property_changed, hidden=True)
         self._default_drag_part = "end"
 
     @property
@@ -1929,6 +1930,14 @@ class IntervalGraphic(Graphic):
     @interval.setter
     def interval(self, value: typing.Tuple[float, float]) -> None:
         self._set_persistent_property_value("interval", value)
+
+    @property
+    def show_width(self) -> bool:
+        return typing.cast(bool, self._get_persistent_property_value("show_width"))
+
+    @show_width.setter
+    def show_width(self, value: bool) -> None:
+        self._set_persistent_property_value("show_width", value)
 
     def reset_position(self) -> None:
         offset = -(self.interval[0] + self.interval[1]) / 2 + 0.5
