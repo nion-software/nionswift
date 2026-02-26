@@ -217,13 +217,13 @@ The inspector for the Interval allows you to edit the start and end channels.
 
 The inspector for the Channel allows you to edit the channel.
 
-The inspector for the Spot Filter Mask allows you to edit the center position, size, and rotation (in degrees) of the primary spot.
+The inspector for the Spot Graphic allows you to edit the center position, size, and rotation (in degrees) of the primary spot.
 
-The inspector for the Angular Filter Mask allows you to edit the start and end angle (both in degrees).
+The inspector for the Angular Graphic allows you to edit the start and end angle (both in degrees).
 
-The inspector for the Band-pass Filter Mask allows you to edit the inner radius and outer radius and allows you to select the bandpass type (low, high, band).
+The inspector for the Band-pass Graphic allows you to edit the inner radius and outer radius and allows you to select the bandpass type (low, high, band).
 
-The inspector for the Lattice Filter Mask allows you to edit the center position, size, and rotation (in degrees) of the primary and secondary spots.
+The inspector for the Lattice Graphic allows you to edit the center position, size, and rotation (in degrees) of the primary and secondary spots.
 
 .. _Sessions Panel:
 
@@ -277,13 +277,13 @@ You can delete a Data Group by selecting it and pressing the delete key. This wi
 
 Tools
 -----
-.. tools: pointer, hand, line, rectangle, ellipse, point, line profile, interval, spot, wedge, band-pass, array
+.. tools: pointer, hand, line, rectangle, ellipse, point, line profile, interval, spot, angular, band-pass, array
 .. images: zoom options
 .. workspace: split h,v, 2x2, 3x2, 3x3, 4x3, 4x4, 5x4, select more panels, clear selected panels, reset workspace, close selected panels
 
 The Tools panel (:menuselection:`Window --> Tools`) allows you to select tools, adjust image zooming, and modify the workspace.
 
-The tools available are the pointer, hand, line, rectangle, ellipse, point, line profile, interval, spot filter, angular filter, band-pass filter, and lattice filter tools. Some tools have keyboard shortcuts which can be seen by hovering over the tool.
+The tools available are the pointer, hand, line, rectangle, ellipse, point, line profile, interval, spot, angular, band-pass, and lattice tools. Some tools have keyboard shortcuts which can be seen by hovering over the tool.
 
 The zoom buttons allow you to set raster image displays to fill the space with the image (Fill), fit the image to the space (Fit), set the pixel scaling to one data pixel per screen pixel (1:1), and set the pixel scaling to one data pixel per two screen pixels (2:1).
 

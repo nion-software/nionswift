@@ -3044,16 +3044,16 @@ class GraphicsInspectorHandler(Declarative.Handler):
             self._graphic_type_model.value = _("Position")
         elif isinstance(self.__graphic, Graphics.SpotGraphic):
             self.__shape_and_pos_func = self.__create_spot_shape_and_pos
-            self._graphic_type_model.value = _("Spot Filter")
+            self._graphic_type_model.value = _("Spot Graphic")
         elif isinstance(self.__graphic, Graphics.WedgeGraphic):
             self.__shape_and_pos_func = self.__create_wedge_shape_and_pos
-            self._graphic_type_model.value = _("Angular Filter")
+            self._graphic_type_model.value = _("Angular Graphic")
         elif isinstance(self.__graphic, Graphics.RingGraphic):
             self.__shape_and_pos_func = self.__create_ring_shape_and_pos
-            self._graphic_type_model.value = _("Band-Pass Filter")
+            self._graphic_type_model.value = _("Band-Pass Graphic")
         elif isinstance(self.__graphic, Graphics.LatticeGraphic):
             self.__shape_and_pos_func = self.__create_default_shape_and_position_ui
-            self._graphic_type_model.value = _("Lattice Filter")
+            self._graphic_type_model.value = _("Lattice Graphic")
         else:
             self.__shape_and_pos_func = self.__create_default_shape_and_position_ui
             self._graphic_type_model.value = _("")

@@ -3462,10 +3462,10 @@ Window.register_action(SetToolModeAction("rectangle", _("Rectangle"), "rectangle
 Window.register_action(SetToolModeAction("point", _("Point"), "point_icon.png", _("Point tool for making point regions on images")))
 Window.register_action(SetToolModeAction("line-profile", _("Line Profile"), "line_profile_icon.png", _("Line profile tool for making line profiles on images")))
 Window.register_action(SetToolModeAction("interval", _("Interval"), "interval_icon.png", _("Interval tool for making intervals on line plots")))
-Window.register_action(SetToolModeAction("spot", _("Spot Filter"), "spot_icon.png", _("Spot filter tool for creating spot filter masks")))
-Window.register_action(SetToolModeAction("wedge", _("Angular Filter"), "wedge_icon.png", _("Angular filter tool for creating a angular filter masks")))
-Window.register_action(SetToolModeAction("ring", _("Band-Pass Filter"), "annular_ring.png", _("Band-pass filter tool for creating band-pass filter masks")))
-Window.register_action(SetToolModeAction("lattice", _("Lattice Filter"), "lattice_icon.png", _("Lattice filter tool for creating periodic lattice filter masks")))
+Window.register_action(SetToolModeAction("spot", _("Spot Graphic"), "spot_icon.png", _("Spot graphic tool for creating spot Fourier filter graphics")))
+Window.register_action(SetToolModeAction("wedge", _("Angular Graphic"), "wedge_icon.png", _("Angular graphic tool for creating a angular Fourier filter graphics")))
+Window.register_action(SetToolModeAction("ring", _("Band-Pass Graphic"), "annular_ring.png", _("Band-pass graphic tool for creating band-pass Fourier filter graphics")))
+Window.register_action(SetToolModeAction("lattice", _("Lattice Graphic"), "lattice_icon.png", _("Lattice graphic tool for creating periodic lattice Fourier filter graphics")))
 
 
 class WorkspaceChangeSplits(Window.Action):
@@ -4699,7 +4699,7 @@ class AddGraphicToMaskAction(Window.Action):
 
 class AddSpotGraphicAction(Window.Action):
     action_id = "graphics.add_spot_graphic"
-    action_name = _("Add Spot Filter")
+    action_name = _("Add Spot Graphic")
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
@@ -4710,7 +4710,7 @@ class AddSpotGraphicAction(Window.Action):
 
 class AddAngleGraphicAction(Window.Action):
     action_id = "graphics.add_angle_graphic"
-    action_name = _("Add Angular Filter")
+    action_name = _("Add Angular Graphic")
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
@@ -4721,7 +4721,7 @@ class AddAngleGraphicAction(Window.Action):
 
 class AddBandPassGraphicAction(Window.Action):
     action_id = "graphics.add_band_pass_graphic"
-    action_name = _("Add Band-Pass Filter")
+    action_name = _("Add Band-Pass Graphic")
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
@@ -4732,7 +4732,7 @@ class AddBandPassGraphicAction(Window.Action):
 
 class AddLatticeGraphicAction(Window.Action):
     action_id = "graphics.add_lattice_graphic"
-    action_name = _("Add Lattice Filter")
+    action_name = _("Add Lattice Graphic")
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
