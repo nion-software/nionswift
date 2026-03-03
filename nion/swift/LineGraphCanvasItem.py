@@ -216,8 +216,10 @@ def calculate_y_axis(xdata_list: typing.Sequence[DataAndMetadata.DataAndMetadata
     # Convert calibrated limits to display space
     mapped_calibrated_data_min = data_style.convert_calibrated_value_to_mapped_calibrated_value(calibrated_min)
     mapped_calibrated_data_max = data_style.convert_calibrated_value_to_mapped_calibrated_value(calibrated_max)
-    if (math.isnan(mapped_calibrated_data_min) or math.isnan(mapped_calibrated_data_max) or math.isinf(mapped_calibrated_data_min) or math.isinf(mapped_calibrated_data_max)):
-        mapped_calibrated_data_min, mapped_calibrated_data_max = 0.0, 0.0
+    if math.isnan(mapped_calibrated_data_min) or math.isinf(mapped_calibrated_data_min):
+        mapped_calibrated_data_min = 0.0
+    if math.isnan(mapped_calibrated_data_max) or math.isinf(mapped_calibrated_data_max):
+        mapped_calibrated_data_max = 0.0
     mapped_calibrated_data_min, mapped_calibrated_data_max = min(mapped_calibrated_data_min, mapped_calibrated_data_max), max(mapped_calibrated_data_min, mapped_calibrated_data_max)
     if mapped_calibrated_data_min == mapped_calibrated_data_max:
         mapped_calibrated_data_min -= 1.0
