@@ -142,6 +142,17 @@ class TestLineGraphCanvasItem(unittest.TestCase):
                 self.assertAlmostEqual(numpy.nanmin(mapped_calibrated_data), math.log10(numpy.nanmin(data)))
                 self.assertAlmostEqual(numpy.nanmax(mapped_calibrated_data), math.log10(numpy.nanmax(data)))
 
+    def test_line_plot_with_negative_lower_display_limit_in_log_scale_displays_reasonable_limits(self):
+        # tests that entering a invalid lower display limit (negative) still results in a mapped calibrated data limits.
+        data = numpy.linspace(0, 10, 100, endpoint=False)
+        intensity_calibration = Calibration.Calibration()
+        xdata = DataAndMetadata.new_data_and_metadata(data, intensity_calibration=intensity_calibration)
+        mapped_calibrated_data_min, mapped_calibrated_data_max, y_ticker = LineGraphCanvasItem.calculate_y_axis([xdata], -2, 12, "log")
+        # the mapped calibrated data min should be 0.0 (a reasonable value for negative data)
+        # the unmapped mapped calibrated data max should match the upper display limit (12).
+        self.assertAlmostEqual(0.0, mapped_calibrated_data_min)
+        self.assertAlmostEqual(12.0, math.pow(10, mapped_calibrated_data_max))
+
     def test_line_plot_with_log_scale_displays_integers(self):
         data = numpy.array([1,2,3], dtype=int)
         data_style = "log"
