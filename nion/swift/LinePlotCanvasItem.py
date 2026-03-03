@@ -347,7 +347,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.__line_graph_area_stack = CanvasItem.CanvasItemComposition()
         self.__line_graph_background_canvas_item = LineGraphCanvasItem.LineGraphBackgroundCanvasItem()
         self.__line_graph_layers_canvas_item = LineGraphCanvasItem.LineGraphLayersCanvasItem()
-        self.__line_graph_regions_canvas_item = LineGraphCanvasItem.LineGraphRegionsCanvasItem()
+        self.__line_graph_regions_canvas_item = LineGraphCanvasItem.LineGraphRegionsCanvasItem(ui_settings)
         self.__line_graph_legend_row = CanvasItem.CanvasItemComposition()
         self.__line_graph_legend_row.layout = CanvasItem.CanvasItemRowLayout(margins=Geometry.Margins(4, 8, 4, 8))
         self.__line_graph_legend_canvas_item = LineGraphCanvasItem.LineGraphLegendCanvasItem(ui_settings, typing.cast(LineGraphCanvasItem.LineGraphLegendCanvasItemDelegate, delegate))
