@@ -2333,7 +2333,7 @@ class Computation(Persistence.PersistentObject):
         assert name == "variables"
 
         def needs_update(variable: ComputationVariable, event_type: BoundDataEventType) -> None:
-            if not self.__processor or self.__processor.needs_update_for_event(variable.name, event_type):
+            if not self.__processor or self.__processor.needs_update_for_event(variable.name, event_type) and self.is_resolved:
                 self.needs_update = True
             self.computation_mutated_event.fire()
 
@@ -2520,11 +2520,11 @@ class Computation(Persistence.PersistentObject):
         # this function is always run on the main thread.
         # run the execute function in a thread pool executor using the asyncio event loop.
         # the executor and all parameters are assumed to be thread safe.
-        api = PlugInManager.api_broker_fn("~1.0", None)
         executor: typing.Optional[ComputationExecutor] = None
         needs_update = self.needs_update
         self.needs_update = False
         if needs_update:
+            api = PlugInManager.api_broker_fn("~1.0", None)
             if self.expression:
                 executor = ScriptExpressionComputationExecutor(self, api)
             else:
