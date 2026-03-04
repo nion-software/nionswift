@@ -2039,6 +2039,7 @@ class Computation(Persistence.PersistentObject):
         self.__variable_changed_event_listeners: typing.List[Event.EventListener] = list()
         self.__variable_base_item_inserted_event_listeners: typing.List[Event.EventListener] = list()
         self.__variable_base_item_removed_event_listeners: typing.List[Event.EventListener] = list()
+        self.__result_changed_event_listeners: typing.List[Event.EventListener] = list()
         self.__result_base_item_inserted_event_listeners: typing.List[Event.EventListener] = list()
         self.__result_base_item_removed_event_listeners: typing.List[Event.EventListener] = list()
         self.__processor: typing.Optional[ComputationProcessor] = None
@@ -2306,12 +2307,20 @@ class Computation(Persistence.PersistentObject):
         self.__result_base_item_inserted_event_listeners.insert(before_index, result.item_inserted_event.listen(handle_result_item_inserted))
         self.__result_base_item_removed_event_listeners.insert(before_index, result.item_removed_event.listen(handle_result_item_removed))
 
+        def handle_result_changed(property_name: str) -> None:
+            if property_name == "specifier":
+                update_diff_notify(self, "output_items", self.__output_items, self.__get_output_items())
+                self.computation_output_changed_event.fire()
+
+        self.__result_changed_event_listeners.insert(before_index, result.property_changed_event.listen(handle_result_changed))
+
         result.bind()
 
         update_diff_notify(self, "output_items", self.__output_items, self.__get_output_items())
 
     def __result_removed(self, name: str, index: int, result: ComputationOutput) -> None:
         assert name == "results"
+        self.__result_changed_event_listeners.pop(index).close()
         self.__result_base_item_inserted_event_listeners.pop(index).close()
         self.__result_base_item_removed_event_listeners.pop(index).close()
         result.unbind()
@@ -2573,6 +2582,13 @@ class Computation(Persistence.PersistentObject):
             if not result.is_resolved:
                 return False
         return True
+
+    @property
+    def is_orphaned(self) -> bool:
+        for result in self.results:
+            if not result.is_resolved:
+                return True
+        return False
 
     def undelete_variable_item(self, name: str, index: int, specifier: Specifier) -> None:
         variable = self._get_variable(name)
