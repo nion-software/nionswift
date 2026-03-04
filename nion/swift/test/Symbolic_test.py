@@ -1900,6 +1900,40 @@ class TestSymbolicClass(unittest.TestCase):
                 document_model.recompute_all()
                 self.assertFalse(computation.needs_update)
 
+    def test_computation_with_unresolved_inputs_does_not_recompute(self):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            data_item = DataItem.DataItem(data=numpy.zeros((8, 8), numpy.float32))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            document_model.get_fft_new(display_item, display_item.data_item)
+            document_model.recompute_all()
+            computation = document_model.computations[-1]
+            # hack to make the input unresolved without actually removing the data item or display item
+            computation._get_variable("src").specifier = Symbolic.DataItemSpecifier(version=1)
+            self.assertFalse(computation.is_resolved)
+            evaluation_count = computation._evaluation_count_for_test
+            data_item.set_data(numpy.random.randn(8, 8))
+            document_model.recompute_all()
+            self.assertEqual(evaluation_count, computation._evaluation_count_for_test)
+
+    def test_computation_with_unresolved_outputs_does_not_recompute(self):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            data_item = DataItem.DataItem(data=numpy.zeros((8, 8), numpy.float32))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            document_model.get_fft_new(display_item, display_item.data_item)
+            document_model.recompute_all()
+            computation = document_model.computations[-1]
+            # hack to make the output unresolved without actually removing the data item or display item
+            computation._get_output("target").specifier = Symbolic.DataItemSpecifier(version=1)
+            self.assertFalse(computation.is_resolved)
+            evaluation_count = computation._evaluation_count_for_test
+            data_item.set_data(numpy.random.randn(8, 8))
+            document_model.recompute_all()
+            self.assertEqual(evaluation_count, computation._evaluation_count_for_test)
+
     def disabled_test_reshape_rgb(self):
         assert False
 
