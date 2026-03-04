@@ -4568,6 +4568,38 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(1, len(document_model.data_items))
             self.assertIn("P2", document_model.data_items[0]._test_get_file_path())
 
+    def test_reloading_orphaned_computations_removes_them(self):
+        with create_memory_profile_context() as profile_context:
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                fft_data_item = document_model.get_fft_new(display_item, display_item.data_item)
+                fft2_data_item = document_model.get_fft_new(display_item, display_item.data_item)
+                self.assertEqual(fft_data_item, document_model.computations[0].output_items[0])
+                self.assertEqual(fft2_data_item, document_model.computations[1].output_items[0])
+                # orphan the 2nd computation
+                document_model.computations[1]._get_output("target").specifier = Symbolic.DataItemSpecifier(version=1)
+                # confirm the 2nd computation is orphaned, but the first one is still valid.
+                self.assertEqual(fft_data_item, document_model.computations[0].output_items[0])
+                self.assertEqual(0, len(document_model.computations[1].output_items))
+                # remove the unused 2nd computated data item.
+                document_model.remove_data_item(fft2_data_item)
+                # double checks. we've removed the unused 2nd computed data item, but the orphaned computation
+                # should still exist until we reload.
+                self.assertEqual(2, len(document_model.data_items))
+                self.assertEqual(2, len(document_model.computations))
+            # read it back
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                read_data_item = document_model.data_items[0]
+                # confirm the orphaned computation is gone, but the other one is still there and valid
+                self.assertEqual(2, len(document_model.data_items))
+                self.assertEqual(1, len(document_model.computations))
+                # make sure the remaining computation is still valid
+                self.assertEqual(document_model.data_items[1], document_model.computations[0].output_items[0])
+
     def disabled_test_document_controller_disposes_threads(self):
         thread_count = threading.activeCount()
         with TestContext.create_memory_context() as test_context:

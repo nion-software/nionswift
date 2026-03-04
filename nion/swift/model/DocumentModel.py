@@ -1066,6 +1066,12 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             display_item.finish_project_read()
         self.project_loaded_event.fire()
         self.__is_loading = False
+        # special cleanup after project is loaded to remove computations with targets that are not in the project.
+        # this should not occur in regular use, but occurred prior to 2026-March due to this issue:
+        # https://github.com/nion-software/nionswift/issues/1795
+        for computation in list(self.__computations):
+            if computation.is_orphaned:
+                self.remove_computation(computation)
 
     def insert_model_item(self, container: Persistence.PersistentContainerType, name: str, before_index: int, item: Persistence.PersistentObject) -> None:
         container.insert_item(name, before_index, item)
