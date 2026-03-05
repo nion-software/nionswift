@@ -1258,11 +1258,19 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                     output_deleted = not items_set.isdisjoint(computation.output_items)
                     computation._inputs -= items_set
                     computation._outputs -= items_set
-                    if computation not in items and not computation.is_running:
+                    if computation not in items:
                         # computations are auto deleted if any input or output is deleted.
                         if output_deleted or not computation._inputs or input_deleted:
-                            self.__build_cascade(computation, items, dependencies)
-                            cascaded = True
+                            # if the computation is running and not committing, use soft_delete to delete it when finished.
+                            if computation.is_running:
+                                # if the computation is committing, the computation soft delete is not triggered since
+                                # the computation may be intentionally modifying its outputs using deletes.
+                                if not computation.is_committing:
+                                    # TODO: undo behavior is adversely affected during soft delete.
+                                    computation.soft_delete()
+                            else:
+                                self.__build_cascade(computation, items, dependencies)
+                                cascaded = True
             # print(list(reversed(items)))
             # print(list(reversed(dependencies)))
             for source, target in reversed(dependencies):
@@ -1629,16 +1637,18 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             # this runs on the main thread
             # run the computation execute on a thread by calling computation.async_evaluate
             # then commit the result in the same thread as this function is called (the main thread).
-            while event_loop and not computation._closed and computation.needs_update:
+            while event_loop and not computation._closed and computation.needs_update and not computation.is_deleted:
                 computation.is_running = True
                 computation_executor = await computation.async_evaluate(event_loop, computation_thread_pool_executor)
                 if not computation._closed and computation_executor:
                     try:
+                        computation.is_committing = True
                         computation_executor.commit()
                     except Exception as e:
                         import traceback
                         traceback.print_exc()
                     finally:
+                        computation.is_committing = False
                         computation_executor.mark_initial_computation_complete()
                         computation_executor.close()
                 # by putting this before the break from the loop, we ensure that the computation is not run too often.
@@ -1661,6 +1671,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 document_model = document_model_ref()
                 if document_model:
                     document_model.__computation_tasks.pop(computation)
+                if computation.is_deleted:
+                    self.remove_computation(computation)
 
             # when the task is finished, remove it from the set of computation tasks.
             computation_task.add_done_callback(functools.partial(discard_task, weakref.ref(self), computation))
