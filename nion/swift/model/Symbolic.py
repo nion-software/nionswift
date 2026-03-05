@@ -2062,6 +2062,10 @@ class Computation(Persistence.PersistentObject):
         self.__error_notification: typing.Optional[Notification.Notification] = None
         # manage the state of asynchronous computations. these can only be modified on main thread.
         self.is_running = False
+        # if the computation is committing, it won't be soft deleted if outputs are intentionally deleted.
+        self.is_committing = False
+        # if the computation is running and needs to be deleted, this can delay deletion until the computation finishes.
+        self.is_deleted = False
 
     @property
     def needs_update(self) -> bool:
@@ -2084,6 +2088,12 @@ class Computation(Persistence.PersistentObject):
         # called when computation is about to be deleted via model closing. this ensures that input objects to
         # this computation do not trigger recompute.
         self.__recompute_enabled = False
+
+    def soft_delete(self) -> None:
+        # soft delete triggers deletion after the computation finishes running. this method marks the computation
+        # for soft delete and flags it to stop.
+        self.is_deleted = True
+        self.stop()
 
     @property
     def variables(self) -> typing.Sequence[ComputationVariable]:
@@ -2342,7 +2352,7 @@ class Computation(Persistence.PersistentObject):
         assert name == "variables"
 
         def needs_update(variable: ComputationVariable, event_type: BoundDataEventType) -> None:
-            if not self.__processor or self.__processor.needs_update_for_event(variable.name, event_type) and self.is_resolved:
+            if not self.__processor or self.__processor.needs_update_for_event(variable.name, event_type) and self.is_resolved and not self.is_deleted:
                 self.needs_update = True
             self.computation_mutated_event.fire()
 

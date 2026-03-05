@@ -1,6 +1,7 @@
 # standard libraries
 import contextlib
 import copy
+import functools
 import logging
 import random
 import threading
@@ -18,7 +19,6 @@ import scipy.fft
 from nion.data import Calibration
 from nion.data import Core
 from nion.data import Image
-from nion.swift import Application
 from nion.swift import Facade
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
@@ -26,7 +26,6 @@ from nion.swift.model import Graphics
 from nion.swift.model import Symbolic
 from nion.swift.model import Utility
 from nion.swift.test import TestContext
-from nion.ui import TestUI
 from nion.utils import Geometry
 
 
@@ -1629,7 +1628,6 @@ class TestSymbolicClass(unittest.TestCase):
     def test_computation_removed_during_execute_is_handled(self):
         started_event = threading.Event()
         continue_event = threading.Event()
-        import functools
         Symbolic.register_computation_type("compute_delayed_error", functools.partial(self.ComputeExecDelayedError, started_event, continue_event))
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
@@ -1933,6 +1931,50 @@ class TestSymbolicClass(unittest.TestCase):
             data_item.set_data(numpy.random.randn(8, 8))
             document_model.recompute_all()
             self.assertEqual(evaluation_count, computation._evaluation_count_for_test)
+
+    class SlowComputation:
+        def __init__(self, started_event: threading.Event, continue_event: threading.Event, computation, **kwargs):
+            self.computation = computation
+            self.started_event = started_event
+            self.continue_event = continue_event
+
+        def execute(self, *, src_xdata, **kwargs):
+            self.started_event.set()
+            self.continue_event.wait(5)
+
+        def commit(self):
+            pass
+
+    def test_deleting_running_computation(self):
+        started_event = threading.Event()
+        continue_event = threading.Event()
+        Symbolic.register_computation_type("slow_computation", functools.partial(self.SlowComputation, started_event, continue_event))
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item_in = DataItem.DataItem(numpy.zeros((2, 2)))
+            data_item_out = DataItem.DataItem(numpy.zeros((2, 2)))
+            document_model.append_data_item(data_item_in)
+            document_model.append_data_item(data_item_out)
+            computation = document_model.create_computation()
+            computation.create_input_item("src_xdata", Symbolic.make_item(data_item_in, type="xdata"))
+            computation.create_output_item("a", Symbolic.make_item(data_item_out))
+            computation.processing_id = "slow_computation"
+            document_model.append_computation(computation)
+            # wait for the computation to start
+            document_controller.periodic()
+            started_event.wait(5)
+            # computation will be in execute now
+            document_model.remove_data_item(data_item_out)
+            self.assertIn(computation, document_model.computations)
+            # now let the computation finish
+            continue_event.set()
+            # give it a chance to fully complete with a pending error.
+            time.sleep(0.05)
+            document_model.recompute_all()
+            document_controller.periodic()
+            # check that computation was deleted
+            self.assertNotIn(computation, document_model.computations)
 
     def disabled_test_reshape_rgb(self):
         assert False
